@@ -24,10 +24,15 @@ import {
   factLine,
   familyCounts,
   familyMarks,
+  filtersOf,
   fromHash,
   largestSecondOrderR,
+  limitInUnits,
+  limitLine,
+  limitOutcome,
   minimumRuns,
   nextSteps,
+  parseLimit,
   projectionLines,
   pythonCode,
   results,
@@ -69,6 +74,9 @@ let plotlyReady = Promise.resolve(null);
 let mapWired = false;
 let errata = null;
 const shards = new Map();
+/** The limit whose outcome each design carries now (limit_outside), and the outcomes by design. */
+let judgedLimit = "";
+let outcomes = new Map();
 
 // ---------------------------------------------------------------- small pieces of the document
 let toastTimer = null;
@@ -128,6 +136,8 @@ function readForm() {
   for (const box of $$("[data-switch]")) state[box.dataset.switch] = box.checked;
   state.addedSince = $("#added").value;
   state.source = $("#source").value;
+  state.limit = $("#limit").value.trim();
+  state.limitAll = $("#limit-all").checked;
 }
 
 function writeForm() {
@@ -149,6 +159,8 @@ function writeForm() {
   for (const box of $$("[data-switch]")) box.checked = state[box.dataset.switch];
   $("#added").value = state.addedSince;
   $("#source").value = state.source;
+  $("#limit").value = state.limit;
+  $("#limit-all").checked = state.limitAll;
   $("#sort").value = state.sort;
 }
 
@@ -220,6 +232,9 @@ function card(design) {
   const twins = sameDesigns(catalog, design).length;
   const elsewhere = twins ? element("span", { class: "badge", text: `same design in ${twins} more ${twins === 1 ? "place" : "places"}` }) : null;
   const gap = design.collection === "generated" && !design.in_source ? element("span", { class: "badge", text: "no source prints it" }) : null;
+  const limited = filtersOf(state).limit && design.limit_outside > 0
+    ? element("span", { class: "badge badge--warn", text: `${design.limit_outside} of ${design.n_runs} runs outside the limit` })
+    : null;
   return element(
     "li",
     { class: "result" },
@@ -237,6 +252,7 @@ function card(design) {
         projects,
         elsewhere,
         gap,
+        limited,
       ),
       element("p", { class: "result__facts", text: factLine(design, catalog) }),
       element("p", { class: "result__source", text: [sourceLine(design, catalog), checks].filter(Boolean).join(" · ") }),
@@ -272,6 +288,14 @@ function renderList(list) {
 }
 
 function render() {
+  const limit = parseLimit(state.limit);
+  $("#limit-error").hidden = !limit.error;
+  $("#limit-error").textContent = limit.error ? `${limit.error[0].toUpperCase()}${limit.error.slice(1)}.` : "";
+  if (limit.ok && judgedLimit !== limit.text) {
+    $("#count").textContent = "Reading every design's runs to judge the limit...";
+    judgeLimit(limit).then(render, (err) => toast(`The limit could not be judged: ${err.message}.`, "error"));
+    return;
+  }
   const list = results(catalog, state);
   const published = list.filter((d) => d.collection === "published").length;
   const sentence = `${list.length} of ${catalog.designs.length} designs`;
@@ -287,6 +311,53 @@ function update({ keepPage = false } = {}) {
   if (!keepPage) shown = PAGE;
   history.replaceState(null, "", toHash(state) || location.pathname + location.search);
   render();
+}
+
+// ---------------------------------------------------------------- limits on the settings
+/**
+ * Judge every design's runs against a limit, reading the detail files the first time a limit is set,
+ * and mark each design with how many of its runs are outside it (limit_outside), or null when the
+ * limit cannot be judged on it.
+ */
+async function judgeLimit(limit) {
+  const names = [...new Set(catalog.designs.map((d) => d.detail))];
+  const held = await Promise.all(names.map((name) => shard(name)));
+  const details = Object.assign({}, ...held.map((h) => h.designs));
+  outcomes = new Map();
+  for (const design of catalog.designs) {
+    const detail = details[design.id];
+    const kinds = (detail?.factors ?? []).map((f) => f.type ?? "numeric");
+    const outcome = limitOutcome(limit, detail?.coded_runs ?? [], kinds);
+    outcomes.set(design.id, outcome);
+    design.limit_outside = outcome.judged ? outcome.outside.length : null;
+  }
+  judgedLimit = limit.text;
+}
+
+/** The campaign that opens a design in Factorial with the limit on its settings, written in its own units. */
+function limitedCampaign(design, detail, limit) {
+  const outcome = outcomes.get(design.id);
+  const campaign = structuredClone(detail.campaign);
+  const factors = campaign.design.spec.factors;
+  const expression = limitInUnits(limit, factors);
+  const note = `In coded units: ${limit.text}`; // a limit's note holds 80 characters at most (campaign.js)
+  campaign.design.spec.constraints = [{ expression, ...(note.length <= 80 ? { note } : {}) }];
+  const outside = outcome?.judged ? outcome.outside.map((i) => String(i + 1)) : [];
+  const which = outside.length === 1 ? `Run ${outside[0]} is` : `Runs ${outside.slice(0, -1).join(", ")} and ${outside.at(-1)} are`;
+  campaign.design.facts ??= { center_runs: 0, notes: [] };
+  campaign.design.facts.notes = [
+    ...campaign.design.facts.notes,
+    outside.length
+      ? `${which} outside your limits on the settings: choose the D-optimal or I-optimal design to make runs inside them.`
+      : "Every run is inside your limits on the settings.",
+  ];
+  return campaign;
+}
+
+/** Whether a design can open in Factorial with the limit: it opens, its factors are numeric, and the limit fits. */
+function opensWithLimit(design, detail, limit) {
+  if (!detail.campaign || !limit.ok || !outcomes.get(design.id)?.judged || design.n_categorical) return false;
+  return limitInUnits(limit, detail.campaign.design.spec.factors).length <= 500;
 }
 
 // ---------------------------------------------------------------- designs side by side
@@ -603,11 +674,12 @@ async function detailOf(id) {
   return { design, detail: held.designs[id] };
 }
 
-async function openInFactorial(id) {
+async function openInFactorial(id, { limited = false } = {}) {
   try {
-    const { detail } = await detailOf(id);
+    const { design, detail } = await detailOf(id);
     if (!detail.campaign) throw new Error(detail.closed || "the page does not open this design");
-    location.assign(app(`./${LINK_KEY}${await packCampaign(detail.campaign)}`));
+    const campaign = limited ? limitedCampaign(design, detail, parseLimit(state.limit)) : detail.campaign;
+    location.assign(app(`./${LINK_KEY}${await packCampaign(campaign)}`));
   } catch (err) {
     toast(`This design could not be opened: ${err.message}.`, "error");
   }
@@ -645,7 +717,7 @@ function detailBody(design, detail) {
     const checks = checkLine(design.checks);
     if (checks) body.push(element("p", { text: `Printed numbers: ${checks}. The library recomputes them on every change to it.` }));
     if (design.regenerable === true) body.push(element("p", { class: "detail__ok", text: "The library makes this design: the page's runs are the source's runs, to within its rounding." }));
-    if (design.regenerable === false) body.push(element("p", { class: "hint", text: `The design the page makes from this description is not the source's: ${detail.closed}.` }));
+    if (design.regenerable === false) body.push(element("p", { class: "hint", text: `The design the page makes from this description is not the source's: ${detail.unmade}.` }));
   } else {
     body.push(element("p", { text: "Made by process-improve's generate_design, with the call below." }));
   }
@@ -653,8 +725,16 @@ function detailBody(design, detail) {
   if (detail.notes) body.push(element("p", { class: "hint", text: detail.notes }));
 
   const actions = element("div", { class: "actions" });
+  const limit = parseLimit(state.limit);
   if (detail.campaign) {
     actions.append(element("button", { type: "button", class: "button primary", "data-open": design.id, text: "Open in Factorial" }));
+    if (opensWithLimit(design, detail, limit)) {
+      actions.append(element("button", { type: "button", class: "button", "data-open-limited": design.id, text: "Open in Factorial with this limit" }));
+    }
+    if (detail.opens_as === "given") {
+      const whose = source ? "the source's runs as it prints them" : "these runs as the library made them";
+      body.push(element("p", { class: "hint", text: `Factorial opens ${whose}, in their order: ${detail.unmade}.` }));
+    }
   } else {
     body.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
   }
@@ -664,6 +744,13 @@ function detailBody(design, detail) {
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
   );
   body.push(actions);
+  const outcome = limit.ok ? outcomes.get(design.id) : null;
+  if (outcome) {
+    body.push(element("p", { class: outcome.judged && outcome.outside.length ? "detail__warn" : "hint", text: limitLine(limit, outcome, design.n_runs) }));
+    if (opensWithLimit(design, detail, limit) && outcome.outside.length) {
+      body.push(element("p", { class: "hint", text: "Factorial opens it with the limit in its factors' own units, marks the runs outside it, and makes a D-optimal or I-optimal design inside it on request." }));
+    }
+  }
 
   body.push(...measures(design, detail), ...projections(design, detail), ...steps(design));
 
@@ -685,6 +772,8 @@ function detailBody(design, detail) {
         table(
           ["Run", ...names, ...responses],
           runs.slice(0, 400).map((row, i) => [String(i + 1), ...row.map(fmt), ...responses.map((r) => fmt(detail.response_values[r][i]))]),
+          "data",
+          (i) => (outcome?.judged && outcome.outside.includes(i) ? "row--outside" : ""),
         ),
       ),
     );
@@ -896,10 +985,11 @@ function wire() {
     update({ keepPage: true });
   });
   document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-id], [data-open], [data-copy-link], [data-copy-code], [data-csv], [data-compare], [data-close]");
+    const target = event.target.closest("[data-id], [data-open], [data-open-limited], [data-copy-link], [data-copy-code], [data-csv], [data-compare], [data-close]");
     if (!target) return;
-    const { id, open, copyLink, copyCode, csv, compare, close } = target.dataset;
+    const { id, open, openLimited, copyLink, copyCode, csv, compare, close } = target.dataset;
     if (close) $(`#${close}`).close();
+    else if (openLimited) openInFactorial(openLimited, { limited: true });
     else if (compare) toggleCompare(compare);
     else if (open) openInFactorial(open);
     else if (copyLink) copy(new URL(`#d=${copyLink}`, location.href).href, "The link");
@@ -1019,7 +1109,10 @@ async function start() {
   const differ = catalog.designs.reduce((n, d) => n + (d.checks?.explained ?? 0), 0);
   $("#errata-open").textContent = `Errata: the ${differ} printed numbers that do not reproduce, with the reasons`;
   buildFacets();
-  state = fromHash(location.hash, catalog.families, catalog.sources);
+  // A link from the book names its design in the query (?d=), which the book's theme leaves alone; the page keeps
+  // what it shows in the fragment, which no server sees, so the address is rewritten that way at once.
+  state = fromHash(location.hash || location.search, catalog.families, catalog.sources);
+  if (!location.hash && location.search) history.replaceState(null, "", location.pathname + toHash(state));
   writeForm();
   wire();
   render();

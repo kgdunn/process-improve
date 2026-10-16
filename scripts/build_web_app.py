@@ -372,7 +372,7 @@ def _page_factor(factor: dict[str, Any]) -> bool:
     """Say whether the page takes a factor as the source gives it: a name, and a low and high value or label."""
     low, high = factor.get("low"), factor.get("high")
     numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (low, high))
-    labels = all(isinstance(v, str) and v.strip() for v in (low, high))
+    labels = all(load_bootstrap()._label(v) is not None for v in (low, high))  # a label that reads as no number
     in_order = low < high if numbers else labels and low != high  # type: ignore[operator]
     return str(factor["name"]).isidentifier() and factor.get("type") in {"numeric", "categorical"} and in_order
 
@@ -455,6 +455,66 @@ def published_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     return None, f"the page's design differs from the source's: {reasons[0]}", True
 
 
+def _response_of(record: dict[str, Any]) -> str:
+    """Name the response a design opens with: the source's first one that can name a column, else ``y``."""
+    names = [f["name"] for f in record["factors"]]
+    return next((r["name"] for r in record["responses"] if r["name"].isidentifier() and r["name"] not in names), "y")
+
+
+def _given_setting(value: float, factor: dict[str, Any]) -> float | str | None:
+    """Return a coded setting in the factor's own units, or its label; None for a label the factor does not have."""
+    if isinstance(factor["low"], str):
+        return {-1.0: factor["low"], 1.0: factor["high"]}.get(round(value, 6))
+    middle, half = (factor["low"] + factor["high"]) / 2, (factor["high"] - factor["low"]) / 2
+    return float(f"{middle + value * half:.10g}")
+
+
+def _not_given(record: dict[str, Any]) -> str:
+    """Say why the page cannot take a design's runs as given, or return "" when it can: the first reason that holds."""
+    info, most = load_bootstrap().GIVEN_INFO, load_bootstrap().MAX_GIVEN_RUNS
+    runs, factors = record["coded_runs"], record["factors"]
+    low, high = info["min_factors"], info["max_factors"]
+    complete = bool(runs) and all(v is not None for row in runs for v in row)
+    reasons = (
+        (lambda: record["blocked"] or record["split_plot"], "the page opens designs without blocks or whole plots"),
+        (lambda: not complete, "the source prints no complete table of runs"),
+        (lambda: record["n_mixture"], "the page has no model for a mixture's proportions"),
+        (lambda: not low <= len(factors) <= high, f"the page opens designs of {low} to {high} factors"),
+        (lambda: len(runs) > most, f"the page holds at most {most} runs"),
+        (lambda: not all(map(_page_factor, factors)), "a factor's name, type or range is not one the page accepts"),
+    )
+    return next((why for holds, why in reasons if holds()), "")
+
+
+def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """Return the campaign that opens a design as its runs are given, and the reason there is none.
+
+    It opens a design the page does not make, or makes differently, with the runs as the source prints
+    them, or as the library made them: in their order, in the factors' own units, with the source's
+    results. The page takes runs without blocks or whole plots, of 2 to 12 numeric or two-level factors.
+    """
+    if why := _not_given(record):
+        return None, why
+    runs, factors = record["coded_runs"], record["factors"]
+    rows = [[_given_setting(v, f) for v, f in zip(row, factors, strict=True)] for row in runs]
+    if any(v is None for row in rows for v in row):
+        return None, "a categorical factor has more than the two levels the page takes"
+    response = _response_of(record)
+    asked = {
+        "design_type": "given",
+        "factors": [
+            {"name": f["name"], "low": f["low"], "high": f["high"], "units": str(f.get("units") or "")[:UNITS_MOST]}
+            for f in factors
+        ],
+        "response": response,
+        "runs": rows,
+    }
+    design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
+    design.pop("xlsx_base64")
+    values = record["response_values"].get(response) or [None] * len(rows)
+    return _campaign(record["title"], design, values), ""
+
+
 def write_catalog(out_dir: Path) -> None:
     """Write the catalog: ``catalog/index.json``, a detail file for each source and the rest, the errata and a feed.
 
@@ -483,6 +543,12 @@ def write_catalog(out_dir: Path) -> None:
         else:
             campaign, reason, tried = published_campaign(record)
             regenerable = campaign is not None if tried else None
+        # A design the page does not make, or makes otherwise, opens with its runs as given; the reason the page
+        # did not make it is kept, and the reason it does not open is the given runs' when they cannot be taken.
+        opens_as, unmade = ("made", "") if campaign else (None, reason)
+        if campaign is None:
+            campaign, why = given_campaign(record)
+            opens_as, reason = ("given", "") if campaign else (None, why)
         shard = record["source"] or "generated"
         designs.append(
             {
@@ -507,7 +573,9 @@ def write_catalog(out_dir: Path) -> None:
             "run_loss_model": record["run_loss_model"],
             "leverage": record["leverage"],
             "campaign": campaign,
+            "opens_as": opens_as,
             "closed": reason,
+            "unmade": unmade,
             "compare": comparisons.get(record["id"]),
         }
     index = {

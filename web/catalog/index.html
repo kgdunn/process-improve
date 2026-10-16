@@ -58,6 +58,8 @@
   <p class="catalog__views">
     <button type="button" class="link" id="errata-open">Errata: every printed number that does not reproduce</button>
     <a href="feed.xml">Follow new sources (Atom feed)</a>
+    <a href="https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml" rel="noopener">Propose a
+      design for the catalog</a>
   </p>
 
   <div class="catalog__body">
@@ -106,6 +108,15 @@
             <option value="3">Projectivity 3 or more</option>
             <option value="4">Projectivity 4 or more</option>
           </select>
+        </fieldset>
+        <fieldset>
+          <legend>Limits on the settings</legend>
+          <input id="limit" type="text" autocomplete="off" spellcheck="false" placeholder="A + B <= 1"
+            aria-label="A limit on the settings, in coded units" aria-describedby="limit-hint">
+          <p class="hint facets__hint" id="limit-hint">In coded units: A is a design's first factor, B its second, and so
+            on; -1 is a factor's low level and +1 its high. The list keeps the designs whose every run meets it.</p>
+          <p class="hint error" id="limit-error" role="status" hidden></p>
+          <label class="facets__switch"><input type="checkbox" id="limit-all"> Show the designs with runs outside it too</label>
         </fieldset>
         <fieldset>
           <legend>Structure</legend>

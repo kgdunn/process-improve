@@ -586,6 +586,36 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _typed("T <= 190", slice={"x": "T", "y": "T", "at": {}}),
         "The page sent a slice of the settings this page did not write.",
     ),
+    # Runs as given, which the design catalog opens: they must fit the factors.
+    "given: no runs": (
+        "api_make_design",
+        _make(design_type="given", runs=[]),
+        "The runs as given are not there: choose a design to make, or open the runs again.",
+    ),
+    "given: a run short of a factor": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1]]),
+        "Run 1 does not give one setting for each of the 3 factors.",
+    ),
+    "given: a word for a number": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, "fast"]]),
+        "Factor F: each run's setting must be a number.",
+    ),
+    "given: too many runs": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10]] * 2001),
+        "Runs as given hold at most 2000 runs; these are 2001.",
+    ),
+    "given: too many factors": (
+        "api_make_design",
+        _make(
+            design_type="given",
+            factors=[{"name": f"X{i}", "low": 0, "high": 1} for i in range(13)],
+            runs=[[0] * 13],
+        ),
+        "Runs as given take 2 to 12 factors on this page; you have 13.",
+    ),
 }
 
 

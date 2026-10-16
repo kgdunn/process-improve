@@ -69,6 +69,8 @@ export const DEFAULT_STATE = Object.freeze({
   design: "",
   compare: [],
   view: "",
+  limit: "",
+  limitAll: false,
 });
 
 /** The views the page opens over the list: the comparison of the designs chosen, and the errata. */
@@ -188,6 +190,8 @@ export function filtersOf(state) {
     projectivity: Math.max(state.projectivity, asked.projectivity ?? 0),
     years: narrower(state.years, asked.years),
     addedSince: state.addedSince,
+    limit: Boolean(state.limit) && parseLimit(state.limit).ok,
+    limitAll: state.limitAll,
     words: asked.words,
   };
 }
@@ -224,6 +228,9 @@ const TESTS = {
   projectivity: (d, f) => !f.projectivity || (d.projectivity ?? 0) >= f.projectivity,
   years: (d, f) => between(d.year, f.years),
   addedSince: (d, f) => !f.addedSince || (d.added !== null && d.added >= f.addedSince),
+  // A design is judged against a limit once the page has read its runs (limitOutcome): it passes when every
+  // run meets the limit, or, with limitAll, whenever it can be judged at all.
+  limit: (d, f) => !f.limit || (Number.isInteger(d.limit_outside) && (f.limitAll || d.limit_outside === 0)),
 };
 
 /** Say whether a design passes every filter, leaving out the one named ``except``. */
@@ -313,7 +320,7 @@ const KEYS = {
   collection: "col", query: "q", families: "fam", runs: "runs", factors: "k", model: "model", categorical: "cat",
   blocked: "blk", splitPlot: "sp", mixture: "mix", hasData: "data", recomputed: "rec", differs: "err", opens: "open",
   source: "src", unprinted: "gap", survives: "surv", projection: "qp", projectivity: "proj", years: "year",
-  addedSince: "added", sort: "sort", design: "d", compare: "cmp", view: "view",
+  addedSince: "added", sort: "sort", design: "d", compare: "cmp", view: "view", limit: "lim", limitAll: "lima",
 };
 
 /** The filters held as a list of names, written into the address joined by commas. */
@@ -358,11 +365,12 @@ export function fromHash(text, families = {}, sources = {}) {
   const read = (name) => params.get(KEYS[name]);
   if (COLLECTIONS.includes(read("collection"))) state.collection = read("collection");
   state.query = (read("query") ?? "").slice(0, 200);
+  state.limit = (read("limit") ?? "").slice(0, LIMIT_LENGTH);
   state.families = (read("families") ?? "").split(",").filter((f) => Object.hasOwn(families, f));
   for (const name of ["runs", "factors", "categorical", "years"]) state[name] = readRange(read(name));
   if (Object.hasOwn(MODELS, read("model"))) state.model = read("model");
   if (Object.hasOwn(sources, read("source"))) state.source = read("source");
-  for (const name of ["blocked", "splitPlot", "mixture", "hasData", "recomputed", "differs", "opens", "unprinted", "survives"]) {
+  for (const name of ["blocked", "splitPlot", "mixture", "hasData", "recomputed", "differs", "opens", "unprinted", "survives", "limitAll"]) {
     state[name] = read(name) === "1";
   }
   for (const name of ["projection", "projectivity"]) {
@@ -760,4 +768,222 @@ export function nextSteps(design, catalog) {
     const filters = { ...structuredClone({ ...DEFAULT_STATE }), families: [step.family], factors };
     return { ...step, label: catalog.families?.[step.family]?.label ?? step.family, hash: toHash(filters) };
   });
+}
+
+// ---------------------------------------------------------------- limits on the settings
+/**
+ * The letters a limit names a design's factors by, in coded units: A for its first factor, B for its
+ * second, and so on, without I, as the library names factors (A to H, then J).
+ */
+export const LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
+
+/** The most characters of a limit typed in the catalog. */
+export const LIMIT_LENGTH = 200;
+
+/** How far a run may sit past a limit, in the limit's own units, and still meet it (bootstrap.LIMIT_TOLERANCE). */
+const LIMIT_TOLERANCE = 1e-9;
+
+const SIGNS = {
+  "<=": (a, b) => a <= b + LIMIT_TOLERANCE,
+  ">=": (a, b) => a >= b - LIMIT_TOLERANCE,
+  "<": (a, b) => a < b + LIMIT_TOLERANCE,
+  ">": (a, b) => a > b - LIMIT_TOLERANCE,
+};
+
+/** The symbols a reader may type or paste for an operator, written as the page reads them. */
+const TYPED = [[/≤/g, "<="], [/≥/g, ">="], [/[−–]/g, "-"], [/[×·]/g, "*"], [/÷/g, "/"], [/\*\*/g, "^"]];
+
+function limitTokens(text) {
+  let source = text;
+  for (const [pattern, written] of TYPED) source = source.replace(pattern, written);
+  const pattern = /\s*(?:(\d+\.?\d*(?:e[+-]?\d+)?|\.\d+(?:e[+-]?\d+)?)|([A-Z])|(<=|>=|<|>|[-+*/^()]))\s*/y;
+  const out = [];
+  for (let at = 0; at < source.length; ) {
+    pattern.lastIndex = at;
+    const m = pattern.exec(source);
+    if (!m || pattern.lastIndex === at) throw new Error(`it cannot be read from "${source.slice(at).trim().slice(0, 12)}"`);
+    if (m[1] !== undefined) out.push({ kind: "number", value: Number(m[1]) });
+    else if (m[2] !== undefined) {
+      const index = LETTERS.indexOf(m[2]);
+      if (index < 0) throw new Error(`${m[2]} names no factor: the factors are A, B, C and so on, without I`);
+      out.push({ kind: "factor", index });
+    } else if (m[3] !== undefined) out.push({ kind: "op", value: m[3] });
+    at = pattern.lastIndex;
+  }
+  return out;
+}
+
+/** Read the tokens of a limit into its sides and the signs between them, by recursive descent. */
+function limitTree(tokens) {
+  let i = 0;
+  const op = (value) => tokens[i]?.kind === "op" && tokens[i].value === value && ++i;
+  const startsTerm = (t) => t && (t.kind === "factor" || (t.kind === "op" && t.value === "("));
+  function primary() {
+    const t = tokens[i++];
+    if (!t) throw new Error("it ends too soon");
+    if (t.kind === "number") return startsTerm(tokens[i]) ? { kind: "*", a: { kind: "number", value: t.value }, b: power() } : { kind: "number", value: t.value };
+    if (t.kind === "factor") return { kind: "factor", index: t.index };
+    if (t.value === "(") {
+      const inside = sum();
+      if (!op(")")) throw new Error("a bracket is not closed");
+      return inside;
+    }
+    throw new Error(`"${t.value}" cannot start a term`);
+  }
+  function power() {
+    const base = primary();
+    return op("^") ? { kind: "^", a: base, b: unary() } : base;
+  }
+  function unary() {
+    if (op("-")) return { kind: "neg", a: unary() };
+    if (op("+")) return unary();
+    return power();
+  }
+  function product() {
+    let a = unary();
+    for (;;) {
+      if (op("*")) a = { kind: "*", a, b: unary() };
+      else if (op("/")) a = { kind: "/", a, b: unary() };
+      else return a;
+    }
+  }
+  function sum() {
+    let a = product();
+    for (;;) {
+      if (op("+")) a = { kind: "+", a, b: product() };
+      else if (op("-")) a = { kind: "-", a, b: product() };
+      else return a;
+    }
+  }
+  const sides = [sum()];
+  const signs = [];
+  while (tokens[i]?.kind === "op" && Object.hasOwn(SIGNS, tokens[i].value)) {
+    signs.push(tokens[i++].value);
+    sides.push(sum());
+  }
+  if (i < tokens.length) throw new Error(`"${tokens[i].value ?? ""}" is not where it can be read`);
+  if (!signs.length) throw new Error("write <= for at most, or >= for at least");
+  return { sides, signs };
+}
+
+function factorsOf(node, found = new Set()) {
+  if (node.kind === "factor") found.add(node.index);
+  for (const child of [node.a, node.b]) if (child) factorsOf(child, found);
+  return found;
+}
+
+/**
+ * Read a limit on the coded settings, such as "A + B <= 1" or "-0.5 <= A - C <= 0.5": factors by
+ * their letters, numbers, + - * / ^ and brackets, and one or more of <=, >=, < and >. Nothing is
+ * evaluated as code. Returns {ok: true, text, sides, signs, factors} or {ok: false, error}.
+ */
+export function parseLimit(text) {
+  const written = String(text ?? "").trim();
+  if (!written) return { ok: false, error: "" };
+  if (written.length > LIMIT_LENGTH) return { ok: false, error: `the limit is longer than ${LIMIT_LENGTH} characters` };
+  try {
+    const { sides, signs } = limitTree(limitTokens(written));
+    const factors = [...sides.reduce((found, side) => factorsOf(side, found), new Set())].sort((a, b) => a - b);
+    if (!factors.length) return { ok: false, error: "the limit names no factor" };
+    return { ok: true, text: written, sides, signs, factors };
+  } catch (err) {
+    return { ok: false, error: `the limit cannot be read: ${err.message}` };
+  }
+}
+
+function value(node, x) {
+  switch (node.kind) {
+    case "number":
+      return node.value;
+    case "factor":
+      return x[node.index];
+    case "neg":
+      return -value(node.a, x);
+    case "+":
+      return value(node.a, x) + value(node.b, x);
+    case "-":
+      return value(node.a, x) - value(node.b, x);
+    case "*":
+      return value(node.a, x) * value(node.b, x);
+    case "/":
+      return value(node.a, x) / value(node.b, x);
+    default:
+      return value(node.a, x) ** value(node.b, x);
+  }
+}
+
+/** Whether a run, its coded settings in factor order, meets a limit read by parseLimit. */
+export function meets(limit, run) {
+  const values = limit.sides.map((side) => value(side, run));
+  return limit.signs.every((sign, i) => SIGNS[sign](values[i], values[i + 1]));
+}
+
+/**
+ * Judge a design's runs against a limit: {judged: true, outside: [run indices]} when every factor the
+ * limit names is one of the design's numeric factors with every run's setting given, else
+ * {judged: false, why}.
+ */
+export function limitOutcome(limit, runs, kinds) {
+  if (!runs?.length) return { judged: false, why: "the catalog holds no table of its runs" };
+  const beyond = limit.factors.find((j) => j >= kinds.length);
+  if (beyond !== undefined) return { judged: false, why: `the limit names ${LETTERS[beyond]}, and the design has ${plural(kinds.length, "factor")}` };
+  const labelled = limit.factors.find((j) => kinds[j] === "categorical");
+  if (labelled !== undefined) return { judged: false, why: `${LETTERS[labelled]} is a categorical factor, which has no coded value between its levels` };
+  if (runs.some((run) => limit.factors.some((j) => run[j] === null || run[j] === undefined))) {
+    return { judged: false, why: "a run's setting of a factor the limit names is not printed" };
+  }
+  return { judged: true, outside: runs.flatMap((run, i) => (meets(limit, run) ? [] : [i])) };
+}
+
+/** A limit's outcome on a design, in a sentence. */
+export function limitLine(limit, outcome, n) {
+  if (!outcome.judged) return `The limit ${limit.text} cannot be judged on this design: ${outcome.why}.`;
+  if (!outcome.outside.length) return `Every one of its ${plural(n, "run")} meets the limit ${limit.text}.`;
+  const shown = outcome.outside.map((i) => String(i + 1));
+  const which = shown.length === 1 ? `Run ${shown[0]} is` : `Runs ${joined(shown)} are`;
+  return `${which} outside the limit ${limit.text}, of its ${plural(n, "run")}.`;
+}
+
+const number = (x) => String(Number(x.toPrecision(12)));
+
+/**
+ * Write a limit on the coded settings in a design's factors and their own units, as Factorial reads
+ * a limit: each letter becomes ((name - centre) / half-range). Every operation is bracketed, so the
+ * text means what the tree means.
+ */
+export function limitInUnits(limit, factors) {
+  const coded = (j) => {
+    const f = factors[j];
+    const centre = (f.low + f.high) / 2;
+    const half = (f.high - f.low) / 2;
+    if (centre === 0) return half === 1 ? f.name : `(${f.name} / ${number(half)})`;
+    const shifted = `${f.name} ${centre < 0 ? "+" : "-"} ${number(Math.abs(centre))}`;
+    return half === 1 ? `(${shifted})` : `((${shifted}) / ${number(half)})`;
+  };
+  const write = (node) => {
+    switch (node.kind) {
+      case "number":
+        return number(node.value);
+      case "factor":
+        return coded(node.index);
+      case "neg":
+        return `(-${write(node.a)})`;
+      case "^":
+        return `(${write(node.a)} ** ${write(node.b)})`;
+      default:
+        return `(${write(node.a)} ${node.kind} ${write(node.b)})`;
+    }
+  };
+  const sides = limit.sides.map((side) => write(side).replace(/^\((.*)\)$/, (whole, inner) => (balanced(inner) ? inner : whole)));
+  return sides.map((side, i) => (i ? ` ${limit.signs[i - 1]} ${side}` : side)).join("");
+}
+
+/** Whether a text's brackets pair up, so the brackets around it can be dropped. */
+function balanced(text) {
+  let depth = 0;
+  for (const c of text) {
+    depth += c === "(" ? 1 : c === ")" ? -1 : 0;
+    if (depth < 0) return false;
+  }
+  return depth === 0;
 }

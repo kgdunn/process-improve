@@ -50,6 +50,7 @@ from process_improve.experiments import (
     separating_constraint,
 )
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
+from process_improve.experiments.design_measures import estimable_models
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
 
 if TYPE_CHECKING:
@@ -144,6 +145,27 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "max_factors": 6,
     },
 }
+
+#: The design the page holds but does not make: runs taken as they are given, such as a design a book
+#: prints, opened from the design catalog. It is not in :data:`DESIGNS`, so the comparison never tries
+#: it; the design list (index.html) holds its option hidden, and shows it once a run sheet of given
+#: runs is open, so the reader can make those runs again after changing the brief.
+GIVEN = "given"
+GIVEN_INFO: dict[str, Any] = {
+    "label": "Runs as given",
+    "hint": "The runs of a design you have already, such as one a book prints: the page takes them as they are.",
+    "min_factors": 2,
+    "max_factors": 12,
+}
+
+#: The most runs a design of given runs may have: as many as a study the page holds (campaign.js).
+MAX_GIVEN_RUNS = 2000
+
+#: How far a given run may sit past a limit on the settings, in the limit's own units, and still meet it.
+LIMIT_TOLERANCE = 1e-9
+
+#: What a design of given runs says of itself. It names no factor, so a renaming keeps it.
+GIVEN_NOTE = "These runs are taken as they were given, in that order: the page made none of them."
 
 #: Designs whose non-centre runs all lie on one sphere (Box-Behnken at any size, a
 #: rotatable CCD at 2 or 4 factors), so without a center run the squared terms sum
@@ -706,6 +728,8 @@ def make_design(spec: dict) -> dict:
     with an empty response column for the reader to fill in.
     """
     design_type = spec.get("design_type", "")
+    if design_type == GIVEN:
+        return _given_design(spec)
     if design_type not in DESIGNS:
         raise ValueError(f"Unknown design type {design_type!r}.")
     factors = _factors(spec)
@@ -768,6 +792,91 @@ def make_design(spec: dict) -> dict:
 
 #: What a design made with limits on the settings says of its runs. It names no factor, so a renaming keeps it.
 INSIDE_LIMITS = "Every run is inside your limits on the settings."
+
+
+def _given_design(spec: dict) -> dict:
+    """Take a design's runs as they are given, in the factors' own units and in the order given.
+
+    ``runs`` holds one list per run, a setting for each factor in the order of ``factors``: a number,
+    or one of a categorical factor's two labels. The run sheet keeps the runs in that order. The
+    design's model is the largest of :data:`MODELS` its runs estimate in full. With limits on the
+    settings, the runs stay as they are, and the design's notes say which of them the limits rule out.
+    """
+    factors = _factors(spec)
+    low, high = GIVEN_INFO["min_factors"], GIVEN_INFO["max_factors"]
+    if not low <= len(factors) <= high:
+        raise ValueError(f"Runs as given take {low} to {high} factors on this page; you have {len(factors)}.")
+    names = [f.name for f in factors]
+    rows = spec.get("runs")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("The runs as given are not there: choose a design to make, or open the runs again.")
+    if len(rows) > MAX_GIVEN_RUNS:
+        raise ValueError(f"Runs as given hold at most {MAX_GIVEN_RUNS} runs; these are {len(rows)}.")
+    if bad := next((i for i, row in enumerate(rows, 1) if not isinstance(row, list) or len(row) != len(names)), None):
+        raise ValueError(f"Run {bad} does not give one setting for each of the {len(names)} factors.")
+    runs = pd.DataFrame(rows, columns=names, dtype=object)
+    for f in factors:
+        if f.type == "categorical":
+            continue
+        values = [_number(v) for v in runs[f.name]]
+        if None in values:
+            raise ValueError(f"Factor {f.name}: each run's setting must be a number.")
+        runs[f.name] = values
+    response = _response_name(str(spec.get("response") or "y").strip(), factors)
+    limits = _checked_constraints(spec.get("constraints"), factors)
+    stored: dict[str, Any] = {
+        "version": SPEC_VERSION,
+        "design_type": GIVEN,
+        "factors": [_factor_spec(f) for f in factors],
+        "response": response,
+        "options": {},
+        **_described(spec),
+        **({"constraints": limits} if limits else {}),
+    }
+    coded = _coded(runs, stored["factors"]).to_numpy(dtype=float)
+    kinds = ["categorical" if f.type == "categorical" else "numeric" for f in factors]
+    fits = estimable_models(coded, kinds)
+    stored["model"] = next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
+    runs.insert(0, "Run order", range(1, len(runs) + 1))
+    runs.insert(0, "Std order", range(1, len(runs) + 1))
+    runs[response] = np.nan
+    groups = _aliased_groups(coded, names)
+    notes = [GIVEN_NOTE, _aliasing_sentence(groups)]
+    if limits:
+        # The limits alone: a given run may lie beyond a factor's range, as an axial run does, and still meet them.
+        region = _region(factors, [limit["expression"] for limit in limits])
+        points = coded[:, [names.index(name) for name in region.names]]
+        meets = np.all([g(points) <= LIMIT_TOLERANCE for g in region.inequalities], axis=0)
+        outside = np.flatnonzero(~meets).tolist()
+        notes.append(_outside_limits_sentence(outside) if outside else INSIDE_LIMITS)
+    facts = {
+        "resolution": None,
+        "generators": [],
+        "defining_relation": [],
+        "aliases": groups,
+        "center_runs": int(np.all(np.abs(coded) < ALIAS_TOLERANCE, axis=1).sum()),
+        "notes": notes,
+    }
+    return {
+        "n_runs": len(runs),
+        "columns": list(runs.columns),
+        "rows": [list(row) for row in runs.itertuples(index=False)],
+        "outside_range": _outside_range(runs, factors),
+        "model": stored["model"],
+        "facts": facts,
+        "spec": stored,
+        "xlsx_base64": _to_workbook(runs, stored),
+    }
+
+
+def _outside_limits_sentence(outside: list[int]) -> str:
+    """Say which given runs the limits on the settings rule out, by their place in the run sheet."""
+    shown = [str(i + 1) for i in outside]
+    which = f"Run {shown[0]} is" if len(shown) == 1 else f"Runs {_listed(shown)} are"
+    return (
+        f"{which} outside your limits on the settings: choose the D-optimal or I-optimal design to make runs "
+        "inside them."
+    )
 
 
 def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: str | None = None) -> DesignRegion:
@@ -1576,11 +1685,11 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     factor and response names must be variable names, the blocks a whole number, and the
     limits on the settings ones the page reads, each stored in its canonical text.
     """
-    if not isinstance(spec, dict) or spec.get("design_type") not in DESIGNS:
+    if not isinstance(spec, dict) or spec.get("design_type") not in (*DESIGNS, GIVEN):
         raise ValueError("The page sent a design this page did not make.")
     factors = _factors(spec)
     response = _response_name(str(spec.get("response") or ""), factors)
-    model = spec.get("model") or DESIGNS[spec["design_type"]]["model"]
+    model = spec.get("model") or DESIGNS.get(spec["design_type"], {}).get("model", MODELS[0])
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     options = spec.get("options") or {}
