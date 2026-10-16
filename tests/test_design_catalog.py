@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 
 import numpy as np
@@ -9,20 +10,23 @@ import pytest
 
 from process_improve.experiments import design_catalog, generate_design
 from process_improve.experiments.design_catalog import (
+    CATALOG_URL,
     FAMILIES,
     GENERATED,
     GLYPH_ROWS,
     INDEX_FIELDS,
+    CatalogQuery,
     catalog_families,
     catalog_records,
     catalog_sources,
     design_facets,
-    estimable_models,
     glyph,
     normalise_family,
     printed_checks,
     published_runs,
+    search_catalog,
 )
+from process_improve.experiments.design_measures import estimable_models
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.reference_catalogue import (
     reference_designs,
@@ -98,11 +102,6 @@ def _coded(design_type: str, k: int, **options) -> np.ndarray:
     return result.design[[f.name for f in factors]].to_numpy(dtype=float)
 
 
-def test_a_two_level_factorial_estimates_interactions_but_no_squares():
-    square = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1]], dtype=float)
-    assert estimable_models(square, ["numeric"] * 2) == {"main_effects": True, "interactions": True, "quadratic": False}
-
-
 def test_a_resolution_three_fraction_estimates_main_effects_only():
     coded = _coded("fractional_factorial", 7, resolution=3, n_center_points=0)
     assert len(coded) == 8
@@ -116,23 +115,6 @@ def test_a_resolution_three_fraction_estimates_main_effects_only():
 def test_a_central_composite_design_estimates_the_full_quadratic():
     coded = _coded("ccd", 3, alpha="face_centered", n_center_points=3)
     assert estimable_models(coded, ["numeric"] * 3)["quadratic"] is True
-
-
-def test_a_categorical_factor_enters_with_a_column_per_extra_level():
-    """Three suppliers crossed with two temperatures: six runs, main effects and the interaction in full."""
-    runs = np.array([[s, t] for s in (-1.0, 0.0, 1.0) for t in (-1.0, 1.0)])
-    models = estimable_models(runs, ["categorical", "numeric"])
-    assert models == {"main_effects": True, "interactions": True, "quadratic": False}
-    one = estimable_models(runs[:, :1], ["categorical"])
-    assert one["interactions"] is None, "one factor has no interactions"
-    assert one["quadratic"] is None, "no numeric factor to square"
-
-
-def test_a_mixture_or_a_missing_setting_leaves_the_models_unstated():
-    simplex = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
-    assert set(estimable_models(simplex, ["mixture"] * 3).values()) == {None}
-    gap = np.array([[-1, 1], [1, np.nan], [-1, -1], [1, 1]])
-    assert set(estimable_models(gap, ["numeric"] * 2).values()) == {None}
 
 
 def test_a_factor_held_at_one_level_adds_nothing_to_estimate():
@@ -218,7 +200,7 @@ def test_every_generated_design_has_a_name_of_its_own():
 @pytest.mark.slow
 def test_generated_records_are_the_designs_the_library_makes(records):
     generated = [r for r in records if r["collection"] == "generated"]
-    assert len(generated) == len(GENERATED)
+    assert 100 < len(generated) <= len(GENERATED), "options that make one design keep it once"
     ids = [r["id"] for r in records]
     assert len(set(ids)) == len(ids), "each design has an id of its own"
     dsd = next(r for r in generated if r["id"] == "lib-dsd-k6")
@@ -226,6 +208,28 @@ def test_generated_records_are_the_designs_the_library_makes(records):
     ccd = next(r for r in generated if r["id"] == "lib-ccd-k2-rotatable")
     assert ccd["levels"] == [5, 5], "the axial runs add two levels to the cube's two and the centre"
     assert all(r["source"] is None and r["year"] is None for r in generated)
+
+
+@pytest.mark.slow
+def test_generated_records_carry_the_measures_of_their_runs(records):
+    by_id = {r["id"]: r for r in records}
+    dsd = by_id["lib-dsd-k6"]
+    assert (dsd["quadratic_projection"], dsd["projectivity"]) == (3, None)
+    assert (dsd["run_loss_model"], dsd["survives_run_loss"]) == ("main_effects", True)
+    pb = by_id["lib-plackett-burman-k11"]
+    assert (pb["survives_run_loss"], pb["critical_runs"], pb["projectivity"]) == (False, 12, 3)
+    assert len(pb["leverage"]) == 12
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_one_design_printed_in_several_places_is_one_class(records):
+    """Box, Hunter and Hunter's pilot plant is a 2^3 factorial: the class of the one the library makes."""
+    by_id = {r["id"]: r for r in records}
+    assert by_id["bhh-pilot-plant-2-3"]["design_class"] == by_id["lib-full-factorial-k3"]["design_class"]
+    assert by_id["lib-full-factorial-k3"]["design_class"] != by_id["lib-fractional-factorial-k4-res4"]["design_class"]
+    assert by_id["bhh-plant-trial-two-methods"]["design_class"] is not None
+    assert all(r["design_class"] is None for r in records if not r["glyph"])
 
 
 @pytest.mark.slow
@@ -285,3 +289,62 @@ def test_each_source_carries_its_citation_and_terms():
     assert sources["davies-1956"]["short"] == "Davies"
     assert sources["schmidt-launsby-2000"]["short"] == "Schmidt and Launsby"
     assert all(0 < len(source["short"]) <= 50 for source in sources.values())
+
+
+# --------------------------------------------------------------------------- searching the catalog
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_a_search_keeps_the_designs_that_pass_every_filter():
+    found = search_catalog(min_factors=6, max_factors=6, max_runs=17, min_quadratic_projection=3)
+    assert {d["family"] for d in found} == {"dsd", "omars"}
+    assert [d["n_runs"] for d in found] == sorted(d["n_runs"] for d in found), "the fewest runs first"
+    assert all(d["url"] == f"{CATALOG_URL}#d={d['id']}" for d in found)
+    published = search_catalog(text="pilot plant", collection="published", has_results=True)
+    assert "bhh-pilot-plant-2-3" in {d["id"] for d in published}
+    pilot = next(d for d in published if d["id"] == "bhh-pilot-plant-2-3")
+    assert pilot["source_short"] == "Box, Hunter and Hunter (1978)"
+    assert pilot["same_design"] >= 1, "the 2^3 factorial is printed in many places"
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_a_year_keeps_published_designs_and_the_newest_come_first():
+    found = search_catalog(year_from=2019, sort="newest")
+    assert found
+    assert all(d["collection"] == "published" and d["year"] >= 2019 for d in found)
+    assert [d["year"] for d in found] == sorted((d["year"] for d in found), reverse=True)
+
+
+def test_a_search_refuses_a_family_or_model_the_catalog_does_not_have():
+    with pytest.raises(ValueError, match=r"Unknown families \['nope'\]"):
+        search_catalog(families=["nope"])
+    with pytest.raises(ValueError, match="Unknown model 'cubic'"):
+        search_catalog(model="cubic")
+
+
+def test_a_search_takes_a_query_whose_fields_named_ones_replace_and_refuses_a_misspelt_one():
+    query = CatalogQuery(families=("dsd",), sort="factors")
+    assert dataclasses.replace(query, max_runs=13).families == ("dsd",)
+    with pytest.raises(TypeError, match="min_factor"):
+        search_catalog(query, min_factor=3)
+
+
+def test_the_search_tool_is_registered_with_a_strict_schema():
+    from process_improve.tool_spec import discover_tools, get_tool_specs
+
+    discover_tools()
+    spec = {s["name"]: s for s in get_tool_specs()}["search_design_catalog"]
+    assert spec["category"] == "experiments"
+    assert spec["input_schema"]["additionalProperties"] is False
+    assert "https://factori.al/catalog/" in spec["description"]
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_the_search_tool_returns_designs_with_their_pages():
+    from process_improve.tool_spec import execute_tool_call
+
+    found = execute_tool_call("search_design_catalog", {"families": ["box_behnken"], "max_factors": 3, "limit": 2})
+    assert found["count"] >= found["shown"] == len(found["designs"]) == 2
+    assert all(d["family"] == "box_behnken" and d["url"].startswith(CATALOG_URL) for d in found["designs"])
+    assert execute_tool_call("search_design_catalog", {"families": ["nope"]})["error"].startswith("Unknown families")

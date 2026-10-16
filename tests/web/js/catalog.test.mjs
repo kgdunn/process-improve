@@ -17,8 +17,11 @@ import {
   INDEX_FIELDS,
   minimumRuns,
   parseQuery,
+  projectionLines,
   pythonCode,
   results,
+  runLossLine,
+  sameDesigns,
   settingColour,
   sorted,
   sourceLine,
@@ -59,6 +62,12 @@ const design = (changes) => ({
   regenerable: true,
   open: true,
   detail: "bhh",
+  survives_run_loss: true,
+  critical_runs: 0,
+  worst_d_ratio: 0.7430,
+  quadratic_projection: 0,
+  projectivity: 3,
+  design_class: "cube",
   ...changes,
 });
 
@@ -87,6 +96,12 @@ const CATALOG = {
       checks: { printed: 9, checked: 9, agree: 8, explained: 1 },
       open: false,
       regenerable: false,
+      survives_run_loss: false,
+      critical_runs: 14,
+      worst_d_ratio: 0,
+      quadratic_projection: null,
+      projectivity: null,
+      design_class: "dsd-augmented",
     }),
     design({
       id: "lib-ccd-k3",
@@ -101,6 +116,8 @@ const CATALOG = {
       models: { main_effects: true, interactions: true, quadratic: true },
       checks: null,
       regenerable: null,
+      quadratic_projection: 3,
+      design_class: "ccd",
     }),
   ],
 };
@@ -142,6 +159,15 @@ describe("the search box", () => {
     assert.deepEqual(parseQuery("CCD or Box-Behnken").families, ["ccd", "box_behnken"]);
   });
 
+  test("reads what a design withstands: a lost run, its projections, its projectivity", () => {
+    const asked = parseQuery("3-factor projection, survives a lost run, projectivity 4");
+    assert.equal(asked.projection, 3);
+    assert.equal(asked.survives, true);
+    assert.equal(asked.projectivity, 4);
+    assert.equal(asked.factors, undefined, "a 3-factor projection names no number of factors");
+    assert.equal(parseQuery("projects onto any 2").projection, 2);
+  });
+
   test("no categorical factors is a filter of its own", () => {
     assert.deepEqual(parseQuery("no categorical factors").categorical, [null, 0]);
   });
@@ -169,6 +195,14 @@ describe("the filters", () => {
     assert.deepEqual(ids(results(CATALOG, state({ differs: true }))), ["dsd-categorical"]);
     assert.deepEqual(ids(results(CATALOG, state({ recomputed: true }))), ["pilot-plant", "dsd-categorical"]);
     assert.deepEqual(ids(results(CATALOG, state({ opens: true }))), ["pilot-plant", "lib-ccd-k3"]);
+  });
+
+  test("what a design withstands", () => {
+    assert.deepEqual(ids(results(CATALOG, state({ survives: true }))), ["pilot-plant", "lib-ccd-k3"]);
+    assert.deepEqual(ids(results(CATALOG, state({ projection: 3 }))), ["lib-ccd-k3"]);
+    assert.deepEqual(ids(results(CATALOG, state({ projectivity: 3 }))), ["pilot-plant", "lib-ccd-k3"]);
+    assert.deepEqual(ids(results(CATALOG, state({ query: "survives a lost run, 3-factor projection" }))), ["lib-ccd-k3"]);
+    assert.deepEqual(filtersOf(state({ projection: 2, query: "4-factor projection" })).projection, 4);
   });
 
   test("the sidebar and the search box must both hold", () => {
@@ -229,6 +263,9 @@ describe("the address", () => {
       runs: [8, null],
       years: [1990, 2020],
       hasData: true,
+      survives: true,
+      projection: 3,
+      projectivity: 2,
       sort: "newest",
       design: "pilot-plant",
     });
@@ -236,7 +273,7 @@ describe("the address", () => {
   });
 
   test("anything the page did not write is ignored", () => {
-    const read = fromHash("#col=all&fam=dsd,nothing&runs=x-9&model=cubic&added=yesterday&d=../etc&blk=yes", CATALOG.families);
+    const read = fromHash("#col=all&fam=dsd,nothing&runs=x-9&model=cubic&added=yesterday&d=../etc&blk=yes&qp=12&proj=x", CATALOG.families);
     assert.equal(read.collection, "both");
     assert.deepEqual(read.families, ["dsd"]);
     assert.deepEqual(read.runs, [null, null]);
@@ -244,6 +281,8 @@ describe("the address", () => {
     assert.equal(read.addedSince, "");
     assert.equal(read.design, "");
     assert.equal(read.blocked, false);
+    assert.equal(read.projection, 0);
+    assert.equal(read.projectivity, 0);
   });
 });
 
@@ -276,6 +315,44 @@ describe("the picture and the words", () => {
     assert.equal(checkLine({ printed: 2, checked: 0, agree: 0, explained: 0 }), "2 printed numbers, none recomputed");
     assert.equal(sourceLine(pilot, CATALOG), "Box, Hunter and Hunter (1978), pp. 307-324; Table 10.1");
     assert.equal(sourceLine(CATALOG.designs[2], CATALOG), "Made by process-improve");
+  });
+});
+
+describe("what a design withstands, in words", () => {
+  test("losing a run", () => {
+    const pilot = CATALOG.designs[0];
+    assert.equal(
+      runLossLine(pilot, "interactions"),
+      "If any one run is lost, the design still estimates two-factor interactions; the worst loss leaves 74% of its D-efficiency.",
+    );
+    assert.equal(
+      runLossLine(CATALOG.designs[1], "main_effects"),
+      "None of its 14 runs can be lost: without any one of them the design no longer estimates main effects.",
+    );
+    assert.equal(
+      runLossLine(design({ survives_run_loss: false, critical_runs: 1, n_runs: 9 }), "main_effects"),
+      "1 of its 9 runs cannot be lost: without it the design no longer estimates main effects.",
+    );
+    assert.equal(runLossLine(design({ survives_run_loss: null }), "main_effects"), "");
+  });
+
+  test("projections", () => {
+    assert.deepEqual(projectionLines(design({ quadratic_projection: 3, n_numeric: 6, projectivity: null })), [
+      "Any 3 of its factors: the runs estimate the full quadratic in them, so if only 3 matter, their response surface needs no more runs.",
+    ]);
+    assert.deepEqual(projectionLines(design({ quadratic_projection: 0, projectivity: 3, n_factors: 3 })), [
+      "Its two-level runs hold every combination of its 3 factors' levels.",
+    ]);
+    assert.deepEqual(projectionLines(design({ quadratic_projection: 0, projectivity: 3, n_factors: 11 })), [
+      "Projectivity 3: any 3 of its factors hold all 8 combinations of their two levels.",
+    ]);
+  });
+
+  test("the same design elsewhere", () => {
+    const twin = design({ id: "twin", design_class: "cube" });
+    const catalog = { ...CATALOG, designs: [...CATALOG.designs, twin] };
+    assert.deepEqual(ids(sameDesigns(catalog, catalog.designs[0])), ["twin"]);
+    assert.deepEqual(sameDesigns(catalog, design({ design_class: null })), []);
   });
 });
 

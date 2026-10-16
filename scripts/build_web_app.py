@@ -490,6 +490,8 @@ def write_catalog(out_dir: Path) -> None:
             "where": record["where_full"],
             "spec": record.get("spec"),
             "listed": record.get("listed"),
+            "run_loss_model": record["run_loss_model"],
+            "leverage": record["leverage"],
             "campaign": campaign,
             "closed": reason,
         }
