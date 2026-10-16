@@ -110,6 +110,7 @@ export function renderPicture(result, factors, shown) {
   const picture = result?.picture ?? null;
   const numeric = factors.filter((f) => !isCategorical(f)).length;
   $("#region").hidden = !shown || !picture || numeric < 2;
+  if (!shown && inside) closePicture(); // no limit to picture: the next one opens on every pair
   if ($("#region").hidden) return;
   const every = $("#every-pair");
   every.hidden = numeric < ASK_EVERY_PAIR_FROM;

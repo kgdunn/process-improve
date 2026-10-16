@@ -117,3 +117,16 @@ def test_from_five_factors_the_picture_shows_every_pair_on_request(fresh_page):
     limits_done(page)
     assert len(panels(page)) == 10
     assert page.get_attribute("#every-pair", "aria-pressed") == "true"
+
+
+def test_with_its_last_limit_removed_the_picture_opens_on_every_pair_again(blank_page):
+    page = blank_page
+    type_limit(page, HEAT)
+    page.get_by_role("button", name="Look inside T and P").click()
+    limits_done(page)
+    page.get_by_role("button", name="Remove limit 1").click()
+    limits_done(page)
+    assert page.locator("#region").is_hidden(), "nothing to picture"
+    type_limit(page, HEAT)
+    assert page.locator("#region-panels").is_visible()
+    assert page.locator("#region-slice").is_hidden()
