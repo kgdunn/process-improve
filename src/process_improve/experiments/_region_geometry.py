@@ -62,8 +62,10 @@ def round_significant(values: np.ndarray, digits: int = 12) -> np.ndarray:
     exponent = digits - 1 - np.where(np.isfinite(magnitude), magnitude, 0.0)
     power = 10.0 ** np.abs(exponent)
     # Dividing by an exact power of ten rounds once, so a whole number of units in the last kept digit comes
-    # back as the double nearest that decimal (multiplying by 10**-n would not: 10**-n is inexact).
-    return np.where(exponent >= 0, np.round(v * power) / power, np.round(v / power) * power)
+    # back as the double nearest that decimal (multiplying by 10**-n would not: 10**-n is inexact). Both
+    # branches are computed, and the one not taken can overflow for numbers near 1e300.
+    with np.errstate(over="ignore", invalid="ignore"):
+        return np.where(exponent >= 0, np.round(v * power) / power, np.round(v / power) * power)
 
 
 def box_vertices(a: np.ndarray, b: np.ndarray) -> np.ndarray:

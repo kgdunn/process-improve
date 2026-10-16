@@ -40,6 +40,7 @@ import ast
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -613,9 +614,12 @@ class DesignRegion:
         side it does not bound. The factors stay on the side they were written on, so
         ``"600 >= 3*T + 5*D"`` gives the same form, and ``"T <= 2*D"`` gives
         ``({"T": 1.0, "D": -2.0}, None, 0.0)``. Each comparison is tested for being
-        affine over the factor box, the test the design engines use, and its form is read
-        off there; coefficients whose effect over the box is below ``1e-9`` of the largest
-        are set to zero, and every number is rounded to 12 significant figures, so
+        affine over the factor box, the test the design engines use. Its form is then read
+        off the expression in exact arithmetic, with each number taken as written, so
+        ``"TK + 0.01*P <= 340"`` gives ``0.01`` and not ``0.00999999999999``; where the
+        expression is affine over the box only (``abs(T)`` with ``T`` positive), it is read
+        off a fit there. Coefficients whose effect over the box is below ``1e-9`` of the
+        largest are set to zero, and every number is rounded to 12 significant figures, so
         floating-point residue such as ``1.65e-14`` or ``250.00000000000009`` does not
         appear.
 
@@ -640,12 +644,20 @@ class DesignRegion:
                 mirrored = not _factor_names(left) and bool(_factor_names(right))
                 upper = isinstance(op, ast.Lt | ast.LtE) != mirrored
                 first, second = (g_right, g_left) if mirrored else (g_left, g_right)
-                pairs.append((self._affine_actual(first, second), upper))
+                written = (right, left) if mirrored else (left, right)
+                pairs.append((self._affine_actual(first, second, written), upper))
             out.append(_combine_forms(pairs, self.names))
         return out
 
-    def _affine_actual(self, first: Callable, second: Callable) -> tuple[np.ndarray, float] | None:
-        """Return ``first - second`` as ``(c, r)``, with ``first - second = c @ X - r`` in actual units, or None."""
+    def _affine_actual(
+        self, first: Callable, second: Callable, written: tuple[ast.expr, ast.expr] | None = None
+    ) -> tuple[np.ndarray, float] | None:
+        """Return ``first - second`` as ``(c, r)``, with ``first - second = c @ X - r`` in actual units, or None.
+
+        ``written`` holds the two sides as parsed: when both are affine by their syntax,
+        the form is read off them exactly rather than off the fit in coded units, whose
+        digits run out when a constant is large next to a coefficient's effect over the box.
+        """
         centre, half = self._centre, self._half
 
         def coded(x: np.ndarray) -> np.ndarray:
@@ -658,10 +670,16 @@ class DesignRegion:
         form = _affine_form(coded, -ones, ones)
         if form is None:
             return None
-        a, b = form
-        a = np.where(np.abs(a) <= _SNAP * (np.abs(a).sum() + abs(b)), 0.0, a)  # effect on g below 1e-9 of its size
-        coef = a / half
-        rhs = b + float(coef @ centre)
+        exact = None if written is None else _exact_difference(*written, self.names)
+        if exact is not None:
+            coef, rhs = exact
+            effect = np.abs(coef) * half
+            coef = np.where(effect <= _SNAP * effect.max(initial=0.0), 0.0, coef)
+        else:
+            a, b = form
+            a = np.where(np.abs(a) <= _SNAP * (np.abs(a).sum() + abs(b)), 0.0, a)  # effect on g below 1e-9 of its size
+            coef = a / half
+            rhs = b + float(coef @ centre)
         scale = float(np.abs(coef) @ np.maximum(np.abs(self._low), np.abs(self._high))) + abs(rhs)
         rhs = 0.0 if abs(rhs) <= _SNAP * scale else rhs
         return round_significant(coef, _DIGITS), float(round_significant(np.array(rhs), _DIGITS))
@@ -973,7 +991,13 @@ class _Rows:
                 scale.append(1.0)
                 continue
             a, b = form
-            size = float(np.linalg.norm(a))
+            with np.errstate(over="ignore"):
+                size = float(np.linalg.norm(a))
+            if not (math.isfinite(size) and math.isfinite(b)):  # a constant near 1e300 overflowed the fit
+                nonlinear.append(g)
+                nonlinear_limit.append(limit)
+                scale.append(1.0)
+                continue
             if size <= _SNAP * (1.0 + abs(b)):  # compares numbers only
                 scale.append(1.0)
                 if b < -_TOL:
@@ -989,6 +1013,92 @@ class _Rows:
             limits.append(limit)
         a_mat = np.array(a_rows, dtype=float).reshape(len(a_rows), k)
         return cls(a_mat, np.array(b_rows, dtype=float), np.array(limits, dtype=int), scale, nonlinear, nonlinear_limit)
+
+
+_Exact = tuple[dict[str, Fraction], Fraction]
+
+
+def _exact_difference(first: ast.expr, second: ast.expr, names: list[str]) -> tuple[np.ndarray, float] | None:
+    """Return ``first - second`` as ``(c, r)`` with ``first - second = c @ X - r``, exactly, or None.
+
+    None unless both sides are affine by their syntax (see :func:`_exact_affine`).
+    """
+    left, right = _exact_affine(first), _exact_affine(second)
+    if left is None or right is None:
+        return None
+    coefficients = np.array([float(left[0].get(n, 0) - right[0].get(n, 0)) for n in names])
+    return coefficients, float(right[1] - left[1])
+
+
+def _exact_affine(node: ast.expr) -> _Exact | None:
+    """Return a parsed expression as ``({name: coefficient}, constant)`` in exact arithmetic, or None.
+
+    Numbers are taken as written (``Fraction("0.01")``, not the double nearest it), and
+    ``+``, ``-``, a product with a constant and a division by one are kept exact. A part
+    without factors (``2**0.5``, ``sqrt(2)``) is evaluated in floating point. Anything
+    else (a product of factors, a function of one) gives None.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, int | float) and not isinstance(node.value, bool):
+        finite = math.isfinite(node.value)
+        return ({}, Fraction(node.value if isinstance(node.value, int) else repr(node.value))) if finite else None
+    if isinstance(node, ast.Name):
+        return {node.id: Fraction(1)}, Fraction(0)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
+        inner = _exact_affine(node.operand)
+        return inner if inner is None or isinstance(node.op, ast.UAdd) else _scaled(inner, Fraction(-1))
+    if isinstance(node, ast.BinOp):
+        left, right = _exact_affine(node.left), _exact_affine(node.right)
+        return None if left is None or right is None else _exact_operation(node.op, left, right)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and len(node.args) == 1:
+        argument = _exact_affine(node.args[0])
+        return None if argument is None or _varies(argument) else _exact_function(node.func.id, argument[1])
+    return None
+
+
+def _varies(form: _Exact) -> bool:
+    """Return whether an exact affine form depends on a factor."""
+    return any(form[0].values())
+
+
+def _exact_operation(op: ast.operator, left: _Exact, right: _Exact) -> _Exact | None:
+    """Return ``left op right`` for two exact affine forms, or None when the result is not affine."""
+    if isinstance(op, ast.Add | ast.Sub):
+        sign = 1 if isinstance(op, ast.Add) else -1
+        zero = Fraction(0)
+        coefficients = {n: left[0].get(n, zero) + sign * right[0].get(n, zero) for n in set(left[0]) | set(right[0])}
+        return coefficients, left[1] + sign * right[1]
+    if isinstance(op, ast.Mult) and not (_varies(left) and _varies(right)):
+        return _scaled(right, left[1]) if not _varies(left) else _scaled(left, right[1])
+    if isinstance(op, ast.Div) and not _varies(right) and right[1] != 0:
+        return _scaled(left, 1 / right[1])
+    if isinstance(op, ast.Pow) and not _varies(left) and not _varies(right):
+        base, power = left[1], right[1]
+        if power.denominator == 1 and abs(power) <= 64 and (base != 0 or power > 0):
+            return {}, base ** int(power)
+        return _constant(lambda: float(base) ** float(power))
+    return None
+
+
+def _exact_function(name: str, value: Fraction) -> _Exact | None:
+    """Return one of the allowed functions of a constant: ``abs`` exactly, the others in floating point."""
+    if name == "abs":
+        return {}, abs(value)
+    function = {"sqrt": math.sqrt, "exp": math.exp, "log": math.log, "log10": math.log10}.get(name)
+    return None if function is None else _constant(lambda: function(float(value)))
+
+
+def _scaled(form: _Exact, factor: Fraction) -> _Exact:
+    """Return an exact affine form multiplied by a constant."""
+    return {n: c * factor for n, c in form[0].items()}, form[1] * factor
+
+
+def _constant(evaluate: Callable[[], Any]) -> _Exact | None:
+    """Return a constant computed in floating point as an exact form, or None where it is not a finite number."""
+    try:
+        value = evaluate()
+    except (ValueError, OverflowError, ZeroDivisionError):
+        return None
+    return ({}, Fraction(repr(value))) if isinstance(value, float) and math.isfinite(value) else None
 
 
 def _lp_extreme(c: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray | None:

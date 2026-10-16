@@ -501,6 +501,47 @@ class TestLinearForms:
         assert low is None
         assert high == 0.4
 
+    @pytest.mark.parametrize(
+        ("ranges", "expression", "form"),
+        [
+            ({"TK": (298, 348), "P": (1, 3)}, "TK + 0.01*P <= 340", ({"TK": 1.0, "P": 0.01}, None, 340.0)),
+            ({"Pa": (1e5, 2e5), "T": (20, 40)}, "Pa + 0.7*T <= 180000", ({"Pa": 1.0, "T": 0.7}, None, 180000.0)),
+            ({"A": (5, 9), "B": (1, 3)}, "20*A - 0.01*B <= 140", ({"A": 20.0, "B": -0.01}, None, 140.0)),
+            (
+                {"t": (1.7e9, 1.7e9 + 3600), "F": (0, 10)},
+                "t + 100*F <= 1700003000",
+                ({"t": 1.0, "F": 100.0}, None, 1.700003e9),
+            ),
+            ({"T": (100, 150), "D": (20, 60)}, "T <= 3e10", ({"T": 1.0}, None, 3e10)),  # was None: snapped against 3e10
+            ({"T": (100, 150), "D": (20, 60)}, "sqrt(4)*T - 2**-1*D <= 10**2*3", ({"T": 2.0, "D": -0.5}, None, 300.0)),
+        ],
+    )
+    def test_the_coefficients_are_the_ones_written(self, ranges, expression, form):
+        """A coded fit loses the digits of a term whose effect over the box is small next to the constant."""
+        factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
+        assert DesignRegion(factors, [expression]).linear_forms() == [form]
+
+    def test_round_coefficients_over_ordinary_ranges_come_back_as_written(self):
+        """One limit in twelve used to come back with residue such as 0.00999999999999."""
+        nice = [0.01, 0.02, 0.05, 0.1, 0.3, 0.7, 1, 2, 3, 7, 25, 100]
+        ranges = [(100, 150), (20, 60), (1, 3), (298, 348), (0.5, 2.5), (60, 600), (5, 9), (1000, 3000)]
+        rng = np.random.default_rng(1)
+        for _ in range(150):
+            (l1, h1), (l2, h2) = (ranges[i] for i in rng.choice(len(ranges), 2, replace=False))
+            c1, c2 = (float(nice[i]) for i in rng.integers(len(nice), size=2))
+            rhs = float(f"{c1 * (l1 + h1) / 2 - c2 * (l2 + h2) / 2:.3g}")
+            factors = [Factor(name="A", low=l1, high=h1), Factor(name="B", low=l2, high=h2)]
+            expression = f"{c1}*A - {c2}*B <= {rhs}"
+            assert DesignRegion(factors, [expression]).linear_forms() == [({"A": c1, "B": -c2}, None, rhs)], expression
+
+    def test_a_huge_constant_is_handled(self):
+        """The coded fit of ``T <= 1e300`` overflows; its rows then divided by a zero length."""
+        region = DesignRegion(HEAT_FACTORS, ["T <= 1e300"])
+        assert region.linear_forms() == [({"T": 1.0}, None, 1e300)]
+        assert not region.is_empty()
+        assert region.implied_bounds() == {"T": (100.0, 150.0), "D": (20.0, 60.0)}
+        assert region.redundant_constraints() == [0]
+
     def test_mixture_limits_have_forms_too(self):
         assert DesignRegion(MIXTURE, ["x0 + 2*x1 <= 0.8"]).linear_forms() == [({"x0": 1.0, "x1": 2.0}, None, 0.8)]
 
