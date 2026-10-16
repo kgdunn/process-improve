@@ -8,6 +8,7 @@ export const INDEX_FIELDS = [
   "id", "title", "collection", "kind", "family", "design_type", "source", "year", "added", "where",
   "n_runs", "n_factors", "n_numeric", "n_categorical", "n_mixture", "levels", "n_centre", "runs_per_parameter",
   "models", "blocked", "n_blocks", "split_plot", "has_responses", "n_responses", "checks", "glyph",
+  "survives_run_loss", "critical_runs", "worst_d_ratio", "quadratic_projection", "projectivity", "design_class",
   "regenerable", "open", "detail",
 ];
 
@@ -57,6 +58,9 @@ export const DEFAULT_STATE = Object.freeze({
   recomputed: false,
   differs: false,
   opens: false,
+  survives: false,
+  projection: 0,
+  projectivity: 0,
   years: [null, null],
   addedSince: "",
   sort: "default",
@@ -104,6 +108,9 @@ export function parseQuery(text) {
       return " ";
     });
   };
+  // The projections first: "3-factor projection" names no number of factors.
+  take(/projectivity\s*(?:of\s*)?(\d)/g, (m) => (found.projectivity = +m[1]));
+  take(/(?:every|any)?\s*(\d)[- ]factor projections?|projects? (?:on)?to (?:any )?(\d)/g, (m) => (found.projection = +(m[1] ?? m[2])));
   take(/(\d+)\s*(?:-|to)\s*(\d+)\s*factors?/g, (m) => (found.factors = range(+m[1], +m[2])));
   take(/(?:k\s*=\s*(\d+))|(\d+)\s*factors?/g, (m) => (found.factors = range(+(m[1] ?? m[2]), +(m[1] ?? m[2]))));
   take(/(\d+)\s*(?:-|to)\s*(\d+)\s*runs?/g, (m) => (found.runs = range(+m[1], +m[2])));
@@ -126,6 +133,7 @@ export function parseQuery(text) {
   take(/(?:has|with) data|results|responses/g, () => (found.hasData = true));
   take(/reproduced|recomputed|verified|checked/g, () => (found.recomputed = true));
   take(/errata|does not reproduce|disagree(?:s|ment)?/g, () => (found.differs = true));
+  take(/surviv(?:es|ing)?(?: (?:the )?loss of (?:a|any) run)?|robust to a lost run|(?:any|a) (?:lost|missing) run/g, () => (found.survives = true));
   take(/(\d{4})\s*(?:-|to)\s*(\d{4})/g, (m) => (found.years = range(+m[1], +m[2])));
   take(/since\s*(\d{4})|after\s*(\d{4})/g, (m) => (found.years = range(m[1] ? +m[1] : +m[2] + 1, null)));
   take(/before\s*(\d{4})/g, (m) => (found.years = range(null, +m[1] - 1)));
@@ -165,6 +173,9 @@ export function filtersOf(state) {
     recomputed: state.recomputed || Boolean(asked.recomputed),
     differs: state.differs || Boolean(asked.differs),
     opens: state.opens,
+    survives: state.survives || Boolean(asked.survives),
+    projection: Math.max(state.projection, asked.projection ?? 0),
+    projectivity: Math.max(state.projectivity, asked.projectivity ?? 0),
     years: narrower(state.years, asked.years),
     addedSince: state.addedSince,
     words: asked.words,
@@ -196,6 +207,9 @@ const TESTS = {
   recomputed: (d, f) => !f.recomputed || (d.checks?.checked ?? 0) > 0,
   differs: (d, f) => !f.differs || (d.checks?.explained ?? 0) > 0,
   opens: (d, f) => !f.opens || d.open,
+  survives: (d, f) => !f.survives || d.survives_run_loss === true,
+  projection: (d, f) => !f.projection || (d.quadratic_projection ?? 0) >= f.projection,
+  projectivity: (d, f) => !f.projectivity || (d.projectivity ?? 0) >= f.projectivity,
   years: (d, f) => between(d.year, f.years),
   addedSince: (d, f) => !f.addedSince || (d.added !== null && d.added >= f.addedSince),
 };
@@ -272,7 +286,7 @@ export function yearBins(catalog, state, width = 5) {
 const KEYS = {
   collection: "col", query: "q", families: "fam", runs: "runs", factors: "k", model: "model", categorical: "cat",
   blocked: "blk", splitPlot: "sp", mixture: "mix", hasData: "data", recomputed: "rec", differs: "err", opens: "open",
-  years: "year", addedSince: "added", sort: "sort", design: "d",
+  survives: "surv", projection: "qp", projectivity: "proj", years: "year", addedSince: "added", sort: "sort", design: "d",
 };
 
 const writeRange = ([low, high]) => `${low ?? ""}-${high ?? ""}`;
@@ -314,8 +328,12 @@ export function fromHash(text, families = {}) {
   state.families = (read("families") ?? "").split(",").filter((f) => Object.hasOwn(families, f));
   for (const name of ["runs", "factors", "categorical", "years"]) state[name] = readRange(read(name));
   if (Object.hasOwn(MODELS, read("model"))) state.model = read("model");
-  for (const name of ["blocked", "splitPlot", "mixture", "hasData", "recomputed", "differs", "opens"]) {
+  for (const name of ["blocked", "splitPlot", "mixture", "hasData", "recomputed", "differs", "opens", "survives"]) {
     state[name] = read(name) === "1";
+  }
+  for (const name of ["projection", "projectivity"]) {
+    const n = Number(read(name));
+    if (Number.isInteger(n) && n >= 1 && n <= 9) state[name] = n;
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(read("addedSince") ?? "")) state.addedSince = read("addedSince");
   if (Object.hasOwn(SORTS, read("sort"))) state.sort = read("sort");
@@ -386,6 +404,48 @@ export function checkLine(checks) {
   if (!checks.checked) return `${plural(checks.printed, "printed number")}, none recomputed`;
   const agree = `${checks.agree} of ${plural(checks.checked, "recomputed number")} agree`;
   return checks.explained ? `${agree}; ${checks.explained} known to differ, with the reason` : agree;
+}
+
+/** The other designs of the catalog that are this one, with its runs, factors or signs in another order. */
+export function sameDesigns(catalog, design) {
+  if (!design.design_class) return [];
+  return catalog.designs.filter((d) => d.design_class === design.design_class && d.id !== design.id);
+}
+
+/** What losing a run costs a design, in a sentence; empty when the catalog does not know. */
+export function runLossLine(design, model) {
+  if (design.survives_run_loss === null || design.survives_run_loss === undefined) return "";
+  const what = MODELS[model] ?? "its model";
+  if (design.survives_run_loss) {
+    const kept = Math.round(100 * design.worst_d_ratio);
+    return `If any one run is lost, the design still estimates ${what}; the worst loss leaves ${kept}% of its D-efficiency.`;
+  }
+  const n = design.critical_runs;
+  const without = `without ${n === 1 ? "it" : "any one of them"} the design no longer estimates ${what}`;
+  if (n === design.n_runs) return `None of its ${n} runs can be lost: ${without}.`;
+  return `${n} of its ${design.n_runs} runs cannot be lost: ${without}.`;
+}
+
+/** What a design's projections hold, in sentences: onto how many factors it fits the quadratic, its projectivity. */
+export function projectionLines(design) {
+  const lines = [];
+  const p = design.quadratic_projection;
+  if (p && p >= 2) {
+    lines.push(
+      p === design.n_numeric
+        ? `It estimates the full quadratic in all ${p} of its numeric factors.`
+        : `Any ${p} of its factors: the runs estimate the full quadratic in them, so if only ${p} matter, their response surface needs no more runs.`,
+    );
+  }
+  const q = design.projectivity;
+  if (q && q >= 2) {
+    lines.push(
+      q === design.n_factors
+        ? `Its two-level runs hold every combination of its ${q} factors' levels.`
+        : `Projectivity ${q}: any ${q} of its factors hold all ${2 ** q} combinations of their two levels.`,
+    );
+  }
+  return lines;
 }
 
 /** Where a published design is printed, in a few words: its source's authors and year, and its pages. */

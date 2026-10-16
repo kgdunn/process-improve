@@ -50,6 +50,7 @@
     <button type="button" class="link try">definitive screening</button>
     <button type="button" class="link try">3 factors quadratic</button>
     <button type="button" class="link try">box hunter 1978 with data</button>
+    <button type="button" class="link try">3-factor projection, survives a lost run</button>
     <button type="button" class="link try">errata</button>
   </p>
 
@@ -82,6 +83,22 @@
             <option value="">Categorical factors or not</option>
             <option value="none">No categorical factor</option>
             <option value="some">At least one categorical factor</option>
+          </select>
+        </fieldset>
+        <fieldset>
+          <legend>Robustness</legend>
+          <label class="facets__switch"><input type="checkbox" data-switch="survives"> Survives losing any run <span class="count"></span></label>
+          <select id="projection" aria-label="Factors whose every projection estimates the full quadratic">
+            <option value="0">Projections: any</option>
+            <option value="2">Any 2 factors fit the quadratic</option>
+            <option value="3">Any 3 factors fit the quadratic</option>
+            <option value="4">Any 4 factors fit the quadratic</option>
+          </select>
+          <select id="projectivity" aria-label="Projectivity of the two-level runs">
+            <option value="0">Projectivity: any</option>
+            <option value="2">Projectivity 2 or more</option>
+            <option value="3">Projectivity 3 or more</option>
+            <option value="4">Projectivity 4 or more</option>
           </select>
         </fieldset>
         <fieldset>

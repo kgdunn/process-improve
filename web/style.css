@@ -721,3 +721,7 @@ dialog.detail { width: min(980px, 100vw - 32px); }
 }
 .detail__rights { font-size: 0.8rem; }
 .detail .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.leverage { display: block; max-width: 100%; margin: 4px 0; }
+.detail__twins { margin: 4px 0 12px; padding-left: 1.2em; }
+.detail__twins li { margin: 2px 0; }
+.detail__twins .link { padding: 0; text-align: left; }
