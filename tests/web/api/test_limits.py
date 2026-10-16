@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from process_improve.experiments import DesignRegion, Factor
+from process_improve.experiments import Constraint, DesignRegion, Factor
 from process_improve.experiments.designs_constrained import _FUNCTIONS
 from tests.web._support import FACTORS, factors_named
 
@@ -487,3 +487,34 @@ def test_straight_limits_are_drawn_exactly_with_nothing_to_trace(api):
     assert [(pair["trace"], pair["curves"]) for pair in shown["picture"]["pairs"]] == [(None, [])] * 3
     [pair] = described(api, HEAT, factors=FACTORS[:2])["picture"]["pairs"]
     assert pair["trace"] is None
+
+
+# --------------------------------------------------------------------------- the page's promises, if the library errs
+def test_a_design_with_a_run_outside_the_limits_is_refused_not_shown(api, bootstrap, monkeypatch):
+    """The page says every run is inside the limits, so a design with one outside never reaches the run sheet."""
+    made = bootstrap.generate_design
+
+    def strays(*args: object, **kwargs: object) -> object:
+        result = made(*args, **kwargs)
+        # T 200 degC and P 3 bar: the corner the heat limit cuts off.
+        result.design_actual.loc[result.design_actual.index[0], ["T", "P"]] = [200.0, 3.0]
+        return result
+
+    monkeypatch.setattr(bootstrap, "generate_design", strays)
+    request = {"design_type": "d_optimal", "factors": FACTORS, "constraints": [{"expression": HEAT}]}
+    assert api.error("api_make_design", request) == (
+        "Python stopped with RuntimeError: The design has a run outside the limits on the settings, which it must "
+        "not have."
+    )
+
+
+def test_no_narrowed_ranges_are_said_when_the_library_finds_none(api, monkeypatch):
+    monkeypatch.setattr(DesignRegion, "implied_bounds", lambda _self: None)
+    assert described(api, "T + 25 * P <= 215")["bounds"] is None
+
+
+def test_a_proposal_that_is_not_one_straight_limit_is_never_offered(api, bootstrap, monkeypatch):
+    monkeypatch.setattr(bootstrap, "separating_constraint", lambda *_: Constraint(expression="T * P <= 500"))
+    assert api.error("api_limits", {"factors": FACTORS, "constraints": [], "marked": [7]}) == (
+        "Python stopped with RuntimeError: The limit proposed, 'T * P <= 500', is not a straight limit with one bound."
+    )
