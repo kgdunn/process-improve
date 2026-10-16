@@ -1,0 +1,7069 @@
+{
+ "schema": 1,
+ "about": [
+  "Part of the reference catalogue: worked examples, designs and exercises with data from chapters 1 and 2 of",
+  "Montgomery, Design and Analysis of Experiments (8th edition), for testing that software reproduces them. source:",
+  "the citation, with what was read and when. experiments: each worked example or exercise with data (factors,",
+  "responses, runs exactly as printed, in the printed order), where it is printed, and expected: every number the",
+  "book prints for it, as printed text, with where it is printed (a page and a quotation) and check: how to",
+  "recompute it, or manual, the reason it is not recomputed. A check with a disagreement records a number known not",
+  "to reproduce and why. A two-group comparison is checked with the library's t-tests (t_test, runs less minus) and,",
+  "where the two agree by construction, with the regression on the group coded -1 and +1, or with the randomized",
+  "block model for a paired comparison. design.treatment_factors counts the factors varied as treatments, blocks not",
+  "counted: 0 for a single sample. An exercise the book does not answer is marked unanswered and its runs are kept",
+  "as data. designs: the run counts and the half fraction the book states in chapter 1. not_captured: what in these",
+  "pages is not an experiment with data. Read with process_improve.experiments.reference_catalogue.",
+  "reference_experiments; tests/test_reference_catalogue.py recomputes every number that has a check."
+ ],
+ "source": {
+  "key": "montgomery-2013",
+  "authors": [
+   "Douglas C. Montgomery"
+  ],
+  "title": "Design and Analysis of Experiments",
+  "edition": "8th edition",
+  "pages": "front matter and contents, pp. v to xvii, and chapters 1 and 2, pp. 1 to 64",
+  "year": 2013,
+  "publisher": "John Wiley & Sons, Hoboken, NJ",
+  "isbn": "978-1-118-14692-7",
+  "url": "https://search.worldcat.org/search?q=bn:9781118146927",
+  "cite": "Montgomery, D. C. (2013), Design and Analysis of Experiments, 8th edition, Wiley",
+  "read": "2026-10-16, from scans of the front matter and contents (pp. v to xvii) and chapters 1 and 2 (pp. 1 to 64); every number copied by hand, and Figures 1.5 and 1.8 and the data of Problems 2.8 to 2.37 read again from the page image at 220 to 300 dpi; Tables 2.1, 2.3 and 2.6 agree with the summaries Minitab prints for them",
+  "rights": "The book is protected by copyright (© 2013, 2009, 2005, 2001, 1997 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [
+  {
+   "name": "montgomery-golf-driver-ball",
+   "title": "Golf scores: type of driver by type of ball, a 2^2 factorial with two rounds at each combination",
+   "kind": "example",
+   "where": {
+    "section": "1.1",
+    "pages": "4-6",
+    "tables": [],
+    "figures": [
+     "Figure 1.4",
+     "Figure 1.5"
+    ]
+   },
+   "factors": [
+    {
+     "name": "driver",
+     "description": "type of driver: O oversized, R regular-sized",
+     "low": "O",
+     "high": "R",
+     "levels": [
+      "O",
+      "R"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "ball",
+     "description": "type of ball: B balata, T three piece",
+     "low": "B",
+     "high": "T",
+     "levels": [
+      "B",
+      "T"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "score 1",
+     "description": "the first score printed at the combination",
+     "units": "strokes"
+    },
+    {
+     "name": "score 2",
+     "description": "the second score printed at the combination",
+     "units": "strokes"
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial, replicated twice",
+    "details": "eight rounds of golf, two at each combination of driver and ball",
+    "n_runs": 8,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "driver",
+     "ball",
+     "score 1",
+     "score 2"
+    ],
+    "rows": [
+     [
+      "O",
+      "B",
+      88,
+      90
+     ],
+     [
+      "R",
+      "B",
+      93,
+      91
+     ],
+     [
+      "O",
+      "T",
+      88,
+      91
+     ],
+     [
+      "R",
+      "T",
+      92,
+      94
+     ]
+    ],
+    "coded": false,
+    "notes": "Figure 1.5a, the two scores printed at each corner of the square, in the printed order"
+   },
+   "notes": "Each effect is the average of the four rounds at one level less the average of the four at the other, as the book works it; the interaction compares the two diagonals of the square.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "driver",
+     "value": "3.25",
+     "where": {
+      "page": 5,
+      "source_kind": "prose",
+      "quote": "Driver effect = (92 + 94 + 93 + 91)/4 − (88 + 91 + 88 + 90)/4 = 3.25"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "driver",
+       "model": "driver * ball",
+       "summary": {
+        "of": [
+         "score 1",
+         "score 2"
+        ],
+        "statistic": "each"
+       }
+      },
+      {
+       "kind": "effect",
+       "term": "driver",
+       "model": "driver * ball",
+       "summary": {
+        "of": [
+         "score 1",
+         "score 2"
+        ],
+        "statistic": "each"
+       },
+       "expression": true,
+       "printed": "(92 + 94 + 93 + 91) / 4 - (88 + 91 + 88 + 90) / 4"
+      }
+     ]
+    },
+    {
+     "what": "effect",
+     "term": "ball",
+     "value": "0.75",
+     "where": {
+      "page": 6,
+      "source_kind": "prose",
+      "quote": "Ball effect = (88 + 91 + 92 + 94)/4 − (88 + 90 + 93 + 91)/4 = 0.75"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "ball",
+       "model": "driver * ball",
+       "summary": {
+        "of": [
+         "score 1",
+         "score 2"
+        ],
+        "statistic": "each"
+       }
+      },
+      {
+       "kind": "effect",
+       "term": "ball",
+       "model": "driver * ball",
+       "summary": {
+        "of": [
+         "score 1",
+         "score 2"
+        ],
+        "statistic": "each"
+       },
+       "expression": true,
+       "printed": "(88 + 91 + 92 + 94) / 4 - (88 + 90 + 93 + 91) / 4"
+      }
+     ]
+    },
+    {
+     "what": "effect",
+     "term": "driver·ball",
+     "value": "0.25",
+     "where": {
+      "page": 6,
+      "source_kind": "prose",
+      "quote": "Ball–driver interaction effect = (92 + 94 + 88 + 90)/4 − (88 + 91 + 93 + 91)/4 = 0.25"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "driver·ball",
+       "model": "driver * ball",
+       "summary": {
+        "of": [
+         "score 1",
+         "score 2"
+        ],
+        "statistic": "each"
+       }
+      },
+      {
+       "kind": "effect",
+       "term": "driver·ball",
+       "model": "driver * ball",
+       "summary": {
+        "of": [
+         "score 1",
+         "score 2"
+        ],
+        "statistic": "each"
+       },
+       "expression": true,
+       "printed": "(92 + 94 + 88 + 90) / 4 - (88 + 91 + 93 + 91) / 4"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "eight",
+     "where": {
+      "page": 6,
+      "source_kind": "prose",
+      "quote": "Notice that this experiment included eight observations, and all eight observations are used"
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "driver * ball",
+      "summary": {
+       "of": [
+        "score 1",
+        "score 2"
+       ],
+       "statistic": "each"
+      },
+      "printed": "8"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-portland-cement",
+   "title": "Tension bond strength of Portland cement mortar, modified with a polymer latex emulsion and unmodified",
+   "kind": "example",
+   "where": {
+    "section": "2.1 to 2.4.3",
+    "pages": "25-47",
+    "tables": [
+     "Table 2.1",
+     "Table 2.2"
+    ],
+    "figures": [
+     "Figure 2.1",
+     "Figure 2.3",
+     "Figure 2.10",
+     "Figure 2.11",
+     "Figure 2.13"
+    ]
+   },
+   "factors": [
+    {
+     "name": "mortar",
+     "description": "mortar formulation: modified, with a polymer latex emulsion added during mixing, or the original unmodified",
+     "low": "unmodified",
+     "high": "modified",
+     "levels": [
+      "modified",
+      "unmodified"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "tension bond strength",
+     "units": "kgf/cm²"
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "10 samples of the modified and 10 of the unmodified formulation",
+    "n_runs": 20,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "j",
+     "mortar",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "modified",
+      16.85
+     ],
+     [
+      2,
+      "modified",
+      16.4
+     ],
+     [
+      3,
+      "modified",
+      17.21
+     ],
+     [
+      4,
+      "modified",
+      16.35
+     ],
+     [
+      5,
+      "modified",
+      16.52
+     ],
+     [
+      6,
+      "modified",
+      17.04
+     ],
+     [
+      7,
+      "modified",
+      16.96
+     ],
+     [
+      8,
+      "modified",
+      17.15
+     ],
+     [
+      9,
+      "modified",
+      16.59
+     ],
+     [
+      10,
+      "modified",
+      16.57
+     ],
+     [
+      1,
+      "unmodified",
+      16.62
+     ],
+     [
+      2,
+      "unmodified",
+      16.75
+     ],
+     [
+      3,
+      "unmodified",
+      17.37
+     ],
+     [
+      4,
+      "unmodified",
+      17.12
+     ],
+     [
+      5,
+      "unmodified",
+      16.98
+     ],
+     [
+      6,
+      "unmodified",
+      16.87
+     ],
+     [
+      7,
+      "unmodified",
+      17.34
+     ],
+     [
+      8,
+      "unmodified",
+      17.02
+     ],
+     [
+      9,
+      "unmodified",
+      17.08
+     ],
+     [
+      10,
+      "unmodified",
+      17.27
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2.1, the modified mortar's column y1j, then the unmodified mortar's y2j; the run order is not printed"
+   },
+   "notes": "The book and Minitab take the difference as modified less unmodified, ȳ1 − ȳ2; JMP takes unmodified less modified. The pooled two-sample t-test is the regression of strength on the formulation coded −1 and +1: the effect is the difference of the two averages and its t is the test's. Each of the test's numbers is therefore checked twice, with the library's t-test (univariate.metrics.ttest_independent) and with analyze_experiment. The powers of section 2.4.3 are the library's power for the coefficient of a two-level factor in a design of n runs at each level: an effect of δ is a coefficient of δ/2.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "modified",
+     "value": "16.76",
+     "where": {
+      "page": 26,
+      "source_kind": "prose",
+      "quote": "ȳ1 = 16.76 kgf/cm² for the modified mortar"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "unmodified",
+     "value": "17.04",
+     "where": {
+      "page": 26,
+      "source_kind": "prose",
+      "quote": "ȳ2 = 17.04 kgf/cm² for the unmodified mortar"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "modified",
+     "value": "16.76",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "Modified Mortar ȳ1 = 16.76 kgf/cm²"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "modified",
+     "value": "0.100",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "S1² = 0.100"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "modified",
+     "value": "0.316",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "S1 = 0.316"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "modified",
+     "value": "10",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "n1 = 10"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "unmodified",
+     "value": "17.04",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "Unmodified Mortar ȳ2 = 17.04 kgf/cm²"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "variance",
+     "term": "unmodified",
+     "value": "0.061",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "S2² = 0.061"
+     },
+     "check": {
+      "kind": "variance",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "unmodified",
+     "value": "0.248",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "S2 = 0.248"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "unmodified",
+     "value": "10",
+     "where": {
+      "page": 38,
+      "source_kind": "table",
+      "quote": "n2 = 10"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "18",
+     "where": {
+      "page": 39,
+      "source_kind": "prose",
+      "quote": "n1 + n2 − 2 = 10 + 10 − 2 = 18"
+     },
+     "check": [
+      {
+       "kind": "residual_df",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "df"
+      }
+     ]
+    },
+    {
+     "what": "t percentage point",
+     "term": "t 0.025,18",
+     "value": "2.101",
+     "analysis": "a percentage point of the t distribution, as Appendix Table II prints it",
+     "where": {
+      "page": 39,
+      "source_kind": "prose",
+      "quote": "t0 > t0.025,18 = 2.101"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       18
+      ]
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.081",
+     "where": {
+      "page": 39,
+      "source_kind": "prose",
+      "quote": "S²p = [9(0.100) + 9(0.061)]/(10 + 10 − 2) = 0.081"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "mortar"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "0.284",
+     "where": {
+      "page": 39,
+      "source_kind": "prose",
+      "quote": "Sp = 0.284"
+     },
+     "check": [
+      {
+       "kind": "residual_std_error",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "pooled_std_dev"
+      }
+     ]
+    },
+    {
+     "what": "effect",
+     "term": "mortar",
+     "value": "-0.28",
+     "where": {
+      "page": 39,
+      "source_kind": "prose",
+      "quote": "t0 = (16.76 − 17.04)/(0.284 √(1/10 + 1/10)) = −0.28/0.127 = −2.20"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "mortar",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "difference"
+      }
+     ]
+    },
+    {
+     "what": "effect_std_error",
+     "term": "mortar",
+     "value": "0.127",
+     "where": {
+      "page": 39,
+      "source_kind": "prose",
+      "quote": "= −0.28/0.127 = −2.20"
+     },
+     "check": [
+      {
+       "kind": "effect_std_error",
+       "term": "mortar",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "std_error"
+      }
+     ]
+    },
+    {
+     "what": "t_value",
+     "term": "mortar",
+     "value": "-2.20",
+     "where": {
+      "page": 39,
+      "source_kind": "prose",
+      "quote": "= −0.28/0.127 = −2.20"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "minus": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "key": "t",
+      "disagreement": "the book divides the difference of its rounded averages, −0.28, by the rounded standard error 0.127; the data give t0 = −2.187, as Minitab's −2.19 and JMP's 2.186876 show"
+     }
+    },
+    {
+     "what": "t percentage point",
+     "term": "t 0.01,18",
+     "value": "2.552",
+     "analysis": "a percentage point of the t distribution, as Appendix Table II prints it",
+     "where": {
+      "page": 40,
+      "source_kind": "prose",
+      "quote": "for a t distribution with 18 degrees of freedom, and tail area probability 0.01 we find t0.01,18 = 2.552"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.99,
+       18
+      ]
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "mortar, bounds",
+     "value": "0.05 and 0.02",
+     "where": {
+      "page": 40,
+      "source_kind": "prose",
+      "quote": "we know that the P-value must be between 0.05 and 2(0.01) = 0.02"
+     },
+     "check": {
+      "manual": "bounds on the P-value read from the t table, at t0.025,18 = 2.101 and t0.01,18 = 2.552, which are checked; the P-value itself is checked as 0.0422"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "mortar",
+     "value": "0.0411",
+     "where": {
+      "page": 40,
+      "source_kind": "prose",
+      "quote": "we obtain the P-value for the value t0 = −2.20 in the Portland cement mortar formulation experiment as P = 0.0411"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "minus": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "key": "p",
+      "disagreement": "0.0411 is the two-sided P-value of the rounded t0 = −2.20 on 18 degrees of freedom; the data's t0 = −2.187 gives 0.0422, as JMP prints"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "modified",
+     "value": "10",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Minitab Two-sample T for Modified vs Unmodified ... Modified 10 16.764 0.316 0.10"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "modified",
+     "value": "16.764",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Modified 10 16.764 0.316 0.10"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "modified",
+     "value": "0.316",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Modified 10 16.764 0.316 0.10"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "modified mean",
+     "value": "0.10",
+     "analysis": "Minitab's SE Mean, the standard deviation over √n",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Modified 10 16.764 0.316 0.10"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ]
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "unmodified",
+     "value": "10",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Unmodified 10 17.042 0.248 0.078"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "unmodified",
+     "value": "17.042",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Unmodified 10 17.042 0.248 0.078"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "unmodified",
+     "value": "0.248",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Unmodified 10 17.042 0.248 0.078"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "unmodified mean",
+     "value": "0.078",
+     "analysis": "Minitab's SE Mean, the standard deviation over √n",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Unmodified 10 17.042 0.248 0.078"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "1",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "mortar",
+     "value": "-0.278000",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Estimate for difference: −0.278000"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "mortar",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "difference"
+      }
+     ]
+    },
+    {
+     "what": "ci_low",
+     "term": "mortar",
+     "value": "-0.545073",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "95% CI for difference: (−0.545073, −0.010927)"
+     },
+     "check": [
+      {
+       "kind": "ci_low",
+       "term": "mortar",
+       "scale": "effect",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "ci_low"
+      }
+     ]
+    },
+    {
+     "what": "ci_high",
+     "term": "mortar",
+     "value": "-0.010927",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "95% CI for difference: (−0.545073, −0.010927)"
+     },
+     "check": [
+      {
+       "kind": "ci_high",
+       "term": "mortar",
+       "scale": "effect",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "ci_high"
+      }
+     ]
+    },
+    {
+     "what": "t_value",
+     "term": "mortar",
+     "value": "-2.19",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "T-Test of difference = 0 (vs not =): T-Value = −2.19"
+     },
+     "check": [
+      {
+       "kind": "t_value",
+       "term": "mortar",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "t"
+      }
+     ]
+    },
+    {
+     "what": "p_value",
+     "term": "mortar",
+     "value": "0.042",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "P-Value = 0.042 DF = 18"
+     },
+     "check": [
+      {
+       "kind": "p_value",
+       "term": "mortar",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "p"
+      }
+     ]
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "18",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "P-Value = 0.042 DF = 18"
+     },
+     "check": [
+      {
+       "kind": "residual_df",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "df"
+      }
+     ]
+    },
+    {
+     "what": "residual_std_error",
+     "term": null,
+     "value": "0.2843",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Both use Pooled Std. Dev. = 0.2843"
+     },
+     "check": [
+      {
+       "kind": "residual_std_error",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "pooled_std_dev"
+      }
+     ]
+    },
+    {
+     "what": "difference",
+     "term": "unmodified less modified",
+     "value": "0.278000",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "JMP t-test Unmodified-Modified ... Difference 0.278000"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "difference"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "unmodified less modified",
+     "value": "0.127122",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Std Err Dif 0.127122"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "ci_high",
+     "term": "unmodified less modified",
+     "value": "0.545073",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Upper CL Dif 0.545073"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "ci_high"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "unmodified less modified",
+     "value": "0.010927",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Lower CL Dif 0.010927"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "ci_low"
+     }
+    },
+    {
+     "what": "confidence",
+     "term": null,
+     "value": "0.95",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Confidence 0.95"
+     },
+     "check": {
+      "manual": "the confidence level JMP is asked for, a setting of the test rather than a result"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "unmodified less modified",
+     "value": "2.186876",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "t Ratio 2.186876"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "t"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "18",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "DF 18"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "df"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "unmodified less modified",
+     "value": "0.0422",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Prob > |t| 0.0422"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "p"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "unmodified less modified, one-sided",
+     "value": "0.0211",
+     "analysis": "one-sided, for the alternative that the unmodified mortar is stronger",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Prob > t 0.0211"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "p",
+      "alternative": "greater"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "unmodified less modified, one-sided",
+     "value": "0.9789",
+     "analysis": "one-sided, for the alternative that the unmodified mortar is weaker",
+     "where": {
+      "page": 41,
+      "source_kind": "table",
+      "quote": "Prob < t 0.9789"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "minus": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "key": "p",
+      "alternative": "less"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "mortar",
+     "value": "0.042",
+     "where": {
+      "page": 41,
+      "source_kind": "prose",
+      "quote": "the P-value is reported to be P = 0.042"
+     },
+     "check": [
+      {
+       "kind": "p_value",
+       "term": "mortar",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "p"
+      }
+     ]
+    },
+    {
+     "what": "arrangements",
+     "term": null,
+     "value": "184,756",
+     "where": {
+      "page": 43,
+      "source_kind": "prose",
+      "quote": "all [20!/(10!10!)] = 184,756 possible ways that the 20 observations could occur"
+     },
+     "check": {
+      "manual": "the number of ways to divide the 20 observations into two groups of 10, C(20, 10), for a randomization test the book does not carry out; arithmetic, which no check computes (it reproduces)"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "mortar",
+     "value": "-0.55",
+     "where": {
+      "page": 44,
+      "source_kind": "prose",
+      "quote": "−0.55 ≤ μ1 − μ2 ≤ −0.01"
+     },
+     "check": [
+      {
+       "kind": "ci_low",
+       "term": "mortar",
+       "scale": "effect",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "ci_low"
+      }
+     ]
+    },
+    {
+     "what": "ci_high",
+     "term": "mortar",
+     "value": "-0.01",
+     "where": {
+      "page": 44,
+      "source_kind": "prose",
+      "quote": "−0.55 ≤ μ1 − μ2 ≤ −0.01"
+     },
+     "check": [
+      {
+       "kind": "ci_high",
+       "term": "mortar",
+       "scale": "effect",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "ci_high"
+      }
+     ]
+    },
+    {
+     "what": "half_width",
+     "term": "mortar",
+     "value": "0.27",
+     "analysis": "t0.025,18 times the standard error of the difference, the half-width of the 95% interval",
+     "where": {
+      "page": 44,
+      "source_kind": "prose",
+      "quote": "−0.28 − 0.27 ≤ μ1 − μ2 ≤ −0.28 + 0.27"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10
+      ],
+      "minus": [
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20
+      ],
+      "key": "half_width"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "mortar",
+     "value": "-0.28",
+     "where": {
+      "page": 44,
+      "source_kind": "prose",
+      "quote": "the confidence interval is μ1 − μ2 = −0.28 ± 0.27 kgf/cm²"
+     },
+     "check": [
+      {
+       "kind": "effect",
+       "term": "mortar",
+       "model": "mortar"
+      },
+      {
+       "kind": "t_test",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+       ],
+       "minus": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+       ],
+       "key": "difference"
+      }
+     ]
+    },
+    {
+     "what": "standardized difference",
+     "term": null,
+     "value": "2",
+     "where": {
+      "page": 46,
+      "source_kind": "prose",
+      "quote": "Then substituting σ = 0.25 kgf/cm² into the expression for δ results in δ = 2"
+     },
+     "check": {
+      "manual": "the difference to detect, 0.5 kgf/cm², over the standard deviation the book assumes, 0.25: two values it chooses, not results"
+     }
+    },
+    {
+     "what": "sample size",
+     "term": "total",
+     "value": "16",
+     "where": {
+      "page": 46,
+      "source_kind": "prose",
+      "quote": "referring to Figure 2.13 we find that the required sample size on the horizontal axis is 16, approximately"
+     },
+     "check": {
+      "manual": "read from JMP's power curve for δ = 2 in Figure 2.13; the power at 8 samples of each formulation, Minitab's 0.9602, is checked, and at 7 it is 0.929, below 0.95"
+     }
+    },
+    {
+     "what": "sample size",
+     "term": "each formulation",
+     "value": "8",
+     "where": {
+      "page": 46,
+      "source_kind": "prose",
+      "quote": "so the sample size in each population should be n = 16/2 = 8"
+     },
+     "check": {
+      "manual": "half the total read from Figure 2.13; the power at 8 samples of each formulation is checked as 0.9602"
+     }
+    },
+    {
+     "what": "sample size",
+     "term": "difference 0.5, power 0.95",
+     "value": "8",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "Difference 0.5 Sample Size 8 Target Power 0.9500 Actual Power 0.9602"
+     },
+     "check": {
+      "manual": "the smallest number of samples of each formulation whose power reaches the target 0.95, a search the library does not make; it reproduces: the library's power is 0.929 at 7 and 0.9602 at 8, which is checked"
+     }
+    },
+    {
+     "what": "power",
+     "term": "difference 0.5, 8 each",
+     "value": "0.9602",
+     "analysis": "the power of the two-sided test at α = 0.05 with σ = 0.25, for a difference of 0.5: a coefficient of 0.25",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "Difference 0.5 Sample Size 8 Target Power 0.9500 Actual Power 0.9602"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "power",
+      "model": "A",
+      "key": "A",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 1,
+       "options": {
+        "n_center_points": 0,
+        "n_replicates": 8
+       }
+      },
+      "options": {
+       "sigma": 0.25,
+       "effect_size": 0.25,
+       "alpha": 0.05
+      }
+     }
+    },
+    {
+     "what": "power",
+     "term": "difference 0.25, 10 each",
+     "value": "0.5620",
+     "analysis": "the power of the two-sided test at α = 0.05 with σ = 0.25, for a difference of 0.25: a coefficient of 0.125",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "Difference 0.25 Sample Size 10 Power 0.5620"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "power",
+      "model": "A",
+      "key": "A",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 1,
+       "options": {
+        "n_center_points": 0,
+        "n_replicates": 10
+       }
+      },
+      "options": {
+       "sigma": 0.25,
+       "effect_size": 0.125,
+       "alpha": 0.05
+      }
+     }
+    },
+    {
+     "what": "power",
+     "term": "difference 0.25, 10 each",
+     "value": "0.562",
+     "where": {
+      "page": 46,
+      "source_kind": "prose",
+      "quote": "The power has dropped considerably, from over 0.95 to 0.562"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "power",
+      "model": "A",
+      "key": "A",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 1,
+       "options": {
+        "n_center_points": 0,
+        "n_replicates": 10
+       }
+      },
+      "options": {
+       "sigma": 0.25,
+       "effect_size": 0.125,
+       "alpha": 0.05
+      }
+     }
+    },
+    {
+     "what": "sample size",
+     "term": "difference 0.25, power 0.9",
+     "value": "23",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "Difference 0.25 Sample Size 23 Target Power 0.9000 Actual Power 0.9125"
+     },
+     "check": {
+      "manual": "the smallest number of samples of each formulation whose power reaches the target 0.9, a search the library does not make; it reproduces: the library's power is 0.8997 at 22 and 0.9125 at 23, which is checked"
+     }
+    },
+    {
+     "what": "power",
+     "term": "difference 0.25, 23 each",
+     "value": "0.9125",
+     "analysis": "the power of the two-sided test at α = 0.05 with σ = 0.25, for a difference of 0.25: a coefficient of 0.125",
+     "where": {
+      "page": 47,
+      "source_kind": "table",
+      "quote": "Difference 0.25 Sample Size 23 Target Power 0.9000 Actual Power 0.9125"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "power",
+      "model": "A",
+      "key": "A",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 1,
+       "options": {
+        "n_center_points": 0,
+        "n_replicates": 23
+       }
+      },
+      "options": {
+       "sigma": 0.25,
+       "effect_size": 0.125,
+       "alpha": 0.05
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-nerve-fluorescence",
+   "title": "Normalized fluorescence of nerve and of muscle tissue two hours after a fluorescently labelled peptide, 12 mice",
+   "kind": "example",
+   "where": {
+    "section": "2.4.4, Example 2.1",
+    "pages": "48-50",
+    "tables": [
+     "Table 2.3"
+    ],
+    "figures": [
+     "Figure 2.14"
+    ]
+   },
+   "factors": [
+    {
+     "name": "tissue",
+     "description": "tissue: nerve, or muscle (Minitab's Non-nerve)",
+     "low": "muscle",
+     "high": "nerve",
+     "levels": [
+      "nerve",
+      "muscle"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "normalized fluorescence after two hours",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "two-group comparison, unequal variances",
+    "details": "12 readings of each tissue, read by the book from a graph in the paper",
+    "n_runs": 24,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "observation",
+     "tissue",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "nerve",
+      6625
+     ],
+     [
+      2,
+      "nerve",
+      6000
+     ],
+     [
+      3,
+      "nerve",
+      5450
+     ],
+     [
+      4,
+      "nerve",
+      5200
+     ],
+     [
+      5,
+      "nerve",
+      5175
+     ],
+     [
+      6,
+      "nerve",
+      4900
+     ],
+     [
+      7,
+      "nerve",
+      4750
+     ],
+     [
+      8,
+      "nerve",
+      4500
+     ],
+     [
+      9,
+      "nerve",
+      3985
+     ],
+     [
+      10,
+      "nerve",
+      900
+     ],
+     [
+      11,
+      "nerve",
+      450
+     ],
+     [
+      12,
+      "nerve",
+      2800
+     ],
+     [
+      1,
+      "muscle",
+      3900
+     ],
+     [
+      2,
+      "muscle",
+      3500
+     ],
+     [
+      3,
+      "muscle",
+      3450
+     ],
+     [
+      4,
+      "muscle",
+      3200
+     ],
+     [
+      5,
+      "muscle",
+      2980
+     ],
+     [
+      6,
+      "muscle",
+      2800
+     ],
+     [
+      7,
+      "muscle",
+      2500
+     ],
+     [
+      8,
+      "muscle",
+      2400
+     ],
+     [
+      9,
+      "muscle",
+      2200
+     ],
+     [
+      10,
+      "muscle",
+      1200
+     ],
+     [
+      11,
+      "muscle",
+      1150
+     ],
+     [
+      12,
+      "muscle",
+      1130
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2.3, the nerve column, then the muscle column"
+   },
+   "notes": "The two tissues are compared as independent samples with unequal variances (Welch's test), the alternative being that nerve fluoresces more; the difference is nerve less muscle. The book works t0 and its degrees of freedom from Minitab's rounded averages and standard deviations.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "nerve",
+     "value": "12",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Variable N Mean StDev Minimum Median Maximum Nerve 12 4228 1918 450 4825 6625"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "nerve",
+     "value": "4228",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Nerve 12 4228 1918 450 4825 6625"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "nerve",
+     "value": "1918",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Nerve 12 4228 1918 450 4825 6625"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "minimum",
+     "term": "nerve",
+     "value": "450",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Nerve 12 4228 1918 450 4825 6625"
+     },
+     "check": {
+      "kind": "minimum",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "median",
+     "term": "nerve",
+     "value": "4825",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Nerve 12 4228 1918 450 4825 6625"
+     },
+     "check": {
+      "kind": "median",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "maximum",
+     "term": "nerve",
+     "value": "6625",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Nerve 12 4228 1918 450 4825 6625"
+     },
+     "check": {
+      "kind": "maximum",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "muscle",
+     "value": "12",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Non-nerve 12 2534 961 1130 2650 3900"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "muscle",
+     "value": "2534",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Non-nerve 12 2534 961 1130 2650 3900"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "muscle",
+     "value": "961",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Non-nerve 12 2534 961 1130 2650 3900"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "minimum",
+     "term": "muscle",
+     "value": "1130",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Non-nerve 12 2534 961 1130 2650 3900"
+     },
+     "check": {
+      "kind": "minimum",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "median",
+     "term": "muscle",
+     "value": "2650",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Non-nerve 12 2534 961 1130 2650 3900"
+     },
+     "check": {
+      "kind": "median",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "maximum",
+     "term": "muscle",
+     "value": "3900",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Non-nerve 12 2534 961 1130 2650 3900"
+     },
+     "check": {
+      "kind": "maximum",
+      "runs": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ]
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "nerve less muscle",
+     "value": "2.7354",
+     "where": {
+      "page": 49,
+      "source_kind": "prose",
+      "quote": "t0 = (4228 − 2534)/√((1918)²/12 + (961)²/12) = 2.7354"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "t",
+      "disagreement": "the book substitutes Minitab's rounded averages and standard deviations; the data give 2.7353, as Minitab's T-Value of 2.74 shows"
+     }
+    },
+    {
+     "what": "df",
+     "term": "nerve less muscle",
+     "value": "16.1955",
+     "where": {
+      "page": 50,
+      "source_kind": "prose",
+      "quote": "v = ... = 16.1955"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "df",
+      "disagreement": "worked from the rounded standard deviations 1918 and 961; the data's own give 16.1909"
+     }
+    },
+    {
+     "what": "df",
+     "term": "nerve less muscle, rounded",
+     "value": "16",
+     "analysis": "the Welch degrees of freedom, 16.19 for these data, rounded down to a whole number for a t table",
+     "where": {
+      "page": 50,
+      "source_kind": "prose",
+      "quote": "we should round the degrees of freedom down to 16"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "df"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "nerve less muscle",
+     "value": "0.015",
+     "analysis": "two-sided, though the alternative of the test, and Minitab's P-Value of 0.007, are one-sided",
+     "where": {
+      "page": 50,
+      "source_kind": "prose",
+      "quote": "Since the P-value reported is small (0.015)"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "p"
+     }
+    },
+    {
+     "what": "difference",
+     "term": "nerve less muscle",
+     "value": "1694",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Difference = mu (Nerve) − mu (Non-nerve) Estimate for difference: 1694"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "difference"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "nerve less muscle, one-sided",
+     "value": "613",
+     "analysis": "the one-sided 95% lower bound, the lower end of the two-sided 90% interval",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "95% lower bound for difference: 613"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "ci_low",
+      "confidence": 0.9
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "nerve less muscle",
+     "value": "2.74",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "T-Test of difference = 0 (vs >): T-Value = 2.74"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "t"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "nerve less muscle, one-sided",
+     "value": "0.007",
+     "analysis": "one-sided, for the alternative that nerve fluoresces more",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "T-Value = 2.74 P-Value = 0.007 DF = 16"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "p",
+      "alternative": "greater"
+     }
+    },
+    {
+     "what": "df",
+     "term": "nerve less muscle, rounded",
+     "value": "16",
+     "analysis": "Minitab rounds the Welch degrees of freedom, 16.19 for these data, down to a whole number",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "T-Value = 2.74 P-Value = 0.007 DF = 16"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "welch",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "minus": [
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21,
+       22,
+       23,
+       24
+      ],
+      "key": "df"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-hardness-tips",
+   "title": "Hardness readings of two tips on 10 metal specimens, each specimen divided in two and tested once with each tip",
+   "kind": "example",
+   "where": {
+    "section": "2.5",
+    "pages": "53-57",
+    "tables": [
+     "Table 2.6",
+     "Table 2.7"
+    ],
+    "figures": [
+     "Figure 2.15"
+    ]
+   },
+   "factors": [
+    {
+     "name": "specimen",
+     "description": "the metal specimen, a block of two halves",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "tip",
+     "description": "tip of the hardness tester; the effect is tip 1 less tip 2, the book's d = y1 − y2",
+     "low": "2",
+     "high": "1",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "hardness reading (coded)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "paired comparison",
+    "details": "10 specimens as blocks of two halves, the tip on each half and the order of testing chosen at random",
+    "n_runs": 20,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "specimen",
+     "tip",
+     "y"
+    ],
+    "rows": [
+     [
+      "1",
+      "1",
+      7
+     ],
+     [
+      "1",
+      "2",
+      6
+     ],
+     [
+      "2",
+      "1",
+      3
+     ],
+     [
+      "2",
+      "2",
+      3
+     ],
+     [
+      "3",
+      "1",
+      3
+     ],
+     [
+      "3",
+      "2",
+      5
+     ],
+     [
+      "4",
+      "1",
+      4
+     ],
+     [
+      "4",
+      "2",
+      3
+     ],
+     [
+      "5",
+      "1",
+      8
+     ],
+     [
+      "5",
+      "2",
+      8
+     ],
+     [
+      "6",
+      "1",
+      3
+     ],
+     [
+      "6",
+      "2",
+      2
+     ],
+     [
+      "7",
+      "1",
+      2
+     ],
+     [
+      "7",
+      "2",
+      4
+     ],
+     [
+      "8",
+      "1",
+      9
+     ],
+     [
+      "8",
+      "2",
+      9
+     ],
+     [
+      "9",
+      "1",
+      5
+     ],
+     [
+      "9",
+      "2",
+      4
+     ],
+     [
+      "10",
+      "1",
+      4
+     ],
+     [
+      "10",
+      "2",
+      5
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2.6, specimen by specimen, tip 1's reading then tip 2's"
+   },
+   "notes": "The paired t-test is the randomized block analysis with the specimens as blocks: the tip effect within specimens is the average difference, and its t is the paired t. Section 2.5.2 compares it with the pooled two-sample test, which ignores the specimens, on the same readings; the text calls them the data of Table 2.5, which are those of Table 2.6.",
+   "expected": [
+    {
+     "what": "difference",
+     "term": "specimen 1",
+     "value": "1",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d1 = 7 − 6 = 1"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       1
+      ],
+      "minus": [
+       2
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 2",
+     "value": "0",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d2 = 3 − 3 = 0"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       3
+      ],
+      "minus": [
+       4
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 3",
+     "value": "-2",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d3 = 3 − 5 = −2"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       5
+      ],
+      "minus": [
+       6
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 4",
+     "value": "1",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d4 = 4 − 3 = 1"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       7
+      ],
+      "minus": [
+       8
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 5",
+     "value": "0",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d5 = 8 − 8 = 0"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       9
+      ],
+      "minus": [
+       10
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 6",
+     "value": "1",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d6 = 3 − 2 = 1"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       11
+      ],
+      "minus": [
+       12
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 7",
+     "value": "-2",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d7 = 2 − 4 = −2"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       13
+      ],
+      "minus": [
+       14
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 8",
+     "value": "0",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d8 = 9 − 9 = 0"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       15
+      ],
+      "minus": [
+       16
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 9",
+     "value": "1",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d9 = 5 − 4 = 1"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       17
+      ],
+      "minus": [
+       18
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "specimen 10",
+     "value": "-1",
+     "where": {
+      "page": 54,
+      "source_kind": "prose",
+      "quote": "d10 = 4 − 5 = −1"
+     },
+     "check": {
+      "kind": "difference_of_means",
+      "runs": [
+       19
+      ],
+      "minus": [
+       20
+      ]
+     }
+    },
+    {
+     "what": "difference",
+     "term": "tip 1 less tip 2",
+     "value": "-0.10",
+     "where": {
+      "page": 55,
+      "source_kind": "prose",
+      "quote": "d̄ = (1/n) Σ dj = (1/10)(−1) = −0.10"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "difference"
+      },
+      {
+       "kind": "effect",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "sum",
+     "term": "differences",
+     "value": "-1",
+     "where": {
+      "page": 55,
+      "source_kind": "prose",
+      "quote": "d̄ = (1/n) Σ dj = (1/10)(−1) = −0.10"
+     },
+     "check": {
+      "manual": "the sum of the ten differences, ten times their average, which is checked as −0.10"
+     }
+    },
+    {
+     "what": "sum of squares",
+     "term": "differences",
+     "value": "13",
+     "where": {
+      "page": 55,
+      "source_kind": "prose",
+      "quote": "Sd = [(13 − (1/10)(−1)²)/(10 − 1)]^1/2 = 1.20"
+     },
+     "check": {
+      "manual": "the sum of the squared differences, a step in working Sd by hand, which is checked (it is 13)"
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "differences",
+     "value": "1.20",
+     "where": {
+      "page": 55,
+      "source_kind": "prose",
+      "quote": "Sd = [(13 − (1/10)(−1)²)/(10 − 1)]^1/2 = 1.20"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "paired",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ],
+      "minus": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ],
+      "key": "std_dev"
+     }
+    },
+    {
+     "what": "t percentage point",
+     "term": "t 0.025,9",
+     "value": "2.262",
+     "analysis": "a percentage point of the t distribution, as Appendix Table II prints it",
+     "where": {
+      "page": 55,
+      "source_kind": "prose",
+      "quote": "reject H0 if |t0| > t0.025,9 = 2.262"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       9
+      ]
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "tip 1 less tip 2",
+     "value": "-0.26",
+     "where": {
+      "page": 55,
+      "source_kind": "prose",
+      "quote": "t0 = d̄/(Sd/√n) = −0.10/(1.20/√10) = −0.26"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "t"
+      },
+      {
+       "kind": "t_value",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "p_value",
+     "term": "tip 1 less tip 2",
+     "value": "0.80",
+     "where": {
+      "page": 55,
+      "source_kind": "prose",
+      "quote": "Notice that the P-value for this test is P ≃ 0.80"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "p"
+      },
+      {
+       "kind": "p_value",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": "tip 1",
+     "value": "10",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Paired T for Tip 1−Tip 2 ... Tip 1 10 4.800 2.394 0.757"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "tip 1",
+     "value": "4.800",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Tip 1 10 4.800 2.394 0.757"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "tip 1",
+     "value": "2.394",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Tip 1 10 4.800 2.394 0.757"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "tip 1 mean",
+     "value": "0.757",
+     "analysis": "Minitab's SE Mean, the standard deviation over √n",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Tip 1 10 4.800 2.394 0.757"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "1",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ]
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "tip 2",
+     "value": "10",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Tip 2 10 4.900 2.234 0.706"
+     },
+     "check": {
+      "kind": "n_runs",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "tip 2",
+     "value": "4.900",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Tip 2 10 4.900 2.234 0.706"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ]
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "tip 2",
+     "value": "2.234",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Tip 2 10 4.900 2.234 0.706"
+     },
+     "check": {
+      "kind": "std_dev",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "tip 2 mean",
+     "value": "0.706",
+     "analysis": "Minitab's SE Mean, the standard deviation over √n",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Tip 2 10 4.900 2.234 0.706"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "1",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ]
+     }
+    },
+    {
+     "what": "n",
+     "term": "differences",
+     "value": "10",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Difference 10 −0.100 1.197 0.379"
+     },
+     "check": {
+      "manual": "the number of pairs, which is each tip's number of readings, checked as 10"
+     }
+    },
+    {
+     "what": "difference",
+     "term": "tip 1 less tip 2",
+     "value": "-0.100",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Difference 10 −0.100 1.197 0.379"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "difference"
+      },
+      {
+       "kind": "effect",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "std_dev",
+     "term": "differences",
+     "value": "1.197",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Difference 10 −0.100 1.197 0.379"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "paired",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ],
+      "minus": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ],
+      "key": "std_dev"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "mean difference",
+     "value": "0.379",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Difference 10 −0.100 1.197 0.379"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "std_error"
+      },
+      {
+       "kind": "effect_std_error",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "ci_low",
+     "term": "tip 1 less tip 2",
+     "value": "-0.956",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "95% CI for mean difference: (−0.956, 0.756)"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "ci_low"
+      },
+      {
+       "kind": "ci_low",
+       "term": "tip",
+       "scale": "effect",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "ci_high",
+     "term": "tip 1 less tip 2",
+     "value": "0.756",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "95% CI for mean difference: (−0.956, 0.756)"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "ci_high"
+      },
+      {
+       "kind": "ci_high",
+       "term": "tip",
+       "scale": "effect",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "t_value",
+     "term": "tip 1 less tip 2",
+     "value": "-0.26",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "T-Value = −0.26 P-Value = 0.798"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "t"
+      },
+      {
+       "kind": "t_value",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "p_value",
+     "term": "tip 1 less tip 2",
+     "value": "0.798",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "T-Value = −0.26 P-Value = 0.798"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "p"
+      },
+      {
+       "kind": "p_value",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "20",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "although 2n = 2(10) = 20 observations have been taken"
+     },
+     "check": {
+      "kind": "n_runs"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "9",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "only n − 1 = 9 degrees of freedom are available for the t statistic"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "df"
+      },
+      {
+       "kind": "residual_df",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "pooled_std_dev",
+     "term": "tip 1 and tip 2, independent",
+     "value": "2.32",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "Using the data in Table 2.5 as two independent samples, we compute the pooled standard deviation from Equation 2.25 to be Sp = 2.32"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ],
+      "minus": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ],
+      "key": "pooled_std_dev"
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "differences",
+     "value": "1.20",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "Comparing this value to Sd = 1.20"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "paired",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ],
+      "minus": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ],
+      "key": "std_dev"
+     }
+    },
+    {
+     "what": "reduction",
+     "term": "standard deviation",
+     "value": "nearly 50 percent",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "blocking or pairing has reduced the estimate of variability by nearly 50 percent"
+     },
+     "check": {
+      "manual": "the reduction from Sp = 2.32 to Sd = 1.20, both checked, given in words (it is 48%)"
+     }
+    },
+    {
+     "what": "difference",
+     "term": "tip 1 less tip 2",
+     "value": "-0.10",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "d̄ ± t0.025,9 Sd/√n −0.10 ± (2.262)(1.20)/√10 −0.10 ± 0.86"
+     },
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "minus": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "key": "difference"
+      },
+      {
+       "kind": "effect",
+       "term": "tip",
+       "model": "specimen + tip"
+      }
+     ]
+    },
+    {
+     "what": "half_width",
+     "term": "tip 1 less tip 2, paired",
+     "value": "0.86",
+     "analysis": "t0.025,9 times Sd/√n, the half-width of the paired 95% interval",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "−0.10 ± (2.262)(1.20)/√10 −0.10 ± 0.86"
+     },
+     "check": {
+      "kind": "t_test",
+      "test": "paired",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ],
+      "minus": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ],
+      "key": "half_width"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "tip 1",
+     "value": "4.80",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "4.80 − 4.90 ± (2.101)(2.32)√(1/10 + 1/10)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "tip 2",
+     "value": "4.90",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "4.80 − 4.90 ± (2.101)(2.32)√(1/10 + 1/10)"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ]
+     }
+    },
+    {
+     "what": "half_width",
+     "term": "tip 1 less tip 2, independent",
+     "value": "2.18",
+     "analysis": "t0.025,18 times Sp √(1/10 + 1/10), the half-width of the pooled 95% interval that ignores the specimens",
+     "where": {
+      "page": 56,
+      "source_kind": "prose",
+      "quote": "4.80 − 4.90 ± (2.101)(2.32)√(1/10 + 1/10) −0.10 ± 2.18"
+     },
+     "check": {
+      "kind": "t_test",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19
+      ],
+      "minus": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20
+      ],
+      "key": "half_width"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-problem-2-8",
+   "title": "Ten sample values, to judge normality and a mean of 10 (Problem 2.8)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.8",
+    "pages": "59",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "sample value",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "single sample",
+    "details": "10 readings",
+    "n_runs": 10,
+    "treatment_factors": 0
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      9.37
+     ],
+     [
+      2,
+      13.04
+     ],
+     [
+      3,
+      11.69
+     ],
+     [
+      4,
+      8.21
+     ],
+     [
+      5,
+      11.18
+     ],
+     [
+      6,
+      10.41
+     ],
+     [
+      7,
+      13.15
+     ],
+     [
+      8,
+      11.51
+     ],
+     [
+      9,
+      13.21
+     ],
+     [
+      10,
+      7.75
+     ]
+    ],
+    "coded": false,
+    "notes": "the ten values in the order printed"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-2-16",
+   "title": "Breaking strength of four fiber specimens, the standard deviation known to be 3 psi (Problem 2.16)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.16",
+    "pages": "60",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "breaking strength",
+     "units": "psi"
+    }
+   ],
+   "design": {
+    "type": "single sample",
+    "details": "4 readings",
+    "n_runs": 4,
+    "treatment_factors": 0
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      145
+     ],
+     [
+      2,
+      153
+     ],
+     [
+      3,
+      150
+     ],
+     [
+      4,
+      147
+     ]
+    ],
+    "coded": false,
+    "notes": "y1 to y4 as printed"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "The fiber is required to have a breaking strength of at least 150 psi, and σ = 3 psi is known."
+  },
+  {
+   "name": "montgomery-problem-2-20",
+   "title": "Shelf life of ten bottles of a carbonated beverage (Problem 2.20)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.20",
+    "pages": "61",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "shelf life",
+     "units": "days"
+    }
+   ],
+   "design": {
+    "type": "single sample",
+    "details": "10 readings",
+    "n_runs": 10,
+    "treatment_factors": 0
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      108
+     ],
+     [
+      2,
+      124
+     ],
+     [
+      3,
+      124
+     ],
+     [
+      4,
+      106
+     ],
+     [
+      5,
+      115
+     ],
+     [
+      6,
+      138
+     ],
+     [
+      7,
+      163
+     ],
+     [
+      8,
+      159
+     ],
+     [
+      9,
+      134
+     ],
+     [
+      10,
+      139
+     ]
+    ],
+    "coded": false,
+    "notes": "listed down each column of the book's table, left to right"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-2-22",
+   "title": "Repair times of 16 electronic instruments (Problem 2.22)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.22",
+    "pages": "61",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "time to repair",
+     "units": "h"
+    }
+   ],
+   "design": {
+    "type": "single sample",
+    "details": "16 readings",
+    "n_runs": 16,
+    "treatment_factors": 0
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      159
+     ],
+     [
+      2,
+      224
+     ],
+     [
+      3,
+      222
+     ],
+     [
+      4,
+      149
+     ],
+     [
+      5,
+      280
+     ],
+     [
+      6,
+      379
+     ],
+     [
+      7,
+      362
+     ],
+     [
+      8,
+      260
+     ],
+     [
+      9,
+      101
+     ],
+     [
+      10,
+      179
+     ],
+     [
+      11,
+      168
+     ],
+     [
+      12,
+      485
+     ],
+     [
+      13,
+      212
+     ],
+     [
+      14,
+      264
+     ],
+     [
+      15,
+      250
+     ],
+     [
+      16,
+      170
+     ]
+    ],
+    "coded": false,
+    "notes": "listed down each column of the book's table, left to right"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problem 2.23 asks about the same data."
+  },
+  {
+   "name": "montgomery-problem-2-24",
+   "title": "Net fill volume of plastic bottles from two filling machines, their standard deviations known (Problem 2.24)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.24",
+    "pages": "61",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "machine",
+     "description": "filling machine",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "net fill volume",
+     "units": "oz"
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "10 readings of 1 and 10 of 2",
+    "n_runs": 20,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "machine",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      16.03
+     ],
+     [
+      2,
+      "1",
+      16.04
+     ],
+     [
+      3,
+      "1",
+      16.05
+     ],
+     [
+      4,
+      "1",
+      16.05
+     ],
+     [
+      5,
+      "1",
+      16.02
+     ],
+     [
+      6,
+      "1",
+      16.01
+     ],
+     [
+      7,
+      "1",
+      15.96
+     ],
+     [
+      8,
+      "1",
+      15.98
+     ],
+     [
+      9,
+      "1",
+      16.02
+     ],
+     [
+      10,
+      "1",
+      15.99
+     ],
+     [
+      1,
+      "2",
+      16.02
+     ],
+     [
+      2,
+      "2",
+      15.97
+     ],
+     [
+      3,
+      "2",
+      15.96
+     ],
+     [
+      4,
+      "2",
+      16.01
+     ],
+     [
+      5,
+      "2",
+      15.99
+     ],
+     [
+      6,
+      "2",
+      16.03
+     ],
+     [
+      7,
+      "2",
+      16.04
+     ],
+     [
+      8,
+      "2",
+      16.02
+     ],
+     [
+      9,
+      "2",
+      16.01
+     ],
+     [
+      10,
+      "2",
+      16.0
+     ]
+    ],
+    "coded": false,
+    "notes": "machine 1's ten volumes, then machine 2's, each listed down each column of the book's table, left to right"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "The bottles' nominal volume is 16.0 oz, and σ1 = 0.015 and σ2 = 0.018 are known. Problems 2.47 and 2.48 rework the same data."
+  },
+  {
+   "name": "montgomery-problem-2-26",
+   "title": "Burning times of chemical flares of two formulations (Problem 2.26)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.26",
+    "pages": "61-62",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "type",
+     "description": "flare formulation",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "burning time",
+     "units": "min"
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "10 readings of 1 and 10 of 2",
+    "n_runs": 20,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "type",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      65
+     ],
+     [
+      2,
+      "1",
+      81
+     ],
+     [
+      3,
+      "1",
+      57
+     ],
+     [
+      4,
+      "1",
+      66
+     ],
+     [
+      5,
+      "1",
+      82
+     ],
+     [
+      6,
+      "1",
+      82
+     ],
+     [
+      7,
+      "1",
+      67
+     ],
+     [
+      8,
+      "1",
+      59
+     ],
+     [
+      9,
+      "1",
+      75
+     ],
+     [
+      10,
+      "1",
+      70
+     ],
+     [
+      1,
+      "2",
+      64
+     ],
+     [
+      2,
+      "2",
+      71
+     ],
+     [
+      3,
+      "2",
+      83
+     ],
+     [
+      4,
+      "2",
+      59
+     ],
+     [
+      5,
+      "2",
+      65
+     ],
+     [
+      6,
+      "2",
+      56
+     ],
+     [
+      7,
+      "2",
+      69
+     ],
+     [
+      8,
+      "2",
+      74
+     ],
+     [
+      9,
+      "2",
+      82
+     ],
+     [
+      10,
+      "2",
+      79
+     ]
+    ],
+    "coded": false,
+    "notes": "type 1's ten times, then type 2's, each listed down each column of the book's table, left to right"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problem 2.46 asks about the same data."
+  },
+  {
+   "name": "montgomery-problem-2-27",
+   "title": "Etch uniformity of silicon wafers at two C2F6 flow rates, the runs in random order (Problem 2.27)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.27",
+    "pages": "62",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "flow",
+     "description": "C2F6 flow rate",
+     "low": 125,
+     "high": 200,
+     "levels": [
+      125,
+      200
+     ],
+     "units": "SCCM",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "etch uniformity",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "6 readings of 125 and 6 of 200",
+    "n_runs": 12,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "flow",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      125,
+      2.7
+     ],
+     [
+      2,
+      125,
+      4.6
+     ],
+     [
+      3,
+      125,
+      2.6
+     ],
+     [
+      4,
+      125,
+      3.0
+     ],
+     [
+      5,
+      125,
+      3.2
+     ],
+     [
+      6,
+      125,
+      3.8
+     ],
+     [
+      1,
+      200,
+      4.6
+     ],
+     [
+      2,
+      200,
+      3.4
+     ],
+     [
+      3,
+      200,
+      2.9
+     ],
+     [
+      4,
+      200,
+      3.5
+     ],
+     [
+      5,
+      200,
+      4.1
+     ],
+     [
+      6,
+      200,
+      5.1
+     ]
+    ],
+    "coded": false,
+    "notes": "observations 1 to 6 at 125 SCCM, then at 200 SCCM"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "From Yin and Jillie, Solid State Technology (May 1987)."
+  },
+  {
+   "name": "montgomery-problem-2-29",
+   "title": "Photoresist thickness of wafers baked at two temperatures, the runs in random order (Problem 2.29)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.29",
+    "pages": "62",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "temperature",
+     "description": "baking temperature",
+     "low": 95,
+     "high": 100,
+     "levels": [
+      95,
+      100
+     ],
+     "units": "°C",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "photoresist thickness",
+     "units": "kA"
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "8 readings of 95 and 8 of 100",
+    "n_runs": 16,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "temperature",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      95,
+      11.176
+     ],
+     [
+      2,
+      95,
+      7.089
+     ],
+     [
+      3,
+      95,
+      8.097
+     ],
+     [
+      4,
+      95,
+      11.739
+     ],
+     [
+      5,
+      95,
+      11.291
+     ],
+     [
+      6,
+      95,
+      10.759
+     ],
+     [
+      7,
+      95,
+      6.467
+     ],
+     [
+      8,
+      95,
+      8.315
+     ],
+     [
+      1,
+      100,
+      5.263
+     ],
+     [
+      2,
+      100,
+      6.748
+     ],
+     [
+      3,
+      100,
+      7.461
+     ],
+     [
+      4,
+      100,
+      7.015
+     ],
+     [
+      5,
+      100,
+      8.133
+     ],
+     [
+      6,
+      100,
+      7.418
+     ],
+     [
+      7,
+      100,
+      3.772
+     ],
+     [
+      8,
+      100,
+      8.963
+     ]
+    ],
+    "coded": false,
+    "notes": "the eight wafers baked at 95 °C, then the eight at 100 °C"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-2-30",
+   "title": "Appearance scores of cell phone housings after two cool-down times in the mold, the runs in random order (Problem 2.30)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.30",
+    "pages": "62",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "cool_down",
+     "description": "time the part cools in the mold before removal",
+     "low": 10,
+     "high": 20,
+     "levels": [
+      10,
+      20
+     ],
+     "units": "s",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "appearance score, from 1 (a completely defective part) to 10 (a perfect part)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "20 readings of 10 and 20 of 20",
+    "n_runs": 40,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "cool_down",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      10,
+      1
+     ],
+     [
+      2,
+      10,
+      2
+     ],
+     [
+      3,
+      10,
+      1
+     ],
+     [
+      4,
+      10,
+      3
+     ],
+     [
+      5,
+      10,
+      5
+     ],
+     [
+      6,
+      10,
+      1
+     ],
+     [
+      7,
+      10,
+      5
+     ],
+     [
+      8,
+      10,
+      2
+     ],
+     [
+      9,
+      10,
+      3
+     ],
+     [
+      10,
+      10,
+      5
+     ],
+     [
+      11,
+      10,
+      3
+     ],
+     [
+      12,
+      10,
+      6
+     ],
+     [
+      13,
+      10,
+      5
+     ],
+     [
+      14,
+      10,
+      3
+     ],
+     [
+      15,
+      10,
+      2
+     ],
+     [
+      16,
+      10,
+      1
+     ],
+     [
+      17,
+      10,
+      6
+     ],
+     [
+      18,
+      10,
+      8
+     ],
+     [
+      19,
+      10,
+      2
+     ],
+     [
+      20,
+      10,
+      3
+     ],
+     [
+      1,
+      20,
+      7
+     ],
+     [
+      2,
+      20,
+      8
+     ],
+     [
+      3,
+      20,
+      5
+     ],
+     [
+      4,
+      20,
+      9
+     ],
+     [
+      5,
+      20,
+      5
+     ],
+     [
+      6,
+      20,
+      8
+     ],
+     [
+      7,
+      20,
+      6
+     ],
+     [
+      8,
+      20,
+      4
+     ],
+     [
+      9,
+      20,
+      6
+     ],
+     [
+      10,
+      20,
+      7
+     ],
+     [
+      11,
+      20,
+      6
+     ],
+     [
+      12,
+      20,
+      9
+     ],
+     [
+      13,
+      20,
+      5
+     ],
+     [
+      14,
+      20,
+      7
+     ],
+     [
+      15,
+      20,
+      4
+     ],
+     [
+      16,
+      20,
+      6
+     ],
+     [
+      17,
+      20,
+      8
+     ],
+     [
+      18,
+      20,
+      5
+     ],
+     [
+      19,
+      20,
+      8
+     ],
+     [
+      20,
+      20,
+      7
+     ]
+    ],
+    "coded": false,
+    "notes": "the 20 housings at 10 s, then the 20 at 20 s, each listed down each column of the book's table, left to right"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-2-31",
+   "title": "Etch uniformity of 20 wafers in a qualification experiment for a plasma etcher (Problem 2.31)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.31",
+    "pages": "63",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "etch uniformity",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "single sample",
+    "details": "20 readings",
+    "n_runs": 20,
+    "treatment_factors": 0
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      5.34
+     ],
+     [
+      2,
+      6.65
+     ],
+     [
+      3,
+      4.76
+     ],
+     [
+      4,
+      5.98
+     ],
+     [
+      5,
+      7.25
+     ],
+     [
+      6,
+      6.0
+     ],
+     [
+      7,
+      7.55
+     ],
+     [
+      8,
+      5.54
+     ],
+     [
+      9,
+      5.62
+     ],
+     [
+      10,
+      6.21
+     ],
+     [
+      11,
+      5.97
+     ],
+     [
+      12,
+      7.35
+     ],
+     [
+      13,
+      5.44
+     ],
+     [
+      14,
+      4.39
+     ],
+     [
+      15,
+      4.98
+     ],
+     [
+      16,
+      5.25
+     ],
+     [
+      17,
+      6.35
+     ],
+     [
+      18,
+      4.61
+     ],
+     [
+      19,
+      6.0
+     ],
+     [
+      20,
+      5.32
+     ]
+    ],
+    "coded": false,
+    "notes": "the four printed rows of five, row by row"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-2-32",
+   "title": "Diameter of a ball bearing measured by 12 inspectors, each with two kinds of caliper (Problem 2.32)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.32",
+    "pages": "63",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "inspector",
+     "description": "inspector",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "caliper",
+     "description": "kind of caliper",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "diameter of the ball bearing",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "paired comparison",
+    "details": "12 inspectors, each measuring the bearing once with each caliper",
+    "n_runs": 24,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "inspector",
+     "caliper",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      "1",
+      0.265
+     ],
+     [
+      2,
+      "1",
+      "2",
+      0.264
+     ],
+     [
+      3,
+      "2",
+      "1",
+      0.265
+     ],
+     [
+      4,
+      "2",
+      "2",
+      0.265
+     ],
+     [
+      5,
+      "3",
+      "1",
+      0.266
+     ],
+     [
+      6,
+      "3",
+      "2",
+      0.264
+     ],
+     [
+      7,
+      "4",
+      "1",
+      0.267
+     ],
+     [
+      8,
+      "4",
+      "2",
+      0.266
+     ],
+     [
+      9,
+      "5",
+      "1",
+      0.267
+     ],
+     [
+      10,
+      "5",
+      "2",
+      0.267
+     ],
+     [
+      11,
+      "6",
+      "1",
+      0.265
+     ],
+     [
+      12,
+      "6",
+      "2",
+      0.268
+     ],
+     [
+      13,
+      "7",
+      "1",
+      0.267
+     ],
+     [
+      14,
+      "7",
+      "2",
+      0.264
+     ],
+     [
+      15,
+      "8",
+      "1",
+      0.267
+     ],
+     [
+      16,
+      "8",
+      "2",
+      0.265
+     ],
+     [
+      17,
+      "9",
+      "1",
+      0.265
+     ],
+     [
+      18,
+      "9",
+      "2",
+      0.265
+     ],
+     [
+      19,
+      "10",
+      "1",
+      0.268
+     ],
+     [
+      20,
+      "10",
+      "2",
+      0.267
+     ],
+     [
+      21,
+      "11",
+      "1",
+      0.268
+     ],
+     [
+      22,
+      "11",
+      "2",
+      0.268
+     ],
+     [
+      23,
+      "12",
+      "1",
+      0.265
+     ],
+     [
+      24,
+      "12",
+      "2",
+      0.269
+     ]
+    ],
+    "coded": false,
+    "notes": "inspector by inspector, caliper 1's reading then caliper 2's"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-2-33",
+   "title": "Intelligence scores of 10 pairs of monozygotic twins, by birth order (Problem 2.33)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.33",
+    "pages": "63",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "pair",
+     "description": "pair of twins",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "birth_order",
+     "description": "birth order within the pair",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "intelligence score",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "paired comparison",
+    "details": "10 pairs of twins, each twin scored once",
+    "n_runs": 20,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "pair",
+     "birth_order",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      "1",
+      6.08
+     ],
+     [
+      2,
+      "1",
+      "2",
+      5.73
+     ],
+     [
+      3,
+      "2",
+      "1",
+      6.22
+     ],
+     [
+      4,
+      "2",
+      "2",
+      5.8
+     ],
+     [
+      5,
+      "3",
+      "1",
+      7.99
+     ],
+     [
+      6,
+      "3",
+      "2",
+      8.42
+     ],
+     [
+      7,
+      "4",
+      "1",
+      7.44
+     ],
+     [
+      8,
+      "4",
+      "2",
+      6.84
+     ],
+     [
+      9,
+      "5",
+      "1",
+      6.48
+     ],
+     [
+      10,
+      "5",
+      "2",
+      6.43
+     ],
+     [
+      11,
+      "6",
+      "1",
+      7.99
+     ],
+     [
+      12,
+      "6",
+      "2",
+      8.76
+     ],
+     [
+      13,
+      "7",
+      "1",
+      6.32
+     ],
+     [
+      14,
+      "7",
+      "2",
+      6.32
+     ],
+     [
+      15,
+      "8",
+      "1",
+      7.6
+     ],
+     [
+      16,
+      "8",
+      "2",
+      7.62
+     ],
+     [
+      17,
+      "9",
+      "1",
+      6.03
+     ],
+     [
+      18,
+      "9",
+      "2",
+      6.59
+     ],
+     [
+      19,
+      "10",
+      "1",
+      7.52
+     ],
+     [
+      20,
+      "10",
+      "2",
+      7.67
+     ]
+    ],
+    "coded": false,
+    "notes": "pair by pair, birth order 1's score then birth order 2's"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "From Neurology (1998, vol. 50, pp. 1246-1252)."
+  },
+  {
+   "name": "montgomery-problem-2-34",
+   "title": "Ratio of predicted to observed shear load of nine steel plate girders by the Karlsruhe and Lehigh methods (Problem 2.34)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.34",
+    "pages": "63",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "girder",
+     "description": "girder",
+     "low": "S1/1",
+     "high": "S2/1",
+     "levels": [
+      "S1/1",
+      "S2/1",
+      "S3/1",
+      "S4/1",
+      "S5/1",
+      "S2/1 (second)",
+      "S2/2",
+      "S2/3",
+      "S2/4"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "method",
+     "description": "method of predicting the shear strength",
+     "low": "Karlsruhe",
+     "high": "Lehigh",
+     "levels": [
+      "Karlsruhe",
+      "Lehigh"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "ratio of predicted to observed load",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "paired comparison",
+    "details": "nine girders, each load predicted by both methods",
+    "n_runs": 18,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "girder",
+     "method",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "S1/1",
+      "Karlsruhe",
+      1.186
+     ],
+     [
+      2,
+      "S1/1",
+      "Lehigh",
+      1.061
+     ],
+     [
+      3,
+      "S2/1",
+      "Karlsruhe",
+      1.151
+     ],
+     [
+      4,
+      "S2/1",
+      "Lehigh",
+      0.992
+     ],
+     [
+      5,
+      "S3/1",
+      "Karlsruhe",
+      1.322
+     ],
+     [
+      6,
+      "S3/1",
+      "Lehigh",
+      1.063
+     ],
+     [
+      7,
+      "S4/1",
+      "Karlsruhe",
+      1.339
+     ],
+     [
+      8,
+      "S4/1",
+      "Lehigh",
+      1.062
+     ],
+     [
+      9,
+      "S5/1",
+      "Karlsruhe",
+      1.2
+     ],
+     [
+      10,
+      "S5/1",
+      "Lehigh",
+      1.065
+     ],
+     [
+      11,
+      "S2/1 (second)",
+      "Karlsruhe",
+      1.402
+     ],
+     [
+      12,
+      "S2/1 (second)",
+      "Lehigh",
+      1.178
+     ],
+     [
+      13,
+      "S2/2",
+      "Karlsruhe",
+      1.365
+     ],
+     [
+      14,
+      "S2/2",
+      "Lehigh",
+      1.037
+     ],
+     [
+      15,
+      "S2/3",
+      "Karlsruhe",
+      1.537
+     ],
+     [
+      16,
+      "S2/3",
+      "Lehigh",
+      1.086
+     ],
+     [
+      17,
+      "S2/4",
+      "Karlsruhe",
+      1.559
+     ],
+     [
+      18,
+      "S2/4",
+      "Lehigh",
+      1.052
+     ]
+    ],
+    "coded": false,
+    "notes": "girder by girder, the Karlsruhe ratio then the Lehigh"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "From the Journal of Strain Analysis (vol. 18, no. 2, 1983). The book labels both the second and the sixth girder S2/1; the sixth is held as 'S2/1 (second)' so that each girder is a block of its own."
+  },
+  {
+   "name": "montgomery-problem-2-35",
+   "title": "Deflection temperature under load of ABS plastic pipe of two formulations (Problem 2.35)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.35",
+    "pages": "63-64",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "formulation",
+     "description": "ABS formulation",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "deflection temperature under load",
+     "units": "°F"
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "12 readings of 1 and 12 of 2",
+    "n_runs": 24,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "formulation",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      206
+     ],
+     [
+      2,
+      "1",
+      188
+     ],
+     [
+      3,
+      "1",
+      205
+     ],
+     [
+      4,
+      "1",
+      187
+     ],
+     [
+      5,
+      "1",
+      193
+     ],
+     [
+      6,
+      "1",
+      207
+     ],
+     [
+      7,
+      "1",
+      185
+     ],
+     [
+      8,
+      "1",
+      189
+     ],
+     [
+      9,
+      "1",
+      192
+     ],
+     [
+      10,
+      "1",
+      210
+     ],
+     [
+      11,
+      "1",
+      194
+     ],
+     [
+      12,
+      "1",
+      178
+     ],
+     [
+      1,
+      "2",
+      177
+     ],
+     [
+      2,
+      "2",
+      197
+     ],
+     [
+      3,
+      "2",
+      206
+     ],
+     [
+      4,
+      "2",
+      201
+     ],
+     [
+      5,
+      "2",
+      176
+     ],
+     [
+      6,
+      "2",
+      185
+     ],
+     [
+      7,
+      "2",
+      200
+     ],
+     [
+      8,
+      "2",
+      197
+     ],
+     [
+      9,
+      "2",
+      198
+     ],
+     [
+      10,
+      "2",
+      188
+     ],
+     [
+      11,
+      "2",
+      189
+     ],
+     [
+      12,
+      "2",
+      203
+     ]
+    ],
+    "coded": false,
+    "notes": "formulation 1's twelve temperatures, then formulation 2's, each listed down each column of the book's table, left to right"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problem 2.36 asks about the same data."
+  },
+  {
+   "name": "montgomery-problem-2-37",
+   "title": "Etch rates of wafers in two wet chemical etching solutions (Problem 2.37)",
+   "kind": "exercise",
+   "where": {
+    "section": "2.7, Problem 2.37",
+    "pages": "64",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "solution",
+     "description": "etching solution",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "etch rate",
+     "units": "mils/min"
+    }
+   ],
+   "design": {
+    "type": "completely randomized two-group comparison",
+    "details": "8 readings of 1 and 8 of 2",
+    "n_runs": 16,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "solution",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      9.9
+     ],
+     [
+      2,
+      "1",
+      9.4
+     ],
+     [
+      3,
+      "1",
+      10.0
+     ],
+     [
+      4,
+      "1",
+      10.3
+     ],
+     [
+      5,
+      "1",
+      10.6
+     ],
+     [
+      6,
+      "1",
+      10.3
+     ],
+     [
+      7,
+      "1",
+      9.3
+     ],
+     [
+      8,
+      "1",
+      9.8
+     ],
+     [
+      1,
+      "2",
+      10.2
+     ],
+     [
+      2,
+      "2",
+      10.0
+     ],
+     [
+      3,
+      "2",
+      10.7
+     ],
+     [
+      4,
+      "2",
+      10.5
+     ],
+     [
+      5,
+      "2",
+      10.6
+     ],
+     [
+      6,
+      "2",
+      10.2
+     ],
+     [
+      7,
+      "2",
+      10.4
+     ],
+     [
+      8,
+      "2",
+      10.3
+     ]
+    ],
+    "coded": false,
+    "notes": "solution 1's eight rates, then solution 2's, each listed down each column of the book's table, left to right"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  }
+ ],
+ "designs": [
+  {
+   "name": "montgomery-golf-factorials",
+   "title": "The golf experiment's two-level factorial designs in three, four and ten factors, by their run counts",
+   "kind": "design",
+   "where": {
+    "section": "1.1",
+    "pages": "6-7",
+    "tables": [],
+    "figures": [
+     "Figure 1.6",
+     "Figure 1.7"
+    ]
+   },
+   "design": {
+    "type": "2^k factorial",
+    "details": "every combination of k two-level factors",
+    "n_runs": "8 to 1024",
+    "treatment_factors": "3 to 10"
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "2^3",
+     "value": "eight",
+     "where": {
+      "page": 7,
+      "source_kind": "prose",
+      "quote": "Notice that there are eight test combinations of these three factors across the two levels of each"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "printed": "8",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 3,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "2^4",
+     "value": "16",
+     "where": {
+      "page": 7,
+      "source_kind": "prose",
+      "quote": "For example, the experiment in Figure 1.7 requires 16 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 4,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "2^10",
+     "value": "1024",
+     "where": {
+      "page": 7,
+      "source_kind": "prose",
+      "quote": "a 10-factor experiment with all factors at two levels would require 1024 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 10,
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-golf-half-fraction",
+   "title": "One-half fraction of the four-factor golf experiment: driver, ball, beverage and mode of travel in 8 runs",
+   "kind": "design",
+   "where": {
+    "section": "1.1",
+    "pages": "7-8",
+    "tables": [],
+    "figures": [
+     "Figure 1.8"
+    ]
+   },
+   "factors": [
+    {
+     "name": "driver",
+     "description": "type of driver",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "ball",
+     "description": "type of ball",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "beverage",
+     "description": "type of beverage",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "travel",
+     "description": "mode of travel: walk −1, ride +1",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "details": "the eight circled corners of the two cubes of Figure 1.8",
+    "n_runs": 8,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "driver",
+     "ball",
+     "beverage",
+     "travel"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      6,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      7,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "the circled corners of Figure 1.8 read in coded units, each factor low at the origin of the figure's axes (driver to the right, ball into the page, beverage up) and walking the low level of mode of travel; listed walk first, then ride"
+   },
+   "notes": "Every circled run has an even number of factors at their low level: the half fraction I = ABCD, the library's 2^(4-1) with D = ABC.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "8",
+     "where": {
+      "page": 7,
+      "source_kind": "prose",
+      "quote": "This design requires only 8 runs instead of the original 16 and would be called a one-half fraction"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 4,
+       "options": {
+        "generators": [
+         "D=ABC"
+        ],
+        "n_center_points": 0
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-web-page-factorial",
+   "title": "A web page of seven components with 4, 8, 6, 5, 4, 3 and 7 choices, as a full factorial",
+   "kind": "design",
+   "where": {
+    "section": "1.2, Example 1.6",
+    "pages": "11",
+    "tables": [],
+    "figures": []
+   },
+   "design": {
+    "type": "mixed-level full factorial",
+    "details": "photoflash image, main headline, subheadline, main text copy, main image, background design and footer",
+    "n_runs": 80640,
+    "treatment_factors": 7
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "80,640",
+     "where": {
+      "page": 11,
+      "source_kind": "prose",
+      "quote": "This is a total of 4 × 8 × 6 × 5 × 4 × 3 × 7 = 80,640 web pages"
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "printed": "80640",
+      "design": {
+       "design_type": "full_factorial",
+       "k": 7,
+       "levels": [
+        4,
+        8,
+        6,
+        5,
+        4,
+        3,
+        7
+       ],
+       "options": {
+        "n_center_points": 0
+       }
+      }
+     }
+    }
+   ]
+  }
+ ],
+ "not_captured": [
+  "front matter and contents (pp. v to xvii): the preface and the table of contents, no data",
+  "1.1 (pp. 1 to 4): the quenching example and the golf factors, in words; the best-guess round with a score of 87, a single hypothetical result from which no number is worked; Figures 1.2 and 1.3, the one-factor-at-a-time graphs and the driver by beverage interaction, drawn without values",
+  "Figures 1.6 and 1.7 (p. 7): the cubes of the 2^3 and 2^4 golf factorials, whose run counts are held as montgomery-golf-factorials",
+  "1.2, Examples 1.1 to 1.5 (pp. 8 to 11): characterizing, optimizing, designing and formulating, in words; Figure 1.9, a contour plot of yield over time and temperature with yields of 70, 75, 78, 80 and 82 percent at an initial 2^2 and its centre, drawn without the factors' settings and with no number worked from them",
+  "1.3 (pp. 11 to 13): the variance of a sample mean, σ²/n; two hypothetical single readings, 145 and 147; and a three-run table of pressure, temperature and time settings, with no results",
+  "1.4 to 1.6 (pp. 14 to 23): Table 1.1's guidelines, the cause-and-effect diagrams of Figures 1.10 and 1.11, the first-order, interaction and second-order models, and the history of the subject, no data",
+  "Problems 1.1 to 1.10 (pp. 23 and 24): questions in words, no data",
+  "2.2 and 2.3 (pp. 27 to 36): Figure 2.2, a histogram of 200 metal recoveries drawn without its values; Figure 2.4 and Figures 2.5 to 2.9, distributions; Equations 2.1 to 2.22, Theorem 2-1 and the properties of expectation and variance, no data",
+  "the suspended solids example (p. 31): a sample of n = 25 summarised as ȳ = 18.6 and S² = 1.20, without its readings",
+  "Figure 2.12 (p. 45): t0.025,2n−2 √(2/n) against n for n up to 20, drawn without values",
+  "2.4.5 to 2.4.7 (pp. 50 to 52): the Z-tests and the one-sample t-test, Equations 2.33 to 2.38, and Tables 2.4 and 2.5, which set out the tests, no data",
+  "Example 2.2 (p. 51): a one-sample Z-test of four fabric specimens given only as their average, 214 psi, with a known variance of 100 psi²: Z0 = 2.80, Z0.05 = 1.645 and P = 1 − 0.99744 = 0.00256; the readings are not printed",
+  "2.6 and Example 2.3 (pp. 57 to 59): the chi-square and F tests of variances (Equations 2.44 to 2.50 and Table 2.8), and an F-test of two kinds of test equipment given only as S1² = 14.5 and S2² = 10.8 from samples of 12 and 10: F0 = 1.34 against F0.05,11,9 = 3.10, and the 95% interval 0.34 to 4.82 for the ratio of variances from F0.025,9,11 = 3.59 and 1/3.92 = 0.255; the readings are not printed, and the text of p. 59 calls the example Example 2.2",
+  "Problems 2.1, 2.2, 2.5, 2.9, 2.10 and 2.13 to 2.15 (pp. 59 and 60): computer output with values left for the reader to fill in, without data",
+  "Problems 2.3, 2.4, 2.6, 2.7, 2.11 and 2.12 (pp. 59 and 60): P-values asked for given test statistics, without data",
+  "Problems 2.17 to 2.19, 2.25, 2.28, 2.38 and 2.39 (pp. 60 to 64): tests and intervals from stated averages, variances and sample sizes, without data",
+  "Problems 2.21, 2.23, 2.36 and 2.46 to 2.48 (pp. 61 to 64): further questions on the data of Problems 2.20, 2.22, 2.35, 2.26 and 2.24, held under those problems",
+  "Problems 2.40 to 2.45 (p. 64): derivations and a data set for the reader to construct, without data"
+ ]
+}
