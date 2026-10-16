@@ -236,15 +236,19 @@ class UniformSampler:
         of the points known to lie in it) rounds the region, so most chords run along
         it. Any fixed direction distribution that gives ``d`` and ``-d`` the same weight
         leaves the uniform distribution invariant. A small isotropic part keeps every
-        direction possible.
+        direction possible, and makes the matrix positive definite.
+
+        The square root is the Cholesky factor: any ``L`` with ``L @ L.T`` equal to the
+        covariance gives the same Gaussian directions, and this one is unique, so the
+        chains take the same steps on every platform. (Eigenvectors are not: their signs
+        differed between native LAPACK and Pyodide, and so did the sampled points.)
         """
         k = points.shape[1]
         cov = np.cov(points, rowvar=False).reshape(k, k) if len(points) > 1 else np.zeros((k, k))
         scale = float(np.trace(cov)) / k
         if not np.isfinite(scale) or scale <= 0:
             return np.eye(k)
-        values, vectors = np.linalg.eigh(cov + 1e-3 * scale * np.eye(k))
-        return vectors * np.sqrt(np.maximum(values, 0.0))
+        return np.linalg.cholesky(cov + 1e-3 * scale * np.eye(k))
 
     def _chord(self, x: np.ndarray, d: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Range of ``t`` keeping ``x + t d`` inside the bounds and every affine constraint."""
