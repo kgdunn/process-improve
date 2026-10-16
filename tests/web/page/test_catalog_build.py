@@ -142,6 +142,21 @@ def test_runs_the_page_cannot_take_are_not_given(build_script, few, change, reas
         assert build_script.given_campaign({**record, **change}) == (None, reason)
 
 
+@pytest.mark.parametrize("blank", ["None", " NA "])
+def test_a_label_a_spreadsheet_reads_as_blank_is_not_opened(build_script, few, blank):
+    """Montgomery's Problem 8.30 has stems at None and All: the page refuses the label, so neither path tries it."""
+    record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
+    factors = [*record["factors"][:2], {**record["factors"][2], "low": blank, "high": "All"}]
+    with no_bytecode():
+        assert build_script.given_campaign({**record, "factors": factors}) == (
+            None,
+            "a spreadsheet reads a label such as None as a blank cell",
+        )
+        campaign, reason, tried = build_script.published_campaign({**record, "factors": factors})
+    assert (campaign, tried) == (None, False), "the page is not asked for a design it refuses"
+    assert reason == "a factor's name, type or range is not one the page accepts"
+
+
 def test_a_generated_design_opens_in_the_page_s_randomised_run_order(index, details):
     design, detail = _design(index, "lib-ccd-k3-face-centered"), details["lib-ccd-k3-face-centered"]
     assert (design["open"], design["regenerable"]) == (True, None), "a generated design has no source to regenerate"
