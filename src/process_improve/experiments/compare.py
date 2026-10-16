@@ -440,21 +440,28 @@ def _region_points(region: DesignRegion, k: int) -> tuple[np.ndarray, np.ndarray
     """Return a uniform sample of the region, the points G is searched over, and how they were chosen.
 
     The sample is :data:`_REGION_SAMPLES` points drawn with a generator seeded with
-    :data:`_REGION_SEED`, the same on every run. G is searched over the region's support
-    points (its vertices, where its constraints cross the edges of a 3-level grid, and
-    that grid's points inside it), the points of the cube's own grid (see
-    :func:`_g_points`) that lie in the region, and the sample.
+    :data:`_REGION_SEED`, the same on every run. G is searched over the region's vertices
+    (every corner the straight limits leave that the curved ones keep, listed exactly
+    whenever there are at most 65536), its support points (where its constraints cross
+    the edges of a 3-level grid, and that grid's points inside it), the points of the
+    cube's own grid (see :func:`_g_points`) that lie in the region, and the sample. The
+    support points alone miss vertices once there are too many ways of choosing ``k``
+    boundaries to try (8 factors and 5 limits), and G, a maximum, usually sits at one.
     """
     sample = region.sample(_REGION_SAMPLES, np.random.default_rng(_REGION_SEED))
     grid, described = _g_points(k)
     inside = grid[region.feasible(grid)]
+    vertices = region._vertices_coded()  # None when there are too many to list
+    corners = np.empty((0, k)) if vertices is None else vertices[region.feasible(vertices)]
     support = region.seed_points()  # none for a box too large for a boundary grid
     parts = [f"the {len(inside)} points of {described} that lie in the region"]
+    if len(corners):
+        parts.append(f"its {len(corners)} vertices")
     if len(support):
         parts.append(f"its {len(support)} support points")
     parts.append(f"{len(sample)} points drawn uniformly from it")
     description = ", ".join(parts[:-1]) + " and " + parts[-1]
-    return sample, np.vstack([support, inside, sample]), description
+    return sample, np.vstack([corners, support, inside, sample]), description
 
 
 def _build_model(k: int, model: str, names: Sequence[str], region: DesignRegion | None = None) -> _Model:
@@ -759,7 +766,7 @@ def compare_designs(
     :math:`I` and :math:`G` are taken over the settings that can be run rather than
     over the cube: :math:`\mathbf{B}` is averaged over 20000 points drawn uniformly
     from the region (with a fixed seed, so the numbers are the same on every run), and
-    :math:`G` is searched over the region's support points (its vertices, and where its
+    :math:`G` is searched over the region's vertices, its support points (where its
     limits cross the edges of a 3-level grid), the points of the grid above that lie in
     it, and the same sample. The other measures do not depend on where predictions are
     made, and are the same with or without a region. A design with runs outside the

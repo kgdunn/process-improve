@@ -506,6 +506,34 @@ def test_g_over_the_region_is_its_largest_prediction_variance():
         assert g == pytest.approx(max(prediction_variance(design, sample).max(), g), rel=0.01), name
 
 
+def test_g_is_at_least_the_variance_at_every_vertex_of_a_region_with_many_limits():
+    """With 8 factors and 6 limits there are too many ways of choosing 8 boundaries for the support points to try.
+
+    They then held 236 of the region's 758 vertices, and G, usually at a vertex, came out 7% low.
+    """
+    names = [f"X{j}" for j in range(8)]
+    rng = np.random.default_rng(0)
+    limits = []
+    for _ in range(6):
+        coefficients = rng.integers(-2, 3, size=8)
+        lhs = " + ".join(f"{c}*{n}" for c, n in zip(coefficients, names, strict=True))
+        limits.append(f"{lhs} <= {rng.integers(1, 4)}")
+    region = DesignRegion([Factor(name=n, low=-1, high=1) for n in names], limits)
+    runs = region.sample(41, np.random.default_rng(1))
+    comparison = compare_designs({"inside": pd.DataFrame(runs, columns=names)}, "interactions", region=region)
+
+    def expand(x):
+        pairs = [x[:, i] * x[:, j] for i, j in itertools.combinations(range(8), 2)]
+        return np.column_stack([np.ones(len(x)), x, *pairs])
+
+    vertices = (region.vertices() - region._centre) / region._half
+    assert len(vertices) == 758
+    f, design = expand(vertices), expand(runs)
+    variance = np.einsum("ij,jk,ik->i", f, np.linalg.inv(design.T @ design), f)
+    assert comparison.values["inside [n=41]"]["g"] >= variance.max() * (1 - 1e-12)
+    assert "its 758 vertices" in comparison.g_points
+
+
 def test_a_region_changes_only_i_and_g():
     region = DesignRegion(HEAT, [HEAT_LIMIT])
     designs = heat_designs()
