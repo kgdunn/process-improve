@@ -109,6 +109,15 @@ describe("the analysis and the comparison", () => {
     const partial = analyseCode("Block + T + S", false);
     assert.match(partial, /done = y\.notna\(\)/);
     assert.match(partial, /X\[done\], y\[done\], model="Block \+ T \+ S"/);
+    assert.doesNotMatch(partial, /evaluate_design/, "no VIFs unless the page shows them");
+  });
+
+  test("the VIFs the page shows, from the same runs and terms the analysis fitted", () => {
+    const code = analyseCode("main_effects", true, "A + B + C");
+    assert.match(code, /^from process_improve\.experiments import analyze_experiment, evaluate_design$/m);
+    assert.match(code, /\nvif = evaluate_design\(X, model="A \+ B \+ C", metric="vif"\)\["vif"\]\nprint\(vif\)$/);
+    const partial = analyseCode("Block + T + S", false, "Block + T + S");
+    assert.match(partial, /evaluate_design\(X\[done\], model="Block \+ T \+ S", metric="vif"\)/);
   });
 
   test("the steps as one script: their imports first, merged, then each step in turn", () => {
