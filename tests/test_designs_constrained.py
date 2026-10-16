@@ -13,6 +13,7 @@ from process_improve.experiments import Constraint, DesignRegion, Factor, evalua
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.designs_constrained import (
     _CHUNK_ROWS,
+    _FEASIBILITY_TOL,
     _GREEDY_SLACK,
     _MAX_STARTS,
     _N_STARTS,
@@ -187,6 +188,39 @@ class TestCandidates:
                 fixed_runs=coded,
             )
         assert "outside the constrained region" not in caplog.text
+
+    @pytest.mark.parametrize(
+        ("limit", "length"),
+        [
+            ("300*T + 500*D <= 60000", 12500.0),
+            ("3*T + 5*D <= 600", 125.0),
+            ("(3*T + 5*D) / 100 <= 6", 1.25),
+            ("(3*T + 5*D) / 1000 <= 0.6", 0.125),
+            ("(3*T + 5*D) / 1e5 <= 0.006", 0.00125),
+        ],
+    )
+    def test_a_point_within_the_tolerance_passes_however_a_limit_is_scaled(self, limit: str, length: float) -> None:
+        """Within 1e-9 of a straight boundary, in coded units, a point passes; a gentle gradient reaches further.
+
+        A coded gradient shorter than 1 keeps the tolerance in the limit's own units, a coded distance
+        of 1e-9 divided by that length, as DesignRegion.feasible does.
+        """
+        region = _Region([TEMP, DOSE], [], parse_constraint(limit, {"T", "D"}))
+        assert region._gradient_lengths()[0] == pytest.approx(max(length, 1.0))
+
+        # Coded, 3*T + 5*D - 600 is 75*t + 100*d - 25: its boundary passes through (0.5, -0.125), normal (0.6, 0.8).
+        def passes(distance: float) -> bool:
+            point = np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]])
+            return bool(region.slack(point)[0] <= _FEASIBILITY_TOL)
+
+        reach = _FEASIBILITY_TOL / min(length, 1.0)
+        assert passes(0.5 * _FEASIBILITY_TOL)
+        assert passes(0.9 * reach)
+        assert not passes(1.1 * reach)
+        held = DesignRegion([TEMP, DOSE], [limit])
+        for distance in (0.5e-9, 2e-9, 5e-8, 1e-6):
+            point = np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]])
+            assert passes(distance) == bool(held.feasible(point)[0])
 
     def test_a_region_with_too_many_vertices_lists_none(self) -> None:
         """Past the cap the exchange's cost would grow with every vertex, so none are taken, as before."""

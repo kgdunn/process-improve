@@ -295,9 +295,10 @@ class _Region:
         """Return the largest ``g`` per row: the point is feasible where this is ``<= 0``.
 
         A straight constraint whose gradient in coded units is longer than 1 has its value
-        divided by that length, a distance in coded units, so ``_FEASIBILITY_TOL`` allows the
-        same distance however the constraint is scaled, as
-        :meth:`~process_improve.experiments.region.DesignRegion.feasible` does. In the
+        divided by that length, a distance in coded units; a gentler one keeps its own units,
+        where ``_FEASIBILITY_TOL`` reaches further. So a point within ``_FEASIBILITY_TOL`` of a
+        straight boundary, in coded units, passes however the constraint is scaled, as in
+        :meth:`~process_improve.experiments.region.DesignRegion.feasible`. In the
         constraint's own units, ``1e-9`` dropped vertices that lie ``1e-12`` (coded) from a
         steep boundary such as ``120*T + 33*D + 450*F <= 17000``.
         """
