@@ -165,6 +165,20 @@ those changes.
   passed it, and the secant plane through the points where it was finite stood in for it:
   `0.5 <= A/B <= 2` with `B` from 0, or `sqrt(A - 120) + B <= 70` with `A` from 100, got
   vertices, bounds and a hit-and-run sampler cut by a plane the constraint does not have.
+- **Samples of a thin region are the same on every platform.** When a region keeps under
+  about 1% of the box, its uniform samples come from hit-and-run chains whose directions
+  used eigenvectors of a covariance, and those have no fixed sign: native Python and
+  Pyodide took different steps, so I-optimal designs and averages over such a region
+  differed. The directions now use the Cholesky factor, which is unique.
+- **`DesignRegion.feasible` does not depend on how a straight limit is scaled.** It
+  compared a limit's value with `1e-9` in the limit's own units, so a point on the
+  boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same limit divided by
+  100 passed. For a straight limit whose coded gradient is longer than 1, the tolerance
+  is now a distance of `1e-9` in coded units; nothing that passed before fails.
+- **A single limit passed outside a list is refused with a clear message.**
+  `constraints="T <= 160"` was read character by character and reported that a limit
+  named `'T'` is not an inequality; a lone string, dict or `Constraint` now raises a
+  `TypeError` that shows the list to write.
 
 ## [1.99.0] - 2026-10-15
 
