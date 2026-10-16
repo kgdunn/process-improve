@@ -352,6 +352,19 @@ class TestResidualDiagnostics:
         n = len(df)
         assert len(result["residual_diagnostics"]["cooks_distance"]) == n
 
+    def test_studentized_residuals(self) -> None:
+        """Each residual over its standard error, with s from all the runs and from the others."""
+        df = _two_factor_replicated()
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="residual_diagnostics")
+        diag = result["residual_diagnostics"]
+        e, h = np.asarray(diag["residuals"]), np.asarray(diag["leverage"])
+        n, p = len(df), 3  # the intercept and two main effects
+        mse = float(np.sum(e**2)) / (n - p)
+        internal = e / np.sqrt(mse * (1 - h))
+        external = internal * np.sqrt((n - p - 1) / (n - p - internal**2))
+        assert diag["studentized_residuals"] == pytest.approx(internal.tolist())
+        assert diag["externally_studentized_residuals"] == pytest.approx(external.tolist())
+
 
 # ---------------------------------------------------------------------------
 # Lack of fit
