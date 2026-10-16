@@ -56,6 +56,8 @@ from patsy import build_design_matrices, dmatrix
 from scipy.stats import f as f_distribution
 
 from process_improve.experiments._analyses.transforms import transform_response
+from process_improve.experiments._blocking import squares_orthogonal_to_blocks
+from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
@@ -340,26 +342,55 @@ def _each_reading(settings: pd.DataFrame, readings: pd.DataFrame) -> tuple[pd.Da
     return settings.iloc[rows].reset_index(drop=True), pd.DataFrame({"each": values[kept]})
 
 
+def _exact_settings(column: pd.Series, exact: dict[float, float]) -> pd.Series:
+    """Return a column of settings with each one printed rounded replaced by its exact value, sign kept."""
+    for printed, value in exact.items():
+        column = column.mask(np.isclose(column.abs(), printed), np.sign(column) * value)
+    return column
+
+
+def _pseudocomponents(table: pd.DataFrame, experiment: dict, exact: dict[float, float]) -> dict[str, pd.Series]:
+    """Return the mixture components marked ``"coding": "pseudocomponent"`` as pseudocomponents.
+
+    A component with lower bound l (its ``low``) becomes x' = (x - l) / (T - sum of the lower
+    bounds), T the total of the mixture, ``runs["mixture_total"]`` (1 by default; 100 for
+    percentages), so the pseudocomponents sum to 1 over the region the bounds leave.
+    """
+    mixture = [f for f in experiment["factors"] if f.get("coding") == "pseudocomponent"]
+    if not mixture:
+        return {}
+    span = float(experiment["runs"].get("mixture_total", 1)) - sum(float(f["low"]) for f in mixture)
+    return {f["name"]: (_exact_settings(table[f["name"]].astype(float), exact) - f["low"]) / span for f in mixture}
+
+
 def _coded_runs(
-    experiment: dict, positions: list[int] | None, summary: dict | None = None
+    experiment: dict, positions: list[int] | None, summary: dict | None = None, *, as_printed: bool = False
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return the factor settings in coded units and the responses, for the runs at these 1-based positions.
 
-    A factor marked ``"coding": "none"`` is fitted in its own units, as a source's regression on it is.
-    With a ``summary`` (see :func:`_summarised`) the responses are replaced by each run's statistic
-    of its readings; with the statistic ``"each"``, every reading is an observation of its own, as
-    a source fits a model to all the readings of a replicated design.
+    A factor marked ``"coding": "none"`` is fitted in its own units, as a source's regression on it is,
+    and one marked ``"pseudocomponent"`` as a pseudocomponent (see :func:`_pseudocomponents`).
+    ``runs["exact"]`` maps a setting printed rounded to its exact value: 1.414 to the root of 2, in
+    coded units, or a level in a factor's own units, as 92.07 for 85 + 5√2; ``as_printed`` keeps the
+    settings as printed, for a source that fitted its model to them. With a ``summary`` (see
+    :func:`_summarised`) the responses are replaced by each run's statistic of its readings; with
+    the statistic ``"each"``, every reading is an observation of its own, as a source fits a model
+    to all the readings of a replicated design.
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     if positions is not None:
         table = table.iloc[[p - 1 for p in positions]].reset_index(drop=True)
-    exact = {float(k): float(v) for k, v in (runs.get("exact") or {}).items()}
+    exact = {} if as_printed else {float(k): float(v) for k, v in (runs.get("exact") or {}).items()}
     settings = {}
+    pseudo = _pseudocomponents(table, experiment, exact)
     for f in experiment["factors"]:
         column = table[f["name"]]
+        if f["name"] in pseudo:
+            settings[f["name"]] = pseudo[f["name"]]
+            continue
         if f.get("coding") == "none":
-            settings[f["name"]] = column.astype(float)
+            settings[f["name"]] = _exact_settings(column.astype(float), exact)
             continue
         if f.get("levels") and len(f["levels"]) > 2 and f["type"] == "categorical":
             settings[f["name"]] = column.astype(str)  # a factor at three or more levels is fitted by name
@@ -371,9 +402,7 @@ def _coded_runs(
         else:
             centre, half = (f["high"] + f["low"]) / 2, (f["high"] - f["low"]) / 2
             values = (column.astype(float) - centre) / half
-        for printed, value in exact.items():  # a setting printed rounded, such as 1.41 for the square root of 2
-            values = values.mask(np.isclose(values.abs(), printed), np.sign(values) * value)
-        settings[f["name"]] = values
+        settings[f["name"]] = _exact_settings(values, exact)  # 1.41 printed for the square root of 2, say
     if summary and summary["statistic"] == "each":
         return _each_reading(pd.DataFrame(settings), table[summary["of"]])
     if summary:
@@ -390,7 +419,8 @@ class _Fits:
 
     ``check["transform"]`` fits the model to the transformed response (``"log"`` or ``"sqrt"``, as
     :func:`~process_improve.experiments.analyze_experiment` takes it), so its tables, and the
-    response the other checks read, are on that scale.
+    response the other checks read, are on that scale. ``"settings": "as_printed"`` fits the
+    settings as printed, not their exact values (see :func:`_coded_runs`).
     """
 
     def __init__(self) -> None:
@@ -399,7 +429,8 @@ class _Fits:
     def __call__(self, experiment: dict, check: dict) -> dict[str, Any]:
         positions = tuple(check["runs"]) if check.get("runs") else None
         summary = json.dumps(check["summary"], sort_keys=True) if check.get("summary") else None
-        options = (check.get("model"), positions, check.get("response"), summary, check.get("transform"))
+        as_printed = check.get("settings") == "as_printed"
+        options = (check.get("model"), positions, check.get("response"), summary, check.get("transform"), as_printed)
         key = (experiment["name"], *options)
         if key not in self._done:
             self._done[key] = self._fit(experiment, options)
@@ -407,10 +438,13 @@ class _Fits:
 
     @staticmethod
     def _fit(experiment: dict, options: tuple) -> dict[str, Any]:
-        """Fit a model to a set of runs; ``options`` is the model, run positions, response, summary and transform."""
-        model, positions, response, summary, transform = options
+        """Fit a model to a set of runs: the model, run positions, response, summary, transform and settings."""
+        model, positions, response, summary, transform, as_printed = options
         settings, responses = _coded_runs(
-            experiment, list(positions) if positions else None, json.loads(summary) if summary else None
+            experiment,
+            list(positions) if positions else None,
+            json.loads(summary) if summary else None,
+            as_printed=as_printed,
         )
         y = responses[response or responses.columns[0]]
         if transform is not None:
@@ -639,11 +673,16 @@ def _box_cox(out: dict, check: dict, _experiment: dict) -> float:
 
 
 def _response_model(out: dict, experiment: dict) -> dict:
-    """Return a fit as :func:`optimize_responses` takes it: coded coefficients, the factors in the entry's order."""
+    """Return a fit as :func:`optimize_responses` takes it: coded coefficients, the factors in the entry's order.
+
+    Only the factors the model holds are named, so a factor kept for another fit (a column in natural
+    units, say) adds no flat direction to the canonical analysis.
+    """
+    used = set(re.findall(r"\w+", " ".join(row["term"] for row in out["coefficients"])))
     return {
         "response_name": out["y"].name,
         "coefficients": out["coefficients"],
-        "factor_names": [f["name"] for f in experiment["factors"]],
+        "factor_names": [f["name"] for f in experiment["factors"] if f["name"] in used],
     }
 
 
@@ -733,12 +772,14 @@ def _contrast(out: dict, check: dict, _experiment: dict) -> float:
     """
     rows = [(_coefficient_row(out, term), weight) for term, weight in check["weights"].items()]
     value = sum(weight * row["coefficient"] for row, weight in rows)
+    key = check.get("key", "value")
+    if key == "value":  # a contrast of a saturated fit, such as one cycle of an EVOP, has no standard error
+        return value
     std_error = math.sqrt(sum((weight * row["std_error"]) ** 2 for row, weight in rows))
     t = value / std_error
     summary = out["model_summary"]
     half = float(t_value(0.975, summary["df_residual"])) * std_error
     found = {
-        "value": value,
         "std_error": std_error,
         "t": t,
         "f": t**2,
@@ -748,7 +789,7 @@ def _contrast(out: dict, check: dict, _experiment: dict) -> float:
         "ci_low": value - half,
         "ci_high": value + half,
     }
-    return found[check.get("key", "value")]
+    return found[key]
 
 
 def _diagnostic(name: str) -> Callable[[dict, dict, dict], float]:
@@ -820,8 +861,12 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],
     "anova_p": lambda out, c, _e: _anova_row(out, c["term"])["p_value"],
     "percent_contribution": lambda out, c, _e: 100 * _anova_row(out, c["term"])["sum_sq"] / sum(_anova_sums(out)[:2]),
+    "lack_of_fit_ss": lambda out, _c, _e: out["lack_of_fit"]["ss_lack_of_fit"],
+    "lack_of_fit_df": lambda out, _c, _e: out["lack_of_fit"]["df_lack_of_fit"],
+    "lack_of_fit_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_lack_of_fit"],
     "lack_of_fit_f": lambda out, _c, _e: out["lack_of_fit"]["f_statistic"],
     "lack_of_fit_p": lambda out, _c, _e: out["lack_of_fit"]["p_value"],
+    "pure_error_ss": lambda out, _c, _e: out["lack_of_fit"]["ss_pure_error"],
     "pure_error_df": lambda out, _c, _e: out["lack_of_fit"]["df_pure_error"],
     "pure_error_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_pure_error"],
     "max_r_squared": lambda out, _c, _e: 1 - out["lack_of_fit"]["ss_pure_error"] / sum(_anova_sums(out)[:2]),
@@ -972,9 +1017,11 @@ def _design_property(check: dict) -> float:
     """Return a property of a design the library makes: its run count, axial distance or resolution.
 
     ``check["design"]`` names it: ``design_type``, ``k`` factors, and ``options`` for ``generate_design``.
-    A resolution may be printed as a Roman numeral.
+    A resolution may be printed as a Roman numeral. ``"squared": true`` returns its square, as a
+    source compares the square of a rotatable design's axial distance.
     """
-    return float(getattr(_made(json.dumps(check["design"], sort_keys=True)), check["property"]))
+    value = float(getattr(_made(json.dumps(check["design"], sort_keys=True)), check["property"]))
+    return value**2 if check.get("squared") else value
 
 
 @functools.cache
@@ -1384,7 +1431,14 @@ _RUN_KINDS: dict[str, Callable[[dict, dict], list[int]]] = {
 }
 
 
-_REDUCE: dict[str, Callable[[list[float]], float]] = {"max": max, "min": min, "mean": statistics.fmean, "len": len}
+_REDUCE: dict[str, Callable[[list[float]], float]] = {
+    "max": max,
+    "min": min,
+    "mean": statistics.fmean,
+    "len": len,
+    "sum": math.fsum,
+    "prod": math.prod,
+}
 
 
 def _design_metric(experiment: dict, check: dict) -> float:
@@ -1457,10 +1511,10 @@ def _library_value(check: dict) -> float:
 
     For a number the library computes directly, such as the run count of the OMARS estimability
     frontier, without building a design to read it from, or the canonical analysis of a fitted
-    equation a source prints without its data.
+    equation a source prints without its data. ``"squared": true`` returns the square of the number read.
     """
-    found = _LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {}))
-    return _read(found, check.get("key"))
+    found = _read(_LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {})), check.get("key"))
+    return found**2 if check.get("squared") else found
 
 
 def _active(out: dict, check: dict) -> tuple[str, bool]:
@@ -1644,16 +1698,19 @@ def _nested_test(experiment: dict, check: dict) -> float:
     residual mean square. With the fuller model saturated in the design's factors, this is the test
     of lack of fit against pure error from the replicated runs alone, as Design-Expert works it when
     a factor dropped from the model stays a factor of the design; with the fuller model's terms all
-    but one tested together, it is the test of those terms. ``check["key"]`` is ``"ss"``, ``"df"``,
-    ``"ms"``, ``"f"`` or ``"p"``.
+    but one tested together, it is the test of those terms. ``check["error"]`` names a third model
+    whose residual mean square is the denominator instead, as Design-Expert tests the linear blending
+    of a mixture against the residual of the quadratic model it reports. ``check["key"]`` is
+    ``"ss"``, ``"df"``, ``"ms"``, ``"f"`` or ``"p"``.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
     y = responses[check.get("response") or responses.columns[0]]
     data = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list"), "y": y.tolist()})
     (ss_smaller, df_smaller), (ss_fuller, df_fuller) = (_residual_sum(data, m) for m in (check["model"], check["full"]))
+    ss_error, df_error = _residual_sum(data, check["error"]) if check.get("error") else (ss_fuller, df_fuller)
     ss, df = ss_smaller - ss_fuller, df_smaller - df_fuller
-    f = ss / df / (ss_fuller / df_fuller)
-    found = {"ss": ss, "df": df, "ms": ss / df, "f": f, "p": f_distribution.sf(f, df, df_fuller)}
+    f = ss / df / (ss_error / df_error)
+    found = {"ss": ss, "df": df, "ms": ss / df, "f": f, "p": f_distribution.sf(f, df, df_error)}
     return float(found[check["key"]])
 
 
@@ -1726,15 +1783,31 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     ``check["key"]`` is ``"xtx.<i>.<j>"``, ``"xty.<i>"`` or ``"inverse.<i>.<j>"``, the indices
     0-based in the order of the model matrix's columns, the intercept first. The factors are in
     coded units, or their own for a factor marked ``"coding": "none"``, as for a fit.
+
+    A design is compared on its inverse as a whole: ``"det_inverse"``, |(X'X)^-1|, the D criterion;
+    ``"trace_inverse"``, the A criterion; ``"leverage"``, x0'(X'X)^-1 x0 at the coded point
+    ``check["point"]``, the variance of the prediction there in units of σ² (JMP's prediction
+    variance profile); and ``"relative_d"``, the D-efficiency of these runs relative to the runs
+    ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
-    matrix = dmatrix(check["model"], settings, return_type="dataframe").to_numpy()
-    y = responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float)
+    model = dmatrix(check["model"], settings, return_type="dataframe")
+    matrix = model.to_numpy()
     kind, *place = check["key"].split(".")
+    if kind == "relative_d":
+        other = dmatrix(check["model"], _coded_runs(experiment, check["versus"])[0], return_type="dataframe").to_numpy()
+        ratio = np.linalg.det(np.linalg.inv(other.T @ other)) / np.linalg.det(np.linalg.inv(matrix.T @ matrix))
+        return float(ratio ** (1 / matrix.shape[1]))
+    if kind == "leverage":
+        point = pd.DataFrame([dict.fromkeys(settings.columns, 0.0) | check["point"]])[list(settings.columns)]
+        at = np.asarray(build_design_matrices([model.design_info], point)[0])[0]
+        return float(at @ np.linalg.inv(matrix.T @ matrix) @ at)
     found = {
         "xtx": lambda: matrix.T @ matrix,
-        "xty": lambda: matrix.T @ y,
+        "xty": lambda: matrix.T @ responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float),
         "inverse": lambda: np.linalg.inv(matrix.T @ matrix),
+        "det_inverse": lambda: np.linalg.det(np.linalg.inv(matrix.T @ matrix)),
+        "trace_inverse": lambda: np.trace(np.linalg.inv(matrix.T @ matrix)),
     }
     return float(found[kind]()[tuple(int(i) for i in place)])
 
@@ -1850,7 +1923,9 @@ def _interaction_columns(experiment: dict, check: dict) -> float:
       their inner product s = Xi'Xj;
     - ``"confounded_pairs"``: the pairs of columns that are equal or opposite, completely confounded;
     - ``"max_abs_r"``: the largest correlation of two of the columns, in size, and
-      ``"max_abs_r_main_interaction"`` that of a main effect with a two-factor interaction.
+      ``"max_abs_r_main_interaction"`` that of a main effect with a two-factor interaction;
+    - ``"max_abs_r_main_square"``: the largest correlation of a main effect with a factor's square,
+      for a design with factors at three levels.
     """
     matrix = _design_columns(experiment, check)
     k = matrix.shape[1]
@@ -1864,6 +1939,9 @@ def _interaction_columns(experiment: dict, check: dict) -> float:
         "confounded_pairs": lambda: float(np.sum(np.isclose(np.abs(r[upper]), 1))),
         "max_abs_r": lambda: float(np.abs(r[upper]).max()),
         "max_abs_r_main_interaction": lambda: float(np.abs(r[:k, k:]).max()),
+        "max_abs_r_main_square": lambda: float(
+            np.abs(np.nan_to_num(np.corrcoef(matrix, matrix**2, rowvar=False))[:k, k:]).max()
+        ),
     }
     return found[check["key"]]()
 
@@ -1873,16 +1951,81 @@ def _estimable_projections(experiment: dict, check: dict) -> float:
 
     A design projects onto any r of its columns; the model of their main effects and two-factor
     interactions is estimable in a projection when its model matrix has full column rank. A source
-    that says a design supports that model in any r factors claims this count is 0.
+    that says a design supports that model in any r factors claims this count is 0. With
+    ``"squares": true`` the model is the full quadratic in the r factors, their squares added, as a
+    definitive screening design is said to support in any three of its factors.
     """
     matrix = _design_columns(experiment, check)
     failing = 0
     for subset in itertools.combinations(range(matrix.shape[1]), check["order"]):
         part = matrix[:, subset]
         products = [part[:, i] * part[:, j] for i, j in itertools.combinations(range(len(subset)), 2)]
-        model = np.column_stack([np.ones(len(part)), part, *products])
+        squares = [part**2] if check.get("squares") else []
+        model = np.column_stack([np.ones(len(part)), part, *products, *squares])
         failing += int(np.linalg.matrix_rank(model) < model.shape[1])
     return float(failing)
+
+
+def _fold_over_pairs(experiment: dict, check: dict) -> float:
+    """Return how many of the pairs of runs 1 and 2, 3 and 4, and so on are not a run and its fold-over.
+
+    A definitive screening design is made of such pairs, each run the other with every sign changed,
+    and a centre run: a source that says so claims this count is 0. ``check["columns"]`` names the
+    factors (all the entry's by default) and ``check["pairs"]`` the number of pairs.
+    """
+    columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
+    matrix = _printed_matrix(experiment, columns, None)
+    return float(sum(not np.allclose(matrix[2 * i], -matrix[2 * i + 1]) for i in range(check["pairs"])))
+
+
+def _run_radius(experiment: dict, check: dict) -> float:
+    """Return how far runs lie from the centre of the design, in coded units: ``check["key"]`` ``"max"`` or ``"min"``.
+
+    ``check["runs"]`` keeps the runs at these 1-based positions, as the runs off the centre of a
+    spherical design, which all lie at one distance. A categorical factor, such as a block, is left out.
+    """
+    settings, _ = _coded_runs(experiment, check.get("runs"))
+    numeric = [f["name"] for f in experiment["factors"] if f["type"] == "numeric"]
+    radii = np.sqrt((settings[numeric].to_numpy(dtype=float) ** 2).sum(axis=1))
+    return float(_REDUCE[check.get("key", "max")](radii.tolist()))
+
+
+def _blocks_orthogonal(experiment: dict, check: dict) -> float:
+    """Return 1 when a second-order design's blocks are orthogonal to its model, 0 when they are not.
+
+    The two conditions: each block is a first-order orthogonal design, every factor's column and
+    every product of two summing to zero within it; and each block holds the same share of every
+    factor's sum of squares as of the runs, which the library's
+    :func:`~process_improve.experiments._blocking.squares_orthogonal_to_blocks` tests.
+    ``check["block"]`` names the column of block labels.
+    """
+    settings, _ = _coded_runs(experiment, None)
+    runs = experiment["runs"]
+    labels = pd.DataFrame(runs["rows"], columns=runs["columns"])[check["block"]].astype(str).to_numpy()
+    design = settings.drop(columns=[check["block"]], errors="ignore").to_numpy(dtype=float)
+    for label in np.unique(labels):
+        block = design[labels == label]
+        if not (np.allclose(block.sum(axis=0), 0) and np.allclose(np.triu(block.T @ block, 1), 0)):
+            return 0.0
+    return float(squares_orthogonal_to_blocks(design, labels))
+
+
+def _desirability(experiment: dict, check: dict) -> float:
+    """Return the Derringer and Suich desirability of the fitted responses at a coded point ``check["point"]``.
+
+    ``check["goals"]`` lists each response's goal as :func:`optimize_responses` takes it, with the
+    response's ``model`` (and ``"settings"`` as for a fit): the prediction of that model at the point
+    is scored by the library's individual desirability, and ``check["key"]`` is ``"composite"``,
+    their geometric mean, or ``"d.<i>"`` for the 0-based i-th response's own.
+    """
+    fits = _Fits()
+    scores = []
+    for goal in check["goals"]:
+        out = fits(experiment, goal)
+        predicted = _prediction(out, {"model": goal["model"], "point": check["point"]}, experiment)
+        scores.append(individual_desirability(predicted, goal))
+    kind, _, which = check.get("key", "composite").partition(".")
+    return float(composite_desirability(scores)) if kind == "composite" else float(scores[int(which)])
 
 
 def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
@@ -1991,13 +2134,16 @@ def _variance_component(experiment: dict, check: dict) -> float:
 
 
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
+    "blocks_orthogonal": _blocks_orthogonal,
     "capability": _capability,
+    "desirability": _desirability,
     "column_correlation": _column_correlation,
     "component_ss": _component_ss,
     "difference_of_means": _difference_of_means,
     "distinct_runs": _distinct_runs,
     "dot_product": _dot_product,
     "estimable_projections": _estimable_projections,
+    "fold_over_pairs": _fold_over_pairs,
     "interaction_columns": _interaction_columns,
     "log_variance_ratio": _log_variance_ratio,
     "normal_equations": _normal_equations,
@@ -2007,6 +2153,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "nested_test": _nested_test,
     "nonadditivity": _nonadditivity,
     "run_count": _run_count,
+    "run_radius": _run_radius,
     "t_test": _t_test,
     "tukey": _tukey,
     "unit_std_error": _unit_std_error,
@@ -2112,8 +2259,12 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     are nested tests, held to what the rounding of responses printed rounded carries. A 3^k design's
     components of interaction, blocks and fractions are worked from their defining contrasts modulo
     3; screening designs are compared on their main-effect and two-factor interaction columns; and
-    JMP's relative variances code a categorical factor as JMP does. A number without a check is
-    reported with the reason it is not recomputed.
+    JMP's relative variances code a categorical factor as JMP does. A response surface design is
+    compared on |(X'X)^-1|, its trace and the prediction variance at a point, and on how far its runs
+    lie from the centre, whether its blocks are orthogonal and whether its runs are fold-over pairs;
+    several fitted responses are scored at a point by the library's desirability functions, and a
+    mixture is fitted in pseudocomponents. A number without a check is reported with the reason it
+    is not recomputed.
 
     Parameters
     ----------

@@ -1345,3 +1345,228 @@ def test_a_prediction_interval_is_read_as_its_half_width_and_the_point_s_leverag
     assert half == pytest.approx(stats.t.ppf(0.975, 13) * math.sqrt(mse * (1 + 3 / 16)))
     assert _dot_product(entry, {"columns": ["A", "B"]}) == 0
     assert _dot_product(entry, {"columns": ["A"], "runs": [1, 2, 4]}) == 1
+
+
+def _ccd(y=None, *, blocks=False):
+    """Return Montgomery's Example 11.2 CCD in two factors: the 2^2, five centre runs, then the axial runs at 1.414."""
+    runs = [(-1, -1), (-1, 1), (1, -1), (1, 1), *[(0, 0)] * 5, (1.414, 0), (-1.414, 0), (0, 1.414), (0, -1.414)]
+    y = y or [76.5, 77.0, 78.0, 79.5, 79.9, 80.3, 80.0, 79.7, 79.8, 78.4, 75.6, 78.5, 77.0]
+    block = [1] * 9 + [2] * 4
+    return {
+        "name": "ccd",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("A", "B")]
+        + ([{"name": "block", "type": "categorical", "low": 1, "high": 2, "levels": [1, 2]}] if blocks else []),
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["A", "B", "block", "y"],
+            "rows": [[a, b, k, v] for (a, b), k, v in zip(runs, block, y, strict=True)],
+            "coded": True,
+            "exact": {"1.414": math.sqrt(2)},
+        },
+    }
+
+
+def test_a_design_is_compared_on_its_inverse_as_a_whole():
+    """|(X'X)^-1|, its trace, x0'(X'X)^-1 x0 and the D-efficiency of one set of runs relative to another."""
+    from process_improve.experiments.reference_catalogue import _normal_equations
+
+    entry = _factorial(2, [1, 2, 3, 4], centre=[5])
+    model = "A + B"
+    assert _normal_equations(entry, {"model": model, "key": "det_inverse"}) == pytest.approx(1 / (5 * 4 * 4))
+    assert _normal_equations(entry, {"model": model, "key": "trace_inverse"}) == pytest.approx(1 / 5 + 1 / 4 + 1 / 4)
+    assert _normal_equations(entry, {"model": model, "key": "leverage", "point": {"A": 1, "B": 1}}) == pytest.approx(
+        1 / 5 + 1 / 4 + 1 / 4
+    )
+    # the 2^2 alone against it with the centre run: (|X2'X2|^-1 / |X1'X1|^-1)^(1/3) = (64 / 80)^(1/3)
+    relative = _normal_equations(
+        entry, {"model": model, "key": "relative_d", "runs": [1, 2, 3, 4], "versus": [1, 2, 3, 4, 5]}
+    )
+    assert relative == pytest.approx((64 / 80) ** (1 / 3))
+
+
+def test_settings_printed_rounded_are_fitted_exactly_unless_asked_as_printed():
+    """A natural-unit column printed 92.07 for 85 + 5√2 is fitted at its exact value; as_printed keeps 92.07."""
+    entry = _ccd()
+    entry["factors"].append({"name": "xi", "type": "numeric", "low": 77.93, "high": 92.07, "coding": "none"})
+    natural = [80, 80, 90, 90, 85, 85, 85, 85, 85, 92.07, 77.93, 85, 85]
+    entry["runs"]["columns"].insert(2, "xi")
+    entry["runs"]["rows"] = [[*row[:2], v, *row[2:]] for row, v in zip(entry["runs"]["rows"], natural, strict=True)]
+    entry["runs"]["exact"] |= {"92.07": 85 + 5 * math.sqrt(2), "77.93": 85 - 5 * math.sqrt(2)}
+    exact = reference_catalogue._coded_runs(entry, None)[0]["xi"]
+    printed = reference_catalogue._coded_runs(entry, None, as_printed=True)[0]["xi"]
+    assert exact[9] == pytest.approx(85 + 5 * math.sqrt(2))
+    assert printed[9] == 92.07
+    fits = reference_catalogue._Fits()
+    slope = reference_catalogue._coefficient_row(fits(entry, {"model": "xi"}), "xi")["coefficient"]
+    assert slope != pytest.approx(
+        reference_catalogue._coefficient_row(fits(entry, {"model": "xi", "settings": "as_printed"}), "xi")[
+            "coefficient"
+        ]
+    )
+
+
+def test_mixture_components_are_fitted_as_pseudocomponents():
+    """Pseudocomponents are (x - l)/(T - sum l): the lower bounds 5, 25 and 50 percent leave 20 percent to share."""
+    entry = {
+        "name": "paint",
+        "factors": [
+            {"name": n, "type": "numeric", "low": low, "high": high, "coding": "pseudocomponent"}
+            for n, low, high in (("A", 5, 25), ("B", 25, 40), ("C", 50, 70))
+        ],
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["A", "B", "C", "y"],
+            "rows": [[25, 25, 50, 1], [5, 40, 55, 2], [5, 25, 70, 3], [18.13, 28.75, 53.13, 4]],
+            "coded": False,
+            "mixture_total": 100,
+            "exact": {"18.13": 18.125, "53.13": 53.125},
+        },
+    }
+    settings = reference_catalogue._coded_runs(entry, None)[0]
+    np.testing.assert_allclose(settings.to_numpy()[:3], [[1, 0, 0], [0, 0.75, 0.25], [0, 0, 1]])
+    np.testing.assert_allclose(settings.sum(axis=1), 1)
+    assert settings["A"][3] == pytest.approx(13.125 / 20)
+
+
+def test_a_nested_test_can_take_its_error_from_a_third_model():
+    """Design-Expert's linear blending row: the linear model about the mean, over the quadratic model's residual."""
+    from process_improve.experiments.reference_catalogue import _nested_test
+
+    entry = _ccd()
+    base = {"model": "1", "full": "A + B"}
+    own = _nested_test(entry, {**base, "key": "f"})
+    third = _nested_test(entry, {**base, "key": "f", "error": "A * B + I(A ** 2) + I(B ** 2)"})
+    ss = _nested_test(entry, {**base, "key": "ss"})
+    assert own == pytest.approx(ss / 2 / (18.7 / 10), rel=1e-2)
+    assert third == pytest.approx(ss / 2 / 0.0708, rel=1e-2)
+
+
+def test_the_canonical_analysis_names_only_the_factors_the_model_holds():
+    """A block in the entry adds no flat direction: Example 11.2's two eigenvalues, their sum and their product."""
+    entry = _ccd(blocks=True)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B + I(A ** 2) + I(B ** 2)", "method": "canonical_analysis"}
+    out = fits(entry, check)
+    eigenvalues = [
+        reference_catalogue._optimum(out, {**check, "key": f"canonical_analysis.eigenvalues.{i}"}, entry)
+        for i in (0, 1)
+    ]
+    assert eigenvalues == pytest.approx([-1.4141, -0.9634], abs=1e-4)
+    assert reference_catalogue._optimum(out, {**check, "key": "canonical_analysis.eigenvalues.len"}, entry) == 2
+    assert reference_catalogue._optimum(
+        out, {**check, "key": "canonical_analysis.eigenvalues.sum"}, entry
+    ) == pytest.approx(-2.3775, abs=1e-4)
+    assert reference_catalogue._optimum(
+        out, {**check, "key": "canonical_analysis.eigenvalues.prod"}, entry
+    ) == pytest.approx(1.3624, abs=1e-4)
+
+
+def test_desirability_scores_each_fitted_response_at_a_point():
+    """At the design centre the yield is 79.94: 0.994 of the way from 70 to 80; the composite is a geometric mean."""
+    from process_improve.experiments.reference_catalogue import _desirability
+
+    entry = _ccd()
+    entry["responses"].append({"name": "z"})
+    entry["runs"]["columns"].append("z")
+    for row, z in zip(entry["runs"]["rows"], [62, 60, 66, 59, 72, 69, 68, 70, 71, 68, 71, 58, 57], strict=True):
+        row.append(z)
+    quadratic = "A * B + I(A ** 2) + I(B ** 2)"
+    goals = [
+        {"response": "y", "model": quadratic, "goal": "maximize", "low": 70, "high": 80},
+        {"response": "z", "model": quadratic, "goal": "target", "low": 62, "target": 65, "high": 68},
+    ]
+    check = {"point": {"A": 0.0, "B": 0.0}, "goals": goals}
+    first = _desirability(entry, {**check, "key": "d.0"})
+    second = _desirability(entry, {**check, "key": "d.1"})
+    assert first == pytest.approx(0.994, abs=1e-3)
+    assert second == 0  # the fitted viscosity at the centre, 70, is above its upper limit 68
+    assert _desirability(entry, check) == 0
+
+
+def test_spherical_and_blocked_designs_are_read_from_their_runs():
+    """Example 11.2's CCD: the axial runs lie at √2; the blocks are orthogonal with two centre runs in each."""
+    from process_improve.experiments.reference_catalogue import _blocks_orthogonal, _run_radius
+
+    entry = _ccd(blocks=True)
+    assert _run_radius(entry, {"runs": [10, 11, 12, 13], "key": "min"}) == pytest.approx(math.sqrt(2))
+    assert _run_radius(entry, {"key": "max"}) == pytest.approx(math.sqrt(2))
+    assert (
+        _blocks_orthogonal(entry, {"block": "block"}) == 0
+    )  # five centre runs with the cube, none with the axial runs
+    entry["runs"]["rows"] = [
+        [*row[:2], 2 if i in (7, 8) else row[2], row[3]] for i, row in enumerate(entry["runs"]["rows"])
+    ]
+    entry["runs"]["rows"][4][2] = 1
+    # three centre runs with the cube and two with the axial runs: still not the share Equation 11.18 needs
+    assert _blocks_orthogonal(entry, {"block": "block"}) == 0
+    half = [r for r in entry["runs"]["rows"] if r[0] or r[1]] + [
+        [0, 0, 1, 80],
+        [0, 0, 1, 80],
+        [0, 0, 2, 80],
+        [0, 0, 2, 80],
+    ]
+    entry["runs"]["rows"] = half
+    assert (
+        _blocks_orthogonal(entry, {"block": "block"}) == 1
+    )  # Montgomery's p. 509 design: two centre runs in each block
+
+
+def test_a_definitive_screening_design_is_fold_over_pairs_with_squares_orthogonal_to_main_effects():
+    """Figure 11.32's design for four factors: four fold-over pairs and a centre run."""
+    from process_improve.experiments.reference_catalogue import (
+        _estimable_projections,
+        _fold_over_pairs,
+        _interaction_columns,
+    )
+
+    text = ["0+--", "0-++", "-0-+", "+0+-", "--0-", "++0+", "-++0", "+--0", "0000"]
+    rows = [[{"+": 1, "-": -1, "0": 0}[c] for c in t] for t in text]
+    names = ["x1", "x2", "x3", "x4"]
+    entry = {
+        "name": "dsd",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in names],
+        "runs": {"columns": names, "rows": rows, "coded": True},
+    }
+    assert _fold_over_pairs(entry, {"pairs": 4}) == 0
+    entry["runs"]["rows"] = [rows[1], rows[0], rows[3], rows[2], *rows[4:]]
+    assert _fold_over_pairs(entry, {"pairs": 4}) == 0
+    entry["runs"]["rows"] = [rows[0], rows[2], *rows[1:2], *rows[3:]]
+    assert _fold_over_pairs(entry, {"pairs": 4}) == 2
+    entry["runs"]["rows"] = rows
+    assert _interaction_columns(entry, {"key": "max_abs_r_main_square"}) == 0
+    assert _interaction_columns(entry, {"key": "max_abs_r_main_interaction"}) == 0
+    # nine runs cannot hold the ten terms of a full quadratic in three of the four factors
+    assert _estimable_projections(entry, {"order": 3, "squares": True}) == 4
+    assert _estimable_projections(entry, {"order": 3}) == 0
+
+
+def test_a_contrast_of_a_saturated_fit_is_read_without_a_standard_error():
+    """One cycle of an EVOP: each condition run once, the effects are contrasts of the five readings."""
+    entry = {
+        "name": "evop",
+        "factors": [{"name": "point", "type": "categorical", "low": 1, "high": 5, "levels": [1, 2, 3, 4, 5]}],
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["point", "y"],
+            "rows": [[1, 84.5], [2, 84.2], [3, 84.9], [4, 84.5], [5, 84.3]],
+            "coded": False,
+        },
+    }
+    out = reference_catalogue._Fits()(entry, {"model": "0 + point"})
+    weights = {"point[3]": 0.5, "point[4]": 0.5, "point[2]": -0.5, "point[5]": -0.5}
+    assert reference_catalogue._contrast(out, {"weights": weights}, entry) == pytest.approx(0.45)
+
+
+def test_a_library_value_or_design_property_may_be_squared():
+    """Montgomery's p. 510: (nF)^1/2 = 2.83 for the rotatable CCD in three factors, and 64/22 = 2.91 by Eq. 11.19."""
+    from process_improve.experiments.reference_catalogue import _design_property, _library_value
+
+    rotatable = {
+        "design": {"design_type": "ccd", "k": 3, "options": {"alpha": "rotatable"}},
+        "property": "alpha",
+        "squared": True,
+    }
+    assert _design_property(rotatable) == pytest.approx(math.sqrt(8))
+    assert _library_value({"function": "blocking_alpha", "args": [8, 3, 3, 2], "squared": True}) == pytest.approx(
+        64 / 22
+    )

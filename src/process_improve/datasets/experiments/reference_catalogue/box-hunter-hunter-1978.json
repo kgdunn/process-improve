@@ -56465,7 +56465,7 @@
      "what": "canonical",
      "term": "ridge axis",
      "value": "0.63, 0.77",
-     "analysis": "the direction of greatest curvature, whose normal is the ridge line (the eigenvector lists the block first, with weight zero); its sign is arbitrary",
+     "analysis": "the direction of greatest curvature, whose normal is the ridge line; its sign is arbitrary",
      "where": {
       "page": 532,
       "source_kind": "prose",
@@ -56476,7 +56476,7 @@
        "kind": "optimum",
        "method": "canonical_analysis",
        "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
-       "key": "canonical_analysis.eigenvectors.0.1",
+       "key": "canonical_analysis.eigenvectors.0.0",
        "abs": true,
        "printed": "0.63"
       },
@@ -56484,7 +56484,7 @@
        "kind": "optimum",
        "method": "canonical_analysis",
        "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
-       "key": "canonical_analysis.eigenvectors.0.2",
+       "key": "canonical_analysis.eigenvectors.0.1",
        "abs": true,
        "printed": "0.77"
       }
