@@ -2546,12 +2546,12 @@ def _inseparable(exc: NotSeparableError, group: list[int], runnable: list[int], 
     """
     if centre in [group[i] for i in exc.inside_can]:
         return (
-            "The centre of the ranges lies between settings you can run, so no straight cut rules it out alone. Type "
+            "The center of the ranges lies between settings you can run, so no straight cut rules it out alone. Type "
             "a curved limit, or mark more."
         )
     if centre in [runnable[i] for i in exc.inside_cannot]:
         return (
-            "The centre of the ranges lies between the corners you marked, so a straight cut that rules them out "
+            "The center of the ranges lies between the corners you marked, so a straight cut that rules them out "
             "rules it out too. Mark it as well, or type a limit."
         )
     return (
@@ -2659,7 +2659,7 @@ def _picture(
     (see :meth:`~process_improve.experiments.DesignRegion.shadow`), and ``lines`` the boundary of
     each straight limit that names no other factor, numbered by its place in the list. Every pair
     is shown up to :data:`PICTURE_EVERY_PAIR` numeric factors, or with ``every_pair``; from more,
-    the pairs of the factors the limits name. ``centre`` is where the page holds the other factors
+    the pairs of the factors the limits name. ``center`` is where the page holds the other factors
     when it looks inside: the centre of the ranges when it can be run, else a central setting
     that can be, and null when none can.
     """
@@ -2677,8 +2677,8 @@ def _picture(
         ]
         pairs.append({"x": x, "y": y, "shadow": region.shadow(x, y), "lines": lines})
     middle = {f.name: (f.low + f.high) / 2 for f in numeric}
-    centre = middle if region.feasible(np.zeros((1, len(numeric))))[0] else region.centroid()
-    return {"pairs": pairs, "shown": shown, "centre": centre}
+    center = middle if region.feasible(np.zeros((1, len(numeric))))[0] else region.centroid()
+    return {"pairs": pairs, "shown": shown, "center": center}
 
 
 def _sliced(

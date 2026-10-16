@@ -275,11 +275,11 @@ def test_a_corner_a_limit_rules_out_already_is_left_out_of_the_proposal(api):
 
 #: Why no straight cut can be proposed, as the page says it beside the corners marked.
 CENTRE_ALONE = (
-    "The centre of the ranges lies between settings you can run, so no straight cut rules it out alone. Type a curved "
+    "The center of the ranges lies between settings you can run, so no straight cut rules it out alone. Type a curved "
     "limit, or mark more."
 )
 CENTRE_BETWEEN = (
-    "The centre of the ranges lies between the corners you marked, so a straight cut that rules them out rules it out "
+    "The center of the ranges lies between the corners you marked, so a straight cut that rules them out rules it out "
     "too. Mark it as well, or type a limit."
 )
 INTERLEAVED = (
@@ -358,7 +358,7 @@ def test_the_picture_shows_every_pair_of_up_to_four_factors(api):
     picture = described(api, HEAT)["picture"]
     assert [(pair["x"], pair["y"]) for pair in picture["pairs"]] == [("T", "P"), ("T", "F"), ("P", "F")]
     assert picture["shown"] == ["T", "P", "F"]
-    assert picture["centre"] == {"T": 175, "P": 2, "F": 15}
+    assert picture["center"] == {"T": 175, "P": 2, "F": 15}
 
 
 def test_a_shadow_holds_every_setting_that_can_be_run_and_no_more(api):
@@ -412,9 +412,9 @@ def test_from_five_factors_the_picture_shows_the_pairs_of_factors_the_limits_nam
 
 def test_the_picture_holds_the_others_at_a_setting_that_can_be_run(api):
     """With the centre of the ranges ruled out, the page looks inside at a central setting that can be run."""
-    centre = described(api, "T + 25 * P <= 220")["picture"]["centre"]
-    assert centre["T"] + 25 * centre["P"] <= 220
-    assert described(api, "T >= 210")["picture"]["centre"] is None
+    center = described(api, "T + 25 * P <= 220")["picture"]["center"]
+    assert center["T"] + 25 * center["P"] <= 220
+    assert described(api, "T >= 210")["picture"]["center"] is None
 
 
 def test_looking_inside_holds_the_other_factors_where_asked(api):
