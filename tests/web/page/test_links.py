@@ -8,6 +8,7 @@ back into the app's window.
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -31,9 +32,14 @@ def test_a_link_to_the_book_opens_in_the_book_s_tab():
     """The app's own links to the book, written by ``link`` in app.js, reuse one tab: the page's do too."""
     assert "a.target = target;" in source("app.js")
     assert 'function link(href, text, target = "pid-book")' in source("app.js")
-    for tag in LINK_OUT.findall(source("index.html")):
-        if "https://learnche.org/" in tag:
-            assert 'target="pid-book"' in tag, tag
+    to_book = [
+        tag
+        for tag in LINK_OUT.findall(source("index.html"))
+        if urlsplit(re.search(r'href="([^"]+)"', tag)[1]).hostname == "learnche.org"
+    ]
+    assert to_book, "the page links to the book"
+    for tag in to_book:
+        assert 'target="pid-book"' in tag, tag
 
 
 @pytest.mark.parametrize("script", ["catalog.js", "catalog-views.js"])
