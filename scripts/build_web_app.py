@@ -33,6 +33,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections import Counter
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -46,6 +47,9 @@ WEB_SRC = ROOT / "web"
 APP_FILES = (
     "index.html",
     "about.html",
+    "catalog/index.html",
+    "catalog.js",
+    "catalog-logic.js",
     "app.js",
     "logic.js",
     "limits.js",
@@ -312,6 +316,202 @@ def book_index(examples: list[dict[str, Any]]) -> dict[str, Any]:
     return {"examples": [{key: example[key] for key in keys if key in example} for example in examples]}
 
 
+# --------------------------------------------------------------------------- the design catalog
+#: The format of ``catalog/index.json`` and its detail files, which ``web/catalog.js`` reads.
+CATALOG_VERSION = 1
+#: What the catalog page reads of every design at once beyond the library's facets: whether the page's
+#: design has the source's runs, whether the page opens the design, and the detail file that holds it.
+CATALOG_FIELDS = ("regenerable", "open", "detail")
+#: The longest title and units a campaign may carry (``checkCampaign`` in ``web/campaign.js``).
+TITLE_MOST, UNITS_MOST = 200, 32
+
+
+def _coded_runs(design: dict[str, Any]) -> Counter:
+    """Count a design's runs by their coded settings, rounded, as the page made them."""
+    columns, factors = design["columns"], design["spec"]["factors"]
+    at = {name: i for i, name in enumerate(columns)}
+    return Counter(tuple(round(coded(row[at[f["name"]]], f), 2) for f in factors) for row in design["rows"])
+
+
+def _campaign(title: str, design: dict[str, Any], responses: list[float | None]) -> dict[str, Any]:
+    """Return what a link opens: a design the page made, and a result, or a blank, for each run."""
+    return {
+        "v": CAMPAIGN_VERSION,
+        "title": title[:TITLE_MOST],
+        "design": {
+            key: design[key] for key in ("spec", "columns", "rows", "model", "n_runs", "facts", "outside_range")
+        },
+        "responses": responses,
+        "sources": ["entered" if v is not None else None for v in responses],
+        "model": "",
+    }
+
+
+def generated_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """Return the campaign that opens a generated design, made by the page in its own randomised run order.
+
+    The page's design must have the record's runs: the catalog draws one design and opens the same one.
+    """
+    spec = record["spec"]
+    if spec["design_type"] not in load_bootstrap().DESIGNS:
+        return None, "the page does not make this kind of design"
+    factors = [{"name": f["name"], "low": f["low"], "high": f["high"], "units": ""} for f in record["factors"]]
+    asked = {"design_type": spec["design_type"], "factors": factors, "response": "y", **spec["options"]}
+    design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
+    design.pop("xlsx_base64")
+    drawn = Counter(tuple(round(v, 2) for v in row) for row in record["coded_runs"])
+    if _coded_runs(design) != drawn:
+        raise SystemExit(f"the catalog's design {record['id']!r}: the page makes other runs than the library drew")
+    return _campaign(record["title"], design, [None] * design["n_runs"]), ""
+
+
+def _page_factor(factor: dict[str, Any]) -> bool:
+    """Say whether the page takes a factor as the source gives it: a name, and a low and high value or label."""
+    low, high = factor.get("low"), factor.get("high")
+    numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (low, high))
+    labels = all(isinstance(v, str) and v.strip() for v in (low, high))
+    in_order = low < high if numbers else labels and low != high  # type: ignore[operator]
+    return str(factor["name"]).isidentifier() and factor.get("type") in {"numeric", "categorical"} and in_order
+
+
+def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
+    """Write a published record as the book's examples are written, for :func:`campaign_of`; or say why it cannot be.
+
+    The design's specification is what the page would make for it: its type, its factors, a center run for
+    each one the source prints and, where the source repeats every other run, that many replicates. A
+    central composite design's axial distance is read off the runs.
+    """
+    designs = load_bootstrap().DESIGNS
+    design_type, factors, runs = record["design_type"], record["factors"], record["coded_runs"]
+    info = designs[design_type]
+    if record["blocked"] or record["split_plot"]:
+        return "the page opens designs without blocks or whole plots"
+    if not runs or any(v is None for row in runs for v in row):
+        return "the source prints no complete table of runs"
+    if not info["min_factors"] <= len(factors) <= info["max_factors"]:
+        return f"the page makes this design for {info['min_factors']} to {info['max_factors']} factors"
+    if not all(_page_factor(f) for f in factors):
+        return "a factor's name, type or range is not one the page accepts"
+    names = [f["name"] for f in factors]
+    response = next(
+        (r["name"] for r in record["responses"] if r["name"].isidentifier() and r["name"] not in names), "y"
+    )
+    options: dict[str, Any] = {}
+    if "n_center_points" in info["options"]:
+        options["n_center_points"] = record["n_centre"] or 0
+    repeats = Counter(tuple(row) for row in runs if any(v != 0 for v in row))
+    if len(set(repeats.values())) == 1 and (times := next(iter(repeats.values()))) > 1:
+        options["n_replicates"] = times
+    if design_type == "ccd":
+        axial = max(abs(v) for row in runs for v in row)
+        options["alpha"] = "face_centered" if abs(axial - 1) < CODED_TOLERANCE else round(axial, 4)
+    values = record["response_values"].get(response) or [None] * len(runs)
+    return {
+        "name": record["id"],
+        "title": record["title"][:TITLE_MOST],
+        "design": {
+            "design_type": design_type,
+            "factors": [
+                {"name": f["name"], "low": f["low"], "high": f["high"], "units": str(f.get("units") or "")[:UNITS_MOST]}
+                for f in factors
+            ],
+            "response": response,
+            **options,
+        },
+        "runs": [[*row, value] for row, value in zip(runs, values, strict=True)],
+    }
+
+
+def published_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str, bool]:
+    """Return the campaign that opens a published design, the reason there is none, and whether the page tried.
+
+    The page makes the design from what the source prints, and it opens only when the page's design has
+    exactly the source's runs, in the source's order and with its results: so a campaign also says that
+    the library regenerates the published design, to within the source's rounding. A fraction is tried at
+    each resolution the page makes.
+    """
+    if record["design_type"] not in load_bootstrap().DESIGNS:
+        return None, "the page does not make this kind of design", False
+    example = _example_of(record)
+    if isinstance(example, str):
+        return None, example, False
+    k = len(record["factors"])
+    resolutions = list(range(3, min(5, k) + 1)) if record["design_type"] == "fractional_factorial" else [None]
+    reasons = []
+    for resolution in resolutions:
+        asked = (
+            example if resolution is None else {**example, "design": {**example["design"], "resolution": resolution}}
+        )
+        try:
+            campaign = campaign_of(asked, f"the catalog's design {record['id']!r}")
+        except SystemExit as stop:
+            reasons.append(str(stop).split(": ", 1)[-1])
+            continue
+        campaign["sources"] = ["entered" if v is not None else None for v in campaign["responses"]]
+        return campaign, "", True
+    return None, f"the page's design differs from the source's: {reasons[0]}", True
+
+
+def write_catalog(out_dir: Path) -> None:
+    """Write ``catalog/index.json``, the facets of every design, and a detail file for each source and for the rest.
+
+    The index holds what the page searches, filters, maps and draws for every design at once; a detail
+    file holds what it shows on opening one: its factors, coded runs, results, notes and, where the page
+    makes the design, the campaign that opens it.
+    """
+    from process_improve.experiments.design_catalog import (  # noqa: PLC0415 - the docs environment has it
+        INDEX_FIELDS,
+        catalog_families,
+        catalog_records,
+        catalog_sources,
+    )
+
+    designs, details = [], {}
+    for record in catalog_records():
+        if record["collection"] == "generated":
+            (campaign, reason), regenerable = generated_campaign(record), None
+        else:
+            campaign, reason, tried = published_campaign(record)
+            regenerable = campaign is not None if tried else None
+        shard = record["source"] or "generated"
+        designs.append(
+            {
+                **{key: record[key] for key in INDEX_FIELDS},
+                "regenerable": regenerable,
+                "open": bool(campaign),
+                "detail": shard,
+            }
+        )
+        details.setdefault(shard, {})[record["id"]] = {
+            "design_text": record["design_text"],
+            "factors": record["factors"],
+            "responses": record["responses"],
+            "coded_runs": record["coded_runs"],
+            "response_values": record["response_values"],
+            "details": record["details"],
+            "notes": record["notes"],
+            "where": record["where_full"],
+            "spec": record.get("spec"),
+            "listed": record.get("listed"),
+            "campaign": campaign,
+            "closed": reason,
+        }
+    index = {
+        "version": CATALOG_VERSION,
+        "library": version("process-improve"),
+        "fields": [*INDEX_FIELDS, *CATALOG_FIELDS],
+        "families": catalog_families(),
+        "sources": catalog_sources(),
+        "designs": designs,
+    }
+    (out_dir / "catalog" / "detail").mkdir(parents=True)
+    # The page reads these with JSON.parse, which refuses NaN: a value that is no number stops the build here.
+    (out_dir / "catalog" / "index.json").write_text(json.dumps(index, separators=(",", ":"), allow_nan=False) + "\n")
+    for shard, held in details.items():
+        text = json.dumps({"version": CATALOG_VERSION, "designs": held}, separators=(",", ":"), allow_nan=False)
+        (out_dir / "catalog" / "detail" / f"{shard}.json").write_text(text + "\n")
+
+
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     """Copy the app, a wheel freshly built in ``dist``, the book's examples and the worked example into ``out_dir``.
 
@@ -320,6 +520,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     shutil.rmtree(out_dir, ignore_errors=True)
     (out_dir / "wheels").mkdir(parents=True)
     for name in APP_FILES:
+        (out_dir / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(WEB_SRC / name, out_dir / name)
     wheel = build_wheel(dist)
     published = Path(hashlib.sha256(wheel.read_bytes()).hexdigest()[:16]) / wheel.name
@@ -335,6 +536,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     }
     (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     write_book(out_dir)
+    write_catalog(out_dir)
     (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n")
     return wheel.name
 

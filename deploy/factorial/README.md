@@ -30,11 +30,14 @@ before the line is written (the first 24 bits of IPv4, 48 of IPv6), and lines ar
 travels after the `#`, which a browser never sends, so no design reaches the log.
 
 ```bash
-sudo factorial-usage            # visits, readers, Python sessions and link previews per day
+sudo factorial-usage            # visits, catalog visits, readers, Python sessions and link previews per day
 sudo factorial-usage --days 90
 ```
 
-Robots, link-preview fetchers and the deploy's own checks are not counted as visits.
+Robots, link-preview fetchers and the deploy's own checks are not counted as visits. A visit to
+the design catalog (`/catalog/`) is counted in a column of its own, and its readers among the app's.
+The report is the `factorial-usage` that `setup.sh` installed: run `setup.sh` again to install a
+newer one.
 
 ## Setting it up, once
 

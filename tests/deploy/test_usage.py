@@ -79,6 +79,21 @@ def test_robots_previews_and_the_deploys_own_checks_are_not_visits(agent):
     assert (seen.visits, seen.python, len(seen.readers)) == (0, 0, 0)
 
 
+def test_the_catalog_s_visits_are_counted_apart_from_the_page_s():
+    """factori.al/catalog/ is a visit to the app in a bucket of its own; its readers are the app's readers."""
+    seen = day(
+        logged("/catalog/"),
+        logged("/catalog/index.html", status=304),
+        logged("/catalog/?q=dsd"),
+        logged("/catalog", status=308),  # redirected to /catalog/, which is counted
+        logged("/catalog/index.json"),  # the page's data, not a visit
+        logged("/catalog/", HEADLESS),
+        logged("/"),
+    )
+    assert (seen.catalog, seen.visits) == (3, 1)
+    assert len(seen.readers) == 1, "one browser, in the app and the catalog"
+
+
 def test_readers_are_distinct_networks_and_browsers():
     seen = day(logged("/"), logged("/", when="2026-10-12T15:00"), logged("/", PHONE), logged("/", ip="198.51.100.0"))
     assert seen.visits == 4
@@ -127,6 +142,7 @@ def test_the_report_has_a_row_for_every_day_and_the_periods_totals():
             logged("/bootstrap.py", when="2026-10-11T09:01"),
             logged("/", when="2026-10-12T09:00"),  # the same reader the next day
             logged("/", PHONE, when="2026-10-12T10:00"),
+            logged("/catalog/", PHONE, when="2026-10-12T10:05"),  # the same reader, in the catalog
         ],
         SINCE,
     )
@@ -134,11 +150,11 @@ def test_the_report_has_a_row_for_every_day_and_the_periods_totals():
         [
             "factori.al, 2026-10-10 to 2026-10-12 (UTC)",
             "",
-            "Day         Visits  Readers  Python  Previews",
-            "2026-10-10       0        0       0         0",
-            "2026-10-11       1        1       1         0",
-            "2026-10-12       2        2       0         0",
-            "All              3        2       1         0",
+            "Day         Visits  Catalog  Readers  Python  Previews",
+            "2026-10-10       0        0        0       0         0",
+            "2026-10-11       1        0        1       1         0",
+            "2026-10-12       2        1        2       0         0",
+            "All              3        1        2       1         0",
             "",
             "Readers are distinct networks and browsers: approximate.",
             "",
@@ -157,7 +173,7 @@ def test_the_report_reads_the_live_log_and_the_rolled_ones_gzipped(tmp_path, cap
         rolled.write(json.dumps(logged("/", PHONE, when=now)) + "\n")
     (tmp_path / "other-site.log").write_text(json.dumps(logged("/", when=now)) + "\n", encoding="utf-8")
     assert usage.main(["--log", str(tmp_path / "factorial-access*.log*"), "--days", "1"]) == 0
-    assert capsys.readouterr().out.splitlines()[-3].split() == ["All", "2", "2", "0", "0"]
+    assert capsys.readouterr().out.splitlines()[-3].split() == ["All", "2", "0", "2", "0", "0"]
 
 
 def test_the_report_says_when_no_log_matches(tmp_path, capsys):

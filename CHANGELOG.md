@@ -13,6 +13,18 @@ those changes.
 
 ### Added
 
+- **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
+  experiments and designs, and 118 designs the library makes. A reader searches them in words ("4
+  factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
+  estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
+  numbers, and the year the source appeared or the date the entry was added; and sees each one on a
+  map of runs against factors, beside the fewest runs each model needs. A design opens in Factorial
+  with one click: 183 published designs, which the library regenerates run for run, and every
+  generated design of the eight types the app makes. The filters are kept in the address, so a
+  filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
+  `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
+  `estimable_models`, `design_facets`, `glyph`, `printed_checks`, `short_citation`,
+  `catalog_sources` and `catalog_families`.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
@@ -53,8 +65,8 @@ those changes.
   screened in an L12 and modelled in a 33-run composite design on a half fraction, a PSPICE 2^2, a
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
-  49152 cases. Appendix J's answers are checked against the problems they answer. 4500 printed
-  numbers, 4119 checked. 396 are recorded as not reproducing, each explained: most come from the
+  49152 cases. Appendix J's answers are checked against the problems they answer. 4520 printed
+  numbers, 4198 checked. 398 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
@@ -81,7 +93,13 @@ those changes.
   run order, and if need be the order and signs of its columns, a subset of an array's columns, or
   numbers rounded as printed (`same_runs`); read a step of steepest ascent in coded units (`units`);
   check that a printed matrix obeys its printed generators (`generator_holds`); sum a product of
-  columns (`dot_product`); and make a design for more factors than there are letters.
+  columns (`dot_product`); make a design for more factors than there are letters; read a term's
+  degrees of freedom, its sum of squares as a percentage of the total, and Taguchi's percent
+  contribution (`anova_df`, `percent_of_total`, `percent_contribution`); read the lack of fit's and
+  the pure error's sums of squares and the lack of fit's mean square (`lack_of_fit_ss`,
+  `lack_of_fit_ms`, `pure_error_ss`); and split a regression into what one model explains and what
+  a larger one adds, each tested against the full model's residual, as RS/Discover splits a
+  quadratic into its linear and non-linear parts (`extra_ss`, `extra_ms`, `extra_f`, `extra_p`).
 - **A region that describes its limits, in actual units.** `DesignRegion` now takes its
   constraints as `Constraint` objects, their dict form or bare expressions such as
   `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
