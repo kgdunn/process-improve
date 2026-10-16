@@ -53,6 +53,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from patsy import build_design_matrices, dmatrix
+from scipy.stats import chi2 as chi2_distribution
 from scipy.stats import f as f_distribution
 
 from process_improve.experiments._analyses.transforms import transform_response
@@ -773,6 +774,92 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     return setting - steps[0][units][check["key"]] if check.get("from_centre") else setting
 
 
+def _mean_squares(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a linear combination of the library's mean squares, or Satterthwaite's ratio of two of them.
+
+    ``check["terms"]`` maps rows of the analysis of variance (``"Residual"`` for the error) to their
+    weights, and ``check["divisor"]`` divides their sum: the analysis-of-variance estimate of a
+    variance component, as (MS_A - MS_AB)/bn equates the mean squares to their expectations under a
+    random or mixed model. ``check["key"]`` is one of:
+
+    - ``"value"``, and ``"root"``, its square root (the standard error of a mean, say);
+    - ``"df"``, Satterthwaite's degrees of freedom (sum of w MS)^2 / sum of (w MS)^2/f;
+    - ``"std_error"``, the estimate's standard error from Var(MS) = 2 MS^2/f, and ``"wald_low"`` and
+      ``"wald_high"``, the estimate less or plus 1.96 of them, which in a balanced design are the
+      standard errors and 95% intervals JMP prints for its REML variance components;
+    - ``"chi2_low"`` and ``"chi2_high"``, the 95% interval f v / chi2(0.975, f) to f v / chi2(0.025, f)
+      on the f degrees of freedom of the estimate v, which JMP prints for the residual;
+    - ``"mls_low"``, the modified large-sample lower limit of Ting et al. (1990), v - sqrt(VL), for an
+      estimate with one positive weight, at ``check["alpha"]`` (0.05), and ``"mls_vl"``, its VL;
+    - ``"covariance"``, the covariance of the estimate with that of ``check["with"]``, a second
+      ``terms`` and ``divisor``.
+
+    With ``check["denominator"]``, a second map of weights, the key is ``"f"``, the ratio of the two
+    sums, ``"p"`` its upper tail on Satterthwaite's degrees of freedom, or ``"df_num"`` and
+    ``"df_den"``: the exact test of a mean square against another, or the approximate F test of an
+    effect no single mean square tests.
+    """
+
+    def rows(weights: dict[str, float]) -> list[tuple[dict, float]]:
+        return [(_anova_row(out, term), float(w)) for term, w in weights.items()]
+
+    def combination(weights: dict[str, float]) -> tuple[float, float]:
+        terms = rows(weights)
+        value = sum(w * row["mean_sq"] for row, w in terms)
+        return value, value**2 / sum((w * row["mean_sq"]) ** 2 / row["df"] for row, w in terms)
+
+    def covariance(first: dict, second: dict) -> float:
+        """Sum over the shared mean squares of w1 w2 Var(MS), Var(MS) = 2 MS^2 / f: they are independent."""
+        other = {row["source"]: w for row, w in rows(second["terms"])}
+        shared = sum(
+            w * other[row["source"]] * 2 * row["mean_sq"] ** 2 / row["df"]
+            for row, w in rows(first["terms"])
+            if row["source"] in other
+        )
+        return shared / (float(first.get("divisor", 1)) * float(second.get("divisor", 1)))
+
+    def modified_large_sample(alpha: float) -> float:
+        """VL = G1^2 c1^2 MS1^2 + sum of Hj^2 cj^2 MSj^2 + sum of G1j c1 cj MS1 MSj, the cj > 0 the negative weights."""
+        divisor = float(check.get("divisor", 1))
+        (first, c1), *others = sorted(rows(check["terms"]), key=lambda pair: -pair[1])
+        if c1 <= 0 or any(w > 0 for _, w in others):
+            raise ValueError("the modified large-sample limit here takes one positive weight and the rest negative")
+        f1, s1 = first["df"], c1 * first["mean_sq"] / divisor
+        g1 = 1 - f1 / float(chi2_distribution.ppf(1 - alpha, f1))
+        vl = g1**2 * s1**2
+        for row, w in others:
+            fj, sj = row["df"], -w * row["mean_sq"] / divisor
+            hj = fj / float(chi2_distribution.ppf(alpha, fj)) - 1
+            f_point = float(f_distribution.ppf(1 - alpha, f1, fj))
+            g1j = ((f_point - 1) ** 2 - g1**2 * f_point**2 - hj**2) / f_point
+            vl += hj**2 * sj**2 + g1j * s1 * sj
+        return vl
+
+    numerator, df_num = combination(check["terms"])
+    key = check.get("key", "value")
+    if "denominator" not in check:
+        value = numerator / float(check.get("divisor", 1))
+        error = math.sqrt(covariance(check, check))
+        found = {
+            "value": lambda: value,
+            "root": lambda: math.sqrt(value),
+            "df": lambda: df_num,
+            "std_error": lambda: error,
+            "wald_low": lambda: value - _Z_975 * error,
+            "wald_high": lambda: value + _Z_975 * error,
+            "chi2_low": lambda: df_num * value / float(chi2_distribution.ppf(0.975, df_num)),
+            "chi2_high": lambda: df_num * value / float(chi2_distribution.ppf(0.025, df_num)),
+            "mls_vl": lambda: modified_large_sample(float(check.get("alpha", 0.05))),
+            "mls_low": lambda: value - math.sqrt(modified_large_sample(float(check.get("alpha", 0.05)))),
+            "covariance": lambda: covariance(check, check["with"]),
+        }
+        return found[key]()
+    denominator, df_den = combination(check["denominator"])
+    ratio = numerator / denominator
+    tests = {"f": ratio, "p": float(f_distribution.sf(ratio, df_num, df_den)), "df_num": df_num, "df_den": df_den}
+    return tests[key]
+
+
 def _transmitted_variance(out: dict, check: dict, experiment: dict) -> float:
     """Return a number of the variance a fitted response model transmits from its noise factors.
 
@@ -969,6 +1056,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "box_cox": _box_cox,
     "steepest_path": _steepest_path,
     "transmitted_variance": _transmitted_variance,
+    "mean_squares": _mean_squares,
 }
 
 
@@ -2151,8 +2239,9 @@ def _variance_component(experiment: dict, check: dict) -> float:
     The fixed part is the overall mean, and an effect for each level of the factors
     ``check["fixed"]`` names, if any, coded to sum to zero over the levels; ``"clutter:filter"``
     there is the interaction of two of them, the products of their columns. Nested groups are
-    written with labels unique across the whole study. ``check["key"]`` names a group, for its
-    variance, or one of:
+    written with labels unique across the whole study; a group written ``"part:operator"`` is each
+    combination of the two, the random interaction of two random factors. ``check["key"]`` names a
+    group, for its variance, or one of:
 
     - ``"residual"``, the error variance, and ``"total"``, the sum of every variance;
     - ``"ratio.<group>"``, a group's variance over the residual's, and ``"percent.<part>"``, a group's
@@ -2174,7 +2263,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
     y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
     fixed = [_fixed_columns(table, name) for name in check.get("fixed", [])]
     design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
-    groups = [pd.factorize(table[name])[0] for name in check["groups"]]
+    groups = [pd.factorize(table[name.split(":")].astype(str).agg(":".join, axis=1))[0] for name in check["groups"]]
     fit = fit_variance_components(y, design.to_numpy(), groups)
     parts = dict(zip(check["groups"], map(float, fit.variances), strict=True)) | {"residual": float(fit.sigma2)}
     estimated = [name for name in parts if name == "residual" or parts[name] > 0]  # vc_cov's rows, in order

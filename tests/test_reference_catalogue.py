@@ -1620,3 +1620,106 @@ def test_a_model_of_ln_variance_is_read_back_as_a_variance():
     logs = np.log([0.090, 0.071, 0.001, 0.008])
     slope = (logs[2] + logs[3] - logs[0] - logs[1]) / 4
     assert float(found) == pytest.approx(math.exp(logs.mean() + 0.5 * slope), rel=1e-5)
+
+
+_CELLS = {
+    ("a", "x"): [10, 12], ("a", "y"): [15, 14], ("b", "x"): [20, 23],
+    ("b", "y"): [18, 26], ("c", "x"): [30, 29], ("c", "y"): [40, 37],
+}  # fmt: skip
+
+
+def _two_factor_replicated():
+    """Return a 3 x 2 layout with two runs per cell and its mean squares, worked by hand."""
+    rows = [[f, g, y] for (f, g), values in _CELLS.items() for y in values]
+    entry = {
+        "name": "random",
+        "factors": [
+            {"name": "f", "type": "categorical", "low": "a", "high": "b", "levels": ["a", "b", "c"]},
+            {"name": "g", "type": "categorical", "low": "x", "high": "y", "levels": ["x", "y"]},
+        ],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["f", "g", "y"], "rows": rows, "coded": False},
+    }
+    y = np.array([_CELLS[f, g] for f in "abc" for g in "xy"], dtype=float).reshape(3, 2, 2)
+    cell, grand = y.mean(axis=2), y.mean()
+    rows_mean, cols_mean = cell.mean(axis=1), cell.mean(axis=0)
+    ms = {
+        "f": 4 * ((rows_mean - grand) ** 2).sum() / 2,
+        "g": 6 * ((cols_mean - grand) ** 2).sum() / 1,
+        "f:g": 2 * ((cell - rows_mean[:, None] - cols_mean + grand) ** 2).sum() / 2,
+        "Residual": ((y - cell[..., None]) ** 2).sum() / 6,
+    }
+    return entry, ms, {"f": 2, "g": 1, "f:g": 2, "Residual": 6}
+
+
+def test_mean_squares_give_a_variance_component_its_satterthwaite_df_and_standard_error():
+    """sigma2_f = (MS_f - MS_fg)/bn: Satterthwaite's df and the standard error come from Var(MS) = 2 MS^2/f."""
+    from process_improve.experiments.reference_catalogue import _mean_squares
+
+    entry, ms, df = _two_factor_replicated()
+    out = reference_catalogue._Fits()(entry, {"model": "f * g"})
+    check = {"terms": {"f": 1, "f:g": -1}, "divisor": 4}
+
+    def read(key, **extra):
+        return _mean_squares(out, {**check, "key": key, **extra}, entry)
+
+    value = (ms["f"] - ms["f:g"]) / 4
+    error = math.sqrt(2 * (ms["f"] ** 2 / df["f"] + ms["f:g"] ** 2 / df["f:g"])) / 4
+    satterthwaite = (ms["f"] - ms["f:g"]) ** 2 / (ms["f"] ** 2 / df["f"] + ms["f:g"] ** 2 / df["f:g"])
+    assert read("value") == pytest.approx(value)
+    assert read("root") == pytest.approx(math.sqrt(value))
+    assert read("df") == pytest.approx(satterthwaite)
+    assert read("std_error") == pytest.approx(error)
+    assert read("wald_low") == pytest.approx(value - stats.norm.ppf(0.975) * error)
+    assert read("chi2_high") == pytest.approx(satterthwaite * value / stats.chi2.ppf(0.025, satterthwaite))
+    interaction = {"terms": {"f:g": 1, "Residual": -1}, "divisor": 2}
+    shared = -1 * 1 * 2 * ms["f:g"] ** 2 / df["f:g"] / (4 * 2)
+    assert read("covariance", **{"with": interaction}) == pytest.approx(shared)
+
+
+def test_mean_squares_test_an_effect_against_a_synthesized_error():
+    """F = MS_f / MS_fg on (2, 2) df, and a sum of mean squares as the denominator takes Satterthwaite's df."""
+    from process_improve.experiments.reference_catalogue import _mean_squares
+
+    entry, ms, df = _two_factor_replicated()
+    out = reference_catalogue._Fits()(entry, {"model": "f * g"})
+    exact = {"terms": {"f": 1}, "denominator": {"f:g": 1}}
+    ratio = ms["f"] / ms["f:g"]
+    assert _mean_squares(out, {**exact, "key": "f"}, entry) == pytest.approx(ratio)
+    assert _mean_squares(out, {**exact, "key": "p"}, entry) == pytest.approx(stats.f.sf(ratio, 2, 2))
+    synthesized = {"terms": {"f": 1}, "denominator": {"f:g": 1, "g": 1, "Residual": -1}, "key": "df_den"}
+    combination = ms["f:g"] + ms["g"] - ms["Residual"]
+    pieces = ms["f:g"] ** 2 / df["f:g"] + ms["g"] ** 2 / df["g"] + ms["Residual"] ** 2 / df["Residual"]
+    assert _mean_squares(out, synthesized, entry) == pytest.approx(combination**2 / pieces)
+
+
+def test_the_modified_large_sample_limit_follows_ting_et_al():
+    """L = v - sqrt(VL) for v = c1 MS1 - c2 MS2, with G1, H2 and G12 from the F and chi-square points."""
+    from process_improve.experiments.reference_catalogue import _mean_squares
+
+    entry, ms, df = _two_factor_replicated()
+    out = reference_catalogue._Fits()(entry, {"model": "f * g"})
+    check = {"terms": {"f": 1, "f:g": -1}, "divisor": 4}
+    f1, f2 = df["f"], df["f:g"]
+    g1 = 1 - 1 / (stats.chi2.ppf(0.95, f1) / f1)
+    h2 = 1 / (stats.chi2.ppf(0.05, f2) / f2) - 1
+    f_point = stats.f.ppf(0.95, f1, f2)
+    g12 = ((f_point - 1) ** 2 - g1**2 * f_point**2 - h2**2) / f_point
+    s1, s2 = ms["f"] / 4, ms["f:g"] / 4
+    vl = g1**2 * s1**2 + h2**2 * s2**2 + g12 * s1 * s2
+    assert _mean_squares(out, {**check, "key": "mls_vl"}, entry) == pytest.approx(vl)
+    assert _mean_squares(out, {**check, "key": "mls_low"}, entry) == pytest.approx(s1 - s2 - math.sqrt(vl))
+    with pytest.raises(ValueError, match="one positive weight"):
+        _mean_squares(out, {"terms": {"f": 1, "g": 1}, "key": "mls_low"}, entry)
+
+
+def test_a_reml_group_can_be_the_interaction_of_two_random_factors():
+    """In a balanced layout with every component positive, REML gives the ANOVA estimate (MS_fg - MSE)/n."""
+    from process_improve.experiments.reference_catalogue import _variance_component
+
+    entry, ms, _ = _two_factor_replicated()
+    check = {"groups": ["f", "g", "f:g"]}
+    assert _variance_component(entry, {**check, "key": "residual"}) == pytest.approx(ms["Residual"], rel=1e-4)
+    assert _variance_component(entry, {**check, "key": "f:g"}) == pytest.approx(
+        (ms["f:g"] - ms["Residual"]) / 2, rel=1e-4
+    )
