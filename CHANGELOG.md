@@ -482,6 +482,14 @@ those changes.
   the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
   factor renames it inside the limits, and the run sheet keeps its runs.
 
+### Changed
+
+- **Factorial's three ways in stand out, and links out open in a tab of their own.** The header's
+  buttons are larger, each in a colour of its own with an icon, and each begins with a verb: *Start
+  a new study*, *Explore a worked example* and *Browse the design catalog*. Every link from the
+  app, its About page and the design catalog to another site (a source, GitHub, Pyodide) opens in a
+  new tab, and a link to the book in the book's tab, so the page and its study stay where they are.
+
 ### Fixed
 
 - **`evaluate_design` no longer calls a full-rank model rank-deficient because of its factors'
