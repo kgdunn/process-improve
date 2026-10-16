@@ -167,6 +167,75 @@ LIMIT_TOLERANCE = 1e-9
 #: What a design of given runs says of itself. It names no factor, so a renaming keeps it.
 GIVEN_NOTE = "These runs are taken as they were given, in that order: the page made none of them."
 
+#: Mixture designs: the factors are the components of a blend, each a proportion between its lower and upper
+#: bounds, and the proportions of every run sum to 1. Each is ``generate_design(design_type="mixture")``, built
+#: for the Scheffé model its options name. They are not in :data:`DESIGNS`, as the runs as given are not: a
+#: mixture has no ranges to code, no center runs and no blocks, so the comparison of designs never tries one.
+#: The simplex centroid stops at four components, since from five the library's design for the special cubic
+#: model blends at most three of them, which is not the whole simplex centroid.
+MIXTURES: dict[str, dict[str, Any]] = {
+    "simplex_lattice": {
+        "label": "Simplex lattice (mixture)",
+        "hint": (
+            "The pure components and, at degree 2, every 50:50 blend of two, with the overall centroid to check "
+            "the fit."
+        ),
+        "options": ["lattice_degree", "n_replicates"],
+        "min_factors": 3,
+        "max_factors": 6,
+    },
+    "simplex_centroid": {
+        "label": "Simplex centroid (mixture)",
+        "hint": (
+            "Every blend of equal parts: the pure components, the 50:50 blends, the blends in thirds, and so on to "
+            "the overall centroid."
+        ),
+        "options": ["n_replicates"],
+        "min_factors": 3,
+        "max_factors": 4,
+    },
+    "extreme_vertices": {
+        "label": "Extreme vertices (mixture with bounds)",
+        "hint": (
+            "The corners of the blends your lower and upper proportions allow, the midpoints of the edges between "
+            "them for the quadratic model, and their centroid."
+        ),
+        "options": ["mixture_model", "n_replicates"],
+        "min_factors": 3,
+        "max_factors": 6,
+    },
+}
+
+#: The library's design type for every mixture design.
+MIXTURE = "mixture"
+
+#: The models a mixture is analysed with, as ``analyze_experiment`` names them: the Scheffé models, which have no
+#: intercept, since the proportions sum to 1. Each is named in a sentence by its words.
+MIXTURE_MODELS = ("scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic")
+MIXTURE_WORDS = {
+    "scheffe_linear": "linear blending",
+    "scheffe_quadratic": "quadratic blending",
+    "scheffe_special_cubic": "special cubic blending",
+}
+
+#: A simplex lattice's degree, and the Scheffé model its runs are built for: the pure components alone (with the
+#: centroid) for the linear model, and with every 50:50 blend for the quadratic one.
+LATTICE_DEGREES = {1: "scheffe_linear", 2: "scheffe_quadratic"}
+DEFAULT_LATTICE_DEGREE = 2
+
+#: The models an extreme vertices design is built for; the first is the page's default.
+VERTICES_MODELS = ("scheffe_quadratic", "scheffe_linear")
+
+#: How far a proportion may sit past 0 or 1, or a sum of bounds from 1, and still be read as it.
+PROPORTION_TOLERANCE = 1e-9
+
+#: Significant digits of a proportion on the run sheet: a third reads 0.333333333333, and an edge's midpoint
+#: 0.15 rather than the 0.15000000000000002 that the arithmetic leaves.
+PROPORTION_DIGITS = 12
+
+#: The number of components of a blend of equal parts, in words.
+PARTS = {2: "two", 3: "three", 4: "four", 5: "five"}
+
 #: Designs whose non-centre runs all lie on one sphere (Box-Behnken at any size, a
 #: rotatable CCD at 2 or 4 factors), so without a center run the squared terms sum
 #: to a constant and the quadratic model cannot be fitted.
@@ -304,6 +373,22 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             "new noise draws a new process."
         ),
         "terms": None,
+        "sigma": 1.0,
+    },
+}
+
+#: Processes a mixture's results can be simulated from, as a Scheffé quadratic model in the proportions. ``pure``
+#: is the response of each pure component, the components taken in the order the reader entered them, as a size
+#: in noise standard deviations from the scenario's ``centre``; a component it does not name gives the centre.
+#: ``blends`` are the two-component blending terms, in noise standard deviations: positive where a blend gives
+#: more than the average of its two pure components (synergy), negative where it gives less (antagonism).
+MIXTURE_SCENARIOS: dict[str, dict[str, Any]] = {
+    "blend": {
+        "label": "A synergy and an antagonism",
+        "hint": "The first two components blend in synergy, and the second and third against each other.",
+        "centre": 50.0,
+        "pure": {0: 4.0, 1: -2.0, 2: 1.0},
+        "blends": {(0, 1): 12.0, (1, 2): -10.0},
         "sigma": 1.0,
     },
 }
@@ -447,14 +532,22 @@ def _number(value: object) -> float | None:
     return number if math.isfinite(number) else None
 
 
-def _factors(spec: dict) -> list[Factor]:
-    """Build and check the ``Factor`` list from the specification."""
-    raw = spec.get("factors") or []
+def _factor_names(raw: list) -> list[str]:
+    """Read and check the factors' names: two at least, each a variable name, none twice."""
     if len(raw) < 2:
         raise ValueError("Enter at least two factors.")
     names = [str(f.get("name", "")).strip() for f in raw]
     if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
         raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
+    return names
+
+
+def _factors(spec: dict) -> list[Factor]:
+    """Build and check the ``Factor`` list from the specification."""
+    if spec.get("design_type") in MIXTURES:
+        return _components(spec)
+    raw = spec.get("factors") or []
+    names = _factor_names(raw)
     factors = []
     for f, name in zip(raw, names, strict=True):
         labels = _label(f.get("low")), _label(f.get("high"))
@@ -508,6 +601,108 @@ def _categorical(factor: dict) -> bool:
 def _categorical_names(spec: dict) -> tuple[str, ...]:
     """Name the categorical factors of a checked specification."""
     return tuple(f["name"] for f in spec["factors"] if _categorical(f))
+
+
+# --------------------------------------------------------------------------- a mixture's components
+def _mixture(spec: dict) -> bool:
+    """Say whether a specification is a mixture's: its factors are the components of a blend."""
+    return spec.get("design_type") in MIXTURES
+
+
+def _components(spec: dict) -> list[Factor]:
+    """Build and check a mixture's components: each a proportion between its lower and upper bounds.
+
+    A component's low and high are its lower and upper proportions, 0 and 1 when left blank (the
+    page sends a blank box as null). A proportion lies between 0 and 1, so a factor with a range
+    beyond them is a process variable, which a mixture on this page does not take; nor does it take
+    a categorical factor. The lower proportions must sum to less than 1, and the upper ones to more
+    than 1, or no blend meets them, or only one. The design type decides how many components there
+    may be, and whether they may have bounds (see :func:`_check_bounds`).
+    """
+    design_type = spec["design_type"]
+    raw = spec.get("factors") or []
+    names = _factor_names(raw)
+    components = []
+    for f, name in zip(raw, names, strict=True):
+        if _label(f.get("low")) is not None and _label(f.get("high")) is not None:
+            raise ValueError(
+                f"A mixture's factors are its components, each a proportion, and {name} is categorical: remove it, "
+                "or choose a design for factors with ranges."
+            )
+        low, high = _proportion(f.get("low"), 0.0), _proportion(f.get("high"), 1.0)
+        if low is None or high is None:
+            raise ValueError(
+                f"Component {name}: enter its lower and upper proportions as numbers, or leave them blank for 0 and 1."
+            )
+        if low < -PROPORTION_TOLERANCE or high > 1 + PROPORTION_TOLERANCE:
+            raise ValueError(
+                f"Factor {name} runs from {low:g} to {high:g}, which is no proportion: each component of a mixture "
+                "lies between 0 and 1, and a mixture on this page takes no process variables, such as a temperature."
+            )
+        if not low < high:
+            raise ValueError(f"Component {name}: its lower proportion must be below its upper proportion.")
+        units = str(f.get("units", ""))
+        components.append(Factor(name=name, type="mixture", low=max(low, 0.0), high=min(high, 1.0), units=units))
+    info = MIXTURES[design_type]
+    if not info["min_factors"] <= len(components) <= info["max_factors"]:
+        raise ValueError(
+            f"The {info['label']} design takes {info['min_factors']} to {info['max_factors']} components on this "
+            f"page; you have {len(components)}."
+        )
+    lows, highs = sum(c.low for c in components), sum(c.high for c in components)  # type: ignore[misc]
+    if lows > 1 - PROPORTION_TOLERANCE:
+        raise ValueError(
+            f"The lower proportions sum to {lows:.4g}, and must sum to less than 1: above 1 no blend gives every "
+            "component its lower proportion, and at 1 only one blend does. Lower some of them."
+        )
+    if highs < 1 + PROPORTION_TOLERANCE:
+        raise ValueError(
+            f"The upper proportions sum to {highs:.4g}, and must sum to more than 1: below 1 no blend of the "
+            "components reaches 1, and at 1 only one does. Raise some of them."
+        )
+    _check_bounds(design_type, components)
+    return components
+
+
+def _proportion(value: object, blank: float) -> float | None:
+    """Read a component's bound: ``blank`` for a blank box, the number typed, or None for anything else."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return blank
+    return _number(value)
+
+
+def _check_bounds(design_type: str, components: list[Factor]) -> None:
+    """Refuse bounds the design type cannot take: extreme vertices need one, the simplex designs none."""
+    bounded = [
+        c.name
+        for c in components
+        if c.low > PROPORTION_TOLERANCE or c.high < 1 - PROPORTION_TOLERANCE  # type: ignore[operator]
+    ]
+    if design_type == "extreme_vertices" and not bounded:
+        raise ValueError(
+            "Extreme vertices are for a mixture with bounds: give a component a lower or upper proportion, or "
+            "choose the simplex lattice or simplex centroid."
+        )
+    if design_type != "extreme_vertices" and bounded:
+        verb = "has" if len(bounded) == 1 else "have"
+        raise ValueError(
+            f"The {MIXTURES[design_type]['label']} design covers every blend, each component from 0 to 1, and "
+            f"{_listed(bounded)} {verb} bounds: choose extreme vertices for a mixture with bounds."
+        )
+
+
+def _mixture_model(model: object) -> str:
+    """Read the model a mixture is analysed with: one of :data:`MIXTURE_MODELS`."""
+    if model not in MIXTURE_MODELS:
+        raise ValueError(
+            f"A mixture is analysed with the linear, quadratic or special cubic blending model, not {model!r}."
+        )
+    return str(model)
+
+
+def _mixture_terms(q: int, model: str) -> int:
+    """Count a Scheffé model's coefficients in ``q`` components: no intercept, as the proportions sum to 1."""
+    return q + math.comb(q, 2) * (model != "scheffe_linear") + math.comb(q, 3) * (model == "scheffe_special_cubic")
 
 
 # --------------------------------------------------------------------------- limits on the settings
@@ -706,16 +901,22 @@ def _release() -> str | None:
 
 
 def catalogue(_: dict) -> dict:
-    """List what the page offers: design types, models, CCD axial choices, processes, and the worked example.
+    """List what the page offers: design types, mixtures, models, CCD axial choices, processes, and the worked example.
 
     ``version`` is the process-improve release the page runs, which a notebook it writes installs.
     """
     scenarios = {key: {"label": s["label"], "hint": s["hint"], "sigma": s["sigma"]} for key, s in SCENARIOS.items()}
+    mixture_scenarios = {
+        key: {"label": s["label"], "hint": s["hint"], "sigma": s["sigma"]} for key, s in MIXTURE_SCENARIOS.items()
+    }
     return {
         "designs": DESIGNS,
+        "mixtures": MIXTURES,
         "models": list(MODELS),
+        "mixture_models": list(MIXTURE_MODELS),
         "alphas": list(ALPHAS),
         "scenarios": scenarios,
+        "mixture_scenarios": mixture_scenarios,
         "demo": DEMO,
         "version": _release(),
     }
@@ -730,6 +931,8 @@ def make_design(spec: dict) -> dict:
     design_type = spec.get("design_type", "")
     if design_type == GIVEN:
         return _given_design(spec)
+    if design_type in MIXTURES:
+        return _mixture_design(spec)
     if design_type not in DESIGNS:
         raise ValueError(f"Unknown design type {design_type!r}.")
     factors = _factors(spec)
@@ -867,6 +1070,138 @@ def _given_design(spec: dict) -> dict:
         "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
+
+
+def _mixture_design(spec: dict) -> dict:
+    """Make a mixture design: its runs are blends, in proportions that sum to 1, in randomised order.
+
+    The run sheet lists each component's proportion as it is to be weighed out. The design's
+    model is the Scheffé model it supports: linear for a lattice of degree 1, else quadratic, and
+    for extreme vertices the model they were built for. A mixture takes no limits on the settings:
+    its bounds are each component's lower and upper proportions.
+    """
+    design_type = spec["design_type"]
+    if spec.get("constraints"):
+        raise ValueError(
+            "A mixture takes no limits on the settings on this page: give each component its lower and upper "
+            "proportions instead, or remove the limits."
+        )
+    components = _components(spec)
+    response = _response_name(str(spec.get("response") or "y").strip(), components)
+    kwargs = _mixture_options(spec, design_type)
+    result = generate_design(components, design_type=MIXTURE, **kwargs)
+    names = [c.name for c in components]
+    blends = np.array([[_proportion_shown(v) for v in row] for row in result.design_actual[names].to_numpy(float)])
+    runs = pd.DataFrame(blends, columns=names)
+    runs.insert(0, "Run order", range(1, len(runs) + 1))
+    runs.insert(0, "Std order", result.run_order)
+    runs[response] = np.nan
+    model_type = kwargs["model_type"]
+    stored = {
+        "version": SPEC_VERSION,
+        "design_type": design_type,
+        "factors": [_factor_spec(c) for c in components],
+        "response": response,
+        "model": "scheffe_quadratic" if design_type == "simplex_centroid" else model_type,
+        "options": kwargs,
+        **_described(spec),
+    }
+    facts = {
+        "resolution": None,
+        "generators": [],
+        "defining_relation": [],
+        "aliases": [],
+        "center_runs": 0,
+        "notes": _mixture_notes(design_type, blends, result.metadata or {}, kwargs),
+    }
+    return {
+        "n_runs": len(runs),
+        "columns": list(runs.columns),
+        "rows": [list(row) for row in runs.itertuples(index=False)],
+        "outside_range": [],
+        "model": stored["model"],
+        "facts": facts,
+        "spec": stored,
+        "xlsx_base64": _to_workbook(runs, stored),
+    }
+
+
+def _proportion_shown(value: float) -> float:
+    """Round a proportion as the run sheet lists it, to :data:`PROPORTION_DIGITS` significant digits; -0 reads 0."""
+    return float(f"{value:.{PROPORTION_DIGITS}g}") + 0.0
+
+
+def _mixture_options(spec: dict, design_type: str) -> dict[str, Any]:
+    """Pick the ``generate_design`` keyword arguments of a mixture design: its seed, its model and its replicates.
+
+    The simplex centroid is the library's design for the special cubic model, which in three or
+    four components is every blend of equal parts.
+    """
+    kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
+    if design_type == "simplex_lattice":
+        degree = _number(spec.get("lattice_degree", DEFAULT_LATTICE_DEGREE))
+        if degree not in LATTICE_DEGREES:
+            raise ValueError("A simplex lattice's degree is 1 or 2 on this page.")
+        kwargs["model_type"] = LATTICE_DEGREES[int(degree)]  # type: ignore[arg-type]
+    elif design_type == "simplex_centroid":
+        kwargs["model_type"] = "scheffe_special_cubic"
+    else:
+        model = spec.get("mixture_model", VERTICES_MODELS[0])
+        if model not in VERTICES_MODELS:
+            raise ValueError(f"Extreme vertices are built for the linear or quadratic blending model, not {model!r}.")
+        kwargs["model_type"] = model
+    if (replicates := _replicates(spec)) > 1:
+        kwargs["n_replicates"] = replicates
+    return kwargs
+
+
+def _mixture_notes(design_type: str, blends: np.ndarray, metadata: dict, kwargs: dict[str, Any]) -> list[str]:
+    """Say what a mixture design's runs are: the kinds of blend, by how many components each holds.
+
+    No note names a component, so a renaming keeps them all.
+    """
+    q = blends.shape[1]
+    distinct = np.unique(blends.round(9), axis=0)
+    notes = ["Each run is a blend: its proportions sum to 1."]
+    if design_type == "simplex_lattice":
+        degree = next(d for d, m in LATTICE_DEGREES.items() if m == kwargs["model_type"])
+        lattice = distinct[(distinct > PROPORTION_TOLERANCE).sum(axis=1) < q]
+        notes.append(
+            f"The {{{q}, {degree}}} simplex lattice: {_listed(_blend_kinds(lattice))}. The overall centroid, 1/{q} "
+            "of each component, is added to check the fit."
+        )
+    elif design_type == "simplex_centroid":
+        notes.append(f"The simplex centroid: {_listed(_blend_kinds(distinct))}.")
+    elif metadata.get("method") == "extreme_vertices":
+        vertices = int(metadata.get("n_vertices", 0))
+        edges = len(distinct) - vertices - 1
+        between = f", the {edges} midpoints of the edges between them" if edges > 0 else ""
+        notes.append(f"The {vertices} extreme vertices of the blends your bounds allow{between}, and their centroid.")
+    else:
+        notes.append(
+            f"Your bounds leave {metadata.get('n_vertices')} extreme vertices, more than the model needs: the runs "
+            "are a D-optimal choice among those vertices, the midpoints of the edges between them and their centroid."
+        )
+    replicates = kwargs.get("n_replicates", 1)
+    if replicates > 1:
+        notes.append(f"Each blend appears {replicates} times, so the repeats estimate the pure error.")
+    return notes
+
+
+def _blend_kinds(blends: np.ndarray) -> list[str]:
+    """Name the kinds of blend of equal parts among distinct runs: the pure components, the blends of two, ..."""
+    q = blends.shape[1]
+    sizes = (blends > PROPORTION_TOLERANCE).sum(axis=1)
+    kinds = []
+    for size in sorted(set(sizes.tolist())):
+        n = int((sizes == size).sum())
+        if size == 1:
+            kinds.append(f"the {n} pure components")
+        elif size == q:
+            kinds.append(f"the overall centroid, 1/{q} of each component")
+        else:
+            kinds.append(f"the {n} blends of {PARTS[size]} at 1/{size} each")
+    return kinds
 
 
 def _outside_limits_sentence(outside: list[int]) -> str:
@@ -1281,6 +1616,8 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     With the true process the results were simulated from, each coefficient also
     carries the true value of what it estimates (see :func:`_add_true_values`).
     """
+    if _mixture(spec):
+        return _mixture_analysis(runs, spec, model, truth)
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
@@ -1344,6 +1681,131 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
 def _snapped(value: float | None, zero: float) -> float | None:
     """Return 0 for a value no larger than ``zero``, the fit's round-off, and the value otherwise."""
     return 0.0 if value is not None and abs(value) <= zero else value
+
+
+# --------------------------------------------------------------------------- the analysis of a mixture
+#: What the page asks of a mixture's fit: the library's mixture ANOVA, which tests the linear blending terms
+#: together, the coefficients, the lack of fit, and each component's effect along its Cox direction.
+MIXTURE_ANALYSES = ["anova", "coefficients", "lack_of_fit", "effects"]
+
+#: What every analysis of a mixture says of its model, and of the two-level methods it does without.
+MIXTURE_NOTES = [
+    (
+        "A mixture's proportions sum to 1, so its model has no intercept: each component's coefficient is the "
+        "response to that component alone, and a blend's coefficient is positive where the blend gives more than "
+        "its components on average, negative where it gives less."
+    ),
+    (
+        "Lenth's method and the effects of two-level factors do not apply to a mixture: its components are "
+        "proportions, which move together, so each component's effect is taken along its Cox direction instead."
+    ),
+]
+
+
+def _mixture_analysis(runs: pd.DataFrame, spec: dict, model: object, truth: list[dict] | None = None) -> dict:
+    """Fit a Scheffé model to a mixture's completed runs, in their proportions, which are not coded.
+
+    The mixture ANOVA tests the linear blending terms together, whether the components blend
+    alike, and each blending term on its own. Each component's effect is the change in the fitted
+    response along its Cox direction, through the centroid of the design's blends (see
+    :func:`_cox_effects`). A model the design cannot fit is refused, saying how many of its
+    coefficients the runs can estimate.
+    """
+    response = spec["response"]
+    names = [f["name"] for f in spec["factors"]]
+    model = _mixture_model(model)
+    missing_cols = [c for c in [*names, response] if c not in runs.columns]
+    if missing_cols:
+        raise ValueError(f"The Runs sheet is missing column(s): {', '.join(missing_cols)}.")
+    y = pd.to_numeric(runs[response], errors="coerce")
+    done = y.notna()
+    pending = runs.loc[~done, "Run order"].astype(int).tolist() if "Run order" in runs else []
+    n_terms = _mixture_terms(len(names), model)
+    if pending and done.sum() < n_terms:
+        complete = int(done.sum())
+        raise ValueError(
+            f"The {_model_name(model)} model has {n_terms} coefficients, so it needs at least {n_terms} "
+            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
+            f"Still to run: {', '.join(map(str, pending))}."
+        )
+    blends = runs.loc[done, names].astype(float).reset_index(drop=True)
+    out = _mixture_fit(blends, y[done].reset_index(drop=True).rename(response), model)
+    zero = ROUND_OFF * float(y[done].abs().max())
+    coefficients = [
+        {
+            **c,
+            "coefficient": _snapped(c["coefficient"], zero),
+            "label": _pretty(c["term"]),
+            "aliases": [],
+            "block": False,
+        }
+        for c in out["coefficients"]
+    ]
+    if truth:
+        _add_true_values(coefficients, blends, model, _true_coefficients(truth, names))
+    anova = [{**a, "source": _mixture_source(a["source"])} for a in out.get("anova_table", [])]
+    notes = list(MIXTURE_NOTES)
+    if out["model_summary"]["df_residual"] == 0:
+        notes.append(
+            "The model uses every run, so no degrees of freedom are left to estimate the error and nothing can "
+            "be tested. Add runs, or fit fewer terms."
+        )
+    return {
+        "spec": spec,
+        "model": model,
+        "formula": model,  # the model's name is what the library fits: a Scheffé model of every component
+        "n_completed": int(done.sum()),
+        "pending_runs": pending,
+        "summary": out["model_summary"],
+        "coefficients": coefficients,
+        "anova": anova,
+        "lack_of_fit": out.get("lack_of_fit"),
+        "lenth": None,
+        "not_estimable": [],
+        "notes": notes,
+        "equation": _equation(_response_words(spec)[0], coefficients),
+        "effects": _cox_effects(out, names),
+    }
+
+
+def _mixture_fit(blends: pd.DataFrame, y: pd.Series, model: str, analyses: list[str] | None = None) -> dict:
+    """Fit a Scheffé model to blends, refusing one the runs cannot estimate in full."""
+    with _listening() as heard:
+        out = analyze_experiment(blends, y, model=model, analysis_type=analyses or MIXTURE_ANALYSES)
+    summary = out["model_summary"]
+    if summary["rank_deficient"]:
+        raise ValueError(
+            f"This design cannot fit the {_model_name(model)} model: only {summary['model_rank']} of its "
+            f"{summary['n_terms']} coefficients can be estimated from these {summary['n_obs']} runs. Choose a "
+            "smaller model."
+        )
+    _relay(heard)
+    return out
+
+
+def _mixture_source(source: str) -> str:
+    """Name a row of the mixture ANOVA as the page shows it: the linear blending terms, or a blend as ``A·B``."""
+    return "Linear blending" if source == "Linear mixture" else _pretty(source)
+
+
+def _cox_effects(out: dict[str, Any], names: list[str]) -> list[dict[str, Any]]:
+    """List each component's effect along its Cox direction, with the span of its proportion the effect is over.
+
+    On a component's Cox direction the others keep their proportions to each other, so only the
+    blend's share of that component changes. The effect is the fitted response at the end of the
+    span, less the response at its start, from the reference blend: the centroid of the design's
+    blends (``reference``, the same for every component).
+    """
+    effects, spans, reference = (
+        out.get("effects") or {},
+        out.get("effect_range") or {},
+        out.get("effect_reference") or {},
+    )
+    return [
+        {"component": n, "effect": effects[n], "low": spans[n][0], "high": spans[n][1], "reference": reference[n]}
+        for n in names
+        if n in effects
+    ]
 
 
 #: What the page asks of every fit; the effects carry the alias chains of a design
@@ -1509,8 +1971,8 @@ def _chosen_terms(chosen: object, names: list[str], categorical: tuple[str, ...]
 
 
 def _model_name(model: str | list[str]) -> str:
-    """Name a model in a sentence: ``main effects``, ``quadratic``, or ``chosen`` for terms a reader chose."""
-    return model.replace("_", " ") if isinstance(model, str) else CHOSEN
+    """Name a model in a sentence: ``main effects``, ``quadratic blending``, or ``chosen`` for terms a reader chose."""
+    return MIXTURE_WORDS.get(model, model.replace("_", " ")) if isinstance(model, str) else CHOSEN
 
 
 def _model_terms(model: str | list[str], names: list[str], categorical: tuple[str, ...] = ()) -> list[str]:
@@ -1685,19 +2147,30 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     factor and response names must be variable names, the blocks a whole number, and the
     limits on the settings ones the page reads, each stored in its canonical text.
     """
-    if not isinstance(spec, dict) or spec.get("design_type") not in (*DESIGNS, GIVEN):
+    if not isinstance(spec, dict) or spec.get("design_type") not in (*DESIGNS, GIVEN, *MIXTURES):
         raise ValueError("The page sent a design this page did not make.")
     factors = _factors(spec)
     response = _response_name(str(spec.get("response") or ""), factors)
-    model = spec.get("model") or DESIGNS.get(spec["design_type"], {}).get("model", MODELS[0])
-    if model not in MODELS:
-        raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    if _mixture(spec):
+        model = _mixture_model(spec.get("model") or MIXTURE_MODELS[1])
+        if spec.get("constraints"):
+            raise ValueError(
+                "A mixture takes no limits on the settings on this page: give each component its lower and upper "
+                "proportions instead, or remove the limits."
+            )
+    else:
+        model = spec.get("model") or DESIGNS.get(spec["design_type"], {}).get("model", MODELS[0])
+        if model not in MODELS:
+            raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     options = spec.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError("The page sent a design this page did not make.")  # noqa: TRY004 - a refusal, like the rest
     if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
         labelled = tuple(f.name for f in factors if f.type == "categorical")
-        _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
+        if _mixture(spec):
+            _mixture_model(spec["analysis_model"])
+        else:
+            _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
     checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim", "constraints")}
     limits = _checked_constraints(spec.get("constraints"), factors)
     return {
@@ -1810,6 +2283,11 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
     the process is centred on the one and its effects scaled by the other, so practice results
     look like the reader's own. Without them the scenario's own centre and a noise of 1 are kept.
     """
+    if key in MIXTURE_SCENARIOS:
+        raise ValueError(
+            f"The process {MIXTURE_SCENARIOS[key]['label']!r} is for a mixture's components: choose another for "
+            "factors with ranges."
+        )
     if key not in SCENARIOS:
         raise ValueError(f"Unknown process {key!r}.")
     scenario = SCENARIOS[key]
@@ -1824,11 +2302,44 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
         for t, c in kept.items()
         if t not in squares
     }
+    return TrueProcess(coefficients, sigma=_noise(request, scenario["sigma"]))
+
+
+def _noise(request: dict, default: float) -> float:
+    """Read the noise standard deviation a simulation asks for, or ``default`` when it names none."""
     # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
-    sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
+    sigma = default if request.get("sigma") is None else _number(request["sigma"])
     if sigma is None or sigma <= 0:
         raise ValueError("The noise standard deviation must be a number above 0.")
-    return TrueProcess(coefficients, sigma=sigma)
+    return sigma
+
+
+def _mixture_process(
+    key: str, names: list[str], request: dict, typical: float | None = None, noise: float | None = None
+) -> TrueProcess:
+    """Return a mixture scenario's process over the reader's components, a Scheffé quadratic model in proportions.
+
+    As for a process over factors with ranges (see :func:`_scenario_process`), the scenario's sizes
+    are in noise standard deviations: given the response's ``typical`` value and run-to-run
+    ``noise``, each pure component's response sits around the one, at the scenario's distances
+    scaled by the other. A blend of a component the reader does not have is left out.
+    """
+    if key in SCENARIOS:
+        labels = _listed([repr(s["label"]) for s in MIXTURE_SCENARIOS.values()])
+        raise ValueError(
+            f"The process {SCENARIOS[key]['label']!r} is for factors with ranges: a mixture's results are simulated "
+            f"from {labels}."
+        )
+    if key not in MIXTURE_SCENARIOS:
+        raise ValueError(f"Unknown process {key!r}.")
+    scenario = MIXTURE_SCENARIOS[key]
+    scale = 1.0 if noise is None else noise
+    centre = scenario["centre"] if typical is None else typical
+    coefficients = {name: centre + scenario["pure"].get(i, 0.0) * scale for i, name in enumerate(names)}
+    for (i, j), size in scenario["blends"].items():
+        if j < len(names):
+            coefficients[f"{names[i]}:{names[j]}"] = size * scale
+    return TrueProcess(coefficients, sigma=_noise(request, scenario["sigma"]))
 
 
 def _truth(process: TrueProcess) -> list[dict[str, Any]]:
@@ -1845,18 +2356,23 @@ def simulate(request: dict) -> dict:
     spec = _checked_spec(request.get("spec") or {})
     runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
-    key = str(request.get("scenario") or "reactor")
+    mixture = _mixture(spec)
+    key = str(request.get("scenario") or ("blend" if mixture else "reactor"))
     info = spec.get("response_info") or {}
-    process = _scenario_process(
-        key, names, request, _categorical_names(spec), typical=info.get("typical"), noise=info.get("noise")
-    )
+    known = {"typical": info.get("typical"), "noise": info.get("noise")}
+    if mixture:  # a mixture's process is in the proportions themselves, which are not coded
+        process = _mixture_process(key, names, request, **known)
+        settings, label = runs[names].astype(float), MIXTURE_SCENARIOS[key]["label"]
+    else:
+        process = _scenario_process(key, names, request, _categorical_names(spec), **known)
+        settings, label = _coded(runs, spec["factors"]), SCENARIOS[key]["label"]
     seed = int(request.get("seed", 1))
-    values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
+    values = process.simulate(settings, random_state=seed)
     decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
     truth = _truth(process)
     return {
         "scenario": key,
-        "label": SCENARIOS[key]["label"],
+        "label": label,
         "sigma": process.sigma,
         "seed": seed,
         "responses": [round(float(v), decimals) for v in values],
@@ -1943,7 +2459,10 @@ def workbook(request: dict) -> dict:
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
-        _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
+        if _mixture(spec):
+            _mixture_model(request["model"])
+        else:
+            _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
         spec = {**spec, "analysis_model": request["model"]}
     runs = _runs_frame(request, spec)
     sources = request.get("sources")
@@ -1982,6 +2501,8 @@ def plots(request: dict) -> dict:
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
+    if _mixture(spec):
+        return _mixture_plots(request, spec)
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
@@ -2081,6 +2602,139 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
     return figure
 
 
+# --------------------------------------------------------------------------- the pictures of a mixture
+#: Steps along each side of the triangle the fitted response is drawn on, for three components: 861 blends.
+TERNARY_STEPS = 40
+
+#: Blends along each component's Cox direction, for the trace plot of four components or more.
+COX_POINTS = 41
+
+
+def _mixture_plots(request: dict, spec: dict) -> dict:
+    """Draw the analysis of a mixture's runs: its fitted response over the blends, and the residuals.
+
+    For three components, ``ternary`` holds the fitted response on a grid of blends over the
+    triangle of the blends the bounds allow, with the runs and their results, for the page to draw
+    as a ternary plot (see ``ternaryFigure`` in ``charts.js``). For four components or more,
+    ``cox`` holds the fitted response along each component's Cox direction through the reference
+    blend, for a trace plot (``coxFigure``). With the true process the results were simulated from,
+    each also holds the true response, on the same blends.
+    """
+    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
+    from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
+
+    from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
+
+    names = [f["name"] for f in spec["factors"]]
+    model = _mixture_model(request.get("model") or spec["model"])
+    runs = _runs_frame(request, spec)
+    response = spec["response"]
+    y = pd.to_numeric(runs[response], errors="coerce")
+    done = y.notna().to_numpy()
+    blends = runs.loc[done, names].astype(float).reset_index(drop=True)
+    y = y[done].reset_index(drop=True).rename(response)
+    with _listening():
+        out = _mixture_fit(blends, y, model, ["coefficients", "residual_diagnostics", "effects"])
+    fitted = {c["term"]: c["coefficient"] for c in out["coefficients"]}
+    truth = request.get("truth")
+    true = _true_coefficients(truth, names) if truth else None
+    figures = {}
+    if out["model_summary"]["df_residual"] > 0:
+        rows = blends.assign(**{response: y}).to_dict("records")
+        figure = create_plot("residuals_vs_fitted", analysis_results=out, design_data=rows, response_column=response)
+        dressed = _dressed(figure.to_plotly(), "residuals_vs_fitted", spec, [])
+        figures["residuals"] = json.dumps(dressed, cls=PlotlyJSONEncoder)
+    reply: dict[str, Any] = {
+        "figures": figures,
+        "contour_factors": [],
+        "shaded": False,
+        "held": [],
+        "plotly_js": get_plotlyjs_version(),
+    }
+    if len(names) == 3:
+        reply["ternary"] = _ternary(spec, blends, y, fitted, true)
+    else:
+        reply["cox"] = _cox_traces(names, out, fitted, true)
+    return reply
+
+
+def _blended(coefficients: dict[str, float], blends: pd.DataFrame) -> list[float]:
+    """Return a Scheffé model's response at each blend: each term's coefficient times the product of its components.
+
+    The terms are the fit's (``A``, ``A:B``, ``A:B:C``) or a checked true process's, so each names
+    columns of ``blends``; the formula is never evaluated as text.
+    """
+    total = np.zeros(len(blends))
+    for term, value in coefficients.items():
+        total += value * blends[term.split(":")].prod(axis=1).to_numpy(dtype=float)
+    return [float(f"{v:.6g}") for v in total]
+
+
+def _ternary(
+    spec: dict, blends: pd.DataFrame, y: pd.Series, fitted: dict[str, float], true: dict[str, float] | None
+) -> dict:
+    """Return the fitted response over a grid of blends of three components, and the runs, for a ternary plot.
+
+    The grid covers the smallest triangle holding the blends the lower proportions allow (the
+    whole triangle without lower bounds), in :data:`TERNARY_STEPS` steps a side, and keeps the
+    blends the upper proportions allow too, so the response is not drawn where the design has no
+    runs to support it.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    low = np.array([f["low"] for f in spec["factors"]], dtype=float)
+    high = np.array([f["high"] for f in spec["factors"]], dtype=float)
+    n = TERNARY_STEPS
+    steps = np.array([(i, j, n - i - j) for i in range(n + 1) for j in range(n + 1 - i)], dtype=float) / n
+    grid = low + (1.0 - low.sum()) * steps
+    grid = grid[np.all(grid <= high + PROPORTION_TOLERANCE, axis=1)].round(9)
+    frame = pd.DataFrame(grid, columns=names)
+    return {
+        "components": names,
+        "grid": {
+            "a": grid[:, 0].tolist(),
+            "b": grid[:, 1].tolist(),
+            "c": grid[:, 2].tolist(),
+            "fitted": _blended(fitted, frame),
+            "true": None if true is None else _blended(true, frame),
+        },
+        "runs": {
+            "a": blends[names[0]].tolist(),
+            "b": blends[names[1]].tolist(),
+            "c": blends[names[2]].tolist(),
+            "y": y.tolist(),
+        },
+    }
+
+
+def _cox_traces(names: list[str], out: dict, fitted: dict[str, float], true: dict[str, float] | None) -> dict:
+    """Return the fitted response along each component's Cox direction through the reference blend.
+
+    On component ``i``'s Cox direction the others keep their proportions to each other, so a
+    blend there is the reference blend ``s`` with ``x_i`` in place of ``s_i`` and every other
+    proportion scaled by ``(1 - x_i) / (1 - s_i)``. Each trace runs over the span of ``x_i`` the
+    library's effects are taken over, within the range each component takes in the design, and is
+    drawn against ``x_i - s_i``, the change from the reference blend, so every trace crosses the
+    others at the reference blend's response.
+    """
+    reference = np.array([out["effect_reference"][n] for n in names])
+    traces = []
+    for i, name in enumerate(names):
+        start, stop = out["effect_range"][name]
+        share = np.linspace(start, stop, COX_POINTS)
+        points = reference[None, :] * ((1.0 - share) / (1.0 - reference[i]))[:, None]
+        points[:, i] = share
+        frame = pd.DataFrame(points, columns=names)
+        traces.append(
+            {
+                "component": name,
+                "change": [float(f"{v:.6g}") for v in share - reference[i]],
+                "fitted": _blended(fitted, frame),
+                "true": None if true is None else _blended(true, frame),
+            }
+        )
+    return {"components": names, "reference": dict(zip(names, reference.tolist(), strict=True)), "traces": traces}
+
+
 # --------------------------------------------------------------------------- renaming the factors
 def relabel(request: dict) -> dict:
     """Rename a run sheet's factors and their units, keeping its runs and their results.
@@ -2097,7 +2751,7 @@ def relabel(request: dict) -> dict:
     """
     design = request.get("design") or {}
     spec = _checked_spec(design.get("spec") or {})
-    renamed = _factors({"factors": request.get("factors")})
+    renamed = _factors({"factors": request.get("factors"), "design_type": spec["design_type"]})
     before = spec["factors"]
     after = [_factor_spec(f) for f in renamed]
     levels = [(f["low"], f["high"]) for f in before]
@@ -2118,7 +2772,9 @@ def relabel(request: dict) -> dict:
         "columns": [names.get(c, c) for c in columns],
         "outside_range": [names.get(n, n) for n in design.get("outside_range") or []],
     }
-    if design.get("facts"):
+    if design.get("facts") and _mixture(spec):  # a mixture's notes name no component, and it has no aliases
+        reply["facts"] = design["facts"]
+    elif design.get("facts"):
         coded = _coded(_runs_frame({**design, "columns": reply["columns"]}, spec), after).to_numpy(dtype=float)
         reply["facts"] = _relabelled_facts(design["facts"], coded, names)
     if simulation := request.get("simulation"):
