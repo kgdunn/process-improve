@@ -62,6 +62,14 @@ class TestConstraintsAsText:
         with pytest.raises(TypeError, match="Constraint, a dict or an expression string"):
             DesignRegion(HEAT_FACTORS, [42])  # type: ignore[list-item]
 
+    @pytest.mark.parametrize("alone", ["T <= 140", {"expression": "T <= 140"}, Constraint(expression="T <= 140")])
+    def test_a_single_limit_outside_a_list_is_refused_with_the_fix(self, alone):
+        """Iterated, a string gives its characters and a dict its keys: the error would blame a limit named 'T'."""
+        with pytest.raises(TypeError, match=r"wrap a single limit in a list: \["):
+            DesignRegion(HEAT_FACTORS, alone)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="wrap a single limit in a list"):
+            as_constraints(alone)  # type: ignore[arg-type]
+
     def test_the_designs_module_keeps_the_old_name(self):
         assert _as_constraints is as_constraints
         assert as_constraints(None) is None
