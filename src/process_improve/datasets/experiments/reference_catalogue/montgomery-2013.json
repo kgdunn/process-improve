@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: worked examples, designs and exercises with data from chapters 1 to 9 of",
+  "Part of the reference catalogue: worked examples, designs and exercises with data from chapters 1 to 10 of",
   "Montgomery, Design and Analysis of Experiments (8th edition), for testing that software reproduces them. source:",
   "the citation, with what was read and when. experiments: each worked example or exercise with data (factors,",
   "responses, runs exactly as printed, in the printed order), where it is printed, and expected: every number the",
@@ -36,7 +36,8 @@
   "counted: 0 for a single sample. An exercise the book does not answer is marked unanswered and its runs are kept",
   "as data. designs: the run counts and the half fraction the book states in chapter 1, the optimality of the 2^2,",
   "the blocking arrangements of chapter 7, the fractions, alias structures and Plackett-Burman designs of chapter 8,",
-  "and the 3^k blocks and fractions, mixed-level, nonregular and optimal designs of chapter 9.",
+  "the 3^k blocks and fractions, mixed-level, nonregular and optimal designs of chapter 9, and the augmented fraction",
+  "of chapter 10, whose regressions read X'X, X'y and (X'X)^-1 entry by entry (normal_equations).",
   "not_captured: what in these",
   "pages is not an experiment with data. Read with process_improve.experiments.reference_catalogue.",
   "reference_experiments; tests/test_reference_catalogue.py recomputes every number that has a check."
@@ -48,13 +49,13 @@
   ],
   "title": "Design and Analysis of Experiments",
   "edition": "8th edition",
-  "pages": "front matter and contents, pp. v to xvii, and chapters 1 to 9, pp. 1 to 448",
+  "pages": "front matter and contents, pp. v to xvii, and chapters 1 to 10, pp. 1 to 477",
   "year": 2013,
   "publisher": "John Wiley & Sons, Hoboken, NJ",
   "isbn": "978-1-118-14692-7",
   "url": "https://search.worldcat.org/search?q=bn:9781118146927",
   "cite": "Montgomery, D. C. (2013), Design and Analysis of Experiments, 8th edition, Wiley",
-  "read": "2026-10-16, from scans of the front matter and contents (pp. v to xvii) and chapters 1 to 9 (pp. 1 to 448); every number copied by hand, and Figures 1.5, 1.8, 3.12 to 3.14, 4.2, 5.10, 6.8, 6.19, 6.26 and 6.29, Tables 3.7, 3.14, 3.15, 4.3, 4.6, 4.9, 4.20, 5.13, 5.15, 5.16, 5.19, 5.21 to 5.24, 6.7, 6.17, 6.18 and 6.23 and the data of the problems of chapters 2 to 6 read again from the page image at 200 to 300 dpi; the tables of chapter 8 copied from the scan's text layer, its signs read from the symbol font, and checked against the page images, Tables 8.14 and 8.26 at 300 and 400 dpi; the tables of chapter 9 likewise, Figure 9.8 and Tables 9.15 to 9.17 read again at 300 dpi; Tables 2.1, 2.3, 2.6, 3.1, 3.17, 4.3, 4.11, 4.22, 5.4, 5.10, 5.13, 5.16, 6.4, 6.18, 7.1, 8.5, P8.3 and 9.1 and Figure 6.29 agree with the totals and summaries printed with them",
+  "read": "2026-10-16, from scans of the front matter and contents (pp. v to xvii) and chapters 1 to 10 (pp. 1 to 477); every number copied by hand, and Figures 1.5, 1.8, 3.12 to 3.14, 4.2, 5.10, 6.8, 6.19, 6.26 and 6.29, Tables 3.7, 3.14, 3.15, 4.3, 4.6, 4.9, 4.20, 5.13, 5.15, 5.16, 5.19, 5.21 to 5.24, 6.7, 6.17, 6.18 and 6.23 and the data of the problems of chapters 2 to 6 read again from the page image at 200 to 300 dpi; the tables of chapter 8 copied from the scan's text layer, its signs read from the symbol font, and checked against the page images, Tables 8.14 and 8.26 at 300 and 400 dpi; the tables of chapter 9 likewise, Figure 9.8 and Tables 9.15 to 9.17 read again at 300 dpi, and those of chapter 10 likewise; Tables 2.1, 2.3, 2.6, 3.1, 3.17, 4.3, 4.11, 4.22, 5.4, 5.10, 5.13, 5.16, 6.4, 6.18, 7.1, 8.5, P8.3 and 9.1 and Figure 6.29 agree with the totals and summaries printed with them",
   "rights": "The book is protected by copyright (© 2013, 2009, 2005, 2001, 1997 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -90235,7 +90236,7 @@
    "kind": "example",
    "where": {
     "section": "8.2.3, Example 8.1; 8.2.3, confirmation experiments",
-    "pages": "325-327, 333",
+    "pages": "325-327, 333, 469",
     "tables": [
      "Table 8.3",
      "Table 8.4"
@@ -91003,6 +91004,198 @@
       "page": 333,
       "source_kind": "prose",
       "quote": "The observed response at this treatment combination is 104 (refer to Figure 6.10 where the response data for the complete 2^4 factorial design are presented)"
+     },
+     "check": {
+      "manual": "run abd of the full 2^4 (montgomery-filtration-2-4), which this fraction does not hold; its other fraction, Example 8.3 (montgomery-filtration-2-4-1-fold), checks it"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": "σ̂², two degrees of freedom",
+     "value": "3.25",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "It is also easy to show that the estimate of σ² (with two degrees of freedom) for this model is σ̂² = 3.25"
+     },
+     "check": [
+      {
+       "kind": "ms_residual",
+       "model": "A + C + D + A:C + A:D"
+      },
+      {
+       "kind": "residual_df",
+       "model": "A + C + D + A:C + A:D",
+       "printed": "2"
+      }
+     ]
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "the six-term model",
+     "value": "(1/8) I6",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "the (X'X)^-1 matrix has a particularly simple form, namely (X'X)^-1 = (1/8) I6"
+     },
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "A + C + D + A:C + A:D",
+       "key": "inverse.0.0",
+       "printed": "1 / 8",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "A + C + D + A:C + A:D",
+       "key": "inverse.5.5",
+       "printed": "1 / 8",
+       "expression": true
+      },
+      {
+       "kind": "normal_equations",
+       "model": "A + C + D + A:C + A:D",
+       "key": "inverse.1.4",
+       "printed": "0",
+       "decimals": 6
+      }
+     ]
+    },
+    {
+     "what": "leverage",
+     "term": "x0'(X'X)^-1 x0",
+     "value": "0.75",
+     "analysis": "six terms each contributing 1/8 at x0 = [1, 1, −1, 1, −1, 1]",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "100.25 − 4.30√(3.25(1 + 0.75)) ≤ y0"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + C + D + A:C + A:D",
+      "point": {
+       "A": 1,
+       "B": 1,
+       "C": -1,
+       "D": 1
+      },
+      "bound": "leverage"
+     }
+    },
+    {
+     "what": "t point",
+     "term": "t0.025,2",
+     "value": "4.30",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "100.25 − 4.30√(3.25(1 + x0'(1/8)I6 x0))"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       2
+      ]
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "confirmation run",
+     "value": "100.25",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "100.25 − 4.30√(3.25(1 + 0.75)) ≤ y0 ≤ 100.25 + 4.30√(3.25(1 + 0.75)) ... 100.25 − 10.25 ≤ y0 ≤ 100.25 + 10.25 ... 90 ≤ y0 ≤ 110.50"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + C + D + A:C + A:D",
+      "point": {
+       "A": 1,
+       "B": 1,
+       "C": -1,
+       "D": 1
+      }
+     }
+    },
+    {
+     "what": "pi_half_width",
+     "term": "confirmation run",
+     "value": "10.25",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "100.25 − 4.30√(3.25(1 + 0.75)) ≤ y0 ≤ 100.25 + 4.30√(3.25(1 + 0.75)) ... 100.25 − 10.25 ≤ y0 ≤ 100.25 + 10.25 ... 90 ≤ y0 ≤ 110.50"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + C + D + A:C + A:D",
+      "point": {
+       "A": 1,
+       "B": 1,
+       "C": -1,
+       "D": 1
+      },
+      "bound": "pi_half_width",
+      "disagreement": "worked with t rounded to 4.30: 4.30 × √(3.25 × 1.75) = 10.255; with t0.025,2 = 4.3027 it is 10.261"
+     }
+    },
+    {
+     "what": "pi_low",
+     "term": "confirmation run",
+     "value": "90",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "100.25 − 4.30√(3.25(1 + 0.75)) ≤ y0 ≤ 100.25 + 4.30√(3.25(1 + 0.75)) ... 100.25 − 10.25 ≤ y0 ≤ 100.25 + 10.25 ... 90 ≤ y0 ≤ 110.50"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + C + D + A:C + A:D",
+      "point": {
+       "A": 1,
+       "B": 1,
+       "C": -1,
+       "D": 1
+      },
+      "bound": "pi_low"
+     }
+    },
+    {
+     "what": "pi_high",
+     "term": "confirmation run",
+     "value": "110.50",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "100.25 − 4.30√(3.25(1 + 0.75)) ≤ y0 ≤ 100.25 + 4.30√(3.25(1 + 0.75)) ... 100.25 − 10.25 ≤ y0 ≤ 100.25 + 10.25 ... 90 ≤ y0 ≤ 110.50"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + C + D + A:C + A:D",
+      "point": {
+       "A": 1,
+       "B": 1,
+       "C": -1,
+       "D": 1
+      },
+      "bound": "pi_high",
+      "disagreement": "worked with t rounded to 4.30: 100.25 + 10.255 = 110.50; with t0.025,2 = 4.3027 it is 110.51"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "abd",
+     "value": "104",
+     "where": {
+      "page": 469,
+      "source_kind": "prose",
+      "quote": "The actual observation was 104"
      },
      "check": {
       "manual": "run abd of the full 2^4 (montgomery-filtration-2-4), which this fraction does not hold; its other fraction, Example 8.3 (montgomery-filtration-2-4-1-fold), checks it"
@@ -154824,6 +155017,6518 @@
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": [],
    "notes": "From the Journal of Chemical Technology and Biotechnology (2003), vol. 78, pp. 605-610."
+  },
+  {
+   "name": "montgomery-viscosity-regression",
+   "title": "Viscosity of a polymer against reaction temperature and catalyst feed rate: a multiple linear regression on 16 observations",
+   "topics": [
+    "plastics-rubber",
+    "chemical-processes"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "10.3 to 10.7, Examples 10.1, 10.6 and 10.7",
+    "pages": "454-473",
+    "tables": [
+     "Table 10.2",
+     "Table 10.3",
+     "Table 10.4"
+    ],
+    "figures": [
+     "Figure 10.1",
+     "Figure 10.2",
+     "Figure 10.3",
+     "Figure 10.4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "temperature",
+     "description": "reaction temperature (x1)",
+     "low": 80,
+     "high": 100,
+     "levels": [
+      80,
+      81,
+      82,
+      85,
+      86,
+      87,
+      90,
+      93,
+      94,
+      95,
+      96,
+      97,
+      99,
+      100
+     ],
+     "units": "°C",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "feed",
+     "description": "catalyst feed rate (x2)",
+     "low": 8,
+     "high": 13,
+     "levels": [
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+     ],
+     "units": "lb/h",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "viscosity",
+     "description": "viscosity at 100°C",
+     "units": "centistokes"
+    }
+   ],
+   "design": {
+    "type": "observational data, multiple linear regression",
+    "details": "16 observations of two process variables",
+    "n_runs": 16,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "observation",
+     "temperature",
+     "feed",
+     "viscosity"
+    ],
+    "rows": [
+     [
+      1,
+      80,
+      8,
+      2256
+     ],
+     [
+      2,
+      93,
+      9,
+      2340
+     ],
+     [
+      3,
+      100,
+      10,
+      2426
+     ],
+     [
+      4,
+      82,
+      12,
+      2293
+     ],
+     [
+      5,
+      90,
+      11,
+      2330
+     ],
+     [
+      6,
+      99,
+      8,
+      2368
+     ],
+     [
+      7,
+      81,
+      8,
+      2250
+     ],
+     [
+      8,
+      96,
+      10,
+      2409
+     ],
+     [
+      9,
+      94,
+      12,
+      2364
+     ],
+     [
+      10,
+      93,
+      11,
+      2379
+     ],
+     [
+      11,
+      97,
+      13,
+      2440
+     ],
+     [
+      12,
+      95,
+      11,
+      2364
+     ],
+     [
+      13,
+      100,
+      8,
+      2404
+     ],
+     [
+      14,
+      85,
+      12,
+      2317
+     ],
+     [
+      15,
+      86,
+      9,
+      2309
+     ],
+     [
+      16,
+      87,
+      12,
+      2328
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 10.2 in its order"
+   },
+   "notes": "Both regressors are fitted in their own units. The (X'X)^-1 printed on p. 454 writes one entry −4,763947 × 10^−5, a comma for the decimal point; the same entry is printed −4.763947 × 10^−5 below it. Minitab's Seq SS are the sums of squares of temperature entered first and of the feed rate added to it.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "16",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Sixteen observations on the viscosity of a polymer (y) and two process variables"
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [1, 1]",
+     "value": "16",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.0.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [1, 2]",
+     "value": "1458",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.0.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [1, 3]",
+     "value": "164",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.0.2"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 1]",
+     "value": "1458",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.1.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 2]",
+     "value": "133,560",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.1.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 3]",
+     "value": "14,946",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.1.2"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 1]",
+     "value": "164",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.2.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 2]",
+     "value": "14,946",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.2.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 3]",
+     "value": "1,726",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "Example 10.1 ... The X'X matrix is [16 1458 164; 1458 133,560 14,946; 164 14,946 1,726]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xtx.2.2"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [1]",
+     "value": "37,577",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "and the X'y vector is ... = [37,577; 3,429,550; 385,562]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xty.0"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [2]",
+     "value": "3,429,550",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "and the X'y vector is ... = [37,577; 3,429,550; 385,562]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xty.1"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [3]",
+     "value": "385,562",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "and the X'y vector is ... = [37,577; 3,429,550; 385,562]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "xty.2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 1]",
+     "value": "14.176004",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.0.0"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 2]",
+     "value": "−0.129746",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.0.1"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 3]",
+     "value": "−0.223453",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.0.2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 1]",
+     "value": "−0.129746",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.1.0"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 2]",
+     "value": "1.429184 × 10^−3",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.1.1",
+      "printed": "1.429184e-3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 3]",
+     "value": "−4,763947 × 10^−5",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.1.2",
+      "printed": "-4.763947e-5",
+      "disagreement": "the entry is −4.7639465 × 10^−5 to eight figures, which rounds to −4.763946 × 10^−5; rounded twice, through −4.7639465, it is the book's −4.763947"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 1]",
+     "value": "−0.223453",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.2.0"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 2]",
+     "value": "−4.763947 × 10^−5",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.2.1",
+      "printed": "-4.763947e-5",
+      "disagreement": "the entry is −4.7639465 × 10^−5 to eight figures, which rounds to −4.763946 × 10^−5; rounded twice, through −4.7639465, it is the book's −4.763947"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 3]",
+     "value": "2.222381 × 10^−2",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.2.2",
+      "printed": "2.222381e-2"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, Intercept",
+     "value": "1566.07777",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, temperature",
+     "value": "7.62129",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, feed",
+     "value": "8.58485",
+     "where": {
+      "page": 454,
+      "source_kind": "prose",
+      "quote": "β̂ = [14.176004 −0.129746 −0.223453; −0.129746 1.429184 × 10^−3 −4,763947 × 10^−5; −0.223453 −4.763947 × 10^−5 2.222381 × 10^−2][37,577; 3,429,550; 385,562] = [1566.07777; 7.62129; 8.58485]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, two decimals, Intercept",
+     "value": "1566.08",
+     "where": {
+      "page": 455,
+      "source_kind": "prose",
+      "quote": "The least squares fit, with the regression coefficients reported to two decimal places, is ŷ = 1566.08 + 7.62x1 + 8.58x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, two decimals, temperature",
+     "value": "7.62",
+     "where": {
+      "page": 455,
+      "source_kind": "prose",
+      "quote": "The least squares fit, with the regression coefficients reported to two decimal places, is ŷ = 1566.08 + 7.62x1 + 8.58x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, two decimals, feed",
+     "value": "8.58",
+     "where": {
+      "page": 455,
+      "source_kind": "prose",
+      "quote": "The least squares fit, with the regression coefficients reported to two decimal places, is ŷ = 1566.08 + 7.62x1 + 8.58x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 1",
+     "value": "2244.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 1 2256 2244.5 11.5 0.350 0.87 0.137 0.87"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 1,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 1",
+     "value": "11.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 1 2256 2244.5 11.5 0.350 0.87 0.137 0.87"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 1,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 1",
+     "value": "0.350",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 1 2256 2244.5 11.5 0.350 0.87 0.137 0.87"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 1,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 1",
+     "value": "0.87",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 1 2256 2244.5 11.5 0.350 0.87 0.137 0.87"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 1,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 1",
+     "value": "0.137",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 1 2256 2244.5 11.5 0.350 0.87 0.137 0.87"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 1,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 1",
+     "value": "0.87",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 1 2256 2244.5 11.5 0.350 0.87 0.137 0.87"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 1,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 2",
+     "value": "2352.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 2 2340 2352.1 −12.1 0.102 −0.78 0.023 −0.77"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 2,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 2",
+     "value": "−12.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 2 2340 2352.1 −12.1 0.102 −0.78 0.023 −0.77"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 2,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 2",
+     "value": "0.102",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 2 2340 2352.1 −12.1 0.102 −0.78 0.023 −0.77"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 2,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 2",
+     "value": "−0.78",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 2 2340 2352.1 −12.1 0.102 −0.78 0.023 −0.77"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 2,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 2",
+     "value": "0.023",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 2 2340 2352.1 −12.1 0.102 −0.78 0.023 −0.77"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 2,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 2",
+     "value": "−0.77",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 2 2340 2352.1 −12.1 0.102 −0.78 0.023 −0.77"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 2,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 3",
+     "value": "2414.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 3 2426 2414.1 11.9 0.177 0.80 0.046 0.79"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 3,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 3",
+     "value": "11.9",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 3 2426 2414.1 11.9 0.177 0.80 0.046 0.79"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 3,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 3",
+     "value": "0.177",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 3 2426 2414.1 11.9 0.177 0.80 0.046 0.79"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 3,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 3",
+     "value": "0.80",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 3 2426 2414.1 11.9 0.177 0.80 0.046 0.79"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 3,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 3",
+     "value": "0.046",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 3 2426 2414.1 11.9 0.177 0.80 0.046 0.79"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 3,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 3",
+     "value": "0.79",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 3 2426 2414.1 11.9 0.177 0.80 0.046 0.79"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 3,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 4",
+     "value": "2294.0",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 4 2293 2294.0 −1.0 0.251 −0.07 0.001 −0.07"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 4,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 4",
+     "value": "−1.0",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 4 2293 2294.0 −1.0 0.251 −0.07 0.001 −0.07"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 4,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 4",
+     "value": "0.251",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 4 2293 2294.0 −1.0 0.251 −0.07 0.001 −0.07"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 4,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 4",
+     "value": "−0.07",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 4 2293 2294.0 −1.0 0.251 −0.07 0.001 −0.07"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 4,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 4",
+     "value": "0.001",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 4 2293 2294.0 −1.0 0.251 −0.07 0.001 −0.07"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 4,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 4",
+     "value": "−0.07",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 4 2293 2294.0 −1.0 0.251 −0.07 0.001 −0.07"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 4,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 5",
+     "value": "2346.4",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 5 2330 2346.4 −16.4 0.077 −1.05 0.030 −1.05"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 5,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 5",
+     "value": "−16.4",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 5 2330 2346.4 −16.4 0.077 −1.05 0.030 −1.05"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 5,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 5",
+     "value": "0.077",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 5 2330 2346.4 −16.4 0.077 −1.05 0.030 −1.05"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 5,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 5",
+     "value": "−1.05",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 5 2330 2346.4 −16.4 0.077 −1.05 0.030 −1.05"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 5,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 5",
+     "value": "0.030",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 5 2330 2346.4 −16.4 0.077 −1.05 0.030 −1.05"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 5,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 5",
+     "value": "−1.05",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 5 2330 2346.4 −16.4 0.077 −1.05 0.030 −1.05"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 5,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 6",
+     "value": "2389.3",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 6 2368 2389.3 −21.3 0.265 −1.52 0.277 −1.61"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 6,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 6",
+     "value": "−21.3",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 6 2368 2389.3 −21.3 0.265 −1.52 0.277 −1.61"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 6,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 6",
+     "value": "0.265",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 6 2368 2389.3 −21.3 0.265 −1.52 0.277 −1.61"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 6,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 6",
+     "value": "−1.52",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 6 2368 2389.3 −21.3 0.265 −1.52 0.277 −1.61"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 6,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 6",
+     "value": "0.277",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 6 2368 2389.3 −21.3 0.265 −1.52 0.277 −1.61"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 6,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 6",
+     "value": "−1.61",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 6 2368 2389.3 −21.3 0.265 −1.52 0.277 −1.61"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 6,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 7",
+     "value": "2252.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 7 2250 2252.1 −2.1 0.319 −0.15 0.004 −0.15"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 7,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 7",
+     "value": "−2.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 7 2250 2252.1 −2.1 0.319 −0.15 0.004 −0.15"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 7,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 7",
+     "value": "0.319",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 7 2250 2252.1 −2.1 0.319 −0.15 0.004 −0.15"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 7,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 7",
+     "value": "−0.15",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 7 2250 2252.1 −2.1 0.319 −0.15 0.004 −0.15"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 7,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 7",
+     "value": "0.004",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 7 2250 2252.1 −2.1 0.319 −0.15 0.004 −0.15"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 7,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 7",
+     "value": "−0.15",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 7 2250 2252.1 −2.1 0.319 −0.15 0.004 −0.15"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 7,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 8",
+     "value": "2383.6",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 8 2409 2383.6 25.4 0.098 1.64 0.097 1.76"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 8,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 8",
+     "value": "25.4",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 8 2409 2383.6 25.4 0.098 1.64 0.097 1.76"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 8,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 8",
+     "value": "0.098",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 8 2409 2383.6 25.4 0.098 1.64 0.097 1.76"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 8,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 8",
+     "value": "1.64",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 8 2409 2383.6 25.4 0.098 1.64 0.097 1.76"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 8,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 8",
+     "value": "0.097",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 8 2409 2383.6 25.4 0.098 1.64 0.097 1.76"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 8,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 8",
+     "value": "1.76",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 8 2409 2383.6 25.4 0.098 1.64 0.097 1.76"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 8,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 9",
+     "value": "2385.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 9 2364 2385.5 −21.5 0.142 −1.42 0.111 −1.48"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 9,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 9",
+     "value": "−21.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 9 2364 2385.5 −21.5 0.142 −1.42 0.111 −1.48"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 9,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 9",
+     "value": "0.142",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 9 2364 2385.5 −21.5 0.142 −1.42 0.111 −1.48"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 9,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 9",
+     "value": "−1.42",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 9 2364 2385.5 −21.5 0.142 −1.42 0.111 −1.48"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 9,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 9",
+     "value": "0.111",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 9 2364 2385.5 −21.5 0.142 −1.42 0.111 −1.48"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 9,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 9",
+     "value": "−1.48",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 9 2364 2385.5 −21.5 0.142 −1.42 0.111 −1.48"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 9,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 10",
+     "value": "2369.3",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 10 2379 2369.3 9.7 0.080 0.62 0.011 0.60"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 10,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 10",
+     "value": "9.7",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 10 2379 2369.3 9.7 0.080 0.62 0.011 0.60"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 10,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 10",
+     "value": "0.080",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 10 2379 2369.3 9.7 0.080 0.62 0.011 0.60"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 10,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 10",
+     "value": "0.62",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 10 2379 2369.3 9.7 0.080 0.62 0.011 0.60"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 10,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 10",
+     "value": "0.011",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 10 2379 2369.3 9.7 0.080 0.62 0.011 0.60"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 10,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 10",
+     "value": "0.60",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 10 2379 2369.3 9.7 0.080 0.62 0.011 0.60"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 10,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 11",
+     "value": "2416.9",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 11 2440 2416.9 23.1 0.278 1.66 0.354 1.80"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 11,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 11",
+     "value": "23.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 11 2440 2416.9 23.1 0.278 1.66 0.354 1.80"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 11,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 11",
+     "value": "0.278",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 11 2440 2416.9 23.1 0.278 1.66 0.354 1.80"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 11,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 11",
+     "value": "1.66",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 11 2440 2416.9 23.1 0.278 1.66 0.354 1.80"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 11,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 11",
+     "value": "0.354",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 11 2440 2416.9 23.1 0.278 1.66 0.354 1.80"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 11,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 11",
+     "value": "1.80",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 11 2440 2416.9 23.1 0.278 1.66 0.354 1.80"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 11,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 12",
+     "value": "2384.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 12 2364 2384.5 −20.5 0.096 −1.32 0.062 −1.36"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 12,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 12",
+     "value": "−20.5",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 12 2364 2384.5 −20.5 0.096 −1.32 0.062 −1.36"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 12,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 12",
+     "value": "0.096",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 12 2364 2384.5 −20.5 0.096 −1.32 0.062 −1.36"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 12,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 12",
+     "value": "−1.32",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 12 2364 2384.5 −20.5 0.096 −1.32 0.062 −1.36"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 12,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 12",
+     "value": "0.062",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 12 2364 2384.5 −20.5 0.096 −1.32 0.062 −1.36"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 12,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 12",
+     "value": "−1.36",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 12 2364 2384.5 −20.5 0.096 −1.32 0.062 −1.36"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 12,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 13",
+     "value": "2396.9",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 13 2404 2396.9 7.1 0.289 0.52 0.036 0.50"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 13,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 13",
+     "value": "7.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 13 2404 2396.9 7.1 0.289 0.52 0.036 0.50"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 13,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 13",
+     "value": "0.289",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 13 2404 2396.9 7.1 0.289 0.52 0.036 0.50"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 13,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 13",
+     "value": "0.52",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 13 2404 2396.9 7.1 0.289 0.52 0.036 0.50"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 13,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 13",
+     "value": "0.036",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 13 2404 2396.9 7.1 0.289 0.52 0.036 0.50"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 13,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 13",
+     "value": "0.50",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 13 2404 2396.9 7.1 0.289 0.52 0.036 0.50"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 13,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 14",
+     "value": "2316.9",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 14 2317 2316.9 0.1 0.185 0.01 0.000 <0.01"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 14,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 14",
+     "value": "0.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 14 2317 2316.9 0.1 0.185 0.01 0.000 <0.01"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 14,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 14",
+     "value": "0.185",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 14 2317 2316.9 0.1 0.185 0.01 0.000 <0.01"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 14,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 14",
+     "value": "0.01",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 14 2317 2316.9 0.1 0.185 0.01 0.000 <0.01"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 14,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 14",
+     "value": "0.000",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 14 2317 2316.9 0.1 0.185 0.01 0.000 <0.01"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 14,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 14",
+     "value": "<0.01",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 14 2317 2316.9 0.1 0.185 0.01 0.000 <0.01"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 14,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 15",
+     "value": "2298.8",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 15 2309 2298.8 10.2 0.134 0.67 0.023 0.66"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 15,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 15",
+     "value": "10.2",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 15 2309 2298.8 10.2 0.134 0.67 0.023 0.66"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 15,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 15",
+     "value": "0.134",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 15 2309 2298.8 10.2 0.134 0.67 0.023 0.66"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 15,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 15",
+     "value": "0.67",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 15 2309 2298.8 10.2 0.134 0.67 0.023 0.66"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 15,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 15",
+     "value": "0.023",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 15 2309 2298.8 10.2 0.134 0.67 0.023 0.66"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 15,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 15",
+     "value": "0.66",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 15 2309 2298.8 10.2 0.134 0.67 0.023 0.66"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 15,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "observation 16",
+     "value": "2332.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 16 2328 2332.1 −4.1 0.156 −0.28 0.005 −0.27"
+     },
+     "check": {
+      "kind": "fitted",
+      "run": 16,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "observation 16",
+     "value": "−4.1",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 16 2328 2332.1 −4.1 0.156 −0.28 0.005 −0.27"
+     },
+     "check": {
+      "kind": "residual",
+      "run": 16,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "observation 16",
+     "value": "0.156",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 16 2328 2332.1 −4.1 0.156 −0.28 0.005 −0.27"
+     },
+     "check": {
+      "kind": "leverage",
+      "run": 16,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "studentized_residual",
+     "term": "observation 16",
+     "value": "−0.28",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 16 2328 2332.1 −4.1 0.156 −0.28 0.005 −0.27"
+     },
+     "check": {
+      "kind": "studentized_residual",
+      "run": 16,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "observation 16",
+     "value": "0.005",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 16 2328 2332.1 −4.1 0.156 −0.28 0.005 −0.27"
+     },
+     "check": {
+      "kind": "cooks_distance",
+      "run": 16,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "R-student",
+     "term": "observation 16",
+     "value": "−0.27",
+     "where": {
+      "page": 456,
+      "source_kind": "table",
+      "quote": "Table 10.3 Predicted Values, Residuals, and Other Diagnostics from Example 10.1 ... 16 2328 2332.1 −4.1 0.156 −0.28 0.005 −0.27"
+     },
+     "check": {
+      "kind": "externally_studentized_residual",
+      "run": 16,
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Minitab's regression equation, Intercept",
+     "value": "1566",
+     "where": {
+      "page": 458,
+      "source_kind": "prose",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... The regression equation is Viscosity = 1566 + 7.62 Temp + 8.58 Feed Rate"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Minitab's regression equation, temperature",
+     "value": "7.62",
+     "where": {
+      "page": 458,
+      "source_kind": "prose",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... The regression equation is Viscosity = 1566 + 7.62 Temp + 8.58 Feed Rate"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Minitab's regression equation, feed",
+     "value": "8.58",
+     "where": {
+      "page": 458,
+      "source_kind": "prose",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... The regression equation is Viscosity = 1566 + 7.62 Temp + 8.58 Feed Rate"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Constant",
+     "value": "1566.08",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Constant 1566.08 61.59 25.43 0.000"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Constant",
+     "value": "61.59",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Constant 1566.08 61.59 25.43 0.000"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Constant",
+     "value": "25.43",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Constant 1566.08 61.59 25.43 0.000"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "Intercept",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Constant",
+     "value": "0.000",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Constant 1566.08 61.59 25.43 0.000"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "Intercept",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temp",
+     "value": "7.6213",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Temp 7.6213 0.6184 12.32 0.000"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temp",
+     "value": "0.6184",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Temp 7.6213 0.6184 12.32 0.000"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temp",
+     "value": "12.32",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Temp 7.6213 0.6184 12.32 0.000"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temp",
+     "value": "0.000",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Temp 7.6213 0.6184 12.32 0.000"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Feed Rat",
+     "value": "8.585",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Feed Rat 8.585 2.439 3.52 0.004"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Feed Rat",
+     "value": "2.439",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Feed Rat 8.585 2.439 3.52 0.004"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Feed Rat",
+     "value": "3.52",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Feed Rat 8.585 2.439 3.52 0.004"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Feed Rat",
+     "value": "0.004",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Predictor Coef Std. Dev. T P ... Feed Rat 8.585 2.439 3.52 0.004"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual_std_error",
+     "term": "S",
+     "value": "16.36",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... S = 16.36 R-Sq = 92.7% R-Sq (adj) = 91.6%"
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "r_squared",
+     "term": "R-Sq",
+     "value": "92.7%",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... R-Sq = 92.7%"
+     },
+     "check": {
+      "kind": "r_squared",
+      "model": "temperature + feed",
+      "printed": "0.927"
+     }
+    },
+    {
+     "what": "r_squared_adj",
+     "term": "R-Sq (adj)",
+     "value": "91.6%",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... R-Sq (adj) = 91.6%"
+     },
+     "check": {
+      "kind": "r_squared_adj",
+      "model": "temperature + feed",
+      "printed": "0.916"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": "Regression",
+     "value": "2",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "df_model",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": "Regression",
+     "value": "44157",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": "Regression",
+     "value": "22079",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "ms_regression",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": "Regression",
+     "value": "82.50",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "f_regression",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": "Regression",
+     "value": "0.000",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "f_regression_p",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": "Residual Error",
+     "value": "13",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": "Residual Error",
+     "value": "3479",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": "Residual Error",
+     "value": "268",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": "Total",
+     "value": "47636",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "total_df",
+     "term": "Total",
+     "value": "15",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
+     },
+     "check": {
+      "manual": "16 observations less one; the regression's and the residual's degrees of freedom are checked"
+     }
+    },
+    {
+     "what": "sequential ss",
+     "term": "Temp",
+     "value": "40841",
+     "analysis": "the regression sum of squares of temperature alone, entered first",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Source DF Seq SS Temp 1 40841 Feed Rat 1 3316"
+     },
+     "check": {
+      "kind": "nested_test",
+      "model": "1",
+      "full": "temperature",
+      "key": "ss"
+     }
+    },
+    {
+     "what": "sequential ss",
+     "term": "Feed Rat",
+     "value": "3316",
+     "analysis": "the increase when the feed rate is added to temperature",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Source DF Seq SS Temp 1 40841 Feed Rat 1 3316"
+     },
+     "check": {
+      "kind": "nested_test",
+      "model": "temperature",
+      "full": "temperature + feed",
+      "key": "ss"
+     }
+    },
+    {
+     "what": "sequential df",
+     "term": "Temp and Feed Rat",
+     "value": "1",
+     "where": {
+      "page": 458,
+      "source_kind": "table",
+      "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Source DF Seq SS Temp 1 40841 Feed Rat 1 3316"
+     },
+     "check": [
+      {
+       "kind": "nested_test",
+       "model": "1",
+       "full": "temperature",
+       "key": "df"
+      },
+      {
+       "kind": "nested_test",
+       "model": "temperature",
+       "full": "temperature + feed",
+       "key": "df"
+      }
+     ]
+    },
+    {
+     "what": "r_squared",
+     "term": null,
+     "value": "0.92697",
+     "where": {
+      "page": 464,
+      "source_kind": "prose",
+      "quote": "R²adj = 1 − (n − 1)/(n − p)(1 − R²) = 1 − (15/13)(1 − 0.92697) = 0.915735"
+     },
+     "check": {
+      "kind": "r_squared",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "r_squared_adj",
+     "term": null,
+     "value": "0.915735",
+     "where": {
+      "page": 464,
+      "source_kind": "prose",
+      "quote": "= 1 − (15/13)(1 − 0.92697) = 0.915735"
+     },
+     "check": {
+      "kind": "r_squared_adj",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": "SS_R(β1, β2|β0)",
+     "value": "44,157.1",
+     "where": {
+      "page": 466,
+      "source_kind": "prose",
+      "quote": "Now from Table 10.4, where we tested for significance of regression, we have SS_R(β1, β2|β0) = 44,157.1"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "reduced model, Intercept",
+     "value": "1652.3955",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "The least squares fit for this model is ŷ = 1652.3955 + 7.6397x1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "reduced model, temperature",
+     "value": "7.6397",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "The least squares fit for this model is ŷ = 1652.3955 + 7.6397x1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": "SS_R(β1|β0)",
+     "value": "40,840.8",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "and the regression sum of squares for this model (with one degree of freedom) is SS_R(β1|β0) = 40,840.8"
+     },
+     "check": {
+      "kind": "ss_regression",
+      "model": "temperature"
+     }
+    },
+    {
+     "what": "extra sum of squares",
+     "term": "SS_R(β2|β0, β1)",
+     "value": "3316.3",
+     "analysis": "the difference of the two sums of squares as printed, each rounded to tenths; the extra sum of squares is 3316.24",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "Example 10.6 ... SS_R(β2|β0, β1) = 44,157.1 − 40,840.8 = 3316.3"
+     },
+     "check": {
+      "kind": "nested_test",
+      "model": "temperature",
+      "full": "temperature + feed",
+      "key": "ss",
+      "of_rounded": 2
+     }
+    },
+    {
+     "what": "extra sum of squares df",
+     "term": "SS_R(β2|β0, β1)",
+     "value": "1",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "with 2 − 1 = 1 degree of freedom"
+     },
+     "check": {
+      "kind": "nested_test",
+      "model": "temperature",
+      "full": "temperature + feed",
+      "key": "df"
+     }
+    },
+    {
+     "what": "partial F",
+     "term": "β2",
+     "value": "12.3926",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "F0 = [SS_R(β2|β0, β1)/1]/MS_E = 3316.3/1/267.604 = 12.3926"
+     },
+     "check": {
+      "kind": "nested_test",
+      "model": "temperature",
+      "full": "temperature + feed",
+      "key": "f",
+      "disagreement": "worked from the sums of squares rounded to tenths, 3316.3/267.604 = 12.39255; the partial F of the fit is 3316.244/267.604 = 12.39236"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "267.604",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "= 3316.3/1/267.604"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "F point",
+     "term": "F0.05,1,13",
+     "value": "4.67",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "Now, because F0.05,1,13 = 4.67, we would reject H0: β2 = 0"
+     },
+     "check": {
+      "manual": "a percentage point of the F distribution from Appendix Table IV, which the library does not compute"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "feed",
+     "value": "3.5203",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "note from Table 10.4 that the t-statistic for H0: β2 = 0 resulted in t0 = 3.5203"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "feed",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "t squared",
+     "term": "feed",
+     "value": "12.3925",
+     "where": {
+      "page": 467,
+      "source_kind": "prose",
+      "quote": "and that t0² = (3.5203)² = 12.3925 ≃ F0"
+     },
+     "check": {
+      "kind": "nested_test",
+      "model": "temperature",
+      "full": "temperature + feed",
+      "key": "f",
+      "disagreement": "the square of t rounded to 3.5203, which is 12.39251; t0² equals the partial F, 12.39236"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "β1",
+     "value": "7.62129",
+     "where": {
+      "page": 468,
+      "source_kind": "prose",
+      "quote": "We will construct a 95 percent confidence interval for the parameter β1 in Example 10.1. Now β̂1 = 7.62129"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": "σ̂²",
+     "value": "267.604",
+     "where": {
+      "page": 468,
+      "source_kind": "prose",
+      "quote": "and because σ̂² = 267.604 and C11 = 1.429184 × 10^−3"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "C11",
+     "value": "1.429184 × 10^−3",
+     "where": {
+      "page": 468,
+      "source_kind": "prose",
+      "quote": "and C11 = 1.429184 × 10^−3"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + feed",
+      "key": "inverse.1.1",
+      "printed": "1.429184e-3"
+     }
+    },
+    {
+     "what": "t point",
+     "term": "t0.025,13",
+     "value": "2.16",
+     "where": {
+      "page": 468,
+      "source_kind": "prose",
+      "quote": "7.62129 − 2.16√((267.604)(1.429184 × 10^−3)) ≤ β1"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       13
+      ]
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "β1",
+     "value": "0.6184",
+     "where": {
+      "page": 468,
+      "source_kind": "prose",
+      "quote": "7.62129 − 2.16(0.6184) ≤ β1 ≤ 7.62129 + 2.16(0.6184)"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "temperature",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "β1",
+     "value": "6.2855",
+     "where": {
+      "page": 468,
+      "source_kind": "prose",
+      "quote": "Example 10.7 ... 7.62129 − 2.16(0.6184) ≤ β1 ≤ 7.62129 + 2.16(0.6184) ... 6.2855 ≤ β1 ≤ 8.9570"
+     },
+     "check": {
+      "kind": "ci_low",
+      "term": "temperature",
+      "model": "temperature + feed",
+      "disagreement": "worked with t rounded to 2.16: 7.62129 − 2.16(0.6184) = 6.2855; with t0.025,13 = 2.1604 the limit is 6.2853"
+     }
+    },
+    {
+     "what": "ci_high",
+     "term": "β1",
+     "value": "8.9570",
+     "where": {
+      "page": 468,
+      "source_kind": "prose",
+      "quote": "Example 10.7 ... 7.62129 − 2.16(0.6184) ≤ β1 ≤ 7.62129 + 2.16(0.6184) ... 6.2855 ≤ β1 ≤ 8.9570"
+     },
+     "check": {
+      "kind": "ci_high",
+      "term": "temperature",
+      "model": "temperature + feed",
+      "disagreement": "worked with t rounded to 2.16: 7.62129 + 2.16(0.6184) = 8.9571; with t0.025,13 = 2.1604 the limit is 8.9573"
+     }
+    },
+    {
+     "what": "press",
+     "term": null,
+     "value": "5207.7",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "The corresponding value of the PRESS statistic is PRESS = 5207.7. Then R²Prediction = 1 − PRESS/SS_T = 1 − 5207.7/47,635.9 = 0.8907"
+     },
+     "check": {
+      "kind": "press",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "47,635.9",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "The corresponding value of the PRESS statistic is PRESS = 5207.7. Then R²Prediction = 1 − PRESS/SS_T = 1 − 5207.7/47,635.9 = 0.8907"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "r_squared_pred",
+     "term": null,
+     "value": "0.8907",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "The corresponding value of the PRESS statistic is PRESS = 5207.7. Then R²Prediction = 1 − PRESS/SS_T = 1 − 5207.7/47,635.9 = 0.8907"
+     },
+     "check": {
+      "kind": "r_squared_pred",
+      "model": "temperature + feed"
+     }
+    },
+    {
+     "what": "r_squared_pred",
+     "term": "in percent",
+     "value": "about 89 percent",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "Therefore, we could expect this model to “explain” about 89 percent of the variability in predicting new observations"
+     },
+     "check": {
+      "kind": "r_squared_pred",
+      "model": "temperature + feed",
+      "printed": "0.89"
+     }
+    },
+    {
+     "what": "r_squared",
+     "term": "in percent",
+     "value": "approximately 93 percent",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "as compared to the approximately 93 percent of the variability in the original data explained by the least squares fit"
+     },
+     "check": {
+      "kind": "r_squared",
+      "model": "temperature + feed",
+      "printed": "0.93"
+     }
+    },
+    {
+     "what": "leverage cutoff",
+     "term": "2p/n",
+     "value": "0.375",
+     "where": {
+      "page": 473,
+      "source_kind": "prose",
+      "quote": "To apply this to the viscosity model in Example 10.1, note that 2p/n = 2(3)/16 = 0.375"
+     },
+     "check": {
+      "manual": "twice the average leverage, 2p/n with p = 3 coefficients and n = 16 runs: arithmetic"
+     }
+    },
+    {
+     "what": "leverage",
+     "term": "largest",
+     "value": "none of the h_ii exceeds 0.375",
+     "where": {
+      "page": 473,
+      "source_kind": "prose",
+      "quote": "because none of the h_ii exceeds 0.375, we would conclude that there are no leverage points in these data"
+     },
+     "check": {
+      "manual": "the largest leverage is run 1's, 0.350, checked with the others in Table 10.3"
+     }
+    },
+    {
+     "what": "cooks_distance",
+     "term": "largest",
+     "value": "None of these values of D_i exceeds 1",
+     "where": {
+      "page": 473,
+      "source_kind": "prose",
+      "quote": "None of these values of D_i exceeds 1, so there is no strong evidence of influential observations in these data"
+     },
+     "check": {
+      "manual": "the largest Cook's distance is run 11's, 0.354, checked with the others in Table 10.3"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-yield-2-3-centre-points",
+   "title": "Yield of a chemical process: a 2^3 factorial in temperature, pressure and catalyst concentration with four centre runs, fitted by regression",
+   "topics": [
+    "chemical-processes"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "10.3, Examples 10.2 and 10.3",
+    "pages": "457-459",
+    "tables": [],
+    "figures": [
+     "Figure 10.5"
+    ]
+   },
+   "factors": [
+    {
+     "name": "temperature",
+     "description": "temperature (x1)",
+     "low": 120,
+     "high": 160,
+     "levels": [
+      120,
+      140,
+      160
+     ],
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "pressure",
+     "description": "pressure (x2)",
+     "low": 40,
+     "high": 80,
+     "levels": [
+      40,
+      60,
+      80
+     ],
+     "units": "psig",
+     "type": "numeric"
+    },
+    {
+     "name": "concentration",
+     "description": "catalyst concentration (x3)",
+     "low": 15,
+     "high": 30,
+     "levels": [
+      15,
+      22.5,
+      30
+     ],
+     "units": "g/l",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 factorial with four centre runs",
+    "details": "Example 10.3 drops run 8, all three factors high",
+    "n_runs": 12,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "run",
+     "temperature",
+     "pressure",
+     "concentration",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      120,
+      40,
+      15,
+      32
+     ],
+     [
+      2,
+      160,
+      40,
+      15,
+      46
+     ],
+     [
+      3,
+      120,
+      80,
+      15,
+      57
+     ],
+     [
+      4,
+      160,
+      80,
+      15,
+      65
+     ],
+     [
+      5,
+      120,
+      40,
+      30,
+      36
+     ],
+     [
+      6,
+      160,
+      40,
+      30,
+      48
+     ],
+     [
+      7,
+      120,
+      80,
+      30,
+      57
+     ],
+     [
+      8,
+      160,
+      80,
+      30,
+      68
+     ],
+     [
+      9,
+      140,
+      60,
+      22.5,
+      50
+     ],
+     [
+      10,
+      140,
+      60,
+      22.5,
+      44
+     ],
+     [
+      11,
+      140,
+      60,
+      22.5,
+      53
+     ],
+     [
+      12,
+      140,
+      60,
+      22.5,
+      56
+     ]
+    ],
+    "coded": false,
+    "notes": "Figure 10.5 in its run order; the coded variables it prints are x1 = (Temp − 140)/20, x2 = (Pressure − 60)/20 and x3 = (Conc − 22.5)/7.5"
+   },
+   "notes": "Example 10.3 fits the same model to the eleven runs left when run 8 is missing.",
+   "expected": [
+    {
+     "what": "X'X",
+     "term": "X'X [1, 1]",
+     "value": "12",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.0.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 2]",
+     "value": "8",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.1.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 3]",
+     "value": "8",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.2.2"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [4, 4]",
+     "value": "8",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.3.3"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "off the diagonal",
+     "value": "0",
+     "analysis": "the six entries above the diagonal, and their mirror images below it: the design is orthogonal",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "temperature + pressure + concentration",
+       "key": "xtx.0.1",
+       "decimals": 6
+      },
+      {
+       "kind": "normal_equations",
+       "model": "temperature + pressure + concentration",
+       "key": "xtx.0.2",
+       "decimals": 6
+      },
+      {
+       "kind": "normal_equations",
+       "model": "temperature + pressure + concentration",
+       "key": "xtx.0.3",
+       "decimals": 6
+      },
+      {
+       "kind": "normal_equations",
+       "model": "temperature + pressure + concentration",
+       "key": "xtx.1.2",
+       "decimals": 6
+      },
+      {
+       "kind": "normal_equations",
+       "model": "temperature + pressure + concentration",
+       "key": "xtx.1.3",
+       "decimals": 6
+      },
+      {
+       "kind": "normal_equations",
+       "model": "temperature + pressure + concentration",
+       "key": "xtx.2.3",
+       "decimals": 6
+      }
+     ]
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [1]",
+     "value": "612",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.0"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [2]",
+     "value": "45",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.1"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [3]",
+     "value": "85",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.2"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [4]",
+     "value": "9",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Example 10.2 ... X'X = [12 0 0 0; 0 8 0 0; 0 0 8 0; 0 0 0 8] and X'y = [612; 45; 85; 9]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 1]",
+     "value": "1/12",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.0.0",
+      "printed": "1 / 12",
+      "expression": true
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 2]",
+     "value": "1/8",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.1.1",
+      "printed": "1 / 8",
+      "expression": true
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 3]",
+     "value": "1/8",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.2.2",
+      "printed": "1 / 8",
+      "expression": true
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [4, 4]",
+     "value": "1/8",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.3.3",
+      "printed": "1 / 8",
+      "expression": true
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, Intercept",
+     "value": "51.000",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, temperature",
+     "value": "5.625",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, pressure",
+     "value": "10.625",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "pressure",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, concentration",
+     "value": "1.125",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "β̂ = (X'X)^-1 X'y = [1/12 0 0 0; 0 1/8 0 0; 0 0 1/8 0; 0 0 0 1/8][612; 45; 85; 9] = [51.000; 5.625; 10.625; 1.125]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "concentration",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, Intercept",
+     "value": "51.000",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "The fitted regression model is ŷ = 51.000 + 5.625x1 + 10.625x2 + 1.125x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, temperature",
+     "value": "5.625",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "The fitted regression model is ŷ = 51.000 + 5.625x1 + 10.625x2 + 1.125x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, pressure",
+     "value": "10.625",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "The fitted regression model is ŷ = 51.000 + 5.625x1 + 10.625x2 + 1.125x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "pressure",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, concentration",
+     "value": "1.125",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "The fitted regression model is ŷ = 51.000 + 5.625x1 + 10.625x2 + 1.125x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "concentration",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "temperature high",
+     "value": "56.75",
+     "analysis": "the four factorial runs at the high temperature",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "the effect of temperature is T = ȳT+ − ȳT− = 56.75 − 45.50 = 11.25"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       2,
+       4,
+       6,
+       8
+      ]
+     }
+    },
+    {
+     "what": "mean",
+     "term": "temperature low",
+     "value": "45.50",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "T = ȳT+ − ȳT− = 56.75 − 45.50 = 11.25"
+     },
+     "check": {
+      "kind": "mean",
+      "runs": [
+       1,
+       3,
+       5,
+       7
+      ]
+     }
+    },
+    {
+     "what": "effect",
+     "term": "temperature",
+     "value": "11.25",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "T = ȳT+ − ȳT− = 56.75 − 45.50 = 11.25"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "temperature",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "temperature, half the effect",
+     "value": "5.625",
+     "where": {
+      "page": 457,
+      "source_kind": "prose",
+      "quote": "Notice that the regression coefficient for x1 is (11.25)/2 = 5.625"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + pressure + concentration"
+     }
+    },
+    {
+     "what": "relative variance",
+     "term": "β0",
+     "value": "1/12",
+     "where": {
+      "page": 458,
+      "source_kind": "prose",
+      "quote": "The relative variance are V(β̂0)/σ² = 1/12 and V(β̂i)/σ² = 1/8, i = 1,2,3"
+     },
+     "check": {
+      "kind": "unit_std_error",
+      "model": "temperature + pressure + concentration",
+      "term": "Intercept",
+      "variance": true,
+      "printed": "1 / 12",
+      "expression": true
+     }
+    },
+    {
+     "what": "relative variance",
+     "term": "β1, β2, β3",
+     "value": "1/8",
+     "where": {
+      "page": 458,
+      "source_kind": "prose",
+      "quote": "and V(β̂i)/σ² = 1/8, i = 1,2,3"
+     },
+     "check": [
+      {
+       "kind": "unit_std_error",
+       "model": "temperature + pressure + concentration",
+       "term": "temperature",
+       "variance": true,
+       "printed": "1 / 8",
+       "expression": true
+      },
+      {
+       "kind": "unit_std_error",
+       "model": "temperature + pressure + concentration",
+       "term": "pressure",
+       "variance": true,
+       "printed": "1 / 8",
+       "expression": true
+      },
+      {
+       "kind": "unit_std_error",
+       "model": "temperature + pressure + concentration",
+       "term": "concentration",
+       "variance": true,
+       "printed": "1 / 8",
+       "expression": true
+      }
+     ]
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [1, 1]",
+     "value": "11",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.0.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [1, 2]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.0.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [1, 3]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.0.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [1, 4]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.0.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [2, 1]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.1.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [2, 2]",
+     "value": "7",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.1.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [2, 3]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.1.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [2, 4]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.1.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [3, 1]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.2.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [3, 2]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.2.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [3, 3]",
+     "value": "7",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.2.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [3, 4]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.2.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [4, 1]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.3.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [4, 2]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.3.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [4, 3]",
+     "value": "−1",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.3.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X, run 8 missing [4, 4]",
+     "value": "7",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xtx.3.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y, run 8 missing [1]",
+     "value": "544",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y, run 8 missing [2]",
+     "value": "−23",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y, run 8 missing [3]",
+     "value": "17",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y, run 8 missing [4]",
+     "value": "−59",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... X'X = [11 −1 −1 −1; −1 7 −1 −1; −1 −1 7 −1; −1 −1 −1 7] and X'y = [544; −23; 17; −59]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "xty.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [1, 1]",
+     "value": "9.61538 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.0.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "9.61538e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [1, 2]",
+     "value": "1.92307 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.0.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "1.92307e-2",
+      "disagreement": "1/52 = 1.923077 × 10^−2, which rounds to 1.92308 × 10^−2; the book cuts it to 1.92307"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [1, 3]",
+     "value": "1.92307 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.0.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "1.92307e-2",
+      "disagreement": "1/52 = 1.923077 × 10^−2, which rounds to 1.92308 × 10^−2; the book cuts it to 1.92307"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [1, 4]",
+     "value": "1.92307 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.0.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "1.92307e-2",
+      "disagreement": "1/52 = 1.923077 × 10^−2, which rounds to 1.92308 × 10^−2; the book cuts it to 1.92307"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [2, 1]",
+     "value": "1.92307 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.1.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "1.92307e-2",
+      "disagreement": "1/52 = 1.923077 × 10^−2, which rounds to 1.92308 × 10^−2; the book cuts it to 1.92307"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [2, 2]",
+     "value": "0.15385",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.1.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [2, 3]",
+     "value": "2.88462 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.1.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "2.88462e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [2, 4]",
+     "value": "2.88462 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.1.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "2.88462e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [3, 1]",
+     "value": "1.92307 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.2.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "1.92307e-2",
+      "disagreement": "1/52 = 1.923077 × 10^−2, which rounds to 1.92308 × 10^−2; the book cuts it to 1.92307"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [3, 2]",
+     "value": "2.88462 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.2.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "2.88462e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [3, 3]",
+     "value": "0.15385",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.2.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [3, 4]",
+     "value": "2.88462 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.2.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "2.88462e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [4, 1]",
+     "value": "1.92307 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.3.0",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "1.92307e-2",
+      "disagreement": "1/52 = 1.923077 × 10^−2, which rounds to 1.92308 × 10^−2; the book cuts it to 1.92307"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [4, 2]",
+     "value": "2.88462 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.3.1",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "2.88462e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [4, 3]",
+     "value": "2.88462 × 10^−2",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.3.2",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "printed": "2.88462e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1, run 8 missing [4, 4]",
+     "value": "0.15385",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... β̂ = (X'X)^-1 X'y = [9.61538 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2 1.92307 × 10^−2; 1.92307 × 10^−2 0.15385 2.88462 × 10^−2 ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "temperature + pressure + concentration",
+      "key": "inverse.3.3",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ]
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, run 8 missing, Intercept",
+     "value": "51.25",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... = [51.25; 5.75; 10.75; 1.25]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, run 8 missing, temperature",
+     "value": "5.75",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... = [51.25; 5.75; 10.75; 1.25]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, run 8 missing, pressure",
+     "value": "10.75",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... = [51.25; 5.75; 10.75; 1.25]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "pressure",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, run 8 missing, concentration",
+     "value": "1.25",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Example 10.3 ... = [51.25; 5.75; 10.75; 1.25]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "concentration",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, run 8 missing, Intercept",
+     "value": "51.25",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Therefore, the fitted model is ŷ = 51.25 + 5.75x1 + 10.75x2 + 1.25x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, run 8 missing, temperature",
+     "value": "5.75",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Therefore, the fitted model is ŷ = 51.25 + 5.75x1 + 10.75x2 + 1.25x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, run 8 missing, pressure",
+     "value": "10.75",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Therefore, the fitted model is ŷ = 51.25 + 5.75x1 + 10.75x2 + 1.25x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "pressure",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, run 8 missing, concentration",
+     "value": "1.25",
+     "where": {
+      "page": 459,
+      "source_kind": "prose",
+      "quote": "Therefore, the fitted model is ŷ = 51.25 + 5.75x1 + 10.75x2 + 1.25x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "concentration",
+      "model": "temperature + pressure + concentration",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       9,
+       10,
+       11,
+       12
+      ],
+      "disagreement": "the product of the printed (X'X)^-1 and X'y, and the least squares fit to the eleven runs, is β̂ = (51.058, 5.712, 10.712, 1.212): 51.058 = (5/52)(544) + (1/52)(−23 + 17 − 59). The printed estimates are each 1/8 to 1/4 above the fit"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-yield-2-3-inaccurate-levels",
+   "title": "Yield of a chemical process from a 2^3 with four centre runs whose factor levels were not held where the design set them, fitted by regression",
+   "topics": [
+    "chemical-processes"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "10.3, Example 10.4",
+    "pages": "460-461",
+    "tables": [
+     "Table 10.5"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "temperature, coded as the levels reached",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      0,
+      1
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "x2",
+     "description": "pressure, coded as the levels reached",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      0,
+      1
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "x3",
+     "description": "catalyst concentration, coded as the levels reached",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      0,
+      1
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^3 factorial with four centre runs, levels as reached",
+    "details": "the temperature especially was not held at its design levels",
+    "n_runs": 12,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "run",
+     "temperature",
+     "pressure",
+     "concentration",
+     "x1",
+     "x2",
+     "x3",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      125,
+      41,
+      14,
+      -0.75,
+      -0.95,
+      -1.133,
+      32
+     ],
+     [
+      2,
+      158,
+      40,
+      15,
+      0.9,
+      -1,
+      -1,
+      46
+     ],
+     [
+      3,
+      121,
+      82,
+      15,
+      -0.95,
+      1.1,
+      -1,
+      57
+     ],
+     [
+      4,
+      160,
+      80,
+      15,
+      1,
+      1,
+      -1,
+      65
+     ],
+     [
+      5,
+      118,
+      39,
+      33,
+      -1.1,
+      -1.05,
+      1.4,
+      36
+     ],
+     [
+      6,
+      163,
+      40,
+      30,
+      1.15,
+      -1,
+      1,
+      48
+     ],
+     [
+      7,
+      122,
+      80,
+      30,
+      -0.9,
+      1,
+      1,
+      57
+     ],
+     [
+      8,
+      165,
+      83,
+      30,
+      1.25,
+      1.15,
+      1,
+      68
+     ],
+     [
+      9,
+      140,
+      60,
+      22.5,
+      0,
+      0,
+      0,
+      50
+     ],
+     [
+      10,
+      140,
+      60,
+      22.5,
+      0,
+      0,
+      0,
+      44
+     ],
+     [
+      11,
+      140,
+      60,
+      22.5,
+      0,
+      0,
+      0,
+      53
+     ],
+     [
+      12,
+      140,
+      60,
+      22.5,
+      0,
+      0,
+      0,
+      56
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 10.5 in its run order: the levels reached, in °C, psig and g/l, and coded. Run 5's x3 is 1.4, as the X matrix on p. 460 prints it; Table 10.5 prints 1.14"
+   },
+   "notes": "The fit uses the coded levels as printed, x3 = −1.133 in run 1 among them, as X'X shows.",
+   "expected": [
+    {
+     "what": "X'X",
+     "term": "X'X [1, 1]",
+     "value": "12",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.0.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [1, 2]",
+     "value": "0.60",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.0.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [1, 3]",
+     "value": "0.25",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.0.2"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [1, 4]",
+     "value": "0.2670",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.0.3"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 1]",
+     "value": "0.60",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.1.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 2]",
+     "value": "8.18",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.1.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 3]",
+     "value": "0.31",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.1.2"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [2, 4]",
+     "value": "−0.1403",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.1.3"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 1]",
+     "value": "0.25",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.2.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 2]",
+     "value": "0.31",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.2.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 3]",
+     "value": "8.5375",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.2.2"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [3, 4]",
+     "value": "−0.3437",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.2.3"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [4, 1]",
+     "value": "0.2670",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.3.0"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [4, 2]",
+     "value": "−0.1403",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.3.1"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [4, 3]",
+     "value": "−0.3437",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.3.2"
+     }
+    },
+    {
+     "what": "X'X",
+     "term": "X'X [4, 4]",
+     "value": "9.2437",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xtx.3.3"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [1]",
+     "value": "612",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xty.0"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [2]",
+     "value": "77.55",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xty.1"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [3]",
+     "value": "100.7",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xty.2"
+     }
+    },
+    {
+     "what": "X'y",
+     "term": "X'y [4]",
+     "value": "19.144",
+     "where": {
+      "page": 460,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... X'X = [12 0.60 0.25 0.2670; 0.60 8.18 0.31 −0.1403; 0.25 0.31 8.5375 −0.3437; 0.2670 −0.1403 −0.3437 9.2437], X'y = [612; 77.55; 100.7; 19.144]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "xty.3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 1]",
+     "value": "8.37447 × 10^−2",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.0.0",
+      "printed": "8.37447e-2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 2]",
+     "value": "−6.09871 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.0.1",
+      "printed": "-6.09871e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −6.09871 × 10^−3; the X'X of the coded levels gives −6.09869 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 3]",
+     "value": "−2.33542 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.0.2",
+      "printed": "-2.33542e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −2.33542 × 10^−3; the X'X of the coded levels gives −2.33540 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [1, 4]",
+     "value": "−2.59833 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.0.3",
+      "printed": "-2.59833e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −2.59833 × 10^−3; the X'X of the coded levels gives −2.59829 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 1]",
+     "value": "−6.09871 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.1.0",
+      "printed": "-6.09871e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −6.09871 × 10^−3; the X'X of the coded levels gives −6.09869 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 2]",
+     "value": "0.12289",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.1.1"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 3]",
+     "value": "−4.20766 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.1.2",
+      "printed": "-4.20766e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −4.20766 × 10^−3; the X'X of the coded levels gives −4.20770 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [2, 4]",
+     "value": "1.88490 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.1.3",
+      "printed": "1.88490e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives 1.88490 × 10^−3; the X'X of the coded levels gives 1.88426 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 1]",
+     "value": "−2.33542 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.2.0",
+      "printed": "-2.33542e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −2.33542 × 10^−3; the X'X of the coded levels gives −2.33540 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 2]",
+     "value": "−4.20766 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.2.1",
+      "printed": "-4.20766e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −4.20766 × 10^−3; the X'X of the coded levels gives −4.20770 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 3]",
+     "value": "0.11753",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.2.2"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [3, 4]",
+     "value": "4.37851 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.2.3",
+      "printed": "4.37851e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives 4.37351 × 10^−3, and prints it as 4.37851; the X'X of the coded levels gives 4.37290 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [4, 1]",
+     "value": "−2.59833 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.3.0",
+      "printed": "-2.59833e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives −2.59833 × 10^−3; the X'X of the coded levels gives −2.59829 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [4, 2]",
+     "value": "1.88490 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.3.1",
+      "printed": "1.88490e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives 1.88490 × 10^−3; the X'X of the coded levels gives 1.88426 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [4, 3]",
+     "value": "4.37851 × 10^−3",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.3.2",
+      "printed": "4.37851e-3",
+      "disagreement": "the book inverts X'X as printed, its entries rounded to four decimals, which gives 4.37351 × 10^−3, and prints it as 4.37851; the X'X of the coded levels gives 4.37290 × 10^−3"
+     }
+    },
+    {
+     "what": "(X'X)^-1",
+     "term": "(X'X)^-1 [4, 4]",
+     "value": "0.10845",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Example 10.4 ... β̂ = (X'X)^-1 X'y = [8.37447 × 10^−2 −6.09871 × 10^−3 −2.33542 × 10^−3 −2.59833 × 10^−3; ...]"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3",
+      "key": "inverse.3.3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, Intercept",
+     "value": "50.49391",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "= [50.49391; 5.40996; 10.16316; 1.07245]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 + x2 + x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, x1",
+     "value": "5.40996",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "= [50.49391; 5.40996; 10.16316; 1.07245]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, x2",
+     "value": "10.16316",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "= [50.49391; 5.40996; 10.16316; 1.07245]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "least squares estimate, x3",
+     "value": "1.07245",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "= [50.49391; 5.40996; 10.16316; 1.07245]"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x3",
+      "model": "x1 + x2 + x3",
+      "disagreement": "the least squares estimate is 1.0724554, which rounds to 1.07246; the book cuts it to 1.07245"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, two decimals, Intercept",
+     "value": "50.49",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "The fitted regression model, with the coefficients reported to two decimal places, is ŷ = 50.49 + 5.41x1 + 10.16x2 + 1.07x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 + x2 + x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, two decimals, x1",
+     "value": "5.41",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "The fitted regression model, with the coefficients reported to two decimal places, is ŷ = 50.49 + 5.41x1 + 10.16x2 + 1.07x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 + x2 + x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, two decimals, x2",
+     "value": "10.16",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "The fitted regression model, with the coefficients reported to two decimal places, is ŷ = 50.49 + 5.41x1 + 10.16x2 + 1.07x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 + x2 + x3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "fitted model, two decimals, x3",
+     "value": "1.07",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "The fitted regression model, with the coefficients reported to two decimal places, is ŷ = 50.49 + 5.41x1 + 10.16x2 + 1.07x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x3",
+      "model": "x1 + x2 + x3"
+     }
+    },
+    {
+     "what": "coded level",
+     "term": "run 5, x3",
+     "value": "1.14",
+     "where": {
+      "page": 460,
+      "source_kind": "table",
+      "quote": "Table 10.5 Experimental Design for Example 10.4 ... 5 118 39 33 −1.10 −1.05 1.14 36"
+     },
+     "check": {
+      "manual": "a misprint of 1.4: the X matrix on p. 460 prints 1.4, which is (33 − 22.5)/7.5, and X'X and the fit are worked with it"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-problem-10-1",
+   "title": "Tensile strength of a paper product against the percent hardwood in the pulp, ten samples from the pilot plant (Problem 10.1)",
+   "topics": [
+    "paper"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "10.9, Problem 10.1",
+    "pages": "475",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "hardwood",
+     "description": "percent hardwood in the pulp",
+     "low": 10,
+     "high": 30,
+     "levels": [
+      10,
+      15,
+      20,
+      25,
+      28,
+      30
+     ],
+     "units": "%",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "strength",
+     "description": "tensile strength",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "observational data, regression",
+    "details": "10 observations",
+    "n_runs": 10,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "strength",
+     "hardwood"
+    ],
+    "rows": [
+     [
+      160,
+      10
+     ],
+     [
+      171,
+      15
+     ],
+     [
+      175,
+      15
+     ],
+     [
+      182,
+      20
+     ],
+     [
+      184,
+      20
+     ],
+     [
+      181,
+      20
+     ],
+     [
+      188,
+      25
+     ],
+     [
+      193,
+      25
+     ],
+     [
+      195,
+      28
+     ],
+     [
+      200,
+      30
+     ]
+    ],
+    "coded": false,
+    "notes": "the table's left pair of columns, then its right pair"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problems 10.3 and 10.5 plot the residuals and test this model for lack of fit."
+  },
+  {
+   "name": "montgomery-problem-10-2",
+   "title": "Purity of oxygen from a liquid air plant against the pollution count of the air (Problem 10.2)",
+   "topics": [
+    "chemical-processes",
+    "environment"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "10.9, Problem 10.2",
+    "pages": "475",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "pollution",
+     "description": "pollution count",
+     "low": 0.75,
+     "high": 2.03,
+     "levels": [
+      0.75,
+      0.83,
+      0.99,
+      1.08,
+      1.1,
+      1.2,
+      1.22,
+      1.36,
+      1.45,
+      1.47,
+      1.59,
+      1.68,
+      1.75,
+      1.81,
+      2.03
+     ],
+     "units": "ppm",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "purity",
+     "description": "purity of the oxygen",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "observational data, regression",
+    "details": "15 observations",
+    "n_runs": 15,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "purity",
+     "pollution"
+    ],
+    "rows": [
+     [
+      93.3,
+      1.1
+     ],
+     [
+      92.0,
+      1.45
+     ],
+     [
+      92.4,
+      1.36
+     ],
+     [
+      91.7,
+      1.59
+     ],
+     [
+      94.0,
+      1.08
+     ],
+     [
+      94.6,
+      0.75
+     ],
+     [
+      93.6,
+      1.2
+     ],
+     [
+      93.1,
+      0.99
+     ],
+     [
+      93.2,
+      0.83
+     ],
+     [
+      92.9,
+      1.22
+     ],
+     [
+      92.2,
+      1.47
+     ],
+     [
+      91.3,
+      1.81
+     ],
+     [
+      90.1,
+      2.03
+     ],
+     [
+      91.6,
+      1.75
+     ],
+     [
+      91.9,
+      1.68
+     ]
+    ],
+    "coded": false,
+    "notes": "the table's two rows of observations in turn"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problem 10.4 plots the residuals of this model."
+  },
+  {
+   "name": "montgomery-problem-10-6",
+   "title": "Wear of a bearing against oil viscosity and load (Problem 10.6)",
+   "topics": [
+    "machining"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "10.9, Problem 10.6",
+    "pages": "475",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "viscosity",
+     "description": "oil viscosity (x1)",
+     "low": 1.6,
+     "high": 43.0,
+     "levels": [
+      1.6,
+      15.5,
+      22.0,
+      33.0,
+      40.0,
+      43.0
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "load",
+     "description": "load (x2)",
+     "low": 816,
+     "high": 1357,
+     "levels": [
+      816,
+      851,
+      1058,
+      1115,
+      1201,
+      1357
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "wear",
+     "description": "wear of the bearing",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "observational data, regression",
+    "details": "6 observations",
+    "n_runs": 6,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "wear",
+     "viscosity",
+     "load"
+    ],
+    "rows": [
+     [
+      193,
+      1.6,
+      851
+     ],
+     [
+      230,
+      15.5,
+      816
+     ],
+     [
+      172,
+      22.0,
+      1058
+     ],
+     [
+      91,
+      43.0,
+      1201
+     ],
+     [
+      113,
+      33.0,
+      1357
+     ],
+     [
+      125,
+      40.0,
+      1115
+     ]
+    ],
+    "coded": false,
+    "notes": "the table in its order"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-10-7",
+   "title": "Brake horsepower of an automobile engine on a dynamometer against engine speed, road octane number and compression (Problem 10.7)",
+   "topics": [
+    "automotive",
+    "energy"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "10.9, Problem 10.7",
+    "pages": "475-476",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "rpm",
+     "description": "engine speed",
+     "low": 1600,
+     "high": 3400,
+     "levels": [
+      1600,
+      1800,
+      1900,
+      2000,
+      2400,
+      2500,
+      2800,
+      3000,
+      3200,
+      3400
+     ],
+     "units": "rpm",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "octane",
+     "description": "road octane number of the fuel",
+     "low": 86,
+     "high": 96,
+     "levels": [
+      86,
+      88,
+      89,
+      90,
+      91,
+      94,
+      96
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "compression",
+     "description": "engine compression",
+     "low": 95,
+     "high": 110,
+     "levels": [
+      95,
+      96,
+      97,
+      98,
+      100,
+      104,
+      105,
+      110
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "horsepower",
+     "description": "brake horsepower",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "observational data, regression",
+    "details": "12 observations",
+    "n_runs": 12,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "horsepower",
+     "rpm",
+     "octane",
+     "compression"
+    ],
+    "rows": [
+     [
+      225,
+      2000,
+      90,
+      100
+     ],
+     [
+      212,
+      1800,
+      94,
+      95
+     ],
+     [
+      229,
+      2400,
+      88,
+      110
+     ],
+     [
+      222,
+      1900,
+      91,
+      96
+     ],
+     [
+      219,
+      1600,
+      86,
+      100
+     ],
+     [
+      278,
+      2500,
+      96,
+      110
+     ],
+     [
+      246,
+      3000,
+      94,
+      98
+     ],
+     [
+      237,
+      3200,
+      90,
+      100
+     ],
+     [
+      233,
+      2800,
+      88,
+      105
+     ],
+     [
+      224,
+      3400,
+      86,
+      97
+     ],
+     [
+      223,
+      1800,
+      90,
+      100
+     ],
+     [
+      230,
+      2500,
+      89,
+      104
+     ]
+    ],
+    "coded": false,
+    "notes": "the table in its order"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problem 10.8 analyses the residuals of this model."
+  },
+  {
+   "name": "montgomery-problem-10-9",
+   "title": "Yield of a chemical process at two concentrations of the reactant and two temperatures, twice each (Problem 10.9)",
+   "topics": [
+    "chemical-processes"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "10.9, Problem 10.9",
+    "pages": "476",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "concentration",
+     "description": "concentration of the reactant",
+     "low": 1.0,
+     "high": 2.0,
+     "levels": [
+      1.0,
+      2.0
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "temperature",
+     "description": "operating temperature",
+     "low": 150,
+     "high": 180,
+     "levels": [
+      150,
+      180
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "yield",
+     "description": "yield",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^2 factorial, run twice",
+    "details": "8 observations",
+    "n_runs": 8,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "yield",
+     "concentration",
+     "temperature"
+    ],
+    "rows": [
+     [
+      81,
+      1.0,
+      150
+     ],
+     [
+      89,
+      1.0,
+      180
+     ],
+     [
+      83,
+      2.0,
+      150
+     ],
+     [
+      91,
+      2.0,
+      180
+     ],
+     [
+      79,
+      1.0,
+      150
+     ],
+     [
+      87,
+      1.0,
+      180
+     ],
+     [
+      84,
+      2.0,
+      150
+     ],
+     [
+      90,
+      2.0,
+      180
+     ]
+    ],
+    "coded": false,
+    "notes": "the table in its order"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "The problem asks for X'X in the factors' own units and in two codings, x1 = (Conc − 1.5)/0.5 with x2 = (Temp − 165)/15, and x1 = (Conc − 1.0)/1.0 with x2 = (Temp − 150)/30; the book prints no answer."
+  },
+  {
+   "name": "montgomery-problem-10-12",
+   "title": "A second-order polynomial in two regressors fitted to twelve observations (Problem 10.12)",
+   "topics": [
+    "general"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "10.9, Problem 10.12",
+    "pages": "476",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "regressor x1",
+     "low": 0.5,
+     "high": 1.5,
+     "levels": [
+      0.5,
+      1.0,
+      1.5
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    },
+    {
+     "name": "x2",
+     "description": "regressor x2",
+     "low": 1.0,
+     "high": 4.0,
+     "levels": [
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      4.0
+     ],
+     "units": "",
+     "type": "numeric",
+     "coding": "none"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "the response",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "observational data, regression",
+    "details": "12 observations",
+    "n_runs": 12,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "y",
+     "x1",
+     "x2"
+    ],
+    "rows": [
+     [
+      26,
+      1.0,
+      1.0
+     ],
+     [
+      24,
+      1.0,
+      1.0
+     ],
+     [
+      175,
+      1.5,
+      4.0
+     ],
+     [
+      160,
+      1.5,
+      4.0
+     ],
+     [
+      163,
+      1.5,
+      4.0
+     ],
+     [
+      55,
+      0.5,
+      2.0
+     ],
+     [
+      62,
+      1.5,
+      2.0
+     ],
+     [
+      100,
+      0.5,
+      3.0
+     ],
+     [
+      26,
+      1.0,
+      1.5
+     ],
+     [
+      30,
+      0.5,
+      1.5
+     ],
+     [
+      70,
+      1.0,
+      2.5
+     ],
+     [
+      71,
+      0.5,
+      2.5
+     ]
+    ],
+    "coded": false,
+    "notes": "the table in its order"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problem 10.13 asks for the t statistics of this model and the extra sum of squares of its quadratic terms."
   }
  ],
  "designs": [
@@ -189600,6 +196305,494 @@
      }
     }
    ]
+  },
+  {
+   "name": "montgomery-de-aliasing-2-4-1",
+   "title": "De-aliasing AB and CD of the 2^(4−1) with I = ABCD by adding one run, or four in a block of their own",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "10.3, Example 10.5",
+    "pages": "461-462",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A (x1)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B (x2)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C (x3)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D (x4)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "AB",
+     "description": "the product column x1x2",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "CD",
+     "description": "the product column x3x4",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "block",
+     "description": "the eight runs of the fraction (−1) or the runs added (+1)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(4-1) fraction, augmented",
+    "details": "the principal fraction of Table 8.3, then the run (−1, −1, −1, 1) alone, or with three more from the alternate fraction",
+    "n_runs": 12,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "AB",
+     "CD",
+     "block"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "the X matrices of pp. 461 and 462: the eight runs of the fraction, the ninth run added, then the other three of the four runs the text proposes"
+   },
+   "expected": [
+    {
+     "what": "aliased columns",
+     "term": "x1x2 and x3x4, the eight runs",
+     "value": "identical",
+     "analysis": "their correlation over the eight runs of the fraction",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "Notice that the x1x2 column is identical to the x3x4 column (as anticipated, because AB or x1x2 is aliased with CD or x3x4)"
+     },
+     "check": {
+      "kind": "column_correlation",
+      "columns": [
+       "AB",
+       "CD"
+      ],
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ],
+      "printed": "1"
+     }
+    },
+    {
+     "what": "product columns",
+     "term": "x1x2 and x3x4",
+     "value": "x1x2, x3x4",
+     "where": {
+      "page": 461,
+      "source_kind": "prose",
+      "quote": "where we have written the variables above the columns to facilitate understanding"
+     },
+     "check": [
+      {
+       "kind": "product_column",
+       "column": "AB",
+       "printed": "AB"
+      },
+      {
+       "kind": "product_column",
+       "column": "CD",
+       "printed": "CD"
+      }
+     ]
+    },
+    {
+     "what": "aliased columns",
+     "term": "x1x2 and x3x4, with the ninth run",
+     "value": "no longer identical",
+     "analysis": "their correlation over the nine runs is 0.8",
+     "where": {
+      "page": 462,
+      "source_kind": "prose",
+      "quote": "Notice that the columns x1x2 and x3x4 are now no longer identical, and we can fit the model including both the x1x2 (AB) and x3x4 (CD) interactions"
+     },
+     "check": {
+      "kind": "column_correlation",
+      "columns": [
+       "AB",
+       "CD"
+      ],
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9
+      ],
+      "printed": "<1"
+     }
+    },
+    {
+     "what": "blocks",
+     "term": "the ninth run as a block",
+     "value": "does not sum to zero",
+     "analysis": "each factor's column against the block column, over the nine runs",
+     "where": {
+      "page": 462,
+      "source_kind": "prose",
+      "quote": "It is easy to see that the sum of the cross products of every column with the block column does not sum to zero"
+     },
+     "check": [
+      {
+       "kind": "dot_product",
+       "columns": [
+        "A",
+        "block"
+       ],
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+       ],
+       "printed": "-1"
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "B",
+        "block"
+       ],
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+       ],
+       "printed": "-1"
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "C",
+        "block"
+       ],
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+       ],
+       "printed": "-1"
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "D",
+        "block"
+       ],
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+       ],
+       "printed": "1"
+      }
+     ]
+    },
+    {
+     "what": "blocks",
+     "term": "four added runs",
+     "value": "allow orthogonal blocking",
+     "analysis": "every column of the model is orthogonal to the block column over the twelve runs",
+     "where": {
+      "page": 462,
+      "source_kind": "prose",
+      "quote": "For example, the four runs ... will de-alias AB from CD and allow orthogonal blocking"
+     },
+     "check": [
+      {
+       "kind": "dot_product",
+       "columns": [
+        "A",
+        "block"
+       ],
+       "printed": "0",
+       "decimals": 6
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "B",
+        "block"
+       ],
+       "printed": "0",
+       "decimals": 6
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "C",
+        "block"
+       ],
+       "printed": "0",
+       "decimals": 6
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "D",
+        "block"
+       ],
+       "printed": "0",
+       "decimals": 6
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "AB",
+        "block"
+       ],
+       "printed": "0",
+       "decimals": 6
+      },
+      {
+       "kind": "dot_product",
+       "columns": [
+        "CD",
+        "block"
+       ],
+       "printed": "0",
+       "decimals": 6
+      }
+     ]
+    },
+    {
+     "what": "aliased columns",
+     "term": "x1x2 and x3x4, with the four added runs",
+     "value": "de-alias AB from CD",
+     "analysis": "their correlation over the twelve runs is 1/3",
+     "where": {
+      "page": 462,
+      "source_kind": "prose",
+      "quote": "will de-alias AB from CD"
+     },
+     "check": {
+      "kind": "column_correlation",
+      "columns": [
+       "AB",
+       "CD"
+      ],
+      "printed": "<1"
+     }
+    }
+   ]
   }
  ],
  "not_captured": [
@@ -189704,6 +196897,14 @@
   "9.5.3 (pp. 427 to 430): the variations of forward selection and all-possible-models regression for nonregular designs, in words",
   "9.6 and 9.6.1 (pp. 431 to 433): the reasons for optimal designs and the D-, G- and I-optimality criteria, in words, and the 12-parameter model of two continuous factors and a categorical one",
   "9.6.3 (pp. 443 and 444): Bayesian D-optimal, G-optimal and nonlinear optimal designs and Equation 9.9, in words",
-  "Problems 9.2, 9.5, 9.7 to 9.21, 9.24 to 9.27 and 9.29 to 9.34 (pp. 444 to 448): components of interaction, blocks and fractions to construct, analyses of variance to outline and designs to find, without data of their own"
+  "Problems 9.2, 9.5, 9.7 to 9.21, 9.24 to 9.27 and 9.29 to 9.34 (pp. 444 to 448): components of interaction, blocks and fractions to construct, analyses of variance to outline and designs to find, without data of their own",
+  "10.1 and 10.2 (pp. 449 to 451): regression models and Equations 10.1 to 10.6, in words and symbols, without data",
+  "10.3 (pp. 451 to 454): the least squares normal equations, the estimator of σ² and the covariance matrix of the estimates, Equations 10.7 to 10.19, and Table 10.1's layout of the data, without values",
+  "Figures 10.1 to 10.4 (pp. 455 and 456): the normal probability plot of the viscosity residuals and their plots against the fitted values and the two regressors; their axis ticks run from the smallest to the largest residual (−21.50 to 25.43) and fitted value (2244 to 2417), which Table 10.3 checks",
+  "Figure 10.5 (p. 458): the cube plot of the yields, the runs held as montgomery-yield-2-3-centre-points",
+  "10.4 and 10.5 (pp. 462 to 468): the tests of significance of regression and of individual and groups of coefficients, Table 10.6 and the confidence intervals, Equations 10.20 to 10.41, in symbols",
+  "10.6 and 10.7 (pp. 468 to 473): the prediction interval, scaled residuals, PRESS, R-student, leverage and Cook's distance, Equations 10.42 to 10.55, in symbols; the numbers worked from them are held with the viscosity data and the filtration 2^(4−1)",
+  "10.8 (pp. 473 to 475): the test for lack of fit, Equations 10.56 to 10.62, without data",
+  "Problems 10.3 to 10.5, 10.8, 10.10, 10.11 and 10.13 to 10.18 (pp. 475 to 477): analyses of the data of other problems and of Examples 6.2 and 10.5, weighted least squares, and the design of runs to estimate a slope or de-alias interactions, without data of their own"
  ]
 }
