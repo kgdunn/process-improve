@@ -13,6 +13,17 @@ those changes.
 
 ### Added
 
+- **Factorial makes Taguchi orthogonal arrays.** A new design type takes 2 to 12 numeric or
+  two-level categorical factors and makes the smallest standard array with a column for each, as
+  `generate_design(design_type="taguchi")` chooses it: the L4, L8, L12 or L16 with every numeric
+  factor at two levels or, with the new levels setting at 3, the L9, L18, L27 or L36 with each
+  numeric factor at its low, centre and high values and each categorical factor at its two labels.
+  The design's facts name the array ("Taguchi L12 (2^11): 12 runs, main effects"). A two-level
+  array is analysed for its main effects and a three-level one for the main effects and each
+  numeric factor's square, and Learn says once that the interactions are aliased with them. Plan
+  compares the array, at three levels for a model with squares, and the Python panels give each
+  numeric factor its three levels. In the design catalog, the library's L4, L8, L9 and L12 and 13
+  published arrays now open as the app makes them.
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
@@ -290,8 +301,9 @@ those changes.
   estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
   numbers, and the year the source appeared or the date the entry was added; and sees each one on a
   map of runs against factors, beside the fewest runs each model needs. A design opens in Factorial
-  with one click: 256 published designs, which the library regenerates run for run, and every
-  generated design of the eight types the app makes. The filters are kept in the address, so a
+  with one click: 269 published designs, which the library regenerates run for run, and every
+  generated design of the nine types the app makes, an orthogonal array when the app takes every
+  column. The filters are kept in the address, so a
   filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
   `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
   `design_facets`, `glyph`, `printed_checks`, `short_citation`, `catalog_sources`,
@@ -327,8 +339,8 @@ those changes.
 - **Every design in the catalog with a complete table of runs opens in Factorial.** Factorial holds
   *runs as given* (`design_type="given"` in `api_make_design`): the runs of a design it does not
   make, such as one a book prints, in their order and their factors' own units, analysed with the
-  largest model they estimate in full. 506 published designs open (256 before) and 99 generated
-  ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`), keeps the designs whose
+  largest model they estimate in full. 506 published designs open, 269 of them as the app makes
+  them, and 99 generated ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`), keeps the designs whose
   every run meets it, marks the runs outside it, and opens a design in Factorial with the limit in
   its own units, where the D-optimal and I-optimal designs make runs inside it. A form for proposing
   a published design for the catalogue is linked from the catalog.
