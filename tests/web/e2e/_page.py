@@ -249,3 +249,18 @@ def mark_corners(page: Any, *rows: int) -> None:  # noqa: ANN401
     for row in rows:
         page.click(f'#corner-table tr[data-row="{row}"] input')
     corners_done(page)
+
+
+#: A sans-serif font as wide as a reader's default may be: the page must fit a phone in it too.
+WIDE_FONT = "* { font-family: 'DejaVu Sans', sans-serif !important; }"
+
+
+def overflowing(page: Any) -> list[str]:  # noqa: ANN401
+    """Name the elements wider than the window that do not sit in a box of their own that scrolls."""
+    return page.evaluate(
+        """() => [...document.querySelectorAll('body *')]
+             .filter((e) => e.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+             .filter((e) => getComputedStyle(e).display !== 'none')
+             .filter((e) => !e.parentElement.closest('.scroll, pre, .js-plotly-plot, dialog'))
+             .map((e) => e.tagName.toLowerCase() + (e.id ? `#${e.id}` : ''))"""
+    )
