@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: worked examples, designs and exercises with data from chapters 1 to 12 of",
+  "Part of the reference catalogue: worked examples, designs and exercises with data from chapters 1 to 13 of",
   "Montgomery, Design and Analysis of Experiments (8th edition), for testing that software reproduces them. source:",
   "the citation, with what was read and when. experiments: each worked example or exercise with data (factors,",
   "responses, runs exactly as printed, in the printed order), where it is printed, and expected: every number the",
@@ -46,7 +46,10 @@
   "pseudocomponents (coding pseudocomponent); runs.exact maps a setting printed rounded to its exact value, and",
   "settings as_printed fits the settings as printed, for a source that did. Chapter 12's variance models are the",
   "variance a fitted response model transmits from its noise factors (transmitted_variance), worked from the",
-  "library's coefficients; a model of ln(s²) is read back as a variance with exp.",
+  "library's coefficients; a model of ln(s²) is read back as a variance with exp. Chapter 13's variance components,",
+  "standard errors, covariances, intervals and approximate F tests are linear combinations of the library's mean",
+  "squares (mean_squares), the weights those the expected mean squares give, with Satterthwaite's degrees of freedom;",
+  "its REML estimates are the library's (variance_component), whose components stay at or above zero.",
   "not_captured: what in these",
   "pages is not an experiment with data. Read with process_improve.experiments.reference_catalogue.",
   "reference_experiments; tests/test_reference_catalogue.py recomputes every number that has a check."
@@ -58,13 +61,13 @@
   ],
   "title": "Design and Analysis of Experiments",
   "edition": "8th edition",
-  "pages": "front matter and contents, pp. v to xvii, and chapters 1 to 12, pp. 1 to 572",
+  "pages": "front matter and contents, pp. v to xvii, and chapters 1 to 13, pp. 1 to 603",
   "year": 2013,
   "publisher": "John Wiley & Sons, Hoboken, NJ",
   "isbn": "978-1-118-14692-7",
   "url": "https://search.worldcat.org/search?q=bn:9781118146927",
   "cite": "Montgomery, D. C. (2013), Design and Analysis of Experiments, 8th edition, Wiley",
-  "read": "2026-10-16, from scans of the front matter and contents (pp. v to xvii) and chapters 1 to 12 (pp. 1 to 572); every number copied by hand, and Figures 1.5, 1.8, 3.12 to 3.14, 4.2, 5.10, 6.8, 6.19, 6.26 and 6.29, Tables 3.7, 3.14, 3.15, 4.3, 4.6, 4.9, 4.20, 5.13, 5.15, 5.16, 5.19, 5.21 to 5.24, 6.7, 6.17, 6.18 and 6.23 and the data of the problems of chapters 2 to 6 read again from the page image at 200 to 300 dpi; the tables of chapter 8 copied from the scan's text layer, its signs read from the symbol font, and checked against the page images, Tables 8.14 and 8.26 at 300 and 400 dpi; the tables of chapter 9 likewise, Figure 9.8 and Tables 9.15 to 9.17 read again at 300 dpi, and those of chapters 10 to 12 likewise, Tables 12.1 and 12.2 read again at 150 dpi, Table 11.11 read again at 200 dpi, Figure 11.29's design read off the figure at 300 dpi and Figure 11.32's nine designs read from the page image at 600 dpi by a monospaced grid, each checked to be fold-over pairs with one zero a run; Tables 2.1, 2.3, 2.6, 3.1, 3.17, 4.3, 4.11, 4.22, 5.4, 5.10, 5.13, 5.16, 6.4, 6.18, 7.1, 8.5, P8.3 and 9.1 and Figure 6.29 agree with the totals and summaries printed with them",
+  "read": "2026-10-16, from scans of the front matter and contents (pp. v to xvii) and chapters 1 to 13 (pp. 1 to 603); every number copied by hand, and Figures 1.5, 1.8, 3.12 to 3.14, 4.2, 5.10, 6.8, 6.19, 6.26 and 6.29, Tables 3.7, 3.14, 3.15, 4.3, 4.6, 4.9, 4.20, 5.13, 5.15, 5.16, 5.19, 5.21 to 5.24, 6.7, 6.17, 6.18 and 6.23 and the data of the problems of chapters 2 to 6 read again from the page image at 200 to 300 dpi; the tables of chapter 8 copied from the scan's text layer, its signs read from the symbol font, and checked against the page images, Tables 8.14 and 8.26 at 300 and 400 dpi; the tables of chapter 9 likewise, Figure 9.8 and Tables 9.15 to 9.17 read again at 300 dpi, and those of chapters 10 to 13 likewise, Tables 12.1 and 12.2 read again at 150 dpi, Table 11.11 read again at 200 dpi, Figure 11.29's design read off the figure at 300 dpi and Figure 11.32's nine designs read from the page image at 600 dpi by a monospaced grid, each checked to be fold-over pairs with one zero a run; Tables 2.1, 2.3, 2.6, 3.1, 3.17, 4.3, 4.11, 4.22, 5.4, 5.10, 5.13, 5.16, 6.4, 6.18, 7.1, 8.5, P8.3 and 9.1 and Figure 6.29 agree with the totals and summaries printed with them",
   "rights": "The book is protected by copyright (© 2013, 2009, 2005, 2001, 1997 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -182505,6 +182508,8021 @@
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": [],
    "notes": "The inner array is a 2^(5−2) with D = −AC and E = −BC, the outer a 2^(3−1) with H = −FG. Problems 12.19 and 12.20 call this experiment Problem 12.16's, a misprint for 12.18."
+  },
+  {
+   "name": "montgomery-gauge-rr-random-factors",
+   "title": "A gauge capability study: twenty parts measured twice by each of three operators, analysed with parts and operators random, and with operators fixed",
+   "topics": [
+    "measurement"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "13.2 and 13.3, Examples 13.1 to 13.3",
+    "pages": "575-586",
+    "tables": [
+     "Table 13.1",
+     "Table 13.2",
+     "Table 13.3",
+     "Table 13.4",
+     "Table 13.5",
+     "Table 13.6"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "part",
+     "description": "part, a random factor",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "operator",
+     "description": "operator, random (Example 13.1) or fixed (Examples 13.2 and 13.3)",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "the measured dimension",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "two-factor factorial, random or mixed model",
+    "details": "20 parts × 3 operators, each part measured twice by each operator in random order",
+    "n_runs": 120,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "part",
+     "operator",
+     "replicate",
+     "y"
+    ],
+    "rows": [
+     [
+      "1",
+      "1",
+      1,
+      21
+     ],
+     [
+      "1",
+      "1",
+      2,
+      20
+     ],
+     [
+      "1",
+      "2",
+      1,
+      20
+     ],
+     [
+      "1",
+      "2",
+      2,
+      20
+     ],
+     [
+      "1",
+      "3",
+      1,
+      19
+     ],
+     [
+      "1",
+      "3",
+      2,
+      21
+     ],
+     [
+      "2",
+      "1",
+      1,
+      24
+     ],
+     [
+      "2",
+      "1",
+      2,
+      23
+     ],
+     [
+      "2",
+      "2",
+      1,
+      24
+     ],
+     [
+      "2",
+      "2",
+      2,
+      24
+     ],
+     [
+      "2",
+      "3",
+      1,
+      23
+     ],
+     [
+      "2",
+      "3",
+      2,
+      24
+     ],
+     [
+      "3",
+      "1",
+      1,
+      20
+     ],
+     [
+      "3",
+      "1",
+      2,
+      21
+     ],
+     [
+      "3",
+      "2",
+      1,
+      19
+     ],
+     [
+      "3",
+      "2",
+      2,
+      21
+     ],
+     [
+      "3",
+      "3",
+      1,
+      20
+     ],
+     [
+      "3",
+      "3",
+      2,
+      22
+     ],
+     [
+      "4",
+      "1",
+      1,
+      27
+     ],
+     [
+      "4",
+      "1",
+      2,
+      27
+     ],
+     [
+      "4",
+      "2",
+      1,
+      28
+     ],
+     [
+      "4",
+      "2",
+      2,
+      26
+     ],
+     [
+      "4",
+      "3",
+      1,
+      27
+     ],
+     [
+      "4",
+      "3",
+      2,
+      28
+     ],
+     [
+      "5",
+      "1",
+      1,
+      19
+     ],
+     [
+      "5",
+      "1",
+      2,
+      18
+     ],
+     [
+      "5",
+      "2",
+      1,
+      19
+     ],
+     [
+      "5",
+      "2",
+      2,
+      18
+     ],
+     [
+      "5",
+      "3",
+      1,
+      18
+     ],
+     [
+      "5",
+      "3",
+      2,
+      21
+     ],
+     [
+      "6",
+      "1",
+      1,
+      23
+     ],
+     [
+      "6",
+      "1",
+      2,
+      21
+     ],
+     [
+      "6",
+      "2",
+      1,
+      24
+     ],
+     [
+      "6",
+      "2",
+      2,
+      21
+     ],
+     [
+      "6",
+      "3",
+      1,
+      23
+     ],
+     [
+      "6",
+      "3",
+      2,
+      22
+     ],
+     [
+      "7",
+      "1",
+      1,
+      22
+     ],
+     [
+      "7",
+      "1",
+      2,
+      21
+     ],
+     [
+      "7",
+      "2",
+      1,
+      22
+     ],
+     [
+      "7",
+      "2",
+      2,
+      24
+     ],
+     [
+      "7",
+      "3",
+      1,
+      22
+     ],
+     [
+      "7",
+      "3",
+      2,
+      20
+     ],
+     [
+      "8",
+      "1",
+      1,
+      19
+     ],
+     [
+      "8",
+      "1",
+      2,
+      17
+     ],
+     [
+      "8",
+      "2",
+      1,
+      18
+     ],
+     [
+      "8",
+      "2",
+      2,
+      20
+     ],
+     [
+      "8",
+      "3",
+      1,
+      19
+     ],
+     [
+      "8",
+      "3",
+      2,
+      18
+     ],
+     [
+      "9",
+      "1",
+      1,
+      24
+     ],
+     [
+      "9",
+      "1",
+      2,
+      23
+     ],
+     [
+      "9",
+      "2",
+      1,
+      25
+     ],
+     [
+      "9",
+      "2",
+      2,
+      23
+     ],
+     [
+      "9",
+      "3",
+      1,
+      24
+     ],
+     [
+      "9",
+      "3",
+      2,
+      24
+     ],
+     [
+      "10",
+      "1",
+      1,
+      25
+     ],
+     [
+      "10",
+      "1",
+      2,
+      23
+     ],
+     [
+      "10",
+      "2",
+      1,
+      26
+     ],
+     [
+      "10",
+      "2",
+      2,
+      25
+     ],
+     [
+      "10",
+      "3",
+      1,
+      24
+     ],
+     [
+      "10",
+      "3",
+      2,
+      25
+     ],
+     [
+      "11",
+      "1",
+      1,
+      21
+     ],
+     [
+      "11",
+      "1",
+      2,
+      20
+     ],
+     [
+      "11",
+      "2",
+      1,
+      20
+     ],
+     [
+      "11",
+      "2",
+      2,
+      20
+     ],
+     [
+      "11",
+      "3",
+      1,
+      21
+     ],
+     [
+      "11",
+      "3",
+      2,
+      20
+     ],
+     [
+      "12",
+      "1",
+      1,
+      18
+     ],
+     [
+      "12",
+      "1",
+      2,
+      19
+     ],
+     [
+      "12",
+      "2",
+      1,
+      17
+     ],
+     [
+      "12",
+      "2",
+      2,
+      19
+     ],
+     [
+      "12",
+      "3",
+      1,
+      18
+     ],
+     [
+      "12",
+      "3",
+      2,
+      19
+     ],
+     [
+      "13",
+      "1",
+      1,
+      23
+     ],
+     [
+      "13",
+      "1",
+      2,
+      25
+     ],
+     [
+      "13",
+      "2",
+      1,
+      25
+     ],
+     [
+      "13",
+      "2",
+      2,
+      25
+     ],
+     [
+      "13",
+      "3",
+      1,
+      25
+     ],
+     [
+      "13",
+      "3",
+      2,
+      25
+     ],
+     [
+      "14",
+      "1",
+      1,
+      24
+     ],
+     [
+      "14",
+      "1",
+      2,
+      24
+     ],
+     [
+      "14",
+      "2",
+      1,
+      23
+     ],
+     [
+      "14",
+      "2",
+      2,
+      25
+     ],
+     [
+      "14",
+      "3",
+      1,
+      24
+     ],
+     [
+      "14",
+      "3",
+      2,
+      25
+     ],
+     [
+      "15",
+      "1",
+      1,
+      29
+     ],
+     [
+      "15",
+      "1",
+      2,
+      30
+     ],
+     [
+      "15",
+      "2",
+      1,
+      30
+     ],
+     [
+      "15",
+      "2",
+      2,
+      28
+     ],
+     [
+      "15",
+      "3",
+      1,
+      31
+     ],
+     [
+      "15",
+      "3",
+      2,
+      30
+     ],
+     [
+      "16",
+      "1",
+      1,
+      26
+     ],
+     [
+      "16",
+      "1",
+      2,
+      26
+     ],
+     [
+      "16",
+      "2",
+      1,
+      25
+     ],
+     [
+      "16",
+      "2",
+      2,
+      26
+     ],
+     [
+      "16",
+      "3",
+      1,
+      25
+     ],
+     [
+      "16",
+      "3",
+      2,
+      27
+     ],
+     [
+      "17",
+      "1",
+      1,
+      20
+     ],
+     [
+      "17",
+      "1",
+      2,
+      20
+     ],
+     [
+      "17",
+      "2",
+      1,
+      19
+     ],
+     [
+      "17",
+      "2",
+      2,
+      20
+     ],
+     [
+      "17",
+      "3",
+      1,
+      20
+     ],
+     [
+      "17",
+      "3",
+      2,
+      20
+     ],
+     [
+      "18",
+      "1",
+      1,
+      19
+     ],
+     [
+      "18",
+      "1",
+      2,
+      21
+     ],
+     [
+      "18",
+      "2",
+      1,
+      19
+     ],
+     [
+      "18",
+      "2",
+      2,
+      19
+     ],
+     [
+      "18",
+      "3",
+      1,
+      21
+     ],
+     [
+      "18",
+      "3",
+      2,
+      23
+     ],
+     [
+      "19",
+      "1",
+      1,
+      25
+     ],
+     [
+      "19",
+      "1",
+      2,
+      26
+     ],
+     [
+      "19",
+      "2",
+      1,
+      25
+     ],
+     [
+      "19",
+      "2",
+      2,
+      24
+     ],
+     [
+      "19",
+      "3",
+      1,
+      25
+     ],
+     [
+      "19",
+      "3",
+      2,
+      25
+     ],
+     [
+      "20",
+      "1",
+      1,
+      19
+     ],
+     [
+      "20",
+      "1",
+      2,
+      19
+     ],
+     [
+      "20",
+      "2",
+      1,
+      18
+     ],
+     [
+      "20",
+      "2",
+      2,
+      17
+     ],
+     [
+      "20",
+      "3",
+      1,
+      19
+     ],
+     [
+      "20",
+      "3",
+      2,
+      17
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 13.1, part by part, each operator's two readings in turn"
+   },
+   "notes": "Montgomery (2009). The variance components are the analysis-of-variance estimates, worked from the library's mean squares (mean_squares), and the F tests use the denominators the expected mean squares call for. Two tables are numbered 13.3: the reduced model's analysis and JMP's REML output. Table 13.1's caption names Example 13.2, though the data are introduced in Example 13.1; Table 13.6 heads its interval 9% Upper for 95%.",
+   "expected": [
+    {
+     "what": "anova_df",
+     "term": "part",
+     "value": "19",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "part",
+     "value": "1185.425",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "part",
+     "value": "62.391",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "part",
+     "value": "87.65",
+     "analysis": "against the mean square of part:operator",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "part",
+     "value": "0.000",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "p",
+      "printed": "<0.0005"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "operator",
+     "value": "2",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... operator 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "operator",
+     "value": "2.617",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... operator 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "operator",
+     "value": "1.308",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... operator 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "operator",
+     "value": "1.84",
+     "analysis": "against the mean square of part:operator",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... operator 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "operator",
+     "value": "0.173",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... operator 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "part*operator",
+     "value": "38",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part*operator 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "part*operator",
+     "value": "27.050",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part*operator 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "part*operator",
+     "value": "0.712",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part*operator 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "part*operator",
+     "value": "0.72",
+     "analysis": "against the mean square of Residual",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part*operator 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "part*operator",
+     "value": "0.861",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part*operator 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "Error",
+     "value": "60",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Error 60 59.500 0.992"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "Residual",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Error",
+     "value": "59.500",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Error 60 59.500 0.992"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Residual",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Error",
+     "value": "0.992",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Error 60 59.500 0.992"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Residual",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": "Total",
+     "value": "1274.592",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Total 119 1274.592"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "total_df",
+     "term": "Total",
+     "value": "119",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Total 119 1274.592"
+     },
+     "check": {
+      "manual": "120 readings less one: arithmetic"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "part",
+     "value": "10.2798",
+     "analysis": "the analysis-of-variance estimate: the mean squares equated to their expectations",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part 10.2798"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "operator",
+     "value": "0.0149",
+     "analysis": "the analysis-of-variance estimate: the mean squares equated to their expectations",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... operator 0.0149"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "part*operator",
+     "value": "−0.1399",
+     "analysis": "the analysis-of-variance estimate: the mean squares equated to their expectations",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... part*operator −0.1399"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Error",
+     "value": "0.9917",
+     "analysis": "the analysis-of-variance estimate: the mean squares equated to their expectations",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Error 0.9917"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "expected mean squares",
+     "term": "random model",
+     "value": "(4) + 2(3) + 6(1), (4) + 2(3) + 40(2), (4) + 2(3), (4)",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Expected Mean Square for Each Term (using unrestricted model)"
+     },
+     "check": {
+      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+     }
+    },
+    {
+     "what": "error term",
+     "term": "part and operator; part*operator",
+     "value": "3; 4",
+     "where": {
+      "page": 577,
+      "source_kind": "table",
+      "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Error term 3 3 4"
+     },
+     "check": {
+      "manual": "the term whose expected mean square differs only by the component tested: the F tests above use them"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²τ, parts",
+     "value": "10.28",
+     "where": {
+      "page": 576,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.71)/(3)(2) = 10.28 σ̂²β = (1.31 − 0.71)/(20)(2) = 0.015 σ̂²τβ = (0.71 − 0.99)/2 = −0.14 and σ̂² = 0.99"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²β, operators",
+     "value": "0.015",
+     "where": {
+      "page": 576,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.71)/(3)(2) = 10.28 σ̂²β = (1.31 − 0.71)/(20)(2) = 0.015 σ̂²τβ = (0.71 − 0.99)/2 = −0.14 and σ̂² = 0.99"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²τβ",
+     "value": "−0.14",
+     "where": {
+      "page": 576,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.71)/(3)(2) = 10.28 σ̂²β = (1.31 − 0.71)/(20)(2) = 0.015 σ̂²τβ = (0.71 − 0.99)/2 = −0.14 and σ̂² = 0.99"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²",
+     "value": "0.99",
+     "where": {
+      "page": 576,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.71)/(3)(2) = 10.28 σ̂²β = (1.31 − 0.71)/(20)(2) = 0.015 σ̂²τβ = (0.71 − 0.99)/2 = −0.14 and σ̂² = 0.99"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "mean square",
+     "term": "MSA, MSB, MSAB, MSE",
+     "value": "62.39 1.31 0.71 0.99",
+     "where": {
+      "page": 576,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.71)/(3)(2) = 10.28 σ̂²β = (1.31 − 0.71)/(20)(2) = 0.015 σ̂²τβ = (0.71 − 0.99)/2 = −0.14 and σ̂² = 0.99"
+     },
+     "check": [
+      {
+       "kind": "anova_mean_sq",
+       "term": "part",
+       "model": "part * operator",
+       "printed": "62.39"
+      },
+      {
+       "kind": "anova_mean_sq",
+       "term": "operator",
+       "model": "part * operator",
+       "printed": "1.31"
+      },
+      {
+       "kind": "anova_mean_sq",
+       "term": "part:operator",
+       "model": "part * operator",
+       "printed": "0.71"
+      },
+      {
+       "kind": "anova_mean_sq",
+       "term": "Residual",
+       "model": "part * operator",
+       "printed": "0.99"
+      }
+     ]
+    },
+    {
+     "what": "anova_df",
+     "term": "part, reduced",
+     "value": "19",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... part, reduced 19 1185.425 62.391 70.64 0.000"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "part",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "part, reduced",
+     "value": "1185.425",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... part, reduced 19 1185.425 62.391 70.64 0.000"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "part",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "part, reduced",
+     "value": "62.391",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... part, reduced 19 1185.425 62.391 70.64 0.000"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "part",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "part, reduced",
+     "value": "70.64",
+     "analysis": "against the mean square of Residual",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... part, reduced 19 1185.425 62.391 70.64 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "part, reduced",
+     "value": "0.000",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... part, reduced 19 1185.425 62.391 70.64 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p",
+      "printed": "<0.0005"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "operator, reduced",
+     "value": "2",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... operator, reduced 2 2.617 1.308 1.48 0.232"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "operator",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "operator, reduced",
+     "value": "2.617",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... operator, reduced 2 2.617 1.308 1.48 0.232"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "operator",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "operator, reduced",
+     "value": "1.308",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... operator, reduced 2 2.617 1.308 1.48 0.232"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "operator",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "operator, reduced",
+     "value": "1.48",
+     "analysis": "against the mean square of Residual",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... operator, reduced 2 2.617 1.308 1.48 0.232"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "operator, reduced",
+     "value": "0.232",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... operator, reduced 2 2.617 1.308 1.48 0.232"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "Error, reduced",
+     "value": "98",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... Error, reduced 98 86.550 0.883"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "Residual",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Error, reduced",
+     "value": "86.550",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... Error, reduced 98 86.550 0.883"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Residual",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Error, reduced",
+     "value": "0.883",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... Error, reduced 98 86.550 0.883"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Residual",
+      "model": "part + operator"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "part, reduced",
+     "value": "10.2513",
+     "analysis": "the analysis-of-variance estimate, and the library's REML fit of the two random factors, which agree",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... part 10.2513"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part + operator",
+       "terms": {
+        "part": 1,
+        "Residual": -1
+       },
+       "divisor": 6,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "operator"
+       ],
+       "key": "part"
+      }
+     ]
+    },
+    {
+     "what": "variance component",
+     "term": "operator, reduced",
+     "value": "0.0106",
+     "analysis": "the analysis-of-variance estimate, and the library's REML fit of the two random factors, which agree",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... operator 0.0106"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part + operator",
+       "terms": {
+        "operator": 1,
+        "Residual": -1
+       },
+       "divisor": 40,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "operator"
+       ],
+       "key": "operator"
+      }
+     ]
+    },
+    {
+     "what": "variance component",
+     "term": "error, reduced",
+     "value": "0.8832",
+     "analysis": "the analysis-of-variance estimate, and the library's REML fit of the two random factors, which agree",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... error 0.8832"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part + operator",
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "operator"
+       ],
+       "key": "residual"
+      }
+     ]
+    },
+    {
+     "what": "expected mean squares",
+     "term": "reduced model",
+     "value": "(3) + 6(1), (3) + 40(2), (3)",
+     "where": {
+      "page": 578,
+      "source_kind": "table",
+      "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... Expected Mean Square for Each Term"
+     },
+     "check": {
+      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²τ, reduced",
+     "value": "10.25",
+     "where": {
+      "page": 577,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.88)/(3)(2) = 10.25 σ̂²β = (1.31 − 0.88)/(20)(2) = 0.0108 σ̂² = 0.88"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "part": 1,
+       "Residual": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²β, reduced",
+     "value": "0.0108",
+     "where": {
+      "page": 577,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.88)/(3)(2) = 10.25 σ̂²β = (1.31 − 0.88)/(20)(2) = 0.0108 σ̂² = 0.88"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "operator": 1,
+       "Residual": -1
+      },
+      "divisor": 40,
+      "key": "value",
+      "disagreement": "(1.3083 − 0.8832)/40 = 0.0106, as Table 13.3 prints it; the text's 0.0108 is worked from the mean squares rounded to 1.31 and 0.88"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂², reduced",
+     "value": "0.88",
+     "where": {
+      "page": 577,
+      "source_kind": "prose",
+      "quote": "σ̂²τ = (62.39 − 0.88)/(3)(2) = 10.25 σ̂²β = (1.31 − 0.88)/(20)(2) = 0.0108 σ̂² = 0.88"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂² gauge",
+     "value": "0.8908",
+     "where": {
+      "page": 577,
+      "source_kind": "prose",
+      "quote": "σ̂²gauge = σ̂² + σ̂²β = 0.88 + 0.0108 = 0.8908"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part + operator",
+      "terms": {
+       "Residual": 0.975,
+       "operator": 0.025
+      },
+      "divisor": 1,
+      "key": "value",
+      "disagreement": "0.8832 + 0.0106 = 0.8938; the text adds its rounded 0.88 and 0.0108"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Parts, JMP",
+     "value": "10.279825",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.225"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "part": 1,
+        "part:operator": -1
+       },
+       "divisor": 6,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "operator",
+        "part:operator"
+       ],
+       "key": "part",
+       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts component is 10.2513; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+      }
+     ]
+    },
+    {
+     "what": "var ratio",
+     "term": "Parts, JMP",
+     "value": "10.36621",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.225"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 0.16666666666666666,
+       "part:operator": -0.16666666666666666
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Parts, JMP",
+     "value": "3.3738173",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.225"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "wald_low",
+     "term": "Parts, JMP",
+     "value": "3.6672642",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.225"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "wald_low"
+     }
+    },
+    {
+     "what": "wald_high",
+     "term": "Parts, JMP",
+     "value": "16.892385",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.225"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "wald_high"
+     }
+    },
+    {
+     "what": "percent of total",
+     "term": "Parts, JMP",
+     "value": "92.225",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.225"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 16.666666666666668,
+       "part:operator": -16.666666666666668
+      },
+      "denominator": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.30833333333333335,
+       "operator": 0.025,
+       "Residual": 0.5
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Operators, JMP",
+     "value": "0.0149123",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Operators 0.0150376 0.0149123 0.0329622 −0.049692 0.0795169 0.134"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "operator": 1,
+        "part:operator": -1
+       },
+       "divisor": 40,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "operator",
+        "part:operator"
+       ],
+       "key": "operator",
+       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Operators component is 0.0106; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+      }
+     ]
+    },
+    {
+     "what": "var ratio",
+     "term": "Operators, JMP",
+     "value": "0.0150376",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Operators 0.0150376 0.0149123 0.0329622 −0.049692 0.0795169 0.134"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 0.025,
+       "part:operator": -0.025
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Operators, JMP",
+     "value": "0.0329622",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Operators 0.0150376 0.0149123 0.0329622 −0.049692 0.0795169 0.134"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "wald_low",
+     "term": "Operators, JMP",
+     "value": "−0.049692",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Operators 0.0150376 0.0149123 0.0329622 −0.049692 0.0795169 0.134"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "wald_low"
+     }
+    },
+    {
+     "what": "wald_high",
+     "term": "Operators, JMP",
+     "value": "0.0795169",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Operators 0.0150376 0.0149123 0.0329622 −0.049692 0.0795169 0.134"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "wald_high"
+     }
+    },
+    {
+     "what": "percent of total",
+     "term": "Operators, JMP",
+     "value": "0.134",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Operators 0.0150376 0.0149123 0.0329622 −0.049692 0.0795169 0.134"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 2.5,
+       "part:operator": -2.5
+      },
+      "denominator": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.30833333333333335,
+       "operator": 0.025,
+       "Residual": 0.5
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Parts*Operators, JMP",
+     "value": "−0.139912",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.255"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "part:operator": 1,
+        "Residual": -1
+       },
+       "divisor": 2,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "operator",
+        "part:operator"
+       ],
+       "key": "part:operator",
+       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts*Operators component is 0; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+      }
+     ]
+    },
+    {
+     "what": "var ratio",
+     "term": "Parts*Operators, JMP",
+     "value": "−0.141088",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.255"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 0.5,
+       "Residual": -0.5
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Parts*Operators, JMP",
+     "value": "0.1219114",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.255"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "wald_low",
+     "term": "Parts*Operators, JMP",
+     "value": "−0.378854",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.255"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "wald_low"
+     }
+    },
+    {
+     "what": "wald_high",
+     "term": "Parts*Operators, JMP",
+     "value": "0.0990296",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.255"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "wald_high"
+     }
+    },
+    {
+     "what": "percent of total",
+     "term": "Parts*Operators, JMP",
+     "value": "−1.255",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.255"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 50.0,
+       "Residual": -50.0
+      },
+      "denominator": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.30833333333333335,
+       "operator": 0.025,
+       "Residual": 0.5
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Residual, JMP",
+     "value": "0.9916667",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.897"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "operator",
+        "part:operator"
+       ],
+       "key": "residual",
+       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Residual component is 0.8832; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+      }
+     ]
+    },
+    {
+     "what": "std_error",
+     "term": "Residual, JMP",
+     "value": "0.1810527",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.897"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "interval_low",
+     "term": "Residual, JMP",
+     "value": "0.7143057",
+     "analysis": "f MS/χ²(f) on the f = 60 residual degrees of freedom",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.897"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "chi2_low"
+     }
+    },
+    {
+     "what": "interval_high",
+     "term": "Residual, JMP",
+     "value": "1.4697982",
+     "analysis": "f MS/χ²(f) on the f = 60 residual degrees of freedom",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.897"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "chi2_high"
+     }
+    },
+    {
+     "what": "percent of total",
+     "term": "Residual, JMP",
+     "value": "8.897",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.897"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 100.0
+      },
+      "denominator": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.30833333333333335,
+       "operator": 0.025,
+       "Residual": 0.5
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "total",
+     "term": "variance components, JMP",
+     "value": "11.146491",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Total 11.146491 100.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.30833333333333335,
+       "operator": 0.025,
+       "Residual": 0.5
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "-2 log likelihood",
+     "term": "JMP",
+     "value": "408.14904346",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... −2 LogLikelihood = 408.14904346"
+     },
+     "check": {
+      "kind": "variance_component",
+      "groups": [
+       "part",
+       "operator",
+       "part:operator"
+      ],
+      "key": "reml_criterion",
+      "disagreement": "the criterion of the library's REML fit, its interaction component at 0; JMP's is that of its unbounded estimates, a negative interaction component included"
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts, Parts",
+     "value": "11.382643",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Parts Parts 11.382643"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "part": 1,
+        "part:operator": -1
+       },
+       "divisor": 6
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts, Operators",
+     "value": "0.0001111",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Parts Operators 0.0001111"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "operator": 1,
+        "part:operator": -1
+       },
+       "divisor": 40
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts, Parts*Operators",
+     "value": "−0.002222",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Parts Parts*Operators −0.002222"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "part:operator": 1,
+        "Residual": -1
+       },
+       "divisor": 2
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts, Residual",
+     "value": "3.125e-14",
+     "analysis": "JMP's 3.125e-14 is rounding error for 0: the two estimates share no mean square",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Parts Residual 3.125e-14"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1
+      },
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Operators, Operators",
+     "value": "0.0010865",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Operators Operators 0.0010865"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "operator": 1,
+        "part:operator": -1
+       },
+       "divisor": 40
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Operators, Parts*Operators",
+     "value": "−0.000333",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Operators Parts*Operators −0.000333"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "part:operator": 1,
+        "Residual": -1
+       },
+       "divisor": 2
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Operators, Residual",
+     "value": "6.126e-17",
+     "analysis": "JMP's 6.126e-17 is rounding error for 0: the two estimates share no mean square",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Operators Residual 6.126e-17"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 40,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1
+      },
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts*Operators, Parts*Operators",
+     "value": "0.0148624",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Parts*Operators Parts*Operators 0.0148624"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "part:operator": 1,
+        "Residual": -1
+       },
+       "divisor": 2
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts*Operators, Residual",
+     "value": "−0.01639",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Parts*Operators Residual −0.01639"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Residual, Residual",
+     "value": "0.0327801",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Covariance Matrix of Variance Component Estimates ... Residual Residual 0.0327801"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1
+      }
+     }
+    },
+    {
+     "what": "root mean square error",
+     "term": "JMP",
+     "value": "0.995825",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Root Mean Square Error 0.995825"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "root"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "JMP",
+     "value": "22.39167",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Mean of Response 22.39167"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "JMP",
+     "value": "120",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Observations (or Sum Wgts) 120"
+     },
+     "check": {
+      "kind": "n_runs"
+     }
+    },
+    {
+     "what": "rsquare",
+     "term": "JMP",
+     "value": "0.910717",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... RSquare 0.910717 RSquare Adj 0.910717"
+     },
+     "check": {
+      "manual": "JMP's R² of a REML fit, which the library does not report"
+     }
+    },
+    {
+     "what": "intercept",
+     "term": "JMP",
+     "value": "22.391667",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Intercept 22.391667 0.724496 19.28 30.91 .0001*"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "std error",
+     "term": "intercept, JMP",
+     "value": "0.724496",
+     "analysis": "(MSA + MSB − MSAB)/abn, the variance of the grand mean under the random model, its square root",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Intercept 22.391667 0.724496 19.28"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 120,
+      "key": "root"
+     }
+    },
+    {
+     "what": "dfden",
+     "term": "intercept, JMP",
+     "value": "19.28",
+     "analysis": "Satterthwaite's degrees of freedom of MSA + MSB − MSAB",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Intercept 22.391667 0.724496 19.28"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "operator": 1,
+       "part:operator": -1
+      },
+      "divisor": 120,
+      "key": "df"
+     }
+    },
+    {
+     "what": "t ratio",
+     "term": "intercept, JMP",
+     "value": "30.91",
+     "where": {
+      "page": 580,
+      "source_kind": "table",
+      "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... Intercept 22.391667 0.724496 19.28 30.91"
+     },
+     "check": {
+      "manual": "the mean over its standard error, both checked: arithmetic"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "part, restricted",
+     "value": "19",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part, restricted 19 1185.425 62.391 62.92 0.000"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "part, restricted",
+     "value": "1185.425",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part, restricted 19 1185.425 62.391 62.92 0.000"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "part, restricted",
+     "value": "62.391",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part, restricted 19 1185.425 62.391 62.92 0.000"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "part, restricted",
+     "value": "62.92",
+     "analysis": "against the mean square of Residual",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part, restricted 19 1185.425 62.391 62.92 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "part, restricted",
+     "value": "0.000",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part, restricted 19 1185.425 62.391 62.92 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p",
+      "printed": "<0.0005"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "operator, restricted",
+     "value": "2",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... operator, restricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "operator, restricted",
+     "value": "2.617",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... operator, restricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "operator, restricted",
+     "value": "1.308",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... operator, restricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "operator, restricted",
+     "value": "1.84",
+     "analysis": "against the mean square of part:operator",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... operator, restricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "operator, restricted",
+     "value": "0.173",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... operator, restricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "part*operator, restricted",
+     "value": "38",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part*operator, restricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "part*operator, restricted",
+     "value": "27.050",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part*operator, restricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "part*operator, restricted",
+     "value": "0.712",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part*operator, restricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "part*operator, restricted",
+     "value": "0.72",
+     "analysis": "against the mean square of Residual",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part*operator, restricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "part*operator, restricted",
+     "value": "0.861",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... part*operator, restricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "part, restricted",
+     "value": "10.2332",
+     "analysis": "the restricted model's E(MS_parts) has no interaction component",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... 1 part 10.2332"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "Residual": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "part*operator, restricted",
+     "value": "−0.1399",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... 3 part*operator −0.1399"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Error, restricted",
+     "value": "0.9917",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... 4 Error 0.9917"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "expected mean squares",
+     "term": "restricted model",
+     "value": "(4) + 6(1), (4) + 2(3) + 40Q[2], (4) + 2(3), (4)",
+     "where": {
+      "page": 583,
+      "source_kind": "table",
+      "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... Expected Mean Square for Each Term (using restricted model)"
+     },
+     "check": {
+      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²Parts, restricted",
+     "value": "10.23",
+     "where": {
+      "page": 582,
+      "source_kind": "prose",
+      "quote": "σ̂²Parts = (MSParts − MSE)/an = (62.39 − 0.99)/(3)(2) = 10.23 σ̂²Parts×operators = (MSParts×operators − MSE)/n = (0.71 − 0.99)/2 = −0.14 σ̂² = MSE = 0.99"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "Residual": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²Parts×operators, restricted",
+     "value": "−0.14",
+     "where": {
+      "page": 582,
+      "source_kind": "prose",
+      "quote": "σ̂²Parts = (MSParts − MSE)/an = (62.39 − 0.99)/(3)(2) = 10.23 σ̂²Parts×operators = (MSParts×operators − MSE)/n = (0.71 − 0.99)/2 = −0.14 σ̂² = MSE = 0.99"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂², restricted",
+     "value": "0.99",
+     "where": {
+      "page": 582,
+      "source_kind": "prose",
+      "quote": "σ̂²Parts = (MSParts − MSE)/an = (62.39 − 0.99)/(3)(2) = 10.23 σ̂²Parts×operators = (MSParts×operators − MSE)/n = (0.71 − 0.99)/2 = −0.14 σ̂² = MSE = 0.99"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "part, unrestricted",
+     "value": "19",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part, unrestricted 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "part, unrestricted",
+     "value": "1185.425",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part, unrestricted 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "part, unrestricted",
+     "value": "62.391",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part, unrestricted 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "part",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "part, unrestricted",
+     "value": "87.65",
+     "analysis": "against the mean square of part:operator",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part, unrestricted 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "part, unrestricted",
+     "value": "0.000",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part, unrestricted 19 1185.425 62.391 87.65 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "p",
+      "printed": "<0.0005"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "operator, unrestricted",
+     "value": "2",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... operator, unrestricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "operator, unrestricted",
+     "value": "2.617",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... operator, unrestricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "operator, unrestricted",
+     "value": "1.308",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... operator, unrestricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "operator, unrestricted",
+     "value": "1.84",
+     "analysis": "against the mean square of part:operator",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... operator, unrestricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "operator, unrestricted",
+     "value": "0.173",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... operator, unrestricted 2 2.617 1.308 1.84 0.173"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "part*operator, unrestricted",
+     "value": "38",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part*operator, unrestricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "part*operator, unrestricted",
+     "value": "27.050",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part*operator, unrestricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "part*operator, unrestricted",
+     "value": "0.712",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part*operator, unrestricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "part:operator",
+      "model": "part * operator"
+     }
+    },
+    {
+     "what": "f",
+     "term": "part*operator, unrestricted",
+     "value": "0.72",
+     "analysis": "against the mean square of Residual",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part*operator, unrestricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "part*operator, unrestricted",
+     "value": "0.861",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... part*operator, unrestricted 38 27.050 0.712 0.72 0.861"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "part, unrestricted",
+     "value": "10.2798",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... 1 part 10.2798"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "part*operator, unrestricted",
+     "value": "−0.1399",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... 3 part*operator −0.1399"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Error, unrestricted",
+     "value": "0.9917",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... 4 Error 0.9917"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "expected mean squares",
+     "term": "unrestricted model",
+     "value": "(4) + 2(3) + 6(1), (4) + 2(3) + Q[2], (4) + 2(3), (4)",
+     "where": {
+      "page": 585,
+      "source_kind": "table",
+      "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... Expected Mean Square for Each Term (using unrestricted model)"
+     },
+     "check": {
+      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Parts, JMP",
+     "value": "10.279825",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.348"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "part": 1,
+        "part:operator": -1
+       },
+       "divisor": 6,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "part:operator"
+       ],
+       "fixed": [
+        "operator"
+       ],
+       "key": "part",
+       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts component is 10.2513; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+      }
+     ]
+    },
+    {
+     "what": "var ratio",
+     "term": "Parts, JMP",
+     "value": "10.36621",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.348"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 0.16666666666666666,
+       "part:operator": -0.16666666666666666
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Parts, JMP",
+     "value": "3.3738173",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.348"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "wald_low",
+     "term": "Parts, JMP",
+     "value": "3.6672642",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.348"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "wald_low"
+     }
+    },
+    {
+     "what": "wald_high",
+     "term": "Parts, JMP",
+     "value": "16.892385",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.348"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "wald_high"
+     }
+    },
+    {
+     "what": "percent of total",
+     "term": "Parts, JMP",
+     "value": "92.348",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts 10.36621 10.279825 3.3738173 3.6672642 16.892385 92.348"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 16.666666666666668,
+       "part:operator": -16.666666666666668
+      },
+      "denominator": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.33333333333333337,
+       "Residual": 0.5
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Parts*Operators, JMP",
+     "value": "−0.139912",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.257"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "part:operator": 1,
+        "Residual": -1
+       },
+       "divisor": 2,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "part:operator"
+       ],
+       "fixed": [
+        "operator"
+       ],
+       "key": "part:operator",
+       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts*Operators component is 0; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+      }
+     ]
+    },
+    {
+     "what": "var ratio",
+     "term": "Parts*Operators, JMP",
+     "value": "−0.141088",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.257"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 0.5,
+       "Residual": -0.5
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Parts*Operators, JMP",
+     "value": "0.1219114",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.257"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "wald_low",
+     "term": "Parts*Operators, JMP",
+     "value": "−0.378854",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.257"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "wald_low"
+     }
+    },
+    {
+     "what": "wald_high",
+     "term": "Parts*Operators, JMP",
+     "value": "0.0990296",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.257"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "wald_high"
+     }
+    },
+    {
+     "what": "percent of total",
+     "term": "Parts*Operators, JMP",
+     "value": "−1.257",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Parts*Operators −0.141088 −0.139912 0.1219114 −0.378854 0.0990296 −1.257"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 50.0,
+       "Residual": -50.0
+      },
+      "denominator": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.33333333333333337,
+       "Residual": 0.5
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Residual, JMP",
+     "value": "0.9916667",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.909"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1,
+       "key": "value"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "part:operator"
+       ],
+       "fixed": [
+        "operator"
+       ],
+       "key": "residual",
+       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Residual component is 0.8832; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+      }
+     ]
+    },
+    {
+     "what": "std_error",
+     "term": "Residual, JMP",
+     "value": "0.1810527",
+     "analysis": "from Var(MS) = 2 MS²/f of the mean squares in the estimate",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.909"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "std_error"
+     }
+    },
+    {
+     "what": "interval_low",
+     "term": "Residual, JMP",
+     "value": "0.7143057",
+     "analysis": "f MS/χ²(f) on the f = 60 residual degrees of freedom",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.909"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "chi2_low"
+     }
+    },
+    {
+     "what": "interval_high",
+     "term": "Residual, JMP",
+     "value": "1.4697982",
+     "analysis": "f MS/χ²(f) on the f = 60 residual degrees of freedom",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.909"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "chi2_high"
+     }
+    },
+    {
+     "what": "percent of total",
+     "term": "Residual, JMP",
+     "value": "8.909",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... REML Variance Component Estimates ... Residual 0.9916667 0.1810527 0.7143057 1.4697982 8.909"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 100.0
+      },
+      "denominator": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.33333333333333337,
+       "Residual": 0.5
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "total",
+     "term": "variance components, JMP",
+     "value": "11.131579",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Total 11.131579 100.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 0.16666666666666666,
+       "part:operator": 0.33333333333333337,
+       "Residual": 0.5
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "-2 log likelihood",
+     "term": "JMP",
+     "value": "410.4121524",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... −2 LogLikelihood = 410.4121524"
+     },
+     "check": {
+      "kind": "variance_component",
+      "groups": [
+       "part",
+       "part:operator"
+      ],
+      "fixed": [
+       "operator"
+      ],
+      "key": "reml_criterion",
+      "disagreement": "the criterion of the library's REML fit, its interaction component at 0; JMP's is that of its unbounded estimates, a negative interaction component included"
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts, Parts",
+     "value": "11.382643",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Covariance Matrix of Variance Component Estimates ... Parts Parts 11.382643"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "part": 1,
+        "part:operator": -1
+       },
+       "divisor": 6
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts, Parts*Operators",
+     "value": "−0.002222",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Covariance Matrix of Variance Component Estimates ... Parts Parts*Operators −0.002222"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "part:operator": 1,
+        "Residual": -1
+       },
+       "divisor": 2
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts, Residual",
+     "value": "2.659e-14",
+     "analysis": "JMP's 2.659e-14 is rounding error for 0: the two estimates share no mean square",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Covariance Matrix of Variance Component Estimates ... Parts Residual 2.659e-14"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part": 1,
+       "part:operator": -1
+      },
+      "divisor": 6,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1
+      },
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts*Operators, Parts*Operators",
+     "value": "0.0148624",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Covariance Matrix of Variance Component Estimates ... Parts*Operators Parts*Operators 0.0148624"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "part:operator": 1,
+        "Residual": -1
+       },
+       "divisor": 2
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Parts*Operators, Residual",
+     "value": "−0.01639",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Covariance Matrix of Variance Component Estimates ... Parts*Operators Residual −0.01639"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "part:operator": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1
+      }
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "Residual, Residual",
+     "value": "0.0327801",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Covariance Matrix of Variance Component Estimates ... Residual Residual 0.0327801"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "covariance",
+      "with": {
+       "terms": {
+        "Residual": 1
+       },
+       "divisor": 1
+      }
+     }
+    },
+    {
+     "what": "root mean square error",
+     "term": "JMP mixed",
+     "value": "0.995825",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Root Mean Square Error 0.995825"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "root"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "JMP mixed",
+     "value": "22.39167",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Mean of Response 22.39167"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "rsquare",
+     "term": "JMP mixed",
+     "value": "0.911896 0.91039",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... RSquare 0.911896 RSquare Adj 0.91039"
+     },
+     "check": {
+      "manual": "JMP's R² of a REML fit, which the library does not report"
+     }
+    },
+    {
+     "what": "fixed effect test",
+     "term": "Operators, F ratio",
+     "value": "1.8380",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Fixed Effects Tests ... Operators 2 2 38 1.8380 0.1730"
+     },
+     "check": [
+      {
+       "kind": "mean_squares",
+       "model": "part * operator",
+       "terms": {
+        "operator": 1
+       },
+       "denominator": {
+        "part:operator": 1
+       },
+       "key": "f"
+      },
+      {
+       "kind": "variance_component",
+       "groups": [
+        "part",
+        "part:operator"
+       ],
+       "fixed": [
+        "operator"
+       ],
+       "key": "f.operator",
+       "disagreement": "the library's REML fit, its interaction component at 0, tests the operators against the pooled error; JMP's unbounded fit tests them against the interaction mean square, MS_operator/MS_AB"
+      }
+     ]
+    },
+    {
+     "what": "fixed effect test",
+     "term": "Operators, DFDen",
+     "value": "38",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Operators 2 2 38"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "df_den"
+     }
+    },
+    {
+     "what": "fixed effect test",
+     "term": "Operators, Nparm and DF",
+     "value": "2",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Operators 2 2 38"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "df_num"
+     }
+    },
+    {
+     "what": "fixed effect test",
+     "term": "Operators, Prob > F",
+     "value": "0.1730",
+     "where": {
+      "page": 586,
+      "source_kind": "table",
+      "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... Operators 2 2 38 1.8380 0.1730"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "part * operator",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "part:operator": 1
+      },
+      "key": "p"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-pressure-drop-mixed-model",
+   "title": "Pressure drop across a turbine's expansion valve against gas temperature (fixed), operator and pressure gauge (random), two replicates: exact, approximate and synthesized tests and the variance components",
+   "topics": [
+    "energy",
+    "measurement"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "13.6 and 13.7, Examples 13.6 and 13.8",
+    "pages": "593-601",
+    "tables": [
+     "Table 13.9",
+     "Table 13.10",
+     "Table 13.11",
+     "Table 13.12"
+    ],
+    "figures": [
+     "Figure 13.2"
+    ]
+   },
+   "factors": [
+    {
+     "name": "temp",
+     "description": "gas temperature on the inlet side (A), fixed",
+     "low": "60",
+     "high": "75",
+     "levels": [
+      "60",
+      "75",
+      "90"
+     ],
+     "units": "°F",
+     "type": "categorical"
+    },
+    {
+     "name": "operator",
+     "description": "operator (B), random",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "gauge",
+     "description": "pressure gauge (C), random",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "drop",
+     "description": "coded pressure drop",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "three-factor factorial, mixed model",
+    "details": "3 temperatures × 4 operators × 3 gauges, two replicates",
+    "n_runs": 72,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "temp",
+     "operator",
+     "gauge",
+     "replicate",
+     "drop"
+    ],
+    "rows": [
+     [
+      "60",
+      "1",
+      "1",
+      1,
+      -2
+     ],
+     [
+      "60",
+      "2",
+      "1",
+      1,
+      0
+     ],
+     [
+      "60",
+      "3",
+      "1",
+      1,
+      -1
+     ],
+     [
+      "60",
+      "4",
+      "1",
+      1,
+      4
+     ],
+     [
+      "75",
+      "1",
+      "1",
+      1,
+      14
+     ],
+     [
+      "75",
+      "2",
+      "1",
+      1,
+      6
+     ],
+     [
+      "75",
+      "3",
+      "1",
+      1,
+      1
+     ],
+     [
+      "75",
+      "4",
+      "1",
+      1,
+      -7
+     ],
+     [
+      "90",
+      "1",
+      "1",
+      1,
+      -8
+     ],
+     [
+      "90",
+      "2",
+      "1",
+      1,
+      -2
+     ],
+     [
+      "90",
+      "3",
+      "1",
+      1,
+      -1
+     ],
+     [
+      "90",
+      "4",
+      "1",
+      1,
+      -2
+     ],
+     [
+      "60",
+      "1",
+      "1",
+      2,
+      -3
+     ],
+     [
+      "60",
+      "2",
+      "1",
+      2,
+      -9
+     ],
+     [
+      "60",
+      "3",
+      "1",
+      2,
+      -8
+     ],
+     [
+      "60",
+      "4",
+      "1",
+      2,
+      4
+     ],
+     [
+      "75",
+      "1",
+      "1",
+      2,
+      14
+     ],
+     [
+      "75",
+      "2",
+      "1",
+      2,
+      0
+     ],
+     [
+      "75",
+      "3",
+      "1",
+      2,
+      2
+     ],
+     [
+      "75",
+      "4",
+      "1",
+      2,
+      6
+     ],
+     [
+      "90",
+      "1",
+      "1",
+      2,
+      -8
+     ],
+     [
+      "90",
+      "2",
+      "1",
+      2,
+      20
+     ],
+     [
+      "90",
+      "3",
+      "1",
+      2,
+      -2
+     ],
+     [
+      "90",
+      "4",
+      "1",
+      2,
+      1
+     ],
+     [
+      "60",
+      "1",
+      "2",
+      1,
+      -6
+     ],
+     [
+      "60",
+      "2",
+      "2",
+      1,
+      -5
+     ],
+     [
+      "60",
+      "3",
+      "2",
+      1,
+      -8
+     ],
+     [
+      "60",
+      "4",
+      "2",
+      1,
+      -3
+     ],
+     [
+      "75",
+      "1",
+      "2",
+      1,
+      22
+     ],
+     [
+      "75",
+      "2",
+      "2",
+      1,
+      8
+     ],
+     [
+      "75",
+      "3",
+      "2",
+      1,
+      6
+     ],
+     [
+      "75",
+      "4",
+      "2",
+      1,
+      -5
+     ],
+     [
+      "90",
+      "1",
+      "2",
+      1,
+      -8
+     ],
+     [
+      "90",
+      "2",
+      "2",
+      1,
+      1
+     ],
+     [
+      "90",
+      "3",
+      "2",
+      1,
+      -9
+     ],
+     [
+      "90",
+      "4",
+      "2",
+      1,
+      -8
+     ],
+     [
+      "60",
+      "1",
+      "2",
+      2,
+      4
+     ],
+     [
+      "60",
+      "2",
+      "2",
+      2,
+      -1
+     ],
+     [
+      "60",
+      "3",
+      "2",
+      2,
+      -2
+     ],
+     [
+      "60",
+      "4",
+      "2",
+      2,
+      -7
+     ],
+     [
+      "75",
+      "1",
+      "2",
+      2,
+      24
+     ],
+     [
+      "75",
+      "2",
+      "2",
+      2,
+      6
+     ],
+     [
+      "75",
+      "3",
+      "2",
+      2,
+      2
+     ],
+     [
+      "75",
+      "4",
+      "2",
+      2,
+      2
+     ],
+     [
+      "90",
+      "1",
+      "2",
+      2,
+      3
+     ],
+     [
+      "90",
+      "2",
+      "2",
+      2,
+      -7
+     ],
+     [
+      "90",
+      "3",
+      "2",
+      2,
+      -8
+     ],
+     [
+      "90",
+      "4",
+      "2",
+      2,
+      3
+     ],
+     [
+      "60",
+      "1",
+      "3",
+      1,
+      -1
+     ],
+     [
+      "60",
+      "2",
+      "3",
+      1,
+      -4
+     ],
+     [
+      "60",
+      "3",
+      "3",
+      1,
+      0
+     ],
+     [
+      "60",
+      "4",
+      "3",
+      1,
+      -2
+     ],
+     [
+      "75",
+      "1",
+      "3",
+      1,
+      20
+     ],
+     [
+      "75",
+      "2",
+      "3",
+      1,
+      2
+     ],
+     [
+      "75",
+      "3",
+      "3",
+      1,
+      3
+     ],
+     [
+      "75",
+      "4",
+      "3",
+      1,
+      -5
+     ],
+     [
+      "90",
+      "1",
+      "3",
+      1,
+      -2
+     ],
+     [
+      "90",
+      "2",
+      "3",
+      1,
+      -1
+     ],
+     [
+      "90",
+      "3",
+      "3",
+      1,
+      -4
+     ],
+     [
+      "90",
+      "4",
+      "3",
+      1,
+      1
+     ],
+     [
+      "60",
+      "1",
+      "3",
+      2,
+      -2
+     ],
+     [
+      "60",
+      "2",
+      "3",
+      2,
+      -8
+     ],
+     [
+      "60",
+      "3",
+      "3",
+      2,
+      -7
+     ],
+     [
+      "60",
+      "4",
+      "3",
+      2,
+      4
+     ],
+     [
+      "75",
+      "1",
+      "3",
+      2,
+      16
+     ],
+     [
+      "75",
+      "2",
+      "3",
+      2,
+      0
+     ],
+     [
+      "75",
+      "3",
+      "3",
+      2,
+      0
+     ],
+     [
+      "75",
+      "4",
+      "3",
+      2,
+      -1
+     ],
+     [
+      "90",
+      "1",
+      "3",
+      2,
+      -1
+     ],
+     [
+      "90",
+      "2",
+      "3",
+      2,
+      -2
+     ],
+     [
+      "90",
+      "3",
+      "3",
+      2,
+      -7
+     ],
+     [
+      "90",
+      "4",
+      "3",
+      2,
+      3
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 13.9, gauge by gauge, each of its two rows of twelve in turn (60, 75 and 90°F, operators 1 to 4)"
+   },
+   "notes": "The tests and variance components are worked from the library's mean squares (mean_squares), the denominators and divisors those the restricted or unrestricted expected mean squares give. Table 13.11 says Q[1] is the fixed effect of gas pressure, for gas temperature; the text calls Equations 13.17 and 13.18 Equations 13.31 and 13.32, cites Equation 13.40 for 13.26, writes c1 = c2 = 16 for 1/6, numbers both examples of section 13.7 Example 13.8, and says the single-factor random model was introduced in Chapter 1 (it was Chapter 3).",
+   "expected": [
+    {
+     "what": "anova_df",
+     "term": "Temperature, A",
+     "value": "2",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Temperature, A 1023.36 2 ... 511.68 2.22 0.17"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "temp",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Temperature, A",
+     "value": "1023.36",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Temperature, A 1023.36 2 ... 511.68 2.22 0.17"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "temp",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Temperature, A",
+     "value": "511.68",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Temperature, A 1023.36 2 ... 511.68 2.22 0.17"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "temp",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Temperature, A",
+     "value": "2.22",
+     "analysis": "Satterthwaite's (MSA + MSABC)/(MSAB + MSAC)",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Temperature, A 1023.36 2 ... 511.68 2.22 0.17"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1,
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Temperature, A",
+     "value": "0.17",
+     "analysis": "on Satterthwaite's 2.11 and 7.88 degrees of freedom",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Temperature, A 1023.36 2 ... 511.68 2.22 0.17"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1,
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "Operator, B",
+     "value": "3",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Operator, B 423.82 3 ... 141.27 4.05 0.07"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "operator",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Operator, B",
+     "value": "423.82",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Operator, B 423.82 3 ... 141.27 4.05 0.07"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "operator",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Operator, B",
+     "value": "141.27",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Operator, B 423.82 3 ... 141.27 4.05 0.07"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "operator",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Operator, B",
+     "value": "4.05",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Operator, B 423.82 3 ... 141.27 4.05 0.07"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Operator, B",
+     "value": "0.07",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Operator, B 423.82 3 ... 141.27 4.05 0.07"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "Pressure gauge, C",
+     "value": "2",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Pressure gauge, C 7.19 2 ... 3.60 0.10 0.90"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Pressure gauge, C",
+     "value": "7.19",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Pressure gauge, C 7.19 2 ... 3.60 0.10 0.90"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Pressure gauge, C",
+     "value": "3.60",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Pressure gauge, C 7.19 2 ... 3.60 0.10 0.90"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Pressure gauge, C",
+     "value": "0.10",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Pressure gauge, C 7.19 2 ... 3.60 0.10 0.90"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Pressure gauge, C",
+     "value": "0.90",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Pressure gauge, C 7.19 2 ... 3.60 0.10 0.90"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "AB",
+     "value": "6",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AB 1211.97 6 ... 202.00 14.59 0.01"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "temp:operator",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "AB",
+     "value": "1211.97",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AB 1211.97 6 ... 202.00 14.59 0.01"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "temp:operator",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "AB",
+     "value": "202.00",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AB 1211.97 6 ... 202.00 14.59 0.01"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "temp:operator",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "f",
+     "term": "AB",
+     "value": "14.59",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AB 1211.97 6 ... 202.00 14.59 0.01"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "AB",
+     "value": "0.01",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AB 1211.97 6 ... 202.00 14.59 0.01"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "p",
+      "disagreement": "the P-value of F = 14.59 on 6 and 12 degrees of freedom is 0.00007, which Table 13.11 prints as 0.000; Table 13.10 prints it as 0.01"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "AC",
+     "value": "4",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AC 137.89 4 ... 34.47 2.49 0.10"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "temp:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "AC",
+     "value": "137.89",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AC 137.89 4 ... 34.47 2.49 0.10"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "temp:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "AC",
+     "value": "34.47",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AC 137.89 4 ... 34.47 2.49 0.10"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "temp:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "f",
+     "term": "AC",
+     "value": "2.49",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AC 137.89 4 ... 34.47 2.49 0.10"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "AC",
+     "value": "0.10",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... AC 137.89 4 ... 34.47 2.49 0.10"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "BC",
+     "value": "6",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... BC 209.47 6 ... 34.91 1.63 0.17"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "operator:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "BC",
+     "value": "209.47",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... BC 209.47 6 ... 34.91 1.63 0.17"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "operator:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "BC",
+     "value": "34.91",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... BC 209.47 6 ... 34.91 1.63 0.17"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "operator:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "f",
+     "term": "BC",
+     "value": "1.63",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... BC 209.47 6 ... 34.91 1.63 0.17"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "BC",
+     "value": "0.17",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... BC 209.47 6 ... 34.91 1.63 0.17"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "ABC",
+     "value": "12",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... ABC 166.11 12 ... 13.84 0.65 0.79"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "temp:operator:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "ABC",
+     "value": "166.11",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... ABC 166.11 12 ... 13.84 0.65 0.79"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "temp:operator:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "ABC",
+     "value": "13.84",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... ABC 166.11 12 ... 13.84 0.65 0.79"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "temp:operator:gauge",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "f",
+     "term": "ABC",
+     "value": "0.65",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... ABC 166.11 12 ... 13.84 0.65 0.79"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "ABC",
+     "value": "0.79",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... ABC 166.11 12 ... 13.84 0.65 0.79"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "Error",
+     "value": "36",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Error 770.50 36 ... 21.40"
+     },
+     "check": {
+      "kind": "anova_df",
+      "term": "Residual",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Error",
+     "value": "770.50",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Error 770.50 36 ... 21.40"
+     },
+     "check": {
+      "kind": "anova_sum_sq",
+      "term": "Residual",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "Error",
+     "value": "21.40",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Error 770.50 36 ... 21.40"
+     },
+     "check": {
+      "kind": "anova_mean_sq",
+      "term": "Residual",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "expected mean squares",
+     "term": "restricted mixed model",
+     "value": "σ² + bnσ²τγ + cnσ²τβ + nσ²τβγ + bcnΣτ²i/(a − 1) ...",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Expected Mean Squares"
+     },
+     "check": {
+      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": "Total",
+     "value": "3950.32",
+     "where": {
+      "page": 594,
+      "source_kind": "table",
+      "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Total 3950.32 71"
+     },
+     "check": {
+      "kind": "ss_total",
+      "model": "temp * operator * gauge"
+     }
+    },
+    {
+     "what": "MS′",
+     "term": "MSA + MSABC",
+     "value": "525.52",
+     "where": {
+      "page": 594,
+      "source_kind": "prose",
+      "quote": "MS′ = MSA + MSABC = 511.68 + 13.84 = 525.52 MS″ = MSAB + MSAC = 202.00 + 34.47 = 236.47 and F = MS′/MS″ = 525.52/236.47 = 2.22"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1,
+       "temp:operator:gauge": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "MS″",
+     "term": "MSAB + MSAC",
+     "value": "236.47",
+     "where": {
+      "page": 594,
+      "source_kind": "prose",
+      "quote": "MS′ = MSA + MSABC = 511.68 + 13.84 = 525.52 MS″ = MSAB + MSAC = 202.00 + 34.47 = 236.47 and F = MS′/MS″ = 525.52/236.47 = 2.22"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:gauge": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "f",
+     "term": "approximate test of A",
+     "value": "2.22",
+     "where": {
+      "page": 594,
+      "source_kind": "prose",
+      "quote": "MS′ = MSA + MSABC = 511.68 + 13.84 = 525.52 MS″ = MSAB + MSAC = 202.00 + 34.47 = 236.47 and F = MS′/MS″ = 525.52/236.47 = 2.22"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1,
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "df",
+     "term": "p",
+     "value": "2.11",
+     "where": {
+      "page": 594,
+      "source_kind": "prose",
+      "quote": "p = (MSA + MSABC)²/[(MS²A/2) + (MS²ABC/12)] = (525.52)²/[(511.68)²/2 + (13.84)²/12] = 2.11 ≈ 2 ... q = (MSAB + MSAC)²/[(MS²AB/6) + (MS²AC/4)] = (236.47)²/[(202.00)²/6 + (34.47)²/4] = 7.88 ≈ 8"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1,
+       "temp:operator:gauge": 1
+      },
+      "divisor": 1,
+      "key": "df"
+     }
+    },
+    {
+     "what": "df",
+     "term": "q",
+     "value": "7.88",
+     "where": {
+      "page": 594,
+      "source_kind": "prose",
+      "quote": "p = (MSA + MSABC)²/[(MS²A/2) + (MS²ABC/12)] = (525.52)²/[(511.68)²/2 + (13.84)²/12] = 2.11 ≈ 2 ... q = (MSAB + MSAC)²/[(MS²AB/6) + (MS²AC/4)] = (236.47)²/[(202.00)²/6 + (34.47)²/4] = 7.88 ≈ 8"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:gauge": 1
+      },
+      "divisor": 1,
+      "key": "df"
+     }
+    },
+    {
+     "what": "f point",
+     "term": "F0.05,2,8",
+     "value": "4.46",
+     "where": {
+      "page": 594,
+      "source_kind": "prose",
+      "quote": "Comparing F = 2.22 to F0.05,2,8 = 4.46, we cannot reject H0"
+     },
+     "check": {
+      "manual": "a percentage point of the F distribution, from the Appendix, which the library does not compute"
+     }
+    },
+    {
+     "what": "p",
+     "term": "approximate test of A",
+     "value": "0.17",
+     "where": {
+      "page": 594,
+      "source_kind": "prose",
+      "quote": "The P-value is approximately 0.17"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1,
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "synthesized error",
+     "term": "(4) + (5) − (7)",
+     "value": "MSAB + MSAC − MSABC",
+     "analysis": "202.00 + 34.47 − 13.84, the error mean square Table 13.11 prints",
+     "where": {
+      "page": 595,
+      "source_kind": "prose",
+      "quote": "the error mean square for testing factor A is (4) + (5) − (7) = MSAB + MSAC − MSABC"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "value",
+      "printed": "222.63"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT, restricted",
+     "value": "2.30",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT ... 2.30 0.171"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT, restricted",
+     "value": "0.171",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT ... 2.30 0.171"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Operator, restricted",
+     "value": "4.05",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Operator ... 4.05 0.069"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Operator, restricted",
+     "value": "0.069",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Operator ... 4.05 0.069"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Gauge, restricted",
+     "value": "0.10",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Gauge ... 0.10 0.904"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Gauge, restricted",
+     "value": "0.904",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Gauge ... 0.10 0.904"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1
+      },
+      "denominator": {
+       "operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT*Operator, restricted",
+     "value": "14.59",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Operator ... 14.59 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT*Operator, restricted",
+     "value": "0.000",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Operator ... 14.59 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "p",
+      "printed": "<0.0005"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT*Gauge, restricted",
+     "value": "2.49",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Gauge ... 2.49 0.099"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT*Gauge, restricted",
+     "value": "0.099",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Gauge ... 2.49 0.099"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Operator*Gauge, restricted",
+     "value": "1.63",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Operator*Gauge ... 1.63 0.167"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Operator*Gauge, restricted",
+     "value": "0.167",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Operator*Gauge ... 1.63 0.167"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT*Operator*Gauge, restricted",
+     "value": "0.65",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Operator*Gauge ... 0.65 0.788"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT*Operator*Gauge, restricted",
+     "value": "0.788",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Operator*Gauge ... 0.65 0.788"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Operator, restricted",
+     "value": "5.909",
+     "analysis": "the restricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Operator 5.909"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1,
+       "operator:gauge": -1
+      },
+      "divisor": 18,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Gauge, restricted",
+     "value": "−1.305",
+     "analysis": "the restricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Gauge −1.305"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1,
+       "operator:gauge": -1
+      },
+      "divisor": 24,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "GasT*Operator, restricted",
+     "value": "31.359",
+     "analysis": "the restricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Operator 31.359"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "GasT*Gauge, restricted",
+     "value": "2.579",
+     "analysis": "the restricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Gauge 2.579"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 8,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Operator*Gauge, restricted",
+     "value": "2.252",
+     "analysis": "the restricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Operator*Gauge 2.252"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1,
+       "Residual": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "GasT*Operator*Gauge, restricted",
+     "value": "−3.780",
+     "analysis": "the restricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... GasT*Operator*Gauge −3.780"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Error, restricted",
+     "value": "21.403",
+     "analysis": "the restricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Error 21.403"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "synthesized error df",
+     "term": "GasT, restricted",
+     "value": "6.97",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Error Terms for Synthesized Tests ... GasT 6.97 222.63"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "df"
+     }
+    },
+    {
+     "what": "synthesized error ms",
+     "term": "GasT, restricted",
+     "value": "222.63",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Error Terms for Synthesized Tests ... GasT 6.97 222.63"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "expected mean squares",
+     "term": "restricted model",
+     "value": "Minitab's (8) + 2(7) + ... rows",
+     "where": {
+      "page": 596,
+      "source_kind": "table",
+      "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Expected Mean Square for Each Term (using restricted model)"
+     },
+     "check": {
+      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT, unrestricted",
+     "value": "2.30",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT ... 2.30 0.171"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT, unrestricted",
+     "value": "0.171",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT ... 2.30 0.171"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Operator, unrestricted",
+     "value": "0.63",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Operator ... 0.63 0.616"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Operator, unrestricted",
+     "value": "0.616",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Operator ... 0.63 0.616"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1
+      },
+      "denominator": {
+       "temp:operator": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Gauge, unrestricted",
+     "value": "0.06",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Gauge ... 0.06 0.938"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1
+      },
+      "denominator": {
+       "temp:gauge": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Gauge, unrestricted",
+     "value": "0.938",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Gauge ... 0.06 0.938"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1
+      },
+      "denominator": {
+       "temp:gauge": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT*Operator, unrestricted",
+     "value": "14.59",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Operator ... 14.59 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT*Operator, unrestricted",
+     "value": "0.000",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Operator ... 14.59 0.000"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "p",
+      "printed": "<0.0005"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT*Gauge, unrestricted",
+     "value": "2.49",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Gauge ... 2.49 0.099"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT*Gauge, unrestricted",
+     "value": "0.099",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Gauge ... 2.49 0.099"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Operator*Gauge, unrestricted",
+     "value": "2.52",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Operator*Gauge ... 2.52 0.081"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "Operator*Gauge, unrestricted",
+     "value": "0.081",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Operator*Gauge ... 2.52 0.081"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1
+      },
+      "denominator": {
+       "temp:operator:gauge": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "f",
+     "term": "GasT*Operator*Gauge, unrestricted",
+     "value": "0.65",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Operator*Gauge ... 0.65 0.788"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "f"
+     }
+    },
+    {
+     "what": "p",
+     "term": "GasT*Operator*Gauge, unrestricted",
+     "value": "0.788",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Operator*Gauge ... 0.65 0.788"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1
+      },
+      "denominator": {
+       "Residual": 1
+      },
+      "key": "p"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Operator, unrestricted",
+     "value": "−4.544",
+     "analysis": "the unrestricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Operator −4.544"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator": 1,
+       "temp:operator": -1,
+       "operator:gauge": -1,
+       "temp:operator:gauge": 1
+      },
+      "divisor": 18,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Gauge, unrestricted",
+     "value": "−2.164",
+     "analysis": "the unrestricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Gauge −2.164"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "gauge": 1,
+       "temp:gauge": -1,
+       "operator:gauge": -1,
+       "temp:operator:gauge": 1
+      },
+      "divisor": 24,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "GasT*Operator, unrestricted",
+     "value": "31.359",
+     "analysis": "the unrestricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Operator 31.359"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "GasT*Gauge, unrestricted",
+     "value": "2.579",
+     "analysis": "the unrestricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Gauge 2.579"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 8,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Operator*Gauge, unrestricted",
+     "value": "3.512",
+     "analysis": "the unrestricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Operator*Gauge 3.512"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "GasT*Operator*Gauge, unrestricted",
+     "value": "−3.780",
+     "analysis": "the unrestricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... GasT*Operator*Gauge −3.780"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator:gauge": 1,
+       "Residual": -1
+      },
+      "divisor": 2,
+      "key": "value"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "Error, unrestricted",
+     "value": "21.403",
+     "analysis": "the unrestricted model's expected mean squares equated to the mean squares",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Error 21.403"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "Residual": 1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "synthesized error df",
+     "term": "GasT, unrestricted",
+     "value": "6.97",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Error Terms for Synthesized Tests ... GasT 6.97 222.63"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "df"
+     }
+    },
+    {
+     "what": "synthesized error ms",
+     "term": "GasT, unrestricted",
+     "value": "222.63",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Error Terms for Synthesized Tests ... GasT 6.97 222.63"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "synthesized error df",
+     "term": "Operator, unrestricted",
+     "value": "7.09",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Error Terms for Synthesized Tests ... Operator 7.09 223.06"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "df"
+     }
+    },
+    {
+     "what": "synthesized error ms",
+     "term": "Operator, unrestricted",
+     "value": "223.06",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Error Terms for Synthesized Tests ... Operator 7.09 223.06"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "synthesized error df",
+     "term": "Gauge, unrestricted",
+     "value": "5.98",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Error Terms for Synthesized Tests ... Gauge 5.98 55.54"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "df"
+     }
+    },
+    {
+     "what": "synthesized error ms",
+     "term": "Gauge, unrestricted",
+     "value": "55.54",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Error Terms for Synthesized Tests ... Gauge 5.98 55.54"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:gauge": 1,
+       "operator:gauge": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 1,
+      "key": "value"
+     }
+    },
+    {
+     "what": "expected mean squares",
+     "term": "unrestricted model",
+     "value": "Minitab's (8) + 2(7) + ... rows",
+     "where": {
+      "page": 597,
+      "source_kind": "table",
+      "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Expected Mean Square for Each Term (using unrestricted model)"
+     },
+     "check": {
+      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²τβ",
+     "value": "31.36",
+     "where": {
+      "page": 599,
+      "source_kind": "prose",
+      "quote": "σ̂²τβ = (MSAB − MSABC)/cn = (202.00 − 13.84)/(3)(2) = 31.36 and r = (MSAB − MSABC)²/[MS²AB/(a − 1)(b − 1) + MS²ABC/(a − 1)(b − 1)(c − 1)] = (202.00 − 13.84)²/[(202.00)²/(2)(3) + (13.84)²/(2)(3)(2)] = 5.19"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "df",
+     "term": "r",
+     "value": "5.19",
+     "where": {
+      "page": 599,
+      "source_kind": "prose",
+      "quote": "σ̂²τβ = (MSAB − MSABC)/cn = (202.00 − 13.84)/(3)(2) = 31.36 and r = (MSAB − MSABC)²/[MS²AB/(a − 1)(b − 1) + MS²ABC/(a − 1)(b − 1)(c − 1)] = (202.00 − 13.84)²/[(202.00)²/(2)(3) + (13.84)²/(2)(3)(2)] = 5.19"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "df"
+     }
+    },
+    {
+     "what": "chi-square points",
+     "term": "χ²0.025,r and χ²0.975,r",
+     "value": "13.14 0.90",
+     "where": {
+      "page": 599,
+      "source_kind": "prose",
+      "quote": "(5.19)(31.36)/13.14 ≤ σ²τβ ≤ (5.19)(31.36)/0.90 12.39 ≤ σ²τβ ≤ 180.84"
+     },
+     "check": {
+      "manual": "a percentage point of the chi-square distribution on fractional degrees of freedom, which the library does not compute"
+     }
+    },
+    {
+     "what": "interval low",
+     "term": "approximate 95 percent on σ²τβ",
+     "value": "12.39",
+     "where": {
+      "page": 599,
+      "source_kind": "prose",
+      "quote": "(5.19)(31.36)/13.14 ≤ σ²τβ ≤ (5.19)(31.36)/0.90 12.39 ≤ σ²τβ ≤ 180.84"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "chi2_low",
+      "disagreement": "r σ̂²τβ/χ²0.025,r = 5.194 × 31.36/13.151 = 12.38; the text divides by the chi-square point rounded to 13.14"
+     }
+    },
+    {
+     "what": "interval high",
+     "term": "approximate 95 percent on σ²τβ",
+     "value": "180.84",
+     "where": {
+      "page": 599,
+      "source_kind": "prose",
+      "quote": "(5.19)(31.36)/13.14 ≤ σ²τβ ≤ (5.19)(31.36)/0.90 12.39 ≤ σ²τβ ≤ 180.84"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "chi2_high",
+      "disagreement": "r σ̂²τβ/χ²0.975,r = 5.194 × 31.36/0.9058 = 179.83; the text divides by the chi-square point rounded to 0.90"
+     }
+    },
+    {
+     "what": "variance component",
+     "term": "σ̂²τβ, modified large-sample",
+     "value": "31.359",
+     "where": {
+      "page": 601,
+      "source_kind": "prose",
+      "quote": "σ̂²τβ = (MSAB − MSABC)/cn = (202.00 − 13.84)/(3)(2) = 31.359"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "value"
+     }
+    },
+    {
+     "what": "large-sample constants",
+     "term": "G1, H2, G12",
+     "value": "0.524 1.30 −0.054",
+     "where": {
+      "page": 601,
+      "source_kind": "prose",
+      "quote": "G1 = 1 − 1/F0.05,6,∞ = 1 − 1/2.1 = 0.524 H2 = 1/F0.95,12,∞ − 1 = 1/0.435 − 1 = 1.30 ... G12 = −0.054"
+     },
+     "check": {
+      "manual": "functions of percentage points of the F distribution, from the Appendix, which the library does not compute"
+     }
+    },
+    {
+     "what": "VL",
+     "term": "modified large-sample",
+     "value": "316.02",
+     "where": {
+      "page": 601,
+      "source_kind": "prose",
+      "quote": "VL = (0.524)²(1/6)²(202.00)² + (1.3)²(1/6)²(13.84)² + (−0.054)(1/6)(1/6)(202.00)(13.84) = 316.02"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "mls_vl",
+      "disagreement": "315.51 from G1 = 0.5235, H2 = 1.2962 and G12 = −0.0519, the F points unrounded; the text works from F0.05,6,12 rounded to 3.00 and H2 to 1.3, which give G12 = −0.054"
+     }
+    },
+    {
+     "what": "lower limit",
+     "term": "approximate 95 percent on σ²τβ",
+     "value": "13.58",
+     "where": {
+      "page": 601,
+      "source_kind": "prose",
+      "quote": "L = σ̂²τβ − √VL = 31.36 − √316.02 = 13.58"
+     },
+     "check": {
+      "kind": "mean_squares",
+      "model": "temp * operator * gauge",
+      "terms": {
+       "temp:operator": 1,
+       "temp:operator:gauge": -1
+      },
+      "divisor": 6,
+      "key": "mls_low",
+      "disagreement": "31.36 − √315.51 = 13.60 from G1 = 0.5235, H2 = 1.2962 and G12 = −0.0519, the F points unrounded; the text works from F0.05,6,12 rounded to 3.00 and H2 to 1.3, which give G12 = −0.054"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-problem-13-1",
+   "title": "A measurement system: ten parts, each measured three times by two operators (Problem 13.1)",
+   "topics": [
+    "measurement"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "13.8, Problem 13.1",
+    "pages": "601",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "part",
+     "description": "part",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "operator",
+     "description": "operator",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "the measurement",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "two-factor factorial, random factors",
+    "details": "60 readings",
+    "n_runs": 60,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "part",
+     "operator",
+     "measurement",
+     "y"
+    ],
+    "rows": [
+     [
+      "1",
+      "1",
+      1,
+      50
+     ],
+     [
+      "1",
+      "1",
+      2,
+      49
+     ],
+     [
+      "1",
+      "1",
+      3,
+      50
+     ],
+     [
+      "1",
+      "2",
+      1,
+      50
+     ],
+     [
+      "1",
+      "2",
+      2,
+      48
+     ],
+     [
+      "1",
+      "2",
+      3,
+      51
+     ],
+     [
+      "2",
+      "1",
+      1,
+      52
+     ],
+     [
+      "2",
+      "1",
+      2,
+      52
+     ],
+     [
+      "2",
+      "1",
+      3,
+      51
+     ],
+     [
+      "2",
+      "2",
+      1,
+      51
+     ],
+     [
+      "2",
+      "2",
+      2,
+      51
+     ],
+     [
+      "2",
+      "2",
+      3,
+      51
+     ],
+     [
+      "3",
+      "1",
+      1,
+      53
+     ],
+     [
+      "3",
+      "1",
+      2,
+      50
+     ],
+     [
+      "3",
+      "1",
+      3,
+      50
+     ],
+     [
+      "3",
+      "2",
+      1,
+      54
+     ],
+     [
+      "3",
+      "2",
+      2,
+      52
+     ],
+     [
+      "3",
+      "2",
+      3,
+      51
+     ],
+     [
+      "4",
+      "1",
+      1,
+      49
+     ],
+     [
+      "4",
+      "1",
+      2,
+      51
+     ],
+     [
+      "4",
+      "1",
+      3,
+      50
+     ],
+     [
+      "4",
+      "2",
+      1,
+      48
+     ],
+     [
+      "4",
+      "2",
+      2,
+      50
+     ],
+     [
+      "4",
+      "2",
+      3,
+      51
+     ],
+     [
+      "5",
+      "1",
+      1,
+      48
+     ],
+     [
+      "5",
+      "1",
+      2,
+      49
+     ],
+     [
+      "5",
+      "1",
+      3,
+      48
+     ],
+     [
+      "5",
+      "2",
+      1,
+      48
+     ],
+     [
+      "5",
+      "2",
+      2,
+      49
+     ],
+     [
+      "5",
+      "2",
+      3,
+      48
+     ],
+     [
+      "6",
+      "1",
+      1,
+      52
+     ],
+     [
+      "6",
+      "1",
+      2,
+      50
+     ],
+     [
+      "6",
+      "1",
+      3,
+      50
+     ],
+     [
+      "6",
+      "2",
+      1,
+      52
+     ],
+     [
+      "6",
+      "2",
+      2,
+      50
+     ],
+     [
+      "6",
+      "2",
+      3,
+      50
+     ],
+     [
+      "7",
+      "1",
+      1,
+      51
+     ],
+     [
+      "7",
+      "1",
+      2,
+      51
+     ],
+     [
+      "7",
+      "1",
+      3,
+      51
+     ],
+     [
+      "7",
+      "2",
+      1,
+      51
+     ],
+     [
+      "7",
+      "2",
+      2,
+      50
+     ],
+     [
+      "7",
+      "2",
+      3,
+      50
+     ],
+     [
+      "8",
+      "1",
+      1,
+      52
+     ],
+     [
+      "8",
+      "1",
+      2,
+      50
+     ],
+     [
+      "8",
+      "1",
+      3,
+      49
+     ],
+     [
+      "8",
+      "2",
+      1,
+      53
+     ],
+     [
+      "8",
+      "2",
+      2,
+      48
+     ],
+     [
+      "8",
+      "2",
+      3,
+      50
+     ],
+     [
+      "9",
+      "1",
+      1,
+      50
+     ],
+     [
+      "9",
+      "1",
+      2,
+      51
+     ],
+     [
+      "9",
+      "1",
+      3,
+      50
+     ],
+     [
+      "9",
+      "2",
+      1,
+      51
+     ],
+     [
+      "9",
+      "2",
+      2,
+      48
+     ],
+     [
+      "9",
+      "2",
+      3,
+      49
+     ],
+     [
+      "10",
+      "1",
+      1,
+      47
+     ],
+     [
+      "10",
+      "1",
+      2,
+      46
+     ],
+     [
+      "10",
+      "1",
+      3,
+      49
+     ],
+     [
+      "10",
+      "2",
+      1,
+      46
+     ],
+     [
+      "10",
+      "2",
+      2,
+      47
+     ],
+     [
+      "10",
+      "2",
+      3,
+      48
+     ]
+    ],
+    "coded": false,
+    "notes": "Table P13.1, part by part, each operator's three measurements in turn"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "Problems 13.6, 13.10, 13.26, 13.28, 13.32 and 13.34 reanalyse these data."
+  },
+  {
+   "name": "montgomery-problem-13-2",
+   "title": "Thermal impedance of a power module: ten parts, each tested three times by three inspectors (Hoof and Berman 1988) (Problem 13.2)",
+   "topics": [
+    "electrical-electronic",
+    "measurement"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "13.8, Problem 13.2",
+    "pages": "601-602",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "part",
+     "description": "part",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "inspector",
+     "description": "inspector",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2",
+      "3"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "the measurement",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "two-factor factorial, random factors",
+    "details": "90 readings",
+    "n_runs": 90,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "part",
+     "inspector",
+     "test",
+     "y"
+    ],
+    "rows": [
+     [
+      "1",
+      "1",
+      1,
+      37
+     ],
+     [
+      "1",
+      "1",
+      2,
+      38
+     ],
+     [
+      "1",
+      "1",
+      3,
+      37
+     ],
+     [
+      "1",
+      "2",
+      1,
+      41
+     ],
+     [
+      "1",
+      "2",
+      2,
+      41
+     ],
+     [
+      "1",
+      "2",
+      3,
+      40
+     ],
+     [
+      "1",
+      "3",
+      1,
+      41
+     ],
+     [
+      "1",
+      "3",
+      2,
+      42
+     ],
+     [
+      "1",
+      "3",
+      3,
+      41
+     ],
+     [
+      "2",
+      "1",
+      1,
+      42
+     ],
+     [
+      "2",
+      "1",
+      2,
+      41
+     ],
+     [
+      "2",
+      "1",
+      3,
+      43
+     ],
+     [
+      "2",
+      "2",
+      1,
+      42
+     ],
+     [
+      "2",
+      "2",
+      2,
+      42
+     ],
+     [
+      "2",
+      "2",
+      3,
+      42
+     ],
+     [
+      "2",
+      "3",
+      1,
+      43
+     ],
+     [
+      "2",
+      "3",
+      2,
+      42
+     ],
+     [
+      "2",
+      "3",
+      3,
+      43
+     ],
+     [
+      "3",
+      "1",
+      1,
+      30
+     ],
+     [
+      "3",
+      "1",
+      2,
+      31
+     ],
+     [
+      "3",
+      "1",
+      3,
+      31
+     ],
+     [
+      "3",
+      "2",
+      1,
+      31
+     ],
+     [
+      "3",
+      "2",
+      2,
+      31
+     ],
+     [
+      "3",
+      "2",
+      3,
+      31
+     ],
+     [
+      "3",
+      "3",
+      1,
+      29
+     ],
+     [
+      "3",
+      "3",
+      2,
+      30
+     ],
+     [
+      "3",
+      "3",
+      3,
+      28
+     ],
+     [
+      "4",
+      "1",
+      1,
+      42
+     ],
+     [
+      "4",
+      "1",
+      2,
+      43
+     ],
+     [
+      "4",
+      "1",
+      3,
+      42
+     ],
+     [
+      "4",
+      "2",
+      1,
+      43
+     ],
+     [
+      "4",
+      "2",
+      2,
+      43
+     ],
+     [
+      "4",
+      "2",
+      3,
+      43
+     ],
+     [
+      "4",
+      "3",
+      1,
+      42
+     ],
+     [
+      "4",
+      "3",
+      2,
+      42
+     ],
+     [
+      "4",
+      "3",
+      3,
+      42
+     ],
+     [
+      "5",
+      "1",
+      1,
+      28
+     ],
+     [
+      "5",
+      "1",
+      2,
+      30
+     ],
+     [
+      "5",
+      "1",
+      3,
+      29
+     ],
+     [
+      "5",
+      "2",
+      1,
+      29
+     ],
+     [
+      "5",
+      "2",
+      2,
+      30
+     ],
+     [
+      "5",
+      "2",
+      3,
+      29
+     ],
+     [
+      "5",
+      "3",
+      1,
+      31
+     ],
+     [
+      "5",
+      "3",
+      2,
+      29
+     ],
+     [
+      "5",
+      "3",
+      3,
+      29
+     ],
+     [
+      "6",
+      "1",
+      1,
+      42
+     ],
+     [
+      "6",
+      "1",
+      2,
+      42
+     ],
+     [
+      "6",
+      "1",
+      3,
+      43
+     ],
+     [
+      "6",
+      "2",
+      1,
+      45
+     ],
+     [
+      "6",
+      "2",
+      2,
+      45
+     ],
+     [
+      "6",
+      "2",
+      3,
+      45
+     ],
+     [
+      "6",
+      "3",
+      1,
+      44
+     ],
+     [
+      "6",
+      "3",
+      2,
+      46
+     ],
+     [
+      "6",
+      "3",
+      3,
+      45
+     ],
+     [
+      "7",
+      "1",
+      1,
+      25
+     ],
+     [
+      "7",
+      "1",
+      2,
+      26
+     ],
+     [
+      "7",
+      "1",
+      3,
+      27
+     ],
+     [
+      "7",
+      "2",
+      1,
+      28
+     ],
+     [
+      "7",
+      "2",
+      2,
+      28
+     ],
+     [
+      "7",
+      "2",
+      3,
+      30
+     ],
+     [
+      "7",
+      "3",
+      1,
+      29
+     ],
+     [
+      "7",
+      "3",
+      2,
+      27
+     ],
+     [
+      "7",
+      "3",
+      3,
+      27
+     ],
+     [
+      "8",
+      "1",
+      1,
+      40
+     ],
+     [
+      "8",
+      "1",
+      2,
+      40
+     ],
+     [
+      "8",
+      "1",
+      3,
+      40
+     ],
+     [
+      "8",
+      "2",
+      1,
+      43
+     ],
+     [
+      "8",
+      "2",
+      2,
+      42
+     ],
+     [
+      "8",
+      "2",
+      3,
+      42
+     ],
+     [
+      "8",
+      "3",
+      1,
+      43
+     ],
+     [
+      "8",
+      "3",
+      2,
+      43
+     ],
+     [
+      "8",
+      "3",
+      3,
+      41
+     ],
+     [
+      "9",
+      "1",
+      1,
+      25
+     ],
+     [
+      "9",
+      "1",
+      2,
+      25
+     ],
+     [
+      "9",
+      "1",
+      3,
+      25
+     ],
+     [
+      "9",
+      "2",
+      1,
+      27
+     ],
+     [
+      "9",
+      "2",
+      2,
+      29
+     ],
+     [
+      "9",
+      "2",
+      3,
+      28
+     ],
+     [
+      "9",
+      "3",
+      1,
+      26
+     ],
+     [
+      "9",
+      "3",
+      2,
+      26
+     ],
+     [
+      "9",
+      "3",
+      3,
+      26
+     ],
+     [
+      "10",
+      "1",
+      1,
+      35
+     ],
+     [
+      "10",
+      "1",
+      2,
+      34
+     ],
+     [
+      "10",
+      "1",
+      3,
+      34
+     ],
+     [
+      "10",
+      "2",
+      1,
+      35
+     ],
+     [
+      "10",
+      "2",
+      2,
+      35
+     ],
+     [
+      "10",
+      "2",
+      3,
+      34
+     ],
+     [
+      "10",
+      "3",
+      1,
+      35
+     ],
+     [
+      "10",
+      "3",
+      2,
+      34
+     ],
+     [
+      "10",
+      "3",
+      3,
+      35
+     ]
+    ],
+    "coded": false,
+    "notes": "Table P13.2, part by part, each inspector's three tests in turn"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "The response is thermal impedance in °C/W × 100. Problems 13.7 and 13.11 reanalyse these data."
   }
  ],
  "designs": [
@@ -228476,6 +236494,14 @@
   "Figures 12.7 to 12.12 (pp. 563 to 566): contours of the mean and of the propagation of error for Examples 12.1 and 12.2, and the limits chosen for their overlays, mean ≤ 30 and standard deviation ≤ 5 in Example 12.2",
   "Problems 12.1 to 12.8, 12.12 to 12.17 and 12.19 to 12.21 (pp. 570 to 572): analyses of the data of Tables 12.1 and 12.2 and of Problems 6.15, 6.20, 11.11 and 11.12, and designs to construct, without data of their own; Problem 12.5 calls itself the continuation of Problem 12.5 and compares with the crossed array of Problem 12.5, misprints for 12.4",
   "Problem 12.10(b) and (c) (pp. 571 and 572): the marginal averages of the CO response at each level of the four factors, asked for and not printed",
-  "Supplemental material S12.1 and S12.2: Taguchi's methods, on the textbook website, not in these pages"
+  "Supplemental material S12.1 and S12.2: Taguchi's methods, on the textbook website, not in these pages",
+  "13.1 (pp. 573 and 574): random factors and the inference space, in words",
+  "13.2 (pp. 574 and 575, 578 and 579): the two-factor random model, its expected mean squares and moment estimators, Equations 13.1 to 13.7, and the likelihood and covariance matrix of the a = b = n = 2 case, in symbols",
+  "13.3 (pp. 581 to 585): the restricted, unrestricted and Scheffé mixed models, Equations 13.8 to 13.13, in symbols",
+  "13.4 and Example 13.4 (pp. 587 and 588): sample sizes from operating characteristic curves, Equations 13.14 to 13.16 and Table 13.7, in symbols; Example 13.4's θ = √(1 + 6) = 2.646 and β ≈ 0.20, read from Chart VI of the Appendix, which the library does not compute",
+  "13.5 and Example 13.5 (pp. 588 to 591): the rules for expected mean squares and Table 13.8, the three-factor random model's, in symbols; the library derives no expected mean squares",
+  "Figure 13.2 (p. 595): the A × B and A × C cell totals of the pressure drop data, drawn",
+  "13.7.1 and 13.7.2 (pp. 597 to 600): the exact interval on σ² and the Satterthwaite and modified large-sample intervals, Equations 13.22 to 13.30, in symbols",
+  "Problems 13.3 to 13.35 but 13.1 and 13.2 (pp. 602 and 603): reanalyses of the data of Problems 5.8, 5.13, 5.15, 5.19, 13.1 and 13.2 and of Example 13.6, and derivations, without data of their own"
  ]
 }
