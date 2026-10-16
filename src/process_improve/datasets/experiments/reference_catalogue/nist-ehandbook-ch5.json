@@ -5973,7 +5973,7 @@
      "what": "F statistic",
      "term": null,
      "value": "187.8",
-     "analysis": "the 11-effect model fitted to the transformed response Y:NewStrength, (y^0.2 - 1)/(0.2 gm^(-0.8)) with gm the geometric mean of the 32 strengths (the R code's newredmod), as printed by R's summary.lm",
+     "analysis": "the library's fit of X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5: the overall F statistic",
      "where": {
       "page": "5.4.7.1 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri471.r",
@@ -5981,7 +5981,9 @@
       "quote": "##> F-statistic: 187.8 on 11 and 20 DF, p-value: < 2.2e-16"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes (its two mean squares are not printed)"
+      "model": "X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5",
+      "response": "new_strength",
+      "kind": "f_regression"
      }
     },
     {
@@ -6023,7 +6025,7 @@
      "what": "residual first quartile",
      "term": null,
      "value": "-3.717",
-     "analysis": "the 11-effect model fitted to the transformed response Y:NewStrength, (y^0.2 - 1)/(0.2 gm^(-0.8)) with gm the geometric mean of the 32 strengths (the R code's newredmod), as printed by R's summary.lm",
+     "analysis": "the library's fit of X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5: the first quartile of the residuals",
      "where": {
       "page": "5.4.7.1 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri471.r",
@@ -6031,14 +6033,17 @@
       "quote": "##> Residuals: ##> Min 1Q Median 3Q Max ##> -29.468 -3.717 -1.389 6.560 20.294"
      },
      "check": {
-      "manual": "a quartile of the 32 residuals, which no check kind computes"
+      "model": "X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5",
+      "response": "new_strength",
+      "kind": "residual_quantile",
+      "q": 0.25
      }
     },
     {
      "what": "residual median",
      "term": null,
      "value": "-1.389",
-     "analysis": "the 11-effect model fitted to the transformed response Y:NewStrength, (y^0.2 - 1)/(0.2 gm^(-0.8)) with gm the geometric mean of the 32 strengths (the R code's newredmod), as printed by R's summary.lm",
+     "analysis": "the library's fit of X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5: the median of the residuals",
      "where": {
       "page": "5.4.7.1 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri471.r",
@@ -6046,14 +6051,17 @@
       "quote": "##> Residuals: ##> Min 1Q Median 3Q Max ##> -29.468 -3.717 -1.389 6.560 20.294"
      },
      "check": {
-      "manual": "a quartile of the 32 residuals, which no check kind computes"
+      "model": "X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5",
+      "response": "new_strength",
+      "kind": "residual_quantile",
+      "q": 0.5
      }
     },
     {
      "what": "residual 3q",
      "term": null,
      "value": "6.560",
-     "analysis": "the 11-effect model fitted to the transformed response Y:NewStrength, (y^0.2 - 1)/(0.2 gm^(-0.8)) with gm the geometric mean of the 32 strengths (the R code's newredmod), as printed by R's summary.lm",
+     "analysis": "the library's fit of X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5: the third quartile of the residuals",
      "where": {
       "page": "5.4.7.1 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri471.r",
@@ -6061,7 +6069,10 @@
       "quote": "##> Residuals: ##> Min 1Q Median 3Q Max ##> -29.468 -3.717 -1.389 6.560 20.294"
      },
      "check": {
-      "manual": "a quartile of the 32 residuals, which no check kind computes"
+      "model": "X1 + X2 + X1:X2 + X3 + X1:X3 + X4 + X1:X4 + X2:X4 + X1:X2:X4 + X3:X4 + X5",
+      "response": "new_strength",
+      "kind": "residual_quantile",
+      "q": 0.75
      }
     },
     {
@@ -7433,7 +7444,7 @@
      "what": "F statistic",
      "term": null,
      "value": "8.905",
-     "analysis": "the trial model: all main effects and two-factor interactions, distance on the coded factors (the R code's lm of h+s+b+l+e and the ten products)",
+     "analysis": "the library's fit of (h + s + b + l + e)**2: the overall F statistic",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7441,7 +7452,8 @@
       "quote": "F-statistic: 8.905, based on 15 and 4 degrees of freedom"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes; its residual mean square is checked through the residual standard deviation"
+      "model": "(h + s + b + l + e)**2",
+      "kind": "f_regression"
      }
     },
     {
@@ -7464,7 +7476,7 @@
      "what": "p-value of the regression",
      "term": null,
      "value": "0.02375",
-     "analysis": "the trial model: all main effects and two-factor interactions, distance on the coded factors (the R code's lm of h+s+b+l+e and the ten products)",
+     "analysis": "the library's fit of (h + s + b + l + e)**2: the p-value of the overall F test",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7472,7 +7484,8 @@
       "quote": "p-value: 0.02375"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "(h + s + b + l + e)**2",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -7621,7 +7634,7 @@
      "what": "F value of the model",
      "term": null,
      "value": "22.77",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the overall F statistic",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7629,14 +7642,16 @@
       "quote": "Total error 13 2106.99 162.1 22.77 3.5e-06"
      },
      "check": {
-      "manual": "the overall F statistic of the regression (3691.6 / 162.1), which no check kind computes; R's summary in the page's R code prints 22.78"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "f_regression",
+      "disagreement": "Dataplot prints 22.77 for 22.776, which R's summary prints as 22.78"
      }
     },
     {
      "what": "p-value of the model",
      "term": null,
      "value": "3.5e-06",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the p-value of the overall F test",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7644,14 +7659,15 @@
       "quote": "Total error 13 2106.99 162.1 22.77 3.5e-06"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "f_regression_p"
      }
     },
     {
      "what": "lack-of-fit degrees of freedom",
      "term": null,
      "value": "11",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the lack-of-fit degrees of freedom",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7659,14 +7675,15 @@
       "quote": "Lack-of-fit 11 1973.74 179.4"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "lack_of_fit_df"
      }
     },
     {
      "what": "lack-of-fit sum of squares",
      "term": null,
      "value": "1973.74",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the lack-of-fit sum of squares",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7674,14 +7691,15 @@
       "quote": "Lack-of-fit 11 1973.74 179.4"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "lack_of_fit_ss"
      }
     },
     {
      "what": "lack-of-fit mean square",
      "term": null,
      "value": "179.4",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the lack-of-fit mean square",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7689,7 +7707,8 @@
       "quote": "Lack-of-fit 11 1973.74 179.4"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "lack_of_fit_ms"
      }
     },
     {
@@ -7712,7 +7731,7 @@
      "what": "pure-error sum of squares",
      "term": null,
      "value": "133.25",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of (h + s + b + l + e)**2: the pure-error sum of squares",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -7720,7 +7739,8 @@
       "quote": "Pure error 2 133.25 66.6 2.69 0.3018"
      },
      "check": {
-      "manual": "no check kind reads the pure-error sum of squares, though the library's lack_of_fit result holds it"
+      "model": "(h + s + b + l + e)**2",
+      "kind": "pure_error_ss"
      }
     },
     {
@@ -9587,7 +9607,7 @@
      "what": "F statistic",
      "term": null,
      "value": "5.845",
-     "analysis": "the trial model fitted to ln(distance): all main effects and two-factor interactions on the coded factors",
+     "analysis": "the library's fit of (h + s + b + l + e)**2: the overall F statistic",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9595,7 +9615,9 @@
       "quote": "F-statistic: 5.845 based on 15 and 4 degrees of freedom"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "(h + s + b + l + e)**2",
+      "response": "ln_distance",
+      "kind": "f_regression"
      }
     },
     {
@@ -9619,7 +9641,7 @@
      "what": "p-value of the regression",
      "term": null,
      "value": "0.0502",
-     "analysis": "the trial model fitted to ln(distance): all main effects and two-factor interactions on the coded factors",
+     "analysis": "the library's fit of (h + s + b + l + e)**2: the p-value of the overall F test",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9627,7 +9649,9 @@
       "quote": "F-statistic: 5.845 based on 15 and 4 degrees of freedom p-value: 0.0502"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "(h + s + b + l + e)**2",
+      "response": "ln_distance",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -9700,7 +9724,7 @@
      "what": "F value of the model",
      "term": null,
      "value": "36.285",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e to ln(distance): the overall F statistic",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9708,14 +9732,17 @@
       "quote": "Model 5 8.02079 1.60416 36.285 1.6e-07"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "f_regression",
+      "disagreement": "Dataplot prints 36.285 for 36.284, which R's summary prints as 36.28"
      }
     },
     {
      "what": "p-value of the model",
      "term": null,
      "value": "1.6e-07",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e to ln(distance): the p-value of the overall F test",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9723,7 +9750,9 @@
       "quote": "Model 5 8.02079 1.60416 36.285 1.6e-07"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -9781,7 +9810,7 @@
      "what": "lack-of-fit degrees of freedom",
      "term": null,
      "value": "12",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the lack-of-fit degrees of freedom",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9789,14 +9818,16 @@
       "quote": "Lack-of-fit 12 0.58980 0.04915"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "lack_of_fit_df"
      }
     },
     {
      "what": "lack-of-fit sum of squares",
      "term": null,
      "value": "0.58980",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the lack-of-fit sum of squares",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9804,14 +9835,16 @@
       "quote": "Lack-of-fit 12 0.58980 0.04915"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "lack_of_fit_ss"
      }
     },
     {
      "what": "lack-of-fit mean square",
      "term": null,
      "value": "0.04915",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the lack-of-fit mean square",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9819,7 +9852,9 @@
       "quote": "Lack-of-fit 12 0.58980 0.04915"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "lack_of_fit_ms"
      }
     },
     {
@@ -9843,7 +9878,7 @@
      "what": "pure-error sum of squares",
      "term": null,
      "value": "0.02916",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of (h + s + b + l + e)**2: the pure-error sum of squares",
      "where": {
       "page": "5.4.7.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.htm",
@@ -9851,7 +9886,9 @@
       "quote": "Pure error 2 0.02916 0.01458 3.371 0.2514"
      },
      "check": {
-      "manual": "no check kind reads the pure-error sum of squares, though the library's lack_of_fit result holds it"
+      "model": "(h + s + b + l + e)**2",
+      "response": "ln_distance",
+      "kind": "pure_error_ss"
      }
     },
     {
@@ -10748,7 +10785,7 @@
      "what": "residual 1Q",
      "term": null,
      "value": "-5.195",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the first quartile of the residuals",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -10756,14 +10793,16 @@
       "quote": "##> Min 1Q Median 3Q Max ##> -23.091 -5.195 -1.528 6.993 22.050"
      },
      "check": {
-      "manual": "a quartile of the 20 residuals, which no check kind computes"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "residual_quantile",
+      "q": 0.25
      }
     },
     {
      "what": "residual Median",
      "term": null,
      "value": "-1.528",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the median of the residuals",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -10771,14 +10810,16 @@
       "quote": "##> Min 1Q Median 3Q Max ##> -23.091 -5.195 -1.528 6.993 22.050"
      },
      "check": {
-      "manual": "a quartile of the 20 residuals, which no check kind computes"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "residual_quantile",
+      "q": 0.5
      }
     },
     {
      "what": "residual 3Q",
      "term": null,
      "value": "6.993",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the third quartile of the residuals",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -10786,14 +10827,16 @@
       "quote": "##> Min 1Q Median 3Q Max ##> -23.091 -5.195 -1.528 6.993 22.050"
      },
      "check": {
-      "manual": "a quartile of the 20 residuals, which no check kind computes"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "residual_quantile",
+      "q": 0.75
      }
     },
     {
      "what": "F statistic",
      "term": null,
      "value": "22.78",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the overall F statistic",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -10801,7 +10844,8 @@
       "quote": "##> F-statistic: 22.78 on 6 and 13 DF, p-value: 3.452e-06"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "f_regression"
      },
      "note": "the page prints 22.77"
     },
@@ -10809,7 +10853,7 @@
      "what": "p-value of the regression",
      "term": null,
      "value": "3.452e-06",
-     "analysis": "the reduced model: the five main effects and b·l (the R code's lm of distance on h+s+b+l+e+bl)",
+     "analysis": "the library's fit of h + s + b + l + e + b:l: the p-value of the overall F test",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -10817,7 +10861,8 @@
       "quote": "##> F-statistic: 22.78 on 6 and 13 DF, p-value: 3.452e-06"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "h + s + b + l + e + b:l",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -11538,7 +11583,7 @@
      "what": "residual 1Q",
      "term": null,
      "value": "-0.13143",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the first quartile of the residuals",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -11546,14 +11591,17 @@
       "quote": "##> Min 1Q Median 3Q Max ##> -0.27259 -0.13143 -0.03024 0.12220 0.38930"
      },
      "check": {
-      "manual": "a quartile of the 20 residuals, which no check kind computes"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "residual_quantile",
+      "q": 0.25
      }
     },
     {
      "what": "residual Median",
      "term": null,
      "value": "-0.03024",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the median of the residuals",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -11561,14 +11609,17 @@
       "quote": "##> Min 1Q Median 3Q Max ##> -0.27259 -0.13143 -0.03024 0.12220 0.38930"
      },
      "check": {
-      "manual": "a quartile of the 20 residuals, which no check kind computes"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "residual_quantile",
+      "q": 0.5
      }
     },
     {
      "what": "residual 3Q",
      "term": null,
      "value": "0.12220",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the third quartile of the residuals",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -11576,14 +11627,17 @@
       "quote": "##> Min 1Q Median 3Q Max ##> -0.27259 -0.13143 -0.03024 0.12220 0.38930"
      },
      "check": {
-      "manual": "a quartile of the 20 residuals, which no check kind computes"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "residual_quantile",
+      "q": 0.75
      }
     },
     {
      "what": "F statistic",
      "term": null,
      "value": "36.28",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the overall F statistic",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -11591,14 +11645,16 @@
       "quote": "##> F-statistic: 36.28 on 5 and 14 DF, p-value: 1.565e-07"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "f_regression"
      }
     },
     {
      "what": "p-value of the regression",
      "term": null,
      "value": "1.565e-07",
-     "analysis": "the main-effects model fitted to ln(distance) (the R code's lm of logdist on h+s+b+l+e)",
+     "analysis": "the library's fit of h + s + b + l + e: the p-value of the overall F test",
      "where": {
       "page": "5.4.7.2 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri472.r",
@@ -11606,7 +11662,9 @@
       "quote": "##> F-statistic: 36.28 on 5 and 14 DF, p-value: 1.565e-07"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "h + s + b + l + e",
+      "response": "ln_distance",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -12607,7 +12665,7 @@
      "what": "F statistic",
      "term": null,
      "value": "6.787",
-     "analysis": "the full quadratic model of Uniformity, on the coded factors as printed (corners at +/-0.71)",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the overall F statistic",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12615,7 +12673,9 @@
       "quote": "F-statistic: 6.787 based on 5 and 5 degrees of freedom"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "uniformity",
+      "kind": "f_regression"
      }
     },
     {
@@ -12639,7 +12699,7 @@
      "what": "p-value of the regression",
      "term": null,
      "value": "0.0278",
-     "analysis": "the full quadratic model of Uniformity, on the coded factors as printed (corners at +/-0.71)",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the p-value of the overall F test",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12647,14 +12707,16 @@
       "quote": "p-value: 0.0278"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "uniformity",
+      "kind": "f_regression_p"
      }
     },
     {
      "what": "AIC",
      "term": null,
      "value": "-3.79",
-     "analysis": "stepwise regression of Uniformity from the full quadratic model",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the AIC R's step prints, n ln(RSS/n) + 2p",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12662,14 +12724,16 @@
       "quote": "Start: AIC=-3.79"
      },
      "check": {
-      "manual": "the AIC of R's step(), n ln(RSS/n) + 2p, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "uniformity",
+      "kind": "aic_step"
      }
     },
     {
      "what": "AIC",
      "term": null,
      "value": "-5.79",
-     "analysis": "stepwise regression of Uniformity from the full quadratic model",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2): the AIC R's step prints, n ln(RSS/n) + 2p",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12677,14 +12741,16 @@
       "quote": "Step 1: Remove H2/WF6^2, AIC=-5.79"
      },
      "check": {
-      "manual": "the AIC of R's step(), n ln(RSS/n) + 2p, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2)",
+      "response": "uniformity",
+      "kind": "aic_step"
      }
     },
     {
      "what": "AIC",
      "term": null,
      "value": "-7.69",
-     "analysis": "stepwise regression of Uniformity from the full quadratic model",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the AIC R's step prints, n ln(RSS/n) + 2p",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12692,14 +12758,16 @@
       "quote": "Step 2: Remove Pressure^2, AIC=-7.69"
      },
      "check": {
-      "manual": "the AIC of R's step(), n ln(RSS/n) + 2p, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "aic_step"
      }
     },
     {
      "what": "AIC",
      "term": null,
      "value": "-8.88",
-     "analysis": "stepwise regression of Uniformity from the full quadratic model",
+     "analysis": "the library's fit of Pressure + Pressure:H2WF6: the AIC R's step prints, n ln(RSS/n) + 2p",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12707,7 +12775,9 @@
       "quote": "Step 3: Remove H2/WF6, AIC=-8.88"
      },
      "check": {
-      "manual": "the AIC of R's step(), n ln(RSS/n) + 2p, which no check kind computes"
+      "model": "Pressure + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "aic_step"
      }
     },
     {
@@ -12766,7 +12836,7 @@
      "what": "F value of the model",
      "term": null,
      "value": "15.66",
-     "analysis": "the reduced model of Uniformity: Pressure, H2/WF6 and their interaction, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the overall F statistic",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12774,14 +12844,16 @@
       "quote": "Model 3 17.739 5.9130 15.66 0.0017"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "f_regression"
      }
     },
     {
      "what": "p-value of the model",
      "term": null,
      "value": "0.0017",
-     "analysis": "the reduced model of Uniformity: Pressure, H2/WF6 and their interaction, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the p-value of the overall F test",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12789,7 +12861,9 @@
       "quote": "Model 3 17.739 5.9130 15.66 0.0017"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -12847,7 +12921,7 @@
      "what": "lack-of-fit degrees of freedom",
      "term": null,
      "value": "5",
-     "analysis": "the reduced model of Uniformity: Pressure, H2/WF6 and their interaction, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the lack-of-fit degrees of freedom",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12855,14 +12929,16 @@
       "quote": "Lack-of-fit 5 1.4963 0.2993 0.52 0.7588"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "lack_of_fit_df"
      }
     },
     {
      "what": "lack-of-fit sum of squares",
      "term": null,
      "value": "1.4963",
-     "analysis": "the reduced model of Uniformity: Pressure, H2/WF6 and their interaction, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the lack-of-fit sum of squares",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12870,14 +12946,16 @@
       "quote": "Lack-of-fit 5 1.4963 0.2993 0.52 0.7588"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "lack_of_fit_ss"
      }
     },
     {
      "what": "lack-of-fit mean square",
      "term": null,
      "value": "0.2993",
-     "analysis": "the reduced model of Uniformity: Pressure, H2/WF6 and their interaction, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the lack-of-fit mean square",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12885,7 +12963,9 @@
       "quote": "Lack-of-fit 5 1.4963 0.2993 0.52 0.7588"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom, sum of squares or mean square, though the library's lack_of_fit result holds them"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "lack_of_fit_ms"
      }
     },
     {
@@ -12943,7 +13023,7 @@
      "what": "pure-error sum of squares",
      "term": null,
      "value": "1.1467",
-     "analysis": "the reduced model of Uniformity: Pressure, H2/WF6 and their interaction, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the pure-error sum of squares",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -12951,7 +13031,9 @@
       "quote": "Pure error 2 1.1467 0.5734"
      },
      "check": {
-      "manual": "no check kind reads the pure-error sum of squares, though the library's lack_of_fit result holds it"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "uniformity",
+      "kind": "pure_error_ss"
      }
     },
     {
@@ -14095,7 +14177,7 @@
      "what": "F value of the model",
      "term": null,
      "value": "151.5",
-     "analysis": "the reduced model of Stress: Pressure, H2/WF6 and Pressure^2, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + I(Pressure**2): the overall F statistic",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -14103,14 +14185,16 @@
       "quote": "Model 3 3.5454 1.1818 151.5 9.9e-07"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "response": "stress",
+      "kind": "f_regression"
      }
     },
     {
      "what": "p-value of the model",
      "term": null,
      "value": "9.9e-07",
-     "analysis": "the reduced model of Stress: Pressure, H2/WF6 and Pressure^2, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + I(Pressure**2): the p-value of the overall F test",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -14118,7 +14202,9 @@
       "quote": "Model 3 3.5454 1.1818 151.5 9.9e-07"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "response": "stress",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -14273,7 +14359,7 @@
      "what": "pure-error sum of squares",
      "term": null,
      "value": "0.022200",
-     "analysis": "the reduced model of Stress: Pressure, H2/WF6 and Pressure^2, on the coded factors as printed",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the pure-error sum of squares",
      "where": {
       "page": "5.4.7.3",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.htm",
@@ -14281,7 +14367,9 @@
       "quote": "Pure error 2 0.022200 0.01110"
      },
      "check": {
-      "manual": "no check kind reads the pure-error sum of squares, though the library's lack_of_fit result holds it"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "kind": "pure_error_ss"
      }
     },
     {
@@ -15147,7 +15235,7 @@
      "what": "F statistic",
      "term": null,
      "value": "6.736",
-     "analysis": "the full quadratic model of Uniformity, fitted by the R code in natural units (lm of uniformity on pressure, h2, ph2, press2, h22)",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the overall F statistic",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15155,14 +15243,16 @@
       "quote": "##> F-statistic: 6.736 on 5 and 5 DF, p-value: 0.02823"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "uniformity",
+      "kind": "f_regression"
      }
     },
     {
      "what": "p-value of the regression",
      "term": null,
      "value": "0.02823",
-     "analysis": "the full quadratic model of Uniformity, fitted by the R code in natural units (lm of uniformity on pressure, h2, ph2, press2, h22)",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the p-value of the overall F test",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15170,7 +15260,9 @@
       "quote": "##> F-statistic: 6.736 on 5 and 5 DF, p-value: 0.02823"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "uniformity",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -15245,7 +15337,7 @@
      "what": "F value of the model",
      "term": null,
      "value": "15.547",
-     "analysis": "the reduced model of Uniformity, pressure, h2 and ph2, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the overall F statistic",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15253,14 +15345,16 @@
       "quote": "##> 1 10 20.3818 ##> 2 7 2.6598 3 17.7220 15.547 0.001772"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "f_regression"
      }
     },
     {
      "what": "p-value of the model",
      "term": null,
      "value": "0.001772",
-     "analysis": "the reduced model of Uniformity, pressure, h2 and ph2, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the p-value of the overall F test",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15268,7 +15362,9 @@
       "quote": "##> 1 10 20.3818 ##> 2 7 2.6598 3 17.7220 15.547 0.001772"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -15539,7 +15635,7 @@
      "what": "lack-of-fit sum of squares",
      "term": null,
      "value": "1.5131",
-     "analysis": "the reduced model of Uniformity, pressure, h2 and ph2, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6: the lack-of-fit sum of squares",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15547,7 +15643,9 @@
       "quote": "##> 1 7 2.6598 ##> 2 2 1.1467 5 1.5131 0.5278 0.7559"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit sum of squares, though the library's lack_of_fit result holds it"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6",
+      "response": "uniformity",
+      "kind": "lack_of_fit_ss"
      }
     },
     {
@@ -15803,7 +15901,7 @@
      "what": "F statistic",
      "term": null,
      "value": "122.3",
-     "analysis": "the full quadratic model of Stress, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the overall F statistic",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15811,14 +15909,16 @@
       "quote": "##> F-statistic: 122.3 on 5 and 5 DF, p-value: 3.192e-05"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "kind": "f_regression"
      }
     },
     {
      "what": "p-value of the regression",
      "term": null,
      "value": "3.192e-05",
-     "analysis": "the full quadratic model of Stress, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2): the p-value of the overall F test",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15826,7 +15926,9 @@
       "quote": "##> F-statistic: 122.3 on 5 and 5 DF, p-value: 3.192e-05"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -15949,7 +16051,7 @@
      "what": "F value of the model",
      "term": null,
      "value": "151.98",
-     "analysis": "the reduced model of Stress, pressure, h2 and press2, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + I(Pressure**2): the overall F statistic",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15957,14 +16059,16 @@
       "quote": "##> 1 10 3.6001 ##> 2 7 0.0544 3 3.5456 151.98 9.84e-07"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "response": "stress",
+      "kind": "f_regression"
      }
     },
     {
      "what": "p-value of the model",
      "term": null,
      "value": "9.84e-07",
-     "analysis": "the reduced model of Stress, pressure, h2 and press2, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + I(Pressure**2): the p-value of the overall F test",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -15972,7 +16076,9 @@
       "quote": "##> 1 10 3.6001 ##> 2 7 0.0544 3 3.5456 151.98 9.84e-07"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "response": "stress",
+      "kind": "f_regression_p"
      }
     },
     {
@@ -16243,7 +16349,7 @@
      "what": "lack-of-fit sum of squares",
      "term": null,
      "value": "0.032235",
-     "analysis": "the reduced model of Stress, pressure, h2 and press2, fitted by the R code in natural units",
+     "analysis": "the library's fit of Pressure + H2WF6 + I(Pressure**2): the lack-of-fit sum of squares",
      "where": {
       "page": "5.4.7.3 (R code)",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section4/pri473.r",
@@ -16251,7 +16357,9 @@
       "quote": "##> 1 7 0.054435 ##> 2 2 0.022200 5 0.032235 0.5808 0.7301"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit sum of squares, though the library's lack_of_fit result holds it"
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "response": "stress",
+      "kind": "lack_of_fit_ss"
      }
     }
    ]
@@ -21333,8 +21441,10 @@
       "quote": "p-value: 7.031e-05"
      },
      "check": {
-      "manual": "the p value of the overall F statistic, which no check kind computes"
-     }
+      "model": "X1 + X2",
+      "kind": "f_regression_p"
+     },
+     "analysis": "the library's fit of X1 + X2: the p-value of the overall F test"
     },
     {
      "what": "predicted value",
@@ -23819,9 +23929,14 @@
       "quote": "MODEL 503.3035 2 251.6517 4.7972 0.0687"
      },
      "check": {
-      "manual": "the F of several first-order terms tested together against the residual; no check computes an F for a group of terms (the ANOVA checks read one row per term)"
+      "kind": "nested_test",
+      "model": "1",
+      "full": "x1 + x2",
+      "error": "x1 + x2 + I(x1**2)",
+      "key": "f"
      },
-     "note": "251.6517/52.4579: the model mean square over the residual left after the curvature row"
+     "note": "251.6517/52.4579: the model mean square over the residual left after the curvature row",
+     "analysis": "the library's nested test of x1 + x2 against the intercept alone, on the residual mean square of x1 + x2 + I(x1**2), as Dataplot tests the model against the error left once the centre runs' curvature is fitted: the F ratio"
     },
     {
      "what": "model p-value",
@@ -23834,8 +23949,13 @@
       "quote": "MODEL 503.3035 2 251.6517 4.7972 0.0687"
      },
      "check": {
-      "manual": "the F of several first-order terms tested together against the residual; no check computes an F for a group of terms (the ANOVA checks read one row per term)"
-     }
+      "kind": "nested_test",
+      "model": "1",
+      "full": "x1 + x2",
+      "error": "x1 + x2 + I(x1**2)",
+      "key": "p"
+     },
+     "analysis": "the library's nested test of x1 + x2 against the intercept alone, on the residual mean square of x1 + x2 + I(x1**2), as Dataplot tests the model against the error left once the centre runs' curvature is fitted: its p-value"
     },
     {
      "what": "curvature sum of squares",
@@ -23972,9 +24092,11 @@
       "quote": "LACK OF FIT 37.6382 1 37.6382 0.6702 0.4590"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
+      "model": "x1 + x2 + I(x1**2)",
+      "kind": "lack_of_fit_ss"
      },
-     "note": "the library's lack_of_fit gives ss_lack_of_fit 37.6382 for x1 + x2 + I(x1**2)"
+     "note": "the library's lack_of_fit gives ss_lack_of_fit 37.6382 for x1 + x2 + I(x1**2)",
+     "analysis": "the library's fit of x1 + x2 + I(x1**2): the lack-of-fit sum of squares"
     },
     {
      "what": "lack-of-fit degrees of freedom",
@@ -23987,8 +24109,10 @@
       "quote": "LACK OF FIT 37.6382 1 37.6382 0.6702 0.4590"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2 + I(x1**2)",
+      "kind": "lack_of_fit_df"
+     },
+     "analysis": "the library's fit of x1 + x2 + I(x1**2): the lack-of-fit degrees of freedom"
     },
     {
      "what": "lack-of-fit mean square",
@@ -24001,8 +24125,10 @@
       "quote": "LACK OF FIT 37.6382 1 37.6382 0.6702 0.4590"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2 + I(x1**2)",
+      "kind": "lack_of_fit_ms"
+     },
+     "analysis": "the library's fit of x1 + x2 + I(x1**2): the lack-of-fit mean square"
     },
     {
      "what": "lack-of-fit F",
@@ -24045,8 +24171,10 @@
       "quote": "PURE ERROR 224.6511 4 56.1628"
      },
      "check": {
-      "manual": "the pure-error sum of squares, which no check kind reads (pure_error_df and pure_error_ms of the same row are checked, and their product is this sum)"
-     }
+      "model": "x1 + x2",
+      "kind": "pure_error_ss"
+     },
+     "analysis": "the library's fit of x1 + x2: the pure-error sum of squares"
     },
     {
      "what": "pure-error degrees of freedom",
@@ -24670,8 +24798,13 @@
       "quote": "MODEL 505.376 2 252.688 4.731 0.0703"
      },
      "check": {
-      "manual": "the F of several first-order terms tested together against the residual; no check computes an F for a group of terms (the ANOVA checks read one row per term)"
-     }
+      "kind": "nested_test",
+      "model": "1",
+      "full": "x1 + x2",
+      "error": "x1 + x2 + I(x1**2)",
+      "key": "f"
+     },
+     "analysis": "the library's nested test of x1 + x2 against the intercept alone, on the residual mean square of x1 + x2 + I(x1**2), as Dataplot tests the model against the error left once the centre runs' curvature is fitted: the F ratio"
     },
     {
      "what": "model p-value",
@@ -24684,8 +24817,13 @@
       "quote": "MODEL 505.376 2 252.688 4.731 0.0703"
      },
      "check": {
-      "manual": "the F of several first-order terms tested together against the residual; no check computes an F for a group of terms (the ANOVA checks read one row per term)"
-     }
+      "kind": "nested_test",
+      "model": "1",
+      "full": "x1 + x2",
+      "error": "x1 + x2 + I(x1**2)",
+      "key": "p"
+     },
+     "analysis": "the library's nested test of x1 + x2 against the intercept alone, on the residual mean square of x1 + x2 + I(x1**2), as Dataplot tests the model against the error left once the centre runs' curvature is fitted: its p-value"
     },
     {
      "what": "curvature sum of squares",
@@ -24821,8 +24959,10 @@
       "quote": "LACK OF FIT 93.896 1 93.896 2.168 0.2149"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2 + I(x1**2)",
+      "kind": "lack_of_fit_ss"
+     },
+     "analysis": "the library's fit of x1 + x2 + I(x1**2): the lack-of-fit sum of squares"
     },
     {
      "what": "lack-of-fit degrees of freedom",
@@ -24835,8 +24975,10 @@
       "quote": "LACK OF FIT 93.896 1 93.896 2.168 0.2149"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2 + I(x1**2)",
+      "kind": "lack_of_fit_df"
+     },
+     "analysis": "the library's fit of x1 + x2 + I(x1**2): the lack-of-fit degrees of freedom"
     },
     {
      "what": "lack-of-fit mean square",
@@ -24849,8 +24991,10 @@
       "quote": "LACK OF FIT 93.896 1 93.896 2.168 0.2149"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2 + I(x1**2)",
+      "kind": "lack_of_fit_ms"
+     },
+     "analysis": "the library's fit of x1 + x2 + I(x1**2): the lack-of-fit mean square"
     },
     {
      "what": "lack-of-fit F",
@@ -24895,8 +25039,10 @@
       "quote": "PURE ERROR 173.179 4 43.295"
      },
      "check": {
-      "manual": "the pure-error sum of squares, which no check kind reads (pure_error_df and pure_error_ms of the same row are checked, and their product is this sum)"
-     }
+      "model": "x1 + x2",
+      "kind": "pure_error_ss"
+     },
+     "analysis": "the library's fit of x1 + x2: the pure-error sum of squares"
     },
     {
      "what": "pure-error degrees of freedom",
@@ -25192,8 +25338,12 @@
       "quote": "Quadratic 768.1 3 256.0 7.69 0.013"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the second-order terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1 + x2",
+      "full": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "ss"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) against x1 + x2: the sequential (extra) sum of squares of the quadratic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "degrees of freedom",
@@ -25206,8 +25356,12 @@
       "quote": "Quadratic 768.1 3 256.0 7.69 0.013"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the second-order terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1 + x2",
+      "full": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "df"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) against x1 + x2: the sequential (extra) degrees of freedom of the quadratic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "mean square",
@@ -25220,8 +25374,12 @@
       "quote": "Quadratic 768.1 3 256.0 7.69 0.013"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the second-order terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1 + x2",
+      "full": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "ms"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) against x1 + x2: the sequential (extra) mean square of the quadratic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "F",
@@ -25234,8 +25392,12 @@
       "quote": "Quadratic 768.1 3 256.0 7.69 0.013"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the second-order terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1 + x2",
+      "full": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "f"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) against x1 + x2: the sequential (extra) F of the quadratic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "p-value",
@@ -25248,8 +25410,12 @@
       "quote": "Quadratic 768.1 3 256.0 7.69 0.013"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the second-order terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1 + x2",
+      "full": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "p"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) against x1 + x2: the sequential (extra) p-value of the quadratic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "sum of squares",
@@ -25262,8 +25428,12 @@
       "quote": "Cubic 9.9 2 5.0 0.11 0.897"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the cubic terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "full": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "key": "ss"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2) against x1*x2 + I(x1**2) + I(x2**2): the sequential (extra) sum of squares of the cubic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "degrees of freedom",
@@ -25276,8 +25446,12 @@
       "quote": "Cubic 9.9 2 5.0 0.11 0.897"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the cubic terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "full": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "key": "df"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2) against x1*x2 + I(x1**2) + I(x2**2): the sequential (extra) degrees of freedom of the cubic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "mean square",
@@ -25290,8 +25464,12 @@
       "quote": "Cubic 9.9 2 5.0 0.11 0.897"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the cubic terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "full": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "key": "ms"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2) against x1*x2 + I(x1**2) + I(x2**2): the sequential (extra) mean square of the cubic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "F",
@@ -25304,8 +25482,12 @@
       "quote": "Cubic 9.9 2 5.0 0.11 0.897"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the cubic terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "full": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "key": "f"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2) against x1*x2 + I(x1**2) + I(x2**2): the sequential (extra) F of the cubic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "p-value",
@@ -25318,8 +25500,12 @@
       "quote": "Cubic 9.9 2 5.0 0.11 0.897"
      },
      "check": {
-      "manual": "a sequential (Type I) sum of squares, mean square, F or p: the extra sum of squares of the cubic terms over the model before them; the checks read Type II rows of one model, and no kind computes the extra sum of squares"
-     }
+      "kind": "nested_test",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "full": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "key": "p"
+     },
+     "analysis": "the library's nested test of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2) against x1*x2 + I(x1**2) + I(x2**2): the sequential (extra) p-value of the cubic terms, tested on the fuller model's residual mean square"
     },
     {
      "what": "residual sum of squares",
@@ -25377,8 +25563,10 @@
       "quote": "Linear 827.9 6 138.0 3.19 0.141"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2",
+      "kind": "lack_of_fit_ss"
+     },
+     "analysis": "the library's fit of x1 + x2: the lack-of-fit sum of squares"
     },
     {
      "what": "lack-of-fit degrees of freedom",
@@ -25391,8 +25579,10 @@
       "quote": "Linear 827.9 6 138.0 3.19 0.141"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2",
+      "kind": "lack_of_fit_df"
+     },
+     "analysis": "the library's fit of x1 + x2: the lack-of-fit degrees of freedom"
     },
     {
      "what": "lack-of-fit mean square",
@@ -25405,8 +25595,10 @@
       "quote": "Linear 827.9 6 138.0 3.19 0.141"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1 + x2",
+      "kind": "lack_of_fit_ms"
+     },
+     "analysis": "the library's fit of x1 + x2: the lack-of-fit mean square"
     },
     {
      "what": "lack-of-fit F",
@@ -25449,8 +25641,10 @@
       "quote": "Quadratic 59.9 3 20.0 0.46 0.725"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "kind": "lack_of_fit_ss"
+     },
+     "analysis": "the library's fit of x1*x2 + I(x1**2) + I(x2**2): the lack-of-fit sum of squares"
     },
     {
      "what": "lack-of-fit degrees of freedom",
@@ -25463,8 +25657,10 @@
       "quote": "Quadratic 59.9 3 20.0 0.46 0.725"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "kind": "lack_of_fit_df"
+     },
+     "analysis": "the library's fit of x1*x2 + I(x1**2) + I(x2**2): the lack-of-fit degrees of freedom"
     },
     {
      "what": "lack-of-fit mean square",
@@ -25477,8 +25673,10 @@
       "quote": "Quadratic 59.9 3 20.0 0.46 0.725"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "kind": "lack_of_fit_ms"
+     },
+     "analysis": "the library's fit of x1*x2 + I(x1**2) + I(x2**2): the lack-of-fit mean square"
     },
     {
      "what": "lack-of-fit F",
@@ -25521,8 +25719,10 @@
       "quote": "Cubic 49.9 1 49.9 1.15 0.343"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "kind": "lack_of_fit_ss"
+     },
+     "analysis": "the library's fit of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2): the lack-of-fit sum of squares"
     },
     {
      "what": "lack-of-fit degrees of freedom",
@@ -25535,8 +25735,10 @@
       "quote": "Cubic 49.9 1 49.9 1.15 0.343"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "kind": "lack_of_fit_df"
+     },
+     "analysis": "the library's fit of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2): the lack-of-fit degrees of freedom"
     },
     {
      "what": "lack-of-fit mean square",
@@ -25549,8 +25751,10 @@
       "quote": "Cubic 49.9 1 49.9 1.15 0.343"
      },
      "check": {
-      "manual": "a lack-of-fit sum of squares, degrees of freedom or mean square: the library reports them (analyze_experiment's lack_of_fit) but no check kind reads them; the F and p of the same row are checked"
-     }
+      "model": "x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2)",
+      "kind": "lack_of_fit_ms"
+     },
+     "analysis": "the library's fit of x1*x2 + I(x1**2) + I(x2**2) + I(x1**2*x2) + I(x1*x2**2): the lack-of-fit mean square"
     },
     {
      "what": "lack-of-fit F",
@@ -25593,8 +25797,10 @@
       "quote": "PURE ERROR 173.2 4 43.3"
      },
      "check": {
-      "manual": "the pure-error sum of squares, which no check kind reads (pure_error_df and pure_error_ms of the same row are checked, and their product is this sum)"
-     }
+      "model": "x1 + x2",
+      "kind": "pure_error_ss"
+     },
+     "analysis": "the library's fit of x1 + x2: the pure-error sum of squares"
     },
     {
      "what": "pure-error degrees of freedom",
@@ -28557,8 +28763,10 @@
       "quote": "Model 5 2878.27 479.7117 658.141 1.55e-13 Error 9 6.56 0.7289 C Total 14 2884.83"
      },
      "check": {
-      "manual": "the overall F of the uncorrected no-intercept model, 479.7117/0.7289; no check computes a model F"
-     }
+      "model": "X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1",
+      "kind": "f_uncorrected"
+     },
+     "analysis": "the library's fit of the quadratic mixture model without an intercept: the F statistic on uncorrected sums of squares, the model's 6 degrees of freedom against 9"
     },
     {
      "what": "model p-value",
@@ -28571,8 +28779,11 @@
       "quote": "Model 5 2878.27 479.7117 658.141 1.55e-13 Error 9 6.56 0.7289 C Total 14 2884.83"
      },
      "check": {
-      "manual": "printed as the model's p-value, but it is the F density at 658.141 (R's df(), as the linked R code computes it), not the tail probability; R's summary on the same page gives the p-value, 2.271e-11; no check computes a model F"
-     }
+      "model": "X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1",
+      "kind": "f_uncorrected_p",
+      "disagreement": "the page's p-value does not follow from F = 658.14 on 6 and 9 degrees of freedom, which gives 2.27e-11, as R's summary on the same page prints; no pair of degrees of freedom of this fit gives 1.55e-13"
+     },
+     "analysis": "the library's fit of the quadratic mixture model without an intercept: the p-value of the F statistic on uncorrected sums of squares"
     },
     {
      "what": "error degrees of freedom",
@@ -29192,8 +29403,10 @@
       "quote": "> model 6 2878.27 479.7116667 658.141 1.547746e-13 > residual 9 6.56 0.7288889 NA NA"
      },
      "check": {
-      "manual": "the overall F of the uncorrected no-intercept model; no check computes a model F"
-     }
+      "model": "X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1",
+      "kind": "f_uncorrected"
+     },
+     "analysis": "the library's fit of the quadratic mixture model without an intercept: the F statistic on uncorrected sums of squares, the model's 6 degrees of freedom against 9"
     },
     {
      "what": "model p-value",
@@ -29206,8 +29419,11 @@
       "quote": "> model 6 2878.27 479.7116667 658.141 1.547746e-13 > residual 9 6.56 0.7288889 NA NA"
      },
      "check": {
-      "manual": "the F density at 658.141 on 6 and 9 degrees of freedom, df(), which the R code uses where pf() would give the p-value (2.271e-11, as R's summary prints); no check computes a model F"
-     }
+      "model": "X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1",
+      "kind": "f_uncorrected_p",
+      "disagreement": "the page's p-value does not follow from F = 658.14 on 6 and 9 degrees of freedom, which gives 2.27e-11, as R's summary on the same page prints; no pair of degrees of freedom of this fit gives 1.55e-13"
+     },
+     "analysis": "the library's fit of the quadratic mixture model without an intercept: the p-value of the F statistic on uncorrected sums of squares"
     },
     {
      "what": "residual degrees of freedom",
@@ -29316,8 +29532,11 @@
       "quote": "> Residuals: > Min 1Q Median 3Q Max > -0.80 -0.50 -0.30 0.65 1.30"
      },
      "check": {
-      "manual": "a quartile interpolated between two residuals (0.6 and 0.7), which no check computes"
-     }
+      "model": "X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1",
+      "kind": "residual_quantile",
+      "q": 0.75
+     },
+     "analysis": "the library's fit of X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1: the third quartile of the residuals"
     },
     {
      "what": "largest residual",
@@ -29793,8 +30012,10 @@
       "quote": "> Residual standard error: 0.8537 on 9 degrees of freedom > Multiple R-squared: 0.9977, Adjusted R-squared: 0.9962 > F-statistic: 658.1 on 6 and 9 DF, p-value: 2.271e-11"
      },
      "check": {
-      "manual": "the overall F of the uncorrected no-intercept model; no check computes a model F"
-     }
+      "model": "X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1",
+      "kind": "f_uncorrected"
+     },
+     "analysis": "the library's fit of X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1: the overall F statistic, on uncorrected sums of squares as R prints it for a model without an intercept"
     },
     {
      "what": "model degrees of freedom",
@@ -29838,8 +30059,10 @@
       "quote": "> Residual standard error: 0.8537 on 9 degrees of freedom > Multiple R-squared: 0.9977, Adjusted R-squared: 0.9962 > F-statistic: 658.1 on 6 and 9 DF, p-value: 2.271e-11"
      },
      "check": {
-      "manual": "the p-value of the overall F; no check computes a model F"
-     }
+      "model": "X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1",
+      "kind": "f_uncorrected_p"
+     },
+     "analysis": "the library's fit of X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1: the p-value of the overall F test, on uncorrected sums of squares as R prints it for a model without an intercept"
     },
     {
      "what": "blend for maximum elongation",
