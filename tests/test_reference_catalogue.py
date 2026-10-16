@@ -1810,3 +1810,96 @@ def test_a_wald_interval_can_take_jmp_s_rounded_multiplier():
     assert _mean_squares(out, {**check, "key": "wald_high"}, entry) == pytest.approx(
         value + stats.norm.ppf(0.975) * error
     )
+
+
+def _oneway(groups):
+    """Return a single-factor entry: level -> readings."""
+    rows = [[level, j, y] for level, values in groups.items() for j, y in enumerate(values, start=1)]
+    levels = list(groups)
+    return {
+        "name": "oneway",
+        "factors": [{"name": "g", "type": "categorical", "low": levels[0], "high": levels[1], "levels": levels}],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["g", "k", "y"], "rows": rows, "coded": False},
+    }
+
+
+def test_box_cox_reads_the_residual_sum_of_squares_of_the_scaled_power_at_any_lambda():
+    """SSE(lambda) of (y^lambda - 1)/(lambda gm^(lambda - 1)); its minimum sits at the library's lambda."""
+    from process_improve.experiments.reference_catalogue import _box_cox
+
+    entry = _oneway({"a": [0.34, 0.12, 1.23, 0.70], "b": [2.94, 2.14, 2.36, 4.55], "c": [8.37, 9.75, 6.09, 9.82]})
+    out = reference_catalogue._Fits()(entry, {"model": "g"})
+    y = np.array([0.34, 0.12, 1.23, 0.70, 2.94, 2.14, 2.36, 4.55, 8.37, 9.75, 6.09, 9.82])
+    gm = np.exp(np.log(y).mean())
+    z = (y**0.5 - 1) / (0.5 * gm ** (0.5 - 1))
+    within = z.reshape(3, 4) - z.reshape(3, 4).mean(axis=1, keepdims=True)
+    check = {"model": "g"}
+    assert _box_cox(out, {**check, "key": "sse.0.5"}, entry) == pytest.approx((within**2).sum())
+    assert _box_cox(out, {**check, "key": "ln_sse.0.5"}, entry) == pytest.approx(np.log((within**2).sum()))
+    best = _box_cox(out, {**check, "key": "sse"}, entry)
+    assert all(best <= _box_cox(out, {**check, "key": f"sse.{lam}"}, entry) + 1e-9 for lam in (0.0, 0.25, 0.5, 1.0))
+
+
+def test_a_prediction_can_be_read_back_from_a_transformed_scale():
+    """A value read as e to it, as a common log of a natural one, and as y from t = [sqrt(y) + sqrt(y + 1)]/2."""
+    found_value = 2.0
+    for options, expected in (
+        ({"exp": True}, math.exp(2.0)),
+        ({"log10": True}, 2.0 / math.log(10)),
+        ({"back_transform": "freeman_tukey_sqrt"}, (2.0 - 1 / 8) ** 2),
+    ):
+        entry = _factorial(2, [found_value] * 4)
+        check = {"kind": "mean", **options}
+        found, _ = reference_catalogue._reproduce(
+            entry, {"what": "mean", "value": "0", "where": {}}, check, reference_catalogue._Fits()
+        )
+        assert float(found) == pytest.approx(expected, rel=1e-5)
+    y = 12.0
+    t = (math.sqrt(y) + math.sqrt(y + 1)) / 2
+    assert (t - 1 / (4 * t)) ** 2 == pytest.approx(y, rel=1e-3)
+
+
+def test_cross_products_split_into_treatments_and_error():
+    """S = T + E for the sums of squares and products of two columns about their means (Montgomery's Table 15.13)."""
+    from process_improve.experiments.reference_catalogue import _cross_products
+
+    rows = [
+        [m, x, y]
+        for m, pairs in {"1": [(20, 36), (25, 41), (24, 39)], "2": [(22, 40), (28, 48), (22, 39)]}.items()
+        for x, y in pairs
+    ]
+    entry = {"runs": {"columns": ["m", "x", "y"], "rows": rows}}
+    x = np.array([r[1] for r in rows], dtype=float)
+    y = np.array([r[2] for r in rows], dtype=float)
+    check = {"columns": ["x", "y"], "factor": "m"}
+    total = _cross_products(entry, {**check, "key": "total"})
+    assert total == pytest.approx(((x - x.mean()) * (y - y.mean())).sum())
+    error = sum(((x[g] - x[g].mean()) * (y[g] - y[g].mean())).sum() for g in (slice(0, 3), slice(3, 6)))
+    assert _cross_products(entry, {**check, "key": "error"}) == pytest.approx(error)
+    assert _cross_products(entry, {**check, "key": "treatment"}) == pytest.approx(total - error)
+
+
+def test_the_adjusted_mean_of_an_analysis_of_covariance_is_a_prediction_with_its_standard_error():
+    """At the covariate's mean a treatment's prediction is its adjusted mean, with its standard error."""
+    from process_improve.experiments.reference_catalogue import _prediction
+
+    y = [36, 41, 39, 42, 49, 40, 48, 39, 45, 44, 35, 37, 42, 34, 32]  # Montgomery's Table 15.10
+    x = [20, 25, 24, 25, 32, 22, 28, 22, 30, 28, 21, 23, 26, 21, 15]
+    rows = [[str(1 + i // 5), x[i], y[i]] for i in range(15)]
+    entry = {
+        "name": "fibre",
+        "factors": [
+            {"name": "machine", "type": "categorical", "low": "1", "high": "2", "levels": ["1", "2", "3"]},
+            {"name": "diameter", "type": "numeric", "low": 15, "high": 32, "levels": [15, 32], "coding": "none"},
+        ],
+        "responses": [{"name": "strength"}],
+        "runs": {"columns": ["machine", "diameter", "strength"], "rows": rows, "coded": False},
+    }
+    model = "strength ~ diameter + C(machine, Sum)"
+    out = reference_catalogue._Fits()(entry, {"model": model})
+    at = {"model": model, "point": {"diameter": 362 / 15, "machine": "1"}}
+    assert _prediction(out, at, entry) == pytest.approx(40.38, abs=0.005)
+    assert _prediction(out, {**at, "bound": "std_error"}, entry) == pytest.approx(
+        0.7236, abs=5e-5
+    )  # Minitab's Table 15.15

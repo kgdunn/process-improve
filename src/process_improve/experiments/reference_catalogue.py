@@ -56,6 +56,7 @@ from patsy import build_design_matrices, dmatrix
 from scipy.stats import chi2 as chi2_distribution
 from scipy.stats import f as f_distribution
 
+from process_improve.experiments._analyses.box_cox import _scaled_power
 from process_improve.experiments._analyses.transforms import transform_response
 from process_improve.experiments._blocking import squares_orthogonal_to_blocks
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
@@ -652,7 +653,9 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     ``check["bound"]`` reads a limit of its 95% interval instead: ``"pi_low"`` or ``"pi_high"`` for
     a new observation, ``"ci_low"`` or ``"ci_high"`` for the mean, or ``"ci_half_width"`` and
     ``"pi_half_width"``, an interval's half-width, as a prediction profiler prints it beside the
-    prediction. ``"leverage"`` is x0'(X'X)^-1 x0, the variance of the predicted mean in units of σ².
+    prediction. ``"leverage"`` is x0'(X'X)^-1 x0, the variance of the predicted mean in units of σ²,
+    and ``"std_error"`` the standard error of the predicted mean: the adjusted mean's, at the
+    covariate's average, in an analysis of covariance.
     """
     names = [f["name"] for f in experiment["factors"]]
     point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
@@ -666,6 +669,9 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     if bound in ("ci_half_width", "pi_half_width"):
         interval = bound[:2]
         return float(prediction[f"{interval}_high"] - prediction[f"{interval}_low"]) / 2
+    if bound == "std_error":
+        half_width = float(prediction["ci_high"] - prediction["ci_low"]) / 2
+        return half_width / float(t_value(0.975, out["model_summary"]["df_residual"]))
     if bound == "leverage":
         matrix = dmatrix(check["model"], out["settings"], return_type="dataframe")
         at = np.asarray(build_design_matrices([matrix.design_info], point)[0])[0]
@@ -709,8 +715,22 @@ def _target_setting(out: dict, check: dict, experiment: dict) -> float:
 def _box_cox(out: dict, check: dict, _experiment: dict) -> float:
     """Return a number of the library's Box-Cox analysis of ``check["model"]``: ``lambda`` or ``lambda_ci.0``, ``.1``.
 
-    Run on demand, so that a response that is not positive does not cost every other check its fit.
+    ``"sse.<lambda>"`` is the residual sum of squares of the model fitted to the library's
+    geometric-mean scaled power of the response at that power, SSE(lambda), the curve the power is
+    chosen to minimise; ``"sse"`` is its minimum, at the library's lambda, and ``"ln_sse.<lambda>"``
+    its natural log, as Design-Expert plots it. Run on demand, so that a response that is not
+    positive does not cost every other check its fit.
     """
+    kind, _, power = check["key"].partition(".")
+    if kind in ("sse", "ln_sse"):
+        y = out["y"].to_numpy(dtype=float)
+        lmbda = float(power) if power else _box_cox(out, {**check, "key": "lambda"}, _experiment)
+        scaled = _scaled_power(y, lmbda, float(np.mean(np.log(y))))
+        rhs = check["model"].split("~", 1)[-1]
+        matrix = np.asarray(dmatrix(rhs, out["settings"]), dtype=float)
+        residual = scaled - matrix @ np.linalg.lstsq(matrix, scaled, rcond=None)[0]
+        sse = float(residual @ residual)
+        return math.log(sse) if kind == "ln_sse" else sse
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         found = analyze_experiment(out["settings"], out["y"], model=check["model"], analysis_type="box_cox")
@@ -1985,6 +2005,24 @@ def _column_correlation(experiment: dict, check: dict) -> float:
     return abs(r) if check.get("absolute") else r
 
 
+def _cross_products(experiment: dict, check: dict) -> float:
+    """Return a sum of squares or cross products of two printed columns, about their means: an analysis of covariance's.
+
+    ``check["columns"]`` names the two columns (the same one twice for a sum of squares), and
+    ``check["factor"]`` the treatments; ``check["key"]`` is ``"total"``, S, about the grand means,
+    ``"treatment"``, T, of the treatment means about them, or ``"error"``, E = S - T, about each
+    treatment's means.
+    """
+    table = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])
+    first, second = (table[name].astype(float) for name in check["columns"])
+    total = float(((first - first.mean()) * (second - second.mean())).sum())
+    groups = table[check["factor"]].astype(str)
+    within = float(
+        ((first - first.groupby(groups).transform("mean")) * (second - second.groupby(groups).transform("mean"))).sum()
+    )
+    return {"total": total, "treatment": total - within, "error": within}[check["key"]]
+
+
 def _dot_product(experiment: dict, check: dict) -> float:
     """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal.
 
@@ -2360,6 +2398,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "component_ss": _component_ss,
     "difference_of_means": _difference_of_means,
     "distinct_runs": _distinct_runs,
+    "cross_products": _cross_products,
     "dot_product": _dot_product,
     "estimable_projections": _estimable_projections,
     "fold_over_pairs": _fold_over_pairs,
@@ -2429,6 +2468,9 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
     found = float(_FIT_KINDS[kind](out, check, experiment))
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     found = math.exp(found) if check.get("exp") else found  # a model of ln(s²) read back as a variance
+    found = found / math.log(10) if check.get("log10") else found  # a natural log printed as a common one
+    if check.get("back_transform") == "freeman_tukey_sqrt":  # t = [√y + √(y + 1)]/2 read back as y
+        found = (found - 1 / (4 * found)) ** 2
     expression, of_rounded = bool(check.get("expression")), check.get("of_rounded", 1)
     nearest = found
     if check.get("data_rounding"):  # the source's fit may sit this far from one to its data as printed, rounded
