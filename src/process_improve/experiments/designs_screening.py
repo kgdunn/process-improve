@@ -412,6 +412,36 @@ def _taguchi_codes(factor: Factor, n_levels: int) -> np.ndarray:
     return categorical_codes(n_levels)
 
 
+def _assign_columns(
+    free: list[int], needed: list[int], order: list[int], *, share: bool
+) -> list[tuple[int, int]] | None:
+    """Place each factor in a column of an array with ``free`` levels per column, or return ``None``.
+
+    A factor takes a column of exactly its level count, or else one whose level count it
+    divides (a 6-level column carries a 3-level factor). Factors are placed in ``order``.
+    With ``share``, a column keeps what its first factor leaves: a 6-level column that
+    carries a 3-level factor still offers 2 levels, so it carries a 2-level factor too,
+    as Taguchi writes the L18 as one 2-level and seven 3-level columns. Each factor gets
+    ``(column, place)``: its level is ``(level // place) % n`` for an ``n``-level factor,
+    a digit of the column's level in mixed radix, so the factors sharing a column take
+    every combination of their levels equally often.
+    """
+    capacity, place, used = list(free), [1] * len(free), [False] * len(free)
+    placed: dict[int, tuple[int, int]] = {}
+    for i in order:
+        open_columns = [c for c in range(len(free)) if capacity[c] > 1 and (share or not used[c])]
+        column = next((c for c in open_columns if capacity[c] == needed[i]), None)
+        if column is None:
+            column = next((c for c in open_columns if capacity[c] % needed[i] == 0), None)
+        if column is None:
+            return None
+        placed[i] = (column, place[column])
+        used[column] = True
+        place[column] *= needed[i]
+        capacity[column] //= needed[i]
+    return [placed[i] for i in range(len(needed))]
+
+
 def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """Generate a Taguchi orthogonal-array design.
 
@@ -420,8 +450,11 @@ def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     factor or a continuous factor given explicit levels. Each factor takes its own
     column (one with its level count, or else one whose levels divide evenly into its
     own, as a 6-level column carries a 3-level factor); the other columns are left
-    unused. The chosen columns are checked to be balanced in every pair (strength 2)
-    before use. No centre points are added.
+    unused. When that leaves a factor without a column, a column whose level count is
+    a product of two factors' counts carries both, as a digit each of its level: the
+    6-level column of ``L18(6^1 3^6)`` is the 2-level and 3-level columns of Taguchi's
+    L18 for one 2-level and seven 3-level factors. The chosen columns are checked to be
+    balanced in every pair (strength 2) before use. No centre points are added.
 
     Parameters
     ----------
@@ -432,7 +465,8 @@ def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     -------
     tuple[np.ndarray, dict]
         Coded design matrix (-1 / +1 for two levels, equally spaced codes otherwise) and
-        metadata with the ``orthogonal_array`` and the array ``columns`` used.
+        metadata with the ``orthogonal_array`` and the array ``columns`` used, a column
+        named twice when two factors share it.
     """
     needed = [len(f.levels) if f.levels else 2 for f in factors]
     order = sorted(range(len(factors)), key=lambda i: -needed[i])
@@ -441,21 +475,12 @@ def dispatch_taguchi(factors: list[Factor]) -> tuple[np.ndarray, dict]:
         # Column level counts come from the array itself: some names do not match their
         # arrays ("L27(2^1 3^12)" is all three-level, "L36(3^23)" has eleven two-level columns).
         free = [int(array[:, j].max()) + 1 for j in range(array.shape[1])]
-        columns: dict[int, int] = {}
-        for i in order:
-            open_columns = [c for c in range(len(free)) if c not in columns.values()]
-            # A column of exactly the factor's level count, or else one whose levels split
-            # evenly into the factor's (a 6-level column carries a 2- or 3-level factor).
-            column = next((c for c in open_columns if free[c] == needed[i]), None)
-            if column is None:
-                column = next((c for c in open_columns if free[c] % needed[i] == 0), None)
-            if column is None:
-                break
-            columns[i] = column
-        if len(columns) < len(factors):
+        # A column to each factor; only when that fails, a column shared by two factors.
+        placed = _assign_columns(free, needed, order, share=False) or _assign_columns(free, needed, order, share=True)
+        if placed is None:
             continue
-        chosen = [columns[i] for i in range(len(factors))]
-        levels = np.column_stack([array[:, chosen[i]] % needed[i] for i in range(len(factors))])
+        chosen = [column for column, _ in placed]
+        levels = np.column_stack([(array[:, c] // place) % needed[i] for i, (c, place) in enumerate(placed)])
         # Every stored array is strength 2 (tests check it); the check guards edits to the table.
         if _is_strength_two(levels):
             coded = np.column_stack([_taguchi_codes(f, needed[i])[levels[:, i]] for i, f in enumerate(factors)]).astype(

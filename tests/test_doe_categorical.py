@@ -95,3 +95,38 @@ def test_taguchi_mixed_levels_use_a_wider_column() -> None:
     assert result.metadata["orthogonal_array"].startswith("L18")
     codes = result.design_actual[["a", "b", "t"]].apply(lambda col: col.astype("category").cat.codes)
     assert _strength_two(codes.to_numpy())
+
+
+def test_taguchi_l18_takes_one_two_level_and_seven_three_level_factors():
+    """Taguchi's L18 is 2^1 3^7: the stored L18(6^1 3^6) splits its 6-level column into a 2- and a 3-level digit.
+
+    Before, the seventh 3-level factor took the 6-level column whole, the 2-level factor found no
+    column left and the design took the 36-run L36(3^23).
+    """
+    names = [f"t{i}" for i in range(7)]
+    factors = [_c("a"), *(_k(n, ["p", "q", "r"]) for n in names)]
+    result = generate_design(factors, "taguchi")
+    assert result.n_runs == 18
+    assert result.metadata["orthogonal_array"] == "L18(6^1 3^6)"
+    columns = result.metadata["columns"]
+    assert columns[0] in columns[1:]  # the 2-level factor shares the 6-level column with a 3-level one
+    codes = result.design_actual[["a", *names]].apply(lambda col: col.astype("category").cat.codes).to_numpy()
+    assert _strength_two(codes)
+    assert len({tuple(run) for run in codes}) == 18
+
+
+def test_taguchi_four_level_column_carries_two_two_level_factors():
+    """One 4-level and six 2-level factors fit L16(4^5) once a 4-level column carries two 2-level factors."""
+    names = [f"x{i}" for i in range(6)]
+    result = generate_design([_k("q", ["p", "q", "r", "s"]), *(_c(n) for n in names)], "taguchi")
+    assert result.n_runs == 16
+    assert result.metadata["orthogonal_array"] == "L16(4^5)"
+    codes = result.design_actual[["q", *names]].apply(lambda col: col.astype("category").cat.codes).to_numpy()
+    assert _strength_two(codes)
+
+
+def test_taguchi_with_a_column_for_every_factor_is_unchanged():
+    """Sharing a column is the fallback: seven 3-level factors still take the L18's seven columns, one each."""
+    result = generate_design([_k(f"t{i}", ["p", "q", "r"]) for i in range(7)], "taguchi")
+    assert result.n_runs == 18
+    assert sorted(result.metadata["columns"]) == list(range(7))
