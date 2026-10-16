@@ -316,6 +316,46 @@ class TestDegreesOfFreedom:
 
 
 # ---------------------------------------------------------------------------
+# Factors in their own units: rank, VIF and the scaled condition number
+# ---------------------------------------------------------------------------
+
+# Schmidt and Launsby, Table 4.17: temperature x1 at five settings and pressure x2 at two, each run twice
+_TEMPERATURE_PRESSURE = pd.DataFrame(
+    [(x1, x2) for x1 in (50, 70, 80, 90, 100) for x2 in (100, 200) for _ in range(2)], columns=["x1", "x2"]
+)
+
+
+class TestFactorsInTheirOwnUnits:
+    def test_a_full_rank_model_whose_xtx_squares_a_large_condition_number_gets_its_vifs(self) -> None:
+        """X has condition number 7e7 in these units; X'X's is its square, which once fell under the rank tolerance."""
+        model = "x1 + x2 + x1:x2 + I(x1 ** 2) + I(x1 ** 2):x2"
+        out = evaluate_design(_TEMPERATURE_PRESSURE, model=model, metric=["vif", "degrees_of_freedom"])
+        assert out["degrees_of_freedom"]["model"] == 5
+        x = dmatrix(model, _TEMPERATURE_PRESSURE, return_type="dataframe")
+        for name in x.columns.drop("Intercept"):
+            others = x.drop(columns=name).to_numpy()
+            fitted = others @ np.linalg.lstsq(others, x[name], rcond=None)[0]
+            r2 = 1 - np.sum((x[name] - fitted) ** 2) / np.sum((x[name] - x[name].mean()) ** 2)
+            assert out["vif"][name] == pytest.approx(1 / (1 - r2), rel=1e-6)
+        # MYSTAT's tolerances, one over the VIF, as Table 4.20 prints them (its x1^2 row repeats the next row's)
+        printed = {"x1": 0.0011019, "x2": 0.0025125, "x1:x2": 0.0003606, "I(x1 ** 2):x2": 0.0006840}
+        for name, tolerance in printed.items():
+            assert 1 / out["vif"][name] == pytest.approx(tolerance, abs=5e-8)
+
+    def test_the_scaled_condition_number_does_not_depend_on_the_units(self) -> None:
+        """Orthogonal columns give 1; restating a factor in other units moves only the unscaled number."""
+        coded = evaluate_design(_two_level(3), model="interactions", metric="scaled_condition_number")
+        assert coded["scaled_condition_number"] == pytest.approx(1.0)
+        in_metres = _TEMPERATURE_PRESSURE.assign(x1=_TEMPERATURE_PRESSURE["x1"] / 1000)
+        metrics = ["condition_number", "scaled_condition_number"]
+        a, b = (evaluate_design(d, model="x1 + x2", metric=metrics) for d in (_TEMPERATURE_PRESSURE, in_metres))
+        assert a["scaled_condition_number"] == pytest.approx(b["scaled_condition_number"])
+        assert b["condition_number"] > 5 * a["condition_number"]  # x1 in metres is far shorter than x2
+        x = np.asarray(dmatrix("x1 + x2", _TEMPERATURE_PRESSURE))
+        assert a["scaled_condition_number"] == pytest.approx(np.linalg.cond(x / np.linalg.norm(x, axis=0)))
+
+
+# ---------------------------------------------------------------------------
 # VIF and power for Scheffe mixture models
 # ---------------------------------------------------------------------------
 

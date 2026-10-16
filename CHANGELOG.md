@@ -13,6 +13,10 @@ those changes.
 
 ### Added
 
+- **`evaluate_design(..., metric="scaled_condition_number")`**: the condition number of the model
+  matrix with each column scaled to unit length, so the factors' units do not count: 1 for
+  orthogonal columns, whatever their units. RS/Discover prints it as Cond. No.; the nine that
+  Schmidt and Launsby print (eight plating models and the ball weld D-optimal design) agree.
 - **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
   experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
   factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
@@ -81,14 +85,12 @@ those changes.
   solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
   run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
   49152 cases. Appendix J's answers are checked against the problems they answer. 4520 printed
-  numbers, 4198 checked. 398 are recorded as not reproducing, each explained: most come from the
+  numbers, 4211 checked. 398 are recorded as not reproducing, each explained: most come from the
   book's rounding (run averages and standard deviations that do not follow from their readings,
   squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
   than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
   algorithm run on totals listed in run order rather than Yates order, an answer's resolution IV for
-  a design with three-letter words). Five tolerances are
-  not recomputed: `evaluate_design` takes the rank of X'X, whose condition number in the factors'
-  own units squares X's, and calls that full-rank model singular. A catalogue check can now analyse
+  a design with three-letter words). A catalogue check can now analyse
   each run's mean, total, standard deviation, ln s or one of Taguchi's signal-to-noise ratios
   (larger, smaller and nominal is best), or every reading as an observation of its own, in other
   units than the readings are printed in if need be (`summary`); solve for the setting of a factor
@@ -173,6 +175,13 @@ those changes.
 
 ### Fixed
 
+- **`evaluate_design` no longer calls a full-rank model rank-deficient because of its factors'
+  units.** It took the rank of X'X, whose condition number is the square of X's: with a column of
+  x1 (to 100) beside one of x1²x2 (to 2,000,000), X's is 7e7 and X'X's passes the precision of a
+  double, so the model got no VIFs, D-efficiency or prediction variance. The rank, and the inverse
+  of X'X, are now worked on X with each column scaled to unit length, which changes neither. The
+  five tolerances of Schmidt and Launsby's Table 4.20, which the reference catalogue could not check
+  before, are checked: four agree, and the fifth repeats the next row's value in the book.
 - **A Taguchi design for one 2-level and seven 3-level factors takes 18 runs, not 36.** The
   library stores the L18 as `L18(6^1 3^6)`, and the design gave each factor a column of its own, so
   the eighth factor found none and the design moved on to `L36(3^23)`. When no array has a column
