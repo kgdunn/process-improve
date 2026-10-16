@@ -1051,3 +1051,123 @@ def test_the_signs_of_two_effects_pick_one_of_the_four_blocks_they_generate():
 def test_a_path_into_a_library_result_may_hold_keys_with_a_dot():
     assert reference_catalogue._read({"quantiles": {"0.5": 0.42}}, ["quantiles", "0.5"]) == pytest.approx(0.42)
     assert reference_catalogue._read({"q": [1.0, 3.0]}, "q.max") == pytest.approx(3.0)
+
+
+def test_a_fraction_s_word_lengths_and_clear_effects_are_read_from_its_defining_relation():
+    """Montgomery's design C for seven factors has the word lengths {4, 5, 5}; in I = BCDF, BC is aliased with DF."""
+    from process_improve.experiments.reference_catalogue import _design_check
+
+    design_c = {"kind": "word_lengths", "generators": ["F=ABCD", "G=ABDE"]}
+    assert _design_check(design_c, "{4, 5, 5}", 7) == ("4, 5, 5", True)
+    assert not _design_check(design_c, "{4, 4, 4}", 7)[1]
+    folded = {"generators": ["F=BCD"]}
+    assert _design_check({**folded, "kind": "clear", "term": "AB"}, "AB", 6)[1]
+    assert _design_check({**folded, "kind": "clear", "term": "BC"}, "BC", 6) == ("DF", False)
+
+
+def test_generators_are_compared_by_word_lengths_with_the_fraction_the_library_chooses():
+    """Nine factors in 32 runs: the library's resolution IV fraction has six four-letter words; F = ABC, ... has 14."""
+    from process_improve.experiments.reference_catalogue import _design_check
+
+    table = {"kind": "minimum_aberration", "generators": ["F=BCDE", "G=ACDE", "H=ABDE", "J=ABCE"]}
+    assert _design_check(table, "", 9) == ("F=BCDE, G=ACDE, H=ABDE, J=ABCE", True)
+    assert not _design_check({**table, "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD"]}, "", 9)[1]
+
+
+def test_a_printed_column_of_signs_is_the_product_of_the_effects_it_is_headed_with():
+    from process_improve.experiments.reference_catalogue import _product_column
+
+    rows = [[a, b, c, a * b] for a, b, c in HALF_FRACTION]  # C = AB, so the column AB is also C's
+    entry = _printed_design(["A", "B", "C", "AB"], rows)
+    assert _product_column(entry, {"column": "AB"}, "AB = C") == ("every run", True)
+    assert _product_column(entry, {"column": "AB"}, "AB = \u2212C") == ("not in runs 1, 2, 3, 4", False)
+
+
+PB12_ROW = [1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1]  # Montgomery's Table 8.23, N = 12
+
+
+def _cyclic(row):
+    """Return the Plackett-Burman design of a generating row: the row as the first column, shifted down for the next."""
+    k = len(row)
+    return [[row[(i - j) % k] for j in range(k)] for i in range(k)] + [[-1] * k]
+
+
+def test_a_plackett_burman_design_is_matched_by_its_projections_whatever_its_column_order_and_signs():
+    from process_improve.experiments.reference_catalogue import _same_projections
+
+    names = list("ABCDEFGHJKL")
+    library = {"design": {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 0}}}
+    shuffled = [[-r[3], *r[:3], *r[4:]] for r in _cyclic(PB12_ROW)]  # a column moved first, its signs changed
+    assert _same_projections(_printed_design(names, shuffled), library, "")[1]
+    broken = [row[:] for row in shuffled]
+    broken[0][0] = -broken[0][0]  # one sign miscopied: the columns are no longer balanced and orthogonal
+    assert not _same_projections(_printed_design(names, broken), library, "")[1]
+
+
+def test_a_projection_counts_the_different_runs_it_leaves():
+    """The 12-run Plackett-Burman design covers the eight corners of any three of its columns, and 11 of 16 of four."""
+    from process_improve.experiments.reference_catalogue import _distinct_runs
+
+    entry = _printed_design(list("ABCDEFGHJKL"), _cyclic(PB12_ROW))
+    assert _distinct_runs(entry, {"columns": ["A", "B", "C"]}) == 8
+    assert _distinct_runs(entry, {"columns": ["A", "B", "C", "D"]}) == 11
+
+
+def test_a_coefficient_s_standard_error_in_units_of_sigma_is_a_property_of_the_runs():
+    from process_improve.experiments.reference_catalogue import _unit_std_error
+
+    entry = _factorial(4, FILTRATION)
+    assert _unit_std_error(entry, {"model": "A + B + A:B", "key": "max"}) == pytest.approx(0.25)
+    missing = {"model": "A + B + A:B", "runs": list(range(1, 16))}
+    assert _unit_std_error(entry, {**missing, "key": "min"}) > 0.25
+    assert _unit_std_error(entry, {**missing, "exclude": ["Intercept", "A"], "key": "max"}) == pytest.approx(
+        _unit_std_error(entry, {**missing, "exclude": ["Intercept", "A"], "key": "min"})
+    )
+
+
+def test_a_nested_test_of_responses_printed_rounded_may_carry_their_rounding():
+    """JMP fitted responses the book prints to fewer digits: its sums of squares carry what that rounding moves."""
+    from process_improve.experiments.reference_catalogue import _nested_test, _nested_test_rounding
+
+    exact = np.array(FILTRATION) + 0.04 * np.sin(np.arange(16))
+    printed = _factorial(4, list(np.round(exact, 1)))
+    check = {"kind": "nested_test", "model": "A + C + D", "full": "A + C + D + A:C", "key": "ss"}
+    truth = _nested_test(_factorial(4, list(exact)), check)
+    rounded = {**check, "data_rounding": {"decimals": 1}}
+    assert abs(_nested_test(printed, check) - truth) <= _nested_test_rounding(printed, rounded)
+    shown = f"{truth:.4f}"
+    assert not reference_catalogue._reproduce(printed, {"value": shown}, check, reference_catalogue._Fits())[1]
+    assert reference_catalogue._reproduce(printed, {"value": shown}, rounded, reference_catalogue._Fits())[1]
+
+
+def test_counts_and_proportions_are_transformed_run_by_run_as_a_source_prints_them():
+    """Montgomery's Tables P8.13 and P8.14: arcsin sqrt(p), Freeman and Tukey's forms, and sqrt(c)."""
+    entry = {
+        "name": "transforms",
+        "factors": [{"name": "A", "type": "numeric", "low": -1, "high": 1}],
+        "responses": [{"name": "p"}, {"name": "c"}],
+        "runs": {"columns": ["A", "p", "c"], "rows": [[-1, 0.958, 56], [1, 1.0, 0]], "coded": True},
+    }
+    fits = reference_catalogue._Fits()
+    cases = [
+        ("arcsin_sqrt", "p", 1, {}, "1.364"),
+        ("freeman_tukey_arcsin", "p", 2, {"n": 1000}, "1.555"),
+        ("sqrt", "c", 1, {}, "7.48"),
+        ("freeman_tukey_sqrt", "c", 1, {}, "7.52"),
+        ("freeman_tukey_sqrt", "c", 2, {}, "0.50"),
+    ]
+    for statistic, column, run, extra, printed in cases:
+        check = {"kind": "observation", "run": run, "summary": {"of": [column], "statistic": statistic, **extra}}
+        assert reference_catalogue._reproduce(entry, {"value": printed}, check, fits)[1], statistic
+
+
+def test_an_alias_matrix_is_read_entry_by_entry_from_one_evaluation():
+    """The 2^(3-1) with I = ABC: x1's coefficient is biased by the x2x3 interaction, with weight 1."""
+    from process_improve.experiments.reference_catalogue import _design_metric
+
+    entry = _printed_design(["A", "B", "C"], HALF_FRACTION)
+    entry["runs"]["coded"] = True
+    check = {"metric": "alias_matrix", "model": "A + B + C"}
+    assert _design_metric(entry, {**check, "key": "matrix.1.2"}) == pytest.approx(1)
+    assert _design_metric(entry, {**check, "key": "matrix.1.0"}) == pytest.approx(0)
+    assert _design_metric(entry, {**check, "key": "matrix.3.0"}) == pytest.approx(1)

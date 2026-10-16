@@ -288,6 +288,11 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "variance": lambda readings: readings.var(axis=1, ddof=1),
     "range": lambda readings: readings.max(axis=1) - readings.min(axis=1),
     "ln_std_dev": lambda readings: np.log(readings.std(axis=1, ddof=1)),
+    # variance-stabilizing transforms of a count c or a proportion p, read from one column, and Freeman
+    # and Tukey's forms of them, [sqrt(c) + sqrt(c + 1)]/2 and, below, the angular one for n trials
+    "sqrt": lambda readings: np.sqrt(readings.iloc[:, 0]),
+    "arcsin_sqrt": lambda readings: np.arcsin(np.sqrt(readings.iloc[:, 0])),
+    "freeman_tukey_sqrt": lambda readings: (np.sqrt(readings.iloc[:, 0]) + np.sqrt(readings.iloc[:, 0] + 1)) / 2,
     # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
     # nominal is best in the form 10 log10(mean^2 / variance)
     "sn_larger": lambda readings: -10 * np.log10((1 / readings**2).mean(axis=1)),
@@ -306,14 +311,22 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     ``"std_dev"``, ``"variance"``, ``"ln_std_dev"`` (the natural logarithm of the standard
     deviation), or one of Taguchi's signal-to-noise ratios in decibels: ``"sn_larger"``
     (-10 log10 of the mean of 1/y^2), ``"sn_smaller"`` (-10 log10 of the mean of y^2) and
-    ``"sn_nominal"`` (10 log10 of the squared mean over the variance). A source that rounds each
+    ``"sn_nominal"`` (10 log10 of the squared mean over the variance). Of one column, a count c or a
+    proportion p, ``"sqrt"`` and ``"arcsin_sqrt"`` are the variance-stabilizing transforms and
+    ``"freeman_tukey_sqrt"`` ([sqrt(c) + sqrt(c + 1)]/2) and ``"freeman_tukey_arcsin"`` (the two arcsines
+    of np/(n + 1) and (np + 1)/(n + 1), averaged, for ``summary["n"]`` trials) Freeman and Tukey's. A source
+    that rounds each
     run's value before averaging it gives ``summary["round"]``, the decimals it keeps. A source
     that prints its readings in one unit and works the statistic in another gives
     ``summary["scale"]``, the factor the readings are multiplied by first (1e17 for readings
     printed in units of 10^17).
     """
     readings = table[summary["of"]].astype(float) * summary.get("scale", 1)
-    values = _STATISTICS[summary["statistic"]](readings)
+    if summary["statistic"] == "freeman_tukey_arcsin":  # [arcsin sqrt(np/(n + 1)) + arcsin sqrt((np + 1)/(n + 1))]/2
+        n, p = float(summary["n"]), readings.iloc[:, 0]
+        values = (np.arcsin(np.sqrt(n * p / (n + 1))) + np.arcsin(np.sqrt((n * p + 1) / (n + 1)))) / 2
+    else:
+        values = _STATISTICS[summary["statistic"]](readings)
     if summary.get("round") is not None:
         values = values.round(summary["round"])
     return values.rename(summary["statistic"]).to_frame()
@@ -452,26 +465,43 @@ def _coefficient_row(out: dict, term: str) -> dict:
     raise KeyError(f"The fit has no term {term!r}: {sorted(rows)}.")
 
 
+def _half_units(y: np.ndarray, rounding: dict) -> np.ndarray:
+    """Return half a unit in each response's last printed digit: ``"decimals"``, or ``"significant"`` figures."""
+    if "decimals" in rounding:
+        exponent = np.full(len(y), -float(rounding["decimals"]))
+    else:
+        exponent = np.floor(np.log10(np.abs(y))) - rounding["significant"] + 1
+    return 0.5 * 10.0**exponent
+
+
+def _residual_vector(matrix: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Return the residuals of the least squares fit of y on the columns of a model matrix."""
+    return y - matrix @ (np.linalg.pinv(matrix) @ y)
+
+
 def _carried_rounding(out: dict, check: dict) -> float:
-    """Return how far a coefficient can move when each response it is fitted to is off by half its last printed digit.
+    """Return how far a number can move when each response it is fitted to is off by half its last printed digit.
 
     A source that prints its runs' responses rounded, and fits its model to readings it does not
     print, gives ``check["data_rounding"]``: the responses' ``"decimals"``, or their ``"significant"``
     figures. A coefficient is a fixed weighted sum of the responses, its row of the pseudo-inverse of
     the model matrix, so it moves at most the sum of each weight's size times that response's half unit.
+    The residual sum of squares e'e (``"ss_residual"``), and its mean square (``"ms_residual"``),
+    move to first order by the gradient 2e, divided by the residual degrees of freedom for the mean square.
     """
-    if check["kind"] != "coefficient":
-        raise ValueError(f"data_rounding is carried into a coefficient, not a {check['kind']!r}.")
-    rounding = check["data_rounding"]
+    kind = check["kind"]
     y = out["y"].to_numpy(dtype=float)
-    if "decimals" in rounding:
-        exponent = np.full(len(y), -float(rounding["decimals"]))
-    else:
-        exponent = np.floor(np.log10(np.abs(y))) - rounding["significant"] + 1
+    halves = _half_units(y, check["data_rounding"])
     matrix = dmatrix(check["model"], out["settings"], return_type="dataframe")
-    wanted = set(_coefficient_row(out, check["term"])["term"].split(":"))
-    row = next(i for i, name in enumerate(matrix.columns) if set(name.split(":")) == wanted)
-    return float(np.abs(np.linalg.pinv(matrix.to_numpy())[row]) @ (0.5 * 10.0**exponent))
+    if kind == "coefficient":
+        wanted = set(_coefficient_row(out, check["term"])["term"].split(":"))
+        row = next(i for i, name in enumerate(matrix.columns) if set(name.split(":")) == wanted)
+        return float(np.abs(np.linalg.pinv(matrix.to_numpy())[row]) @ halves)
+    if kind in ("ss_residual", "ms_residual"):
+        gradient = 2 * _residual_vector(matrix.to_numpy(), y)
+        scale = 1.0 if kind == "ss_residual" else float(out["model_summary"]["df_residual"])
+        return float(np.abs(gradient / scale) @ halves)
+    raise ValueError(f"data_rounding is carried into a coefficient or a residual sum of squares, not a {kind!r}.")
 
 
 def _residuals(out: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -856,7 +886,11 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
 
     Words compare as products of factors, whatever order the source writes their letters in. A
     defining relation must be the whole relation; the aliases printed must each be an alias of the
-    term, and need not be all of them.
+    term, and need not be all of them. ``"word_lengths"`` compares the lengths of the relation's
+    words, the word length pattern printed as {4, 5, 5}; ``"clear"`` holds when the term is aliased
+    with no main effect or two-factor interaction; ``"minimum_aberration"`` compares the fraction
+    with the one the library chooses for its resolution: they agree when both have as many runs and
+    the same word lengths.
     """
     made = _fraction(check, check.get("k", k))
     kind = check["kind"]
@@ -866,14 +900,39 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
     if kind == "resolution":
         wanted = _ROMAN.get(printed.strip())
         return str(made.resolution), wanted == made.resolution
+    return _relation_check(made, check, printed, check.get("k", k))
+
+
+def _relation_check(made: Any, check: dict, printed: str, k: int) -> tuple[str, bool]:  # noqa: ANN401 - a DesignResult
+    """Check what a source states of a fraction's defining relation: itself, its word lengths, or a term's aliases."""
+    kind = check["kind"]
     words = sorted(_word(w.split("=")[-1]) for w in made.defining_relation or [])
     if kind == "defining_relation":
         return ", ".join(words), sorted(_words(printed)) == words
+    lengths = sorted(len(w.lstrip("-")) for w in words)
+    if kind == "word_lengths":  # the word length pattern, printed as the lengths of the words: {4, 5, 5}
+        return ", ".join(map(str, lengths)), sorted(int(n) for n in re.findall(r"\d+", printed)) == lengths
+    if kind == "minimum_aberration":  # the fraction the library chooses for this resolution, of as many runs
+        chosen = _fraction({"resolution": made.resolution, "factors": check.get("factors")}, k)
+        chosen_lengths = sorted(len(_word(w.split("=")[-1]).lstrip("-")) for w in chosen.defining_relation or [])
+        same = len(chosen.design) == len(made.design) and chosen_lengths == lengths
+        return ", ".join(chosen.generators or []), same
     aliases = sorted({_multiply(_word(check["term"]), word) for word in words})
+    if kind == "clear":  # aliased with no main effect or two-factor interaction
+        short = [a for a in aliases if len(a.lstrip("-")) <= 2]
+        return ", ".join(short) or "no main effect or two-factor interaction", not short
     return ", ".join(aliases), bool(_words(printed)) and set(_words(printed)) <= set(aliases)  # kind == "aliases"
 
 
-_DESIGN_KINDS = {"generator", "resolution", "defining_relation", "aliases"}
+_DESIGN_KINDS = {
+    "generator",
+    "resolution",
+    "defining_relation",
+    "word_lengths",
+    "minimum_aberration",
+    "aliases",
+    "clear",
+}
 
 
 def _block_confounding(check: dict, printed: str) -> tuple[str, bool]:
@@ -1040,6 +1099,36 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
     return f"{shared} of {len(matrix)} printed runs, of {len(library)} the library's", same and count_agrees
 
 
+def _j_counts(matrix: np.ndarray, order: int) -> Counter:
+    """Return how often each size of J-characteristic occurs: ``|sum over the runs of a product of order columns|``.
+
+    For a two-level design these say how strongly each product of columns is aliased with the
+    intercept: 0 for an orthogonal pair, N for a product aliased completely. Their counts do not
+    change when the columns are reordered or their signs changed, or the runs reordered.
+    """
+    columns = range(matrix.shape[1])
+    return Counter(round(abs(matrix[:, list(c)].prod(axis=1).sum())) for c in itertools.combinations(columns, order))
+
+
+def _same_projections(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that a printed two-level design matches the library's in every projection onto up to three columns.
+
+    For a design that can be printed with its columns in another order or their signs changed,
+    such as a Plackett-Burman design written from a generating row: the two agree when they have
+    as many runs and columns, and as many one-, two- and three-column J-characteristics of each
+    size (see :func:`_j_counts`). Agreement in all three shows the printed columns are as balanced
+    and as orthogonal as the library's, and their products of three as strongly aliased. It is the
+    test of :func:`_same_runs` with its relabelling, without the search over relabellings.
+    """
+    made = _made(json.dumps(check["design"], sort_keys=True))
+    library = made.design[made.factor_names].to_numpy(dtype=float)
+    columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
+    matrix = _printed_matrix(experiment, columns, None)
+    same = matrix.shape == library.shape and all(_j_counts(matrix, r) == _j_counts(library, r) for r in (1, 2, 3))
+    found = ", ".join(f"{size}: {count}" for size, count in sorted(_j_counts(library, 3).items()))
+    return f"the library's three-column |J| sizes and counts {found}", same
+
+
 def _generator_holds(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
     """Check that a printed design matrix obeys the generators printed with it, in every run.
 
@@ -1054,6 +1143,25 @@ def _generator_holds(experiment: dict, check: dict, printed: str) -> tuple[str, 
         sign = -1.0 if word.startswith("-") else 1.0
         product = _printed_matrix(experiment, list(word.lstrip("-")), None, positions).prod(axis=1)
         failing |= {run for run, value in zip(positions, product, strict=True) if not np.isclose(value, sign)}
+    found = "every run" if not failing else f"not in runs {', '.join(map(str, sorted(failing)))}"
+    return found, not failing
+
+
+def _product_column(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check that a printed column of signs is the product of the factor columns of each word it is headed with.
+
+    A table of signs heads a column with an effect and its aliases, ``AB = CE``; the column
+    ``check["column"]`` holds, in every run, the product of the A and B settings and that of C and
+    E. A word with a minus sign, ``-ABD``, is the negated product.
+    """
+    column = np.asarray(
+        [row[experiment["runs"]["columns"].index(check["column"])] for row in experiment["runs"]["rows"]]
+    )
+    failing = set()
+    for word in _words(str(check.get("printed", printed))):
+        sign = -1.0 if word.startswith("-") else 1.0
+        product = sign * _printed_matrix(experiment, list(word.lstrip("-")), None).prod(axis=1)
+        failing |= {i + 1 for i in np.flatnonzero(~np.isclose(product, column.astype(float)))}
     found = "every run" if not failing else f"not in runs {', '.join(map(str, sorted(failing)))}"
     return found, not failing
 
@@ -1102,17 +1210,32 @@ def _design_metric(experiment: dict, check: dict) -> float:
     returns one less it, as the squared multiple correlation of a term with the others, 1 - 1/VIF.
     """
     if check.get("design"):
-        design: Any = _made(json.dumps(check["design"], sort_keys=True))
+        source = json.dumps({"design": check["design"]}, sort_keys=True)
     else:
-        design, _ = _coded_runs(experiment, check.get("runs"))
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        found: Any = evaluate_design(
-            design, model=check.get("model"), metric=check["metric"], **check.get("options", {})
-        )
-    value = _read(found[check["metric"]], check.get("key"))
+        settings = _coded_runs(experiment, check.get("runs"))[0]
+        source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
+    asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
+    value = _read(_evaluated(source, asked)[check["metric"]], check.get("key"))
     value = 1 / value if check.get("reciprocal") else value
     return 1 - value if check.get("complement") else value
+
+
+@functools.cache
+def _evaluated(source: str, asked: str) -> dict[str, Any]:
+    """Return the library's evaluation of a design, worked once however many of its numbers are read.
+
+    ``source`` holds the design a specification names, or the runs in coded units; ``asked`` the
+    model, the metric and its options, both as JSON. An alias matrix is read entry by entry, so
+    its hundreds of checks share one evaluation.
+    """
+    spec, wanted = json.loads(source), json.loads(asked)
+    if "design" in spec:
+        design: Any = _made(json.dumps(spec["design"], sort_keys=True))
+    else:
+        design = pd.DataFrame({name: spec["runs"][name] for name in spec["columns"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return evaluate_design(design, model=wanted["model"], metric=wanted["metric"], **(wanted["options"] or {}))
 
 
 def _read(found: Any, key: str | list[str] | None) -> float:  # noqa: ANN401 - a library result: a number, dict or list
@@ -1335,17 +1458,55 @@ def _nested_test(experiment: dict, check: dict) -> float:
     """
     settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
     y = responses[check.get("response") or responses.columns[0]]
+    data = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list"), "y": y.tolist()})
+    (ss_smaller, df_smaller), (ss_fuller, df_fuller) = (_residual_sum(data, m) for m in (check["model"], check["full"]))
+    ss, df = ss_smaller - ss_fuller, df_smaller - df_fuller
+    f = ss / df / (ss_fuller / df_fuller)
+    found = {"ss": ss, "df": df, "ms": ss / df, "f": f, "p": f_distribution.sf(f, df, df_fuller)}
+    return float(found[check["key"]])
+
+
+@functools.cache
+def _residual_sum(data: str, model: str) -> tuple[float, int]:
+    """Return the residual sum of squares and degrees of freedom of the library's fit of a model to runs given as JSON.
+
+    A stepwise table tests scores of terms against one current model, so each model is fitted once.
+    """
+    runs = json.loads(data)
+    settings = pd.DataFrame({name: runs["runs"][name] for name in runs["columns"]})
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        smaller, fuller = (
-            analyze_experiment(settings, y, model=model, analysis_type=["anova"])["model_summary"]
-            for model in (check["model"], check["full"])
-        )
-    ss = smaller["mse_residual"] * smaller["df_residual"] - fuller["mse_residual"] * fuller["df_residual"]
-    df = smaller["df_residual"] - fuller["df_residual"]
-    f = ss / df / fuller["mse_residual"]
-    found = {"ss": ss, "df": df, "ms": ss / df, "f": f, "p": f_distribution.sf(f, df, fuller["df_residual"])}
-    return float(found[check["key"]])
+        summary = analyze_experiment(settings, pd.Series(runs["y"], name="y"), model=model, analysis_type=["anova"])[
+            "model_summary"
+        ]
+    return summary["mse_residual"] * summary["df_residual"], summary["df_residual"]
+
+
+def _nested_test_rounding(experiment: dict, check: dict) -> float:
+    """Return how far a number of :func:`_nested_test` moves when each response is off by half its last printed digit.
+
+    The first-order bound, for a source that fitted readings it prints rounded (``check["data_rounding"]``,
+    as for :func:`_carried_rounding`). With e and r the residuals of the fuller and the smaller model,
+    the sum of squares r'r - e'e has gradient 2(r - e); the F ratio (SS/df)/(E/d) with E = e'e has
+    gradient 2(r - e)/df/(E/d) - 2Fe/E, and its p-value minus the F density times that.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
+    y = responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float)
+    smaller, fuller = (dmatrix(check[m], settings, return_type="dataframe").to_numpy() for m in ("model", "full"))
+    r, e = _residual_vector(smaller, y), _residual_vector(fuller, y)
+    df_full = len(y) - np.linalg.matrix_rank(fuller)
+    df = np.linalg.matrix_rank(fuller) - np.linalg.matrix_rank(smaller)
+    ss, error = float(r @ r - e @ e), float(e @ e)
+    f = ss / df / (error / df_full)
+    gradient_f = 2 * (r - e) / df / (error / df_full) - 2 * f * e / error
+    gradients = {
+        "ss": 2 * (r - e),
+        "ms": 2 * (r - e) / df,
+        "f": gradient_f,
+        "p": -f_distribution.pdf(f, df, df_full) * gradient_f,
+        "df": np.zeros(len(y)),
+    }
+    return float(np.abs(gradients[check["key"]]) @ _half_units(y, check["data_rounding"]))
 
 
 def _column_correlation(experiment: dict, check: dict) -> float:
@@ -1363,6 +1524,27 @@ def _column_correlation(experiment: dict, check: dict) -> float:
 def _dot_product(experiment: dict, check: dict) -> float:
     """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal."""
     return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
+
+
+def _unit_std_error(experiment: dict, check: dict) -> float:
+    """Return the standard error of a model's coefficients in units of sigma: the root of the diagonal of (X'X)^-1.
+
+    A property of the runs and ``check["model"]``, not of any response: a source compares designs
+    by it, as an orthogonal design's coefficients all have 1/sqrt(N). ``check["exclude"]`` names
+    factors whose columns are left out (a block's, say), and ``check["key"]`` reduces the rest:
+    ``"min"`` or ``"max"``.
+    """
+    settings, _ = _coded_runs(experiment, check.get("runs"))
+    matrix = dmatrix(check["model"], settings, return_type="dataframe")
+    errors = np.sqrt(np.diag(np.linalg.pinv(matrix.to_numpy().T @ matrix.to_numpy())))
+    excluded = tuple(check.get("exclude", []))
+    kept = [e for name, e in zip(matrix.columns, errors, strict=True) if not name.startswith(excluded)]
+    return float(_REDUCE[check.get("key", "max")](kept))
+
+
+def _distinct_runs(experiment: dict, check: dict) -> float:
+    """Return how many different runs the design has in the printed columns ``check["columns"]``: its projection."""
+    return float(len(_run_counts(_printed_matrix(experiment, check["columns"], None))))
 
 
 def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
@@ -1474,6 +1656,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "capability": _capability,
     "column_correlation": _column_correlation,
     "difference_of_means": _difference_of_means,
+    "distinct_runs": _distinct_runs,
     "dot_product": _dot_product,
     "log_variance_ratio": _log_variance_ratio,
     "design_property": lambda _e, c: _design_property(c),
@@ -1483,6 +1666,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "nonadditivity": _nonadditivity,
     "t_test": _t_test,
     "tukey": _tukey,
+    "unit_std_error": _unit_std_error,
     "variance_component": _variance_component,
 }
 
@@ -1492,6 +1676,8 @@ _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "same_runs": _same_runs,
     "generator_holds": _generator_holds,
     "generalized_interactions": _generalized_interactions,
+    "product_column": _product_column,
+    "same_projections": _same_projections,
 }
 
 
@@ -1507,8 +1693,12 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
         found = _VALUE_KINDS[kind](experiment, check)
         wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
         of_rounded, decimals = check.get("of_rounded", 1), check.get("decimals")
+        nearest = found
+        if kind == "nested_test" and check.get("data_rounding"):  # the source's test of its unrounded data
+            target, slack = float(_number(wanted)[1]), _nested_test_rounding(experiment, check)
+            nearest = target if abs(found - target) <= slack else found - math.copysign(slack, found - target)
         return f"{found:.6g}", _agrees(
-            found, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded, decimals=decimals
+            nearest, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded, decimals=decimals
         )
     if kind in _RUN_KINDS:
         found_runs = _RUN_KINDS[kind](experiment, check)
@@ -1565,8 +1755,12 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     are compared with those of the library's blocking of the same factorial, and with the
     products of the effects the source chose to generate the blocks. A test of lack of fit is
     also worked as the F test of the model against a fuller one, and the pseudo t-ratio of an
-    unreplicated design's effect on Lenth's PSE. A number without a check is reported with the
-    reason it is not recomputed.
+    unreplicated design's effect on Lenth's PSE. A fraction's word lengths are read from the defining
+    relation of the library's fraction made from its generators; a printed column of signs is the
+    product of the factor columns it is headed with; a Plackett-Burman design is matched to the
+    library's by its projections onto one, two and three columns; and a stepwise regression's tests
+    are nested tests, held to what the rounding of responses printed rounded carries. A number
+    without a check is reported with the reason it is not recomputed.
 
     Parameters
     ----------
