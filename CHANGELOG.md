@@ -240,11 +240,15 @@ those changes.
   passed it, and the secant plane through the points where it was finite stood in for it:
   `0.5 <= A/B <= 2` with `B` from 0, or `sqrt(A - 120) + B <= 70` with `A` from 100, got
   vertices, bounds and a hit-and-run sampler cut by a plane the constraint does not have.
-- **Samples of a thin region are the same on every platform.** When a region keeps under
-  about 1% of the box, its uniform samples come from hit-and-run chains whose directions
-  used eigenvectors of a covariance, and those have no fixed sign: native Python and
-  Pyodide took different steps, so I-optimal designs and averages over such a region
-  differed. The directions now use the Cholesky factor, which is unique.
+- **Samples of a thin region no longer depend on the sign of an eigenvector.** A region too
+  thin to sample by rejection (one that keeps under 1% of the box for the 20000 points that
+  `compare_designs` and an I-optimal design's moments draw, or under 5% for the 100000 of
+  `evaluate_design`) is sampled by hit-and-run chains, whose directions used eigenvectors
+  of a covariance, and those have no fixed sign: native Python and Pyodide took different
+  steps, and their averages over such a region differed in the third or fourth figure.
+  The directions now use the Cholesky factor, which is unique. The chains still magnify
+  differences in the last bit of the platforms' arithmetic, so in 6 or more factors these
+  averages agree to about 7 to 11 figures, not to every one.
 - **`DesignRegion.feasible` accepts a point on a straight limit's boundary however the
   limit is scaled.** It compared a limit's value with `1e-9` in the limit's own units, so
   a point on the boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same
