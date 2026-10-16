@@ -273,6 +273,9 @@ when they want one.
 - Short by default. Answer simple questions in 1-3 sentences of plain prose.
 - Never trade correctness for brevity. Error reports and other technical
   content keep their full content.
+- Write in the spirit of ASD-STE100 (Simplified Technical English). Keep
+  sentence structures direct. Limit each procedural step to a single action.
+  Avoid unnecessary synonyms: use one term for one thing.
 
 ## Updating this file (CLAUDE.md)
 
