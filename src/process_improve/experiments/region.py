@@ -217,8 +217,9 @@ class DesignRegion:
             a curved limit. Either way a point within ``tol`` of a straight limit's
             boundary, in coded units, passes, however the limit is scaled. So do the
             corners the region reports (:meth:`vertices`, :meth:`shadow`,
-            :meth:`slice_polygon`): their rounding moves each coordinate by at most
-            ``1e-10`` in coded units.
+            :meth:`slice_polygon`), whose rounding (see :meth:`vertices`) moves a
+            coordinate by at most ``1e-10`` in coded units, or a few times that for a
+            factor whose values pass 100000 times its range.
 
         Returns
         -------
@@ -791,7 +792,8 @@ class DesignRegion:
             reads ``250.0``, or to more where its factor's range is narrow next to its
             values (a year, an absolute pressure, a time stamp): to the decimal place of
             ``1e-10`` times the range, up to 16 figures, about what a double holds.
-            Every vertex then passes :meth:`feasible`.
+            Every vertex then passes :meth:`feasible`, short of a factor whose values
+            pass a million times its range, which a double cannot resolve that finely.
 
         Raises
         ------
