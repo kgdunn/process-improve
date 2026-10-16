@@ -936,3 +936,118 @@ def test_a_prediction_can_be_read_as_the_half_width_of_its_interval():
     low, high = (reference_catalogue._prediction(out, {**check, "bound": b}, entry) for b in ("ci_low", "ci_high"))
     half = reference_catalogue._prediction(out, {**check, "bound": "ci_half_width"}, entry)
     assert half == pytest.approx((high - low) / 2)
+
+
+def _factorial(k, y, centre=()):
+    """Return an unreplicated 2^k in standard order, factors A, B, ... coded -1 and +1, then any centre runs."""
+    names = list("ABCDE"[:k])
+    rows = [[1 if (i >> j) & 1 else -1 for j in range(k)] + [v] for i, v in enumerate(y)] + [
+        [0] * k + [v] for v in centre
+    ]
+    return {
+        "name": f"two-level {k}",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in names],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": [*names, "y"], "rows": rows, "coded": True},
+    }
+
+
+FILTRATION = [45, 71, 48, 65, 68, 60, 80, 65, 43, 100, 45, 104, 75, 86, 70, 96]  # Montgomery's Example 6.2
+
+
+def test_a_nested_test_of_one_term_is_that_term_s_f_test():
+    """A model against the one with one term more: the F test of that term, as the analysis of variance prints it."""
+    from process_improve.experiments.reference_catalogue import _nested_test
+
+    entry = _factorial(4, FILTRATION)
+    check = {"model": "A + C + D + A:C", "full": "A + C + D + A:C + A:D"}
+    fuller = analyze_experiment(
+        *reference_catalogue._coded_runs(entry, None), model=check["full"], analysis_type=["anova"]
+    )
+    row = next(r for r in fuller["anova_table"] if r["source"] == "A:D")
+    assert _nested_test(entry, {**check, "key": "ss"}) == pytest.approx(row["sum_sq"])
+    assert _nested_test(entry, {**check, "key": "df"}) == 1
+    assert _nested_test(entry, {**check, "key": "f"}) == pytest.approx(row["F"])
+    assert _nested_test(entry, {**check, "key": "p"}) == pytest.approx(row["p_value"])
+
+
+def test_lenth_pseudo_t_is_an_effect_over_the_pse_on_a_third_as_many_degrees_of_freedom():
+    """JMP's screening platform: Temp's estimate 10.8125 over the PSE 1.3125 is 8.24, judged on t with 15/3 df."""
+    entry = _factorial(4, FILTRATION)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C * D", "term": "A"}
+    out = fits(entry, check)
+    t = reference_catalogue._FIT_KINDS["lenth_t"](out, check, entry)
+    assert t == pytest.approx(21.625 / 2.625)
+    assert reference_catalogue._FIT_KINDS["lenth_p"](out, check, entry) == pytest.approx(2 * stats.t.sf(t, 5))
+
+
+def test_a_percent_contribution_is_a_term_s_share_of_the_total_sum_of_squares():
+    entry = _factorial(4, FILTRATION)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C * D - A:B:C:D", "term": "A"}
+    out = fits(entry, check)
+    total = np.sum((np.array(FILTRATION) - np.mean(FILTRATION)) ** 2)
+    assert reference_catalogue._FIT_KINDS["percent_contribution"](out, check, entry) == pytest.approx(
+        100 * 1870.5625 / total
+    )
+
+
+def test_centre_runs_give_the_curvature_test_and_the_largest_r_squared():
+    """Four centre runs: pure error on 3 df, and 1 - SSpe/SST the best R² any model of these runs could reach."""
+    entry = _factorial(4, FILTRATION, centre=[73, 75, 66, 69])
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C * D"}
+    out = fits(entry, check)
+    assert reference_catalogue._FIT_KINDS["curvature"](out, {"key": "ss_curvature"}, entry) == pytest.approx(
+        16 * 4 * (70.0625 - 70.75) ** 2 / 20
+    )
+    y = np.array([*FILTRATION, 73, 75, 66, 69], dtype=float)
+    pure = np.sum((y[16:] - y[16:].mean()) ** 2)
+    found = reference_catalogue._FIT_KINDS["max_r_squared"](out, check, entry)
+    assert found == pytest.approx(1 - pure / np.sum((y - y.mean()) ** 2))
+
+
+def test_a_range_is_read_from_a_run_s_readings():
+    entry = {**_factorial(1, [0, 0]), "responses": [{"name": "r1"}, {"name": "r2"}]}
+    entry["runs"] = {"columns": ["A", "r1", "r2"], "rows": [[-1, 550, 604], [1, 669, 650]], "coded": True}
+    fits = reference_catalogue._Fits()
+    summary = {"of": ["r1", "r2"], "statistic": "range"}
+    assert reference_catalogue._reproduce(
+        entry, {"value": "54"}, {"kind": "observation", "run": 1, "summary": summary}, fits
+    )[1]
+    each = {"of": ["r1", "r2"], "statistic": "each"}
+    assert reference_catalogue._reproduce(
+        entry, {"value": "19"}, {"kind": "range", "runs": [2], "summary": each}, fits
+    )[1]
+
+
+def test_two_columns_of_a_two_level_factorial_are_correlated_once_a_run_is_missing():
+    """Run cd left out of a 2^4: any two columns have the correlation -1/14, which a source prints as ±0.0714."""
+    from process_improve.experiments.reference_catalogue import _column_correlation
+
+    entry = _factorial(4, FILTRATION)
+    kept = [i for i in range(1, 17) if i != 13]
+    assert _column_correlation(entry, {"columns": ["A", "B"], "runs": kept}) == pytest.approx(-1 / 14)
+    assert _column_correlation(entry, {"columns": ["A", "B"]}) == pytest.approx(0)
+
+
+def test_blocks_confound_the_products_of_the_effects_chosen_to_generate_them():
+    from process_improve.experiments.reference_catalogue import _generalized_interactions
+
+    assert _generalized_interactions({}, {"of": "ADE, BCE"}, "ADE, BCE, ABCD")[1]
+    assert _generalized_interactions({}, {"of": "ABEF, ABCD, ACE"}, "ABEF, ABCD, ACE, CDEF, BCF, BDE, ADF")[1]
+    assert not _generalized_interactions({}, {"of": "ABCD, CDEF, ADFG"}, "ABC, DEF, AFG, ABCDEF, BCFG, ADEG, BCDEG")[1]
+
+
+def test_the_signs_of_two_effects_pick_one_of_the_four_blocks_they_generate():
+    from process_improve.experiments.reference_catalogue import _fraction_runs
+
+    entry = _factorial(3, [0] * 8)
+    assert _fraction_runs(entry, {"generator": "-AB, -BC"}) == [3, 6]  # b and ac
+    assert _fraction_runs(entry, {"generator": "AB, -BC"}) == [4, 5]  # ab and c
+
+
+def test_a_path_into_a_library_result_may_hold_keys_with_a_dot():
+    assert reference_catalogue._read({"quantiles": {"0.5": 0.42}}, ["quantiles", "0.5"]) == pytest.approx(0.42)
+    assert reference_catalogue._read({"q": [1.0, 3.0]}, "q.max") == pytest.approx(3.0)

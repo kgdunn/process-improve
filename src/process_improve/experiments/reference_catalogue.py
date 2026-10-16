@@ -286,6 +286,7 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "total": lambda readings: readings.sum(axis=1),
     "std_dev": lambda readings: readings.std(axis=1, ddof=1),
     "variance": lambda readings: readings.var(axis=1, ddof=1),
+    "range": lambda readings: readings.max(axis=1) - readings.min(axis=1),
     "ln_std_dev": lambda readings: np.log(readings.std(axis=1, ddof=1)),
     # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
     # nominal is best in the form 10 log10(mean^2 / variance)
@@ -522,6 +523,19 @@ def _lenth(out: dict, key: str, check: dict) -> float:
     return float(out["lenth_method"][key]) / (2.0 if check.get("scale") == "coefficient" else 1.0)
 
 
+def _lenth_ratio(out: dict, check: dict) -> tuple[float, float]:
+    """Return a term's pseudo t-ratio, its effect over Lenth's PSE, and its two-sided p-value on m/3 degrees of freedom.
+
+    JMP's screening platform prints both beside each estimate of an unreplicated design: Lenth's
+    PSE judges the m contrasts on the t distribution with d = m/3 degrees of freedom.
+    """
+    lenth = out["lenth_method"]
+    wanted = set(_library_term(check["term"]).split(":"))
+    effect = next(e["effect"] for e in lenth["effects"] if set(e["term"].split(":")) == wanted)
+    ratio = effect / lenth["PSE"]
+    return ratio, 2 * float(t_value_cdf(-abs(ratio), len(lenth["effects"]) / 3))
+
+
 def _prediction(out: dict, check: dict, experiment: dict) -> float:
     """Return the model's prediction at a point in coded units, as the library predicts new runs.
 
@@ -739,6 +753,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "median": lambda out, _c, _e: float(out["y"].median()),
     "minimum": lambda out, _c, _e: float(out["y"].min()),
     "maximum": lambda out, _c, _e: float(out["y"].max()),
+    "range": lambda out, _c, _e: float(out["y"].max() - out["y"].min()),
     "std_dev": lambda out, _c, _e: float(out["y"].std(ddof=1)),
     "variance": lambda out, _c, _e: float(out["y"].var(ddof=1)),
     "n_runs": lambda out, _c, _e: float(len(out["y"])),
@@ -761,15 +776,20 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
     "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
     "lenth_sme": lambda out, c, _e: _lenth(out, "SME", c),
+    "lenth_t": lambda out, c, _e: _lenth_ratio(out, c)[0],
+    "lenth_p": lambda out, c, _e: _lenth_ratio(out, c)[1],
     "anova_sum_sq": lambda out, c, _e: _anova_row(out, c["term"])["sum_sq"],
     "anova_mean_sq": lambda out, c, _e: _anova_row(out, c["term"])["mean_sq"],
     "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],
     "anova_p": lambda out, c, _e: _anova_row(out, c["term"])["p_value"],
+    "percent_contribution": lambda out, c, _e: 100 * _anova_row(out, c["term"])["sum_sq"] / sum(_anova_sums(out)[:2]),
     "lack_of_fit_f": lambda out, _c, _e: out["lack_of_fit"]["f_statistic"],
     "lack_of_fit_p": lambda out, _c, _e: out["lack_of_fit"]["p_value"],
     "pure_error_df": lambda out, _c, _e: out["lack_of_fit"]["df_pure_error"],
     "pure_error_ms": lambda out, _c, _e: out["lack_of_fit"]["ms_pure_error"],
+    "max_r_squared": lambda out, _c, _e: 1 - out["lack_of_fit"]["ss_pure_error"] / sum(_anova_sums(out)[:2]),
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
+    "curvature": lambda out, c, _e: float(out["curvature_test"][c["key"]]),
     "prediction": _prediction,
     "target_setting": _target_setting,
     "optimum": _optimum,
@@ -866,6 +886,20 @@ def _block_confounding(check: dict, printed: str) -> tuple[str, bool]:
     made = _made(json.dumps(check["design"], sort_keys=True))
     found = made.metadata["blocking"]["confounded_with"]
     return ", ".join(found), sorted(map(len, _words(printed))) == sorted(map(len, found))
+
+
+def _generalized_interactions(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Check the effects a source confounds with blocks against the products of those it chose to generate them.
+
+    Blocks made by p independent effects confound every product of them, two at a time, three at a
+    time and so on (their generalized interactions): 2^p - 1 effects in all. ``check["of"]`` lists
+    the chosen effects, as printed; the printed list must hold exactly their products, in any order.
+    """
+    chosen = _words(check["of"])
+    found = {_multiply(*subset) for r in range(1, len(chosen) + 1) for subset in itertools.combinations(chosen, r)}
+    listed = _words(printed)
+    shown = ", ".join(sorted(found, key=lambda word: (len(word), word)))
+    return shown, len(listed) == len(found) and set(listed) == found
 
 
 def _design_property(check: dict) -> float:
@@ -1028,12 +1062,16 @@ def _fraction_runs(experiment: dict, check: dict) -> list[int]:
     """Return the 1-based positions of the runs that make the fraction of a generator: C = AB, or C = \u2212AB.
 
     A run is in it when the product of its coded settings over the generator's word is the word's sign.
+    Several generators, separated by commas, keep the runs that satisfy them all, as the signs of
+    two effects pick one of the four blocks they generate: ``-ADE, -BCE``.
     """
-    word = _generator_word(check["generator"])
-    sign = -1.0 if word.startswith("-") else 1.0
     settings, _ = _coded_runs(experiment, check.get("runs"))
-    product = settings[list(word.lstrip("-"))].prod(axis=1).to_numpy()
-    return [i + 1 for i, value in enumerate(product) if np.isclose(value, sign)]
+    kept = np.ones(len(settings), dtype=bool)
+    for generator in str(check["generator"]).split(","):
+        word = _generator_word(generator)
+        sign = -1.0 if word.startswith("-") else 1.0
+        kept &= np.isclose(settings[list(word.lstrip("-"))].prod(axis=1).to_numpy(), sign)
+    return [int(i) + 1 for i in np.flatnonzero(kept)]
 
 
 def _standard_order(experiment: dict, check: dict) -> list[int]:
@@ -1077,9 +1115,13 @@ def _design_metric(experiment: dict, check: dict) -> float:
     return 1 - value if check.get("complement") else value
 
 
-def _read(found: Any, key: str | None) -> float:  # noqa: ANN401 - a library result: a number, dict or list
-    """Read one number from a library result by a dot-separated path; ``max``, ``min``, ``mean``, ``len`` reduce."""
-    for step in filter(None, str(key or "").split(".")):
+def _read(found: Any, key: str | list[str] | None) -> float:  # noqa: ANN401 - a library result: a number, dict or list
+    """Read one number from a library result by a dot-separated path; ``max``, ``min``, ``mean``, ``len`` reduce.
+
+    A path whose keys hold a dot themselves, such as the quantile ``"0.5"``, is given as a list of its steps.
+    """
+    steps = key if isinstance(key, list) else str(key or "").split(".")
+    for step in filter(None, steps):
         if step in _REDUCE:
             found = _REDUCE[step](list(found.values()) if isinstance(found, dict) else list(found))
         else:
@@ -1092,6 +1134,7 @@ _LIBRARY: dict[str, Callable[..., Any]] = {
     "omars_minimum_runs": omars_minimum_runs,
     "optimize_responses": optimize_responses,
     "t_value": t_value,
+    "t_value_cdf": t_value_cdf,
 }
 
 
@@ -1279,6 +1322,44 @@ def _log_variance_ratio(experiment: dict, check: dict) -> float:
     return 2 * math.log(float(plus[column].mean()) / float(minus[column].mean()))
 
 
+def _nested_test(experiment: dict, check: dict) -> float:
+    """Return a number of the F test of ``check["model"]`` against the fuller ``check["full"]``, on the same runs.
+
+    The sum of squares is the smaller model's residual sum of squares less the fuller one's, on the
+    difference of their residual degrees of freedom, and it is tested against the fuller model's
+    residual mean square. With the fuller model saturated in the design's factors, this is the test
+    of lack of fit against pure error from the replicated runs alone, as Design-Expert works it when
+    a factor dropped from the model stays a factor of the design; with the fuller model's terms all
+    but one tested together, it is the test of those terms. ``check["key"]`` is ``"ss"``, ``"df"``,
+    ``"ms"``, ``"f"`` or ``"p"``.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
+    y = responses[check.get("response") or responses.columns[0]]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        smaller, fuller = (
+            analyze_experiment(settings, y, model=model, analysis_type=["anova"])["model_summary"]
+            for model in (check["model"], check["full"])
+        )
+    ss = smaller["mse_residual"] * smaller["df_residual"] - fuller["mse_residual"] * fuller["df_residual"]
+    df = smaller["df_residual"] - fuller["df_residual"]
+    f = ss / df / fuller["mse_residual"]
+    found = {"ss": ss, "df": df, "ms": ss / df, "f": f, "p": f_distribution.sf(f, df, fuller["df_residual"])}
+    return float(found[check["key"]])
+
+
+def _column_correlation(experiment: dict, check: dict) -> float:
+    """Return the correlation of two coded columns ``check["columns"]`` over the runs ``check["runs"]``.
+
+    Two columns of a two-level factorial are uncorrelated over all its runs; with a run missing they
+    are not. ``"absolute": true`` returns the size, for a source that prints the correlation as ±r.
+    """
+    settings, _ = _coded_runs(experiment, check.get("runs"))
+    first, second = (settings[name].to_numpy(dtype=float) for name in check["columns"])
+    r = float(np.corrcoef(first, second)[0, 1])
+    return abs(r) if check.get("absolute") else r
+
+
 def _dot_product(experiment: dict, check: dict) -> float:
     """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal."""
     return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
@@ -1391,12 +1472,14 @@ def _variance_component(experiment: dict, check: dict) -> float:
 
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "capability": _capability,
+    "column_correlation": _column_correlation,
     "difference_of_means": _difference_of_means,
     "dot_product": _dot_product,
     "log_variance_ratio": _log_variance_ratio,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
+    "nested_test": _nested_test,
     "nonadditivity": _nonadditivity,
     "t_test": _t_test,
     "tukey": _tukey,
@@ -1408,6 +1491,7 @@ _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "block_confounding": lambda _e, c, printed: _block_confounding(c, printed),
     "same_runs": _same_runs,
     "generator_holds": _generator_holds,
+    "generalized_interactions": _generalized_interactions,
 }
 
 
@@ -1478,8 +1562,11 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     factor that brings a fitted model to a target is solved from the library's predictions, and a
     process capability index is the library's Cpk. Two groups of runs are compared with the
     library's two-sample and paired t-tests. The interactions a source confounds with blocks
-    are compared with those of the library's blocking of the same factorial. A number without
-    a check is reported with the reason it is not recomputed.
+    are compared with those of the library's blocking of the same factorial, and with the
+    products of the effects the source chose to generate the blocks. A test of lack of fit is
+    also worked as the F test of the model against a fuller one, and the pseudo t-ratio of an
+    unreplicated design's effect on Lenth's PSE. A number without a check is reported with the
+    reason it is not recomputed.
 
     Parameters
     ----------
