@@ -719,13 +719,35 @@ class TestLinearForms:
         assert forms == [form]
         json.dumps(forms, allow_nan=False)
 
-    def test_a_huge_constant_is_handled(self):
-        """The coded fit of ``T <= 1e300`` overflows; its rows then divided by a zero length."""
-        region = DesignRegion(HEAT_FACTORS, ["T <= 1e300"])
-        assert region.linear_forms() == [({"T": 1.0}, None, 1e300)]
+    @pytest.mark.parametrize("expression", ["T <= 1e300", "T + D <= 1e200", "T + D <= 1e170"])
+    def test_a_huge_constant_is_handled(self, expression):
+        """A straight limit that holds everywhere, however large its constant.
+
+        The coded fit of ``T <= 1e300`` overflowed, and its rows then divided by a zero
+        length. Later the length of a fit's noise, near ``1e-16`` of the constant, overflowed
+        when it was squared, from a constant of about ``1e170``: the limit was taken for curved,
+        so it had no vertices and a mask for a shadow.
+        """
+        region = DesignRegion(HEAT_FACTORS, [expression])
+        form = region.linear_forms()[0]
+        assert form is not None
+        assert form[2] == float(expression.split("<=")[1])
         assert not region.is_empty()
         assert region.implied_bounds() == {"T": (100.0, 150.0), "D": (20.0, 60.0)}
         assert region.redundant_constraints() == [0]
+        assert region.vertices().tolist() == [[100.0, 20.0], [100.0, 60.0], [150.0, 20.0], [150.0, 60.0]]
+        corners = [[100.0, 20.0], [150.0, 20.0], [150.0, 60.0], [100.0, 60.0]]
+        assert region.shadow("T", "D") == region.slice_polygon("T", "D") == {"kind": "polygon", "points": corners}
+
+    def test_a_huge_coefficient_is_a_straight_limit(self):
+        """``1e200*T <= 1.2e202`` is ``T <= 120``; the length of its coded gradient overflowed when squared."""
+        region = DesignRegion(HEAT_FACTORS, ["1e200*T <= 1.2e202"])
+        assert region.linear_forms() == [({"T": 1e200}, None, 1.2e202)]
+        assert region.implied_bounds() == {"T": (100.0, 120.0), "D": (20.0, 60.0)}
+        assert region.vertices().tolist() == [[100.0, 20.0], [100.0, 60.0], [120.0, 20.0], [120.0, 60.0]]
+        assert region.slice_lines("T", "D") == [{"limit": 0, "points": [[120.0, 20.0], [120.0, 60.0]]}]
+        assert region.feasible(np.array([[-0.2, 0.0], [-0.2 + 1e-6, 0.0], [1.0, 1.0]])).tolist() == [True, False, False]
+        assert region.redundant_constraints() == []
 
     def test_mixture_limits_have_forms_too(self):
         assert DesignRegion(MIXTURE, ["x0 + 2*x1 <= 0.8"]).linear_forms() == [({"x0": 1.0, "x1": 2.0}, None, 0.8)]

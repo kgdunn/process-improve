@@ -1070,19 +1070,15 @@ class _Rows:
         a_rows, b_rows, limits, scale, nonlinear, nonlinear_limit = [], [], [], [], [], []
         for g, limit in zip(inequalities, limit_of, strict=True):
             form = _affine_form(g, -ones, ones) if k else (np.zeros(0), -float(g(np.zeros((1, 0)))[0]))
-            if form is None:
+            # The length without squaring: np.linalg.norm squares, which overflows from a length of 1e154, so
+            # T <= 1e200 (whose fit carries noise near 1e184) and 1e200*T <= 1.2e202 were taken for curved.
+            size = math.hypot(*form[0]) if form is not None else math.inf
+            if not math.isfinite(size):  # not affine (a length past 1.8e308 would have overflowed the fit too)
                 nonlinear.append(g)
                 nonlinear_limit.append(limit)
                 scale.append(1.0)
                 continue
-            a, b = form
-            with np.errstate(over="ignore"):
-                size = float(np.linalg.norm(a))
-            if not (math.isfinite(size) and math.isfinite(b)):  # a constant near 1e300 overflowed the fit
-                nonlinear.append(g)
-                nonlinear_limit.append(limit)
-                scale.append(1.0)
-                continue
+            a, b = cast("tuple[np.ndarray, float]", form)
             if size <= _SNAP * (1.0 + abs(b)):  # compares numbers only
                 scale.append(1.0)
                 if b < -_TOL:
@@ -1091,7 +1087,7 @@ class _Rows:
                     limits.append(limit)
                 continue
             a = np.where(np.abs(a) <= _SNAP * size, 0.0, a)
-            size = float(np.linalg.norm(a))
+            size = math.hypot(*a)
             scale.append(size)
             a_rows.append(a / size)
             b_rows.append(b / size)
