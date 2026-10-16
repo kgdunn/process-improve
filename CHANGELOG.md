@@ -13,21 +13,45 @@ those changes.
 
 ### Added
 
-- **The reference catalogue holds chapters 1 and 2 of Montgomery, *Design and Analysis of
-  Experiments* (8th edition).** The golf 2^2 factorial and its three effects; the Portland cement
-  mortar two-sample t-test with Minitab's and JMP's output, its confidence interval and Minitab's
-  power table; the nerve and muscle fluorescence compared by Welch's test; the hardness tips' paired
-  t-test beside the pooled test that ignores the specimens; the run counts of the golf factorials
-  and of a 4 x 8 x 6 x 5 x 4 x 3 x 7 web page factorial; the half fraction of Figure 1.8, read from
-  its circled corners and compared run for run with the library's; and the data of 15 problems, kept
-  as data because the book prints no answers. 133 printed numbers, 121 checked. 4 are recorded as
-  not reproducing, each the book's rounding: two test statistics, a P-value and a Welch degrees of
-  freedom worked from rounded averages and standard deviations. A new check, `t_test`, compares two
-  groups of runs with the library's pooled, Welch and paired t-tests (the difference, t, p, degrees
-  of freedom, standard error, and an interval at any confidence with its half-width); the pooled and
-  paired tests are also checked through the regression and the randomized block model they equal.
-  Checks can now read a median, a minimum and a maximum, and a percentage point of the t
-  distribution (`t_value`).
+- **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
+  `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
+  "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
+  R's `rstudent`, Design-Expert's "Outlier t"). The reference catalogue checks both against the 44
+  runs Design-Expert lists in Montgomery's Figures 3.12 and 4.2; all agree.
+- **The reference catalogue holds chapters 1 to 4 of Montgomery, *Design and Analysis of
+  Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
+  Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
+  and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the hardness
+  tips' paired t-test beside the pooled test that ignores the specimens; the run counts of the golf
+  factorials and of a 4 x 8 x 6 x 5 x 4 x 3 x 7 web page factorial; and the half fraction of Figure
+  1.8, read from its circled corners and compared run for run with the library's. Chapter 3: the
+  plasma etching one-way analysis of variance by hand and in Design-Expert, Minitab and JMP, with its
+  residuals and case statistics, contrasts, Scheffé's, Tukey's, Fisher's and Dunnett's comparisons,
+  Bartlett's variances and the Kruskal-Wallis ranks; the peak discharge data with the modified Levene
+  test and a square root transformation; dark and milk chocolate; end-aisle displays; the pot noise
+  of aluminum smelting analysed as ln(s); and the looms as a random factor, with JMP's REML variance
+  components, their standard errors, covariances and intervals. Chapter 4: the vascular graft
+  randomized complete block design in Design-Expert and JMP, with the blocks fixed and random, and
+  with one value missing; the rocket propellant Latin and Graeco-Latin squares; and the catalyst
+  balanced incomplete block design, with its adjusted and unadjusted sums of squares, Minitab's
+  output, and the combined intra- and interblock estimates, which the library's REML fit with random
+  blocks reproduces. The data of the 57 problems that have data are kept as data, since the book
+  prints no answers. 1241 printed numbers, 1117 checked. 31 are recorded as not reproducing, each
+  explained: the book's rounding (test statistics worked from rounded values, a Tukey critical
+  difference from a table's rounded point, three standard deviations in Table 3.7), misprints (an
+  error sum of squares, a mean square used as 330.70, an F of 3.95 for 3.93, an error degrees of
+  freedom of 19 for 20), and Minitab's Tukey intervals, which use a studentized range point of 4.0504
+  where the library's, like R's, is 4.0461.
+
+  New checks: `t_test` compares two groups of runs with the library's pooled, Welch and paired
+  t-tests; `contrast` weighs a fit's level means (its value, standard error, t, F, sum of squares,
+  p-value and 95% interval); `tukey` reads the library's `tukey_hsd`; a fit can take a `transform`;
+  `variance_component` takes fixed factors, coded to sum to zero, and reads the REML fit's variance
+  ratios, percentages, standard errors, covariances, Wald intervals, the mean's t on Satterthwaite's
+  degrees of freedom, fixed-effect F tests and level effects. Checks can also read a run's leverage,
+  Cook's distance and studentized residuals, a sum, a median, a minimum and a maximum, the adequate
+  precision, and a percentage point of the t distribution (`t_value`). A term written as the library
+  names it, such as `C(power)[160.0]`, is read as that row of the coefficients.
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
