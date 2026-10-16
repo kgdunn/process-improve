@@ -31,10 +31,12 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 
 from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAMES, orthogonal_array
+from process_improve.experiments.compare import MEASURES, compare_designs
 from process_improve.experiments.design_measures import (
     MODELS,
     design_classes,
     estimable_models,
+    fds_curve,
     projectivity,
     quadratic_projection,
     run_counts,
@@ -766,6 +768,73 @@ def catalog_sources() -> dict[str, dict[str, Any]]:
 def catalog_families() -> dict[str, dict[str, Any]]:
     """Return each family's name on the page, and the year and work that first published it."""
     return {key: {"label": f.label, "year": f.year, "reference": f.reference} for key, f in FAMILIES.items()}
+
+
+# --------------------------------------------------------------------------- comparing designs
+#: The most factors, and the most runs, of a design the catalog scores for comparison.
+COMPARED_FACTORS, COMPARED_RUNS = 12, 1000
+
+
+def _comparable(record: dict[str, Any]) -> np.ndarray | None:
+    """Return a record's coded runs when its factors are all numeric and every setting is given; else ``None``."""
+    runs, k = record.get("coded_runs"), record.get("n_factors") or 0
+    if not runs or record.get("n_numeric") != k or not 1 <= k <= COMPARED_FACTORS or len(runs) > COMPARED_RUNS:
+        return None
+    if any(v is None for row in runs for v in row):
+        return None
+    return np.array(runs, dtype=float)
+
+
+def catalog_comparisons(records: Sequence[dict[str, Any]]) -> dict[str, dict[str, dict[str, Any]]]:
+    """Score each design of numeric factors on the measures of ``compare_designs``, for each model, with its FDS curve.
+
+    A design is scored on its own: its values do not depend on which other designs are scored, so any
+    designs with the same number of factors can be set side by side afterwards, as
+    :func:`~process_improve.experiments.compare.compare_designs` would set them. Designs with a
+    categorical or mixture factor, a missing setting, more than :data:`COMPARED_FACTORS` factors or
+    more than :data:`COMPARED_RUNS` runs are not scored.
+
+    Parameters
+    ----------
+    records : Sequence[dict]
+        Records of the catalog (see :func:`catalog_records`).
+
+    Returns
+    -------
+    dict
+        For each scored design's ``id``, for each model in
+        :data:`~process_improve.experiments.design_measures.MODELS`, the values ``compare_designs``
+        reports (the keys of :data:`~process_improve.experiments.compare.MEASURES`), to four
+        significant figures, and ``fds``, the design's
+        :func:`~process_improve.experiments.design_measures.fds_curve` for the model (``None`` when
+        the design cannot fit it).
+
+    Examples
+    --------
+    >>> from process_improve.experiments.design_catalog import catalog_comparisons, catalog_records
+    >>> ccd = [r for r in catalog_records("generated") if r["id"] == "lib-ccd-k3-face-centered"]
+    >>> scored = catalog_comparisons(ccd)["lib-ccd-k3-face-centered"]
+    >>> scored["quadratic"]["fits"], scored["quadratic"]["residual_df"]
+    (True, 7)
+    """
+    keys = {measure.key for measure in MEASURES}
+    by_size: dict[int, dict[str, np.ndarray]] = {}
+    for record in records:
+        if (runs := _comparable(record)) is not None:
+            by_size.setdefault(runs.shape[1], {})[record["id"]] = runs
+    scored: dict[str, dict[str, dict[str, Any]]] = {}
+    for designs in by_size.values():
+        for model in MODELS:
+            comparison = compare_designs(designs, model)
+            for (name, runs), label in zip(designs.items(), comparison.designs, strict=True):
+                values = {
+                    key: float(f"{value:.4g}") if isinstance(value, float) else value
+                    for key, value in comparison.values[label].items()
+                    if key in keys
+                }
+                values["fds"] = fds_curve(runs, ["numeric"] * runs.shape[1], model)
+                scored.setdefault(name, {})[model] = values
+    return scored
 
 
 # --------------------------------------------------------------------------- searching the catalog

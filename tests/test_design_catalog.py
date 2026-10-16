@@ -8,7 +8,8 @@ import warnings
 import numpy as np
 import pytest
 
-from process_improve.experiments import design_catalog, generate_design
+from process_improve.experiments import compare_designs, design_catalog, generate_design
+from process_improve.experiments.compare import MEASURES
 from process_improve.experiments.design_catalog import (
     CATALOG_URL,
     FAMILIES,
@@ -16,6 +17,7 @@ from process_improve.experiments.design_catalog import (
     GLYPH_ROWS,
     INDEX_FIELDS,
     CatalogQuery,
+    catalog_comparisons,
     catalog_families,
     catalog_records,
     catalog_sources,
@@ -348,3 +350,39 @@ def test_the_search_tool_returns_designs_with_their_pages():
     assert found["count"] >= found["shown"] == len(found["designs"]) == 2
     assert all(d["family"] == "box_behnken" and d["url"].startswith(CATALOG_URL) for d in found["designs"])
     assert execute_tool_call("search_design_catalog", {"families": ["nope"]})["error"].startswith("Unknown families")
+
+
+# --------------------------------------------------------------------------- comparing designs
+def _generated(*ids: str) -> list[dict]:
+    """Return the generated records with these ids, made one by one."""
+    return [design_catalog._generated_record(s) for s in GENERATED if design_catalog._spec_id(s) in ids]
+
+
+def test_each_design_is_scored_as_compare_designs_scores_it_alongside_others():
+    ccd, bbd = _generated("lib-ccd-k3-face-centered", "lib-box-behnken-k3")
+    scored = catalog_comparisons([ccd, bbd])
+    direct = compare_designs({r["id"]: np.array(r["coded_runs"], dtype=float) for r in (ccd, bbd)}, "quadratic").values
+    for record in (ccd, bbd):
+        values = scored[record["id"]]["quadratic"]
+        label = f"{record['id']} [n={record['n_runs']}]"
+        assert values["fits"] is True
+        assert values["i"] == pytest.approx(direct[label]["i"], rel=1e-3)
+        assert values["max_r"] == pytest.approx(direct[label]["max_r"], rel=1e-3)
+        assert len(values["fds"]) == 21
+        assert set(values) == {m.key for m in MEASURES} | {"fds"}
+
+
+def test_a_model_a_design_cannot_fit_is_scored_as_such_without_a_curve():
+    cube = _generated("lib-full-factorial-k3")
+    values = catalog_comparisons(cube)["lib-full-factorial-k3"]
+    assert values["interactions"]["fits"] is True
+    assert values["quadratic"]["fits"] is False
+    assert values["quadratic"]["fds"] is None
+    assert values["quadratic"]["g"] is None
+
+
+def test_designs_with_other_factors_or_missing_settings_are_not_scored():
+    mixture = _generated("lib-mixture-k3-linear")
+    gap = {**_generated("lib-full-factorial-k3")[0], "id": "gap"}
+    gap["coded_runs"] = [[None, *row[1:]] if i == 0 else row for i, row in enumerate(gap["coded_runs"])]
+    assert catalog_comparisons([*mixture, gap]) == {}
