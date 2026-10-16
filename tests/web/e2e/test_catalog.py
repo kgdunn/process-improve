@@ -289,3 +289,41 @@ def test_a_bar_of_the_timeline_keeps_its_years(context, site):
     counted(page, "2 of 5")
     assert (page.input_value("#year-min"), page.input_value("#year-max")) == ("1975", "1979")
     assert "year=1975-1979" in page.url
+
+
+# --------------------------------------------------------------------------- phase 4: limits on the settings
+def test_a_limit_keeps_the_designs_whose_every_run_meets_it(context, site):
+    """A + B <= 2 holds for every coded run of a cube; the comparison has one factor, so the limit names no B of its."""
+    page = open_catalog(context, site)
+    page.fill("#limit", "A + B <= 2")
+    counted(page, "4 of 5")
+    assert COMPARISON not in shown(page)
+    page.fill("#limit", "A + B <= 1")
+    counted(page, "0 of 5")
+    page.check("#limit-all")
+    counted(page, "4 of 5")
+    badge = page.locator(".result", has=page.locator(f".result__title[data-id='{CCD}']")).locator(".badge--warn")
+    assert badge.text_content() == "2 of 17 runs outside the limit"
+    assert "lim=A+%2B+B+%3C%3D+1" in page.url
+    page.fill("#limit", "A + B")
+    assert page.text_content("#limit-error").startswith("The limit cannot be read: write <= for at most")
+    counted(page, "5 of 5")
+
+
+def test_a_design_s_runs_outside_the_limit_are_marked_and_it_opens_with_the_limit(context, site):
+    page = open_catalog(context, site, f"#lim=A+%2B+B+%3C%3D+1&lima=1&d={CCD}")
+    page.wait_for_selector("#detail[open] .detail__warn")
+    line = page.text_content("#detail-body .detail__warn")
+    assert line.endswith("are outside the limit A + B <= 1, of its 17 runs.")
+    assert page.locator("#detail-body tr.row--outside").count() == 2
+    page.click(f"[data-open-limited='{CCD}']")
+    page.wait_for_selector("#campaign-banner", state="visible")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    settled(page)
+    assert len(run_sheet(page)) == 17
+    assert page.locator("#limit-list .limit [name=expression]").first.input_value() == "A + B <= 1", (
+        "a CCD from -1 to +1: the limit in its own units is the limit in coded units"
+    )
+    assert "outside your limits on the settings: choose the D-optimal or I-optimal design" in page.text_content(
+        "#design-summary"
+    )

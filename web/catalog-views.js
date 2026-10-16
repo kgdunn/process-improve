@@ -39,7 +39,8 @@ const titled = (node, text) => {
   return node;
 };
 
-export function table(head, rows, className = "data") {
+/** A table in a box that scrolls; ``rowClass`` gives each row's class from its index, such as a run outside a limit. */
+export function table(head, rows, className = "data", rowClass = () => "") {
   return element(
     "div",
     { class: "scroll" },
@@ -47,7 +48,7 @@ export function table(head, rows, className = "data") {
       "table",
       { class: className },
       element("thead", {}, element("tr", {}, ...head.map((h) => element("th", { scope: "col", text: h })))),
-      element("tbody", {}, ...rows.map((row) => element("tr", {}, ...row.map((cell) => element("td", {}, cell ?? ""))))),
+      element("tbody", {}, ...rows.map((row, i) => element("tr", { class: rowClass(i) || null }, ...row.map((cell) => element("td", {}, cell ?? ""))))),
     ),
   );
 }

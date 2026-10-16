@@ -1000,7 +1000,8 @@ function renderDesign(warnings = state.designWarnings ?? []) {
     const outside = r.outside_range?.length
       ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
       : "";
-    parts.push(said("", `${r.n_runs} runs${centre}, in random run order.${outside}`), ...noteList(r.facts.notes));
+    const order = r.spec?.design_type === GIVEN ? "in the order given" : "in random run order";
+    parts.push(said("", `${r.n_runs} runs${centre}, ${order}.${outside}`), ...noteList(r.facts.notes));
   } else {
     parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));
   }

@@ -108,6 +108,15 @@
           </select>
         </fieldset>
         <fieldset>
+          <legend>Limits on the settings</legend>
+          <input id="limit" type="text" autocomplete="off" spellcheck="false" placeholder="A + B <= 1"
+            aria-label="A limit on the settings, in coded units" aria-describedby="limit-hint">
+          <p class="hint facets__hint" id="limit-hint">In coded units: A is a design's first factor, B its second, and so
+            on; -1 is a factor's low level and +1 its high. The list keeps the designs whose every run meets it.</p>
+          <p class="hint error" id="limit-error" role="status" hidden></p>
+          <label class="facets__switch"><input type="checkbox" id="limit-all"> Show the designs with runs outside it too</label>
+        </fieldset>
+        <fieldset>
           <legend>Structure</legend>
           <label class="facets__switch"><input type="checkbox" data-switch="blocked"> Run in blocks <span class="count"></span></label>
           <label class="facets__switch"><input type="checkbox" data-switch="splitPlot"> Split plot <span class="count"></span></label>
