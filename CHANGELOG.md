@@ -16,9 +16,9 @@ those changes.
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
-  R's `rstudent`, Design-Expert's "Outlier t"). The reference catalogue checks both against the 44
-  runs Design-Expert lists in Montgomery's Figures 3.12 and 4.2; all agree.
-- **The reference catalogue holds chapters 1 to 4 of Montgomery, *Design and Analysis of
+  R's `rstudent`, Design-Expert's "Outlier t"). The reference catalogue checks both against the 80
+  runs Design-Expert lists in Montgomery's Figures 3.12, 4.2 and 5.10; all agree.
+- **The reference catalogue holds chapters 1 to 5 of Montgomery, *Design and Analysis of
   Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
   Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
   and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the hardness
@@ -35,20 +35,32 @@ those changes.
   with one value missing; the rocket propellant Latin and Graeco-Latin squares; and the catalyst
   balanced incomplete block design, with its adjusted and unadjusted sums of squares, Minitab's
   output, and the combined intra- and interblock estimates, which the library's REML fit with random
-  blocks reproduces. The data of the 57 problems that have data are kept as data, since the book
-  prints no answers. 1241 printed numbers, 1117 checked. 31 are recorded as not reproducing, each
-  explained: the book's rounding (test statistics worked from rounded values, a Tukey critical
+  blocks reproduces. Chapter 5: the effects of Figures 5.1 and 5.2; the battery life 3^2 factorial
+  by hand and in Design-Expert and JMP, with all 36 rows of case statistics, Tukey's comparisons at
+  70 °F, the analysis without interaction, and Design-Expert's reduced cubic response curves in
+  coded and actual temperature; the impurity data with one observation per cell and Tukey's test for
+  nonadditivity; the soft drink bottling 3 x 2 x 2 factorial with every total and sum of squares;
+  the tool life 3^2 as a categorical analysis and as JMP's second-order and expanded models, with
+  the prediction profiler's optimum; and the radar detection factorial with the operators as fixed
+  and as random blocks (JMP's REML table, its -2 log-likelihood included), then run in a 6 x 6 Latin
+  square. The data of the 79 problems that have data are kept as data, since the book prints no
+  answers. 2138 printed numbers, 1978 checked. 48 are recorded as not reproducing, each explained:
+  the book's rounding (test statistics and P-values worked from rounded values, a Tukey critical
   difference from a table's rounded point, three standard deviations in Table 3.7), misprints (an
   error sum of squares, a mean square used as 330.70, an F of 3.95 for 3.93, an error degrees of
-  freedom of 19 for 20), and Minitab's Tukey intervals, which use a studentized range point of 4.0504
-  where the library's, like R's, is 4.0461.
+  freedom of 19 for 20, a residual of 26.00 for −6.00), Design-Expert's equations in actual
+  temperature, whose linear coefficients add the quadratic ones, and Minitab's Tukey intervals,
+  which use a studentized range point of 4.0504 where the library's, like R's, is 4.0461.
 
   New checks: `t_test` compares two groups of runs with the library's pooled, Welch and paired
   t-tests; `contrast` weighs a fit's level means (its value, standard error, t, F, sum of squares,
   p-value and 95% interval); `tukey` reads the library's `tukey_hsd`; a fit can take a `transform`;
   `variance_component` takes fixed factors, coded to sum to zero, and reads the REML fit's variance
   ratios, percentages, standard errors, covariances, Wald intervals, the mean's t on Satterthwaite's
-  degrees of freedom, fixed-effect F tests and level effects. Checks can also read a run's leverage,
+  degrees of freedom, fixed-effect F tests and level effects, and its fixed factors may include
+  their interactions; `nonadditivity` is Tukey's one-degree-of-freedom test, worked as the test of
+  the additive model's squared fitted values added as a regressor; a prediction can be read as the
+  half-width of its interval, as a prediction profiler prints it. Checks can also read a run's leverage,
   Cook's distance and studentized residuals, a sum, a median, a minimum and a maximum, the adequate
   precision, and a percentage point of the t distribution (`t_value`). A term written as the library
   names it, such as `C(power)[160.0]`, is read as that row of the coefficients.
