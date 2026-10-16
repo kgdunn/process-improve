@@ -49,7 +49,7 @@ def model_terms(k: int, model: str) -> list[tuple[int, ...]]:
     terms: list[tuple[int, ...]] = [(), *[(i,) for i in range(k)]]
     if model in {"interactions", "quadratic"}:
         terms += list(itertools.combinations(range(k), 2))
-    if model == "quadratic":
+    if model in {"quadratic", "main_quadratic"}:
         terms += [(i, i) for i in range(k)]
     return terms
 
@@ -100,6 +100,7 @@ GRID: dict[str, list[tuple[int, dict]]] = {
         *[(k, {"n_center_points": 3}) for k in range(2, 12)],
         *[(k, {"n_center_points": 0}) for k in (3, 7, 11)],
     ],
+    "taguchi": [(k, levels) for k in range(2, 13) for levels in ({}, {"n_levels": 3})],
     "dsd": [(k, {"n_center_points": cp}) for k in range(3, 11) for cp in (1, 3)],
     "box_behnken": [(k, {"n_center_points": cp}) for k in range(3, 8) for cp in (1, 3)],
     "ccd": [
@@ -197,6 +198,21 @@ def _check_plackett_burman(x: np.ndarray, k: int, options: dict, _result: dict) 
     np.testing.assert_allclose(gram, len(core) * np.eye(k), atol=1e-9)
 
 
+#: The runs of the array a Taguchi design takes for k factors: two-level arrays, and three-level ones.
+TAGUCHI_RUNS = {2: [(3, 4), (7, 8), (11, 12), (15, 16)], 3: [(4, 9), (7, 18), (13, 27)]}
+
+
+def _check_taguchi(x: np.ndarray, k: int, options: dict, _result: dict) -> None:
+    levels = options.get("n_levels", 2)
+    assert len(x) == next(runs for most, runs in TAGUCHI_RUNS[levels] if k <= most), "the smallest array that fits"
+    expected = [-1, 1] if levels == 2 else [-1, 0, 1]
+    for i, j in itertools.combinations(range(k), 2):
+        pairs = pd.Series(list(map(tuple, np.round(x[:, [i, j]], 9)))).value_counts()
+        assert sorted(pairs.index) == sorted(itertools.product(expected, repeat=2)), "every pair of levels is run"
+        assert pairs.min() == pairs.max(), "and each pair equally often"
+    np.testing.assert_allclose(sorted(set(np.round(x.ravel(), 9))), expected)
+
+
 def _check_dsd(x: np.ndarray, k: int, options: dict, _result: dict) -> None:
     centre = np.all(np.isclose(x, 0), axis=1)
     assert centre.sum() == options["n_center_points"], "the DSD's own center run, plus any more asked for"
@@ -251,6 +267,7 @@ STRUCTURE = {
     "full_factorial": _check_full_factorial,
     "fractional_factorial": _check_fractional_factorial,
     "plackett_burman": _check_plackett_burman,
+    "taguchi": _check_taguchi,
     "dsd": _check_dsd,
     "box_behnken": _check_box_behnken,
     "ccd": _check_ccd,
