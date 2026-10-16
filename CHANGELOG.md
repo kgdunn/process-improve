@@ -13,6 +13,21 @@ those changes.
 
 ### Added
 
+- **The reference catalogue holds chapters 1 and 2 of Montgomery, *Design and Analysis of
+  Experiments* (8th edition).** The golf 2^2 factorial and its three effects; the Portland cement
+  mortar two-sample t-test with Minitab's and JMP's output, its confidence interval and Minitab's
+  power table; the nerve and muscle fluorescence compared by Welch's test; the hardness tips' paired
+  t-test beside the pooled test that ignores the specimens; the run counts of the golf factorials
+  and of a 4 x 8 x 6 x 5 x 4 x 3 x 7 web page factorial; the half fraction of Figure 1.8, read from
+  its circled corners and compared run for run with the library's; and the data of 15 problems, kept
+  as data because the book prints no answers. 133 printed numbers, 121 checked. 4 are recorded as
+  not reproducing, each the book's rounding: two test statistics, a P-value and a Welch degrees of
+  freedom worked from rounded averages and standard deviations. A new check, `t_test`, compares two
+  groups of runs with the library's pooled, Welch and paired t-tests (the difference, t, p, degrees
+  of freedom, standard error, and an interval at any confidence with its half-width); the pooled and
+  paired tests are also checked through the regression and the randomized block model they equal.
+  Checks can now read a median, a minimum and a maximum, and a percentage point of the t
+  distribution (`t_value`).
 - **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
   `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
   deviation of its column of the model matrix, over the standard deviation of the response, as
