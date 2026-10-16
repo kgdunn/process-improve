@@ -50,6 +50,7 @@ import pandas as pd
 from patsy import dmatrix
 from scipy.stats import f as f_distribution
 
+from process_improve.experiments._analyses.transforms import transform_response
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
@@ -60,7 +61,8 @@ from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
-from process_improve.univariate.metrics import t_value, ttest_independent, ttest_paired
+from process_improve.sensory.designed import tukey_hsd
+from process_improve.univariate.metrics import t_value, t_value_cdf, ttest_independent, ttest_paired
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
 
@@ -312,7 +314,12 @@ _ANALYSES = ["coefficients", "anova", "residual_diagnostics", "lack_of_fit", "le
 
 
 class _Fits:
-    """Fit each experiment's runs once per model, runs and response, keeping everything the checks read."""
+    """Fit each experiment's runs once per model, runs, response and transform, keeping everything the checks read.
+
+    ``check["transform"]`` fits the model to the transformed response (``"log"`` or ``"sqrt"``, as
+    :func:`~process_improve.experiments.analyze_experiment` takes it), so its tables, and the
+    response the other checks read, are on that scale.
+    """
 
     def __init__(self) -> None:
         self._done: dict[tuple, dict[str, Any]] = {}
@@ -320,19 +327,22 @@ class _Fits:
     def __call__(self, experiment: dict, check: dict) -> dict[str, Any]:
         positions = tuple(check["runs"]) if check.get("runs") else None
         summary = json.dumps(check["summary"], sort_keys=True) if check.get("summary") else None
-        key = (experiment["name"], check.get("model"), positions, check.get("response"), summary)
+        options = (check.get("model"), positions, check.get("response"), summary, check.get("transform"))
+        key = (experiment["name"], *options)
         if key not in self._done:
-            self._done[key] = self._fit(experiment, check.get("model"), positions, check.get("response"), summary)
+            self._done[key] = self._fit(experiment, options)
         return self._done[key]
 
     @staticmethod
-    def _fit(
-        experiment: dict, model: str | None, positions: tuple | None, response: str | None, summary: str | None
-    ) -> dict[str, Any]:
+    def _fit(experiment: dict, options: tuple) -> dict[str, Any]:
+        """Fit a model to a set of runs; ``options`` is the model, run positions, response, summary and transform."""
+        model, positions, response, summary, transform = options
         settings, responses = _coded_runs(
             experiment, list(positions) if positions else None, json.loads(summary) if summary else None
         )
         y = responses[response or responses.columns[0]]
+        if transform is not None:
+            y = pd.Series(transform_response(y.to_numpy(), transform, lambda: np.empty(0))[0], name=y.name)
         out: dict[str, Any] = {"y": y, "settings": settings}
         if model is None:
             return out
@@ -360,8 +370,14 @@ def _library_term(term: str) -> str:
 
 
 def _coefficient_row(out: dict, term: str) -> dict:
-    """Return the library's row for a term, a level of a factor coded to sum to zero included."""
+    """Return the library's row for a term, a level of a factor coded to sum to zero included.
+
+    A term written as the library names it is that row: ``power[160]``, a level mean of the
+    model ``0 + power``, or ``C(power, Treatment('180'))[T.160]``, a difference from a reference level.
+    """
     rows = {row["term"]: row for row in out["coefficients"]}
+    if term in rows:
+        return rows[term]
     level = re.fullmatch(r"(\w+)\[(.+)\]", term)
     if level:
         factor, name = level.groups()
@@ -590,6 +606,43 @@ def _residual_std_dev(out: dict, at: list[int], digits: int | None = None) -> fl
     return float(np.std(residuals if digits is None else np.round(residuals, digits), ddof=1))
 
 
+def _contrast(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a number of a contrast of a fit's level means: the sum of each weight times its term's coefficient.
+
+    ``check["weights"]`` maps each term, as the library names it, to its weight. The terms are level
+    means, as of the model ``0 + power`` (or ``0 + pressure + C(batch, Sum)`` for a balanced
+    randomized block design), whose estimates are uncorrelated, so the contrast's standard error is
+    the root of the sum of each weight's square times its term's variance. ``check["key"]`` is
+    ``"value"`` (the default), ``"std_error"``, ``"t"``, ``"f"`` (the square of t: the F of the
+    contrast's one degree of freedom), ``"sum_sq"`` (F times the residual mean square: the
+    contrast's sum of squares), ``"p"``, or ``"half_width"``, ``"ci_low"`` and ``"ci_high"`` of its
+    95% interval (Fisher's least significant difference, for the difference of two means).
+    """
+    rows = [(_coefficient_row(out, term), weight) for term, weight in check["weights"].items()]
+    value = sum(weight * row["coefficient"] for row, weight in rows)
+    std_error = math.sqrt(sum((weight * row["std_error"]) ** 2 for row, weight in rows))
+    t = value / std_error
+    summary = out["model_summary"]
+    half = float(t_value(0.975, summary["df_residual"])) * std_error
+    found = {
+        "value": value,
+        "std_error": std_error,
+        "t": t,
+        "f": t**2,
+        "sum_sq": t**2 * summary["mse_residual"],
+        "p": 2 * float(t_value_cdf(-abs(t), summary["df_residual"])),
+        "half_width": half,
+        "ci_low": value - half,
+        "ci_high": value + half,
+    }
+    return found[check.get("key", "value")]
+
+
+def _diagnostic(name: str) -> Callable[[dict, dict, dict], float]:
+    """Return a check reading one run's value of a residual diagnostic the library lists run by run."""
+    return lambda out, c, _e: float(out["residual_diagnostics"][name][_run(c)])
+
+
 _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "coefficient": lambda out, c, _e: _coefficient_row(out, c["term"])["coefficient"],
     "effect": lambda out, c, _e: 2 * _coefficient_row(out, c["term"])["coefficient"],
@@ -604,6 +657,11 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     ),
     "fitted": lambda out, c, _e: float(_residuals(out)[0][_run(c)]),
     "residual": lambda out, c, _e: float(_residuals(out)[1][_run(c)]),
+    "leverage": _diagnostic("leverage"),
+    "cooks_distance": _diagnostic("cooks_distance"),
+    "studentized_residual": _diagnostic("studentized_residuals"),
+    "externally_studentized_residual": _diagnostic("externally_studentized_residuals"),
+    "contrast": _contrast,
     "durbin_watson": lambda out, _c, _e: out["residual_diagnostics"]["durbin_watson"],
     "left_out_prediction": lambda out, c, _e: _left_out(out, _run(c)),
     "residual_std_dev": lambda out, c, _e: _residual_std_dev(out, c["at"], c.get("round")),
@@ -615,6 +673,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     ),
     "observation": lambda out, c, _e: float(out["y"].to_numpy()[_run(c)]),
     "mean": lambda out, _c, _e: float(out["y"].mean()),
+    "sum": lambda out, _c, _e: float(out["y"].sum()),
     "median": lambda out, _c, _e: float(out["y"].median()),
     "minimum": lambda out, _c, _e: float(out["y"].min()),
     "maximum": lambda out, _c, _e: float(out["y"].max()),
@@ -625,6 +684,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "multiple_r": lambda out, _c, _e: out["model_summary"]["r_squared"] ** 0.5,
     "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
     "r_squared_pred": lambda out, _c, _e: out["model_summary"]["r_squared_pred"],
+    "adequate_precision": lambda out, _c, _e: out["model_summary"]["adequate_precision"],
     "residual_df": lambda out, _c, _e: out["model_summary"]["df_residual"],
     "df_model": lambda out, _c, _e: out["model_summary"]["df_model"],
     "ms_residual": lambda out, _c, _e: out["model_summary"]["mse_residual"],
@@ -1049,6 +1109,43 @@ def _t_test(experiment: dict, check: dict) -> float:
     return float(found[check["key"]])
 
 
+def _tukey(experiment: dict, check: dict) -> float:
+    """Return a number of the library's Tukey HSD comparison of the level ``check["level"]`` less ``check["minus"]``.
+
+    The levels are those of the factor ``check["factor"]``, compared with
+    :func:`~process_improve.sensory.tukey_hsd` on the error mean square of the one-way model, or of
+    the randomized block model when ``check["block"]`` names the blocks. ``check["key"]`` is
+    ``"difference"``, ``"ci_low"`` or ``"ci_high"`` of the simultaneous interval at confidence
+    1 - ``check["alpha"]`` (0.05 by default), its ``"half_width"``, the ``"std_error"`` it is a
+    multiple of (the root of the error mean square over a level's number of runs), that multiple
+    (``"q_critical"``, the upper percentage point of the studentized range), ``"q"`` or ``"p"``.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    column = check.get("response") or responses.columns[0]
+    factor, block = check["factor"], check.get("block")
+    panel = pd.DataFrame({"attribute": column, "score": responses[column].to_numpy(dtype=float)})
+    for name in filter(None, (factor, block)):
+        panel[name] = settings[name].astype(str).to_numpy()
+    table = tukey_hsd(panel, factor=factor, block=block, alpha=check.get("alpha", 0.05))
+    level, minus = str(check["level"]), str(check["minus"])
+    pair = table[table["group1"].isin([level, minus]) & table["group2"].isin([level, minus])].iloc[0]
+    sign = 1.0 if pair["group1"] == level else -1.0
+    half = (pair["ci_high"] - pair["ci_low"]) / 2
+    difference = sign * pair["meandiff"]
+    return float(
+        {
+            "difference": difference,
+            "ci_low": difference - half,
+            "ci_high": difference + half,
+            "half_width": half,
+            "std_error": pair["se"],
+            "q_critical": half / pair["se"],
+            "q": pair["q_stat"],
+            "p": pair["p_value"],
+        }[check["key"]]
+    )
+
+
 def _capability(experiment: dict, check: dict) -> float:
     """Return the library's Cpk of a response: the nearer specification's distance from the mean, over 3 sigma.
 
@@ -1082,20 +1179,92 @@ def _dot_product(experiment: dict, check: dict) -> float:
     return float(_printed_matrix(experiment, check["columns"], None).prod(axis=1).sum())
 
 
-def _variance_component(experiment: dict, check: dict) -> float:
-    """Return a variance component of the library's REML fit with a random intercept for each of ``check["groups"]``.
+def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
+    """Return a factor's columns coded to sum to zero: one per level but the last, which takes -1 in each."""
+    values = column.astype(str)
+    levels = sorted(values.unique(), key=lambda v: (len(v), v))
+    last = (values == levels[-1]).astype(float)
+    return pd.DataFrame({f"{name}_{level}": (values == level).astype(float) - last for level in levels[:-1]})
 
-    The fixed part is the overall mean. ``check["key"]`` names one of the groups, or ``"residual"``
-    for the error variance; nested groups are written with labels unique across the whole study.
+
+_Z_975 = 1.959963984540054  # the standard normal's 97.5th percentile, for a 95% Wald interval
+
+
+def _variance_component(experiment: dict, check: dict) -> float:
+    """Return a number of the library's REML fit with a random intercept for each of ``check["groups"]``.
+
+    The fixed part is the overall mean, and an effect for each level of the factors
+    ``check["fixed"]`` names, if any, coded to sum to zero over the levels. Nested groups are
+    written with labels unique across the whole study. ``check["key"]`` names a group, for its
+    variance, or one of:
+
+    - ``"residual"``, the error variance, and ``"total"``, the sum of every variance;
+    - ``"ratio.<group>"``, a group's variance over the residual's, and ``"percent.<part>"``, a group's
+      or the residual's share of the total;
+    - ``"std_error.<part>"`` and ``"covariance.<part>.<part>"``, from the asymptotic covariance of
+      the variance estimates, and ``"wald_low.<part>"`` and ``"wald_high.<part>"``, the estimate less
+      or plus 1.96 standard errors, the 95% interval JMP prints for a random effect;
+    - ``"rmse"``, the root of the residual variance;
+    - ``"mean"``, ``"mean_std_error"``, ``"mean_t"`` and ``"mean_df"``, the overall mean of an
+      intercept-only fit, its standard error, their ratio and its Satterthwaite degrees of freedom;
+    - ``"f.<factor>"``, ``"f_df.<factor>"`` and ``"f_p.<factor>"``, the F test of a fixed factor, on
+      Satterthwaite's denominator degrees of freedom;
+    - ``"effect.<factor>.<level>"``, the generalised least-squares estimate of a level's effect, which
+      with random blocks of an incomplete block design combines the intra- and interblock estimates.
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
+    fixed = [_sum_coded(table[name], name) for name in check.get("fixed", [])]
+    design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
     groups = [pd.factorize(table[name])[0] for name in check["groups"]]
-    fit = fit_variance_components(y, np.ones((len(y), 1)), groups)
-    if check["key"] == "residual":
-        return fit.sigma2
-    return float(fit.variances[check["groups"].index(check["key"])])
+    fit = fit_variance_components(y, design.to_numpy(), groups)
+    parts = dict(zip(check["groups"], map(float, fit.variances), strict=True)) | {"residual": float(fit.sigma2)}
+    estimated = [name for name in parts if name == "residual" or parts[name] > 0]  # vc_cov's rows, in order
+    if check["key"] in parts:
+        return parts[check["key"]]
+    kind, _, name = check["key"].partition(".")
+    total = sum(parts.values())
+
+    def covariance(first: str, second: str) -> float:
+        return float(fit.vc_cov[estimated.index(first), estimated.index(second)])
+
+    def fixed_columns(factor: str) -> list[int]:
+        return [i for i, column in enumerate(design.columns) if column.startswith(f"{factor}_")]
+
+    def name_df(factor: str) -> int:
+        return len(fixed_columns(factor))
+
+    def fixed_test(index: int) -> float:
+        return fit.f_test(np.eye(len(design.columns))[fixed_columns(name)])[index]
+
+    def level_effect(factor: str, level: str) -> float:
+        if level not in set(table[factor].astype(str)):
+            raise KeyError(f"{factor} has no level {level!r}.")
+        columns = {column: i for i, column in enumerate(design.columns)}
+        if f"{factor}_{level}" in columns:
+            return float(fit.beta[columns[f"{factor}_{level}"]])
+        return -float(sum(fit.beta[i] for i in fixed_columns(factor)))  # the level the coding leaves out
+
+    found: dict[str, Callable[[], float]] = {
+        "total": lambda: total,
+        "ratio": lambda: parts[name] / parts["residual"],
+        "percent": lambda: 100 * parts[name] / total,
+        "covariance": lambda: covariance(*name.split(".")),
+        "std_error": lambda: math.sqrt(covariance(name, name)),
+        "wald_low": lambda: parts[name] - _Z_975 * math.sqrt(covariance(name, name)),
+        "wald_high": lambda: parts[name] + _Z_975 * math.sqrt(covariance(name, name)),
+        "mean": lambda: float(fit.beta[0]),
+        "mean_std_error": lambda: math.sqrt(fit.cov_beta[0, 0]),
+        "mean_df": lambda: fit.satterthwaite_df(np.eye(len(fit.beta))[0]),
+        "mean_t": lambda: float(fit.beta[0]) / math.sqrt(fit.cov_beta[0, 0]),
+        "rmse": lambda: math.sqrt(parts["residual"]),
+        "f": lambda: fixed_test(0),
+        "f_df": lambda: fixed_test(1),
+        "f_p": lambda: float(f_distribution.sf(fixed_test(0), int(name_df(name)), fixed_test(1))),
+        "effect": lambda: level_effect(*name.split(".", 1)),
+    }
+    return float(found[kind]())
 
 
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
@@ -1107,6 +1276,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "design_metric": _design_metric,
     "library_value": lambda _e, c: _library_value(c),
     "t_test": _t_test,
+    "tukey": _tukey,
     "variance_component": _variance_component,
 }
 

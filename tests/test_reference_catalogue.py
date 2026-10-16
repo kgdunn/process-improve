@@ -743,3 +743,101 @@ def test_a_median_minimum_and_maximum_are_read_from_the_runs():
     fits = reference_catalogue._Fits()
     for kind, value in (("median", "2"), ("minimum", "1"), ("maximum", "3")):
         assert reference_catalogue._reproduce(entry, {"value": value}, {"kind": kind, "runs": [1, 2, 3]}, fits)[1]
+
+
+def _three_groups():
+    """Return an entry of three groups of three runs, a categorical factor fitted by name."""
+    groups = {"a": [1.0, 2.0, 3.0], "b": [4.0, 6.0, 5.0], "c": [9.0, 7.0, 8.0]}
+    rows = [[g, y] for g, values in groups.items() for y in values]
+    return {
+        "name": "three",
+        "factors": [{"name": "g", "type": "categorical", "low": "a", "high": "b", "levels": ["a", "b", "c"]}],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["g", "y"], "rows": rows, "coded": False},
+    }
+
+
+def test_a_contrast_of_level_means_is_tested_on_the_residual_mean_square():
+    """Means 2, 5 and 8, each of three runs, MSE = 1 on 6 df: a - b is -3 with standard error √(2/3)."""
+    entry = _three_groups()
+    fits = reference_catalogue._Fits()
+    check = {"model": "0 + g", "weights": {"g[a]": 1, "g[b]": -1}}
+    out = fits(entry, check)
+    se = (2 / 3) ** 0.5
+    found = {
+        key: reference_catalogue._contrast(out, {**check, "key": key}, entry)
+        for key in ("value", "std_error", "t", "f", "sum_sq", "p", "half_width")
+    }
+    assert found["value"] == pytest.approx(-3)
+    assert found["std_error"] == pytest.approx(se)
+    assert found["t"] == pytest.approx(-3 / se)
+    assert found["sum_sq"] == pytest.approx(found["f"] * 1.0)  # the residual mean square is 1
+    assert found["p"] == pytest.approx(2 * stats.t.sf(3 / se, 6))
+    assert found["half_width"] == pytest.approx(stats.t.ppf(0.975, 6) * se)
+
+
+def test_tukey_comparisons_are_the_library_tukey_hsd_on_the_one_way_model():
+    """The interval is the difference plus or minus q(0.95; 3, 6) √(MSE/n); a level less another changes sign."""
+    from process_improve.experiments.reference_catalogue import _tukey
+
+    entry = _three_groups()
+    check = {"factor": "g", "level": "b", "minus": "a"}
+    q = stats.studentized_range.ppf(0.95, 3, 6)
+    assert _tukey(entry, {**check, "key": "difference"}) == pytest.approx(3)
+    assert _tukey(entry, {**check, "key": "q_critical"}) == pytest.approx(q)
+    assert _tukey(entry, {**check, "key": "ci_low"}) == pytest.approx(3 - q * (1 / 3) ** 0.5)
+    assert _tukey(entry, {**check, "level": "a", "minus": "b", "key": "difference"}) == pytest.approx(-3)
+
+
+def test_a_transformed_fit_reads_its_response_on_the_transformed_scale():
+    """The total sum of squares of a log fit is that of the logs, so the residual and model sums add up to it."""
+    entry = _three_groups()
+    fits = reference_catalogue._Fits()
+    check = {"model": "g", "transform": "log"}
+    out = fits(entry, check)
+    logs = np.log([1.0, 2.0, 3.0, 4.0, 6.0, 5.0, 9.0, 7.0, 8.0])
+    assert reference_catalogue._FIT_KINDS["ss_total"](out, check, entry) == pytest.approx(
+        np.sum((logs - logs.mean()) ** 2)
+    )
+    assert reference_catalogue._FIT_KINDS["sum"](out, check, entry) == pytest.approx(logs.sum())
+
+
+def test_each_run_case_statistic_is_read_from_the_library_diagnostics():
+    entry = _three_groups()
+    fits = reference_catalogue._Fits()
+    out = fits(entry, {"model": "g"})
+    for kind in ("leverage", "cooks_distance", "studentized_residual", "externally_studentized_residual"):
+        assert math.isfinite(reference_catalogue._FIT_KINDS[kind](out, {"run": 1}, entry))
+    assert reference_catalogue._FIT_KINDS["leverage"](out, {"run": 1}, entry) == pytest.approx(1 / 3)
+
+
+def test_the_reml_fit_reads_its_variances_their_covariance_and_the_fixed_effects():
+    """Three treatments in two random blocks, balanced: the treatment effects are their means less the grand mean."""
+    from process_improve.experiments.reference_catalogue import _variance_component
+
+    cells = [("a", "1", 1), ("a", "2", 3), ("b", "1", 4), ("b", "2", 7), ("c", "1", 2), ("c", "2", 4)]
+    entry = {
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["treatment", "block", "y"], "rows": [list(c) for c in cells]},
+    }
+    check = {"groups": ["block"], "fixed": ["treatment"]}
+    keys = (
+        "block",
+        "residual",
+        "total",
+        "std_error.block",
+        "wald_low.block",
+        "percent.residual",
+        "ratio.block",
+        "rmse",
+    )
+    found = {key: _variance_component(entry, {**check, "key": key}) for key in keys}
+    assert found["total"] == pytest.approx(found["block"] + found["residual"])
+    assert found["wald_low.block"] == pytest.approx(found["block"] - 1.959963984540054 * found["std_error.block"])
+    assert found["percent.residual"] == pytest.approx(100 * found["residual"] / found["total"])
+    assert found["ratio.block"] == pytest.approx(found["block"] / found["residual"])
+    assert found["rmse"] == pytest.approx(found["residual"] ** 0.5)
+    effects = [_variance_component(entry, {**check, "key": f"effect.treatment.{t}"}) for t in "abc"]
+    assert effects == pytest.approx([2 - 3.5, 5.5 - 3.5, 3 - 3.5])  # c is the level the coding leaves out
+    with pytest.raises(KeyError, match="no level 'd'"):
+        _variance_component(entry, {**check, "key": "effect.treatment.d"})
