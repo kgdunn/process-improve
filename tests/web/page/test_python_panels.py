@@ -197,6 +197,38 @@ def test_the_comparison_code_reproduces_the_page_s_table(api, node):
         assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
 
 
+#: Limits on the worked example's settings: a straight one, and a curved one.
+LIMITS = [{"expression": "T + 25 * P <= 250", "note": "the product chars"}, {"expression": "T * F <= 3600"}]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal"])
+def test_the_design_code_keeps_to_the_limits_as_the_page_does(api, node, design_type):
+    """The limits reach the code, so the copied code gives the page's runs, each one inside the limits."""
+    design = api.ok("api_make_design", {"design_type": design_type, "factors": FACTORS, "constraints": LIMITS})
+    code = page_code(node, "designCode", design["spec"])
+    assert "the product chars" not in code, "a limit's note is the reader's, and stays on the page"
+    runs = run(code)["result"].design_actual
+    names = [f["name"] for f in FACTORS]
+    np.testing.assert_allclose(runs[names].to_numpy(dtype=float), run_sheet(design)[names])
+    assert ((runs["T"] + 25 * runs["P"] <= 250 + 1e-9) & (runs["T"] * runs["F"] <= 3600 + 1e-9)).all()
+
+
+@pytest.mark.slow
+def test_the_comparison_code_compares_over_the_settings_the_limits_leave(api, node):
+    made, held_designs = generate_all(api, FACTORS, "main_quadratic", LIMITS[:1])
+    compared = api.ok("api_compare", {"model": "main_quadratic", "designs": held_designs})
+    designs = [
+        {"label": m["label"], "design_type": m["design_type"], "options": m["design"]["spec"]["options"]} for m in made
+    ]
+    stored = made[0]["design"]["spec"]["constraints"]
+    namespace = run(page_code(node, "compareCode", FACTORS, designs, "main_quadratic", stored))
+    assert list(namespace["comparison"].designs) == compared["designs"]
+    assert [m["design_type"] for m in made] == ["d_optimal", "i_optimal"], "the designs that keep every run inside"
+    for label in compared["designs"]:
+        assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
+
+
 def notebook_of(node: str, **campaign: object) -> dict:
     """Return the notebook ``web/python.js`` writes for a campaign, as the page downloads it."""
     defaults = {"title": "A design", "version": "1.2.3", "url": "https://example.org/app/", "simulation": None}

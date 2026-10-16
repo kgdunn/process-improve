@@ -1226,6 +1226,7 @@ async function showComparison() {
       readFactors(),
       c.made.map((m) => ({ label: m.label, design_type: m.design_type, options: m.design.spec.options })),
       c.model,
+      c.made[0]?.design.spec.constraints ?? [],
     ),
   );
   await drawComparison(c.result, readFactors().length);

@@ -36,14 +36,25 @@ function factorList(factors) {
   return ["factors = [", ...rows, "]"].join("\n");
 }
 
-/** Step 1: the design, as generate_design makes it. */
+/**
+ * The limits on the settings as Python takes them, one to a line: each limit's text, in the
+ * factors' own units. A limit's note is the reader's, and stays on the page.
+ */
+function constraintLines(limits) {
+  if (!limits?.length) return [];
+  return ["constraints = [  # the settings that can be run, in the factors' own units", ...limits.map((l) => `    ${repr(l.expression)},`), "]"];
+}
+
+/** Step 1: the design, as generate_design makes it, inside the limits on the settings when there are some. */
 export function designCode(spec) {
   const options = { ...(spec.options || {}) };
+  const limits = spec.constraints ?? [];
   return [
     "from process_improve.experiments import Factor, generate_design",
     "",
     factorList(spec.factors),
-    `result = generate_design(factors, design_type=${repr(spec.design_type)}, ${kwargs(options)})`,
+    ...constraintLines(limits),
+    `result = generate_design(factors, design_type=${repr(spec.design_type)}, ${limits.length ? "constraints=constraints, " : ""}${kwargs(options)})`,
     "print(result.design_actual)  # the runs, in randomised order, in the factors' own units",
   ].join("\n");
 }
@@ -205,21 +216,24 @@ export function cumulative(...steps) {
 
 /**
  * Step 4: the comparison, each design generated with the options the page used for it
- * (``designs`` is a list of {label, design_type, options}).
+ * (``designs`` is a list of {label, design_type, options}). With limits on the settings, each
+ * design keeps to them, and the designs are compared over the settings that can be run.
  */
-export function compareCode(factors, designs, model) {
+export function compareCode(factors, designs, model, limits = []) {
+  const kept = limits.length ? ", constraints=constraints" : "";
   const lines = designs.map((d) => {
     const extra = kwargs(d.options || {});
-    return `    ${repr(d.label)}: generate_design(factors, design_type=${repr(d.design_type)}${extra ? `, ${extra}` : ""}),`;
+    return `    ${repr(d.label)}: generate_design(factors, design_type=${repr(d.design_type)}${kept}${extra ? `, ${extra}` : ""}),`;
   });
   return [
-    "from process_improve.experiments import Factor, compare_designs, generate_design",
+    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}Factor, compare_designs, generate_design`,
     "",
     factorList(factors),
+    ...constraintLines(limits),
     "designs = {",
     ...lines,
     "}",
-    `comparison = compare_designs(designs, model=${repr(model)})`,
+    `comparison = compare_designs(designs, model=${repr(model)}${limits.length ? ", region=DesignRegion(factors, constraints)" : ""})`,
     "print(comparison.table.to_string())",
   ].join("\n");
 }

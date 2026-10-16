@@ -19,6 +19,15 @@ describe("the design", () => {
     assert.match(code, /generate_design\(factors, design_type="ccd", random_state=42, alpha="rotatable"\)/);
   });
 
+  test("the limits on the settings, one to a line, which the design keeps to; a limit's note stays on the page", () => {
+    const constraints = [{ expression: "T + 25 * P <= 250", type: "linear", note: "the product chars" }, { expression: "T * F <= 3600", type: "nonlinear" }];
+    const code = designCode({ design_type: "d_optimal", factors: FACTORS, options: { random_state: 1 }, constraints });
+    assert.match(code, /constraints = \[ {2}# the settings that can be run, in the factors' own units\n {4}"T \+ 25 \* P <= 250",\n {4}"T \* F <= 3600",\n\]/);
+    assert.match(code, /generate_design\(factors, design_type="d_optimal", constraints=constraints, random_state=1\)/);
+    assert.doesNotMatch(code, /product chars/);
+    assert.doesNotMatch(designCode({ design_type: "ccd", factors: FACTORS, options: {} }), /constraints/);
+  });
+
   test("Python's True, False and None, and no option left undefined", () => {
     const code = designCode({ design_type: "d_optimal", factors: FACTORS, options: { a: true, b: false, c: null, d: undefined } });
     assert.match(code, /a=True, b=False\)/);
