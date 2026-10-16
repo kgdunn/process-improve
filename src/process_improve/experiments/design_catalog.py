@@ -20,7 +20,6 @@ Examples
 
 from __future__ import annotations
 
-import itertools
 import re
 import warnings
 from dataclasses import dataclass
@@ -29,6 +28,15 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 
 from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAMES, orthogonal_array
+from process_improve.experiments.design_measures import (
+    MODELS,
+    design_classes,
+    estimable_models,
+    projectivity,
+    quadratic_projection,
+    run_counts,
+    run_loss,
+)
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.factor import Factor, FactorType
 from process_improve.experiments.reference_catalogue import (
@@ -181,77 +189,11 @@ def normalise_family(text: str) -> str:
 
 
 # --------------------------------------------------------------------------- what a design can estimate
-#: The models whose estimability a record states, as the browser app names them.
-MODELS = ("main_effects", "interactions", "quadratic")
-
 #: The most runs a glyph draws; a larger design is drawn from evenly spaced runs.
 GLYPH_ROWS = 96
 
 #: How many shades a glyph gives a coded setting from -2 to +2: one letter each, from "a" to "u".
 _GLYPH_SHADES = 20
-
-
-def _columns(values: np.ndarray, kind: str) -> np.ndarray:
-    """Return a factor's columns in the model matrix: its coded values, or one indicator per extra level."""
-    if kind != "categorical":
-        return values[:, None]
-    levels = np.unique(values)
-    if len(levels) < 2:  # a factor held at one level adds nothing to estimate
-        return np.empty((len(values), 0))
-    return np.column_stack([values == level for level in levels[1:]]).astype(float)
-
-
-def _full_rank(blocks: Sequence[np.ndarray]) -> bool:
-    """Say whether the model matrix made of these columns estimates every one of its coefficients."""
-    matrix = np.column_stack(blocks)
-    return bool(matrix.shape[0] >= matrix.shape[1] and np.linalg.matrix_rank(matrix) == matrix.shape[1])
-
-
-def estimable_models(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, bool | None]:
-    """Say which models a design estimates in full: main effects, two-factor interactions, the full quadratic.
-
-    Each model includes the ones before it. A categorical factor enters with one column per level
-    after its first; the quadratic model adds the square of every numeric factor. A model is
-    estimable when its model matrix has full column rank.
-
-    Parameters
-    ----------
-    coded : np.ndarray
-        The runs in coded units, one column per factor.
-    kinds : Sequence[str]
-        Each factor's type: ``"numeric"``, ``"categorical"`` or ``"mixture"``.
-
-    Returns
-    -------
-    dict[str, bool | None]
-        For each name in :data:`MODELS`, whether the design estimates it. Every value is ``None``
-        for a mixture design, whose models are Scheffé's, or when a setting is missing. The
-        interactions are ``None`` for a single factor; the quadratic is ``None`` when no factor
-        is numeric, and ``False`` when a numeric factor has fewer than three levels.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> square = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1]])
-    >>> estimable_models(square, ["numeric", "numeric"])
-    {'main_effects': True, 'interactions': True, 'quadratic': False}
-    """
-    unknown: dict[str, bool | None] = dict.fromkeys(MODELS)
-    if "mixture" in kinds or np.isnan(coded).any():
-        return unknown
-    blocks = [_columns(coded[:, j], kind) for j, kind in enumerate(kinds)]
-    main = [np.ones((len(coded), 1)), *blocks]
-    pairs = [(a[:, :, None] * b[:, None, :]).reshape(len(coded), -1) for a, b in itertools.combinations(blocks, 2)]
-    numeric = [j for j, kind in enumerate(kinds) if kind == "numeric"]
-    out: dict[str, bool | None] = {
-        "main_effects": _full_rank(main),
-        "interactions": _full_rank([*main, *pairs]) if len(kinds) > 1 else None,
-        "quadratic": None,
-    }
-    if numeric:
-        three_levels = all(len(np.unique(coded[:, j].round(6))) >= 3 for j in numeric)
-        out["quadratic"] = three_levels and _full_rank([*main, *pairs, coded[:, numeric] ** 2])
-    return out
 
 
 def glyph(coded: np.ndarray) -> str:
@@ -298,11 +240,18 @@ def design_facets(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, Any]:
         ``n_runs``, ``n_factors``, ``n_numeric``, ``n_categorical``, ``n_mixture``, ``levels`` (the
         number of distinct settings of each factor), ``n_centre`` (runs with every numeric factor at
         0), ``runs_per_parameter`` (runs per coefficient of the largest estimable model),
-        ``models`` (see :func:`estimable_models`) and ``glyph`` (see :func:`glyph`).
+        ``models`` (see :func:`~process_improve.experiments.design_measures.estimable_models`),
+        ``glyph`` (see :func:`glyph`); and, for the largest model the design estimates,
+        ``run_loss_model``, ``survives_run_loss``, ``critical_runs``, ``worst_d_ratio`` and
+        ``leverage`` (see :func:`~process_improve.experiments.design_measures.run_loss`); and
+        ``quadratic_projection`` and ``projectivity`` (see
+        :mod:`~process_improve.experiments.design_measures`).
     """
     n_runs, n_factors = coded.shape
     numeric = [j for j, kind in enumerate(kinds) if kind == "numeric"]
     models = estimable_models(coded, kinds)
+    largest = next((model for model in reversed(MODELS) if models.get(model)), None)
+    loss = run_loss(coded, kinds, largest) if largest else None
     centre = None
     if numeric and "mixture" not in kinds:
         centre = int(np.all(np.abs(np.nan_to_num(coded[:, numeric], nan=9.0)) < 1e-9, axis=1).sum())
@@ -317,6 +266,13 @@ def design_facets(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, Any]:
         "runs_per_parameter": _runs_per_parameter(n_runs, n_factors, models),
         "models": models,
         "glyph": glyph(coded),
+        "run_loss_model": largest,
+        "survives_run_loss": None if loss is None else loss["survives"],
+        "critical_runs": None if loss is None else loss["critical_runs"],
+        "worst_d_ratio": None if loss is None else loss["worst_d_ratio"],
+        "leverage": None if loss is None else loss["leverage"],
+        "quadratic_projection": quadratic_projection(coded, kinds),
+        "projectivity": None if "mixture" in kinds else projectivity(coded),
     }
 
 
@@ -416,6 +372,18 @@ def _blocks(entry: dict[str, Any], text: str) -> tuple[bool, int | None]:
     return bool(re.search(r"\bblock", text, flags=re.IGNORECASE)), None
 
 
+#: The facets :func:`design_facets` reads off the runs beyond the size and the models: unknown without runs.
+_MEASURES = (
+    "run_loss_model",
+    "survives_run_loss",
+    "critical_runs",
+    "worst_d_ratio",
+    "leverage",
+    "quadratic_projection",
+    "projectivity",
+)
+
+
 def _count(value: object) -> int | None:
     """Return a count a source states as a whole number above 0; ``None`` for a range such as ``"3 to 7"``."""
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
@@ -479,6 +447,7 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
                 "runs_per_parameter": None,
                 "models": dict.fromkeys(MODELS),
                 "glyph": "",
+                **dict.fromkeys(_MEASURES),
             }
         )
     return record
@@ -489,11 +458,13 @@ def _generated_specs() -> list[dict[str, Any]]:
     """List the designs the catalog generates: each family over the factor counts the library makes it for."""
     specs: list[dict[str, Any]] = []
     specs += [{"design_type": "full_factorial", "k": k, "options": {"n_center_points": 0}} for k in range(2, 8)]
+    # The highest resolution first: where a lower one asks for no fewer runs, the library makes the same
+    # fraction, and :func:`catalog_records` keeps it once, under the resolution it has.
     specs += [
         {"design_type": "fractional_factorial", "k": k, "options": {"resolution": r, "n_center_points": 0}}
         for k in range(3, 12)
-        for r in (3, 4, 5)
-        if r < k
+        for r in (5, 4, 3)
+        if r <= k
     ]
     specs += [{"design_type": "plackett_burman", "k": k, "options": {"n_center_points": 0}} for k in range(2, 12)]
     # A definitive screening or OMARS design counts its own center run among ``n_center_points``: one, as published.
@@ -661,6 +632,12 @@ INDEX_FIELDS = (
     "n_responses",
     "checks",
     "glyph",
+    "survives_run_loss",
+    "critical_runs",
+    "worst_d_ratio",
+    "quadratic_projection",
+    "projectivity",
+    "design_class",
 )
 
 
@@ -708,9 +685,11 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
     list[dict]
         One record per design. The fields in :data:`INDEX_FIELDS` describe it for searching; a
         published record's ``checks`` counts its printed numbers (see :func:`printed_checks`) and
-        a generated record's is ``None``. ``factors``, ``responses``, ``coded_runs``,
-        ``response_values``, ``details``, ``notes`` and ``where_full`` hold what a reader sees on
-        opening a design. ``listed`` says whether a published entry is one of
+        a generated record's is ``None``. Records with the same ``design_class`` hold one design,
+        printed in different sources or made by the library (see
+        :func:`~process_improve.experiments.design_measures.design_classes`). ``factors``,
+        ``responses``, ``coded_runs``, ``response_values``, ``details``, ``notes`` and
+        ``where_full`` hold what a reader sees on opening a design. ``listed`` says whether a published entry is one of
         :func:`~process_improve.experiments.reference_catalogue.reference_experiments` or of
         :func:`~process_improve.experiments.reference_catalogue.reference_designs`, and ``spec``
         names a generated design as :data:`GENERATED` does.
@@ -734,8 +713,25 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
             for where, entry in listed
         ]
     if collection in {"both", "generated"}:
-        records += [{**_generated_record(spec), "checks": None, "listed": None} for spec in GENERATED]
-    return records
+        made: set[tuple[str, frozenset]] = set()
+        for spec in GENERATED:
+            record = _generated_record(spec)
+            runs = frozenset(run_counts(np.array(record["coded_runs"], dtype=float)).items())
+            if (spec["design_type"], runs) not in made:  # two options that make one design: kept once
+                made.add((spec["design_type"], runs))
+                records.append({**record, "checks": None, "listed": None})
+    return _classified(records)
+
+
+def _classified(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Give each record its ``design_class``: records of one class hold one design; ``None`` without full runs."""
+    runs = {
+        r["id"]: np.array(r["coded_runs"], dtype=float)
+        for r in records
+        if r["coded_runs"] and not r["n_mixture"] and all(v is not None for row in r["coded_runs"] for v in row)
+    }
+    classes = design_classes(runs)
+    return [{**record, "design_class": classes.get(record["id"])} for record in records]
 
 
 def short_citation(cite: str) -> str:

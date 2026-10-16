@@ -8,6 +8,7 @@ export const INDEX_FIELDS = [
   "id", "title", "collection", "kind", "family", "design_type", "source", "year", "added", "where",
   "n_runs", "n_factors", "n_numeric", "n_categorical", "n_mixture", "levels", "n_centre", "runs_per_parameter",
   "models", "blocked", "n_blocks", "split_plot", "has_responses", "n_responses", "checks", "glyph",
+  "survives_run_loss", "critical_runs", "worst_d_ratio", "quadratic_projection", "projectivity", "design_class",
   "regenerable", "open", "detail",
 ];
 

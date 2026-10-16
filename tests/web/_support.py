@@ -359,4 +359,4 @@ def catalog_sample() -> list[dict]:
         for spec in design_catalog.GENERATED
         if design_catalog._spec_id(spec) in CATALOG_SAMPLE
     ]
-    return [*published, *generated]
+    return design_catalog._classified([*published, *generated])

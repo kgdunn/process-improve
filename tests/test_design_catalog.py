@@ -17,12 +17,12 @@ from process_improve.experiments.design_catalog import (
     catalog_records,
     catalog_sources,
     design_facets,
-    estimable_models,
     glyph,
     normalise_family,
     printed_checks,
     published_runs,
 )
+from process_improve.experiments.design_measures import estimable_models
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.reference_catalogue import (
     reference_designs,
@@ -98,11 +98,6 @@ def _coded(design_type: str, k: int, **options) -> np.ndarray:
     return result.design[[f.name for f in factors]].to_numpy(dtype=float)
 
 
-def test_a_two_level_factorial_estimates_interactions_but_no_squares():
-    square = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1]], dtype=float)
-    assert estimable_models(square, ["numeric"] * 2) == {"main_effects": True, "interactions": True, "quadratic": False}
-
-
 def test_a_resolution_three_fraction_estimates_main_effects_only():
     coded = _coded("fractional_factorial", 7, resolution=3, n_center_points=0)
     assert len(coded) == 8
@@ -116,23 +111,6 @@ def test_a_resolution_three_fraction_estimates_main_effects_only():
 def test_a_central_composite_design_estimates_the_full_quadratic():
     coded = _coded("ccd", 3, alpha="face_centered", n_center_points=3)
     assert estimable_models(coded, ["numeric"] * 3)["quadratic"] is True
-
-
-def test_a_categorical_factor_enters_with_a_column_per_extra_level():
-    """Three suppliers crossed with two temperatures: six runs, main effects and the interaction in full."""
-    runs = np.array([[s, t] for s in (-1.0, 0.0, 1.0) for t in (-1.0, 1.0)])
-    models = estimable_models(runs, ["categorical", "numeric"])
-    assert models == {"main_effects": True, "interactions": True, "quadratic": False}
-    one = estimable_models(runs[:, :1], ["categorical"])
-    assert one["interactions"] is None, "one factor has no interactions"
-    assert one["quadratic"] is None, "no numeric factor to square"
-
-
-def test_a_mixture_or_a_missing_setting_leaves_the_models_unstated():
-    simplex = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
-    assert set(estimable_models(simplex, ["mixture"] * 3).values()) == {None}
-    gap = np.array([[-1, 1], [1, np.nan], [-1, -1], [1, 1]])
-    assert set(estimable_models(gap, ["numeric"] * 2).values()) == {None}
 
 
 def test_a_factor_held_at_one_level_adds_nothing_to_estimate():
@@ -218,7 +196,7 @@ def test_every_generated_design_has_a_name_of_its_own():
 @pytest.mark.slow
 def test_generated_records_are_the_designs_the_library_makes(records):
     generated = [r for r in records if r["collection"] == "generated"]
-    assert len(generated) == len(GENERATED)
+    assert 100 < len(generated) <= len(GENERATED), "options that make one design keep it once"
     ids = [r["id"] for r in records]
     assert len(set(ids)) == len(ids), "each design has an id of its own"
     dsd = next(r for r in generated if r["id"] == "lib-dsd-k6")
@@ -226,6 +204,28 @@ def test_generated_records_are_the_designs_the_library_makes(records):
     ccd = next(r for r in generated if r["id"] == "lib-ccd-k2-rotatable")
     assert ccd["levels"] == [5, 5], "the axial runs add two levels to the cube's two and the centre"
     assert all(r["source"] is None and r["year"] is None for r in generated)
+
+
+@pytest.mark.slow
+def test_generated_records_carry_the_measures_of_their_runs(records):
+    by_id = {r["id"]: r for r in records}
+    dsd = by_id["lib-dsd-k6"]
+    assert (dsd["quadratic_projection"], dsd["projectivity"]) == (3, None)
+    assert (dsd["run_loss_model"], dsd["survives_run_loss"]) == ("main_effects", True)
+    pb = by_id["lib-plackett-burman-k11"]
+    assert (pb["survives_run_loss"], pb["critical_runs"], pb["projectivity"]) == (False, 12, 3)
+    assert len(pb["leverage"]) == 12
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_one_design_printed_in_several_places_is_one_class(records):
+    """Box, Hunter and Hunter's pilot plant is a 2^3 factorial: the class of the one the library makes."""
+    by_id = {r["id"]: r for r in records}
+    assert by_id["bhh-pilot-plant-2-3"]["design_class"] == by_id["lib-full-factorial-k3"]["design_class"]
+    assert by_id["lib-full-factorial-k3"]["design_class"] != by_id["lib-fractional-factorial-k4-res4"]["design_class"]
+    assert by_id["bhh-plant-trial-two-methods"]["design_class"] is not None
+    assert all(r["design_class"] is None for r in records if not r["glyph"])
 
 
 @pytest.mark.slow
