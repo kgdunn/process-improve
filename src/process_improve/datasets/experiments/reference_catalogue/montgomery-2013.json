@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "about": [
-  "Part of the reference catalogue: worked examples, designs and exercises with data from chapters 1 to 11 of",
+  "Part of the reference catalogue: worked examples, designs and exercises with data from chapters 1 to 12 of",
   "Montgomery, Design and Analysis of Experiments (8th edition), for testing that software reproduces them. source:",
   "the citation, with what was read and when. experiments: each worked example or exercise with data (factors,",
   "responses, runs exactly as printed, in the printed order), where it is printed, and expected: every number the",
@@ -44,7 +44,9 @@
   "Chapter 11's fits read the stationary point and canonical form, steps along the path of steepest ascent, and the",
   "Derringer-Suich desirability of several fitted responses at a point (desirability); a mixture is fitted in",
   "pseudocomponents (coding pseudocomponent); runs.exact maps a setting printed rounded to its exact value, and",
-  "settings as_printed fits the settings as printed, for a source that did.",
+  "settings as_printed fits the settings as printed, for a source that did. Chapter 12's variance models are the",
+  "variance a fitted response model transmits from its noise factors (transmitted_variance), worked from the",
+  "library's coefficients; a model of ln(s²) is read back as a variance with exp.",
   "not_captured: what in these",
   "pages is not an experiment with data. Read with process_improve.experiments.reference_catalogue.",
   "reference_experiments; tests/test_reference_catalogue.py recomputes every number that has a check."
@@ -56,13 +58,13 @@
   ],
   "title": "Design and Analysis of Experiments",
   "edition": "8th edition",
-  "pages": "front matter and contents, pp. v to xvii, and chapters 1 to 11, pp. 1 to 553",
+  "pages": "front matter and contents, pp. v to xvii, and chapters 1 to 12, pp. 1 to 572",
   "year": 2013,
   "publisher": "John Wiley & Sons, Hoboken, NJ",
   "isbn": "978-1-118-14692-7",
   "url": "https://search.worldcat.org/search?q=bn:9781118146927",
   "cite": "Montgomery, D. C. (2013), Design and Analysis of Experiments, 8th edition, Wiley",
-  "read": "2026-10-16, from scans of the front matter and contents (pp. v to xvii) and chapters 1 to 11 (pp. 1 to 553); every number copied by hand, and Figures 1.5, 1.8, 3.12 to 3.14, 4.2, 5.10, 6.8, 6.19, 6.26 and 6.29, Tables 3.7, 3.14, 3.15, 4.3, 4.6, 4.9, 4.20, 5.13, 5.15, 5.16, 5.19, 5.21 to 5.24, 6.7, 6.17, 6.18 and 6.23 and the data of the problems of chapters 2 to 6 read again from the page image at 200 to 300 dpi; the tables of chapter 8 copied from the scan's text layer, its signs read from the symbol font, and checked against the page images, Tables 8.14 and 8.26 at 300 and 400 dpi; the tables of chapter 9 likewise, Figure 9.8 and Tables 9.15 to 9.17 read again at 300 dpi, and those of chapters 10 and 11 likewise, Table 11.11 read again at 200 dpi, Figure 11.29's design read off the figure at 300 dpi and Figure 11.32's nine designs read from the page image at 600 dpi by a monospaced grid, each checked to be fold-over pairs with one zero a run; Tables 2.1, 2.3, 2.6, 3.1, 3.17, 4.3, 4.11, 4.22, 5.4, 5.10, 5.13, 5.16, 6.4, 6.18, 7.1, 8.5, P8.3 and 9.1 and Figure 6.29 agree with the totals and summaries printed with them",
+  "read": "2026-10-16, from scans of the front matter and contents (pp. v to xvii) and chapters 1 to 12 (pp. 1 to 572); every number copied by hand, and Figures 1.5, 1.8, 3.12 to 3.14, 4.2, 5.10, 6.8, 6.19, 6.26 and 6.29, Tables 3.7, 3.14, 3.15, 4.3, 4.6, 4.9, 4.20, 5.13, 5.15, 5.16, 5.19, 5.21 to 5.24, 6.7, 6.17, 6.18 and 6.23 and the data of the problems of chapters 2 to 6 read again from the page image at 200 to 300 dpi; the tables of chapter 8 copied from the scan's text layer, its signs read from the symbol font, and checked against the page images, Tables 8.14 and 8.26 at 300 and 400 dpi; the tables of chapter 9 likewise, Figure 9.8 and Tables 9.15 to 9.17 read again at 300 dpi, and those of chapters 10 to 12 likewise, Tables 12.1 and 12.2 read again at 150 dpi, Table 11.11 read again at 200 dpi, Figure 11.29's design read off the figure at 300 dpi and Figure 11.32's nine designs read from the page image at 600 dpi by a monospaced grid, each checked to be fold-over pairs with one zero a run; Tables 2.1, 2.3, 2.6, 3.1, 3.17, 4.3, 4.11, 4.22, 5.4, 5.10, 5.13, 5.16, 6.4, 6.18, 7.1, 8.5, P8.3 and 9.1 and Figure 6.29 agree with the totals and summaries printed with them",
   "rights": "The book is protected by copyright (© 2013, 2009, 2005, 2001, 1997 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -177632,6 +177634,4877 @@
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
+  },
+  {
+   "name": "montgomery-leaf-spring-crossed-array",
+   "title": "Free height of leaf springs: a 2^(4−1) inner array in the controllable factors crossed with quench oil temperature, the noise factor, and its mean and ln(s²) models",
+   "topics": [
+    "automotive",
+    "metals"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "12.2 and 12.3",
+    "pages": "556-560",
+    "tables": [
+     "Table 12.1"
+    ],
+    "figures": [
+     "Figure 12.2",
+     "Figure 12.3",
+     "Figure 12.4",
+     "Figure 12.5",
+     "Figure 12.6"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "furnace temperature",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "heating time",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "transfer time",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "hold down time, D = ABC",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "ybar",
+     "description": "the mean free height of the six readings, as printed",
+     "units": "in"
+    },
+    {
+     "name": "s2",
+     "description": "the variance of the six readings, as printed",
+     "units": "in²"
+    }
+   ],
+   "design": {
+    "type": "crossed array: a 2^(4−1) inner array and a 2^1 outer array",
+    "details": "each inner run three times at each level of the noise factor E, quench oil temperature",
+    "n_runs": 8,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "e1",
+     "e2",
+     "e3",
+     "e4",
+     "e5",
+     "e6",
+     "ybar",
+     "s2"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      7.78,
+      7.78,
+      7.81,
+      7.5,
+      7.25,
+      7.12,
+      7.54,
+      0.09
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      8.15,
+      8.18,
+      7.88,
+      7.88,
+      7.88,
+      7.44,
+      7.9,
+      0.071
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      7.5,
+      7.56,
+      7.5,
+      7.5,
+      7.56,
+      7.5,
+      7.52,
+      0.001
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      7.59,
+      7.56,
+      7.75,
+      7.63,
+      7.75,
+      7.56,
+      7.64,
+      0.008
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      7.54,
+      8.0,
+      7.88,
+      7.32,
+      7.44,
+      7.44,
+      7.6,
+      0.074
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      7.69,
+      8.09,
+      8.06,
+      7.56,
+      7.69,
+      7.62,
+      7.79,
+      0.053
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      7.56,
+      7.52,
+      7.44,
+      7.18,
+      7.18,
+      7.25,
+      7.36,
+      0.03
+     ],
+     [
+      1,
+      1,
+      1,
+      1,
+      7.56,
+      7.81,
+      7.69,
+      7.81,
+      7.5,
+      7.59,
+      7.66,
+      0.017
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 12.1 in its order: e1 to e3 at E = −, e4 to e6 at E = +, then the printed mean and variance"
+   },
+   "notes": "The models are fitted to the printed means and variances, as the book's coefficients are; fitted to the means of the readings themselves, the coefficients of B and D are −0.082 and 0.046. The same data are Problem 8.10's replicated 2^(5−1), montgomery-problem-8-10.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "inner run 1",
+     "value": "7.54",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − − − − 7.78, 7.78, 7.81 7.5, 7.25, 7.12 7.54 0.090"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 1,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 1",
+     "value": "0.090",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − − − − 7.78, 7.78, 7.81 7.5, 7.25, 7.12 7.54 0.090"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 1,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "inner run 2",
+     "value": "7.90",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + − − + 8.15, 8.18, 7.88 7.88, 7.88, 7.44 7.90 0.071"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 2,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 2",
+     "value": "0.071",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + − − + 8.15, 8.18, 7.88 7.88, 7.88, 7.44 7.90 0.071"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 2,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "inner run 3",
+     "value": "7.52",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − + − + 7.5, 7.56, 7.5 7.5, 7.56, 7.5 7.52 0.001"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 3,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 3",
+     "value": "0.001",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − + − + 7.5, 7.56, 7.5 7.5, 7.56, 7.5 7.52 0.001"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 3,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "inner run 4",
+     "value": "7.64",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + + − − 7.59, 7.56, 7.75 7.63, 7.75, 7.56 7.64 0.008"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 4,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 4",
+     "value": "0.008",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + + − − 7.59, 7.56, 7.75 7.63, 7.75, 7.56 7.64 0.008"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 4,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "inner run 5",
+     "value": "7.60",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − − + + 7.54, 8.0, 7.88 7.32, 7.44, 7.44 7.60 0.074"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 5,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 5",
+     "value": "0.074",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − − + + 7.54, 8.0, 7.88 7.32, 7.44, 7.44 7.60 0.074"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 5,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "inner run 6",
+     "value": "7.79",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + − + − 7.69, 8.09, 8.06 7.56, 7.69, 7.62 7.79 0.053"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 6,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 6",
+     "value": "0.053",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + − + − 7.69, 8.09, 8.06 7.56, 7.69, 7.62 7.79 0.053"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 6,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "inner run 7",
+     "value": "7.36",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − + + − 7.56, 7.52, 7.44 7.18, 7.18, 7.25 7.36 0.030"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 7,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 7",
+     "value": "0.030",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... − + + − 7.56, 7.52, 7.44 7.18, 7.18, 7.25 7.36 0.030"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 7,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "inner run 8",
+     "value": "7.66",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + + + + 7.56, 7.81, 7.69 7.81, 7.5, 7.59 7.66 0.017"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 8,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "inner run 8",
+     "value": "0.017",
+     "where": {
+      "page": 557,
+      "source_kind": "table",
+      "quote": "Table 12.1 The Leaf Spring Experiment ... + + + + 7.56, 7.81, 7.69 7.81, 7.5, 7.59 7.66 0.017"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 8,
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "observations",
+     "value": "48",
+     "where": {
+      "page": 556,
+      "source_kind": "prose",
+      "quote": "In the leaf spring experiment, each of the 16 distinct design points was replicated three times, resulting in 48 observations on free height"
+     },
+     "check": {
+      "kind": "n_runs",
+      "summary": {
+       "of": [
+        "e1",
+        "e2",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+       ],
+       "statistic": "each"
+      }
+     }
+    },
+    {
+     "what": "design points",
+     "term": "distinct",
+     "value": "16",
+     "where": {
+      "page": 556,
+      "source_kind": "prose",
+      "quote": "each of the 16 distinct design points was replicated three times"
+     },
+     "check": {
+      "manual": "the eight inner-array runs at each of E's two levels: arithmetic"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "7.63",
+     "where": {
+      "page": 559,
+      "source_kind": "prose",
+      "quote": "The model for the mean free height response is ŷi = 7.63 + 0.12x1 − 0.081x2 + 0.044x4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + B + D",
+      "response": "ybar"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1 (A)",
+     "value": "0.12",
+     "where": {
+      "page": 559,
+      "source_kind": "prose",
+      "quote": "The model for the mean free height response is ŷi = 7.63 + 0.12x1 − 0.081x2 + 0.044x4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + B + D",
+      "response": "ybar"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2 (B)",
+     "value": "−0.081",
+     "where": {
+      "page": 559,
+      "source_kind": "prose",
+      "quote": "The model for the mean free height response is ŷi = 7.63 + 0.12x1 − 0.081x2 + 0.044x4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "A + B + D",
+      "response": "ybar"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x4 (D)",
+     "value": "0.044",
+     "where": {
+      "page": 559,
+      "source_kind": "prose",
+      "quote": "The model for the mean free height response is ŷi = 7.63 + 0.12x1 − 0.081x2 + 0.044x4"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "A + B + D",
+      "response": "ybar"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "ln(s²), Intercept",
+     "value": "−3.74",
+     "where": {
+      "page": 559,
+      "source_kind": "prose",
+      "quote": "The model for the ln(s²i) response is ln(s²i) = −3.74 − 1.09x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "B",
+      "response": "s2",
+      "transform": "log"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "ln(s²), x2 (B)",
+     "value": "−1.09",
+     "where": {
+      "page": 559,
+      "source_kind": "prose",
+      "quote": "The model for the ln(s²i) response is ln(s²i) = −3.74 − 1.09x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "B",
+      "model": "B",
+      "response": "s2",
+      "transform": "log"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "mean free height, A high, B = 0.5, D high",
+     "value": "between 7.74 and 7.76",
+     "analysis": "the mean model at the point, held to within 0.01 of 7.75: the limits 7.74 and 7.76",
+     "where": {
+      "page": 560,
+      "source_kind": "prose",
+      "quote": "By also selecting A = temperature at the high level and B = heating time at 0.50 (in coded units), we can achieve a mean free height between the desired limits with variance of approximately 0.0138"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + B + D",
+      "response": "ybar",
+      "point": {
+       "A": 1,
+       "B": 0.5,
+       "D": 1
+      },
+      "printed": "7.75",
+      "of_rounded": 2
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "variance, B = 0.5",
+     "value": "0.0138",
+     "analysis": "the ln(s²) model at B = 0.5, its exponential",
+     "where": {
+      "page": 560,
+      "source_kind": "prose",
+      "quote": "By also selecting A = temperature at the high level and B = heating time at 0.50 (in coded units), we can achieve a mean free height between the desired limits with variance of approximately 0.0138"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "B",
+      "response": "s2",
+      "transform": "log",
+      "point": {
+       "B": 0.5
+      },
+      "exp": true
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-connector-pull-off-crossed-array",
+   "title": "Pull-off force of an elastomeric connector on a nylon tube: a 3^(4−2) inner array crossed with a 2^3 outer array in three conditioning factors (Byrne and Taguchi 1987)",
+   "topics": [
+    "automotive",
+    "plastics-rubber"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "12.2",
+    "pages": "557-558",
+    "tables": [
+     "Table 12.2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "interference",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "connector wall thickness",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "insertion depth",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "percent adhesive",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "force",
+     "description": "pull-off force",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "crossed array: a 3^(4−2) inner array and a 2^3 outer array",
+    "details": "nine inner runs, each at the eight conditions of E, F and G",
+    "n_runs": 9,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "run",
+     "A",
+     "B",
+     "C",
+     "D",
+     "o1",
+     "o2",
+     "o3",
+     "o4",
+     "o5",
+     "o6",
+     "o7",
+     "o8"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      15.6,
+      9.5,
+      16.9,
+      19.9,
+      19.6,
+      19.6,
+      20.0,
+      19.1
+     ],
+     [
+      2,
+      -1,
+      0,
+      0,
+      0,
+      15.0,
+      16.2,
+      19.4,
+      19.2,
+      19.7,
+      19.8,
+      24.2,
+      21.9
+     ],
+     [
+      3,
+      -1,
+      1,
+      1,
+      1,
+      16.3,
+      16.7,
+      19.1,
+      15.6,
+      22.6,
+      18.2,
+      23.3,
+      20.4
+     ],
+     [
+      4,
+      0,
+      -1,
+      0,
+      1,
+      18.3,
+      17.4,
+      18.9,
+      18.6,
+      21.0,
+      18.9,
+      23.2,
+      24.7
+     ],
+     [
+      5,
+      0,
+      0,
+      1,
+      -1,
+      19.7,
+      18.6,
+      19.4,
+      25.1,
+      25.6,
+      21.4,
+      27.5,
+      25.3
+     ],
+     [
+      6,
+      0,
+      1,
+      -1,
+      0,
+      16.2,
+      16.3,
+      20.0,
+      19.8,
+      14.7,
+      19.6,
+      22.5,
+      24.7
+     ],
+     [
+      7,
+      1,
+      -1,
+      1,
+      0,
+      16.4,
+      19.1,
+      18.4,
+      23.6,
+      16.8,
+      18.6,
+      24.3,
+      21.6
+     ],
+     [
+      8,
+      1,
+      0,
+      -1,
+      1,
+      14.2,
+      15.6,
+      15.1,
+      16.8,
+      17.8,
+      19.6,
+      23.2,
+      24.2
+     ],
+     [
+      9,
+      1,
+      1,
+      0,
+      -1,
+      16.1,
+      19.9,
+      19.3,
+      17.3,
+      23.1,
+      22.7,
+      22.6,
+      28.6
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 12.2's inner array and its readings, o1 to o8 the outer array's columns in its order; the outer array itself is montgomery-connector-outer-array"
+   },
+   "notes": "The outer factors are E, conditioning time, F, conditioning temperature, and G, conditioning relative humidity.",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "observations",
+     "value": "72",
+     "where": {
+      "page": 558,
+      "source_kind": "prose",
+      "quote": "In our example, there are only seven factors, yet the design has 72 runs. Furthermore, the inner array design is a 3^(4−2) resolution III design"
+     },
+     "check": {
+      "kind": "n_runs",
+      "summary": {
+       "of": [
+        "o1",
+        "o2",
+        "o3",
+        "o4",
+        "o5",
+        "o6",
+        "o7",
+        "o8"
+       ],
+       "statistic": "each"
+      }
+     }
+    },
+    {
+     "what": "design",
+     "term": "inner array",
+     "value": "3^(4−2)",
+     "analysis": "the stored L9 orthogonal array, the 3^(4−2) of resolution III, with its columns reordered and their levels reversed",
+     "where": {
+      "page": 558,
+      "source_kind": "prose",
+      "quote": "In our example, there are only seven factors, yet the design has 72 runs. Furthermore, the inner array design is a 3^(4−2) resolution III design"
+     },
+     "check": {
+      "kind": "same_runs",
+      "array": "L9(3^4)",
+      "columns": [
+       "A",
+       "B",
+       "C",
+       "D"
+      ],
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "factors",
+     "term": "controllable and noise",
+     "value": "seven",
+     "where": {
+      "page": 558,
+      "source_kind": "prose",
+      "quote": "In our example, there are only seven factors, yet the design has 72 runs. Furthermore, the inner array design is a 3^(4−2) resolution III design"
+     },
+     "check": {
+      "manual": "four inner and three outer factors: arithmetic"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-filtration-robust-design",
+   "title": "The filtration 2^4 of Example 6.2 as a combined array: temperature a noise factor, its response, mean and variance models",
+   "topics": [
+    "chemical-processes"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "12.4, Example 12.1",
+    "pages": "562-565",
+    "tables": [],
+    "figures": [
+     "Figure 12.7",
+     "Figure 12.8",
+     "Figure 12.9"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "temperature, the noise factor z1 (σ²z = 1 in coded units)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "pressure (x1)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "concentration of formaldehyde (x2)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "stirring rate (x3)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "filtration rate",
+     "units": "gal/h"
+    }
+   ],
+   "design": {
+    "type": "2^4 factorial, a combined array",
+    "details": "Table 6.10's sixteen runs, temperature treated as a noise factor",
+    "n_runs": 16,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "y"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      45
+     ],
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      71
+     ],
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      48
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      65
+     ],
+     [
+      -1,
+      -1,
+      1,
+      -1,
+      68
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      60
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      80
+     ],
+     [
+      1,
+      1,
+      1,
+      -1,
+      65
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      1,
+      43
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      100
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      45
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      104
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      75
+     ],
+     [
+      1,
+      -1,
+      1,
+      1,
+      86
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      70
+     ],
+     [
+      1,
+      1,
+      1,
+      1,
+      96
+     ]
+    ],
+    "coded": true,
+    "notes": "Example 6.2's runs in standard order (Table 6.10)"
+   },
+   "notes": "The variance model is the response model's transmitted variance, worked from the library's coefficients (transmitted_variance): the library has no propagation-of-error function. The text names the factors z1, x1, x2 and x3: A, B, C and D here.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "z1 (A)",
+     "value": "21.625",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "x2 (C)",
+     "value": "9.875",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "x3 (D)",
+     "value": "14.625",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "D",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "x2z1 (AC)",
+     "value": "−18.125",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·C",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "x3z1 (AD)",
+     "value": "16.625",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·D",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, Intercept",
+     "value": "70.06",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, z1 (A)",
+     "value": "10.81",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x2 (C)",
+     "value": "4.94",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x3 (D)",
+     "value": "7.31",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x2z1 (AC)",
+     "value": "−9.06",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x3z1 (AD)",
+     "value": "8.31",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z1) = 70.06 + (21.625/2)z1 + (9.875/2)x2 + (14.625/2)x3 − (18.125/2)x2z1 + (16.625/2)x3z1 = 70.06 + 10.81z1 + 4.94x2 + 7.31x3 − 9.06x2z1 + 8.31x3z1"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·D",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, Intercept",
+     "value": "70.06",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z1)] = 70.06 + 4.94x2 + 7.31x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, x2 (C)",
+     "value": "4.94",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z1)] = 70.06 + 4.94x2 + 7.31x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "C",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, x3 (D)",
+     "value": "7.31",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z1)] = 70.06 + 4.94x2 + 7.31x3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "D",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "slope",
+     "term": "∂y/∂z1, constant",
+     "value": "10.81",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "slope",
+     "term": "∂y/∂z1, x2",
+     "value": "−9.06",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·C",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "slope",
+     "term": "∂y/∂z1, x3",
+     "value": "8.31",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "A·D",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": "σ̂²",
+     "value": "19.51",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "use σ̂² = 19.51 (this is the residual mean square obtained by fitting the response model)"
+     },
+     "check": {
+      "kind": "ms_residual",
+      "model": "A + C + D + A:C + A:D"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "σ²z coefficient, constant",
+     "value": "116.91",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "Intercept",
+      "error": false
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "σ²z coefficient, x2²",
+     "value": "82.08",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "C²",
+      "error": false,
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (9.06² = 82.08); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is 82.129"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "with σ²z = 1 and σ̂², x2²",
+     "value": "82.08",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Therefore, the variance model becomes Vz[y(x, z1)] = 136.42 − 195.88x2 + 179.66x3 − 150.58x2x3 + 82.08x2² + 69.06x3²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "C²",
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (9.06² = 82.08); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is 82.129"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "σ²z coefficient, x3²",
+     "value": "69.06",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "D²",
+      "error": false,
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (8.31² = 69.06); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is 69.098"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "with σ²z = 1 and σ̂², x3²",
+     "value": "69.06",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Therefore, the variance model becomes Vz[y(x, z1)] = 136.42 − 195.88x2 + 179.66x3 − 150.58x2x3 + 82.08x2² + 69.06x3²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "D²",
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (8.31² = 69.06); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is 69.098"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "σ²z coefficient, x2",
+     "value": "−195.88",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "C",
+      "error": false,
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (−2 × 10.81 × 9.06 = −195.88); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is −195.977"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "with σ²z = 1 and σ̂², x2",
+     "value": "−195.88",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Therefore, the variance model becomes Vz[y(x, z1)] = 136.42 − 195.88x2 + 179.66x3 − 150.58x2x3 + 82.08x2² + 69.06x3²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "C",
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (−2 × 10.81 × 9.06 = −195.88); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is −195.977"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "σ²z coefficient, x3",
+     "value": "179.66",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "D",
+      "error": false,
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (2 × 10.81 × 8.31 = 179.66); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is 179.758"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "with σ²z = 1 and σ̂², x3",
+     "value": "179.66",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Therefore, the variance model becomes Vz[y(x, z1)] = 136.42 − 195.88x2 + 179.66x3 − 150.58x2x3 + 82.08x2² + 69.06x3²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "D",
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (2 × 10.81 × 8.31 = 179.66); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is 179.758"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "σ²z coefficient, x2x3",
+     "value": "−150.58",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z1)] = σ²z(10.81 − 9.06x2 + 8.31x3)² + σ² = σ²z(116.91 + 82.08x2² + 69.06x3² − 195.88x2 + 179.66x3 − 150.58x2x3) + σ²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "C·D",
+      "error": false,
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (−2 × 9.06 × 8.31 = −150.58); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is −150.664"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "with σ²z = 1 and σ̂², x2x3",
+     "value": "−150.58",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Therefore, the variance model becomes Vz[y(x, z1)] = 136.42 − 195.88x2 + 179.66x3 − 150.58x2x3 + 82.08x2² + 69.06x3²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "C·D",
+      "disagreement": "worked from the slope's coefficients rounded to two decimals (−2 × 9.06 × 8.31 = −150.58); from the fit, 10.8125 − 9.0625x2 + 8.3125x3, it is −150.664"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "with σ²z = 1 and σ̂², constant",
+     "value": "136.42",
+     "analysis": "116.91 + 19.51",
+     "where": {
+      "page": 563,
+      "source_kind": "prose",
+      "quote": "Therefore, the variance model becomes Vz[y(x, z1)] = 136.42 − 195.88x2 + 179.66x3 − 150.58x2x3 + 82.08x2² + 69.06x3²"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "Intercept"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "mean, concentration high, stirring rate middle",
+     "value": "about 75",
+     "analysis": "the mean model at x2 = 1, x3 = 0, with the noise factor at its mean",
+     "where": {
+      "page": 564,
+      "source_kind": "prose",
+      "quote": "Suppose that the experimenter wants to maintain a mean filtration rate of about 75 ... it will be necessary to hold concentration at the high level and stirring rate very near the middle level"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "A + C + D + A:C + A:D",
+      "point": {
+       "C": 1,
+       "D": 0
+      },
+      "printed": "75"
+     }
+    },
+    {
+     "what": "propagation of error",
+     "term": "concentration high, stirring rate middle",
+     "value": "below 5.5",
+     "analysis": "√((10.81 − 9.06)² + 19.51) = 4.75 at the recommended setting, inside the overlay's 5.5",
+     "where": {
+      "page": 564,
+      "source_kind": "prose",
+      "quote": "Figure 12.9 shows an overlay plot of the contours of mean filtration rate and the POE ... POE(y): 5.5"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "A + C + D + A:C + A:D",
+      "noise": [
+       "A"
+      ],
+      "key": "poe",
+      "point": {
+       "C": 1,
+       "D": 0
+      },
+      "printed": "<5.5"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-semiconductor-combined-array",
+   "title": "A semiconductor process with two controllable and three noise variables: a 23-run combined array from a CCD in five factors, and its mean and variance models",
+   "topics": [
+    "semiconductors"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "12.4, Example 12.2",
+    "pages": "565-566",
+    "tables": [
+     "Table 12.3"
+    ],
+    "figures": [
+     "Figure 12.10",
+     "Figure 12.11",
+     "Figure 12.12"
+    ]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "controllable variable x1",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "controllable variable x2",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "z1",
+     "description": "noise variable z1 (σ²z = 1)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "z2",
+     "description": "noise variable z2 (σ²z = 1)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "z3",
+     "description": "noise variable z3 (σ²z = 1)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "the response",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "combined array, a modified central composite design",
+    "details": "a 2^(5−1) cube, axial runs at ±2 in the two controllable variables only, and three centre runs",
+    "n_runs": 23,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "x1",
+     "x2",
+     "z1",
+     "z2",
+     "z3",
+     "y"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      44.2
+     ],
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      30.0
+     ],
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      30.0
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      35.4
+     ],
+     [
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      49.8
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      36.3
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      41.3
+     ],
+     [
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      31.4
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      43.5
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      36.1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      22.7
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      16.0
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      43.2
+     ],
+     [
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      30.3
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      30.1
+     ],
+     [
+      1,
+      1,
+      1,
+      1,
+      1,
+      39.2
+     ],
+     [
+      -2,
+      0,
+      0,
+      0,
+      0,
+      46.1
+     ],
+     [
+      2,
+      0,
+      0,
+      0,
+      0,
+      36.1
+     ],
+     [
+      0,
+      -2,
+      0,
+      0,
+      0,
+      47.4
+     ],
+     [
+      0,
+      2,
+      0,
+      0,
+      0,
+      31.5
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      30.8
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      30.7
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      31.0
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 12.3 in its order"
+   },
+   "notes": "Adapted from Montgomery (1999). The variance model is worked from the library's coefficients (transmitted_variance).",
+   "expected": [
+    {
+     "what": "cube",
+     "term": "runs 1 to 16",
+     "value": "2^(5−1)",
+     "analysis": "x1x2z1z2z3 = +1 in each of the sixteen cube runs: the half fraction with I = ABCDE, of resolution V",
+     "where": {
+      "page": 565,
+      "source_kind": "prose",
+      "quote": "The design is a 23-run variation of a central composite design ... (the cube portion is a 2^(5−1))"
+     },
+     "check": {
+      "kind": "dot_product",
+      "columns": [
+       "x1",
+       "x2",
+       "z1",
+       "z2",
+       "z3"
+      ],
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16
+      ],
+      "printed": "16"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "the design",
+     "value": "23",
+     "where": {
+      "page": 565,
+      "source_kind": "prose",
+      "quote": "The design is a 23-run variation of a central composite design"
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, Intercept",
+     "value": "30.37",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x1",
+     "value": "−2.92",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x2",
+     "value": "−4.13",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x1²",
+     "value": "2.60",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1²",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x2²",
+     "value": "2.18",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2²",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x1·x2",
+     "value": "2.87",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·x2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, z1",
+     "value": "2.73",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "z1",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, z2",
+     "value": "−2.33",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "z2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, z3",
+     "value": "2.33",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "z3",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x1·z1",
+     "value": "−0.27",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·z1",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x1·z2",
+     "value": "0.89",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·z2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x1·z3",
+     "value": "2.58",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·z3",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x2·z1",
+     "value": "2.01",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2·z1",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x2·z2",
+     "value": "−1.43",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2·z2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "response model, x2·z3",
+     "value": "1.56",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "ŷ(x, z) = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2 + 2.73z1 − 2.33z2 + 2.33z3 − 0.27x1z1 + 0.89x1z2 + 2.58x1z3 + 2.01x2z1 − 1.43x2z2 + 1.56x2z3"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2·z3",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, Intercept",
+     "value": "30.37",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z)] = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, x1",
+     "value": "−2.92",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z)] = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, x2",
+     "value": "−4.13",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z)] = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, x1²",
+     "value": "2.60",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z)] = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1²",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, x2²",
+     "value": "2.18",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z)] = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2²",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "mean model, x1·x2",
+     "value": "2.87",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Ez[y(x, z)] = 30.37 − 2.92x1 − 4.13x2 + 2.60x1² + 2.18x2² + 2.87x1x2"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·x2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "Intercept",
+     "value": "19.26",
+     "analysis": "σ²z = 1 for each noise factor, and σ̂² the residual mean square, 0.954",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z)] = 19.26 + 6.40x1 + 24.91x2 + 7.52x1² + 8.52x2² + 4.42x1x2"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)",
+      "noise": [
+       "z1",
+       "z2",
+       "z3"
+      ],
+      "key": "Intercept",
+      "disagreement": "worked from the response model's coefficients rounded to two decimals, 2.73² + 2.33² + 2.33² + 0.95 = 19.26; from the fit it is 19.283"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "x1",
+     "value": "6.40",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z)] = 19.26 + 6.40x1 + 24.91x2 + 7.52x1² + 8.52x2² + 4.42x1x2"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)",
+      "noise": [
+       "z1",
+       "z2",
+       "z3"
+      ],
+      "key": "x1"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "x2",
+     "value": "24.91",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z)] = 19.26 + 6.40x1 + 24.91x2 + 7.52x1² + 8.52x2² + 4.42x1x2"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)",
+      "noise": [
+       "z1",
+       "z2",
+       "z3"
+      ],
+      "key": "x2",
+      "disagreement": "worked from the response model's coefficients rounded to two decimals, 2(2.73 × 2.01 + 2.33 × 1.43 + 2.33 × 1.56) = 24.91; from the fit it is 24.888"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "x1²",
+     "value": "7.52",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z)] = 19.26 + 6.40x1 + 24.91x2 + 7.52x1² + 8.52x2² + 4.42x1x2"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)",
+      "noise": [
+       "z1",
+       "z2",
+       "z3"
+      ],
+      "key": "x1²",
+      "disagreement": "worked from the response model's coefficients rounded to two decimals, 0.27² + 0.89² + 2.58² = 7.52; from the fit it is 7.534"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "x2²",
+     "value": "8.52",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z)] = 19.26 + 6.40x1 + 24.91x2 + 7.52x1² + 8.52x2² + 4.42x1x2"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)",
+      "noise": [
+       "z1",
+       "z2",
+       "z3"
+      ],
+      "key": "x2²",
+      "disagreement": "worked from the response model's coefficients rounded to two decimals, 2.01² + 1.43² + 1.56² = 8.52; from the fit it is 8.495"
+     }
+    },
+    {
+     "what": "variance model",
+     "term": "x1·x2",
+     "value": "4.42",
+     "where": {
+      "page": 566,
+      "source_kind": "prose",
+      "quote": "Vz[y(x, z)] = 19.26 + 6.40x1 + 24.91x2 + 7.52x1² + 8.52x2² + 4.42x1x2"
+     },
+     "check": {
+      "kind": "transmitted_variance",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2) + (x1 + x2) * (z1 + z2 + z3)",
+      "noise": [
+       "z1",
+       "z2",
+       "z3"
+      ],
+      "key": "x1·x2",
+      "disagreement": "worked from the response model's coefficients rounded to two decimals, 2(−0.27 × 2.01 − 0.89 × 1.43 + 2.58 × 1.56) = 4.42; from the fit it is 4.397"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-problem-12-9",
+   "title": "The filtration 2^4 of Example 6.2 without pressure: two replicates of a 2^3, temperature (A) a noise variable (Problem 12.9)",
+   "topics": [
+    "chemical-processes"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "12.6, Problem 12.9",
+    "pages": "570",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "C",
+     "description": "concentration of formaldehyde",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "stirring rate",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "filtration rate",
+     "units": "gal/h"
+    }
+   ],
+   "design": {
+    "type": "2^2 in C and D, each run at two levels of A twice",
+    "details": "4 runs",
+    "n_runs": 4,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "C",
+     "D",
+     "a1",
+     "a2",
+     "a3",
+     "a4",
+     "ybar",
+     "s2"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      45,
+      48,
+      71,
+      65,
+      57.75,
+      121.19
+     ],
+     [
+      1,
+      -1,
+      68,
+      80,
+      60,
+      65,
+      68.25,
+      72.25
+     ],
+     [
+      -1,
+      1,
+      43,
+      45,
+      100,
+      104,
+      73.0,
+      1124.67
+     ],
+     [
+      1,
+      1,
+      75,
+      70,
+      86,
+      96,
+      81.75,
+      134.92
+     ]
+    ],
+    "coded": true,
+    "notes": "the table in its order: a1 and a2 at A = −, a3 and a4 at A = +, then the printed mean and variance"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "C, D run 1",
+     "value": "57.75",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... − − 45, 48 71, 65 57.75 121.19"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 1,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "mean"
+      },
+      "disagreement": "the four readings 45, 48, 71 and 65 (Example 6.2's runs (1), b, a and ab) average 57.25"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "C, D run 1",
+     "value": "121.19",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... − − 45, 48 71, 65 57.75 121.19"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 1,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "variance"
+      },
+      "disagreement": "the four readings 45, 48, 71 and 65 have variance 161.58"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C, D run 2",
+     "value": "68.25",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... + − 68, 80 60, 65 68.25 72.25"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 2,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "C, D run 2",
+     "value": "72.25",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... + − 68, 80 60, 65 68.25 72.25"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 2,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C, D run 3",
+     "value": "73.00",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... − + 43, 45 100, 104 73.00 1124.67"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 3,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "C, D run 3",
+     "value": "1124.67",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... − + 43, 45 100, 104 73.00 1124.67"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 3,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "variance"
+      }
+     }
+    },
+    {
+     "what": "mean",
+     "term": "C, D run 4",
+     "value": "81.75",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... + + 75, 70 86, 96 81.75 134.92"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 4,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "mean"
+      }
+     }
+    },
+    {
+     "what": "variance",
+     "term": "C, D run 4",
+     "value": "134.92",
+     "where": {
+      "page": 570,
+      "source_kind": "table",
+      "quote": "12.9 ... + + 75, 70 86, 96 81.75 134.92"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 4,
+      "summary": {
+       "of": [
+        "a1",
+        "a2",
+        "a3",
+        "a4"
+       ],
+       "statistic": "variance"
+      }
+     }
+    }
+   ],
+   "notes": "The readings are Example 6.2's (Table 6.10), pressure dropped; the first row's printed mean and variance are not those of its readings."
+  },
+  {
+   "name": "montgomery-problem-12-10",
+   "title": "Carbon monoxide emission against ethanol and air/fuel ratio in a 3^2 run twice (Hunter 1989) (Problem 12.10)",
+   "topics": [
+    "energy",
+    "environment"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "12.6, Problem 12.10",
+    "pages": "570-571",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "amount of ethanol added (A), levels 0, 1, 2 written −1, 0, +1",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "air/fuel ratio (B)",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "co",
+     "description": "CO emission",
+     "units": "g/m³"
+    }
+   ],
+   "design": {
+    "type": "3^2 factorial, two replicates",
+    "details": "9 runs",
+    "n_runs": 9,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "x1",
+     "x2",
+     "r1",
+     "r2"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      66,
+      62
+     ],
+     [
+      0,
+      -1,
+      78,
+      81
+     ],
+     [
+      1,
+      -1,
+      90,
+      94
+     ],
+     [
+      -1,
+      0,
+      72,
+      67
+     ],
+     [
+      0,
+      0,
+      80,
+      81
+     ],
+     [
+      1,
+      0,
+      75,
+      78
+     ],
+     [
+      -1,
+      1,
+      68,
+      66
+     ],
+     [
+      0,
+      1,
+      66,
+      69
+     ],
+     [
+      1,
+      1,
+      60,
+      58
+     ]
+    ],
+    "coded": true,
+    "notes": "the table in its order, in the geometric notation −1, 0, +1"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "78.5",
+     "where": {
+      "page": 571,
+      "source_kind": "prose",
+      "quote": "(a) Verify that the second-order model ŷ = 78.5 + 4.5x1 − 7.0x2 − 4.5x1² − 4.0x2² − 9.0x1x2 is a reasonable model for this experiment"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2)",
+      "summary": {
+       "of": [
+        "r1",
+        "r2"
+       ],
+       "statistic": "each"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "4.5",
+     "where": {
+      "page": 571,
+      "source_kind": "prose",
+      "quote": "(a) Verify that the second-order model ŷ = 78.5 + 4.5x1 − 7.0x2 − 4.5x1² − 4.0x2² − 9.0x1x2 is a reasonable model for this experiment"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2)",
+      "summary": {
+       "of": [
+        "r1",
+        "r2"
+       ],
+       "statistic": "each"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2",
+     "value": "−7.0",
+     "where": {
+      "page": 571,
+      "source_kind": "prose",
+      "quote": "(a) Verify that the second-order model ŷ = 78.5 + 4.5x1 − 7.0x2 − 4.5x1² − 4.0x2² − 9.0x1x2 is a reasonable model for this experiment"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2)",
+      "summary": {
+       "of": [
+        "r1",
+        "r2"
+       ],
+       "statistic": "each"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1²",
+     "value": "−4.5",
+     "where": {
+      "page": 571,
+      "source_kind": "prose",
+      "quote": "(a) Verify that the second-order model ŷ = 78.5 + 4.5x1 − 7.0x2 − 4.5x1² − 4.0x2² − 9.0x1x2 is a reasonable model for this experiment"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1²",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2)",
+      "summary": {
+       "of": [
+        "r1",
+        "r2"
+       ],
+       "statistic": "each"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x2²",
+     "value": "−4.0",
+     "where": {
+      "page": 571,
+      "source_kind": "prose",
+      "quote": "(a) Verify that the second-order model ŷ = 78.5 + 4.5x1 − 7.0x2 − 4.5x1² − 4.0x2² − 9.0x1x2 is a reasonable model for this experiment"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x2²",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2)",
+      "summary": {
+       "of": [
+        "r1",
+        "r2"
+       ],
+       "statistic": "each"
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1·x2",
+     "value": "−9.0",
+     "where": {
+      "page": 571,
+      "source_kind": "prose",
+      "quote": "(a) Verify that the second-order model ŷ = 78.5 + 4.5x1 − 7.0x2 − 4.5x1² − 4.0x2² − 9.0x1x2 is a reasonable model for this experiment"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "x1·x2",
+      "model": "x1 * x2 + I(x1 ** 2) + I(x2 ** 2)",
+      "summary": {
+       "of": [
+        "r1",
+        "r2"
+       ],
+       "statistic": "each"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-problem-12-10-b",
+   "title": "Carbon monoxide emission as if run in a 3^(4−2) fraction in four factors, the data of part (a) unchanged (Problem 12.10(b))",
+   "topics": [
+    "energy",
+    "environment"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "12.6, Problem 12.10(b)",
+    "pages": "571-572",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor A, levels 0, 1, 2 written −1, 0, +1",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor B, levels 0, 1, 2 written −1, 0, +1",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor C, levels 0, 1, 2 written −1, 0, +1",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor D, levels 0, 1, 2 written −1, 0, +1",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "co",
+     "description": "CO emission",
+     "units": "g/m³"
+    }
+   ],
+   "design": {
+    "type": "3^(4−2) fractional factorial",
+    "details": "9 runs",
+    "n_runs": 9,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "x1",
+     "x2",
+     "x3",
+     "x4",
+     "r1",
+     "r2"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      66,
+      62
+     ],
+     [
+      0,
+      -1,
+      0,
+      0,
+      78,
+      81
+     ],
+     [
+      1,
+      -1,
+      1,
+      1,
+      90,
+      94
+     ],
+     [
+      -1,
+      0,
+      1,
+      0,
+      72,
+      67
+     ],
+     [
+      0,
+      0,
+      -1,
+      1,
+      80,
+      81
+     ],
+     [
+      1,
+      0,
+      0,
+      -1,
+      75,
+      78
+     ],
+     [
+      -1,
+      1,
+      0,
+      1,
+      68,
+      66
+     ],
+     [
+      0,
+      1,
+      1,
+      -1,
+      66,
+      69
+     ],
+     [
+      1,
+      1,
+      -1,
+      0,
+      60,
+      58
+     ]
+    ],
+    "coded": true,
+    "notes": "part (b)'s design in its order, levels 0, 1, 2 as −1, 0, +1, with part (a)'s two readings of each run"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [
+    {
+     "what": "alias weight",
+     "term": "β0 on β12",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂0) = β0 − β13 − β14 − β34"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.0.0",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β0 on β13",
+     "value": "-1",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂0) = β0 − β13 − β14 − β34"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.0.1",
+      "printed": "-1",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β0 on β14",
+     "value": "-1",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂0) = β0 − β13 − β14 − β34"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.0.2",
+      "printed": "-1",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β0 on β23",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂0) = β0 − β13 − β14 − β34"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.0.3",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β0 on β24",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂0) = β0 − β13 − β14 − β34"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.0.4",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β0 on β34",
+     "value": "-1",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂0) = β0 − β13 − β14 − β34"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.0.5",
+      "printed": "-1",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β1 on β12",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂1) = β1 − (β23 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.1.0",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β1 on β13",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂1) = β1 − (β23 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.1.1",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β1 on β14",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂1) = β1 − (β23 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.1.2",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β1 on β23",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂1) = β1 − (β23 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.1.3",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β1 on β24",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂1) = β1 − (β23 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.1.4",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β1 on β34",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂1) = β1 − (β23 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.1.5",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β2 on β12",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂2) = β2 − (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.2.0",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β2 on β13",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂2) = β2 − (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.2.1",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β2 on β14",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂2) = β2 − (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.2.2",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β2 on β23",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂2) = β2 − (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.2.3",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β2 on β24",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂2) = β2 − (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.2.4",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β2 on β34",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂2) = β2 − (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.2.5",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β3 on β12",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂3) = β3 − (β12 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.3.0",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β3 on β13",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂3) = β3 − (β12 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.3.1",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β3 on β14",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂3) = β3 − (β12 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.3.2",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β3 on β23",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂3) = β3 − (β12 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.3.3",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β3 on β24",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂3) = β3 − (β12 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.3.4",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β3 on β34",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂3) = β3 − (β12 + β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.3.5",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β4 on β12",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂4) = β4 − (β12 + β23)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.4.0",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β4 on β13",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂4) = β4 − (β12 + β23)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.4.1",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β4 on β14",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂4) = β4 − (β12 + β23)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.4.2",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β4 on β23",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂4) = β4 − (β12 + β23)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.4.3",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β4 on β24",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂4) = β4 − (β12 + β23)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.4.4",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β4 on β34",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂4) = β4 − (β12 + β23)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.4.5",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β11 on β12",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂11) = β11 − (β23 − β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.5.0",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β11 on β13",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂11) = β11 − (β23 − β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.5.1",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β11 on β14",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂11) = β11 − (β23 − β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.5.2",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β11 on β23",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂11) = β11 − (β23 − β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.5.3",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β11 on β24",
+     "value": "0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂11) = β11 − (β23 − β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.5.4",
+      "printed": "0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β11 on β34",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂11) = β11 − (β23 − β24)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.5.5",
+      "printed": "0",
+      "decimals": 6,
+      "disagreement": "the alias matrix gives β11's estimate the weight +1 on β34 as well: E(β̂11) = β11 − (β23 − β24)/2 + β34, as β33's and β44's carry β14 and β13"
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β22 on β12",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂22) = β22 + (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.6.0",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β22 on β13",
+     "value": "0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂22) = β22 + (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.6.1",
+      "printed": "0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β22 on β14",
+     "value": "0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂22) = β22 + (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.6.2",
+      "printed": "0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β22 on β23",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂22) = β22 + (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.6.3",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β22 on β24",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂22) = β22 + (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.6.4",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β22 on β34",
+     "value": "0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂22) = β22 + (β13 + β14 + β34)/2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.6.5",
+      "printed": "0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β33 on β12",
+     "value": "0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂33) = β33 − (β24 − β12)/2 + β14"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.7.0",
+      "printed": "0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β33 on β13",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂33) = β33 − (β24 − β12)/2 + β14"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.7.1",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β33 on β14",
+     "value": "1",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂33) = β33 − (β24 − β12)/2 + β14"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.7.2",
+      "printed": "1",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β33 on β23",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂33) = β33 − (β24 − β12)/2 + β14"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.7.3",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β33 on β24",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂33) = β33 − (β24 − β12)/2 + β14"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.7.4",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β33 on β34",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂33) = β33 − (β24 − β12)/2 + β14"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.7.5",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β44 on β12",
+     "value": "-0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂44) = β44 − (β12 − β23)/2 + β13"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.8.0",
+      "printed": "-0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β44 on β13",
+     "value": "1",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂44) = β44 − (β12 − β23)/2 + β13"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.8.1",
+      "printed": "1",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β44 on β14",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂44) = β44 − (β12 − β23)/2 + β13"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.8.2",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β44 on β23",
+     "value": "0.5",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂44) = β44 − (β12 − β23)/2 + β13"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.8.3",
+      "printed": "0.5",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β44 on β24",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂44) = β44 − (β12 − β23)/2 + β13"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.8.4",
+      "printed": "0",
+      "decimals": 6
+     }
+    },
+    {
+     "what": "alias weight",
+     "term": "β44 on β34",
+     "value": "0",
+     "analysis": "a weight the expression leaves out is 0",
+     "where": {
+      "page": 572,
+      "source_kind": "prose",
+      "quote": "E(β̂44) = β44 − (β12 − β23)/2 + β13"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "x1 + x2 + x3 + x4 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "matrix.8.5",
+      "printed": "0",
+      "decimals": 6
+     }
+    }
+   ],
+   "notes": "Part (c)'s alias expressions are the library's alias matrix of the model in the main effects and squares, the two-factor interactions left out."
+  },
+  {
+   "name": "montgomery-problem-12-11",
+   "title": "Mean and standard deviation of the coating thickness on a wafer against speed, pressure and distance in a 3^3 (adapted from Box and Draper 2007) (Problem 12.11)",
+   "topics": [
+    "semiconductors"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "12.6, Problem 12.11",
+    "pages": "571",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "speed",
+     "description": "speed",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "pressure",
+     "description": "pressure",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "distance",
+     "description": "distance",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y1",
+     "description": "mean thickness",
+     "units": ""
+    },
+    {
+     "name": "y2",
+     "description": "standard deviation of the thickness",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "3^3 factorial",
+    "details": "27 runs",
+    "n_runs": 27,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "speed",
+     "pressure",
+     "distance",
+     "y1",
+     "y2"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1,
+      24.0,
+      12.5
+     ],
+     [
+      0,
+      -1,
+      -1,
+      120.3,
+      8.4
+     ],
+     [
+      1,
+      -1,
+      -1,
+      213.7,
+      42.8
+     ],
+     [
+      -1,
+      0,
+      -1,
+      86.0,
+      3.5
+     ],
+     [
+      0,
+      0,
+      -1,
+      136.6,
+      80.4
+     ],
+     [
+      1,
+      0,
+      -1,
+      340.7,
+      16.2
+     ],
+     [
+      -1,
+      1,
+      -1,
+      112.3,
+      27.6
+     ],
+     [
+      0,
+      1,
+      -1,
+      256.3,
+      4.6
+     ],
+     [
+      1,
+      1,
+      -1,
+      271.7,
+      23.6
+     ],
+     [
+      -1,
+      -1,
+      0,
+      81.0,
+      0.0
+     ],
+     [
+      0,
+      -1,
+      0,
+      101.7,
+      17.7
+     ],
+     [
+      1,
+      -1,
+      0,
+      357.0,
+      32.9
+     ],
+     [
+      -1,
+      0,
+      0,
+      171.3,
+      15.0
+     ],
+     [
+      0,
+      0,
+      0,
+      372.0,
+      0.0
+     ],
+     [
+      1,
+      0,
+      0,
+      501.7,
+      92.5
+     ],
+     [
+      -1,
+      1,
+      0,
+      264.0,
+      63.5
+     ],
+     [
+      0,
+      1,
+      0,
+      427.0,
+      88.6
+     ],
+     [
+      1,
+      1,
+      0,
+      730.7,
+      21.1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      220.7,
+      133.8
+     ],
+     [
+      0,
+      -1,
+      1,
+      239.7,
+      23.5
+     ],
+     [
+      1,
+      -1,
+      1,
+      422.0,
+      18.5
+     ],
+     [
+      -1,
+      0,
+      1,
+      199.0,
+      29.4
+     ],
+     [
+      0,
+      0,
+      1,
+      485.3,
+      44.7
+     ],
+     [
+      1,
+      0,
+      1,
+      673.7,
+      158.2
+     ],
+     [
+      -1,
+      1,
+      1,
+      176.7,
+      55.5
+     ],
+     [
+      0,
+      1,
+      1,
+      501.0,
+      138.9
+     ],
+     [
+      1,
+      1,
+      1,
+      1010.0,
+      142.4
+     ]
+    ],
+    "coded": true,
+    "notes": "Table P12.1 in its order"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": []
+  },
+  {
+   "name": "montgomery-problem-12-18",
+   "title": "Solder defects per million opportunities in a wave soldering process: a crossed array, five controllable and three noise variables (Problem 12.18)",
+   "topics": [
+    "electrical-electronic"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "12.6, Problem 12.18",
+    "pages": "572",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "controllable variable A",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "controllable variable B",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "controllable variable C",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "controllable variable D",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "controllable variable E",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "defects",
+     "description": "solder defects per million opportunities",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "crossed array: a 2^(5−2) inner and a 2^(3−1) outer array",
+    "details": "8 runs",
+    "n_runs": 8,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "o1",
+     "o2",
+     "o3",
+     "o4"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      194,
+      197,
+      193,
+      275
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      1,
+      136,
+      136,
+      132,
+      136
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      185,
+      261,
+      264,
+      264
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      47,
+      125,
+      127,
+      42
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      295,
+      216,
+      204,
+      293
+     ],
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      234,
+      159,
+      231,
+      157
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      328,
+      326,
+      247,
+      322
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      186,
+      187,
+      105,
+      104
+     ]
+    ],
+    "coded": true,
+    "notes": "the inner array and its readings in order; o1 to o4 are the outer array's columns (F, G, H) = (−1, −1, −1), (1, 1, −1), (1, −1, 1), (−1, 1, 1)"
+   },
+   "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
+   "expected": [],
+   "notes": "The inner array is a 2^(5−2) with D = −AC and E = −BC, the outer a 2^(3−1) with H = −FG. Problems 12.19 and 12.20 call this experiment Problem 12.16's, a misprint for 12.18."
   }
  ],
  "designs": [
@@ -222097,6 +226970,1378 @@
      }
     }
    ]
+  },
+  {
+   "name": "montgomery-connector-outer-array",
+   "title": "The outer array of the connector pull-off force experiment: a 2^3 in conditioning time, temperature and relative humidity, as printed",
+   "topics": [
+    "automotive",
+    "plastics-rubber"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "12.2",
+    "pages": "557-558",
+    "tables": [
+     "Table 12.2"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "E",
+     "description": "conditioning time",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "conditioning temperature",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "conditioning relative humidity",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^3 outer array",
+    "details": "the eight noise conditions, one column of readings each",
+    "n_runs": 8,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "E",
+     "F",
+     "G"
+    ],
+    "rows": [
+     [
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      1
+     ],
+     [
+      1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 12.2's outer array, one row per column of readings, as printed"
+   },
+   "expected": [
+    {
+     "what": "distinct runs",
+     "term": "Table 12.2's outer array",
+     "value": "8",
+     "analysis": "the different settings among the eight columns",
+     "where": {
+      "page": 557,
+      "source_kind": "prose",
+      "quote": "Panel (b) of Table 12.2 contains a 2^3 outer array design for the noise factors"
+     },
+     "check": {
+      "kind": "distinct_runs",
+      "columns": [
+       "E",
+       "F",
+       "G"
+      ],
+      "disagreement": "the sixth column prints G as −, the fifth's setting; a 2^3 needs + there, as the pattern − + − + of the other columns has it"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-resolution-v-7-30",
+   "title": "Design-Expert's two-level resolution V design in seven factors and 30 runs",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "12.5",
+    "pages": "567-568",
+    "tables": [
+     "Table 12.4"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "factor E",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "factor F",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "factor G",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "two-level resolution V design, irregular",
+    "details": "thirty runs, every main effect and two-factor interaction estimable",
+    "n_runs": 30,
+    "treatment_factors": 7
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G"
+    ],
+    "rows": [
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in the table's order"
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": "Table 12.4",
+     "value": "30",
+     "where": {
+      "page": 567,
+      "source_kind": "prose",
+      "quote": "Table 12.4 is the design from this package for seven factors, which requires 30 runs. This design will accommodate any combination of controllable and noise variables totaling seven and allow all seven main effects and all two-factor interactions between these factors to be estimated."
+     },
+     "check": {
+      "kind": "run_count",
+      "at": {}
+     }
+    },
+    {
+     "what": "estimable",
+     "term": "main effects and two-factor interactions",
+     "value": "all seven main effects and all two-factor interactions",
+     "analysis": "the model of the seven main effects and 21 two-factor interactions, 29 parameters, has full rank in the thirty runs",
+     "where": {
+      "page": 568,
+      "source_kind": "prose",
+      "quote": "Table 12.4 is the design from this package for seven factors, which requires 30 runs. This design will accommodate any combination of controllable and noise variables totaling seven and allow all seven main effects and all two-factor interactions between these factors to be estimated."
+     },
+     "check": {
+      "kind": "estimable_projections",
+      "order": 7,
+      "columns": [
+       "A",
+       "B",
+       "C",
+       "D",
+       "E",
+       "F",
+       "G"
+      ],
+      "printed": "0"
+     }
+    },
+    {
+     "what": "confounded pairs",
+     "term": "main effects and two-factor interactions",
+     "value": "none",
+     "where": {
+      "page": 568,
+      "source_kind": "prose",
+      "quote": "Table 12.4 is the design from this package for seven factors, which requires 30 runs. This design will accommodate any combination of controllable and noise variables totaling seven and allow all seven main effects and all two-factor interactions between these factors to be estimated."
+     },
+     "check": {
+      "kind": "interaction_columns",
+      "key": "confounded_pairs",
+      "columns": [
+       "A",
+       "B",
+       "C",
+       "D",
+       "E",
+       "F",
+       "G"
+      ],
+      "printed": "0"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "the regular resolution V fraction in five factors",
+     "value": "16",
+     "where": {
+      "page": 567,
+      "source_kind": "prose",
+      "quote": "For example, with five factors, this design requires 16 runs"
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "resolution": 5,
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "Table 12.4 with six axial and four centre runs",
+     "value": "40",
+     "where": {
+      "page": 569,
+      "source_kind": "prose",
+      "quote": "adding six axial runs for factors A, B, and C along with four center runs to the 30-run design in Table 12.4 would produce a very nice design for fitting the response model. The resulting design would have 40 runs, and the response model would have 26 parameters."
+     },
+     "check": {
+      "manual": "30 + 6 + 4: arithmetic"
+     }
+    },
+    {
+     "what": "parameters",
+     "term": "three controllable and four noise variables, second order in A, B and C",
+     "value": "26",
+     "where": {
+      "page": 569,
+      "source_kind": "prose",
+      "quote": "adding six axial runs for factors A, B, and C along with four center runs to the 30-run design in Table 12.4 would produce a very nice design for fitting the response model. The resulting design would have 40 runs, and the response model would have 26 parameters."
+     },
+     "check": {
+      "manual": "the 23 parameters of Table 12.5's model and the three squares of A, B and C: arithmetic"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-d-optimal-23-combined-array",
+   "title": "Design-Expert's 23-run D-optimal design for three controllable and four noise variables",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "12.5",
+    "pages": "568",
+    "tables": [
+     "Table 12.5"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A, controllable",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B, controllable",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C, controllable",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D, noise",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "factor E, noise",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "factor F, noise",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "factor G, noise",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "D-optimal combined array",
+    "details": "23 runs for the 23 parameters of the control-by-noise response model",
+    "n_runs": 23,
+    "treatment_factors": 7
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G"
+    ],
+    "rows": [
+     [
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in the table's order"
+   },
+   "expected": [
+    {
+     "what": "parameters",
+     "term": "the response model",
+     "value": "23",
+     "analysis": "22 terms beside the intercept",
+     "where": {
+      "page": 568,
+      "source_kind": "prose",
+      "quote": "It is only necessary to estimate the main effects and two-factor interactions of the controllable variables (six parameters), the main effects of the noise variables (four parameters), and the interactions between the controllable and noise variables (12 parameters). Including the intercept, only 23 parameters must be estimated."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "model": "(A + B + C) ** 2 + D + E + F + G + (A + B + C):(D + E + F + G)",
+      "key": "model",
+      "printed": "22"
+     }
+    },
+    {
+     "what": "parameters",
+     "term": "six, four and twelve",
+     "value": "6 4 12",
+     "where": {
+      "page": 568,
+      "source_kind": "prose",
+      "quote": "It is only necessary to estimate the main effects and two-factor interactions of the controllable variables (six parameters), the main effects of the noise variables (four parameters), and the interactions between the controllable and noise variables (12 parameters). Including the intercept, only 23 parameters must be estimated."
+     },
+     "check": {
+      "manual": "three main effects and three interactions, four main effects, 3 × 4 products: arithmetic; their total is checked"
+     }
+    },
+    {
+     "what": "residual df",
+     "term": "the response model",
+     "value": "saturated",
+     "analysis": "23 runs for 23 parameters",
+     "where": {
+      "page": 568,
+      "source_kind": "prose",
+      "quote": "It is only necessary to estimate the main effects and two-factor interactions of the controllable variables (six parameters), the main effects of the noise variables (four parameters), and the interactions between the controllable and noise variables (12 parameters). Including the intercept, only 23 parameters must be estimated."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "model": "(A + B + C) ** 2 + D + E + F + G + (A + B + C):(D + E + F + G)",
+      "key": "residual",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "estimable",
+     "term": "the response model",
+     "value": "no two-factor interactions involving the controllable factors aliased with each other",
+     "analysis": "the 23-parameter model has full rank: no two of its terms are aliased",
+     "where": {
+      "page": 568,
+      "source_kind": "prose",
+      "quote": "In this design, there are no two-factor interactions involving the controllable factors aliased with each other or with two-factor interactions involving control and noise variables. However, these main effects and two-factor interactions are aliased with the two-factor interactions involving the noise factors"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "d_efficiency",
+      "model": "(A + B + C) ** 2 + D + E + F + G + (A + B + C):(D + E + F + G)",
+      "printed": ">0"
+     }
+    },
+    {
+     "what": "aliased",
+     "term": "with the noise factors' two-factor interactions",
+     "value": "aliased",
+     "analysis": "the largest weight of the six interactions among D, E, F and G, left out of the model, in its estimates",
+     "where": {
+      "page": 568,
+      "source_kind": "prose",
+      "quote": "In this design, there are no two-factor interactions involving the controllable factors aliased with each other or with two-factor interactions involving control and noise variables. However, these main effects and two-factor interactions are aliased with the two-factor interactions involving the noise factors"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "alias_matrix",
+      "model": "(A + B + C) ** 2 + D + E + F + G + (A + B + C):(D + E + F + G)",
+      "key": "max_abs",
+      "printed": ">0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "montgomery-d-optimal-18-second-order-response",
+   "title": "Design-Expert's 18-run D-optimal design for a second-order response model in three controllable and two noise variables",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "12.5",
+    "pages": "569",
+    "tables": [
+     "Table 12.6"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "controllable factor A, at three levels",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "controllable factor B, at three levels",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "controllable factor C, at three levels",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "noise factor D",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "noise factor E",
+     "low": -1,
+     "high": 1,
+     "levels": [
+      -1,
+      1
+     ],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "D-optimal combined array, saturated",
+    "details": "eighteen runs for the eighteen parameters of the model",
+    "n_runs": 18,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      0,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      1,
+      -1,
+      0,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      1,
+      0,
+      1,
+      -1,
+      -1
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      1
+     ],
+     [
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ]
+    ],
+    "coded": true,
+    "notes": "as printed, in the table's order"
+   },
+   "expected": [
+    {
+     "what": "residual df",
+     "term": "the second-order response model",
+     "value": "saturated",
+     "where": {
+      "page": 569,
+      "source_kind": "prose",
+      "quote": "The 18-run design in Table 12.6 was constructed using Design-Expert. Note that this is a saturated design."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "model": "(A + B + C) ** 2 + I(A ** 2) + I(B ** 2) + I(C ** 2) + D + E + (A + B + C):(D + E)",
+      "key": "residual",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "parameters",
+     "term": "the second-order response model",
+     "value": "18",
+     "analysis": "the second-order model in A, B and C, the main effects of D and E, and their six products with A, B and C: 17 terms beside the intercept",
+     "where": {
+      "page": 569,
+      "source_kind": "prose",
+      "quote": "This yields a design with 26 runs to estimate a model with 18 parameters"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "model": "(A + B + C) ** 2 + I(A ** 2) + I(B ** 2) + I(C ** 2) + D + E + (A + B + C):(D + E)",
+      "key": "model",
+      "printed": "17"
+     }
+    },
+    {
+     "what": "estimable",
+     "term": "the second-order response model",
+     "value": "D-optimal",
+     "analysis": "the eighteen-parameter model has full rank in the eighteen runs",
+     "where": {
+      "page": 569,
+      "source_kind": "prose",
+      "quote": "A D-optimal or I-optimal approach could also be used"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "d_efficiency",
+      "model": "(A + B + C) ** 2 + I(A ** 2) + I(B ** 2) + I(C ** 2) + D + E + (A + B + C):(D + E)",
+      "printed": ">0"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "the 2^(5−1) cube",
+     "value": "16",
+     "where": {
+      "page": 569,
+      "source_kind": "prose",
+      "quote": "A modified CCD would have 16 runs (a 2^(5−1)) in the cube, six axial runs in the directions of the controllable variables, and (say) four center runs. This yields a design with 26 runs to estimate a model with 18 parameters. Another alternative would be to use a small composite design in the cube (11 runs), along with the six axial runs ... This results in a design with only 21 runs."
+     },
+     "check": {
+      "kind": "design_property",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "resolution": 5,
+        "n_center_points": 0
+       }
+      },
+      "property": "n_runs"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "the modified CCD and the small composite alternative",
+     "value": "26 and 21",
+     "where": {
+      "page": 569,
+      "source_kind": "prose",
+      "quote": "A modified CCD would have 16 runs (a 2^(5−1)) in the cube, six axial runs in the directions of the controllable variables, and (say) four center runs. This yields a design with 26 runs to estimate a model with 18 parameters. Another alternative would be to use a small composite design in the cube (11 runs), along with the six axial runs ... This results in a design with only 21 runs."
+     },
+     "check": {
+      "manual": "16 + 6 + 4 and 11 + 6 + 4: arithmetic"
+     }
+    }
+   ]
   }
  ],
  "not_captured": [
@@ -222223,6 +228468,14 @@
   "11.5 (pp. 523 to 527): computer experiments, the Latin hypercube, sphere-packing, uniform and maximum entropy designs of Figures 11.33 to 11.37, drawn without coordinates, and the Gaussian process model, Equation 11.23, in symbols",
   "11.6 (pp. 530 to 536): mixture spaces, simplex lattice and centroid designs and the Scheffé models, Equations 11.24 to 11.30 and Figures 11.39 to 11.42, in symbols; Figures 11.46 to 11.48, contours of the paint models",
   "11.7 (pp. 540 and 544): the EVOP procedure and the variance of the change in mean, in symbols",
-  "Problems 11.4 to 11.7, 11.13, 11.15 to 11.17, 11.19, 11.20, 11.22 to 11.30 and 11.35 (pp. 545 to 551): fitted equations without data, derivations, designs to construct, and analyses of the data of other problems; Problem 11.30 bounds x2 twice, 0.1 to 0.3 and 0.4 to 0.7, a misprint for x3 in the second"
+  "Problems 11.4 to 11.7, 11.13, 11.15 to 11.17, 11.19, 11.20, 11.22 to 11.30 and 11.35 (pp. 545 to 551): fitted equations without data, derivations, designs to construct, and analyses of the data of other problems; Problem 11.30 bounds x2 twice, 0.1 to 0.3 and 0.4 to 0.7, a misprint for x3 in the second",
+  "12.1 (pp. 554 to 556): robust parameter design, noise variables and the cake mix illustration, in words",
+  "Figure 12.1 (p. 557): control × noise interaction graphs, without data",
+  "Figures 12.2 to 12.6 (pp. 559 and 560): the half-normal plots of the leaf spring's effects on the mean and on ln(s²), the contours of the mean and the variance, and their overlay; Figure 12.6 labels the variance contour 0.0137988, where the ln(s²) model gives 0.01378 at B = 0.5",
+  "12.4 (pp. 561 and 562): the response model, mean model and transmission of error, Equations 12.1 to 12.6, in symbols",
+  "Figures 12.7 to 12.12 (pp. 563 to 566): contours of the mean and of the propagation of error for Examples 12.1 and 12.2, and the limits chosen for their overlays, mean ≤ 30 and standard deviation ≤ 5 in Example 12.2",
+  "Problems 12.1 to 12.8, 12.12 to 12.17 and 12.19 to 12.21 (pp. 570 to 572): analyses of the data of Tables 12.1 and 12.2 and of Problems 6.15, 6.20, 11.11 and 11.12, and designs to construct, without data of their own; Problem 12.5 calls itself the continuation of Problem 12.5 and compares with the crossed array of Problem 12.5, misprints for 12.4",
+  "Problem 12.10(b) and (c) (pp. 571 and 572): the marginal averages of the CO response at each level of the four factors, asked for and not printed",
+  "Supplemental material S12.1 and S12.2: Taguchi's methods, on the textbook website, not in these pages"
  ]
 }
