@@ -689,6 +689,25 @@ class TestLinearForms:
         factors = [Factor(name=n, low=lo, high=hi) for n, (lo, hi) in ranges.items()]
         assert DesignRegion(factors, [expression]).linear_forms() == [form]
 
+    @pytest.mark.parametrize(
+        ("expression", "bound"),
+        [
+            ("T + (((((0.5)**64)**64)**64)**64)**64 <= 140", 140.0),  # 2**-1073741824, a billion bits exactly
+            ("T + ((1.0000001)**64)**64 <= 140", 138.999590316),  # 98304 bits exactly; in floating point now
+            ("T + ((((1.0000001)**64)**64)**64)**64 <= 140", 134.646655445),
+        ],
+    )
+    def test_nested_powers_of_numbers_stay_small(self, expression, bound):
+        """Nested powers multiply the size of an exact number: the first took 9 s and 1 GB, the last over 150 s."""
+        tracemalloc.start()
+        try:
+            forms = DesignRegion(HEAT_FACTORS, [expression]).linear_forms()
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        assert forms == [({"T": 1.0}, None, bound)]
+        assert peak < 16 * 2**20
+
     def test_round_coefficients_over_ordinary_ranges_come_back_as_written(self):
         """One limit in twelve used to come back with residue such as 0.00999999999999."""
         nice = [0.01, 0.02, 0.05, 0.1, 0.3, 0.7, 1, 2, 3, 7, 25, 100]

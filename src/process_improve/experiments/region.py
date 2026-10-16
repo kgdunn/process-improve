@@ -1104,6 +1104,9 @@ class _Rows:
 
 
 _Exact = tuple[dict[str, Fraction], Fraction]
+#: Most bits a power of constants may give and still be computed exactly: a limit of 500 characters can nest
+#: powers, as in ``(((0.5**64)**64)**64)**64``, whose exact value takes a billion bits. Past this, floating point.
+_EXACT_BITS = 4096
 
 
 def _exact_difference(first: ast.expr, second: ast.expr, names: list[str]) -> tuple[np.ndarray, float] | None:
@@ -1122,9 +1125,10 @@ def _exact_affine(node: ast.expr) -> _Exact | None:
     """Return a parsed expression as ``({name: coefficient}, constant)`` in exact arithmetic, or None.
 
     Numbers are taken as written (``Fraction("0.01")``, not the double nearest it), and
-    ``+``, ``-``, a product with a constant and a division by one are kept exact. A part
-    without factors (``2**0.5``, ``sqrt(2)``) is evaluated in floating point. Anything
-    else (a product of factors, a function of one) gives None.
+    ``+``, ``-``, a product with a constant, a division by one and a whole power of a
+    number (up to the 64th, and up to :data:`_EXACT_BITS` bits) are kept exact. Another
+    part without factors (``2**0.5``, ``sqrt(2)``, ``(0.5**64)**64``) is evaluated in
+    floating point. Anything else (a product of factors, a function of one) gives None.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, int | float) and not isinstance(node.value, bool):
         finite = math.isfinite(node.value)
@@ -1161,7 +1165,9 @@ def _exact_operation(op: ast.operator, left: _Exact, right: _Exact) -> _Exact | 
         return _scaled(left, 1 / right[1])
     if isinstance(op, ast.Pow) and not _varies(left) and not _varies(right):
         base, power = left[1], right[1]
-        if power.denominator == 1 and abs(power) <= 64 and (base != 0 or power > 0):
+        size = max(base.numerator.bit_length(), base.denominator.bit_length())
+        whole = power.denominator == 1 and abs(power) <= 64
+        if whole and abs(power) * size <= _EXACT_BITS and (base != 0 or power > 0):
             return {}, base ** int(power)
         return _constant(lambda: float(base) ** float(power))
     return None
