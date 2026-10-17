@@ -190,7 +190,7 @@ the `[Unreleased]` headings at release; the rule and the release steps are in
 The one thing a PR owes the release is a correctly *filed* changelog entry,
 because the heading it sits under is what picks the level.
 
-`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com). **Prompt the user to confirm whether an entry is required.** User-facing changes (features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. New lines go under `## [Unreleased]`, under the heading that describes them: `Added` for new public surface, `Removed` for a removal, `Changed` / `Fixed` / `Deprecated` / `Security` / `Documentation` otherwise.
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com). **Prompt the user to confirm whether an entry is required.** User-facing changes (features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. New entries go in a fragment, `changelog.d/<slug>.<type>.md`, never in `CHANGELOG.md` itself; `<type>` is the heading it belongs under (`added`, `changed`, `fixed`, `removed`, `deprecated`, `security`, `documentation`). The release step folds the fragments into `CHANGELOG.md`.
 
 Publishing is **manually gated** (ENG-21 / #303): `publish.yml` runs only on a `v*` tag or a maintainer's `workflow_dispatch`. Nothing in a PR publishes; the release commit and its tag do. Releases carry a sigstore attestation (PEP 740) and a CycloneDX SBOM, with notes pulled from the matching `CHANGELOG.md` section.
 
