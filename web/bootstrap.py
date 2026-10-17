@@ -43,6 +43,7 @@ from process_improve.experiments import (
     NotSeparableError,
     TrueProcess,
     analyze_experiment,
+    augment_design,
     compare_designs,
     constraint_through_cuts,
     evaluate_design,
@@ -53,7 +54,7 @@ from process_improve.experiments import (
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
-from process_improve.experiments.design_measures import estimable_models
+from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
 
 if TYPE_CHECKING:
@@ -1070,22 +1071,16 @@ def _given_design(spec: dict) -> dict:
         raise ValueError(f"Runs as given hold at most {MAX_GIVEN_RUNS} runs; these are {len(rows)}.")
     if bad := next((i for i, row in enumerate(rows, 1) if not isinstance(row, list) or len(row) != len(names)), None):
         raise ValueError(f"Run {bad} does not give one setting for each of the {len(names)} factors.")
-    runs = pd.DataFrame(rows, columns=names, dtype=object)
-    for f in factors:
-        if f.type == "categorical":
-            continue
-        values = [_number(v) for v in runs[f.name]]
-        if None in values:
-            raise ValueError(f"Factor {f.name}: each run's setting must be a number.")
-        runs[f.name] = values
+    runs = _given_settings(rows, factors)
     responses = _checked_responses(spec, factors, blank="y")
     limits = _checked_constraints(spec.get("constraints"), factors)
+    blocks = _given_blocks(spec.get("blocks"), len(rows))
     stored: dict[str, Any] = {
         "version": SPEC_VERSION,
         "design_type": GIVEN,
         "factors": [_factor_spec(f) for f in factors],
         "response": responses[0]["name"],
-        "options": {},
+        "options": {"n_blocks": len(set(blocks))} if blocks else {},
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
@@ -1094,19 +1089,16 @@ def _given_design(spec: dict) -> dict:
     kinds = ["categorical" if f.type == "categorical" else "numeric" for f in factors]
     fits = estimable_models(coded, kinds)
     stored["model"] = next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
+    if blocks:
+        runs.insert(0, BLOCK, blocks)
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", range(1, len(runs) + 1))
     for response in responses:
         runs[response["name"]] = np.nan
     groups = _aliased_groups(coded, names)
-    notes = [GIVEN_NOTE, _aliasing_sentence(groups)]
+    notes = [GIVEN_NOTE, _aliasing_sentence(groups), *([_blocks_sentence(coded, blocks, stored)] if blocks else [])]
     if limits:
-        # The limits alone: a given run may lie beyond a factor's range, as an axial run does, and still meet them.
-        region = _region(factors, [limit["expression"] for limit in limits])
-        points = coded[:, [names.index(name) for name in region.names]]
-        meets = np.all([g(points) <= LIMIT_TOLERANCE for g in region.inequalities], axis=0)
-        outside = np.flatnonzero(~meets).tolist()
-        notes.append(_outside_limits_sentence(outside) if outside else INSIDE_LIMITS)
+        notes.append(_given_limits_sentence(factors, limits, coded))
     facts = {
         "resolution": None,
         "generators": [],
@@ -1125,6 +1117,62 @@ def _given_design(spec: dict) -> dict:
         "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
+
+
+def _given_settings(rows: list[list], factors: list[Factor]) -> pd.DataFrame:
+    """Read the runs as given, a setting per factor: each numeric factor's a number, a categorical one's a label."""
+    runs = pd.DataFrame(rows, columns=[f.name for f in factors], dtype=object)
+    for f in factors:
+        if f.type == "categorical":
+            continue
+        values = [_number(v) for v in runs[f.name]]
+        if None in values:
+            raise ValueError(f"Factor {f.name}: each run's setting must be a number.")
+        runs[f.name] = values
+    return runs
+
+
+def _given_limits_sentence(factors: list[Factor], limits: list[dict], coded: np.ndarray) -> str:
+    """Say which runs as given, coded, the limits on the settings rule out, or that every run meets them.
+
+    The limits alone are checked: a given run may lie beyond a factor's range, as an axial run does, and still
+    meet them.
+    """
+    names = [f.name for f in factors]
+    region = _region(factors, [limit["expression"] for limit in limits])
+    points = coded[:, [names.index(name) for name in region.names]]
+    meets = np.all([g(points) <= LIMIT_TOLERANCE for g in region.inequalities], axis=0)
+    outside = np.flatnonzero(~meets).tolist()
+    return _outside_limits_sentence(outside) if outside else INSIDE_LIMITS
+
+
+def _blocks_sentence(coded: np.ndarray, blocks: list, spec: dict) -> str:
+    """Say how a design's runs, coded, fall into their blocks, and which terms of its model the blocks confound."""
+    names = [f["name"] for f in spec["factors"]]
+    categorical = _categorical_names(spec)
+    frame = pd.DataFrame(coded, columns=names).assign(**{BLOCK: list(blocks)})
+    terms = _model_terms(spec["model"], names, categorical)
+    sizes = pd.Series(list(blocks)).value_counts().sort_index().tolist()
+    return _blocking_sentence(sizes, [_pretty(t) for t in _confounded_with_blocks(frame, terms, categorical)])
+
+
+def _given_blocks(raw: object, n_runs: int) -> list[int]:
+    """Read the block of each run as given, a whole number from 1 per run; none (an empty list) for runs in no blocks.
+
+    Runs taken as they are given can come in blocks: a study Learn added runs to holds its later runs as a
+    block of their own, and keeps them when its runs are made again. One block is no blocking.
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) != n_runs:
+        raise ValueError("The runs as given need one block for each run, or none at all.")
+    blocks = [_number(b) for b in raw]
+    if not all(b is not None and b >= 1 and b == int(b) for b in blocks):
+        raise ValueError("Each run's block must be a whole number from 1.")
+    blocks = [int(b) for b in blocks]  # type: ignore[arg-type]
+    if len(set(blocks)) > MAX_BLOCKS:
+        raise ValueError(f"Runs as given come in at most {MAX_BLOCKS} blocks on this page.")
+    return blocks if len(set(blocks)) > 1 else []
 
 
 def _mixture_design(spec: dict) -> dict:
@@ -5134,6 +5182,341 @@ def _grid(values: np.ndarray, shape: tuple[int, ...]) -> list[list[float]]:
     return [[float(f"{v:.6g}") for v in row] for row in values.reshape(shape)]
 
 
+# --------------------------------------------------------------------------- runs added to a study
+#: The ways Learn offers to add runs to a study, in the order it lists them, each the library's
+#: ``augment_design`` with the augmentation it names:
+#:
+#: - ``foldover``: every run of a two-level design again with each setting switched to its other end, which
+#:   separates every main effect from the two-factor interactions it is aliased with;
+#: - ``axial``: runs on the faces of the ranges and at the center, which turn a two-level design that fits the
+#:   interactions into a face-centred central composite design that fits the full quadratic model;
+#: - ``center``: runs at the center of the ranges, to test for curvature and estimate the noise;
+#: - ``optimal``: runs chosen for the model the study aims to learn (D-optimal), the runs made so far kept;
+#: - ``replicate``: every run again, to estimate the noise from the repeats.
+#:
+#: ``blocked`` says whether the runs added are a block of their own. Runs made later can sit at a shifted level,
+#: and a block keeps that shift out of the effects. Center runs are never a block of their own: the shift between
+#: the blocks would then be the curvature they are added to test. ``name`` names the runs in a sentence.
+EXTENSIONS: dict[str, dict[str, Any]] = {
+    "foldover": {"augmentation": "foldover", "blocked": True, "name": "The runs of a fold-over"},
+    "axial": {"augmentation": "upgrade_to_rsm", "blocked": True, "name": "Axial runs"},
+    "center": {"augmentation": "add_center_points", "blocked": False, "name": "Center runs"},
+    "optimal": {"augmentation": "add_runs_optimal", "blocked": True, "name": "Runs chosen for the model"},
+    "replicate": {"augmentation": "replicate", "blocked": True, "name": "The runs made again"},
+}
+
+#: How many center runs Learn adds to a design that has none: the library's own number.
+EXTRA_CENTER_RUNS = 3
+
+#: The fewest runs a model should leave to estimate the noise, as Design marks a design's spare runs (logic.js's
+#: SPARE_FOR_NOISE). With fewer, Learn offers to make every run again.
+SPARE_FOR_NOISE = 3
+
+#: The seed the runs added are put in random order with, as ``generate_design`` randomises a design's runs.
+EXTENSION_SEED = 42
+
+#: Each model in the words a sentence names it with, as "the full quadratic model".
+MODEL_WORDS = {
+    "main_effects": "main effects",
+    "interactions": "main effects and two-factor interactions",
+    MAIN_QUADRATIC: "main effects and squares",
+    "quadratic": "full quadratic",
+}
+
+
+def next_runs(request: dict) -> dict:
+    """List the ways Learn offers to add runs to the study, each with what it is for and what it leaves.
+
+    The study is the page's run sheet (``spec``, ``columns`` and ``rows``); its confirmation runs are no
+    runs of the design, and are left out. Each offer is one of :data:`EXTENSIONS`, in that order, and
+    only where it applies: ``kind``, its ``label`` for the button, the ``runs`` it adds, ``why`` in a
+    sentence or two, ``model``, the largest model the design then estimates in full, and ``blocked``.
+    An extension whose runs would break a limit on the settings is not offered, and ``notes`` says so.
+    A mixture is offered nothing: its runs are blends, which these extensions do not make.
+    """
+    spec, _, design = _study_runs(request)
+    if _mixture(spec):
+        return {"offers": [], "notes": [MIXTURE_EXTENSIONS]}
+    offers, notes = [], []
+    for kind in EXTENSIONS:
+        made = _extension(spec, design, kind)
+        if made is None:
+            continue
+        if not _runnable(spec, made["new"]):
+            name = EXTENSIONS[kind]["name"]
+            notes.append(f"{name} would fall outside your limits on the settings, so Learn does not offer them.")
+            continue
+        shown = {key: made[key] for key in ("kind", "label", "why", "model", "blocked")}
+        offers.append(shown | {"runs": len(made["new"])})
+    return {"offers": offers, "notes": notes}
+
+
+#: What Learn says of a mixture, to which it offers to add no runs.
+MIXTURE_EXTENSIONS = "A mixture's runs are blends, and the runs Learn adds to a design are not, so it offers none here."
+
+
+def add_runs(request: dict) -> dict:
+    """Add the runs of one extension (``kind``, one of :data:`EXTENSIONS`) to the end of the study's run sheet.
+
+    The runs made so far stay as they are, in their places, so the results the page holds for them still
+    belong to them; the runs added follow, in random order, with blank results. A blocked extension puts
+    them in a block of their own: the run sheet gains its Block column the first time, the runs before
+    in block 1, and a confirmation run in no block. The study is then a design of runs as given (its
+    ``design_type`` is ``given``), estimating the largest model its runs estimate in full, and its notes
+    say what was added and what the design now separates. The reply is a design as :func:`make_design`
+    returns it, less its workbook, with ``added``, the number of runs added.
+    """
+    kind = request.get("kind")
+    if kind not in EXTENSIONS:
+        raise ValueError(f"Unknown way to add runs {kind!r}.")
+    spec, runs, design = _study_runs(request)
+    if _mixture(spec):
+        raise ValueError("A mixture's runs are blends, and the runs Learn adds to a design are not.")
+    made = _extension(spec, design, kind)
+    if made is None:
+        raise ValueError(f"This study's runs cannot be extended that way: {EXTENSION_REFUSALS[kind]}")
+    if not _runnable(spec, made["new"]):
+        raise ValueError(f"{EXTENSIONS[kind]['name']} would fall outside your limits on the settings.")
+    names = [f["name"] for f in spec["factors"]]
+    # The runs before are sent back as they came, cell for cell; only a Block column the sheet gains is new to them.
+    columns = [str(c) for c in request["columns"]]
+    rows = [list(row) for row in request["rows"]]
+    if made["blocked"] and BLOCK not in columns:  # the runs before are block 1; a confirmation run is in no block
+        at = columns.index(names[0])
+        columns.insert(at, BLOCK)
+        for row, confirming in zip(rows, _confirming(runs), strict=True):
+            row.insert(at, None if confirming else 1)
+    before = pd.DataFrame(rows, columns=columns)
+    first_std, first_run = _last(before, "Std order") + 1, _last(before, "Run order") + 1
+    block = _last(before, BLOCK) + 1 if made["blocked"] else None
+    order = np.random.default_rng(EXTENSION_SEED).permutation(len(made["new"]))
+    for place, i in enumerate(order):  # in run order, each with its place in the standard order of the runs added
+        settings = {f["name"]: _setting(f, made["new"][i][j]) for j, f in enumerate(spec["factors"])}
+        numbers = {"Std order": first_std + int(i), "Run order": first_run + place, BLOCK: block}
+        rows.append([settings.get(c, numbers.get(c)) for c in columns])
+    sheet = _runs_frame({"columns": columns, "rows": rows}, spec)
+    n_blocks = _last(sheet, BLOCK) if BLOCK in columns else 1
+    stored = {
+        **{key: value for key, value in spec.items() if key not in ("design_type", "options", "model")},
+        "design_type": GIVEN,
+        "model": made["model"],
+        "options": {"n_blocks": n_blocks} if n_blocks > 1 else {},
+    }
+    extended = _design_runs(sheet)
+    coded = _coded(extended, spec["factors"])
+    groups = _aliased_groups(coded.to_numpy(dtype=float), names)
+    notes = [made["said"].format(first=first_run, last=first_run + len(order) - 1), _aliasing_sentence(groups)]
+    if n_blocks > 1:
+        notes.append(_blocks_sentence(coded.to_numpy(dtype=float), extended[BLOCK].tolist(), stored))
+    if spec.get("constraints") and _runnable(spec, coded.to_numpy(dtype=float)):
+        notes.append(INSIDE_LIMITS)
+    factors = _factors(spec)
+    return {
+        "n_runs": len(rows),
+        "columns": columns,
+        "rows": rows,
+        "outside_range": _outside_range(extended, factors),
+        "model": made["model"],
+        "facts": {
+            "resolution": None,
+            "generators": [],
+            "defining_relation": [],
+            "aliases": groups,
+            "center_runs": int(np.all(np.abs(coded.to_numpy(dtype=float)) < ALIAS_TOLERANCE, axis=1).sum()),
+            "notes": notes,
+        },
+        "spec": stored,
+        "added": len(order),
+    }
+
+
+#: Why a study's runs cannot be extended each way, as the refusal of :func:`add_runs` says it.
+EXTENSION_REFUSALS = {
+    "foldover": "a fold-over takes a two-level design whose main effects are aliased with two-factor interactions.",
+    "axial": (
+        "axial runs take a two-level design of numeric factors that fits the two-factor interactions and not yet "
+        "the full quadratic model."
+    ),
+    "center": "center runs take a two-level design of numeric factors, in no blocks, with no run at the center yet.",
+    "optimal": (
+        "runs for the model the study aims to learn take numeric factors, no limits on the settings, and a model the "
+        "design cannot fit yet."
+    ),
+    "replicate": "the model leaves enough runs to estimate the noise already.",
+}
+
+
+def _study_runs(request: dict) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+    """Return the study's checked specification, its whole run sheet, and the runs of its design."""
+    spec = _checked_spec(request.get("spec") or {})
+    runs = _runs_frame({"columns": request.get("columns"), "rows": request.get("rows")}, spec)
+    return spec, runs, _design_runs(runs)
+
+
+def _last(sheet: pd.DataFrame, column: str) -> int:
+    """Return the largest whole number in a column of the run sheet, or 0 when it has none (or no such column)."""
+    if column not in sheet.columns:
+        return 0
+    largest = pd.to_numeric(sheet[column], errors="coerce").max()
+    return int(largest) if pd.notna(largest) else 0
+
+
+def _setting(factor: dict, coded: float) -> float | str:
+    """Return a coded setting in the factor's own units, rounded off as a run sheet lists it, or a category's level."""
+    if _categorical(factor):
+        return factor["low"] if coded < 0 else factor["high"]
+    return float(f"{_in_units(factor, coded):.12g}")
+
+
+def _runnable(spec: dict, new: np.ndarray) -> bool:
+    """Say whether runs, coded, meet every limit on the settings; a study without limits runs any."""
+    region = _spec_region(spec)
+    if region is None or not len(new):
+        return True
+    names = [f["name"] for f in spec["factors"]]
+    return bool(region.feasible(new[:, [names.index(name) for name in region.names]]).all())
+
+
+def _model_rank(coded: np.ndarray, kinds: list[str], model: str) -> tuple[int, int]:
+    """Return a model's coefficient count and the rank the runs give it: equal when they estimate it in full."""
+    base = "quadratic" if model == "quadratic" else "interactions" if model == "interactions" else "main_effects"
+    matrix = model_matrix(coded, kinds, base)
+    if model == MAIN_QUADRATIC:
+        matrix = np.column_stack([matrix, *[coded[:, [j]] ** 2 for j, kind in enumerate(kinds) if kind == "numeric"]])
+    return matrix.shape[1], int(np.linalg.matrix_rank(matrix))
+
+
+def _largest_model(coded: np.ndarray, kinds: list[str]) -> str:
+    """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analysed."""
+    fits = estimable_models(coded, kinds)
+    return next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
+
+
+def _extension(spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any] | None:  # noqa: C901, PLR0911
+    """Make one extension's runs for the study, coded, with what Learn says of them; None where it does not apply.
+
+    ``new`` holds the runs added, coded, a row each; ``label`` names them for the button, ``why`` says what they
+    are for, ``said`` what the design's notes say of them once added (its ``{first}`` and ``{last}`` are the run
+    order of the first and last), ``model`` is the largest model the design then estimates, and ``blocked``
+    whether they are a block of their own.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    kinds = ["categorical" if _categorical(f) else "numeric" for f in spec["factors"]]
+    numeric = "categorical" not in kinds
+    coded = _coded(design, spec["factors"]).to_numpy(dtype=float)
+    measured = [j for j, k in enumerate(kinds) if k == "numeric"]  # a center run is at the center of these
+    at_center = np.all(np.abs(coded[:, measured]) < ALIAS_TOLERANCE, axis=1) if measured else np.zeros(len(coded), bool)
+    away = coded[~at_center]
+    two_level = len(away) > 0 and bool(np.all(np.abs(np.abs(away) - 1) < ALIAS_TOLERANCE))
+    blocks = len(set(design[BLOCK])) if BLOCK in design.columns and _blocked(spec) else 1
+    frame = pd.DataFrame(coded, columns=names)
+    info = EXTENSIONS[kind]
+    out: dict[str, Any] = {"kind": kind, "blocked": info["blocked"]}
+    if kind == "foldover":
+        if not two_level or not _mains_aliased(away):
+            return None
+        result = augment_design(frame[~at_center], "foldover", factor_names=names)
+        out |= {
+            "label": f"Fold the design over: {len(away)} runs",
+            "why": (
+                "Main effects are aliased, in full or in part, with two-factor interactions, so a large effect may "
+                "belong to an interaction. The design folded over, each run again with every setting switched to "
+                "its other end, separates every main effect from the two-factor interactions."
+            ),
+            "said": "Runs {first} to {last} fold the design over: each is a run made before, every setting switched.",
+        }
+    elif kind == "axial":
+        fits = estimable_models(coded, kinds)
+        if not numeric or not two_level or len(names) < 2 or not fits.get("interactions") or fits.get("quadratic"):
+            return None
+        result = augment_design(frame, "upgrade_to_rsm", alpha="face_centered", factor_names=names)
+        n_axial, n_center = 2 * len(names), len(result["new_runs"]) - 2 * len(names)
+        centres = f" and {n_center} center run{'s' if n_center != 1 else ''}" if n_center else ""
+        out |= {
+            "label": f"Add {n_axial} axial runs{centres}",
+            "why": (
+                "The runs are at two levels, so the model cannot hold the squares that curvature needs. Axial runs "
+                f"on the faces of the ranges{', with runs at the center,' if n_center else ''} make the design a "
+                "face-centred central composite design, which fits the full quadratic model."
+            ),
+            "said": (
+                "Runs {first} to {last} are axial runs on the faces of the ranges"
+                + (" and runs at the center" if n_center else "")
+                + ": with the runs before, a face-centred central composite design."
+            ),
+        }
+    elif kind == "center":
+        if not numeric or not two_level or at_center.any() or blocks > 1:
+            return None
+        result = augment_design(frame, "add_center_points", n_additional_runs=EXTRA_CENTER_RUNS, factor_names=names)
+        out |= {
+            "label": f"Add {EXTRA_CENTER_RUNS} center runs",
+            "why": (
+                "No run is at the center of the ranges. Runs there show whether the response curves between the low "
+                "and high settings, and their repeats estimate the noise."
+            ),
+            "said": "Runs {first} to {last} are at the center of the ranges, to test for curvature.",
+        }
+    elif kind == "optimal":
+        if not numeric or spec.get("constraints"):  # the exchange takes every factor as numeric, and knows no limits
+            return None
+        aim = spec.get("aim") or spec["model"]
+        target = aim if aim in MODEL_WORDS else spec["model"] if spec["model"] in MODEL_WORDS else MODELS[0]
+        n_terms, rank = _model_rank(coded, kinds, target)
+        if rank == n_terms:
+            return None
+        if target == "quadratic" and _extension(spec, design, "axial") is not None:
+            return None  # the axial runs fit it, and keep the runs on a few levels
+        formula = _comparison_formula(target, names) if target == MAIN_QUADRATIC else target
+        n_new = n_terms - rank + SPARE_RUNS
+        with _listening():  # the exchange's own notes are about its budget, which the page sets
+            result = augment_design(
+                frame, "add_runs_optimal", target_model=formula, n_additional_runs=n_new, factor_names=names
+            )
+        n_new = len(result["new_runs"])
+        out |= {
+            "label": f"Add {n_new} runs for the {MODEL_WORDS[target]} model",
+            "why": (
+                f"The design cannot fit the {MODEL_WORDS[target]} model the study aims to learn. {n_new} runs chosen "
+                "for that model (D-optimal), the runs made so far kept as they are, let it be fitted, with runs to "
+                "spare to estimate the noise."
+            ),
+            "said": f"Runs {{first}} to {{last}} are chosen to fit the {MODEL_WORDS[target]} model (D-optimal).",
+        }
+    else:  # replicate
+        model = spec["model"] if spec["model"] in MODEL_WORDS else MODELS[0]
+        _, rank = _model_rank(coded, kinds, model)
+        spare = len(coded) - rank
+        if spare >= SPARE_FOR_NOISE:
+            return None
+        result = augment_design(frame, "replicate", factor_names=names)
+        out |= {
+            "label": f"Make the {len(coded)} runs again",
+            "why": (
+                f"The {MODEL_WORDS[model]} model leaves {spare} run{'s' if spare != 1 else ''} to estimate the noise. "
+                "Every run made again estimates it from the repeats, and halves the variance of every coefficient."
+            ),
+            "said": "Runs {first} to {last} make every run of the design again.",
+        }
+    out["new"] = pd.DataFrame(result["new_runs"], columns=names).to_numpy(dtype=float)
+    out["model"] = _largest_model(np.vstack([coded, out["new"]]), kinds)
+    return out
+
+
+def _mains_aliased(coded: np.ndarray) -> bool:
+    """Say whether a main effect is correlated, in full or in part, with a two-factor interaction in these runs."""
+    k = coded.shape[1]
+    pairs = [coded[:, i] * coded[:, j] for i, j in itertools.combinations(range(k), 2)]
+    if not pairs:
+        return False
+    mains, products = coded - coded.mean(axis=0), np.column_stack(pairs)
+    products -= products.mean(axis=0)
+    norms_m, norms_p = np.linalg.norm(mains, axis=0), np.linalg.norm(products, axis=0)
+    keep_m, keep_p = norms_m > ALIAS_TOLERANCE, norms_p > ALIAS_TOLERANCE
+    r = (mains[:, keep_m] / norms_m[keep_m]).T @ (products[:, keep_p] / norms_p[keep_p])
+    return bool(r.size) and float(np.abs(r).max()) > ALIAS_TOLERANCE
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -5208,3 +5591,13 @@ def api_best_settings(payload: str) -> str:
 def api_balance(payload: str) -> str:
     """JSON wrapper around :func:`balance`."""
     return _reply(balance, payload)
+
+
+def api_next_runs(payload: str) -> str:
+    """JSON wrapper around :func:`next_runs`."""
+    return _reply(next_runs, payload)
+
+
+def api_add_runs(payload: str) -> str:
+    """JSON wrapper around :func:`add_runs`."""
+    return _reply(add_runs, payload)

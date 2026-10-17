@@ -93,6 +93,22 @@ SUPPLIED = {
 }
 
 
+#: A half fraction in A, B and C (I = ABC), as the page holds runs as given, inside a limit its fold-over breaks: the
+#: other half holds the run with every factor low, which the limit rules out.
+HALF_FRACTION = {
+    "spec": {
+        "design_type": "given",
+        "factors": factors_named("A", "B", "C"),
+        "response": "y",
+        "model": "main_effects",
+        "options": {},
+        "constraints": [{"expression": "A + B + C >= -2"}],
+    },
+    "columns": ["Std order", "Run order", "A", "B", "C", "y"],
+    "rows": [[1, 1, -1, -1, 1, None], [2, 2, 1, -1, -1, None], [3, 3, -1, 1, -1, None], [4, 4, 1, 1, 1, None]],
+}
+
+
 def _supplied(**change: object) -> Callable[[Example], dict]:
     """Build a request about the runs of a design with a categorical factor, changed."""
     return lambda _: {**SUPPLIED, **change}
@@ -767,6 +783,45 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             runs=[[0] * 13],
         ),
         "Runs as given take 2 to 12 factors on this page; you have 13.",
+    ),
+    "given: a block short": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20]], blocks=[1]),
+        "The runs as given need one block for each run, or none at all.",
+    ),
+    "given: a block that is no whole number": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10], [200, 3, 20]], blocks=[1, 1.5]),
+        "Each run's block must be a whole number from 1.",
+    ),
+    "given: too many blocks": (
+        "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10]] * 9, blocks=list(range(1, 10))),
+        "Runs as given come in at most 8 blocks on this page.",
+    ),
+    # Runs added to a study, as Learn offers them.
+    "add runs: an unknown way": (
+        "api_add_runs",
+        lambda ex: {**ex["held"], "kind": "teleport"},
+        "Unknown way to add runs 'teleport'.",
+    ),
+    "add runs: a way the design does not take": (
+        "api_add_runs",
+        lambda ex: {**ex["held"], "kind": "foldover"},
+        (
+            "This study's runs cannot be extended that way: a fold-over takes a two-level design whose main effects "
+            "are aliased with two-factor interactions."
+        ),
+    ),
+    "add runs: outside the limits": (
+        "api_add_runs",
+        lambda _: {**HALF_FRACTION, "kind": "foldover"},
+        "The runs of a fold-over would fall outside your limits on the settings.",
+    ),
+    "add runs: a mixture": (
+        "api_add_runs",
+        _mixed(kind="replicate"),
+        "A mixture's runs are blends, and the runs Learn adds to a design are not.",
     ),
     # Mixtures: the factors are the components of a blend, each a proportion.
     "mixture: a categorical factor": (
