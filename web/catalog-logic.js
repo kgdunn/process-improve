@@ -550,6 +550,20 @@ export function whereParts(where) {
   return [...parts, ...(where.tables ?? []), ...(where.figures ?? [])].map(String);
 }
 
+/** The most tables and figures a design's "Printed in" line names after its first part; the rest are counted. */
+export const PLACES_SHOWN = 4;
+
+/**
+ * The rest of a "Printed in" line, after its first part: the next places, at most PLACES_SHOWN of them, then a
+ * count of the others, which the link to the section leads to. A section of the book can print twenty.
+ */
+export function placesAfter(rest, most = PLACES_SHOWN) {
+  const shown = rest.slice(0, most);
+  const more = rest.length - shown.length;
+  const count = more ? `; and ${more} more ${more === 1 ? "table or figure" : "tables and figures"}` : "";
+  return shown.length ? `; ${shown.join("; ")}${count}.` : ".";
+}
+
 /** Where a published design is printed, in a few words: its source's authors and year, and its pages. */
 export function sourceLine(design, catalog) {
   const source = catalog.sources?.[design.source];

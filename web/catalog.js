@@ -48,6 +48,7 @@ import {
   toggled,
   topicCounts,
   topicOrder,
+  placesAfter,
   whereParts,
   yearBins,
 } from "./catalog-logic.js";
@@ -771,7 +772,21 @@ function printedIn(detail) {
   const url = detail.where_url;
   if (!first && !url) return null;
   const place = url ? element("a", { href: url, target: "_blank", rel: "noopener", text: first ?? "the source's page" }) : first;
-  return element("p", { class: "detail__where" }, "Printed in ", place, rest.length ? `; ${rest.join("; ")}.` : ".");
+  return element("p", { class: "detail__where" }, "Printed in ", place, placesAfter(rest));
+}
+
+/** The longest an entry's notes may run and still be shown open; longer ones fold under a summary. */
+const NOTES_SHOWN = 240;
+
+/**
+ * An entry's notes: the source's words for its design, and how the catalogue checked it. Short notes are shown
+ * as they are; long ones, which name the lines of the source each number was read from, fold under a summary,
+ * so they are there for a reader who checks the entry and out of the way of one who reads it.
+ */
+function entryNotes(detail) {
+  const notes = [detail.details, detail.notes].filter(Boolean).map((text) => element("p", { class: "hint", text }));
+  if ([detail.details, detail.notes].join(" ").length <= NOTES_SHOWN) return notes;
+  return [element("details", { class: "detail__notes" }, element("summary", { text: "How the source describes the design, and how the catalogue checked it" }), ...notes)];
 }
 
 function detailBody(design, detail) {
@@ -793,8 +808,7 @@ function detailBody(design, detail) {
   } else {
     body.push(element("p", { text: "Made by process-improve's generate_design, with the call below." }));
   }
-  if (detail.details) body.push(element("p", { class: "hint", text: detail.details }));
-  if (detail.notes) body.push(element("p", { class: "hint", text: detail.notes }));
+  body.push(...entryNotes(detail));
 
   const actions = element("div", { class: "actions" });
   const limit = parseLimit(state.limit);

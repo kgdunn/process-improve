@@ -417,6 +417,68 @@ def figure_name(note: str) -> str:
     return _file_title(file[0]) if file else _readable(text)
 
 
+#: A note of where in its source file a table is: "(lines 29-39)", "(list-table at line 46, no caption)".
+_TABLE_LINES = re.compile(
+    r"\s*\((?:[\w-]+\s+)?(?:at\s+)?lines?\s+\d+(?:\s*-\s*\d+)?(?:,\s*no caption)?\)", flags=re.IGNORECASE
+)
+#: The reStructuredText kinds of table a note names, which a reader knows as a table.
+_TABLE_KIND = re.compile(r"\b(?:grid|csv|list)[- ]table\b", flags=re.IGNORECASE)
+#: A table named by its kind and then its columns in brackets: "Solution table (Experiment, A, B)".
+_TABLE_COLUMNS = re.compile(r"(.*\btable)\s*\(([^()]*)\)", flags=re.IGNORECASE)
+#: The role reStructuredText writes mathematics in, such as :math:`R^2_Y`.
+_MATH_ROLE = re.compile(r":math:`([^`]*)`")
+
+
+def table_name(note: str) -> str:
+    """Return the name a reader can use for a table, from the catalogue's note of where it is printed.
+
+    The book's entries record each table as a note for the catalogue's maintainers: its caption, or
+    its kind and columns when it has none, with the lines of the source that print it. The name keeps
+    the caption and drops the note of lines and the column headings written after it; a table with no
+    caption is named by its columns. A note that says no table is printed names none, and a table as
+    a printed book numbers it, such as "Table 10.1", is kept as it is.
+
+    Parameters
+    ----------
+    note : str
+        A table, as the ``tables`` of an entry's ``where`` record it.
+
+    Returns
+    -------
+    str
+        The table's name, with a capital first letter and no full stop; ``""`` for a note of no table.
+
+    Examples
+    --------
+    >>> table_name("Factor ranges (list-table at line 46, no caption): Factor / Low / Centre / High")
+    'Factor ranges'
+    >>> table_name("Grid table, lines 1075-1093 (Experiment, D, R, P, Taste)")
+    'Table of Experiment, D, R, P and Taste'
+    >>> table_name("Recipe / True titer, g/L / Gain over current (list-table at line 538, no caption)")
+    'A table: Recipe / True titer, g/L / Gain over current'
+    >>> table_name("Table 10.1")
+    'Table 10.1'
+    """
+    text = _MATH_ROLE.sub(r"\1", note.strip())
+    if re.match(r"no table printed\b", text, flags=re.IGNORECASE):
+        return ""
+    uncaptioned = bool(re.search(r"\bno caption\b", text, flags=re.IGNORECASE))
+    text = _LINES_NOTE.sub("", _TABLE_LINES.sub("", text))
+    text = re.sub(r"\s*\(no (?:caption|table)\)|,?\s*[\w./-]+\.rst\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^(?:unlabell?ed|untitled)\s+", "", text, flags=re.IGNORECASE)
+    text = _TABLE_KIND.sub("table", text).strip(" ,;")
+    head, colon, tail = text.partition(": ")
+    if colon and " / " in tail and head:  # a caption, then the table's column headings
+        text = head
+    if found := _TABLE_COLUMNS.fullmatch(text):
+        columns = [c.strip() for c in found[2].split(",") if c.strip()]
+        listed = ", ".join(columns[:-1]) + f" and {columns[-1]}" if len(columns) > 1 else "".join(columns)
+        text = f"{found[1]} of {listed}"
+    elif uncaptioned and " / " in text:  # no caption: the column headings name the table
+        text = f"A table: {text}"
+    return _readable(text)
+
+
 def _anchor(label: str) -> str:
     """Return the id a Sphinx page gives a section's label: lower case, each run of other characters a hyphen."""
     return re.sub(r"^[-0-9]+|-+$", "", re.sub(r"[^a-z0-9]+", "-", label.lower()))
@@ -455,12 +517,14 @@ def where_url(where: dict[str, Any] | str | None) -> str | None:
 def shown_where(where: dict[str, Any] | str | None) -> dict[str, Any] | str | None:
     """Return the place a source prints an entry as the catalog shows it: section, pages, tables and figures.
 
-    Each figure is named by :func:`figure_name`; the notes kept for the catalogue's maintainers (the
-    source file, its lines and commit) are left out.
+    Each table is named by :func:`table_name` and each figure by :func:`figure_name`; the notes kept
+    for the catalogue's maintainers (the source file, its lines and commit) are left out.
     """
     if not isinstance(where, dict):
         return where
-    shown = {key: where[key] for key in ("section", "pages", "tables") if where.get(key)}
+    shown = {key: where[key] for key in ("section", "pages") if where.get(key)}
+    if tables := [name for name in (table_name(str(t)) for t in where.get("tables", [])) if name]:
+        shown["tables"] = tables
     if where.get("figures"):
         shown["figures"] = [figure_name(str(f)) for f in where["figures"]]
     return shown
@@ -531,18 +595,24 @@ def _response_values(entry: dict[str, Any]) -> dict[str, list[float | None]]:
     return out
 
 
+#: The most tables and figures the few words of :func:`_where` name; the others are counted.
+PLACES_NAMED = 3
+
+
 def _where(where: dict[str, Any] | str | None) -> str:
-    """Write where a source prints an entry in a few words: its pages, then its tables and figures."""
-    if not where:
-        return ""
-    if isinstance(where, str):
-        return where
+    """Write where a source prints an entry in a few words: its pages, then its first tables and figures."""
+    shown = shown_where(where) if where else ""
+    if not isinstance(shown, dict):
+        return shown or ""
     parts = []
-    if pages := where.get("pages"):
+    if pages := shown.get("pages"):
         parts.append(f"p. {pages}" if "-" not in str(pages) and "," not in str(pages) else f"pp. {pages}")
-    parts.extend([*where.get("tables", []), *(figure_name(str(f)) for f in where.get("figures", []))])
-    if not parts and where.get("section"):
-        parts.append(f"section {where['section']}")
+    places = [*shown.get("tables", []), *shown.get("figures", [])]
+    parts.extend(places[:PLACES_NAMED])
+    if (more := len(places) - PLACES_NAMED) > 0:
+        parts.append(f"and {more} more {'table or figure' if more == 1 else 'tables and figures'}")
+    if not parts and shown.get("section"):
+        parts.append(f"section {shown['section']}")
     return "; ".join(str(p) for p in parts)
 
 

@@ -11,6 +11,7 @@ import {
   applications,
   topicCounts,
   topicOrder,
+  placesAfter,
   whereParts,
   LETTERS,
   limitInUnits,
@@ -344,6 +345,14 @@ describe("where a design is printed", () => {
     assert.deepEqual(whereParts({ pages: 73 }), ["page 73"]);
     assert.deepEqual(whereParts("Table 4"), ["Table 4"]);
     assert.deepEqual(whereParts(null), []);
+  });
+
+  test("after its first part, the line names four places and counts the rest", () => {
+    const rest = ["T1", "T2", "F1", "F2", "F3", "F4"];
+    assert.equal(placesAfter(rest), "; T1; T2; F1; F2; and 2 more tables and figures.");
+    assert.equal(placesAfter(rest.slice(0, 5)), "; T1; T2; F1; F2; and 1 more table or figure.");
+    assert.equal(placesAfter(rest.slice(0, 2)), "; T1; T2.");
+    assert.equal(placesAfter([]), ".");
   });
 });
 

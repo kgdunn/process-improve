@@ -188,6 +188,63 @@ def test_where_a_source_prints_an_entry_is_said_in_a_few_words():
     assert design_catalog._where({"section": "4.1", "figures": ["DOE-fig-Cube-plot (cube.png)"]}) == "Cube plot"
 
 
+def test_the_few_words_name_three_tables_and_figures_and_count_the_rest():
+    where = {"pages": "12-30", "tables": ["Table 1", "Table 2"], "figures": ["Figure 1", "Figure 2", "Figure 3"]}
+    assert design_catalog._where(where) == "pp. 12-30; Table 1; Table 2; Figure 1; and 2 more tables and figures"
+    assert design_catalog._where({**where, "figures": ["Figure 1", "Figure 2"]}).endswith("and 1 more table or figure")
+
+
+@pytest.mark.parametrize(
+    ("note", "name"),
+    [
+        ("Factor ranges (list-table at line 46, no caption): Factor / Low / Centre / High", "Factor ranges"),
+        ("Coded runs in standard order (lines 29-39)", "Coded runs in standard order"),
+        ("Grid table, lines 1075-1093 (Experiment, D, R, P, Taste)", "Table of Experiment, D, R, P and Taste"),
+        (
+            "Solution part 5: csv-table of the four no-profile days, lines 107-114",
+            "Solution part 5: table of the four no-profile days",
+        ),
+        (
+            "Recipe / True titer, g/L / Gain over current (list-table at line 538, no caption)",
+            "A table: Recipe / True titer, g/L / Gain over current",
+        ),
+        ("untitled table (Lot of material, D, E), lines 139-151", "Table of Lot of material, D and E"),
+        (":math:`R^2_Y` by component", "R^2_Y by component"),
+        ("the same table, highly-fractionated-designs.rst lines 41-61 (Example 1)", "The same table of Example 1"),
+        ("No table printed; the solution names experiments 5, 2, 3 and 8 of the table at lines 1075-1093", ""),
+        ("Table 10.1", "Table 10.1"),
+    ],
+    ids=[
+        "caption-then-headings",
+        "caption-with-lines",
+        "kind-and-columns",
+        "csv-table",
+        "headings-only",
+        "untitled",
+        "math-role",
+        "a-source-file",
+        "no-table",
+        "a-printed-book-s-table",
+    ],
+)
+def test_a_table_is_named_by_its_caption_or_its_columns(note, name):
+    assert design_catalog.table_name(note) == name
+
+
+@pytest.mark.dataset
+def test_no_table_is_named_by_a_line_note_a_file_or_markup_and_other_sources_keep_theirs():
+    """The book's tables lose their maintainers' notes; a printed book's "Table 10.1" is kept as printed."""
+    entries = [*reference_experiments(), *reference_designs()]
+    for entry in entries:
+        for note in (entry.get("where") or {}).get("tables", []):
+            name = design_catalog.table_name(note)
+            if entry["source"] != "pid-book":
+                assert name == note.strip().removesuffix("."), note
+                continue
+            assert not re.search(r"list-table|csv-table|grid table|\blines? \d|:math:|no caption|\.rst\b", name), note
+            assert name or note.lower().startswith("no table printed"), note
+
+
 def _entry(name: str) -> dict:
     """Return one entry of the reference catalogue, an experiment or a design, by its name."""
     return next(e for e in [*reference_experiments(), *reference_designs()] if e["name"] == name)
@@ -268,7 +325,9 @@ def test_a_book_entry_s_place_names_its_figures_and_keeps_its_section():
     assert set(shown) == {"section", "tables", "figures"}, "the source file, its lines and commit stay out"
     assert shown["section"] == where["section"]
     assert shown["figures"][2] == "The thirty batches in run order"
+    assert shown["tables"][0] == "Factor ranges", "the caption, without the note of its lines or its headings"
     assert "../" not in design_catalog._where(where)
+    assert "list-table" not in design_catalog._where(where)
     assert design_catalog.shown_where("Table 4") == "Table 4"
 
 

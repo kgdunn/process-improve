@@ -113,10 +113,16 @@ def test_a_book_design_s_detail_links_to_its_section_and_names_its_figures(book_
     )
     where = " ".join(page.text_content("#detail-body .detail__where").split())
     assert where.startswith("Printed in section A worked OMARS study")
-    assert "; The thirty batches in run order;" in where
+    assert "; Factor ranges; A table: Recipe / True titer, g/L / Gain over current;" in where, "tables by name"
+    assert where.endswith("; and 7 more tables and figures."), "four places, then a count: the link leads to them"
     text = page.text_content("#detail-body") + page.text_content("#results")
     assert ".png" not in text, "no file path is shown"
     assert "../" not in text
+    assert "list-table" not in text, "nor a note of the lines that print a table"
+    notes = page.locator("#detail-body details.detail__notes")
+    assert notes.count() == 1, "the long notes of how the entry was checked fold under a summary"
+    assert notes.get_attribute("open") is None
+    assert "numpy default_rng(7)" in notes.text_content()
     assert "Application: Bioprocessing and fermentation." in page.text_content("#detail-body .detail__application")
 
 
