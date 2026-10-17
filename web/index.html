@@ -456,6 +456,42 @@
           <button type="button" class="link copy">Copy the code</button>
         </details>
         </div>
+        <!-- With two responses or more given a goal, the settings that balance them (app.js, with best.js): each
+             response's acceptable range, importance and shape, the settings with the best overall desirability, each
+             response there, the overlay of the acceptable ranges, and the confirmation runs that test them. -->
+        <section id="balance" class="best balance" aria-labelledby="h-balance" hidden>
+          <h3 id="h-balance">Balance the responses</h3>
+          <p class="hint">Each response with a goal scores a <button type="button" class="term" data-term="desirability">desirability</button>,
+            d, from 0 where it is not acceptable to 1 where it is as good as it gets. Its range says where: to maximise,
+            0 at the low end and below, 1 at the high end and above; to minimise, the other way round; for a target, 1
+            at the target and 0 at either end. <button type="button" class="term" data-term="importance">Importance</button>
+            says how much each counts in the <button type="button" class="term" data-term="overall-desirability">overall
+            desirability</button>, D, and the <button type="button" class="term" data-term="desirability-shape">good
+            end</button> how fast d rises towards it.</p>
+          <div class="scroll"><table id="balance-goals" class="data balance-goals" aria-label="Each response's goal in the balance"></table></div>
+          <p id="balance-problems" class="hint error" role="status" hidden></p>
+          <p class="actions"><button type="button" id="balance-reset" class="link" hidden>Back to the ranges the results give</button></p>
+          <div id="balance-out" aria-live="polite"></div>
+          <figure id="balance-chart" class="chart" hidden>
+            <h4><button type="button" class="term" data-term="overlay">Where every response is acceptable</button></h4>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <div id="balance-confirm" class="confirm" hidden>
+            <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
+            <div id="balance-confirm-out" aria-live="polite"></div>
+            <p class="actions">
+              <button type="button" id="add-balance-confirmation" class="button">Add 3 confirmation runs at these settings</button>
+              <button type="button" id="remove-balance-confirmation" class="link" hidden>Remove the confirmation runs</button>
+            </p>
+          </div>
+          <details class="python" id="py-balance" hidden>
+            <summary>Show the Python code</summary>
+            <p class="hint">The design, its results and the balance of the responses together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
       </section>
     </div>
   </div>

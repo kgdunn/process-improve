@@ -18,6 +18,7 @@ import {
   draw,
   fdsFigure,
   markBest,
+  overlayFigure,
   paretoFigure,
   prettyTerm,
   redrawAll,
@@ -28,18 +29,31 @@ import {
 import {
   CONFIRMATION,
   CONFIRMATION_RUNS,
+  IMPORTANCES,
+  GOOD_END,
   UNCLEAR,
+  balanceConfirmation,
+  balanceLead,
+  balanceLeverage,
+  balanceRows,
+  balanceWhere,
   bestContourCaption,
   confirmationRows,
   confirmationSentences,
   confirmedAt,
+  dWords,
   designRows,
   extrapolationSentence,
   flatSentence,
+  goalProblem,
+  goalWords,
   intervalRows,
   leadSentence,
+  limitingSentence,
   noGoalSentence,
   noIntervalSentence,
+  num,
+  overlayCaption,
   sensitivityCaption,
   settingWords,
   whereSentences,
@@ -94,6 +108,7 @@ import {
   needsCentre,
   nextMode,
   noResults,
+  numberOrNull,
   partialRuns,
   partialSentence,
   percent,
@@ -115,6 +130,7 @@ import {
   splitResults,
   storedResponses,
   withResponses,
+  withUnits,
 } from "./logic.js";
 import {
   AIMS,
@@ -152,7 +168,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
-import { analyseCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -287,6 +303,8 @@ const state = {
   practising: false, // the reader chose to practise with simulated results
   analysis: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
+  balance: null, // the settings that balance the responses with a goal: what api_balance returned
+  goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
   plotlyJs: null, // the Plotly.js version the Python plotly package names
@@ -583,7 +601,7 @@ function responseChanged() {
     const after = studyResponses();
     const changed = (keys, which = after) => which.some((r) => keys.some((key) => before[r.name]?.[key] !== r[key]));
     if (someSimulated() && changed(["typical", "noise"], after.slice(0, 1))) scheduleSimulation();
-    else if (state.analysis && changed(["label", "units", "goal", "target"])) scheduleAnalysis(); // the best settings follow the goal
+    else if ((state.analysis || state.balance) && changed(["label", "units", "goal", "target"])) scheduleAnalysis(); // the best settings and the balance follow the goals
     scheduleSave();
   }
   scheduleCandidates();
@@ -1224,8 +1242,10 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.marks = noResults(resultNames(), design.rows.length);
   state.shown = resultNames()[0];
   state.models = {};
+  state.goals = {};
   state.simulation = null;
   state.analysis = null;
+  clearBalance();
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
@@ -1851,6 +1871,7 @@ async function downloadNotebook() {
     url: `${location.origin}${location.pathname}`,
     best: state.best,
     analyses,
+    balance: state.balance,
   });
   const blob = new Blob([`${JSON.stringify(book, null, 1)}\n`], { type: "application/x-ipynb+json" });
   download(blob, `${state.design.spec.design_type}-${runCount()}-runs.ipynb`);
@@ -1883,6 +1904,8 @@ async function readUpload(file) {
   clearDraft();
   setModel(r.spec.analysis_model ?? $("#model").value);
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
+  state.goals = {};
+  clearBalance();
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
@@ -1938,9 +1961,14 @@ function analysisRequest(name = state.shown) {
   };
 }
 
+/**
+ * Analyse the response Learn shows: its fit, its best settings and its charts. With two responses or more given a
+ * goal, the balance of them follows, whichever response is shown.
+ */
 async function analyseRuns() {
   if (!state.design || !anyResult(state.results)) {
     clearAnalysis();
+    clearBalance();
     setStatus("No results to analyse yet.");
     return;
   }
@@ -1950,6 +1978,7 @@ async function analyseRuns() {
     clearAnalysis();
     $("#analyse-empty").textContent = `No results for ${wordsOf(state.shown).label} yet: enter them in Run.`;
     setStatus(`No results for ${wordsOf(state.shown).label} yet.`);
+    await findBalance();
     return;
   }
   const mine = ++ticket;
@@ -1959,11 +1988,14 @@ async function analyseRuns() {
   if (mine !== ticket) return;
   state.analysis = reply.ok ? reply.result : null;
   renderAnalysis(reply);
-  if (!reply.ok) return;
-  const best = await findBest(request, mine);
-  if (mine !== ticket) return;
-  // The response surface is drawn through the best settings, so the star that marks them sits on the surface drawn.
-  await drawCharts(best?.coded ? { ...request, best: best.coded } : request, mine);
+  if (reply.ok) {
+    const best = await findBest(request, mine);
+    if (mine !== ticket) return;
+    // The response surface is drawn through the best settings, so the star that marks them sits on the surface drawn.
+    await drawCharts(best?.coded ? { ...request, best: best.coded } : request, mine);
+    if (mine !== ticket) return;
+  }
+  await findBalance();
 }
 
 function renderAnalysis(reply) {
@@ -2488,6 +2520,227 @@ async function removeConfirmationRuns() {
   setStatus("The confirmation runs are off the run sheet.");
 }
 
+// ---------------------------------------------------------------- the settings that balance the responses
+let balanceTicket = 0;
+let balanceTimer = null;
+
+/** The responses the balance can weigh: those to maximise or minimise, and those with a target typed. */
+const aimedResponses = () =>
+  studyResponses().filter((r) => r.goal === "maximize" || r.goal === "minimize" || (r.goal === "target" && Number.isFinite(r.target)));
+
+/** Take the balance away: there are fewer than two responses with a goal, or no results to find it from. */
+function clearBalance() {
+  balanceTicket += 1;
+  clearTimeout(balanceTimer);
+  state.balance = null;
+  $("#balance").hidden = true;
+  hidePython("balance");
+}
+
+/** What the reader set of each response's goal, as Python takes it: only the responses with a goal, only what was set. */
+function sentGoals() {
+  const aimed = new Set(aimedResponses().map((r) => r.name));
+  return Object.fromEntries(Object.entries(state.goals).filter(([name, goal]) => aimed.has(name) && Object.keys(goal).length));
+}
+
+/** Find the balance a moment after the reader last typed in its table, rather than on every key. */
+function scheduleBalance() {
+  clearTimeout(balanceTimer);
+  balanceTimer = setTimeout(findBalance, 500);
+}
+
+/**
+ * Find the settings that balance the responses with a goal, and show them: with two such responses or more, after each
+ * analysis, and when the reader sets a goal's range, importance or shape. Each response is fitted with its own model.
+ */
+async function findBalance() {
+  clearTimeout(balanceTimer);
+  if (!state.design || aimedResponses().length < 2 || !anyResult(state.results)) {
+    clearBalance();
+    return;
+  }
+  const mine = ++balanceTicket;
+  const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), state.results), models: modelsByName(), goals: sentGoals() });
+  if (mine !== balanceTicket) return;
+  renderBalance(reply);
+}
+
+/**
+ * Show the balance: each response's goal in a table to change, how good the balance is, the settings, each response
+ * there with its desirability, the response that holds D down most, the overlay of the acceptable ranges, and the
+ * confirmation runs that test it, response by response.
+ */
+function renderBalance(reply) {
+  if (reply.ok && !reply.result.balanced) {
+    clearBalance();
+    return;
+  }
+  $("#balance").hidden = false;
+  if (!reply.ok) {
+    // The responses cannot be balanced yet, as when one has no results: say why, and keep the goals as they are.
+    state.balance = null;
+    $("#balance-out").replaceChildren(said("hint", reply.error));
+    for (const id of ["#balance-chart", "#balance-confirm"]) $(id).hidden = true;
+    hidePython("balance");
+    return;
+  }
+  const b = reply.result;
+  state.balance = b;
+  const factors = state.design.spec.factors;
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  renderGoals(b);
+  const settings = b.settings.map((s) => [
+    s.name,
+    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
+    whereWords(s, null, { label: "" }),
+  ]);
+  const cautions = [extrapolationSentence(b)].filter(Boolean);
+  $("#balance-out").replaceChildren(
+    said("lead", balanceLead(b)),
+    table(["Factor", "Balanced setting", "Where it lies"], settings),
+    balanceTable(b),
+    ...[limitingSentence(b)].filter(Boolean).map((text) => said("", text)),
+    said("hint", balanceLeverage(b)),
+    ...noteList(balanceWhere(b)),
+    ...noteList(cautions, "warnings"),
+  );
+  renderBalanceConfirmation(b);
+  showPython("balance", balanceCode(b, state.design.spec));
+  drawBalanceChart();
+}
+
+/** The table of each response at the balanced settings, and the overall desirability D below it. */
+function balanceTable(b) {
+  const t = el("table", "data balance-table", "");
+  const head = t.createTHead().insertRow();
+  for (const [text, key] of [["Response", "response"], ["Predicted", null], ["95% prediction interval", "prediction-interval"], ["Desirability, d", "desirability"]]) {
+    const th = el("th", "", "");
+    th.scope = "col";
+    th.append(...(key ? marked(text, { [text.replace(/^95% |, d$/g, "")]: key }) : [text]));
+    head.append(th);
+  }
+  const body = t.createTBody();
+  for (const row of balanceRows(b)) {
+    const tr = body.insertRow();
+    row.forEach((cell, j) => {
+      const td = el(j ? "td" : "th", "", cell);
+      if (!j) td.scope = "row";
+      tr.append(td);
+    });
+  }
+  const foot = t.createTFoot().insertRow();
+  const label = el("th", "", "");
+  label.scope = "row";
+  label.colSpan = 3;
+  label.append(...marked("Overall desirability, D", { "Overall desirability": "overall-desirability" }));
+  foot.append(label, el("td", "", dWords(b.composite)));
+  const wrap = el("div", "scroll", "");
+  wrap.append(t);
+  return wrap;
+}
+
+/**
+ * The table of each response's goal in the balance: its acceptable range, its importance and how strongly its good end
+ * counts, each a box or a choice. It is made again only when the responses or their goals change, so a box keeps the
+ * keyboard while the reader types; each box shows what the balance used, unless the reader is typing in it.
+ */
+function renderGoals(b) {
+  const t = $("#balance-goals");
+  const key = JSON.stringify(b.responses.map((r) => [r.name, r.label, r.units, r.goal, r.target]));
+  if (t.dataset.key !== key) {
+    t.dataset.key = key;
+    const head = `<thead><tr><th scope="col">Response</th><th scope="col">Goal</th><th scope="col">Acceptable from</th><th scope="col">to</th><th scope="col">Importance</th><th scope="col">Good end counts</th></tr></thead>`;
+    const options = (pairs) => pairs.map(([value, text]) => `<option value="${escape(value)}">${escape(text)}</option>`).join("");
+    const rows = b.responses.map((r) => {
+      const label = escape(r.label);
+      return (
+        `<tr data-response="${escape(r.name)}"><th scope="row">${escape(withUnits(r.label, r.units))}</th><td>${escape(goalWords(r))}</td>` +
+        `<td data-label="Acceptable from"><input type="number" step="any" name="low" aria-label="${label}: acceptable from"></td>` +
+        `<td data-label="to"><input type="number" step="any" name="high" aria-label="${label}: acceptable to"></td>` +
+        `<td data-label="Importance"><select name="importance" aria-label="${label}: importance">${options(IMPORTANCES.map((n) => [n, n]))}</select></td>` +
+        `<td data-label="Good end counts"><select name="shape" aria-label="${label}: how strongly the good end counts">${options(Object.entries(GOOD_END))}</select></td></tr>`
+      );
+    });
+    t.innerHTML = `${head}<tbody>${rows.join("")}</tbody>`;
+  }
+  for (const r of b.responses) {
+    const tr = t.querySelector(`tr[data-response="${CSS.escape(r.name)}"]`);
+    for (const name of ["low", "high", "importance", "shape"]) {
+      const input = tr.querySelector(`[name="${name}"]`);
+      if (input === document.activeElement && input.tagName === "INPUT") continue; // the reader is typing in it
+      input.value = name === "low" || name === "high" ? num(r[name]) : String(r[name]);
+      input.removeAttribute("aria-invalid");
+    }
+  }
+  $("#balance-problems").hidden = true;
+  $("#balance-reset").hidden = Object.keys(sentGoals()).length === 0;
+}
+
+/** The reader changed a goal in the balance's table: the balance follows, once what was typed is a goal it can take. */
+function goalChanged(e) {
+  const tr = e.target.closest("tr[data-response]");
+  if (!tr || !state.balance) return;
+  const name = tr.dataset.response;
+  const r = state.balance.responses.find((one) => one.name === name);
+  const typed = (key) => numberOrNull(tr.querySelector(`[name="${key}"]`).value);
+  const goal = { ...(state.goals[name] ?? {}) };
+  for (const key of ["low", "high"]) {
+    if (e.target.name !== key) continue;
+    if (typed(key) === null) delete goal[key]; // a box left blank takes the range the results give
+    else goal[key] = typed(key);
+  }
+  if (e.target.name === "importance") goal.importance = Number(e.target.value);
+  if (e.target.name === "shape") goal.shape = e.target.value;
+  state.goals = { ...state.goals, [name]: goal };
+  const problem = goalProblem({ ...r, default_low: r.default_low, default_high: r.default_high }, goal.low ?? null, goal.high ?? null);
+  for (const key of ["low", "high"]) tr.querySelector(`[name="${key}"]`).toggleAttribute("aria-invalid", Boolean(problem));
+  $("#balance-problems").textContent = problem;
+  $("#balance-problems").hidden = !problem;
+  scheduleSave();
+  if (problem) return;
+  if (e.target.tagName === "SELECT") findBalance();
+  else scheduleBalance();
+}
+
+/** Say what the confirmation runs show, response by response, and offer to add them at the balanced settings. */
+function renderBalanceConfirmation(b) {
+  const factors = state.design.spec.factors;
+  $("#balance-confirm").hidden = false;
+  $("#balance-confirm-out").replaceChildren(
+    ...b.confirmation.map((group) => {
+      const { said: sentences, state: verdict } = balanceConfirmation(group, factors, b.responses);
+      const box = el("div", "verdict", "");
+      box.dataset.state = verdict;
+      box.append(...sentences.map((text) => said("", text)));
+      return box;
+    }),
+  );
+  const add = $("#add-balance-confirmation");
+  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`;
+  add.hidden = confirmedAt(state.design, b.confirm_at); // runs there already: their results are what is wanted
+  $("#remove-balance-confirmation").hidden = b.confirmation.length === 0;
+}
+
+/** Draw the overlay of the acceptable ranges, once the version of Plotly.js is known; nothing with one numeric factor. */
+async function drawBalanceChart() {
+  const b = state.balance;
+  const card = $("#balance-chart");
+  if (!b?.overlay || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const factors = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f]));
+  const axes = Object.fromEntries([b.overlay.x, b.overlay.y].map((name) => [name, withUnits(name, factors[name]?.units ?? "")]));
+  const figure = () => overlayFigure(b.overlay, b.responses, axes);
+  card.hidden = false;
+  card.querySelector("figcaption").textContent = overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  try {
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
+  } catch {
+    card.hidden = true; // the tables and the sentences above hold what it shows
+  }
+}
+
 // ---------------------------------------------------------------- the worked example
 /** The worked example the build computed into demo.json, fetched once; null in a plain preview of web/. */
 let builtExample;
@@ -2603,6 +2856,7 @@ function newStudy() {
     marks: {},
     shown: null,
     models: {},
+    goals: {},
     simulation: null,
     analysis: null,
     comparison: null,
@@ -2626,6 +2880,7 @@ function newStudy() {
   for (const id of ["#demo-banner", "#campaign-banner", "#run-out", "#design-out", "#share-out"]) $(id).hidden = true;
   $("#run-empty").hidden = false;
   clearAnalysis();
+  clearBalance();
   renderPicker();
   setModel("");
   for (const key of ["design", "run", "analyse", "best", "compare"]) hidePython(key);
@@ -2760,6 +3015,7 @@ function currentCampaign() {
     simulate: { scenario: $("#scenario").value, sigma: Number($("#sigma").value), seed },
     model: modelOf(first),
     ...(more.length ? { more_models: Object.fromEntries(more.map((name) => [name, modelOf(name)])) } : {}),
+    ...(more.length && Object.keys(sentGoals()).length ? { goals: sentGoals() } : {}),
   };
 }
 
@@ -2880,6 +3136,8 @@ async function openCampaign(c, record, message) {
   state.marks = joinResults(names, [...c.sources], structuredClone(c.more_sources ?? {}));
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
+  state.goals = structuredClone(c.goals ?? {});
+  clearBalance();
   state.simulation = c.simulation;
   state.analysis = null;
   state.example = false;
@@ -3067,19 +3325,19 @@ async function shareLink() {
 
 // ---------------------------------------------------------------- show the Python code
 /** The steps whose panels build on each other, in order, and the code each step last showed. */
-const STEPS = ["design", "run", "analyse", "best"];
+const BUILDS_ON = { design: [], run: ["design"], analyse: ["design", "run"], best: ["design", "run", "analyse"], balance: ["design", "run"] };
 const stepCode = {};
 
 /**
  * Show a step's code in its panel, after the code of the steps it builds on, so what is copied
- * from any panel runs as it is. The comparison stands on its own.
+ * from any panel runs as it is. The balance fits each response itself, so it builds on the design
+ * and its results alone. The comparison stands on its own.
  */
 function showPython(key, code) {
   stepCode[key] = code;
-  const steps = STEPS.includes(key) ? STEPS.slice(0, STEPS.indexOf(key) + 1) : [key];
   const panel = $(`#py-${key}`);
-  panel.querySelector("code").textContent = STEPS.includes(key)
-    ? cumulative(...steps.map((step) => stepCode[step]).filter(Boolean))
+  panel.querySelector("code").textContent = BUILDS_ON[key]
+    ? cumulative(...[...BUILDS_ON[key], key].map((step) => stepCode[step]).filter(Boolean))
     : code;
   panel.hidden = false;
 }
@@ -3359,6 +3617,14 @@ $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
 $("#add-confirmation").onclick = () => addConfirmationRuns();
+$("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, "the balanced settings");
+$("#remove-balance-confirmation").onclick = removeConfirmationRuns;
+$("#balance-goals").addEventListener("input", goalChanged);
+$("#balance-reset").onclick = () => {
+  state.goals = {};
+  scheduleSave();
+  findBalance();
+};
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+import pandas as pd
 import pytest
 
 from tests.web._support import ENTRY_POINT, FACTORS, javascript, page, source
@@ -385,3 +386,35 @@ def test_a_limit_s_key_is_the_same_as_typed_and_as_python_writes_it(api, node):
     stored = [entry["expression"] for entry in reply["constraints"]]
     keys = javascript(node, source("logic.js"), [("positional", [text, names]) for text in [*typed, *stored]])
     assert keys[: len(typed)] == keys[len(typed) :]
+
+
+# --------------------------------------------------------------------------- the balance of the responses
+def test_the_balance_offers_bootstrap_s_shapes_and_importances(bootstrap, node):
+    shapes, importances, importance, shape = javascript(
+        node, source("best.js"), [("GOOD_END", []), ("IMPORTANCES", []), ("IMPORTANCE", []), ("SHAPE", [])]
+    )
+    assert list(shapes) == list(bootstrap.SHAPES)
+    assert importances == list(bootstrap.IMPORTANCES)
+    assert importance == bootstrap.IMPORTANCE
+    assert shape == bootstrap.SHAPE
+    (kept,) = javascript(node, source("campaign.js"), [("GOAL_SHAPES", [])])
+    assert kept == list(bootstrap.SHAPES), "a study keeps the shapes the balance takes"
+
+
+@pytest.mark.parametrize(
+    ("goal", "low", "high"),
+    [
+        ({"goal": "maximize"}, 60.0, 50.0),
+        ({"goal": "minimize"}, 20.0, 20.0),
+        ({"goal": "target", "target": 98.5}, 99.0, 100.0),
+        ({"goal": "target", "target": 98.5}, 90.0, 98.5),
+    ],
+)
+def test_the_page_says_a_goal_s_problem_in_bootstrap_s_words(bootstrap, node, goal, low, high):
+    """The balance's table says what a range typed still needs before Python is asked, as Python would refuse it."""
+    response = {"name": "Purity", "label": "Purity", **goal}
+    results = pd.Series([97.0, 98.0, 99.5])
+    with pytest.raises(ValueError, match="Purity") as refused:
+        bootstrap._balance_goal(response, results, {"low": low, "high": high})
+    (said,) = javascript(node, source("best.js"), [("goalProblem", [response, low, high])])
+    assert said == str(refused.value)

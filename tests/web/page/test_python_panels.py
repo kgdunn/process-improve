@@ -532,3 +532,87 @@ def test_the_notebook_of_three_responses_analyses_each_in_turn(api, node):
         run(text, namespace)
         if "analysis = analyze_experiment" in text:
             assert_same_fit(namespace, fits[str(namespace["y"].name)])
+
+
+def assert_same_balance(namespace: dict, balance: dict, numeric: list[str]) -> None:
+    """Assert that the code's balance finds the page's settings, each response's d, and D."""
+    found = namespace["balanced"]
+    for name in numeric:
+        assert found["optimal_coded"][name] == pytest.approx(balance["coded"][name], abs=1e-6), name
+    assert found["composite_desirability"] == pytest.approx(balance["composite"], abs=1e-9)
+    for r in balance["responses"]:
+        assert found["individual_desirability"][r["name"]] == pytest.approx(r["d"], abs=1e-9), r["name"]
+
+
+@pytest.mark.slow
+def test_the_balance_code_finds_the_page_s_balance(api, node):
+    held, simulation = three_responses(api)
+    sent = sent_of(by_name(simulation))
+    goals = {"Yield": {"importance": 5, "shape": "more"}, "Cost": {"high": 70.0}}
+    request = {**held, **sent, "models": {"Cost": "interactions"}, "goals": goals}
+    balance = api.ok("api_balance", request)
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert_same_balance(run(code), balance, ["T", "P", "F"])
+
+
+@pytest.mark.slow
+def test_the_balance_code_holds_a_categorical_factor_and_keeps_to_the_limits(api, node):
+    factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+    spec = {"design_type": "full_factorial", "factors": factors, "responses": THREE[:2], "n_center_points": 3}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), factors)
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + 3 * x["S"] + x["T"] * x["P"]).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + 0.5 * x["S"]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": {"Yield": "interactions"}}
+    balance = api.ok("api_balance", request)
+    assert balance["search"]["held"] == {"S": 1.0}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, {"Yield": yields, "Cost": costs}]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert "held_at(" in code
+    assert_same_balance(run(code), balance, ["T", "P"])
+
+    limit = [{"expression": "T + 25*P <= 215"}]
+    held = held_of(
+        api.ok(
+            "api_make_design",
+            {"design_type": "d_optimal", "factors": FACTORS[:2], "responses": THREE[:2], "constraints": limit},
+        )
+    )
+    x = coded(run_sheet(held), FACTORS[:2])
+    yields = (60 + 4 * x["T"] + 2 * x["P"] - 3 * x["T"] ** 2).tolist()
+    costs = (20 + 3 * x["T"] + x["P"]).tolist()
+    balance = api.ok("api_balance", {**held, "responses": yields, "more_responses": {"Cost": costs}})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, {"Yield": yields, "Cost": costs}]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert "region=DesignRegion(factors, constraints)" in code
+    assert_same_balance(run(code), balance, ["T", "P"])
+
+
+@pytest.mark.slow
+def test_the_notebook_ends_with_the_balance_when_the_page_has_one(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    balance = api.ok("api_balance", {**held, **sent_of(results)})
+    marks = {name: ["simulated"] * 15 for name in results}
+    book = notebook_of(
+        node, design=held, responses=results, sources=marks, simulation=simulation, model=None, balance=balance
+    )
+    assert "".join(book["cells"][-2]["source"]) == "## 3. The balance of the responses"
+    namespace: dict = {}
+    for cell in book["cells"][2:]:
+        if cell["cell_type"] == "code":
+            run("".join(cell["source"]), namespace)
+    assert_same_balance(namespace, balance, ["T", "P", "F"])

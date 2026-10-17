@@ -214,6 +214,75 @@ READS: dict[str, list[str]] = {
         "more_responses{}.[]: number?",
         "more_sources{}.[]: str?",
     ],
+    "balance": [
+        "balanced: bool",
+        "aimed[]: str",
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].goal: str",
+        "responses[].low: number",
+        "responses[].high: number",
+        "responses[].default_low: number",
+        "responses[].default_high: number",
+        "responses[].importance: int",
+        "responses[].shape: str",
+        "responses[].weight: number",
+        "responses[].predicted: number",
+        "responses[].prediction[]: number",
+        "responses[].confidence[]: number",
+        "responses[].d: number",
+        "composite: number",
+        "limiting: str",
+        "coded{}: any",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: any",
+        "settings[].in_model: bool",
+        "settings[].end: str?",
+        "leverage: number",
+        "max_leverage: number",
+        "leverage_of: str",
+        "extrapolating: bool",
+        "limits: list",
+        "confirm_at{}: any",
+        "confirmation: list",
+        "overlay.x: str",
+        "overlay.y: str",
+        "overlay.grid[]: number",
+        "overlay.ticks{}.tickvals[]: number",
+        "overlay.ticks{}.ticktext[]: str",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[].[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.acceptable[].[]: int",
+        "overlay.runnable: list?",
+        "overlay.at[]: number",
+        "overlay.held[].name: str",
+        "overlay.held[].value: any",
+        "search.held: dict",
+        "search.goals[].response: str",
+        "search.goals[].low: number",
+        "search.goals[].high: number",
+        "search.goals[].weight: number",
+        "search.goals[].importance: int",
+        "search.formulas{}: str",
+    ],
+    "balance confirmed": [
+        "confirmation[].rows[]: int",
+        "confirmation[].at{}: any",
+        "confirmation[].runs: int",
+        "confirmation[].responses[].name: str",
+        "confirmation[].responses[].done: int",
+        "confirmation[].responses[].mean: number?",
+        "confirmation[].responses[].predicted: number",
+        "confirmation[].responses[].interval[]: number",
+        "confirmation[].responses[].inside: bool?",
+    ],
+    "nothing to balance": [
+        "balanced: bool",
+        "aimed: list",
+    ],
     "relabel of several responses": [
         "simulation.more{}.truth[].term: str",
         "simulation.more{}.truth[].coefficient: number",
@@ -413,6 +482,9 @@ ENTRY_POINTS = {
     "simulation of several responses": "api_simulate",
     "upload of several responses": "api_read_workbook",
     "relabel of several responses": "api_relabel",
+    "balance": "api_balance",
+    "balance confirmed": "api_balance",
+    "nothing to balance": "api_balance",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -432,7 +504,7 @@ ENTRY_POINTS = {
 #: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
-NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare", "api_balance"}  # the balance: until Learn shows it
+NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
 
 #: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
 THREE = [
@@ -492,11 +564,39 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
         design, sim = simulated()
         return {"design": design, "factors": [{**f, "name": f"{f['name']}_new"} for f in FACTORS], "simulation": sim}
 
+    def balanced() -> dict:
+        design, sim = simulated()
+        results = {"responses": sim["responses"], "more_responses": {n: m["responses"] for n, m in sim["more"].items()}}
+        return {**design, **results, "models": {"Cost": "interactions"}, "goals": {"Yield": {"importance": 4}}}
+
+    def confirmed() -> dict:
+        sent = balanced()
+        at = api.ok("api_balance", sent)["confirm_at"]
+        columns = [*sent["columns"], "Confirmation run"]
+        extra = [[{"Run order": 16 + i, "Confirmation run": "yes", **at}.get(c) for c in columns] for i in range(3)]
+        rows = [*[[*row, None] for row in sent["rows"]], *extra]
+        more = {n: [*values, 50.0, None, 52.0] for n, values in sent["more_responses"].items()}
+        return {
+            **sent,
+            "columns": columns,
+            "rows": rows,
+            "responses": [*sent["responses"], 60, 61, 62],
+            "more_responses": more,
+        }
+
+    def learning() -> dict:
+        design, sim = simulated()
+        spec = {**design["spec"], "responses": [THREE[0], {**THREE[1], "goal": "learn"}, {**THREE[2], "goal": "learn"}]}
+        return {**design, "spec": spec, "responses": sim["responses"]}
+
     return {
         "design of several responses": lambda: THREE_DESIGN,
         "simulation of several responses": lambda: {**simulated()[0], "seed": 2},
         "upload of several responses": uploaded,
         "relabel of several responses": relabelled,
+        "balance": balanced,
+        "balance confirmed": confirmed,
+        "nothing to balance": learning,
     }
 
 
