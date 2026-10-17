@@ -408,7 +408,6 @@ class TestAnalyzeExperiment:
 @pytest.mark.parametrize(
     ("tool", "args"),
     [
-        ("generate_design", {"random_seed": -1}),
         ("generate_design", {"random_state": -1}),
         ("augment_design", {"random_state": -1}),
         ("evaluate_design", {"random_state": -1}),

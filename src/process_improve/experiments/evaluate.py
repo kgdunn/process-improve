@@ -34,7 +34,7 @@ from patsy import categorical as patsy_categorical
 from patsy.design_info import DesignInfo
 from scipy import stats
 
-from process_improve._random import check_random_state, resolve_deprecated_seed
+from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
@@ -1662,7 +1662,6 @@ def evaluate_design(  # noqa: PLR0913
     region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int | None = None,
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
     categorical_coding: str = "effect",
@@ -1744,8 +1743,6 @@ def evaluate_design(  # noqa: PLR0913
         combination of categorical levels; for a :class:`DesignRegion`, its
         support points (extreme vertices and edge midpoints for a mixture).  They
         are used only for the maximum, not for the region average.
-    random_seed : int or None
-        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     fds_resolution : int or None
         Resolution of the dense FDS curve.  When *None* (default) the ``fds``
         metric returns only the coarse 11-point ``quantiles`` summary.  When set
@@ -1851,7 +1848,7 @@ def evaluate_design(  # noqa: PLR0913
             region=region,
             n_samples=n_samples,
             include_vertices=include_vertices,
-            random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_design"),
+            random_state=random_state,
             fds_resolution=fds_resolution,
             design_type=design_type,
             categorical_coding=categorical_coding,
@@ -1886,7 +1883,6 @@ def evaluate_all(  # noqa: PLR0913
     region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int | None = None,
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
     categorical_coding: str = "effect",
@@ -1919,7 +1915,7 @@ def evaluate_all(  # noqa: PLR0913
         n_samples=n_samples,
         include_vertices=include_vertices,
         fds_resolution=fds_resolution,
-        random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_all"),
+        random_state=random_state,
         categorical_coding=categorical_coding,
         integration=integration,
         max_search=max_search,

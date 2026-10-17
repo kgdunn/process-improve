@@ -141,12 +141,6 @@ class GenerateDesignInput(BaseModel):
         ge=0,
         description="Seed for the run order and any random search (default: 42).",
     )
-    random_seed: int | None = Field(
-        None,
-        ge=0,
-        description="Deprecated since 1.97.0, removed in 2.0: use random_state.",
-        json_schema_extra={"deprecated": True},
-    )
 
 
 def _jsonable(value: Any) -> Any:  # noqa: ANN401
@@ -230,7 +224,7 @@ def generate_design_tool(spec: GenerateDesignInput) -> dict[str, Any]:
             model_type=spec.model_type,
             fixed_runs=pd.DataFrame(spec.fixed_runs) if spec.fixed_runs else None,
             candidates=pd.DataFrame(spec.candidates) if spec.candidates else None,
-            random_state=spec.random_seed if spec.random_seed is not None else spec.random_state,
+            random_state=spec.random_state,
         )
 
         design_coded = result.design.drop(columns=["RunOrder"], errors="ignore")
