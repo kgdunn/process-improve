@@ -83,6 +83,8 @@ from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.omars_trade_off import get_omars_trade_off_table_entry, omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.random_effects import expected_mean_squares
+from process_improve.experiments.random_effects import fixed_columns as _fixed_columns
 from process_improve.experiments.run_order import run_order_trends
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
@@ -2535,28 +2537,6 @@ def _desirability_optimum(experiment: dict, check: dict) -> float:
     return _read(found, check["key"])
 
 
-def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
-    """Return a factor's columns coded to sum to zero: one per level but the last, which takes -1 in each."""
-    values = column.astype(str)
-    levels = sorted(values.unique(), key=lambda v: (len(v), v))
-    last = (values == levels[-1]).astype(float)
-    return pd.DataFrame({f"{name}_{level}": (values == level).astype(float) - last for level in levels[:-1]})
-
-
-def _fixed_columns(table: pd.DataFrame, name: str) -> pd.DataFrame:
-    """Return a fixed term's columns: a factor's sum-coded ones, or for ``a:b`` the products of a's and b's."""
-    if ":" not in name:
-        return _sum_coded(table[name], name)
-    first, second = (_sum_coded(table[part], part) for part in name.split(":"))
-    return pd.DataFrame(
-        {
-            f"{name}_{a.partition('_')[2]}.{b.partition('_')[2]}": first[a] * second[b]
-            for a in first.columns
-            for b in second.columns
-        }
-    )
-
-
 _Z_975 = 1.959963984540054  # the standard normal's 97.5th percentile, for a 95% Wald interval
 
 
@@ -2608,12 +2588,18 @@ def _variance_component(experiment: dict, check: dict) -> float:
       97.5th percentile, or ``check["z"]``, as some versions of JMP take 1.96 itself;
     - ``"rmse"``, the root of the residual variance, and ``"reml_criterion"``, minus twice the
       restricted log-likelihood, JMP's "-2 LogLikelihood";
+    - ``"r_squared"`` and ``"r_squared_adj"``, JMP's R-square of the fit, from the fitted values with
+      the random effects predicted (their best linear unbiased predictions), the adjusted one on the
+      count of fixed parameters;
     - ``"mean"``, ``"mean_std_error"``, ``"mean_t"`` and ``"mean_df"``, the overall mean of an
       intercept-only fit, its standard error, their ratio and its Satterthwaite degrees of freedom;
     - ``"f.<factor>"``, ``"f_df.<factor>"`` and ``"f_p.<factor>"``, the F test of a fixed factor, on
       Satterthwaite's denominator degrees of freedom;
     - ``"effect.<factor>.<level>"``, the generalised least-squares estimate of a level's effect, which
       with random blocks of an incomplete block design combines the intra- and interblock estimates.
+
+    ``"bounded": false`` lets a component go negative, as JMP's unbounded REML does (lme4's, and the
+    default, keeps each at or above zero).
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
@@ -2621,9 +2607,10 @@ def _variance_component(experiment: dict, check: dict) -> float:
     fixed = [_fixed_columns(table, name) for name in check.get("fixed", [])]
     design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
     groups = [pd.factorize(table[name.split(":")].astype(str).agg(":".join, axis=1))[0] for name in check["groups"]]
-    fit = fit_variance_components(y, design.to_numpy(), groups)
+    fit = fit_variance_components(y, design.to_numpy(), groups, bounded=check.get("bounded", True))
     parts = dict(zip(check["groups"], map(float, fit.variances), strict=True)) | {"residual": float(fit.sigma2)}
-    estimated = [name for name in parts if name == "residual" or parts[name] > 0]  # vc_cov's rows, in order
+    estimated = [name for name in parts if name == "residual" or parts[name] != 0]  # vc_cov's rows, in order
+    r_squared = 1 - float(np.sum((y - fit.fitted) ** 2)) / float(np.sum((y - y.mean()) ** 2))
     if check["key"] in parts:
         return parts[check["key"]]
     kind, _, name = check["key"].partition(".")
@@ -2659,6 +2646,8 @@ def _variance_component(experiment: dict, check: dict) -> float:
         "wald_low": lambda: parts[name] - z * math.sqrt(covariance(name, name)),
         "wald_high": lambda: parts[name] + z * math.sqrt(covariance(name, name)),
         "mean": lambda: float(fit.beta[0]),
+        "r_squared": lambda: r_squared,
+        "r_squared_adj": lambda: 1 - (1 - r_squared) * (len(y) - 1) / (len(y) - len(design.columns)),
         "mean_std_error": lambda: math.sqrt(fit.cov_beta[0, 0]),
         "mean_df": lambda: fit.satterthwaite_df(np.eye(len(fit.beta))[0]),
         "mean_t": lambda: float(fit.beta[0]) / math.sqrt(fit.cov_beta[0, 0]),
@@ -2710,6 +2699,38 @@ def _glm(experiment: dict, check: dict) -> float:
     return value**2 if check.get("squared") else value
 
 
+def _expected_mean_squares(_experiment: dict, check: dict) -> float:
+    """Return a coefficient of the library's expected mean squares of a balanced design, or a term's error term.
+
+    ``check["levels"]``, ``"random"``, ``"nested"``, ``"replicates"``, ``"restricted"`` and ``"terms"`` go
+    to :func:`~process_improve.experiments.random_effects.expected_mean_squares`. ``check["key"]`` is
+    ``"<term>.<component>"``, the coefficient of a component (0 if it is absent; the term's own name
+    for its fixed quadratic form, ``"Error"`` for the error variance); ``"per_df.<term>"``, a fixed
+    term's coefficient over its degrees of freedom, the multiple of the sum of squared effects that
+    Montgomery writes; ``"form.<term>.<other>"``, 1 if the fixed term's quadratic form takes in
+    ``other``'s, as Minitab's ``Q[1,4]``; or ``"error_term.<term>"``, the 1-based place, in the
+    terms' order with the error last, of the term that tests it, as Minitab numbers it.
+    """
+    nested = check.get("nested") or {}
+    found = expected_mean_squares(
+        {f"{name}({nested[name]})" if name in nested else name: n for name, n in check["levels"].items()},
+        random=check.get("random", ()),
+        replicates=check.get("replicates", 1),
+        restricted=check.get("restricted", True),
+        terms=check.get("terms"),
+    )
+    kind, _, rest = check["key"].partition(".")
+    if kind == "per_df":
+        return found["ems"][rest][rest] / found["df"][rest]
+    if kind == "form":
+        term, _, other = rest.partition(".")
+        return float(other in found["fixed_forms"].get(term, []))
+    if kind == "error_term":
+        denominator = found["error_term"][rest]
+        return float("nan") if denominator is None else float(found["terms"].index(denominator) + 1)
+    return float(found["ems"][kind].get(rest, 0))
+
+
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "blocks_orthogonal": _blocks_orthogonal,
     "capability": _capability,
@@ -2743,6 +2764,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "unit_std_error": _unit_std_error,
     "variance_component": _variance_component,
     "glm": _glm,
+    "expected_mean_squares": _expected_mean_squares,
 }
 
 

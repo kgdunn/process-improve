@@ -31,6 +31,11 @@ from process_improve.experiments.omars_trade_off import (
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.random_effects import (
+    expected_mean_squares,
+    intraclass_correlation_interval,
+    variance_components,
+)
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.run_order import run_order_trends, time_trends, trend_robust_run_order
 from process_improve.experiments.separating import (
@@ -84,6 +89,7 @@ __all__ = [
     "evaluate_design",
     "evaluate_projections",
     "expand_grid",
+    "expected_mean_squares",
     "full_factorial",
     "gather",
     "generate_design",
@@ -91,6 +97,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "intraclass_correlation_interval",
     "is_omars",
     "lm",
     "main_effects_plot",
@@ -113,5 +120,6 @@ __all__ = [
     "time_trends",
     "trade_off_table",
     "trend_robust_run_order",
+    "variance_components",
     "visualize_doe",
 ]

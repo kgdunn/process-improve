@@ -17295,8 +17295,14 @@
       "quote": "Table 3.19 JMP Output for the Loom Experiment ... RSquare 0.793521"
      },
      "check": {
-      "manual": "JMP's R-square of the REML fit, worked from the best linear unbiased predictions of the looms, which the library's REML fit does not give (it reproduces: 1 − 23.1127/111.9375 = 0.793521)"
-     }
+      "kind": "variance_component",
+      "key": "r_squared",
+      "printed": "0.793521",
+      "groups": [
+       "loom"
+      ]
+     },
+     "analysis": "the library's REML fit (random loom): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions"
     },
     {
      "what": "r_squared_adj",
@@ -17308,8 +17314,14 @@
       "quote": "RSquare Adj 0.793521"
      },
      "check": {
-      "manual": "JMP prints its adjusted R-square of the REML fit equal to the R-square"
-     }
+      "kind": "variance_component",
+      "key": "r_squared_adj",
+      "printed": "0.793521",
+      "groups": [
+       "loom"
+      ]
+     },
+     "analysis": "the library's REML fit (random loom): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions, and the adjusted one on the fixed parameters' count"
     },
     {
      "what": "rmse",
@@ -26766,8 +26778,17 @@
       "quote": "Table 4.6 JMP Output for Example 4.1 with Blocks Assumed Random ... RSquare 0.756688"
      },
      "check": {
-      "manual": "JMP's R-square of the REML fit, worked from the best linear unbiased predictions of the blocks, which the library's REML fit does not give"
-     }
+      "kind": "variance_component",
+      "key": "r_squared",
+      "printed": "0.756688",
+      "groups": [
+       "batch"
+      ],
+      "fixed": [
+       "pressure"
+      ]
+     },
+     "analysis": "the library's REML fit (random batch; fixed pressure): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions"
     },
     {
      "what": "r_squared_adj",
@@ -26779,8 +26800,17 @@
       "quote": "RSquare Adj 0.720192"
      },
      "check": {
-      "manual": "JMP's adjusted R-square of the REML fit, as above"
-     }
+      "kind": "variance_component",
+      "key": "r_squared_adj",
+      "printed": "0.720192",
+      "groups": [
+       "batch"
+      ],
+      "fixed": [
+       "pressure"
+      ]
+     },
+     "analysis": "the library's REML fit (random batch; fixed pressure): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions, and the adjusted one on the fixed parameters' count"
     },
     {
      "what": "rmse",
@@ -48146,8 +48176,19 @@
       "quote": "Y Predicted P<.0001 RSq = 0.92 RMSE = 3.33"
      },
      "check": {
-      "manual": "JMP's R-square of the REML fit, from the best linear unbiased predictions of the operators, which the library's REML fit does not give"
-     }
+      "kind": "variance_component",
+      "key": "r_squared",
+      "printed": "0.92",
+      "groups": [
+       "operator"
+      ],
+      "fixed": [
+       "clutter",
+       "filter",
+       "clutter:filter"
+      ]
+     },
+     "analysis": "the library's REML fit (random operator; fixed clutter, filter, clutter:filter): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions"
     },
     {
      "what": "rmse",
@@ -48181,8 +48222,19 @@
       "quote": "Table 5.23 JMP Output for Example 5.6 ... RSquare 0.917432"
      },
      "check": {
-      "manual": "JMP's R-square of the REML fit, as above"
-     }
+      "kind": "variance_component",
+      "key": "r_squared",
+      "printed": "0.917432",
+      "groups": [
+       "operator"
+      ],
+      "fixed": [
+       "clutter",
+       "filter",
+       "clutter:filter"
+      ]
+     },
+     "analysis": "the library's REML fit (random operator; fixed clutter, filter, clutter:filter): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions"
     },
     {
      "what": "r_squared_adj",
@@ -48194,8 +48246,19 @@
       "quote": "RSquare Adj 0.894497"
      },
      "check": {
-      "manual": "JMP's adjusted R-square of the REML fit, as above"
-     }
+      "kind": "variance_component",
+      "key": "r_squared_adj",
+      "printed": "0.894497",
+      "groups": [
+       "operator"
+      ],
+      "fixed": [
+       "clutter",
+       "filter",
+       "clutter:filter"
+      ]
+     },
+     "analysis": "the library's REML fit (random operator; fixed clutter, filter, clutter:filter): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions, and the adjusted one on the fixed parameters' count"
     },
     {
      "what": "rmse",
@@ -183766,9 +183829,135 @@
       "source_kind": "table",
       "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Expected Mean Square for Each Term (using unrestricted model)"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.part",
+       "printed": "6",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.operator",
+       "printed": "40",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part:operator.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part:operator.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'part': 20, 'operator': 3}, replicates 2, random ['part', 'operator']), random model: each mean square's coefficient of each component"
     },
     {
      "what": "error term",
@@ -183779,9 +183968,51 @@
       "source_kind": "table",
       "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Error term 3 3 4"
      },
-     "check": {
-      "manual": "the term whose expected mean square differs only by the component tested: the F tests above use them"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.part",
+       "printed": "3",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.operator",
+       "printed": "3",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.part:operator",
+       "printed": "4",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ]
+      }
+     ],
+     "analysis": "the library's expected_mean_squares, random model: the term whose mean square tests each term, numbered as Minitab numbers the terms, the error last"
     },
     {
      "what": "variance component",
@@ -184221,9 +184452,99 @@
       "source_kind": "table",
       "quote": "Table 13.3 Analysis of Variance for the Reduced Model, Example 13.1 ... Expected Mean Square for Each Term"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ],
+       "terms": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.part",
+       "printed": "6",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ],
+       "terms": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ],
+       "terms": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.operator",
+       "printed": "40",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ],
+       "terms": [
+        "part",
+        "operator"
+       ]
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part",
+        "operator"
+       ],
+       "terms": [
+        "part",
+        "operator"
+       ]
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'part': 20, 'operator': 3}, replicates 2, random ['part', 'operator']), random, reduced (the interaction pooled into the error) model: each mean square's coefficient of each component"
     },
     {
      "what": "variance component",
@@ -184334,9 +184655,10 @@
         "part:operator"
        ],
        "key": "part",
-       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts component is 10.2513; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "var ratio",
@@ -184476,9 +184798,10 @@
         "part:operator"
        ],
        "key": "operator",
-       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Operators component is 0.0106; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "var ratio",
@@ -184618,9 +184941,10 @@
         "part:operator"
        ],
        "key": "part:operator",
-       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts*Operators component is 0; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "var ratio",
@@ -184759,9 +185083,10 @@
         "part:operator"
        ],
        "key": "residual",
-       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Residual component is 0.8832; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "std_error",
@@ -184886,8 +185211,9 @@
        "part:operator"
       ],
       "key": "reml_criterion",
-      "disagreement": "the criterion of the library's REML fit, its interaction component at 0; JMP's is that of its unbounded estimates, a negative interaction component included"
-     }
+      "bounded": false
+     },
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "covariance",
@@ -185215,8 +185541,17 @@
       "quote": "Table 13.3 JMP REML Analysis for the Two-Factor Random Model in Example 13.1 ... RSquare 0.910717 RSquare Adj 0.910717"
      },
      "check": {
-      "manual": "JMP's R² of a REML fit, which the library does not report"
-     }
+      "kind": "variance_component",
+      "key": "r_squared",
+      "printed": "0.910717",
+      "groups": [
+       "part",
+       "operator",
+       "part:operator"
+      ],
+      "bounded": false
+     },
+     "analysis": "the library's REML fit (random part, operator, part:operator): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions"
     },
     {
      "what": "intercept",
@@ -185622,9 +185957,135 @@
       "source_kind": "table",
       "quote": "Table 13.4 Analysis of Variance (Minitab) for the Mixed Model in Example 13.2. The Restricted Model is Assumed ... Expected Mean Square for Each Term (using restricted model)"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.part:operator",
+       "printed": "0",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.part",
+       "printed": "6",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.operator",
+       "printed": "40",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part:operator.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part:operator.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": true
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'part': 20, 'operator': 3}, replicates 2, random ['part']), restricted mixed model: each mean square's coefficient of each component"
     },
     {
      "what": "variance component",
@@ -186018,9 +186479,135 @@
       "source_kind": "table",
       "quote": "Table 13.5 Analysis of the Experiment in Example 13.2 Using the Unrestricted Model ... Expected Mean Square for Each Term (using unrestricted model)"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part.part",
+       "printed": "6",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "form.operator.operator",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part:operator.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "part:operator.part:operator",
+       "printed": "2",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "part": 20,
+        "operator": 3
+       },
+       "replicates": 2,
+       "random": [
+        "part"
+       ],
+       "restricted": false
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'part': 20, 'operator': 3}, replicates 2, random ['part']), unrestricted mixed model: each mean square's coefficient of each component, the fixed operators' quadratic form written Q[2] without its multiple"
     },
     {
      "what": "variance component",
@@ -186052,9 +186639,10 @@
         "operator"
        ],
        "key": "part",
-       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts component is 10.2513; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "var ratio",
@@ -186195,9 +186783,10 @@
         "operator"
        ],
        "key": "part:operator",
-       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Parts*Operators component is 0; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "var ratio",
@@ -186337,9 +186926,10 @@
         "operator"
        ],
        "key": "residual",
-       "disagreement": "the library's REML keeps every variance component at or above zero, as lme4 does, and puts the interaction at 0, so its Residual component is 0.8832; JMP's REML is unbounded and, in this balanced design, gives the analysis-of-variance estimates, which the mean-square checks reproduce"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "std_error",
@@ -186464,8 +187054,9 @@
        "operator"
       ],
       "key": "reml_criterion",
-      "disagreement": "the criterion of the library's REML fit, its interaction component at 0; JMP's is that of its unbounded estimates, a negative interaction component included"
-     }
+      "bounded": false
+     },
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "covariance",
@@ -186669,9 +187260,35 @@
       "source_kind": "table",
       "quote": "Table 13.6 JMP Output for the Two-Factor Mixed Model in Example 13.2 ... RSquare 0.911896 RSquare Adj 0.91039"
      },
-     "check": {
-      "manual": "JMP's R² of a REML fit, which the library does not report"
-     }
+     "check": [
+      {
+       "kind": "variance_component",
+       "key": "r_squared",
+       "printed": "0.911896",
+       "groups": [
+        "part",
+        "part:operator"
+       ],
+       "fixed": [
+        "operator"
+       ],
+       "bounded": false
+      },
+      {
+       "kind": "variance_component",
+       "key": "r_squared_adj",
+       "printed": "0.91039",
+       "groups": [
+        "part",
+        "part:operator"
+       ],
+       "fixed": [
+        "operator"
+       ],
+       "bounded": false
+      }
+     ],
+     "analysis": "the library's REML fit (random part, part:operator; fixed operator): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions, and the adjusted one on the fixed parameters' count"
     },
     {
      "what": "fixed effect test",
@@ -186704,9 +187321,10 @@
         "operator"
        ],
        "key": "f.operator",
-       "disagreement": "the library's REML fit, its interaction component at 0, tests the operators against the pooled error; JMP's unbounded fit tests them against the interaction mean square, MS_operator/MS_AB"
+       "bounded": false
       }
-     ]
+     ],
+     "analysis": "the library's REML unbounded, as JMP fits it, so the interaction's component may go below zero"
     },
     {
      "what": "fixed effect test",
@@ -191502,9 +192120,105 @@
       "source_kind": "table",
       "quote": "Table 14.4 Analysis of Variance for the Data in Example 14.1 ... Expected Mean Square"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "supplier.Error",
+       "printed": "1",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "supplier.batch(supplier)",
+       "printed": "3",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "per_df.supplier",
+       "printed": "6",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "batch(supplier).Error",
+       "printed": "1",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "batch(supplier).batch(supplier)",
+       "printed": "3",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'supplier': 3, 'batch': 4}, random ['batch'], nested {'batch': 'supplier'}, replicates 3), restricted mixed model: each mean square's coefficient of each component, the suppliers' fixed effects as Montgomery writes them, their multiple over their degrees of freedom"
     },
     {
      "what": "anova_df",
@@ -192222,9 +192936,41 @@
       "source_kind": "table",
       "quote": "Table 14.6 Minitab Output (Balanced ANOVA) for Example 14.1 ... Error term 2 3"
      },
-     "check": {
-      "manual": "the term whose expected mean square differs only by the effect tested: the F tests above use them"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.supplier",
+       "printed": "2",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.batch(supplier)",
+       "printed": "3",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      }
+     ],
+     "analysis": "the library's expected_mean_squares, restricted mixed model: the term whose mean square tests each term, numbered as Minitab numbers the terms, the error last"
     },
     {
      "what": "expected mean squares",
@@ -192235,9 +192981,105 @@
       "source_kind": "table",
       "quote": "Table 14.6 Minitab Output (Balanced ANOVA) for Example 14.1 ... Expected Mean Square for Each Term (using restricted model)"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "supplier.Error",
+       "printed": "1",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "supplier.batch(supplier)",
+       "printed": "3",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "supplier.supplier",
+       "printed": "12",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "batch(supplier).Error",
+       "printed": "1",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "batch(supplier).batch(supplier)",
+       "printed": "3",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "supplier": 3,
+        "batch": 4
+       },
+       "random": [
+        "batch"
+       ],
+       "nested": {
+        "batch": "supplier"
+       },
+       "replicates": 3
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'supplier': 3, 'batch': 4}, random ['batch'], nested {'batch': 'supplier'}, replicates 3), restricted mixed model: each mean square's coefficient of each component"
     },
     {
      "what": "anova_sum_sq",
@@ -194016,9 +194858,31 @@
       "source_kind": "table",
       "quote": "Table 14.7 JMP Output for the Nested Design in Example 14.1, Suppliers Fixed and Batches Random ... RSquare 0.518555 RSquare Adj 0.489376"
      },
-     "check": {
-      "manual": "JMP's R² of a REML fit, worked from the best linear unbiased predictions of the random effects, which the library does not report"
-     }
+     "check": [
+      {
+       "kind": "variance_component",
+       "key": "r_squared",
+       "printed": "0.518555",
+       "groups": [
+        "supplier:batch"
+       ],
+       "fixed": [
+        "supplier"
+       ]
+      },
+      {
+       "kind": "variance_component",
+       "key": "r_squared_adj",
+       "printed": "0.489376",
+       "groups": [
+        "supplier:batch"
+       ],
+       "fixed": [
+        "supplier"
+       ]
+      }
+     ],
+     "analysis": "the library's REML fit (random supplier:batch; fixed supplier): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions, and the adjusted one on the fixed parameters' count"
     },
     {
      "what": "root mean square error",
@@ -195502,9 +196366,247 @@
       "source_kind": "table",
       "quote": "Table 14.11 Expected Mean Squares for Example 14.2"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "fixture.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "fixture.operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "per_df.fixture",
+       "printed": "8",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "per_df.layout",
+       "printed": "24",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator(layout).Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator(layout).operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout:fixture.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout:fixture.operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "per_df.layout:fixture",
+       "printed": "4",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator:fixture(layout).Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator:fixture(layout).operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'layout': 2, 'operator': 4, 'fixture': 3}, random ['operator'], nested {'operator': 'layout'}, replicates 2), restricted mixed model: each mean square's coefficient of each component, the fixed effects as Montgomery writes them, their multiple over their degrees of freedom"
     },
     {
      "what": "anova_df",
@@ -196608,9 +197710,247 @@
       "source_kind": "table",
       "quote": "Table 14.13 Minitab Balanced ANOVA Analysis of Example 14.2 Using the Restricted Model ... Expected Mean Square for Each Term (using restricted model)"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.layout",
+       "printed": "24",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator(layout).Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator(layout).operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "fixture.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "fixture.operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "fixture.fixture",
+       "printed": "16",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout:fixture.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout:fixture.operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout:fixture.layout:fixture",
+       "printed": "8",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator:fixture(layout).Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator:fixture(layout).operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'layout': 2, 'operator': 4, 'fixture': 3}, random ['operator'], nested {'operator': 'layout'}, replicates 2), restricted mixed model: each mean square's coefficient of each component"
     },
     {
      "what": "variance component",
@@ -197239,9 +198579,99 @@
       "source_kind": "table",
       "quote": "Table 14.14 Minitab Balanced ANOVA Analysis of Example 14.2 Using the Unrestricted Model ... Error term 2 5 5 5 6"
      },
-     "check": {
-      "manual": "the term whose expected mean square differs only by the effect tested: the F tests above use them"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.layout",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.operator(layout)",
+       "printed": "5",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.fixture",
+       "printed": "5",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.layout:fixture",
+       "printed": "5",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.operator:fixture(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      }
+     ],
+     "analysis": "the library's expected_mean_squares, unrestricted mixed model: the term whose mean square tests each term, numbered as Minitab numbers the terms, the error last"
     },
     {
      "what": "expected mean squares",
@@ -197252,9 +198682,333 @@
       "source_kind": "table",
       "quote": "Table 14.14 Minitab Balanced ANOVA Analysis of Example 14.2 Using the Unrestricted Model ... Expected Mean Square for Each Term (using unrestricted model)"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout.operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "form.layout.layout",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "form.layout.layout:fixture",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator(layout).Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator(layout).operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator(layout).operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "fixture.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "fixture.operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "form.fixture.fixture",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "form.fixture.layout:fixture",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout:fixture.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "layout:fixture.operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "form.layout:fixture.layout:fixture",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator:fixture(layout).Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "operator:fixture(layout).operator:fixture(layout)",
+       "printed": "2",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "Error.Error",
+       "printed": "1",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2,
+       "restricted": false
+      }
+     ],
+     "analysis": "the library's expected_mean_squares of the balanced design (levels {'layout': 2, 'operator': 4, 'fixture': 3}, random ['operator'], nested {'operator': 'layout'}, replicates 2), unrestricted mixed model: each mean square's coefficient of each component, and which fixed terms' quadratic forms each fixed term's mean square holds (Minitab's Q[1,4], Q[3,4], Q[4]; 1 for held)"
     },
     {
      "what": "denominator df",
@@ -197373,9 +199127,37 @@
       "source_kind": "table",
       "quote": "Table 14.15 JMP Output for Example 14.2 ... RSquare 0.764291 RSquare Adj 0.73623"
      },
-     "check": {
-      "manual": "JMP's R² of a REML fit, worked from the best linear unbiased predictions of the random effects, which the library does not report"
-     }
+     "check": [
+      {
+       "kind": "variance_component",
+       "key": "r_squared",
+       "printed": "0.764291",
+       "groups": [
+        "layout:operator",
+        "fixture:layout:operator"
+       ],
+       "fixed": [
+        "layout",
+        "fixture",
+        "fixture:layout"
+       ]
+      },
+      {
+       "kind": "variance_component",
+       "key": "r_squared_adj",
+       "printed": "0.73623",
+       "groups": [
+        "layout:operator",
+        "fixture:layout:operator"
+       ],
+       "fixed": [
+        "layout",
+        "fixture",
+        "fixture:layout"
+       ]
+      }
+     ],
+     "analysis": "the library's REML fit (random layout:operator, fixture:layout:operator; fixed layout, fixture, fixture:layout): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions, and the adjusted one on the fixed parameters' count"
     },
     {
      "what": "root mean square error",
@@ -199796,9 +201578,37 @@
       "source_kind": "table",
       "quote": "Table 14.19 JMP Output for the Split-Plot Design in Table 14.16 ... RSquare 0.903675 RSquare Adj 0.859526"
      },
-     "check": {
-      "manual": "JMP's R² of a REML fit, worked from the best linear unbiased predictions of the random effects, which the library does not report"
-     }
+     "check": [
+      {
+       "kind": "variance_component",
+       "key": "r_squared",
+       "printed": "0.903675",
+       "groups": [
+        "replicate",
+        "replicate:method"
+       ],
+       "fixed": [
+        "method",
+        "temperature",
+        "method:temperature"
+       ]
+      },
+      {
+       "kind": "variance_component",
+       "key": "r_squared_adj",
+       "printed": "0.859526",
+       "groups": [
+        "replicate",
+        "replicate:method"
+       ],
+       "fixed": [
+        "method",
+        "temperature",
+        "method:temperature"
+       ]
+      }
+     ],
+     "analysis": "the library's REML fit (random replicate, replicate:method; fixed method, temperature, method:temperature): JMP's R-square, from the fitted values with the random effects' best linear unbiased predictions, and the adjusted one on the fixed parameters' count"
     },
     {
      "what": "root mean square error",
