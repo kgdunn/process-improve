@@ -88,15 +88,10 @@ def _nz(denominator: float) -> float:
     return max(_DENOM_FLOOR, denominator)
 
 
-#: The version that announced the ``md_*`` deprecation, quoted in its warning message so
-#: the reader can tell which release started the clock. See
-#: ``docs/development/deprecation_policy.rst``.
-_MD_DEPRECATED_SINCE = "1.98.0"
-
-#: The ``missing_data_settings`` keys that duplicate a constructor parameter, and the
-#: parameter each one forwards to. ``md_method`` is not here: it names the imputation
-#: algorithm, which is the one axis ``missing_data_settings`` still owns.
-_DEPRECATED_MD_KEYS: dict[str, str] = {"md_tol": "tol", "md_max_iter": "max_iter"}
+#: The ``missing_data_settings`` keys removed in 2.0, and the constructor parameter that
+#: replaced each one. ``md_method`` is not here: it names the imputation algorithm, which
+#: is the one axis ``missing_data_settings`` still owns.
+_REMOVED_MD_KEYS: dict[str, str] = {"md_tol": "tol", "md_max_iter": "max_iter"}
 
 #: The historical bounds on the NIPALS tolerance, kept verbatim from the per-estimator
 #: checks this helper replaced. The ceiling is arbitrary but catches a caller who passed a
@@ -115,15 +110,16 @@ def resolve_loop_settings(
     """Resolve one estimator's ``tol`` and ``max_iter`` into the mapping its NIPALS loop reads.
 
     Every latent-variable estimator that iterates resolves its loop settings here, so the
-    precedence is defined once instead of five times (#588). The rule: the constructor's
-    ``tol`` and ``max_iter`` supply the values, and a caller's ``missing_data_settings``
-    overrides individual keys on top, which is what keeps existing code working.
+    rule is defined once instead of five times (#588). The constructor's ``tol`` and
+    ``max_iter`` supply the values, and any other keys of a caller's
+    ``missing_data_settings`` are added alongside them.
 
-    The two overriding keys are deprecated. ``md_tol`` and ``md_max_iter`` predate ``tol``
-    and ``max_iter`` existing on these estimators, and they describe a convergence setting
-    as a missing-data setting, which it is not: the loop runs, and needs a tolerance,
-    whether or not a cell is missing. They still win when passed, because silently
-    demoting a value a caller set would be worse than warning about it.
+    The keys ``md_tol`` and ``md_max_iter``, which used to override ``tol`` and
+    ``max_iter``, were removed in 2.0 and are refused. They described a convergence
+    setting as a missing-data setting, which it is not: the loop runs, and needs a
+    tolerance, whether or not a cell is missing. Other unknown keys pass through, but
+    these two raise, because ignoring a convergence setting a caller asked for would
+    change the fit without saying so.
 
     Parameters
     ----------
@@ -132,7 +128,7 @@ def resolve_loop_settings(
     max_iter : int
         The estimator's per-component iteration cap.
     missing_data_settings : dict or None
-        The caller's dict, or None. Keys other than the deprecated two are passed through
+        The caller's dict, or None. Keys other than the removed two are passed through
         untouched, so an estimator with its own keys (``md_method`` on ``PLS``) still sees
         them.
     validate : bool, default=True
@@ -140,29 +136,29 @@ def resolve_loop_settings(
         False by the paths that do not iterate (a direct SVD fit), where the tolerance
         governs nothing and an out-of-range value is harmless.
     estimator_name : str
-        Used in the deprecation message, so the reader knows which class to change.
+        Used in the error message, so the reader knows which class to change.
 
     Returns
     -------
     dict
-        ``md_tol`` and ``md_max_iter``, plus any other keys the caller supplied.
+        The loop settings under the internal keys ``md_tol`` and ``md_max_iter``, plus any
+        other keys the caller supplied.
+
+    Raises
+    ------
+    ValueError
+        If ``missing_data_settings`` holds ``md_tol`` or ``md_max_iter``, or if the
+        resolved tolerance is out of bounds.
     """
     settings: dict = {"md_tol": tol, "md_max_iter": max_iter}
     if isinstance(missing_data_settings, dict):
-        deprecated_used = [key for key in _DEPRECATED_MD_KEYS if key in missing_data_settings]
-        for key in deprecated_used:
-            prefix = f"{estimator_name}." if estimator_name else ""
-            warnings.warn(
-                f"{prefix}missing_data_settings['{key}'] is deprecated since "
-                f"{_MD_DEPRECATED_SINCE} and will be removed in 2.0; pass "
-                f"{_DEPRECATED_MD_KEYS[key]}={missing_data_settings[key]!r} to the "
-                "constructor instead. It still takes effect for now, overriding "
-                f"{_DEPRECATED_MD_KEYS[key]}.",
-                category=DeprecationWarning,
-                # 1 is this helper, 2 is the fit() that called it, so 3 is the caller's
-                # own line, which is the one they can act on. Every estimator calls this
-                # directly from fit(), keeping that depth the same for all of them.
-                stacklevel=3,
+        removed = [key for key in _REMOVED_MD_KEYS if key in missing_data_settings]
+        if removed:
+            where = f"{estimator_name}(missing_data_settings=...)" if estimator_name else "missing_data_settings"
+            keys = " and ".join(repr(key) for key in removed)
+            replacements = ", ".join(f"{_REMOVED_MD_KEYS[key]}={missing_data_settings[key]!r}" for key in removed)
+            raise ValueError(
+                f"{where} no longer takes {keys}, removed in 2.0. Pass {replacements} to the constructor instead."
             )
         settings.update(missing_data_settings)
 

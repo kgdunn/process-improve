@@ -514,9 +514,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         the blocks it does have; only a row observed in no block at all is refused.
 
     missing_data_settings : dict or None, default=None
-        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
-        and ``max_iter`` for this fit and warn when used. Deprecated since
-        1.98.0 and removed in 2.0; set ``tol`` and ``max_iter`` instead.
+        MBPLS reads no keys from it. The keys ``md_tol`` and ``md_max_iter``
+        were removed in 2.0 and raise a :class:`ValueError`; set ``tol`` and
+        ``max_iter`` instead.
 
     Attributes (after fitting)
     --------------------------
@@ -685,9 +685,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         y = _validate_fit_arguments(X, y)
         self._record_data_shape(X, y)
         algo = self._resolve_algorithm(X, y)
-        # The resolved settings now reach the loop. They used to be computed here and
-        # dropped, so a caller's ``missing_data_settings`` was validated and then ignored
-        # (#588).
+        # The resolved settings reach the loop. They used to be computed here and dropped,
+        # so the caller's loop settings were validated and then ignored (#588).
         settings = resolve_loop_settings(
             tol=self.tol,
             max_iter=self.max_iter,
@@ -1206,7 +1205,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Hotelling's T² over all components, per new observation).
 
         The rename (since 1.38.4, #395) matches :meth:`PLS.diagnose`
-        and PCA.diagnose; :meth:`predict` is kept as a deprecation shim.
+        and PCA.diagnose. The deprecated ``predict`` alias was removed in 2.0.
         """
         check_is_fitted(self, "super_weights_")
         return self._project(X)
@@ -1408,24 +1407,6 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             selection_rule=selection_rule,
             n_splits=n_splits,
         )
-
-    def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
-        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
-
-        .. deprecated:: 1.38.4
-            Use :meth:`MBPLS.diagnose` instead. The sklearn-convention
-            ``predict`` name suggests a regression-style ndarray return,
-            but the historical return is the rich diagnostics Bunch. The
-            rename aligns with :meth:`PLS.diagnose` and :meth:`PCA.diagnose`
-            and frees the name for a future contract that returns just
-            the ``predictions`` field. Will be removed in 2.0.0.
-        """
-        warnings.warn(
-            "MBPLS.predict is deprecated and will be removed in 2.0.0; use MBPLS.diagnose instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.diagnose(X)
 
     def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
         if not isinstance(X, dict):

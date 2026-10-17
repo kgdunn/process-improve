@@ -241,13 +241,13 @@ class TestWold1987PCA:
     def test_predict_new_observations_one_pc(self) -> None:
         model, scaler, _ = _fit_pca_on_wold(n_components=1)
         new_pp = scaler.transform(pd.DataFrame(WOLD_X_NEW))
-        result = model.predict(new_pp)
+        result = model.diagnose(new_pp)
         np.testing.assert_array_almost_equal(result.scores.iloc[:, 0].values, WOLD_T_NEW_PC1, decimal=3)
 
     def test_predict_new_observations_two_pc(self) -> None:
         model, scaler, _ = _fit_pca_on_wold(n_components=2)
         new_pp = scaler.transform(pd.DataFrame(WOLD_X_NEW))
-        result = model.predict(new_pp)
+        result = model.diagnose(new_pp)
         np.testing.assert_array_almost_equal(result.scores.values, WOLD_T_NEW_2COMP, decimal=3)
 
     def test_predict_training_data_returns_training_scores(self) -> None:
@@ -255,13 +255,13 @@ class TestWold1987PCA:
         the training scores exactly (within tolerance).
         """
         model, _, df_pp = _fit_pca_on_wold(n_components=2)
-        result = model.predict(df_pp)
+        result = model.diagnose(df_pp)
         np.testing.assert_array_almost_equal(result.scores.iloc[:, 0].values, WOLD_T_PC1, decimal=3)
         np.testing.assert_array_almost_equal(result.scores.iloc[:, 1].values, WOLD_T_PC2, decimal=3)
 
     def test_predict_training_spe_matches_fit_spe(self) -> None:
         model, _, df_pp = _fit_pca_on_wold(n_components=1)
-        result = model.predict(df_pp)
+        result = model.diagnose(df_pp)
         np.testing.assert_array_almost_equal(result.spe.values**2, REF_SPE_AFTER_PC1, decimal=4)
 
 
@@ -346,7 +346,7 @@ class TestMBPCAAgainstOracle:
 
         x_blocks, _ = synthetic_two_block
         model = MBPCA(n_components=2).fit(x_blocks)
-        result = model.predict(x_blocks)
+        result = model.diagnose(x_blocks)
         np.testing.assert_array_almost_equal(result.super_scores.values, model.super_scores_.values, decimal=10)
 
     def test_block_spe_and_super_t2_have_expected_shape(self, synthetic_two_block) -> None:
@@ -661,7 +661,7 @@ class TestMBPCAMissingData:
         # Predict-time NaN scoring (TSR / PMP) is a follow-up; verify that a
         # model fitted on NaN data can still score complete held-out rows.
         x_new = {name: df.iloc[:5, :] for name, df in two_block.items()}
-        result = m.predict(x_new)
+        result = m.diagnose(x_new)
         assert not result.super_scores.isna().any().any()
 
 
@@ -779,7 +779,7 @@ class TestMBPLSAgainstOracle:
 
         x_blocks, y_df, _ = synthetic_two_block
         model = MBPLS(n_components=2).fit(x_blocks, y_df)
-        result = model.predict(x_blocks)
+        result = model.diagnose(x_blocks)
         np.testing.assert_array_almost_equal(result.predictions.values, model.predictions_.values, decimal=10)
         np.testing.assert_array_almost_equal(result.super_scores.values, model.super_scores_.values, decimal=10)
 
@@ -1147,7 +1147,7 @@ class TestMBPLSMissingData:
         # Predict-time NaN scoring (TSR / PMP) is a follow-up; verify that a
         # model fitted on NaN data can still score complete held-out rows.
         x_new = {name: df.iloc[:5, :] for name, df in x.items()}
-        result = m.predict(x_new)
+        result = m.diagnose(x_new)
         assert not result.super_scores.isna().any().any()
         assert not result.predictions.isna().any().any()
 
@@ -1251,7 +1251,7 @@ class TestMBPLSOnLDPE:
 
         x_blocks, y_df = ldpe
         model = MBPLS(n_components=3).fit(x_blocks, y_df)
-        result = model.predict(x_blocks)
+        result = model.diagnose(x_blocks)
         for name in model.block_names_:
             assert result.block_spe[name].shape == (54,)
         assert result.hotellings_t2.shape == (54,)
@@ -1981,4 +1981,4 @@ class TestMultiblockSignConvention:
         weights = model.super_weights_.values[:, 0]
         assert weights[np.argmax(np.abs(weights))] < 0  # the case the old convention flipped
         np.testing.assert_allclose(model.transform(x_blocks).values, model.super_scores_.values, atol=1e-10)
-        np.testing.assert_allclose(model.predict(x_blocks).predictions.values, model.predictions_.values, atol=1e-10)
+        np.testing.assert_allclose(model.diagnose(x_blocks).predictions.values, model.predictions_.values, atol=1e-10)

@@ -236,13 +236,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
           Any other value is refused, including ``"scp"``: that is a
           projection-time method (see :meth:`project`), and at fit time it is
           simply what NIPALS already does.
-        - ``md_tol`` and ``md_max_iter``: deprecated since 1.98.0 and removed
-          in 2.0; set ``tol`` and ``max_iter`` instead. Those two bound the
-          NIPALS loop and, for ``"tsr"`` / ``"pmp"``, the imputation as well:
-          the tolerance on the largest change in any imputed cell (in standard
-          deviations) and the cap on imputation rounds. Until removal the old
-          keys still take precedence (for ``"tsr"`` / ``"pmp"``, over the
-          imputation only) and warn.
+        - ``md_tol`` and ``md_max_iter`` were removed in 2.0 and raise a
+          :class:`ValueError`; set ``tol`` and ``max_iter`` instead. Those two
+          bound the NIPALS loop and, for ``"tsr"`` / ``"pmp"``, the imputation
+          as well: the tolerance on the largest change in any imputed cell (in
+          standard deviations) and the cap on imputation rounds.
 
         With ``"tsr"`` / ``"pmp"``, R², SPE and the other diagnostics are still
         computed on the *observed* cells only: an imputed cell is fitted by
@@ -587,7 +585,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             timing_arr[a] = time.time() - start_time
             iterations_arr[a] = itern
             logger.debug(
-                "PLS NIPALS: component %d converged in %d iterations (md_tol=%g)",
+                "PLS NIPALS: component %d converged in %d iterations (tol=%g)",
                 a + 1,
                 itern,
                 settings["md_tol"],
@@ -711,7 +709,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if not imputation.converged:
             warnings.warn(
                 f"PLS {method.upper()}: the imputed cells were still moving by {imputation.shift:.3g} "
-                f"standard deviations after {imputation.rounds} rounds (md_tol={settings['md_tol']:g}). "
+                f"standard deviations after {imputation.rounds} rounds (tol={settings['md_tol']:g}). "
                 "Raise max_iter, or loosen tol if that change is already negligible for your data.",
                 SpecificationWarning,
                 stacklevel=3,
@@ -935,22 +933,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self.has_missing_data_ = True
 
         # One resolution, whether or not the data has gaps, through the resolver every
-        # iterative estimator shares (#588). ``tol`` and ``max_iter`` supply the values and
-        # an explicit ``missing_data_settings`` overrides individual keys on top.
+        # iterative estimator shares (#588). ``tol`` and ``max_iter`` supply the values.
         #
         # Seeding from ``self`` is what makes ``PLS(tol=...)`` reach the NIPALS loop in
-        # both cases: the missing-data branch used to hard-code ``md_tol=epsqrt`` while
-        # taking ``md_max_iter`` from the constructor, so a caller's ``tol`` applied to
-        # complete data and was dropped as soon as a cell went missing. Filling every key
-        # also means a partial dict (say ``{"md_tol": 1e-3}``) can no longer leave
-        # ``md_max_iter`` absent, which used to raise ``KeyError`` from ``_fit_nipals``.
+        # both cases: the missing-data branch used to hard-code its tolerance at epsqrt
+        # while taking the iteration cap from the constructor, so a caller's ``tol``
+        # applied to complete data and was dropped as soon as a cell went missing.
         #
         # ``md_method`` is set before the resolver so a caller's dict can still override
-        # it: it is the one axis ``missing_data_settings`` still owns, and it is not
-        # deprecated. It defaults to NIPALS, the cheapest path: it handles per-cell NaN
-        # directly via skipna sums inside its iterations, with no imputation. The resolved
-        # settings stay local: mutating the constructor parameter would leak into clone()
-        # (#505).
+        # it: it is the one axis ``missing_data_settings`` still owns. It defaults to
+        # NIPALS, the cheapest path: it handles per-cell NaN directly via skipna sums
+        # inside its iterations, with no imputation. The resolved settings stay local:
+        # mutating the constructor parameter would leak into clone() (#505).
         settings: dict[str, typing.Any] = {"md_method": "nipals"}
         settings.update(
             resolve_loop_settings(

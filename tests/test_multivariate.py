@@ -670,7 +670,7 @@ def test_pca_invalid_calls() -> None:
         model.fit(data)
     data.iloc[0, 0] = np.nan
     with pytest.raises(ValueError, match="Tolerance must exceed machine precision"):
-        _ = PCA(n_components=A, algorithm="nipals", missing_data_settings=dict(md_tol=0)).fit(data)
+        _ = PCA(n_components=A, algorithm="nipals", tol=0.0).fit(data)
 
     with pytest.raises(ValueError, match=r"Algorithm .* is not recognized(.*)"):
         _ = PCA(n_components=A, algorithm="SCP").fit(data)
@@ -991,9 +991,9 @@ def test_pca_select_n_components_ekf_handles_missing_cells() -> None:
 def test_pca_select_n_components_ekf_q2_is_negative_on_noise() -> None:
     """Pure noise has nothing to predict, so cumulative Q2 stays below zero.
 
-    This is the property the legacy row-wise scheme violates: it scores a held-out
-    row through its own values, so its "Q2" climbs towards 1 as components approach
-    the variable count even when the data carry no structure at all.
+    This is the property the row-wise scheme removed in 2.0 violated: it scored a
+    held-out row through its own values, so its "Q2" climbed towards 1 as components
+    approached the variable count even when the data carried no structure at all.
     """
     rng = np.random.default_rng(4)
     noise = pd.DataFrame(rng.standard_normal((46, 8)))
@@ -1001,46 +1001,29 @@ def test_pca_select_n_components_ekf_q2_is_negative_on_noise() -> None:
     ekf = PCA.select_n_components(noise, max_components=7, cv=5, random_state=0)
     assert (ekf.q2.to_numpy() < 0).all()
 
-    with pytest.warns(SpecificationWarning, match="row_wise"):
-        legacy = PCA.select_n_components(noise, max_components=7, cv=5, cv_scheme="row_wise", random_state=0)
-    # The pathology, pinned so the contrast cannot quietly disappear: on noise the
-    # legacy scheme reports more than half the variation "predicted" at the widest
-    # model, and rises monotonically to get there.
-    legacy_q2 = legacy.q2.to_numpy()
-    assert legacy_q2[-1] > 0.5
-    assert np.all(np.diff(legacy_q2) > 0)
 
+@pytest.mark.parametrize(
+    ("old_spelling", "replacement"),
+    [
+        ({"n_iter": 5}, "ekf_max_iter"),
+        ({"tol": 1e-4}, "ekf_tol"),
+        ({"threshold": 0.95}, "selection_rule"),
+        ({"algorithm": "nipals"}, None),
+    ],
+)
+def test_pca_select_n_components_refuses_the_removed_keywords(old_spelling: dict, replacement: str | None) -> None:
+    """``n_iter``, ``tol``, ``threshold`` and ``**pca_kwargs`` were removed in 2.0.
 
-def test_pca_select_n_components_row_wise_warns_and_overselects() -> None:
-    """The legacy row-wise scheme is preserved with a SpecificationWarning."""
-    rng = np.random.default_rng(7)
-    N, K, true_rank = 40, 30, 2
-    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0])
-    P = rng.standard_normal((true_rank, K))
-    X = pd.DataFrame(T @ P + 0.4 * rng.standard_normal((N, K)))
-
-    # Both schemes scale inside the folds (row_wise through PCA(scale=True)),
-    # so the raw block goes in.
-    with pytest.warns(SpecificationWarning, match="row_wise"):
-        legacy = PCA.select_n_components(X, max_components=8, cv=5, cv_scheme="row_wise", random_state=0)
-    assert legacy.cv_scheme == "row_wise"
-    # The row-wise scheme over-fits monotonically; argmin sits at (or near) the
-    # maximum even though the true rank is 2.
-    a_star_legacy = int(np.argmin(legacy.press.to_numpy())) + 1
-    assert a_star_legacy >= 6
-    # The ekf scheme on the same data lands much closer to the true rank.
-    ekf = PCA.select_n_components(X, max_components=8, cv=5, random_state=0)
-    a_star_ekf = int(np.argmin(ekf.press.to_numpy())) + 1
-    assert a_star_ekf <= a_star_legacy
-
-
-def test_pca_select_n_components_threshold_deprecated() -> None:
-    """The legacy ``threshold`` kwarg emits a DeprecationWarning and is ignored."""
+    ``**pca_kwargs`` reached ``PCA`` only under ``cv_scheme="row_wise"``, removed in
+    the same release, so it went too: an unknown keyword is now refused, not swallowed.
+    """
     rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.standard_normal((30, 8)) * 3.0 + 10.0)
-    with pytest.warns(DeprecationWarning, match="threshold"):
-        result = PCA.select_n_components(X, max_components=4, cv=3, threshold=0.95, random_state=0)
-    assert 1 <= result.n_components <= 4
+    X = pd.DataFrame(rng.standard_normal((30, 8)))
+    # The removed keyword goes in through a dict, so a static analyser does not flag the call.
+    with pytest.raises(TypeError, match=next(iter(old_spelling))):
+        PCA.select_n_components(X, max_components=4, cv=3, random_state=0, **old_spelling)
+    if replacement is not None:
+        assert replacement in inspect.signature(PCA.select_n_components).parameters
 
 
 def test_pca_select_n_components_rule_dispatch() -> None:
@@ -1491,22 +1474,21 @@ def test_pca_select_n_components_refuses_data_too_small_for_any_component() -> N
         PCA.select_n_components(np.ones((1, 3)))
 
 
-def test_pca_select_n_components_row_wise_refuses_an_all_nan_press() -> None:
-    """The legacy row-wise scheme cannot score gappy data, and says so rather than recommending."""
-    rng = np.random.default_rng(6)
-    gappy = pd.DataFrame(
-        rng.standard_normal((30, 2)) @ rng.standard_normal((2, 5)) + 0.01 * rng.standard_normal((30, 5))
-    )
-    gappy.iloc[0, 0] = np.nan
-    with (
-        pytest.warns(DeprecationWarning, match=r"cv_scheme='row_wise' is deprecated"),
-        pytest.warns(SpecificationWarning, match=r"legacy whole-row CV scheme"),
-        pytest.raises(
-            RuntimeError,
-            match=r"^Cross-validation produced NaN PRESS for every component count; no recommendation can be made\.$",
-        ),
+def test_pca_select_n_components_refuses_an_all_nan_press(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A scheme that scores no component count says so rather than recommending one."""
+    from process_improve.multivariate import _pca
+
+    def scores_nothing(Z: np.ndarray, max_components: int, *, method: str) -> tuple:
+        width = Z.shape[1]
+        return np.full(max_components, np.nan), np.full((max_components, width), np.nan), 1.0, np.ones(width)
+
+    monkeypatch.setattr(_pca, "_leverage_corrected_press", scores_nothing)
+    X = pd.DataFrame(np.random.default_rng(6).standard_normal((30, 5)))
+    with pytest.raises(
+        RuntimeError,
+        match=r"^Cross-validation produced NaN PRESS for every component count; no recommendation can be made\.$",
     ):
-        PCA.select_n_components(gappy, cv_scheme="row_wise", max_components=3)
+        PCA.select_n_components(X, cv_scheme="sacv", max_components=3)
 
 
 def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> None:
@@ -4751,22 +4733,6 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     }
 
 
-def test_tpls_predict_is_deprecated_alias_for_diagnose(fixture_tpls_example: dict) -> None:
-    """#395: TPLS.predict warns and forwards to TPLS.diagnose (same Bunch contents)."""
-    fixture = dict(fixture_tpls_example)  # don't mutate the shared fixture
-    d_matrix = fixture.pop("D")
-    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(fixture))
-    # Use the same data for inference; we only care that the two methods agree.
-    canonical = model.diagnose(DataFrameDict(fixture))
-    with pytest.warns(DeprecationWarning, match=r"TPLS\.predict.*deprecated.*diagnose"):
-        deprecated = model.predict(DataFrameDict(fixture))
-    assert set(deprecated.keys()) == set(canonical.keys())
-    np.testing.assert_allclose(
-        deprecated.t_scores_super.values.astype(float),
-        canonical.t_scores_super.values.astype(float),
-    )
-
-
 def test_tpls_pickle_round_trips(fixture_tpls_example: dict) -> None:
     """ENG-05 (#287): a fitted TPLS model pickles and its hotellings_t2_limit method survives."""
     import pickle
@@ -4981,7 +4947,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     }
 
     # OK, now use these to make predictions
-    predictions = tpls_test.predict(DataFrameDict(new_observation_raw))
+    predictions = tpls_test.diagnose(DataFrameDict(new_observation_raw))
     expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
     assert set(expected_keys) == set(predictions.keys())
 
@@ -5097,7 +5063,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     )
 
     # OK, now use these to make predictions
-    predictions = tpls_test_no_z.predict(new_observation_raw_no_z)
+    predictions = tpls_test_no_z.diagnose(new_observation_raw_no_z)
     expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe"]["Z"] == {}
@@ -5335,7 +5301,7 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
         # Fit and predict
         tpls_model.fit(training_datadict)
         tpls_model.display_results()
-        inference = tpls_model.predict(testing_datadict)
+        inference = tpls_model.diagnose(testing_datadict)
 
         # Calculate score
         if scoring == "r2":
@@ -5408,21 +5374,13 @@ def test_pca_diagnose_numpy_input() -> None:
     assert result.scores.shape == (5, 2)
 
 
-def test_pca_predict_is_deprecated_alias_for_diagnose() -> None:
-    """PCA.predict still works but emits a DeprecationWarning and returns the same Bunch."""
-    rng = np.random.default_rng(42)
-    X = pd.DataFrame(rng.standard_normal((50, 4)), columns=list("ABCD"))
-    X_scaled = MCUVScaler().fit_transform(X)
-    model = PCA(n_components=2).fit(X_scaled)
-
-    with pytest.warns(DeprecationWarning, match=r"PCA\.predict.*deprecated.*diagnose"):
-        deprecated = model.predict(X_scaled.iloc[:5])
-    canonical = model.diagnose(X_scaled.iloc[:5])
-
-    # Identical Bunch contents.
-    np.testing.assert_allclose(deprecated.scores.values, canonical.scores.values)
-    np.testing.assert_allclose(deprecated.hotellings_t2.values, canonical.hotellings_t2.values)
-    np.testing.assert_allclose(deprecated.spe.values, canonical.spe.values)
+@pytest.mark.parametrize("estimator", [PCA, MBPCA, MBPLS, TPLS])
+def test_the_predict_alias_of_diagnose_is_gone(estimator: type) -> None:
+    """The deprecated ``predict`` forwarders to ``diagnose`` were removed in 2.0 (#395, #396)."""
+    assert hasattr(estimator, "diagnose")
+    assert not hasattr(estimator, "predict")
+    # PLS.predict is the sklearn regressor contract, not the alias, and it stays.
+    assert hasattr(PLS, "predict")
 
 
 def test_pca_score_method() -> None:
@@ -6556,17 +6514,13 @@ def test_sacv_degrades_as_the_components_approach_the_variables() -> None:
     assert np.abs(sacv[7] - ekf[7]) > 0.5
 
 
-def test_cell_schemes_find_the_true_rank_where_the_row_wise_one_cannot() -> None:
-    """The point of all of this: an interior optimum exists, and row_wise has none."""
+def test_cell_schemes_find_the_true_rank() -> None:
+    """The point of all of this: an interior optimum exists, and the cell schemes find it."""
     X = _known_rank_block()
     for scheme in ("ekf", "sacv"):
         kwargs = {"n_repeats": 10} if scheme == "ekf" else {}
         result = PCA.select_n_components(X, max_components=11, cv=7, cv_scheme=scheme, random_state=0, **kwargs)
         assert int(np.nanargmax(result.q2.to_numpy())) + 1 == 3, scheme
-
-    with pytest.warns((SpecificationWarning, DeprecationWarning)):
-        legacy = PCA.select_n_components(X, max_components=11, cv=7, cv_scheme="row_wise", random_state=0)
-    assert np.all(np.diff(legacy.q2.to_numpy()) > 0)
 
 
 def test_ek_never_lets_a_cell_reach_the_model_that_predicts_it() -> None:
@@ -6631,12 +6585,12 @@ def test_ek_warns_when_the_folds_cannot_reach_the_requested_components() -> None
     assert result.q2.isna().any()
 
 
-def test_row_wise_is_deprecated_for_removal() -> None:
-    """The announce phase of the deprecation schedule: it still works, and it says so."""
+def test_row_wise_was_removed() -> None:
+    """Deprecated since 1.84 and removed in 2.0: the error lists the schemes that remain."""
     X = _known_rank_block(n=40, k=6)
-    with pytest.warns(DeprecationWarning, match="removed in 2.0"):
-        result = PCA.select_n_components(X, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)
-    assert result.cv_scheme == "row_wise"
+    listed = r"expected one of 'ekf', 'ckf', 'ek', 'sacv' or 'gcv'\. 'row_wise' was removed in 2\.0"
+    with pytest.raises(ValueError, match=listed):
+        PCA.select_n_components(X, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)  # type: ignore[arg-type]
 
 
 def test_sacv_reports_nothing_rather_than_a_perfect_score_at_the_top() -> None:
@@ -6745,7 +6699,7 @@ def test_a_criterion_that_never_turns_over_says_so() -> None:
 class TestPlsMissingDataSettingsResolution:
     """The fit-time resolution of ``missing_data_settings`` (#588).
 
-    Three defects, each verified by a test that fails against the previous code.
+    Each defect is verified by a test that fails against the previous code.
     """
 
     @staticmethod
@@ -6757,17 +6711,6 @@ class TestPlsMissingDataSettingsResolution:
             x = x.copy()
             x.iloc[0, 0] = np.nan
         return x, y
-
-    def test_partial_settings_do_not_raise_key_error(self) -> None:
-        """A dict giving only ``md_tol`` leaves ``md_max_iter`` to the constructor.
-
-        Previously the complete-data branch passed the caller's dict through as the whole
-        settings mapping, so ``_fit_nipals`` hit ``settings["md_max_iter"]`` and raised
-        ``KeyError``.
-        """
-        x, y = self._xy(gapped=False)
-        model = PLS(n_components=2, max_iter=321, missing_data_settings={"md_tol": 1e-3}).fit(x, y)
-        assert model.n_components_ == 2
 
     def test_tol_reaches_the_nipals_loop_when_data_has_gaps(self) -> None:
         """``PLS(tol=...)`` governs convergence whether or not a cell is missing.
@@ -6783,15 +6726,6 @@ class TestPlsMissingDataSettingsResolution:
             tight = PLS(n_components=2, tol=1e-14, max_iter=500).fit(x, y)
             loose = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
         assert loose.fitting_info_["iterations"][0] < tight.fitting_info_["iterations"][0]
-
-    def test_explicit_md_tol_still_wins_over_tol(self) -> None:
-        """The dict overrides the constructor, which is the point of passing one."""
-        x, y = self._xy(gapped=True)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            via_ctor = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
-            overridden = PLS(n_components=2, tol=5e-1, max_iter=500, missing_data_settings={"md_tol": 1e-14}).fit(x, y)
-        assert overridden.fitting_info_["iterations"][0] > via_ctor.fitting_info_["iterations"][0]
 
     @pytest.mark.parametrize("bad", ["scp", "rubbish", "NIPALs "])
     def test_unknown_md_method_is_refused(self, bad: str) -> None:
@@ -6832,7 +6766,7 @@ class TestPlsMissingDataSettingsResolution:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model = PLS(n_components=2).fit(x, y)
-            pinned = PLS(n_components=2, missing_data_settings={"md_tol": epsqrt}).fit(x, y)
+            pinned = PLS(n_components=2, tol=epsqrt).fit(x, y)
         np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
         np.testing.assert_allclose(model.predictions_.to_numpy(), pinned.predictions_.to_numpy(), rtol=0, atol=0)
 
@@ -6860,9 +6794,7 @@ class TestPcaIterationParameters:
         """A model built with no arguments must fit exactly as it did before the parameters existed."""
         x = self._x()
         model = PCA(n_components=3, algorithm="nipals").fit(x)
-        pinned = PCA(
-            n_components=3, algorithm="nipals", missing_data_settings={"md_tol": epsqrt, "md_max_iter": 1000}
-        ).fit(x)
+        pinned = PCA(n_components=3, algorithm="nipals", tol=epsqrt, max_iter=1000).fit(x)
         np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
         np.testing.assert_array_equal(model.scores_.to_numpy(), pinned.scores_.to_numpy())
 
@@ -6884,20 +6816,6 @@ class TestPcaIterationParameters:
         with pytest.warns(SpecificationWarning, match="without converging"):
             model = PCA(n_components=2, algorithm="nipals", max_iter=2).fit(x)
         np.testing.assert_array_equal(model.fitting_info_["iterations"], [2, 2])
-
-    def test_missing_data_settings_still_wins(self) -> None:
-        """The dict keeps overriding the constructor, so existing callers are unaffected."""
-        x = self._x()
-        model = PCA(n_components=3, algorithm="nipals", tol=1e-1, missing_data_settings={"md_tol": epsqrt}).fit(x)
-        pinned = PCA(n_components=3, algorithm="nipals", tol=epsqrt).fit(x)
-        np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
-
-    def test_a_partial_missing_data_settings_is_filled_in(self) -> None:
-        """Half a dict must not leave the other key unset; the constructor supplies it."""
-        x = self._x(gapped=True)
-        with pytest.warns(SpecificationWarning, match=r"maximum number of iterations \(7\)"):
-            model = PCA(n_components=2, algorithm="nipals", max_iter=7, missing_data_settings={"md_tol": 1e-3}).fit(x)
-        assert np.all(model.fitting_info_["iterations"] <= 7)
 
     def test_clone_carries_both_parameters(self) -> None:
         """Sklearn's contract: the constructor parameters survive get_params / clone."""
@@ -6947,12 +6865,11 @@ class TestTplsToleranceParameter:
         with pytest.raises(ValueError, match="tol must be positive"):
             self._fit(copy.deepcopy(fixture_tpls_example), tol=bad)
 
-    def test_the_old_attribute_still_works_and_warns(self, fixture_tpls_example: dict) -> None:
-        """``tolerance_`` is deprecated, not deleted: one cycle of warning before removal."""
-        model = self._fit(copy.deepcopy(fixture_tpls_example), tol=1e-5)
-        with pytest.warns(DeprecationWarning, match=r"TPLS.tolerance_ is deprecated since 1\.96\.0"):
-            value = model.tolerance_
-        assert value == model.tol == 1e-5
+    def test_the_old_attribute_is_gone(self) -> None:
+        """``tolerance_``, deprecated since 1.96.0, was removed in 2.0: ``tol`` is the only name."""
+        model = TPLS(n_components=1, d_matrix={"g": pd.DataFrame({"p": [1.0]})}, tol=1e-5)
+        # Checked by name, not read, so a static analyser sees no use of a removed attribute.
+        assert not hasattr(model, "tolerance_")
 
     def test_a_loose_tolerance_does_not_start_discarding_columns(self) -> None:
         """The separation, stated as a test.
@@ -7023,7 +6940,7 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
         signature = inspect.signature(classes[name].__init__)
         for parameter_name in ("tol", "max_iter"):
             parameter = signature.parameters.get(parameter_name)
-            if parameter is None:  # TPLS has no missing-data path; OPLS's are deprecated
+            if parameter is None:  # OPLS is closed form and has neither
                 continue
             assert parameter.default is not None, f"{name}.{parameter_name} still defaults to None"
             assert isinstance(parameter.default, (int, float)), (
@@ -7053,17 +6970,14 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
             tight = np.sum(np.asarray(fit(tol=1e-10).fitting_info_["iterations"], dtype=float))
         assert loose <= tight, f"{name}: tol=1e-1 took {loose} iterations, tol=1e-10 took {tight}"
 
-    @pytest.mark.parametrize("key", ["md_tol", "md_max_iter"])
+    @pytest.mark.parametrize(("key", "replacement"), [("md_tol", "tol"), ("md_max_iter", "max_iter")])
     @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
-    def test_the_md_keys_warn_but_still_take_effect(self, name: str, key: str) -> None:
-        """Deprecated, not ignored: silently demoting a value a caller set would be worse."""
+    def test_the_removed_md_keys_are_refused(self, name: str, key: str, replacement: str) -> None:
+        """Removed in 2.0, and refused rather than ignored: ignoring a convergence setting changes the fit."""
         value = 1e-1 if key == "md_tol" else 2
-        fit = self._fitters()[name]
-        with pytest.warns(DeprecationWarning, match=rf"missing_data_settings\['{key}'\]"):
-            model = fit(missing_data_settings={key: value})
-        iterations = np.asarray(model.fitting_info_["iterations"], dtype=float)
-        if key == "md_max_iter":
-            assert np.all(iterations <= value), f"{name}: md_max_iter did not cap the loop"
+        message = rf"{name}\(missing_data_settings=\.\.\.\) no longer takes '{key}'.*Pass {replacement}="
+        with pytest.raises(ValueError, match=message):
+            self._fitters()[name](missing_data_settings={key: value})
 
     @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
     def test_a_default_fit_does_not_warn(self, name: str) -> None:
@@ -7073,32 +6987,13 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
             warnings.simplefilter("ignore", SpecificationWarning)
             self._fitters()[name]()
 
-    @pytest.mark.parametrize("name", ["MBPCA", "MBPLS"])
-    def test_the_multiblock_pair_no_longer_discards_the_dict(self, name: str) -> None:
-        """They resolved `missing_data_settings` and threw the result away (#588).
-
-        Measured before the fix: `md_max_iter=3` ran the same 180 and 85 iterations as
-        passing nothing. The dict has to change the fit, or it is decoration.
-        """
-        fit = self._fitters()[name]
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            ignored_before = np.asarray(fit().fitting_info_["iterations"], dtype=float)
-            honoured = np.asarray(
-                fit(missing_data_settings={"md_max_iter": 1}).fitting_info_["iterations"], dtype=float
-            )
-        # A cap of 1 bites for both: MBPLS needs 2 iterations per component on this data
-        # and MBPCA far more, so anything above 1 would leave MBPLS unable to go lower.
-        assert np.all(honoured <= 1)
-        assert np.sum(honoured) < np.sum(ignored_before), f"{name}: the dict still has no effect"
-
 
 class TestEkfLoopKnobsWereRenamed:
     """`select_n_components` took `n_iter` and `tol` for the ekf EM loop (#588).
 
-    `tol` in particular collided once `PCA` itself gained one: a parameter captured in
-    that signature can never reach the `PCA` constructor through `**pca_kwargs`, so the
-    name meant the EM loop here and the per-component loop everywhere else.
+    `tol` in particular collided once `PCA` itself gained one, so the name meant the EM
+    loop here and the per-component loop everywhere else. The old names were removed in
+    2.0; `test_pca_select_n_components_refuses_the_removed_keywords` pins that.
     """
 
     @staticmethod
@@ -7111,23 +7006,6 @@ class TestEkfLoopKnobsWereRenamed:
         with warnings.catch_warnings():
             warnings.simplefilter("error", DeprecationWarning)
             PCA.select_n_components(self._x(), max_components=3, cv=3, ekf_max_iter=5, ekf_tol=1e-4, random_state=0)
-
-    @pytest.mark.parametrize(("old_name", "new_name"), [("n_iter", "ekf_max_iter"), ("tol", "ekf_tol")])
-    def test_each_old_name_warns(self, old_name: str, new_name: str) -> None:
-        """Deprecated for one cycle, naming the replacement."""
-        value = 5 if old_name == "n_iter" else 1e-4
-        with pytest.warns(DeprecationWarning, match=rf"select_n_components\({old_name}=\.\.\.\).*{new_name}"):
-            PCA.select_n_components(self._x(), max_components=3, cv=3, random_state=0, **{old_name: value})
-
-    def test_the_old_names_still_do_what_they_did(self) -> None:
-        """Deprecation must not change the answer while the alias is still accepted."""
-        x = self._x()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            old = PCA.select_n_components(x, max_components=3, cv=3, n_iter=5, tol=1e-4, random_state=0)
-        new = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=5, ekf_tol=1e-4, random_state=0)
-        np.testing.assert_allclose(old.q2.to_numpy(), new.q2.to_numpy())
-        assert old.n_components == new.n_components
 
     def test_the_ekf_cap_actually_bounds_the_em_loop(self) -> None:
         """Otherwise the rename would be cosmetic: the parameter has to reach the loop.
