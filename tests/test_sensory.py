@@ -1487,8 +1487,9 @@ def test_removed_descriptor_fields_are_absent():
 def test_discriminator_keyword_is_removed():
     """2.0.0 removed the discriminator= keyword and the relate["discriminator"] key."""
     agg, cov = _predictive_case()
+    removed = {"discriminator": True}  # through a dict: static analysis rightly flags the bare keyword
     with pytest.raises(TypeError, match="discriminator"):
-        relate_observational(agg, cov, n_components=1, discriminator=True)
+        relate_observational(agg, cov, n_components=1, **removed)
     result = relate_observational(agg, cov, n_components=1, n_permutations=19)
     assert "predictive_descriptors" in result
     assert "discriminator" not in result
