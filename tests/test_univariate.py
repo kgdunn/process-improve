@@ -263,7 +263,7 @@ def test_t_test_differences() -> None:
     # and high/low values of the confidence interval
     assert row["Group A average"][0] == pytest.approx(8.216667, rel=1e-5)
     assert row["Group B average"][0] == pytest.approx(6.040833, rel=1e-5)
-    assert row["z value"][0] == pytest.approx(-2.9906, rel=1e-4)
+    assert row["t value"][0] == pytest.approx(-2.9906, rel=1e-4)
     assert row["p value"][0] == pytest.approx(0.00674, rel=1e-3)
     assert row["ConfInt: Lo"][0] == pytest.approx(-3.6846919, rel=1e-4)
     assert row["ConfInt: Hi"][0] == pytest.approx(-0.6669748, rel=1e-4)
@@ -855,10 +855,10 @@ def test_rosner_esd_no_outliers(outliers_data: tuple[list[float], list[float]]) 
 def test_ttest_independent_correctly_named_fields() -> None:
     """The correctly named fields hold what their names say.
 
-    Regression test: `z value` is a t-statistic (its p value comes from the t
-    distribution) and `Pooled standard deviation` held the standard ERROR of
-    the difference, not the pooled standard deviation. Both are kept as
-    deprecated aliases alongside correctly named entries.
+    Regression test: the statistic is a t-statistic (its p value comes from the t
+    distribution), and the standard ERROR of the difference is a different number
+    from the pooled standard deviation. 2.0.0 removed the misleading aliases
+    `z value` and `Pooled standard deviation`.
     """
     a = pd.Series([102.0, 98, 100, 101, 97])
     b = pd.Series([110.0, 112, 108, 109])
@@ -880,9 +880,8 @@ def test_ttest_independent_correctly_named_fields() -> None:
     assert out["t value"] == pytest.approx(stats.ttest_ind(b, a).statistic, rel=1e-10)
     assert out["Pooled std dev"] != pytest.approx(out["Std error of difference"], rel=1e-3)
 
-    # Deprecated aliases still resolve to the same values, for one more cycle.
-    assert out["z value"] == out["t value"]
-    assert out["Pooled standard deviation"] == out["Std error of difference"]
+    # The aliases removed in 2.0.0 are gone, so reading them raises KeyError.
+    assert {"z value", "Pooled standard deviation"}.isdisjoint(out)
 
 
 @pytest.mark.parametrize("equal_var", [True, False])
@@ -922,9 +921,7 @@ def test_ttest_independent_welch_reports_no_pooled_standard_deviation() -> None:
 
     assert np.isfinite(student["Pooled std dev"])
     assert np.isnan(welch["Pooled std dev"])
-    # "Pooled standard deviation" is the deprecated alias for the standard ERROR of the
-    # difference, which Welch does form, so that one stays finite in both modes.
-    assert welch["Pooled standard deviation"] == welch["Std error of difference"]
+    # Welch does form a standard ERROR of the difference, so that one stays finite.
     assert np.isfinite(welch["Std error of difference"])
 
 

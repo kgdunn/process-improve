@@ -244,14 +244,10 @@ def ttest_independent(
         ``"Equal variance assumed"`` records which test was run;
         ``"Pooled std dev"`` is ``NaN`` under Welch, where no pooled estimate exists.
 
-        .. deprecated:: 1.70.0
-            ``"z value"`` and ``"Pooled standard deviation"`` are misleading
-            names kept as aliases, and will be removed in 2.0. The statistic
-            is a t-statistic, not a z-statistic, and ``"Pooled standard
-            deviation"`` holds the standard *error* of the difference in
-            means, ``sqrt(svar * (1/nA + 1/nB))``, not the pooled standard
-            deviation ``sqrt(svar)``. Use ``"t value"`` and ``"Std error of
-            difference"`` instead.
+        .. versionchanged:: 2.0.0
+            The aliases ``"z value"`` and ``"Pooled standard deviation"``,
+            deprecated since 1.70.0, are removed. Use ``"t value"`` and
+            ``"Std error of difference"``.
 
     Notes
     -----
@@ -306,19 +302,12 @@ def ttest_independent(
         "Group B number": int(n_B),
         "Group A average": sample_A.mean(),
         "Group B average": sample_B.mean(),
-        "z value": z_variate,
+        "t value": z_variate,
         "ConfInt: Lo": confint_lo,
         "ConfInt: Hi": confint_hi,
         "p value": 2 * t_value_cdf(-np.abs(z_variate), df),
         "Degrees of freedom": df,
         "Equal variance assumed": bool(equal_var),
-        "Pooled standard deviation": sd_z_variate,
-        # Correctly named entries for the two mislabelled ones above, which are
-        # kept as deprecated aliases. "z value" is a t-statistic: its p value is
-        # computed from the t distribution on `df` degrees of freedom. "Pooled
-        # standard deviation" is the standard ERROR of the difference in means,
-        # sqrt(svar * (1/nA + 1/nB)); the pooled standard deviation is sqrt(svar).
-        "t value": z_variate,
         "Std error of difference": sd_z_variate,
         "Pooled std dev": pooled_std_dev,
     }
@@ -390,8 +379,8 @@ def ttest_independent_from_df(  # noqa: PLR0913 - six is the honest width: two c
         2. Group "B" name
         3. Group "A" mean
         4. Group "B" mean
-        5. z-value for the difference between group "B" minus group "A"
-        6. p-value for this z-value
+        5. t value for the difference between group "B" minus group "A"
+        6. p-value for this t value
         7. Confidence interval low value for difference between group "B" minus group "A"
         8. Confidence interval high value for difference between group "B" minus group "A"
 

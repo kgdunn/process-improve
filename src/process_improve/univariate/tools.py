@@ -509,8 +509,6 @@ class TtestTwoSamplesInput(BaseModel):
         "Returns `t_value` (the t statistic), `p_value`, `std_error_of_difference`, "
         "`pooled_std_dev`, the confidence interval for the difference "
         "(group_b_mean - group_a_mean), and degrees of freedom. "
-        "`z_value` and `pooled_std` are deprecated aliases of `t_value` and "
-        "`std_error_of_difference`; prefer the new names. "
         "Set `equal_var=False` for Welch's unequal-variance test; `pooled_std_dev` is then "
         "null, because Welch forms no pooled estimate. "
         "The groups must be independent (different subjects/items). "
@@ -541,21 +539,14 @@ def ttest_two_samples(spec: TtestTwoSamplesInput) -> dict:
         "group_b_n": raw["Group B number"],
         "group_a_mean": raw["Group A average"],
         "group_b_mean": raw["Group B average"],
-        # `t_value` and `std_error_of_difference` are the correctly named
-        # fields. `z_value` and `pooled_std` are kept as deprecated aliases:
-        # the statistic is a t-statistic, not a z, and `pooled_std` held the
-        # standard ERROR of the difference rather than the pooled standard
-        # deviation. Both aliases are scheduled for removal in 2.0.
         "t_value": raw["t value"],
         "std_error_of_difference": raw["Std error of difference"],
         "pooled_std_dev": raw["Pooled std dev"],
-        "z_value": raw["z value"],
         "conf_int_lower": raw["ConfInt: Lo"],
         "conf_int_upper": raw["ConfInt: Hi"],
         "p_value": raw["p value"],
         "degrees_of_freedom": raw["Degrees of freedom"],
         "equal_var": raw["Equal variance assumed"],
-        "pooled_std": raw["Pooled standard deviation"],
         "confidence_level": spec.confidence_level,
     }
     significant = bool(result["p_value"] < (1 - spec.confidence_level))
