@@ -1528,3 +1528,71 @@ class TestCodedHandoff:
         assert fit["factor_coding"]["S"] == {"low": "Dry", "high": "Wet"}
         best = optimize_responses([fit], [{"goal": "maximize", "low": 10, "high": 23}])["desirability"]
         assert best["optimal_actual"] == pytest.approx({"T": 200.0, "S": 1.0})
+
+
+class TestCanonicalForms:
+    """The A and B canonical forms re-express the fitted quadratic exactly; the B form keeps the ridge's slope."""
+
+    @staticmethod
+    def _bhh() -> list[dict]:
+        """Box, Hunter and Hunter's equation 15.19: a ridge with eigenvalues -5.12 and -0.15."""
+        return [
+            {"term": "Intercept", "coefficient": 87.36},
+            {"term": "A", "coefficient": -1.39},
+            {"term": "B", "coefficient": 0.37},
+            {"term": "I(A ** 2)", "coefficient": -2.15},
+            {"term": "I(B ** 2)", "coefficient": -3.12},
+            {"term": "A:B", "coefficient": -4.88},
+        ]
+
+    @staticmethod
+    def _predict(coefficients: list[dict], x: np.ndarray) -> float:
+        c = {entry["term"]: entry["coefficient"] for entry in coefficients}
+        a, b = x
+        linear = c["Intercept"] + c["A"] * a + c["B"] * b
+        return linear + c["I(A ** 2)"] * a**2 + c["I(B ** 2)"] * b**2 + c.get("A:B", 0.0) * a * b
+
+    @pytest.mark.parametrize("coefficients", [_quadratic_2f_coeffs(), _saddle_2f_coeffs(), _bhh()])
+    def test_b_canonical_form_reproduces_the_model(self, coefficients: list[dict]) -> None:
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        form, vectors = result["b_canonical"], np.array(result["eigenvectors"])
+        origin = np.array(list(form["origin"].values()))
+        for x in np.random.default_rng(1).uniform(-2, 2, size=(5, 2)):
+            axes = vectors @ (x - origin)
+            ridge = form["ridge_axis"]
+            value = form["origin_response"] + form["linear"] * axes[ridge] + np.sum(result["eigenvalues"] * axes**2)
+            assert value == pytest.approx(self._predict(coefficients, x))
+        assert np.allclose(vectors @ origin, -np.array(form["offsets"]))
+
+    def test_b_canonical_form_of_a_ridge(self) -> None:
+        """BHH's ridge: the origin nearest the centre, 87.38, and a slope of 1.31 along the ridge."""
+        form = _canonical_analysis(self._bhh(), FACTOR_NAMES_2F)["b_canonical"]
+        assert form["origin_response"] == pytest.approx(87.377, abs=5e-4)
+        assert abs(form["linear"]) == pytest.approx(1.309, abs=5e-4)
+        assert abs(form["offsets"][0]) == pytest.approx(0.058, abs=5e-4)
+
+    def test_a_maximum_has_no_slope_along_its_smallest_axis_after_centring(self) -> None:
+        """Where a stationary point exists, the canonical axes are centred on it: y = y_s + sum lambda W^2."""
+        coefficients = _quadratic_2f_coeffs()
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        point = optimize_responses(
+            [{"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": coefficients}],
+            method="stationary_point",
+        )["stationary_point"]
+        x = np.array([0.3, -0.7])
+        w = [axis["constant"] + np.dot(list(axis["coefficients"].values()), x) for axis in result["canonical_axes"]]
+        value = point["predicted_response"] + np.sum(np.array(result["eigenvalues"]) * np.square(w))
+        assert value == pytest.approx(self._predict(coefficients, x))
+
+    def test_a_rising_ridge_has_no_canonical_axes(self) -> None:
+        coefficients = [
+            {"term": "Intercept", "coefficient": 10.0},
+            {"term": "A", "coefficient": 2.0},
+            {"term": "B", "coefficient": 1.0},
+            {"term": "I(A ** 2)", "coefficient": -1.0},
+            {"term": "I(B ** 2)", "coefficient": 0.0},
+            {"term": "A:B", "coefficient": 0.0},
+        ]
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        assert "canonical_axes" not in result
+        assert result["b_canonical"]["linear"] == pytest.approx(1.0)  # the ridge keeps rising, at slope 1
