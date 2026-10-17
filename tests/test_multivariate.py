@@ -991,9 +991,9 @@ def test_pca_select_n_components_ekf_handles_missing_cells() -> None:
 def test_pca_select_n_components_ekf_q2_is_negative_on_noise() -> None:
     """Pure noise has nothing to predict, so cumulative Q2 stays below zero.
 
-    This is the property the legacy row-wise scheme violates: it scores a held-out
-    row through its own values, so its "Q2" climbs towards 1 as components approach
-    the variable count even when the data carry no structure at all.
+    This is the property the row-wise scheme removed in 2.0 violated: it scored a
+    held-out row through its own values, so its "Q2" climbed towards 1 as components
+    approached the variable count even when the data carried no structure at all.
     """
     rng = np.random.default_rng(4)
     noise = pd.DataFrame(rng.standard_normal((46, 8)))
@@ -1001,46 +1001,29 @@ def test_pca_select_n_components_ekf_q2_is_negative_on_noise() -> None:
     ekf = PCA.select_n_components(noise, max_components=7, cv=5, random_state=0)
     assert (ekf.q2.to_numpy() < 0).all()
 
-    with pytest.warns(SpecificationWarning, match="row_wise"):
-        legacy = PCA.select_n_components(noise, max_components=7, cv=5, cv_scheme="row_wise", random_state=0)
-    # The pathology, pinned so the contrast cannot quietly disappear: on noise the
-    # legacy scheme reports more than half the variation "predicted" at the widest
-    # model, and rises monotonically to get there.
-    legacy_q2 = legacy.q2.to_numpy()
-    assert legacy_q2[-1] > 0.5
-    assert np.all(np.diff(legacy_q2) > 0)
 
+@pytest.mark.parametrize(
+    ("old_spelling", "replacement"),
+    [
+        ({"n_iter": 5}, "ekf_max_iter"),
+        ({"tol": 1e-4}, "ekf_tol"),
+        ({"threshold": 0.95}, "selection_rule"),
+        ({"algorithm": "nipals"}, None),
+    ],
+)
+def test_pca_select_n_components_refuses_the_removed_keywords(old_spelling: dict, replacement: str | None) -> None:
+    """``n_iter``, ``tol``, ``threshold`` and ``**pca_kwargs`` were removed in 2.0.
 
-def test_pca_select_n_components_row_wise_warns_and_overselects() -> None:
-    """The legacy row-wise scheme is preserved with a SpecificationWarning."""
-    rng = np.random.default_rng(7)
-    N, K, true_rank = 40, 30, 2
-    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0])
-    P = rng.standard_normal((true_rank, K))
-    X = pd.DataFrame(T @ P + 0.4 * rng.standard_normal((N, K)))
-
-    # Both schemes scale inside the folds (row_wise through PCA(scale=True)),
-    # so the raw block goes in.
-    with pytest.warns(SpecificationWarning, match="row_wise"):
-        legacy = PCA.select_n_components(X, max_components=8, cv=5, cv_scheme="row_wise", random_state=0)
-    assert legacy.cv_scheme == "row_wise"
-    # The row-wise scheme over-fits monotonically; argmin sits at (or near) the
-    # maximum even though the true rank is 2.
-    a_star_legacy = int(np.argmin(legacy.press.to_numpy())) + 1
-    assert a_star_legacy >= 6
-    # The ekf scheme on the same data lands much closer to the true rank.
-    ekf = PCA.select_n_components(X, max_components=8, cv=5, random_state=0)
-    a_star_ekf = int(np.argmin(ekf.press.to_numpy())) + 1
-    assert a_star_ekf <= a_star_legacy
-
-
-def test_pca_select_n_components_threshold_deprecated() -> None:
-    """The legacy ``threshold`` kwarg emits a DeprecationWarning and is ignored."""
+    ``**pca_kwargs`` reached ``PCA`` only under ``cv_scheme="row_wise"``, removed in
+    the same release, so it went too: an unknown keyword is now refused, not swallowed.
+    """
     rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.standard_normal((30, 8)) * 3.0 + 10.0)
-    with pytest.warns(DeprecationWarning, match="threshold"):
-        result = PCA.select_n_components(X, max_components=4, cv=3, threshold=0.95, random_state=0)
-    assert 1 <= result.n_components <= 4
+    X = pd.DataFrame(rng.standard_normal((30, 8)))
+    # The removed keyword goes in through a dict, so a static analyser does not flag the call.
+    with pytest.raises(TypeError, match=next(iter(old_spelling))):
+        PCA.select_n_components(X, max_components=4, cv=3, random_state=0, **old_spelling)
+    if replacement is not None:
+        assert replacement in inspect.signature(PCA.select_n_components).parameters
 
 
 def test_pca_select_n_components_rule_dispatch() -> None:
@@ -1491,22 +1474,21 @@ def test_pca_select_n_components_refuses_data_too_small_for_any_component() -> N
         PCA.select_n_components(np.ones((1, 3)))
 
 
-def test_pca_select_n_components_row_wise_refuses_an_all_nan_press() -> None:
-    """The legacy row-wise scheme cannot score gappy data, and says so rather than recommending."""
-    rng = np.random.default_rng(6)
-    gappy = pd.DataFrame(
-        rng.standard_normal((30, 2)) @ rng.standard_normal((2, 5)) + 0.01 * rng.standard_normal((30, 5))
-    )
-    gappy.iloc[0, 0] = np.nan
-    with (
-        pytest.warns(DeprecationWarning, match=r"cv_scheme='row_wise' is deprecated"),
-        pytest.warns(SpecificationWarning, match=r"legacy whole-row CV scheme"),
-        pytest.raises(
-            RuntimeError,
-            match=r"^Cross-validation produced NaN PRESS for every component count; no recommendation can be made\.$",
-        ),
+def test_pca_select_n_components_refuses_an_all_nan_press(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A scheme that scores no component count says so rather than recommending one."""
+    from process_improve.multivariate import _pca
+
+    def scores_nothing(Z: np.ndarray, max_components: int, *, method: str) -> tuple:
+        width = Z.shape[1]
+        return np.full(max_components, np.nan), np.full((max_components, width), np.nan), 1.0, np.ones(width)
+
+    monkeypatch.setattr(_pca, "_leverage_corrected_press", scores_nothing)
+    X = pd.DataFrame(np.random.default_rng(6).standard_normal((30, 5)))
+    with pytest.raises(
+        RuntimeError,
+        match=r"^Cross-validation produced NaN PRESS for every component count; no recommendation can be made\.$",
     ):
-        PCA.select_n_components(gappy, cv_scheme="row_wise", max_components=3)
+        PCA.select_n_components(X, cv_scheme="sacv", max_components=3)
 
 
 def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> None:
@@ -6532,17 +6514,13 @@ def test_sacv_degrades_as_the_components_approach_the_variables() -> None:
     assert np.abs(sacv[7] - ekf[7]) > 0.5
 
 
-def test_cell_schemes_find_the_true_rank_where_the_row_wise_one_cannot() -> None:
-    """The point of all of this: an interior optimum exists, and row_wise has none."""
+def test_cell_schemes_find_the_true_rank() -> None:
+    """The point of all of this: an interior optimum exists, and the cell schemes find it."""
     X = _known_rank_block()
     for scheme in ("ekf", "sacv"):
         kwargs = {"n_repeats": 10} if scheme == "ekf" else {}
         result = PCA.select_n_components(X, max_components=11, cv=7, cv_scheme=scheme, random_state=0, **kwargs)
         assert int(np.nanargmax(result.q2.to_numpy())) + 1 == 3, scheme
-
-    with pytest.warns((SpecificationWarning, DeprecationWarning)):
-        legacy = PCA.select_n_components(X, max_components=11, cv=7, cv_scheme="row_wise", random_state=0)
-    assert np.all(np.diff(legacy.q2.to_numpy()) > 0)
 
 
 def test_ek_never_lets_a_cell_reach_the_model_that_predicts_it() -> None:
@@ -6607,12 +6585,12 @@ def test_ek_warns_when_the_folds_cannot_reach_the_requested_components() -> None
     assert result.q2.isna().any()
 
 
-def test_row_wise_is_deprecated_for_removal() -> None:
-    """The announce phase of the deprecation schedule: it still works, and it says so."""
+def test_row_wise_was_removed() -> None:
+    """Deprecated since 1.84 and removed in 2.0: the error lists the schemes that remain."""
     X = _known_rank_block(n=40, k=6)
-    with pytest.warns(DeprecationWarning, match="removed in 2.0"):
-        result = PCA.select_n_components(X, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)
-    assert result.cv_scheme == "row_wise"
+    listed = r"expected one of 'ekf', 'ckf', 'ek', 'sacv' or 'gcv'\. 'row_wise' was removed in 2\.0"
+    with pytest.raises(ValueError, match=listed):
+        PCA.select_n_components(X, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)  # type: ignore[arg-type]
 
 
 def test_sacv_reports_nothing_rather_than_a_perfect_score_at_the_top() -> None:
@@ -7013,9 +6991,9 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
 class TestEkfLoopKnobsWereRenamed:
     """`select_n_components` took `n_iter` and `tol` for the ekf EM loop (#588).
 
-    `tol` in particular collided once `PCA` itself gained one: a parameter captured in
-    that signature can never reach the `PCA` constructor through `**pca_kwargs`, so the
-    name meant the EM loop here and the per-component loop everywhere else.
+    `tol` in particular collided once `PCA` itself gained one, so the name meant the EM
+    loop here and the per-component loop everywhere else. The old names were removed in
+    2.0; `test_pca_select_n_components_refuses_the_removed_keywords` pins that.
     """
 
     @staticmethod
@@ -7028,23 +7006,6 @@ class TestEkfLoopKnobsWereRenamed:
         with warnings.catch_warnings():
             warnings.simplefilter("error", DeprecationWarning)
             PCA.select_n_components(self._x(), max_components=3, cv=3, ekf_max_iter=5, ekf_tol=1e-4, random_state=0)
-
-    @pytest.mark.parametrize(("old_name", "new_name"), [("n_iter", "ekf_max_iter"), ("tol", "ekf_tol")])
-    def test_each_old_name_warns(self, old_name: str, new_name: str) -> None:
-        """Deprecated for one cycle, naming the replacement."""
-        value = 5 if old_name == "n_iter" else 1e-4
-        with pytest.warns(DeprecationWarning, match=rf"select_n_components\({old_name}=\.\.\.\).*{new_name}"):
-            PCA.select_n_components(self._x(), max_components=3, cv=3, random_state=0, **{old_name: value})
-
-    def test_the_old_names_still_do_what_they_did(self) -> None:
-        """Deprecation must not change the answer while the alias is still accepted."""
-        x = self._x()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            old = PCA.select_n_components(x, max_components=3, cv=3, n_iter=5, tol=1e-4, random_state=0)
-        new = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=5, ekf_tol=1e-4, random_state=0)
-        np.testing.assert_allclose(old.q2.to_numpy(), new.q2.to_numpy())
-        assert old.n_components == new.n_components
 
     def test_the_ekf_cap_actually_bounds_the_em_loop(self) -> None:
         """Otherwise the rename would be cosmetic: the parameter has to reach the loop.
