@@ -19,6 +19,7 @@ import pytest
 
 from process_improve.experiments import Factor, generate_design
 from process_improve.experiments.designs_screening import _MIN_ABERRATION, _TABLE_LETTERS
+from process_improve.experiments.evaluate import evaluate_design
 
 NAMES = "ABCDEFGHJKLMN"
 
@@ -273,6 +274,27 @@ class TestBeyondTheTable:
         assert result.n_runs == n_runs
         assert result.resolution >= resolution
         assert _measured_resolution(_coded(result)) == result.resolution
+
+    @pytest.mark.parametrize(("k", "three_letter_words"), [(12, 16), (13, 22), (14, 28), (15, 35)])
+    def test_sixteen_runs_have_minimum_aberration(self, k: int, three_letter_words: int) -> None:
+        """Twelve to fifteen factors in 16 runs: the fewest three-letter words any 16-run fraction has.
+
+        Every generator set is scored at this size. The search used to stop at the first resolution
+        III fraction, which for twelve factors left out three columns that do not form a word and kept
+        17 three-letter words; Montgomery's Table X leaves out BC, BD and CD, which do, and keeps 16.
+        """
+        factors = [Factor(name=name, low=-1, high=1) for name in "ABCDEFGHJKLMNOP"[:k]]
+        result = generate_design(factors, design_type="fractional_factorial", resolution=3, n_center_points=0)
+        relation = evaluate_design(result, metric="defining_relation")["defining_relation"]  # 2^11 words at 15
+        lengths = Counter(len(word.split("=")[1].lstrip("-")) for word in relation)
+        assert (result.n_runs, lengths[3]) == (16, three_letter_words)
+
+    def test_the_highest_resolution_at_the_fewest_runs(self) -> None:
+        """Sixteen factors need 32 runs; at that size resolution IV is reached, though III was asked for."""
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(16)]
+        result = generate_design(factors, design_type="fractional_factorial", resolution=3, n_center_points=0)
+        assert (result.n_runs, result.resolution) == (32, 4)
+        assert _measured_resolution(_coded(result)) == 4
 
     def test_too_many_base_factors_raises(self) -> None:
         """Sixty factors at resolution 40 need the half fraction, with more base factors than pyDOE3 names."""

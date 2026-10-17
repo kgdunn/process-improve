@@ -88,6 +88,7 @@ from process_improve.experiments.projections import evaluate_projections
 from process_improve.experiments.random_effects import expected_mean_squares
 from process_improve.experiments.random_effects import fixed_columns as _fixed_columns
 from process_improve.experiments.run_order import run_order_trends
+from process_improve.experiments.trade_off import minimum_aberration_generators
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 from process_improve.sensory.designed import tukey_hsd
@@ -1223,17 +1224,23 @@ def _multiply(*words: str) -> str:
 
 
 def _fraction(check: dict, k: int) -> Any:  # noqa: ANN401 - the library's DesignResult
-    """Return the library's fraction for a check: in k factors, by its resolution or by the source's generators.
+    """Return the library's fraction for a check: in k factors, by resolution, run count or the source's generators.
 
-    Its factors are lettered A, B, C, ..., or named as ``check["factors"]`` names them.
+    Its factors are lettered A, B, C, ..., or named as ``check["factors"]`` names them. With
+    ``check["n_runs"]`` it is the library's minimum-aberration fraction of that many runs.
     """
     names = check.get("factors") or list(_LETTERS[:k])  # the source's own letters, when it names its factors
     factors = [Factor(name=name, low=-1, high=1) for name in names]
+    generators = check.get("generators")
+    if generators is None and check.get("n_runs"):
+        named = dict(zip(_LETTERS, names, strict=False))
+        chosen = minimum_aberration_generators(int(check["n_runs"]), len(names))
+        generators = [named[g[0]] + "=" + "".join(named[c] for c in g[2:]) for g in chosen]
     return generate_design(
         factors,
         design_type="fractional_factorial",
         resolution=check.get("resolution"),
-        generators=check.get("generators"),
+        generators=generators,
         n_center_points=0,
     )
 
@@ -1246,8 +1253,8 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
     term, and need not be all of them. ``"word_lengths"`` compares the lengths of the relation's
     words, the word length pattern printed as {4, 5, 5}; ``"clear"`` holds when the term is aliased
     with no main effect or two-factor interaction; ``"minimum_aberration"`` compares the fraction
-    with the one the library chooses for its resolution: they agree when both have as many runs and
-    the same word lengths. With ``"up_to": n``, the aliases printed must be all of the term's aliases
+    with the minimum-aberration fraction the library chooses of as many runs: they agree when both
+    have the same word lengths. With ``"up_to": n``, the aliases printed must be all of the term's aliases
     of n factors or fewer, so a chain printed empty says the term has none. ``"block_effects"``
     holds when the effects printed are those confounded with the blocks that ``check["of"]``
     makes: each of the chosen effects and every product of them, any of which may be printed as
@@ -1282,8 +1289,8 @@ def _relation_check(made: Any, check: dict, printed: str, k: int) -> tuple[str, 
     lengths = sorted(len(w.lstrip("-")) for w in words)
     if kind == "word_lengths":  # the word length pattern, printed as the lengths of the words: {4, 5, 5}
         return ", ".join(map(str, lengths)), sorted(int(n) for n in re.findall(r"\d+", printed)) == lengths
-    if kind == "minimum_aberration":  # the fraction the library chooses for this resolution, of as many runs
-        chosen = _fraction({"resolution": made.resolution, "factors": check.get("factors")}, k)
+    if kind == "minimum_aberration":  # the fraction the library chooses of as many runs
+        chosen = _fraction({"n_runs": len(made.design), "factors": check.get("factors")}, k)
         chosen_lengths = sorted(len(w.lstrip("-")) for w in _relation_words(chosen))
         same = len(chosen.design) == len(made.design) and chosen_lengths == lengths
         return ", ".join(chosen.generators or []), same

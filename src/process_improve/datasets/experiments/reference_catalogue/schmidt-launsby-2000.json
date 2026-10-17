@@ -117259,8 +117259,19 @@
       "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 3 with no interactions ... CCD** 13(3)*"
      },
      "check": {
-      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
-     }
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "cube": "fractional",
+        "n_center_points": 3
+       }
+      },
+      "printed": "13"
+     },
+     "analysis": "the library's central composite design on a half-fraction 2^(3-1)_III cube with 3 centre runs: n_F + n_c + 2k"
     },
     {
      "what": "model terms",
@@ -117357,8 +117368,22 @@
       "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 4 with 3 2-way linear interactions ... CCD** 20(4)*"
      },
      "check": {
-      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
-     }
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "cube": "fractional",
+        "n_center_points": 4,
+        "generators": [
+         "D=ABC"
+        ]
+       }
+      },
+      "printed": "20"
+     },
+     "analysis": "the library's central composite design on a 2^(4-1)_IV cube with 4 centre runs: n_F + n_c + 2k; it aliases two-factor interactions in pairs, so the model holds one of each pair"
     },
     {
      "what": "model terms",
@@ -117455,8 +117480,23 @@
       "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 5 with 1 2-way linear interaction ... CCD** 20(2)*"
      },
      "check": {
-      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
-     }
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "n_center_points": 2,
+        "generators": [
+         "D=AB",
+         "E=AC"
+        ]
+       }
+      },
+      "printed": "20"
+     },
+     "analysis": "the library's central composite design on a 2^(5-2)_III cube with 2 centre runs: n_F + n_c + 2k; it aliases two-factor interactions in pairs, so the model holds one of each pair"
     },
     {
      "what": "model terms",
@@ -117666,8 +117706,24 @@
       "quote": "Table 3.24 Comparison of Design Types for Quantitative Factor Scenarios ... k = 7 with 7 2-way linear interactions ... CCD** 33(3)*"
      },
      "check": {
-      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
-     }
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 7,
+       "options": {
+        "cube": "fractional",
+        "n_center_points": 3,
+        "generators": [
+         "E=ABC",
+         "F=BCD",
+         "G=ACD"
+        ]
+       }
+      },
+      "printed": "33"
+     },
+     "analysis": "the library's central composite design on a 2^(7-3)_IV cube with 3 centre runs: n_F + n_c + 2k; it aliases two-factor interactions in pairs, so the model holds one of each pair"
     },
     {
      "what": "model terms",
@@ -120716,8 +120772,18 @@
       "quote": "n(total) = 20 runs, or"
      },
      "check": {
-      "manual": "a composite design on a resolution III or IV cube (the counts are n_F + n_c + 2k), which the library refuses: it builds a composite design's cube at resolution V or more"
-     }
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "n_center_points": 6,
+        "alpha": "rotatable"
+       }
+      }
+     },
+     "analysis": "the library's rotatable CCD in three factors with six centre runs: its full 2^3 cube, n_F = 8 as the axial distance 8^(1/4) shows, plus 6 axial runs"
     },
     {
      "what": "n_runs",
