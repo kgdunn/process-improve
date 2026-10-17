@@ -50,13 +50,13 @@
     <ul>
       <li><strong>The page</strong> (<code>index.html</code> and its JavaScript modules) draws the form, the run sheet,
         the tables and the charts, and holds the study you are working on.</li>
-      <li><strong>A Web Worker runs Python.</strong> <a href="https://pyodide.org">Pyodide</a> is CPython compiled to
+      <li><strong>A Web Worker runs Python.</strong> <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a> is CPython compiled to
         WebAssembly; in a worker, a long computation leaves the page free to scroll and type in. The page sends it
         each request as JSON, and <code>web/bootstrap.py</code> answers with the same process-improve functions you
         would call in Python: <code>generate_design</code>, <code>compare_designs</code>, <code>TrueProcess</code>
         and <code>analyze_experiment</code>.</li>
       <li><strong>The charts</strong> are process-improve's own Plotly figures, drawn in the page with
-        <a href="https://plotly.com/javascript/">Plotly.js</a>.</li>
+        <a href="https://plotly.com/javascript/" target="_blank" rel="noopener">Plotly.js</a>.</li>
       <li><strong>Your studies</strong> are saved in this browser's IndexedDB as you work, the 30 most recent, and a
         brief not yet made into a run sheet is kept in its local storage. Clearing this site's data in the browser
         deletes them.</li>
@@ -99,18 +99,18 @@
   <section aria-labelledby="h-code">
     <h2 id="h-code">Read the code</h2>
     <p>All of it is open source, under the MIT license, at
-      <a href="https://github.com/kgdunn/process-improve">github.com/kgdunn/process-improve</a><span id="stack-commit"></span>.
+      <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">github.com/kgdunn/process-improve</a><span id="stack-commit"></span>.
       To check what it does with your data, these are the places to read:</p>
     <ul>
-      <li><a href="https://github.com/kgdunn/process-improve/tree/main/web"><code>web/</code></a>: the page, and
+      <li><a href="https://github.com/kgdunn/process-improve/tree/main/web" target="_blank" rel="noopener"><code>web/</code></a>: the page, and
         <code>worker.js</code>, which starts Python;</li>
-      <li><a href="https://github.com/kgdunn/process-improve/blob/main/web/bootstrap.py"><code>web/bootstrap.py</code></a>:
+      <li><a href="https://github.com/kgdunn/process-improve/blob/main/web/bootstrap.py" target="_blank" rel="noopener"><code>web/bootstrap.py</code></a>:
         every call the page makes into Python;</li>
-      <li><a href="https://github.com/kgdunn/process-improve/blob/main/scripts/build_web_app.py"><code>scripts/build_web_app.py</code></a>:
+      <li><a href="https://github.com/kgdunn/process-improve/blob/main/scripts/build_web_app.py" target="_blank" rel="noopener"><code>scripts/build_web_app.py</code></a>:
         how this site is built from the repository;</li>
-      <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial"><code>deploy/factorial/</code></a>:
+      <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>:
         the server at factori.al, its configuration and what it logs;</li>
-      <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web"><code>tests/web/</code></a>: the
+      <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web" target="_blank" rel="noopener"><code>tests/web/</code></a>: the
         tests that check the page, in a real browser and under Pyodide, on every change.</li>
     </ul>
   </section>
@@ -118,7 +118,7 @@
   <section aria-labelledby="h-yours">
     <h2 id="h-yours">Run it yourself</h2>
     <p>Factorial is a folder of plain files, so it runs on any web server. To build that folder from the code and
-      serve it on your own machine (with <a href="https://docs.astral.sh/uv/">uv</a> installed):</p>
+      serve it on your own machine (with <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener">uv</a> installed):</p>
     <pre><code>git clone https://github.com/kgdunn/process-improve
 cd process-improve
 uv sync --all-extras
@@ -126,7 +126,7 @@ uv run python scripts/build_web_app.py --out site --serve</code></pre>
     <p>then open <code>http://localhost:8000</code>. The <code>site</code> folder can be copied to any web server:
       nginx, Apache, Caddy, an internal server or GitHub Pages. It has to be served over HTTP, as Python's files are
       fetched by the worker, so opening <code>index.html</code> from a disk does not work.
-      <a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial"><code>deploy/factorial/</code></a>
+      <a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>
       holds the setup that serves factori.al, with deploys and roll-backs, as a worked example.</p>
     <p>On a network without access to the internet, the browser has to fetch Pyodide, the two PyPI packages and
       Plotly.js from inside it as well: copy them to a server there, and change their addresses in

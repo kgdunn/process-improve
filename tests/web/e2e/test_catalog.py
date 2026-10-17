@@ -2,14 +2,17 @@
 
 The catalog served here is the build's, for the few designs of ``CATALOG_SAMPLE``: a published
 experiment the page regenerates, with its results; a comparison; a generated design the page makes;
-and one it does not.
+and one it does not. The tests of a book design's place, and of the applications, use ``book_context``,
+whose catalog also holds ``BOOK_DESIGN``, a case study the book prints.
 """
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from tests.web._support import CATALOG_SAMPLE
+from tests.web._support import BOOK_DESIGN, CATALOG_SAMPLE
 from tests.web.e2e._page import run_sheet, settled
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
@@ -86,10 +89,97 @@ def test_a_design_s_detail_shows_its_source_and_its_checks(context, site):
     assert "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978)" in text
     assert "recomputed numbers agree" in text
     assert "The library makes this design" in text
+    assert page.get_attribute("#detail-body .detail__cite a", "target") == "_blank", "the source opens in a new tab"
+    stray = "a => [...a.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('')"
+    assert page.eval_on_selector("#detail-body .actions", stray).strip() == "", "no text between the buttons"
     assert "d=bhh-pilot-plant-2-3" in page.url
     page.keyboard.press("Escape")
     page.wait_for_selector("#detail:not([open])", state="attached")
     assert "d=" not in page.url
+
+
+def test_a_book_design_s_detail_links_to_its_section_and_names_its_figures(book_context, site):
+    """The place links to the book's section, at its anchor; the figures are named, without their files."""
+    page = open_catalog(book_context, site, f"#d={BOOK_DESIGN}")
+    page.wait_for_selector("#detail[open] .detail__where a")
+    place = page.locator("#detail-body .detail__where a")
+    assert place.get_attribute("href") == (
+        "https://learnche.org/pid/design-analysis-experiments/omars-worked-study#doe-omars-worked-study"
+    )
+    assert (place.get_attribute("target"), place.get_attribute("rel")) == ("_blank", "noopener")
+    assert place.text_content() == "section A worked OMARS study: four factors on a fed-batch bioreactor"
+    assert page.get_attribute("#detail-body .detail__cite a", "href") == "https://learnche.org/pid", (
+        "the citation still links to the book"
+    )
+    where = " ".join(page.text_content("#detail-body .detail__where").split())
+    assert where.startswith("Printed in section A worked OMARS study")
+    assert "; Factor ranges; A table: Recipe / True titer, g/L / Gain over current;" in where, "tables by name"
+    assert where.endswith("; and 7 more tables and figures."), "four places, then a count: the link leads to them"
+    text = page.text_content("#detail-body") + page.text_content("#results")
+    assert ".png" not in text, "no file path is shown"
+    assert "../" not in text
+    assert "list-table" not in text, "nor a note of the lines that print a table"
+    notes = page.locator("#detail-body details.detail__notes")
+    assert notes.count() == 1, "the long notes of how the entry was checked fold under a summary"
+    assert notes.get_attribute("open") is None
+    assert "numpy default_rng(7)" in notes.text_content()
+    assert "Application: Bioprocessing and fermentation." in page.text_content("#detail-body .detail__application")
+
+
+def test_a_design_printed_in_a_book_names_its_place_without_a_link(context, site):
+    page = open_catalog(context, site, f"#d={PILOT}")
+    page.wait_for_selector("#detail[open] .detail__where")
+    assert page.locator("#detail-body .detail__where a").count() == 0, "a printed book has no address for its pages"
+    assert page.text_content("#detail-body .detail__where").startswith("Printed in section 10.2 to 10.7")
+    assert page.text_content("#detail-body .detail__application") == "Application: Chemical reactions and processes."
+
+
+def test_an_application_narrows_the_list_and_the_address_keeps_it(book_context, site):
+    page = open_catalog(book_context, site)
+    listed = page.eval_on_selector_all("#topics input", "boxes => boxes.map((b) => b.value)")
+    assert listed == ["chemical-processes", "bioprocessing"], "the most designs first"
+    chemical = page.locator("#topics label", has=page.locator("input[value='chemical-processes']"))
+    assert chemical.locator(".count").text_content() == "2"
+    chemical.locator("input").check()
+    counted(page, "2 of 6")
+    assert set(shown(page)) == {PILOT, COMPARISON}, "a generated design has no application"
+    assert "app=chemical-processes" in page.url
+    badges = page.locator(".result", has=page.locator(f".result__title[data-id='{PILOT}']")).locator(".badge--topic")
+    assert badges.all_text_contents() == ["Chemical reactions and processes"]
+    assert "keeps the published designs only" in " ".join(page.text_content("#topics-hint").split())
+    page.locator("#topics input[value='bioprocessing']").check()
+    counted(page, "3 of 6")
+    assert "app=chemical-processes%2Cbioprocessing" in page.url
+    again = open_catalog(book_context, site, "#app=bioprocessing")
+    counted(again, "1 of 6")
+    assert shown(again) == [BOOK_DESIGN]
+    assert again.is_checked("#topics input[value='bioprocessing']")
+
+
+def test_the_applications_of_the_fewest_designs_are_a_click_away(context, site, catalog_files):
+    """With ten applications, the filter lists eight; the rest open on a click, or when the address chose one."""
+    index = json.loads((catalog_files / "index.json").read_text())
+    ten = [topic for topic in index["topics"] if topic != "general"][:10]
+    for design in index["designs"]:
+        design["topics"] = {PILOT: ten, COMPARISON: ten[:3]}.get(design["id"], [])
+    context.route(f"{site}catalog/index.json", lambda route: route.fulfill(json=index))
+    page = open_catalog(context, site)
+    assert page.locator("#topics > label").count() == 8
+    assert page.text_content("#topics-more summary") == "2 more applications"
+    assert not page.is_visible(f"#topics-more input[value='{ten[-1]}']")
+    page.click("#topics-more summary")
+    page.locator(f"#topics-more input[value='{ten[-1]}']").check()
+    counted(page, "1 of 5")
+    chosen = open_catalog(context, site, f"#app={ten[-1]}")
+    assert chosen.is_visible(f"#topics-more input[value='{ten[-1]}']"), "the application chosen is in view"
+    assert chosen.is_checked(f"#topics-more input[value='{ten[-1]}']")
+
+
+def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
+    page = open_catalog(book_context, site)
+    page.fill("#query", "fermentation")
+    counted(page, "1 of 6")
+    assert shown(page) == [BOOK_DESIGN]
 
 
 def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context, site):
@@ -174,6 +264,53 @@ def test_the_map_draws_a_mark_for_every_design_listed(context, site):
         "document.querySelector('#map').data.filter((t) => t.customdata).flatMap((t) => t.customdata).sort()"
     )
     assert marks == sorted(CATALOG_SAMPLE)
+
+
+def _drag_a_box(page, factors: tuple[float, float], runs: tuple[float, float]) -> None:
+    """Drag a box on the map over a span of factors and runs, as a reader does with the mouse."""
+    corners = page.evaluate(
+        """([factors, runs]) => {
+          const div = document.querySelector('#map');
+          const { xaxis, yaxis } = div._fullLayout;
+          const area = div.querySelector('.nsewdrag').getBoundingClientRect();
+          const at = (k, n) => [area.left + xaxis.l2p(k), area.top + yaxis.l2p(Math.log10(n))];
+          return [at(factors[0], runs[0]), at(factors[1], runs[1])];
+        }""",
+        [list(factors), list(runs)],
+    )
+    page.mouse.move(*corners[0])
+    page.mouse.down()
+    page.mouse.move(*corners[1], steps=8)
+    page.mouse.up()
+
+
+BOXES = "document.querySelector('#map')._fullLayout.selections?.length ?? 0"
+
+
+def test_a_box_on_the_map_filters_and_the_reset_puts_the_map_back(context, site):
+    page = open_catalog(context, site)
+    page.wait_for_selector("#map .scatterlayer")
+    _drag_a_box(page, (2.5, 3.5), (4, 64))
+    counted(page, "3 of 5")
+    assert set(shown(page)) == {PILOT, CCD, CUBE}, "the designs of 3 factors"
+    page.wait_for_timeout(500)
+    assert page.text_content("#count").startswith("3 of 5"), "the map's redraw keeps the filter"
+    page.click("#map-reset")
+    counted(page, "5 of 5")
+    assert "runs=" not in page.url, "the address loses the box's filter"
+    assert "k=" not in page.url
+
+
+def test_a_box_around_no_design_stays_drawn_until_the_map_is_reset(context, site):
+    """A box that catches no design filters nothing, and Plotly leaves it on the map: the reset takes it away."""
+    page = open_catalog(context, site)
+    page.wait_for_selector("#map .scatterlayer")
+    _drag_a_box(page, (5.5, 6.5), (100, 400))
+    page.wait_for_function(f"({BOXES}) === 1")
+    assert page.text_content("#count").startswith("5 of 5")
+    page.click("#map-reset")
+    page.wait_for_function(f"({BOXES}) === 0")
+    assert page.text_content("#count").startswith("5 of 5")
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

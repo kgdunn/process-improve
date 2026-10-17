@@ -13,7 +13,16 @@ from pathlib import Path
 import pytest
 
 from process_improve.experiments import design_catalog
-from tests.web._support import CATALOG_SAMPLE, catalog_sample, coded, javascript, no_bytecode, run_sheet, source
+from tests.web._support import (
+    BOOK_DESIGN,
+    CATALOG_SAMPLE,
+    catalog_sample,
+    coded,
+    javascript,
+    no_bytecode,
+    run_sheet,
+    source,
+)
 
 PUBLISHED, GENERATED = CATALOG_SAMPLE[:2], CATALOG_SAMPLE[2:]
 
@@ -59,6 +68,47 @@ def test_the_index_holds_every_field_the_page_reads(build_script, index):
     assert all(list(d) == index["fields"] for d in index["designs"])
     assert set(index["families"]) == set(design_catalog.FAMILIES)
     assert index["sources"]["box-hunter-hunter-1978"]["year"] == 1978
+
+
+def test_the_index_names_each_application_and_each_design_lists_its_own(index):
+    """The page's Application filter reads each topic's name and description from the index."""
+    assert index["topics"] == design_catalog.catalog_topics()
+    assert index["topics"]["general"]["label"] == design_catalog.GENERAL_LABEL
+    assert _design(index, "bhh-pilot-plant-2-3")["topics"] == ["chemical-processes"]
+    assert all(_design(index, name)["topics"] == [] for name in GENERATED), "a generated design has no application"
+
+
+@pytest.fixture(scope="module")
+def book_catalog(build_script, tmp_path_factory) -> Path:
+    """Write the catalog of one design the book prints, as the build does."""
+    out = tmp_path_factory.mktemp("book")
+    book = catalog_sample((BOOK_DESIGN,))
+    with pytest.MonkeyPatch.context() as patch, no_bytecode():
+        patch.setattr(design_catalog, "catalog_records", lambda: book)
+        build_script.write_catalog(out)
+    return out / "catalog"
+
+
+def test_a_book_design_s_place_is_its_section_and_named_figures_with_the_section_s_address(book_catalog):
+    index = json.loads((book_catalog / "index.json").read_text())
+    detail = json.loads((book_catalog / "detail" / "pid-book.json").read_text())["designs"][BOOK_DESIGN]
+    assert detail["where_url"] == (
+        "https://learnche.org/pid/design-analysis-experiments/omars-worked-study#doe-omars-worked-study"
+    )
+    assert detail["where"]["section"] == "A worked OMARS study: four factors on a fed-batch bioreactor"
+    assert "The thirty batches in run order" in detail["where"]["figures"]
+    assert set(detail["where"]) == {"section", "tables", "figures"}, "the source file, lines and commit stay out"
+    shown = json.dumps(detail["where"]) + _design(index, BOOK_DESIGN)["where"]
+    assert ".png" not in shown
+    assert "../" not in shown
+    assert _design(index, BOOK_DESIGN)["topics"] == ["bioprocessing"]
+
+
+def test_a_design_printed_in_a_book_has_no_address_for_its_place(details):
+    assert details["bhh-pilot-plant-2-3"]["where_url"] is None
+    assert details["bhh-pilot-plant-2-3"]["where"]["pages"] == "307-324, 342-344"
+    assert details["bhh-pilot-plant-2-3"]["where"]["figures"] == ["Figure 10.1", "Figure 10.2", "Figure 10.4"]
+    assert details["lib-ccd-k3-face-centered"]["where_url"] is None
 
 
 def test_each_design_s_detail_is_in_the_file_the_index_names(catalog, index):

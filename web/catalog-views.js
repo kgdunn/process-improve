@@ -237,7 +237,7 @@ export function errataTable(errata, catalog) {
   const rows = errata.map((e) => {
     const source = catalog.sources[e.source];
     const entry = known.has(e.id) ? element("button", { type: "button", class: "link", "data-id": e.id, text: e.id }) : e.id;
-    const where = e.url ? element("a", { href: e.url, rel: "noopener", text: e.where || "web page" }) : e.where;
+    const where = e.url ? element("a", { href: e.url, target: "_blank", rel: "noopener", text: e.where || "web page" }) : e.where;
     const quantity = [String(e.what ?? "").replace(/_/g, " "), e.term].filter(Boolean).join(", ");
     return [source ? `${source.short} (${source.year})` : e.source, entry, quantity, String(e.printed ?? ""), where, e.reason];
   });

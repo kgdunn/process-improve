@@ -9788,9 +9788,23 @@
       "source_kind": "question explanation",
       "quote": "which gives an approximate solution of $$x_\\text{D} = -0.6$$ and $$x_\\text{T} = +0.7$$"
      },
-     "check": {
-      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW), which round to -0.6 and +0.7"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "stationary_point",
+       "model": "D + T + D:T + I(D**2) + I(T**2)",
+       "key": "stationary_point.stationary_point_coded.D",
+       "printed": "-0.6"
+      },
+      {
+       "kind": "optimum",
+       "method": "stationary_point",
+       "model": "D + T + D:T + I(D**2) + I(T**2)",
+       "key": "stationary_point.stationary_point_coded.T",
+       "printed": "0.7"
+      }
+     ],
+     "analysis": "the library's stationary point of the quadratic fit, a maximum"
     },
     {
      "what": "next run",

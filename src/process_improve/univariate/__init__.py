@@ -1,5 +1,17 @@
 """(c) Kevin Dunn, 2010-2026. MIT License."""
 
+from process_improve.univariate.classical import (
+    autocorrelation,
+    chi2_value,
+    dunnett_value,
+    f_value,
+    randomization_test,
+    rank_sum_test,
+    studentized_range_value,
+    ttest_one_sample,
+    z_value,
+    ztest,
+)
 from process_improve.univariate.metrics import (
     Sn,
     benjamini_hochberg,
@@ -36,21 +48,28 @@ from process_improve.univariate.tools import (
 __all__ = [
     # Core metrics
     "Sn",
+    "autocorrelation",
     "benjamini_hochberg",
     "biweight_midvariance",
+    "chi2_value",
     "confidence_interval",
     # Tool wrappers
     "confidence_interval_tool",
     "detect_outliers",
     "detect_outliers_esd",
     "distribution_fit",
+    "dunnett_value",
+    "f_value",
     "get_univariate_tool_specs",
     "holm_bonferroni",
     "median_absolute_deviation",
     "median_absolute_deviation_tool",
     "normality_test",
+    "randomization_test",
+    "rank_sum_test",
     "robust_scale_sn",
     "robust_summary_stats",
+    "studentized_range_value",
     "summary_stats",
     "t_value",
     "t_value_cdf",
@@ -58,10 +77,13 @@ __all__ = [
     "tietjen_moore_test",
     "ttest_independent",
     "ttest_independent_from_df",
+    "ttest_one_sample",
     "ttest_paired",
     "ttest_paired_from_df",
     "ttest_paired_samples",
     "ttest_two_samples",
     "variance_decomposition",
     "within_between_variance",
+    "z_value",
+    "ztest",
 ]

@@ -10,9 +10,12 @@ entry with its source, the page it is printed on, and every number the source pr
 generated ones are the designs :func:`~process_improve.experiments.generate_design` makes, one for
 each family and size in :data:`~process_improve.experiments.design_catalog.GENERATED`.
 
-A reader filters the designs, sees each one on a map of runs against factors, and opens a design
-in Factorial, the browser app, with a click. The same records are available in Python and, through
-the ``search_design_catalog`` tool, to an agent.
+A reader filters the designs by family, application, size, the model they estimate, what they
+withstand, their structure, their source and the year it appeared; sees each one on a map of runs
+against factors; and opens a design in Factorial, the browser app, with a click. A design's page
+links to the place its source prints it: for the book and the NIST e-Handbook, the section itself.
+The same records are available in Python and, through the ``search_design_catalog`` tool, to an
+agent.
 
 Searching it in Python
 ----------------------
@@ -27,6 +30,9 @@ offers and returns the designs that pass every one, the fewest runs first:
    # Six factors, at most 17 runs, and a response surface in any three that turn out to matter.
    for design in search_catalog(min_factors=6, max_factors=6, max_runs=17, min_quadratic_projection=3):
        print(design["title"], design["n_runs"], design["source_short"], design["url"])
+
+``topics=["food-beverages"]`` keeps the published designs of one application, as the page's
+Application filter does; ``text="food"`` finds them by a word of its name.
 
 The first search builds the catalog, which takes some seconds; later searches reuse it.
 :func:`~process_improve.experiments.design_catalog.catalog_records` returns every record whole,
@@ -67,7 +73,19 @@ by what its source says of it.
      - Records of one class hold one design, printed or made in more than one place.
    * - ``source``, ``year``, ``added``, ``where``
      - The published source, the year it appeared, the date the entry entered the catalogue, and
-       the pages, tables and figures that print it.
+       the pages, tables and figures that print it. A figure is named by its caption or alt text
+       (:func:`~process_improve.experiments.design_catalog.figure_name`), not by its file.
+   * - ``where_url``
+     - The address of the place a web source prints the design: a page of the book, at the
+       section's anchor, or a page of the NIST e-Handbook
+       (:func:`~process_improve.experiments.design_catalog.where_url`). ``None`` for a printed
+       book, and for a generated design.
+   * - ``topics``
+     - What the design is applied to, such as ``"food-beverages"`` or ``"semiconductors"``: its
+       subject-matter topics in the reference catalogue
+       (:func:`~process_improve.experiments.design_catalog.catalog_topics`), ``"general"`` when the
+       source states none. A generated design has none, so filtering by an application keeps the
+       published designs only.
    * - ``checks``
      - The numbers the source prints for the design: how many are recomputed by the library, how
        many agree, and how many are known to differ, with the reason recorded.

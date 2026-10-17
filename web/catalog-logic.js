@@ -5,7 +5,7 @@
 
 /** The fields of each design in catalog/index.json, in order: the library's facets, then the build's. */
 export const INDEX_FIELDS = [
-  "id", "title", "collection", "kind", "family", "design_type", "source", "year", "added", "where",
+  "id", "title", "collection", "kind", "family", "design_type", "source", "year", "added", "where", "topics",
   "n_runs", "n_factors", "n_numeric", "n_categorical", "n_mixture", "levels", "n_centre", "runs_per_parameter",
   "models", "blocked", "n_blocks", "split_plot", "has_responses", "n_responses", "checks", "glyph",
   "survives_run_loss", "critical_runs", "worst_d_ratio", "quadratic_projection", "projectivity", "design_class",
@@ -47,6 +47,7 @@ export const DEFAULT_STATE = Object.freeze({
   collection: "both",
   query: "",
   families: [],
+  topics: [],
   runs: [null, null],
   factors: [null, null],
   model: "",
@@ -172,6 +173,7 @@ export function filtersOf(state) {
   return {
     collection: state.collection,
     families: state.families.length && asked.families.length && !families.length ? ["(none)"] : families,
+    topics: state.topics,
     runs: narrower(state.runs, asked.runs),
     factors: narrower(state.factors, asked.factors),
     model: state.model || asked.model || "",
@@ -196,11 +198,14 @@ export function filtersOf(state) {
   };
 }
 
-/** The text a word of a search is looked for in: the design's title, family, source and where it is printed. */
+/**
+ * The text a word of a search is looked for in: the design's title, family, source, where it is printed
+ * and its applications, so "food" finds the designs of food and beverages.
+ */
 export function haystack(design, catalog) {
   const source = catalog.sources?.[design.source];
   const family = catalog.families?.[design.family];
-  return [design.id, design.title, design.where, family?.label, source?.cite, source?.title, design.year]
+  return [design.id, design.title, design.where, family?.label, source?.cite, source?.title, design.year, ...applications(design, catalog)]
     .filter((v) => v !== null && v !== undefined)
     .join(" ")
     .toLowerCase();
@@ -210,6 +215,8 @@ export function haystack(design, catalog) {
 const TESTS = {
   collection: (d, f) => f.collection === "both" || d.collection === f.collection,
   families: (d, f) => !f.families.length || f.families.includes(d.family),
+  // A generated design has no application, so any application keeps published designs only.
+  topics: (d, f) => !f.topics.length || (d.topics ?? []).some((t) => f.topics.includes(t)),
   runs: (d, f) => between(d.n_runs, f.runs),
   factors: (d, f) => between(d.n_factors, f.factors),
   model: (d, f) => !f.model || d.models?.[f.model] === true,
@@ -255,6 +262,42 @@ export function familyCounts(catalog, state) {
     if (passes(d, filters, catalog, "families")) counts[d.family] = (counts[d.family] ?? 0) + 1;
   }
   return counts;
+}
+
+// ---------------------------------------------------------------- the applications
+/** The topic of a design whose source states no application: listed last, and shown on no card. */
+export const GENERAL = "general";
+
+/** How many designs each application would show, with every other filter as it is. */
+export function topicCounts(catalog, state) {
+  const filters = filtersOf(state);
+  const counts = {};
+  for (const d of catalog.designs) {
+    if (!passes(d, filters, catalog, "topics")) continue;
+    for (const t of d.topics ?? []) counts[t] = (counts[t] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** The applications the filter lists: those some design has, the most designs first, and "general" last. */
+export function topicOrder(catalog) {
+  const totals = {};
+  for (const d of catalog.designs) for (const t of d.topics ?? []) totals[t] = (totals[t] ?? 0) + 1;
+  return Object.keys(catalog.topics ?? {})
+    .filter((t) => totals[t])
+    .sort((a, b) => (a === GENERAL) - (b === GENERAL) || totals[b] - totals[a]);
+}
+
+/** A design's applications, by name, without "general": what its card's badges and its detail say. */
+export function applications(design, catalog) {
+  return (design.topics ?? []).filter((t) => t !== GENERAL).map((t) => catalog.topics?.[t]?.label ?? t);
+}
+
+/** A design's applications in a sentence, as its detail says them; empty when its source states none. */
+export function applicationLine(design, catalog) {
+  const names = applications(design, catalog);
+  if (!names.length) return "";
+  return `${names.length === 1 ? "Application" : "Applications"}: ${names.join("; ")}.`;
 }
 
 /** How many designs a yes-or-no filter would leave if it were ticked, with every other filter as it is. */
@@ -317,14 +360,15 @@ export function familyMarks(catalog, bins) {
 
 // ---------------------------------------------------------------- the address
 const KEYS = {
-  collection: "col", query: "q", families: "fam", runs: "runs", factors: "k", model: "model", categorical: "cat",
-  blocked: "blk", splitPlot: "sp", mixture: "mix", hasData: "data", recomputed: "rec", differs: "err", opens: "open",
-  source: "src", unprinted: "gap", survives: "surv", projection: "qp", projectivity: "proj", years: "year",
-  addedSince: "added", sort: "sort", design: "d", compare: "cmp", view: "view", limit: "lim", limitAll: "lima",
+  collection: "col", query: "q", families: "fam", topics: "app", runs: "runs", factors: "k", model: "model",
+  categorical: "cat", blocked: "blk", splitPlot: "sp", mixture: "mix", hasData: "data", recomputed: "rec",
+  differs: "err", opens: "open", source: "src", unprinted: "gap", survives: "surv", projection: "qp",
+  projectivity: "proj", years: "year", addedSince: "added", sort: "sort", design: "d", compare: "cmp", view: "view",
+  limit: "lim", limitAll: "lima",
 };
 
 /** The filters held as a list of names, written into the address joined by commas. */
-const LISTS = new Set(["families", "compare"]);
+const LISTS = new Set(["families", "topics", "compare"]);
 
 /** A design's id, as the address may name one. */
 const AN_ID = /^[a-z0-9][a-z0-9-]{0,120}$/;
@@ -357,9 +401,9 @@ export function toHash(state) {
 
 /**
  * Read the filters back from an address. The address is text anyone can write: a value of the
- * wrong kind, a family the catalog does not have, or an unknown key is ignored.
+ * wrong kind, a family or an application the catalog does not have, or an unknown key is ignored.
  */
-export function fromHash(text, families = {}, sources = {}) {
+export function fromHash(text, families = {}, sources = {}, topics = {}) {
   const params = new URLSearchParams(String(text ?? "").replace(/^#/, ""));
   const state = structuredClone({ ...DEFAULT_STATE });
   const read = (name) => params.get(KEYS[name]);
@@ -367,6 +411,7 @@ export function fromHash(text, families = {}, sources = {}) {
   state.query = (read("query") ?? "").slice(0, 200);
   state.limit = (read("limit") ?? "").slice(0, LIMIT_LENGTH);
   state.families = (read("families") ?? "").split(",").filter((f) => Object.hasOwn(families, f));
+  state.topics = [...new Set((read("topics") ?? "").split(",").filter((t) => Object.hasOwn(topics, t)))];
   for (const name of ["runs", "factors", "categorical", "years"]) state[name] = readRange(read(name));
   if (Object.hasOwn(MODELS, read("model"))) state.model = read("model");
   if (Object.hasOwn(sources, read("source"))) state.source = read("source");
@@ -490,6 +535,33 @@ export function projectionLines(design) {
     );
   }
   return lines;
+}
+
+/**
+ * Where a source prints a design, as its detail says it: the section, the pages, then each table and
+ * each figure, by the names the build gives them. The detail links the first part to the place itself.
+ */
+export function whereParts(where) {
+  if (!where) return [];
+  if (typeof where === "string") return [where];
+  const parts = [];
+  if (where.section) parts.push(`section ${where.section}`);
+  if (where.pages) parts.push(`${/[-,]/.test(String(where.pages)) ? "pages" : "page"} ${where.pages}`);
+  return [...parts, ...(where.tables ?? []), ...(where.figures ?? [])].map(String);
+}
+
+/** The most tables and figures a design's "Printed in" line names after its first part; the rest are counted. */
+export const PLACES_SHOWN = 4;
+
+/**
+ * The rest of a "Printed in" line, after its first part: the next places, at most PLACES_SHOWN of them, then a
+ * count of the others, which the link to the section leads to. A section of the book can print twenty.
+ */
+export function placesAfter(rest, most = PLACES_SHOWN) {
+  const shown = rest.slice(0, most);
+  const more = rest.length - shown.length;
+  const count = more ? `; and ${more} more ${more === 1 ? "table or figure" : "tables and figures"}` : "";
+  return shown.length ? `; ${shown.join("; ")}${count}.` : ".";
 }
 
 /** Where a published design is printed, in a few words: its source's authors and year, and its pages. */

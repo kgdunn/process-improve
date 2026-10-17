@@ -356,27 +356,35 @@ CATALOG_SAMPLE = (
 )
 
 
-def catalog_sample() -> list[dict]:
-    """Describe the designs of :data:`CATALOG_SAMPLE` as ``catalog_records`` does."""
+#: A design printed in the book, whose page the catalog links to at its section: a case study of a fed-batch
+#: bioreactor, with figures whose notes name their files. It is not in :data:`CATALOG_SAMPLE`; the tests of
+#: a book design's place build a catalog of their own with it.
+BOOK_DESIGN = "omars-fed-batch-bioreactor"
+
+
+def catalog_sample(names: tuple[str, ...] = CATALOG_SAMPLE) -> list[dict]:
+    """Describe the designs named, those of :data:`CATALOG_SAMPLE` by default, as ``catalog_records`` does."""
     from process_improve.experiments import design_catalog
     from process_improve.experiments.reference_catalogue import (
+        reference_designs,
         reference_experiments,
         reference_sources,
     )
 
     sources = reference_sources()
+    listed = [*(("experiments", e) for e in reference_experiments()), *(("designs", d) for d in reference_designs())]
     published = [
         {
             **design_catalog._published_record(e, sources[e["source"]]),
             "checks": design_catalog.printed_checks(e),
-            "listed": "experiments",
+            "listed": where,
         }
-        for e in reference_experiments("box-hunter-hunter-1978")
-        if e["name"] in CATALOG_SAMPLE
+        for where, e in listed
+        if e["name"] in names
     ]
     generated = [
         {**design_catalog._generated_record(spec), "checks": None, "listed": None}
         for spec in design_catalog.GENERATED
-        if design_catalog._spec_id(spec) in CATALOG_SAMPLE
+        if design_catalog._spec_id(spec) in names
     ]
     return design_catalog._classified([*published, *generated])

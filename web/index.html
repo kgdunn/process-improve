@@ -62,10 +62,14 @@
       </button>
     </div>
     <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.</p>
+    <!-- Three ways in, each in a colour of its own: the mark's navy and red, and the page's green. -->
     <div class="hero">
-      <button type="button" id="new-study" class="button">New study</button>
-      <button type="button" id="show-example" class="button">Explore a worked example</button>
-      <a href="catalog/" class="button" id="catalog-link">Browse the design catalog</a>
+      <button type="button" id="new-study" class="button hero__action hero__action--new">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>Start a new study</button>
+      <button type="button" id="show-example" class="button hero__action hero__action--example">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l11 7-11 7z"/></svg>Explore a worked example</button>
+      <a href="catalog/" class="button hero__action hero__action--catalog" id="catalog-link">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Browse the design catalog</a>
     </div>
     <details id="library" class="library" hidden>
       <summary>Your studies (<span id="library-count">0</span>), kept in this browser</summary>
@@ -437,7 +441,7 @@
       <button type="button" id="compare-close" class="link" aria-label="Close the comparison">✕</button>
     </div>
     <p>Each design scored on
-      <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice">the book's
+      <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice" target="pid-book" rel="noopener">the book's
       nine measures</a>.</p>
     <div id="comparison" hidden></div>
     <details id="compare-reading">
@@ -446,7 +450,7 @@
         precise coefficients, I or G for prediction over the region, max |r| for keeping second-order effects apart,
         and power for detecting an effect of a stated size. Each measure's name links to its definition, and the
         book's
-        <a href="https://learnche.org/pid/design-analysis-experiments/comparing-design-families#doe-omnibus-comparison">comparison
+        <a href="https://learnche.org/pid/design-analysis-experiments/comparing-design-families#doe-omnibus-comparison" target="pid-book" rel="noopener">comparison
         of design families</a> reads such a table row by row.</p>
     </details>
     <div id="compare-charts" class="charts" hidden></div>
@@ -459,8 +463,8 @@
   </dialog>
 
   <footer>
-    <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve">process-improve</a>, the
-      Python package that accompanies the book <a href="https://learnche.org/pid">Process Improvement using Data</a>.
+    <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve</a>, the
+      Python package that accompanies the book <a href="https://learnche.org/pid" target="pid-book" rel="noopener">Process Improvement using Data</a>.
       Everything here runs in your browser tab, nothing on our server. <a href="about.html">Read more here</a>.</p>
   </footer>
 </main>

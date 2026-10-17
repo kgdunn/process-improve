@@ -17,8 +17,10 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
+from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
+from process_improve.experiments.multistratum import multistratum_anova
 from process_improve.experiments.omars import OmarsResult, analyze_omars
 from process_improve.experiments.omars_trade_off import (
     OmarsTradeOffTableEntry,
@@ -31,7 +33,13 @@ from process_improve.experiments.omars_trade_off import (
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.random_effects import (
+    expected_mean_squares,
+    intraclass_correlation_interval,
+    variance_components,
+)
 from process_improve.experiments.region import DesignRegion
+from process_improve.experiments.run_order import run_order_trends, time_trends, trend_robust_run_order
 from process_improve.experiments.separating import (
     NotSeparableError,
     constraint_through_cuts,
@@ -53,6 +61,7 @@ from process_improve.experiments.visualization import main_effects_plot, visuali
 
 __all__ = [
     "Column",
+    "Comparisons",
     "Constraint",
     "DesignComparison",
     "DesignRegion",
@@ -83,6 +92,7 @@ __all__ = [
     "evaluate_design",
     "evaluate_projections",
     "expand_grid",
+    "expected_mean_squares",
     "full_factorial",
     "gather",
     "generate_design",
@@ -90,12 +100,15 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "intraclass_correlation_interval",
     "is_omars",
+    "least_squares_means",
     "lm",
     "main_effects_plot",
     "manufacture",
     "marginal_means_prediction",
     "moment_aberration",
+    "multistratum_anova",
     "omars_anchor_entry",
     "omars_minimum_runs",
     "omars_properties",
@@ -105,9 +118,13 @@ __all__ = [
     "predict",
     "recommend_strategy",
     "rename_factors",
+    "run_order_trends",
     "separating_constraint",
     "summary",
     "supplement",
+    "time_trends",
     "trade_off_table",
+    "trend_robust_run_order",
+    "variance_components",
     "visualize_doe",
 ]

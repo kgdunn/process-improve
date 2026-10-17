@@ -2,11 +2,12 @@
 
 Each record describes one design by the facets a reader searches and filters on: its family, its
 size, the kinds of factors it has, which models it can estimate, whether it is blocked or run as a
-split plot, where and when it was published, and a compact picture of its coded runs (the
-``glyph``). The published records are the experiments and designs of the reference catalogue
-(:mod:`process_improve.experiments.reference_catalogue`); the generated records are designs that
-:func:`~process_improve.experiments.generate_design` makes, one for each family and size listed in
-:data:`GENERATED`. The browser app's catalog page reads both, written once when the app is built.
+split plot, where and when it was published, what it is applied to (its ``topics``), and a compact
+picture of its coded runs (the ``glyph``). The published records are the experiments and designs of
+the reference catalogue (:mod:`process_improve.experiments.reference_catalogue`); the generated
+records are designs that :func:`~process_improve.experiments.generate_design` makes, one for each
+family and size listed in :data:`GENERATED`. The browser app's catalog page reads both, written once
+when the app is built.
 
 Examples
 --------
@@ -50,6 +51,7 @@ from process_improve.experiments.reference_catalogue import (
     reference_designs,
     reference_experiments,
     reference_sources,
+    reference_topics,
 )
 
 if TYPE_CHECKING:
@@ -293,6 +295,241 @@ def _runs_per_parameter(n_runs: int, k: int, models: dict[str, bool | None]) -> 
     return None if largest is None else round(n_runs / terms[largest], 2)
 
 
+# --------------------------------------------------------------------------- where a design is printed
+#: A figure's file, as a note of the catalogue names it: a path such as ``../figures/doe/x.png``, or a file name.
+_FIGURE_FILE = re.compile(r"(?:\.\./)*(?:[\w.-]+/)*[\w.-]+\.(?:png|svg|jpe?g|gif|pdf)\b", flags=re.IGNORECASE)
+#: A note of the lines of the source file that print a figure: ", lines 244-248", " (line 85", " at lines 135-146".
+_LINES_NOTE = re.compile(r"[,;]?\s*(?:\bat\s+)?\blines?\s+\d+(?:\s*-\s*\d+)?", flags=re.IGNORECASE)
+#: A Sphinx label of a figure at the start of a note, such as ``DOE-fig-Cube-plot``, and what follows it.
+_FIGURE_LABEL = re.compile(r"^([A-Za-z]+-fig-[\w-]+)(?::\s*|\s+|$)")
+#: The alt text of a figure, as a note quotes it: ``alt 'Contour plot ...'`` or ``alt: '...'``.
+_ALT_TEXT = re.compile(r"\balt:?\s*'([^']+)'")
+#: Words a note gives for what a figure is, not what it shows.
+_KIND_ONLY = frozenset({"", "figure", "image", "no caption", "no static image"})
+
+
+def _closing_group(text: str) -> int | None:
+    """Return where the bracketed group that ends ``text`` opens; ``None`` when the text ends in no bracket."""
+    if not text.endswith(")"):
+        return None
+    depth = 0
+    for at in range(len(text) - 1, -1, -1):
+        depth += {")": 1, "(": -1}.get(text[at], 0)
+        if depth == 0:
+            return at
+    return None
+
+
+def _opening_group(text: str) -> int | None:
+    """Return where the bracketed group that starts ``text`` closes; ``None`` when the text starts with none."""
+    if not text.startswith("("):
+        return None
+    depth = 0
+    for at, char in enumerate(text):
+        depth += {"(": 1, ")": -1}.get(char, 0)
+        if depth == 0:
+            return at
+    return None
+
+
+def _readable(text: str) -> str:
+    """Tidy a figure's name: no line notes, quotes, trailing ellipsis or full stop; a capital first letter."""
+    text = _LINES_NOTE.sub("", text).strip(" ,;:")
+    if len(text) > 1 and text[0] == text[-1] and text[0] in "'\"":
+        text = text[1:-1]
+    text = re.sub(r"\s*(?:\.\.\.|…)$", "", text.strip()).strip()
+    text = text.removesuffix(".").strip(" ,;:")
+    return text[:1].upper() + text[1:]
+
+
+def _file_title(path: str) -> str:
+    """Name a figure by its file: ``../figures/doe/DOE-trade-off-table.png`` is "Trade off table"."""
+    stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    return _readable(re.sub(r"[-_]+", " ", re.sub(r"^DOE[-_]", "", stem)))
+
+
+def figure_name(note: str) -> str:
+    """Return the name a reader can use for a figure, from the catalogue's note of where it is printed.
+
+    The book's entries record each figure as a note for the catalogue's maintainers: its file, the
+    lines of the source that print it, and its caption or alt text, in a few forms. The name is the
+    first of these that the note holds: the figure's caption; its alt text; a description in
+    brackets after the file; its Sphinx label made readable (``DOE-fig-Cube-plot`` is "Cube plot");
+    and, last, its file's name made readable. A note that names no file and no label, such as
+    "Figure 6.8", is kept as it is, without a note of its lines. The name never holds a file path, a
+    note of lines or a label's prefix.
+
+    Parameters
+    ----------
+    note : str
+        A figure, as the ``figures`` of an entry's ``where`` record it.
+
+    Returns
+    -------
+    str
+        The figure's name, with a capital first letter and no full stop.
+
+    Examples
+    --------
+    >>> figure_name("The thirty batches in run order (../figures/doe/omars-worked-study-plan.png)")
+    'The thirty batches in run order'
+    >>> figure_name("../figures/doe/x.png (no caption; alt 'Histogram of the differences'), lines 244-248")
+    'Histogram of the differences'
+    >>> figure_name("DOE-fig-Cube-plot (factorial-two-levels-two-variables-no-analysis.png)")
+    'Cube plot'
+    >>> figure_name("factorial-two-level-surface-example-cropped.png (true response surface)")
+    'True response surface'
+    >>> figure_name("Figure 1(a)")
+    'Figure 1(a)'
+    """
+    text, label = note.strip(), ""
+    if found := _FIGURE_LABEL.match(text):
+        label, text = found[1], text[found.end() :]
+    file = _FIGURE_FILE.search(note)
+    if file is None and not label:
+        # No file and no label: a figure as a book numbers it, such as "Figure 6.8" or "Figure 1(a)".
+        opens = _closing_group(text)
+        if opens is not None and text[opens + 1 : -1].strip().lower() in _KIND_ONLY:
+            text = text[:opens]
+        return _readable(text)
+    caption, inside = text, ""
+    at_start = _FIGURE_FILE.match(text)
+    if at_start:  # the file first: "x.png (a note), lines 1-5: a caption"
+        rest = text[at_start.end() :].strip()
+        closes = _opening_group(rest)
+        if closes is not None:
+            inside, rest = rest[1:closes], rest[closes + 1 :]
+        rest = _LINES_NOTE.sub("", rest).strip()
+        caption = rest[1:] if rest.startswith(":") else ""
+    elif (opens := _closing_group(text)) is not None:  # a caption first: "A caption (x.png, lines 1-5)"
+        caption, inside = text[:opens], text[opens + 1 : -1]
+    caption = _FIGURE_FILE.sub("", caption)
+    alt = next((a for a in _ALT_TEXT.findall(note) if not _FIGURE_FILE.search(a)), "")
+    parts = (_readable(_FIGURE_FILE.sub("", part)) for part in _ALT_TEXT.sub("", inside).split(";"))
+    description = next(
+        (p for p in parts if p.lower() not in _KIND_ONLY and not p.lower().startswith(("alt", "label "))), ""
+    )
+    for name in (_readable(caption), _readable(alt), description):
+        if name:
+            return name
+    if label:
+        return _readable(re.sub(r"^[A-Za-z]+-fig-", "", label).replace("-", " "))
+    return _file_title(file[0]) if file else _readable(text)
+
+
+#: A note of where in its source file a table is: "(lines 29-39)", "(list-table at line 46, no caption)".
+_TABLE_LINES = re.compile(
+    r"\s*\((?:[\w-]+\s+)?(?:at\s+)?lines?\s+\d+(?:\s*-\s*\d+)?(?:,\s*no caption)?\)", flags=re.IGNORECASE
+)
+#: The reStructuredText kinds of table a note names, which a reader knows as a table.
+_TABLE_KIND = re.compile(r"\b(?:grid|csv|list)[- ]table\b", flags=re.IGNORECASE)
+#: A table named by its kind and then its columns in brackets: "Solution table (Experiment, A, B)".
+_TABLE_COLUMNS = re.compile(r"(.*\btable)\s*\(([^()]*)\)", flags=re.IGNORECASE)
+#: The role reStructuredText writes mathematics in, such as :math:`R^2_Y`.
+_MATH_ROLE = re.compile(r":math:`([^`]*)`")
+
+
+def table_name(note: str) -> str:
+    """Return the name a reader can use for a table, from the catalogue's note of where it is printed.
+
+    The book's entries record each table as a note for the catalogue's maintainers: its caption, or
+    its kind and columns when it has none, with the lines of the source that print it. The name keeps
+    the caption and drops the note of lines and the column headings written after it; a table with no
+    caption is named by its columns. A note that says no table is printed names none, and a table as
+    a printed book numbers it, such as "Table 10.1", is kept as it is.
+
+    Parameters
+    ----------
+    note : str
+        A table, as the ``tables`` of an entry's ``where`` record it.
+
+    Returns
+    -------
+    str
+        The table's name, with a capital first letter and no full stop; ``""`` for a note of no table.
+
+    Examples
+    --------
+    >>> table_name("Factor ranges (list-table at line 46, no caption): Factor / Low / Centre / High")
+    'Factor ranges'
+    >>> table_name("Grid table, lines 1075-1093 (Experiment, D, R, P, Taste)")
+    'Table of Experiment, D, R, P and Taste'
+    >>> table_name("Recipe / True titer, g/L / Gain over current (list-table at line 538, no caption)")
+    'A table: Recipe / True titer, g/L / Gain over current'
+    >>> table_name("Table 10.1")
+    'Table 10.1'
+    """
+    text = _MATH_ROLE.sub(r"\1", note.strip())
+    if re.match(r"no table printed\b", text, flags=re.IGNORECASE):
+        return ""
+    uncaptioned = bool(re.search(r"\bno caption\b", text, flags=re.IGNORECASE))
+    text = _LINES_NOTE.sub("", _TABLE_LINES.sub("", text))
+    text = re.sub(r"\s*\(no (?:caption|table)\)|,?\s*[\w./-]+\.rst\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^(?:unlabell?ed|untitled)\s+", "", text, flags=re.IGNORECASE)
+    text = _TABLE_KIND.sub("table", text).strip(" ,;")
+    head, colon, tail = text.partition(": ")
+    if colon and " / " in tail and head:  # a caption, then the table's column headings
+        text = head
+    if found := _TABLE_COLUMNS.fullmatch(text):
+        columns = [c.strip() for c in found[2].split(",") if c.strip()]
+        listed = ", ".join(columns[:-1]) + f" and {columns[-1]}" if len(columns) > 1 else "".join(columns)
+        text = f"{found[1]} of {listed}"
+    elif uncaptioned and " / " in text:  # no caption: the column headings name the table
+        text = f"A table: {text}"
+    return _readable(text)
+
+
+def _anchor(label: str) -> str:
+    """Return the id a Sphinx page gives a section's label: lower case, each run of other characters a hyphen."""
+    return re.sub(r"^[-0-9]+|-+$", "", re.sub(r"[^a-z0-9]+", "-", label.lower()))
+
+
+def where_url(where: dict[str, Any] | str | None) -> str | None:
+    """Return the address of the place a source prints an entry: its page, and the section's anchor on it.
+
+    A source read on the web records each entry's page (``where["url"]``); a page of the book also
+    records the Sphinx label of the section (``where["label"]``), which the page carries as an anchor.
+
+    Parameters
+    ----------
+    where : dict, str or None
+        An entry's ``where``, as the reference catalogue records it.
+
+    Returns
+    -------
+    str or None
+        The page's address, with ``#`` and the section's anchor when there is a label; ``None`` for a
+        source that records no address, such as a printed book.
+
+    Examples
+    --------
+    >>> where_url({"url": "https://learnche.org/pid/a/b", "label": "DOE-omars-estimability-frontier"})
+    'https://learnche.org/pid/a/b#doe-omars-estimability-frontier'
+    >>> where_url({"pages": "307-324"}) is None
+    True
+    """
+    if not isinstance(where, dict) or not where.get("url"):
+        return None
+    url, label = str(where["url"]), where.get("label")
+    return f"{url}#{_anchor(str(label))}" if label else url
+
+
+def shown_where(where: dict[str, Any] | str | None) -> dict[str, Any] | str | None:
+    """Return the place a source prints an entry as the catalog shows it: section, pages, tables and figures.
+
+    Each table is named by :func:`table_name` and each figure by :func:`figure_name`; the notes kept
+    for the catalogue's maintainers (the source file, its lines and commit) are left out.
+    """
+    if not isinstance(where, dict):
+        return where
+    shown = {key: where[key] for key in ("section", "pages") if where.get(key)}
+    if tables := [name for name in (table_name(str(t)) for t in where.get("tables", [])) if name]:
+        shown["tables"] = tables
+    if where.get("figures"):
+        shown["figures"] = [figure_name(str(f)) for f in where["figures"]]
+    return shown
+
+
 # --------------------------------------------------------------------------- published records
 def _levels(factor: dict[str, Any]) -> list[Any]:
     """Return a categorical factor's levels in order: its ``levels``, else its low and high labels."""
@@ -358,18 +595,24 @@ def _response_values(entry: dict[str, Any]) -> dict[str, list[float | None]]:
     return out
 
 
+#: The most tables and figures the few words of :func:`_where` name; the others are counted.
+PLACES_NAMED = 3
+
+
 def _where(where: dict[str, Any] | str | None) -> str:
-    """Write where a source prints an entry in a few words: its pages, then its tables and figures."""
-    if not where:
-        return ""
-    if isinstance(where, str):
-        return where
+    """Write where a source prints an entry in a few words: its pages, then its first tables and figures."""
+    shown = shown_where(where) if where else ""
+    if not isinstance(shown, dict):
+        return shown or ""
     parts = []
-    if pages := where.get("pages"):
+    if pages := shown.get("pages"):
         parts.append(f"p. {pages}" if "-" not in str(pages) and "," not in str(pages) else f"pp. {pages}")
-    parts.extend([*where.get("tables", []), *where.get("figures", [])])
-    if not parts and where.get("section"):
-        parts.append(f"section {where['section']}")
+    places = [*shown.get("tables", []), *shown.get("figures", [])]
+    parts.extend(places[:PLACES_NAMED])
+    if (more := len(places) - PLACES_NAMED) > 0:
+        parts.append(f"and {more} more {'table or figure' if more == 1 else 'tables and figures'}")
+    if not parts and shown.get("section"):
+        parts.append(f"section {shown['section']}")
     return "; ".join(str(p) for p in parts)
 
 
@@ -421,6 +664,8 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         "year": source.get("year"),
         "added": str(source.get("read", ""))[:10] or None,
         "where": _where(entry.get("where")),
+        "where_url": where_url(entry.get("where")),
+        "topics": list(entry.get("topics") or []),
         "blocked": blocked,
         "n_blocks": n_blocks,
         "split_plot": family == "split_plot" or bool(re.search(r"split|whole.plot", text, flags=re.IGNORECASE)),
@@ -595,6 +840,8 @@ def _generated_record(spec: dict[str, Any]) -> dict[str, Any]:
         "year": None,
         "added": None,
         "where": "",
+        "where_url": None,
+        "topics": [],
         "blocked": bool(facts.get("blocks")),
         "n_blocks": None,
         "split_plot": False,
@@ -626,6 +873,7 @@ INDEX_FIELDS = (
     "year",
     "added",
     "where",
+    "topics",
     "n_runs",
     "n_factors",
     "n_numeric",
@@ -704,7 +952,10 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
         printed in different sources or made by the library (see
         :func:`~process_improve.experiments.design_measures.design_classes`). ``factors``,
         ``responses``, ``coded_runs``, ``response_values``, ``details``, ``notes`` and
-        ``where_full`` hold what a reader sees on opening a design. ``listed`` says whether a published entry is one of
+        ``where_full`` hold what a reader sees on opening a design, and ``where_url`` the address of
+        the place its source prints it (see :func:`where_url`). ``topics`` lists a published
+        entry's applications (see :func:`catalog_topics`); a generated design has none. ``listed``
+        says whether a published entry is one of
         :func:`~process_improve.experiments.reference_catalogue.reference_experiments` or of
         :func:`~process_improve.experiments.reference_catalogue.reference_designs`, and ``spec``
         names a generated design as :data:`GENERATED` does.
@@ -772,6 +1023,29 @@ def catalog_sources() -> dict[str, dict[str, Any]]:
     return {
         key: {**{k: source.get(k) for k in keys}, "short": short_citation(source.get("cite") or source["title"])}
         for key, source in reference_sources().items()
+    }
+
+
+#: What the catalog calls the topic of an entry whose source states no application.
+GENERAL_LABEL = "General (no stated application)"
+
+
+def catalog_topics() -> dict[str, dict[str, str]]:
+    """Return each application the catalog filters on: its name on the page, and what it covers.
+
+    The applications are the subject-matter topics of the reference catalogue (see
+    :func:`~process_improve.experiments.reference_catalogue.reference_topics`), in its order:
+    semiconductors, food and beverages, and so on. ``"general"``, the topic of an entry whose source
+    states no application, is named :data:`GENERAL_LABEL`.
+
+    Examples
+    --------
+    >>> catalog_topics()["food-beverages"]["label"]
+    'Food and beverages'
+    """
+    return {
+        key: {"label": GENERAL_LABEL if key == "general" else topic["label"], "description": topic["description"]}
+        for key, topic in reference_topics().items()
     }
 
 
@@ -993,7 +1267,8 @@ CATALOG_URL = "https://factori.al/catalog/"
 @functools.cache
 def _searchable() -> tuple[dict[str, Any], ...]:
     """Return every record's facets once, built on the first search: building the catalog takes seconds."""
-    return tuple({key: record[key] for key in (*INDEX_FIELDS, "design_text")} for record in catalog_records())
+    keys = (*INDEX_FIELDS, "design_text", "where_url")
+    return tuple({key: record[key] for key in keys} for record in catalog_records())
 
 
 def _within(value: float | None, low: float | None, high: float | None) -> bool:
@@ -1021,6 +1296,9 @@ class CatalogQuery:
         The fewest and most categorical factors.
     families : tuple of str or None
         The families to keep (keys of :data:`FAMILIES`).
+    topics : tuple of str or None
+        The applications to keep (keys of :func:`catalog_topics`): a design passes when it lists any
+        of them. A generated design has no application, so any application drops them.
     collection : {"both", "published", "generated"}
         Published designs, those the library makes, or both.
     has_results : bool
@@ -1034,7 +1312,7 @@ class CatalogQuery:
     year_from, year_to : int or None
         The years the source appeared in; a generated design has none, so either drops them.
     text : str
-        Words, each looked for in the design's title, family, design type and source.
+        Words, each looked for in the design's title, family, design type, source and applications.
     sort : {"runs", "factors", "newest"}
         The order: fewest runs, fewest factors, or the most recent source first.
     """
@@ -1047,6 +1325,7 @@ class CatalogQuery:
     min_categorical: int | None = None
     max_categorical: int | None = None
     families: tuple[str, ...] | None = None
+    topics: tuple[str, ...] | None = None
     collection: Collection = "both"
     has_results: bool = False
     survives_run_loss: bool = False
@@ -1067,6 +1346,7 @@ def _passes(r: dict[str, Any], q: CatalogQuery, haystack: str) -> bool:
         and (q.model is None or r["models"].get(q.model) is True)
         and _within(r["n_categorical"], q.min_categorical, q.max_categorical)
         and (q.families is None or r["family"] in q.families)
+        and (q.topics is None or any(topic in q.topics for topic in r["topics"]))
         and (not q.has_results or r["has_responses"])
         and (not q.survives_run_loss or r["survives_run_loss"] is True)
         and (q.min_quadratic_projection is None or (r["quadratic_projection"] or 0) >= q.min_quadratic_projection)
@@ -1091,13 +1371,15 @@ def search_catalog(query: CatalogQuery | None = None, **filters: Any) -> list[di
     -------
     list[dict]
         Each design's facets (the fields of :data:`INDEX_FIELDS`), with ``family_label``,
-        ``source_short`` (its source's authors and year), ``same_design`` (how many other designs of
+        ``source_short`` (its source's authors and year), ``where_url`` (the address of the place
+        its source prints it, see :func:`where_url`), ``same_design`` (how many other designs of
         the catalog are this one) and ``url`` (its page in the catalog).
 
     Raises
     ------
     ValueError
-        If a family is not one of :data:`FAMILIES`, or the model is not one of ``MODELS``.
+        If a family is not one of :data:`FAMILIES`, an application not one of :func:`catalog_topics`,
+        or the model not one of ``MODELS``.
     TypeError
         If a filter is not a field of :class:`CatalogQuery`.
 
@@ -1107,12 +1389,15 @@ def search_catalog(query: CatalogQuery | None = None, **filters: Any) -> list[di
     >>> sorted({d["family"] for d in found})
     ['dsd', 'omars']
     """
-    if "families" in filters and filters["families"] is not None:
-        filters["families"] = tuple(filters["families"])
+    for name in ("families", "topics"):
+        if filters.get(name) is not None:
+            filters[name] = tuple(filters[name])
     q = dataclasses.replace(query or CatalogQuery(), **filters)
-    families, model = q.families, q.model
+    families, model, topics = q.families, q.model, catalog_topics()
     if families is not None and (unknown := set(families) - set(FAMILIES)):
         raise ValueError(f"Unknown families {sorted(unknown)}: choose from {', '.join(FAMILIES)}.")
+    if q.topics is not None and (unknown := set(q.topics) - set(topics)):
+        raise ValueError(f"Unknown applications {sorted(unknown)}: choose from {', '.join(topics)}.")
     if model is not None and model not in MODELS:
         raise ValueError(f"Unknown model {model!r}: choose from {', '.join(MODELS)}.")
     sources = catalog_sources()
@@ -1121,15 +1406,16 @@ def search_catalog(query: CatalogQuery | None = None, **filters: Any) -> list[di
     found = []
     for r in records:
         source = sources.get(r["source"] or "", {})
-        haystack = " ".join(
-            str(v) for v in (r["id"], r["title"], r["design_text"], FAMILIES[r["family"]].label, source.get("cite"))
-        ).lower()
+        applications = [topics[t]["label"] for t in r["topics"] if t != "general"]
+        words = (r["id"], r["title"], r["design_text"], FAMILIES[r["family"]].label, source.get("cite"), *applications)
+        haystack = " ".join(str(v) for v in words).lower()
         if _passes(r, q, haystack):
             found.append(
                 {
                     **{key: r[key] for key in INDEX_FIELDS if key != "glyph"},
                     "family_label": FAMILIES[r["family"]].label,
                     "source_short": f"{source['short']} ({source['year']})" if source else None,
+                    "where_url": r["where_url"],
                     "same_design": classes[r["design_class"]] - 1 if r["design_class"] else 0,
                     "url": f"{CATALOG_URL}#d={r['id']}",
                 }

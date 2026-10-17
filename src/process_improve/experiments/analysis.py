@@ -17,7 +17,7 @@ import logging
 import numbers
 import re
 import warnings
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -41,6 +41,7 @@ from process_improve.experiments._analyses.aliasing import chain_reduced_fit
 from process_improve.experiments._analyses.box_cox import _run_box_cox
 from process_improve.experiments._analyses.curvature import _run_curvature_test
 from process_improve.experiments._analyses.diagnostics import _run_residual_diagnostics
+from process_improve.experiments._analyses.glm import GlmSpec, check_glm_options, run_glm
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.lenth import _run_lenth_method
 from process_improve.experiments._analyses.mixture import (
@@ -168,6 +169,7 @@ _ANALYSIS_REGISTRY: dict[str, str] = {
     "prediction": "prediction",
     "confirmation_test": "confirmation_test",
     "split_plot": "split_plot",
+    "glm": "glm",
 }
 
 
@@ -497,6 +499,7 @@ class _Fit:
     _coded: tuple[RegressionResultsWrapper, dict[str, Any]] | None = None
     _coefficient_fit: RegressionResultsWrapper | None = None
     _reduced: tuple[RegressionResultsWrapper, dict[str, str]] | None = None
+    glm: dict[str, Any] = field(default_factory=dict)
 
     @property
     def group_cols(self) -> list[str]:
@@ -703,6 +706,9 @@ def _handlers(
         "prediction": prediction,
         "confirmation_test": confirmation,
         "split_plot": lambda: _split_plot(fit),
+        "glm": lambda: {
+            "glm": run_glm(fit.df, fit.ols.model.formula, GlmSpec(**fit.glm), alpha=fit.alpha, new_points=points)
+        },
     }
     if fit.model in SCHEFFE_MODELS:
         # The usual ANOVA, significance and effects test each blending coefficient
@@ -728,6 +734,11 @@ def analyze_experiment(  # noqa: PLR0913
     observed_at_new: list[float] | None = None,
     response_column: str | None = None,
     whole_plot: str | None = None,
+    family: str | None = None,
+    link: str | None = None,
+    trials: str | float | Sequence[float] | None = None,
+    dispersion: str | float | None = None,
+    information: str = "expected",
 ) -> dict[str, Any]:
     """Fit models, run ANOVA, compute effects, diagnose residuals.
 
@@ -765,7 +776,7 @@ def analyze_experiment(  # noqa: PLR0913
         ``"significance"``, ``"residual_diagnostics"``, ``"lack_of_fit"``,
         ``"curvature_test"``, ``"model_selection"``, ``"box_cox"``,
         ``"lenth_method"``, ``"confidence_intervals"``, ``"prediction"``,
-        ``"confirmation_test"``, ``"split_plot"``.
+        ``"confirmation_test"``, ``"split_plot"``, ``"glm"``.
 
         The ANOVA uses Type II sums of squares (reported as ``anova_type``). The ANOVA
         and significance test each term at the centre of the design: they are computed
@@ -811,6 +822,17 @@ def analyze_experiment(  # noqa: PLR0913
         uses the observed information, and gives slightly larger ones in an
         unbalanced design. Kenward and Roger's inflation of the standard errors is not
         applied. In a balanced design all of these agree.
+        ``"glm"`` fits a generalized linear model of the ``family`` given, for a response that
+        is a count of defects (``"poisson"``), a number of successes out of a number of
+        ``trials`` (``"binomial"``) or a positive amount whose spread grows with its size
+        (``"gamma"``). The coefficients are found by maximum likelihood and tested by Wald's z;
+        the interval for a mean is worked on the linear predictor's scale and carried through the
+        inverse link, so it stays in range. The result, under ``"glm"``, has the
+        ``coefficients`` (with ``exp_coefficient``, an odds ratio or a rate ratio, under a logit
+        or log link), the ``log_likelihood``, ``deviance`` and ``pearson_chi2``, the
+        ``goodness_of_fit`` tests (Hosmer and Lemeshow's for the binomial family), and the
+        ``fitted`` mean of each run with its interval; with ``new_points``, ``predictions``
+        there as well. See :func:`~process_improve.experiments._analyses.glm.run_glm`.
     significance_level : float
         Default 0.05. Used by every test's ``significant`` flag and every interval.
     transform : str or None
@@ -865,6 +887,26 @@ def analyze_experiment(  # noqa: PLR0913
         The column labelling each run's whole plot, for ``"split_plot"``. ``None``
         (default) uses the ``WholePlot`` column when there is one. The column is never
         a factor.
+    family : str or None
+        For ``"glm"``: ``"binomial"``, ``"poisson"``, ``"gamma"``, ``"gaussian"`` or
+        ``"inverse_gaussian"``.
+    link : str or None
+        For ``"glm"``: ``"logit"``, ``"probit"``, ``"cloglog"``, ``"log"``, ``"identity"``,
+        ``"inverse"``, ``"inverse_squared"`` or ``"sqrt"``. ``None`` (default) uses the family's
+        canonical link.
+    trials : str, float, sequence of float or None
+        For a binomial ``"glm"``: the number of trials of each run, whose response is then its
+        number of successes. A column of *design_matrix* (never a factor), one number for every
+        run, or one per run. ``None`` (default) takes the response as 0 or 1.
+    dispersion : {"pearson", "deviance", "ml"}, float or None
+        For ``"glm"``: how the dispersion is found. ``None`` (default) fixes it at 1 for the
+        binomial and Poisson families and estimates it by Pearson's statistic over the residual
+        degrees of freedom for the others, as R's ``glm`` does; ``"ml"`` estimates it by maximum
+        likelihood, as SAS's GENMOD does. A number fixes it there.
+    information : {"expected", "observed"}
+        For ``"glm"``: whether the covariance of the coefficients inverts the expected
+        information (default, as R does) or the observed information (as SAS's GENMOD does).
+        The two are the same under each family's canonical link.
 
     Returns
     -------
@@ -896,6 +938,11 @@ def analyze_experiment(  # noqa: PLR0913
         - ``df_model`` - model degrees of freedom.
         - ``df_residual`` - residual degrees of freedom.
         - ``mse_residual`` - mean squared error of the residuals.
+        - ``f_statistic`` and ``f_p_value`` - the overall F test of the model against the
+          intercept alone (against zero, on uncorrected sums of squares, with no intercept).
+        - ``log_likelihood``, ``aic`` and ``bic`` - the Gaussian log-likelihood and the criteria
+          that count the error variance as a parameter, as R's ``AIC`` does; ``aic_step``,
+          n ln(RSS/n) + 2p, as R's ``step`` prints it.
 
         Notes from individual analyses are kept apart, as ``anova_note``,
         ``effects_note``, ``lenth_note``, ``significance_note`` and
@@ -944,10 +991,10 @@ def analyze_experiment(  # noqa: PLR0913
     if unknown:
         available = sorted(_ANALYSIS_REGISTRY.keys())
         raise ValueError(f"Unknown analysis_type(s): {unknown}. Available: {available}")
-    validate_transform(transform)
-    whole_plot_col = _whole_plot_column(df, whole_plot, types)
+    glm = {"family": family, "link": link, "trials": trials, "dispersion": dispersion, "information": information}
+    whole_plot_col, trials_col = _side_columns(df, whole_plot, types, transform, glm)
 
-    _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL, whole_plot_col}
+    _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL, whole_plot_col, trials_col}
     factor_cols = [c for c in df.columns if c not in _NON_FACTOR_COLS]
     for col in factor_cols:
         validate_identifier_is_safe(col)
@@ -960,6 +1007,7 @@ def analyze_experiment(  # noqa: PLR0913
         *factor_cols,
         *([BLOCK_COL] if BLOCK_COL in df.columns else []),
         *([whole_plot_col] if "split_plot" in types else []),
+        *([trials_col] if trials_col else []),
     ]
     df = _drop_incomplete_runs(df, used)
     coding_given = coding is not None
@@ -1003,6 +1051,7 @@ def analyze_experiment(  # noqa: PLR0913
         alpha=significance_level,
         whole_plot=whole_plot_col,
         coding=coding,
+        glm=glm,
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:
@@ -1016,6 +1065,35 @@ def analyze_experiment(  # noqa: PLR0913
             f"{response_col} ~", f"{reported_response} ~", 1
         )
     return results
+
+
+def _side_columns(
+    df: pd.DataFrame, whole_plot: str | None, types: list[str], transform: str | None, glm: dict[str, Any]
+) -> tuple[str, str | None]:
+    """Check the transform and a generalized linear model's options; return the whole-plot and trials columns."""
+    validate_transform(transform)
+    return _whole_plot_column(df, whole_plot, types), _trials_column(df, glm, types, transform)
+
+
+def _trials_column(df: pd.DataFrame, glm: dict[str, Any], types: list[str], transform: str | None) -> str | None:
+    """Check a generalized linear model's options; return the column holding the trials, if one does."""
+    if "glm" not in types:
+        return None
+    family, trials = glm["family"], glm["trials"]
+    check_glm_options(family, glm["link"], glm["dispersion"], glm["information"])
+    if transform is not None:
+        raise ValueError(
+            "A generalized linear model relates the mean to the factors through its link; "
+            "fit the response as it is, without a transform."
+        )
+    if trials is not None and family != "binomial":
+        raise ValueError(f"trials are for the binomial family, not {family!r}.")
+    if isinstance(trials, str):
+        validate_identifier_is_safe(trials)
+        if trials not in df.columns:
+            raise ValueError(f"The trials column {trials!r} is not in the data.")
+        return trials
+    return None
 
 
 def _design_rank(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str) -> int:
@@ -1100,4 +1178,29 @@ def _model_summary(
         "df_model": int(ols_result.df_model),
         "df_residual": int(ols_result.df_resid),
         "mse_residual": float(ols_result.mse_resid),
+        **_fit_criteria(ols_result),
+    }
+
+
+def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float]:
+    """Return the overall F test of the model and its likelihood criteria, as R's summary, AIC and step give them.
+
+    The F test compares the model with the intercept alone (with no intercept, with zero, on the
+    uncorrected sums of squares, as R does). ``aic`` and ``bic`` count the error variance among the
+    parameters, -2 ln L + 2(p + 1), as R's ``AIC`` and the library's model selection do;
+    ``aic_step`` is n ln(RSS/n) + 2p, which R's ``step`` and ``extractAIC`` print. The two
+    AICs differ by a constant for a given number of runs, so they rank models alike.
+    """
+    n, p = float(ols_result.nobs), float(ols_result.df_model + ols_result.k_constant)
+    rss = max(float(ols_result.ssr), 1e-300)
+    log_likelihood = -n / 2 * (np.log(2 * np.pi * rss / n) + 1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        f_statistic, f_p_value = float(ols_result.fvalue), float(ols_result.f_pvalue)
+    return {
+        "f_statistic": f_statistic,
+        "f_p_value": f_p_value,
+        "log_likelihood": float(log_likelihood),
+        "aic": float(-2 * log_likelihood + 2 * (p + 1)),
+        "bic": float(-2 * log_likelihood + np.log(n) * (p + 1)),
+        "aic_step": float(n * np.log(rss / n) + 2 * p),
     }
