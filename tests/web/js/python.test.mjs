@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "../../../web/python.js";
+import { analyseCode, bestCode, compareCode, cumulative, designCode, notebook, resultsCode } from "../../../web/python.js";
 
 const FACTORS = [
   { name: "T", low: 150, high: 200, units: "degC" },
@@ -38,6 +38,17 @@ describe("the design", () => {
     const code = designCode({ design_type: "full_factorial", factors, options: { note: 'said "null"' } });
     assert.match(code, /levels=\["true", "null or false"\]/);
     assert.match(code, /note="said \\"null\\""\)/);
+  });
+
+  test("a Taguchi array at three levels gives each numeric factor its low, center and high values as its levels", () => {
+    const factors = [...FACTORS, { name: "S", low: "A", high: "B", units: "" }];
+    const code = designCode({ design_type: "taguchi", factors, options: { random_state: 42, n_levels: 3 } });
+    assert.match(code, /factors = \[ {2}# each numeric factor at its low, center and high values\n/);
+    assert.match(code, /Factor\(name="T", low=150, high=200, levels=\[150, 175, 200\], units="degC"\),/);
+    assert.match(code, /Factor\(name="S", type="categorical", levels=\["A", "B"\]\),/);
+    assert.match(code, /generate_design\(factors, design_type="taguchi", random_state=42\)/, "n_levels is the page's, not the library's");
+    const two = designCode({ design_type: "taguchi", factors: FACTORS, options: { random_state: 42 } });
+    assert.doesNotMatch(two, /levels=/);
   });
 
   test("lists and dicts written item by item, as Python writes them", () => {
@@ -113,10 +124,10 @@ describe("the analysis and the comparison", () => {
   });
 
   test("the VIFs the page shows, from the same runs and terms the analysis fitted", () => {
-    const code = analyseCode("main_effects", true, "A + B + C");
+    const code = analyseCode("main_effects", true, null, "A + B + C");
     assert.match(code, /^from process_improve\.experiments import analyze_experiment, evaluate_design$/m);
     assert.match(code, /\nvif = evaluate_design\(X, model="A \+ B \+ C", metric="vif"\)\["vif"\]\nprint\(vif\)$/);
-    const partial = analyseCode("Block + T + S", false, "Block + T + S");
+    const partial = analyseCode("Block + T + S", false, null, "Block + T + S");
     assert.match(partial, /evaluate_design\(X\[done\], model="Block \+ T \+ S", metric="vif"\)/);
   });
 
@@ -124,7 +135,7 @@ describe("the analysis and the comparison", () => {
     const design = { spec: { design_type: "full_factorial", factors: FACTORS, options: {} }, columns: ["T", "P"], rows: [[150, 1]] };
     const campaign = { title: "A study", design, responses: [1], sources: ["entered"], simulation: null, url: "https://example.org/" };
     const cell = (book) => book.cells.at(-1).source.join("");
-    assert.equal(cell(notebook({ ...campaign, model: "T + P", vifModel: "T + P" })), analyseCode("T + P", true, "T + P"));
+    assert.equal(cell(notebook({ ...campaign, model: "T + P", vifModel: "T + P" })), analyseCode("T + P", true, null, "T + P"));
     assert.equal(cell(notebook({ ...campaign, model: "T + P" })), analyseCode("T + P", true));
   });
 
@@ -141,6 +152,23 @@ describe("the analysis and the comparison", () => {
     assert.match(code, /Factor\(name="S", type="categorical", levels=\["A", "B"\]\),/);
   });
 
+  test("the confirmation runs are left out of the runs the model is fitted to, and the code says so", () => {
+    const sheet = {
+      spec: { factors: FACTORS, response: "y", options: {} },
+      columns: ["Std order", "Run order", "T", "P", "y", "Confirmation run"],
+      rows: [
+        [1, 1, 150, 1, null, null],
+        [2, 2, 200, 3, null, null],
+        [null, 3, 200, 1, null, "yes"],
+      ],
+    };
+    const code = resultsCode(sheet, [10, 20, 30]);
+    assert.match(code, /"T": \[150, 200\],/);
+    assert.match(code, /"y": \[10, 20\],/);
+    assert.match(code, /# The confirmation runs are left out: they test the model, so they do not enter its fit\./);
+    assert.doesNotMatch(resultsCode({ ...sheet, rows: sheet.rows.slice(0, 2) }, [10, 20]), /confirmation/);
+  });
+
   test("the comparison generates each design with its own options", () => {
     const designs = [
       { label: "Full factorial", design_type: "full_factorial", options: { n_center_points: 3 } },
@@ -150,5 +178,93 @@ describe("the analysis and the comparison", () => {
     assert.match(code, /"Full factorial": generate_design\(factors, design_type="full_factorial", n_center_points=3\),/);
     assert.match(code, /"D-optimal": generate_design\(factors, design_type="d_optimal"\),/);
     assert.match(code, /compare_designs\(designs, model="main_quadratic"\)/);
+    assert.doesNotMatch(code, /three_levels/, "the factors at three levels only when a design takes them");
+  });
+
+  test("a Taguchi array at three levels is made from the factors at their low, center and high values", () => {
+    const designs = [
+      { label: "Full factorial", design_type: "full_factorial", options: { n_center_points: 3 } },
+      { label: "Taguchi", design_type: "taguchi", options: { random_state: 42, n_levels: 3 } },
+    ];
+    const code = compareCode(FACTORS, designs, "main_quadratic");
+    assert.match(code, /three_levels = \[ {2}# each numeric factor at its low, center and high values\n/);
+    assert.match(code, /Factor\(name="P", low=1, high=3, levels=\[1, 2, 3\]\),/);
+    assert.match(code, /"Full factorial": generate_design\(factors, design_type="full_factorial", n_center_points=3\),/);
+    assert.match(code, /"Taguchi": generate_design\(three_levels, design_type="taguchi", random_state=42\),/);
+  });
+});
+
+describe("the best settings", () => {
+  const spec = { factors: [...FACTORS, { name: "S", low: "A", high: "B" }], response: "Yield", options: {} };
+  const goal = { response: "Yield", goal: "maximize", low: 35.925, high: 87.975 };
+  const best = { coded: { T: 1, P: -1, S: 1 }, search: { held: {}, goal } };
+
+  test("the optimiser on step 3's model, with the goal's limits as the page set them", () => {
+    const code = bestCode({ ...best, spec: undefined }, { ...spec, factors: FACTORS }, "quadratic");
+    assert.match(code, /^import pandas as pd\nfrom process_improve\.experiments import analyze_experiment, optimize_responses\n/);
+    assert.match(code, /goal = \{"response": "Yield", "goal": "maximize", "low": 35\.925, "high": 87\.975\}/);
+    assert.match(code, /"coefficients": analysis\["coefficients"\],/);
+    assert.match(code, /"factor_names": \["T", "P"\],/);
+    assert.match(code, /factor_ranges=\{"T": \{"low": 150, "high": 200\}, "P": \{"low": 1, "high": 3\}\},/);
+    assert.match(code, /print\(best\["predicted_responses"\]\["Yield"\]\)/);
+    assert.match(code, /analyze_experiment\(X, y, model="quadratic", analysis_type="prediction", new_points=at\)/);
+    assert.doesNotMatch(code, /math|held_at|DesignRegion/);
+  });
+
+  test("a categorical factor held at the level the page found best, as the page holds it", () => {
+    const code = bestCode({ ...best, search: { held: { S: 1 }, goal } }, spec, "interactions", false);
+    assert.match(code, /^import math\n/);
+    assert.match(code, /# The page tried each level and found S at B best: the model is held there\./);
+    assert.match(code, /def held_at\(coefficients, held\):/);
+    assert.match(code, /coefficients = held_at\(analysis\["coefficients"\], \{"S": 1\}\)/);
+    assert.match(code, /"coefficients": coefficients,/);
+    assert.match(code, /at = pd\.DataFrame\(\[\{\*\*best\["optimal_coded"\], \*\*\{"S": 1\}\}\]\)/);
+    assert.match(code, /analyze_experiment\(X\[done\], y\[done\]/, "the runs still to do left out, as in step 3");
+  });
+
+  test("the blocks held at the average block", () => {
+    const code = bestCode({ ...best, search: { held: { Block1: 0 }, goal } }, { ...spec, factors: FACTORS }, "Block + T");
+    assert.match(code, /# The blocks are held at the average block, as the equation is\./);
+  });
+
+  test("inside the limits on the settings", () => {
+    const limited = { ...spec, factors: FACTORS, constraints: [{ expression: "T + 25 * P <= 215" }] };
+    const code = bestCode(best, limited, "quadratic");
+    assert.match(code, /from process_improve\.experiments import DesignRegion, analyze_experiment, optimize_responses/);
+    assert.match(code, /region=DesignRegion\(factors, constraints\),/);
+  });
+
+  test("every factor in the model categorical: the prediction at the levels the page compared", () => {
+    const code = bestCode({ coded: { S: 1 }, search: { held: { S: 1 }, goal: null } }, { ...spec, factors: [spec.factors[2]] }, "main_effects");
+    assert.doesNotMatch(code, /optimize_responses/);
+    assert.match(code, /at = pd\.DataFrame\(\[\{"S": 1\}\]\)/);
+  });
+});
+
+describe("a mixture", () => {
+  const spec = {
+    design_type: "simplex_lattice",
+    factors: [
+      { name: "A", low: 0, high: 1, units: "" },
+      { name: "B", low: 0.1, high: 0.9, units: "%" },
+      { name: "C", low: 0, high: 1, units: "" },
+    ],
+    response: "y",
+    options: { random_state: 42, model_type: "scheffe_quadratic" },
+  };
+
+  test("its components, each a proportion, and the library's mixture design for its model", () => {
+    const code = designCode(spec);
+    assert.match(code, /Factor\(name="A", type="mixture", low=0, high=1\),/);
+    assert.match(code, /Factor\(name="B", type="mixture", low=0.1, high=0.9, units="%"\),/);
+    assert.match(code, /generate_design\(factors, design_type="mixture", random_state=42, model_type="scheffe_quadratic"\)/);
+  });
+
+  test("its proportions are fitted as they are, not coded", () => {
+    const design = { spec, columns: ["Std order", "Run order", "A", "B", "C", "y"], rows: [[1, 1, 0.5, 0.5, 0, null]] };
+    const code = resultsCode(design, [31.5]);
+    assert.match(code, /# The proportions, as the Scheffé model is fitted: a mixture's components are not coded\./);
+    assert.match(code, / {8}"A": runs\["A"\],/);
+    assert.doesNotMatch(code, /- 0.5/);
   });
 });

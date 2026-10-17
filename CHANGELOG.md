@@ -13,6 +13,47 @@ those changes.
 
 ### Added
 
+- **Factorial makes Taguchi orthogonal arrays.** A new design type takes 2 to 12 numeric or
+  two-level categorical factors and makes the smallest standard array with a column for each, as
+  `generate_design(design_type="taguchi")` chooses it: the L4, L8, L12 or L16 with every numeric
+  factor at two levels or, with the new levels setting at 3, the L9, L18, L27 or L36 with each
+  numeric factor at its low, centre and high values and each categorical factor at its two labels.
+  The design's facts name the array ("Taguchi L12 (2^11): 12 runs, main effects"). A two-level
+  array is analysed for its main effects and a three-level one for the main effects and each
+  numeric factor's square, and Learn says once that the interactions are aliased with them. Plan
+  compares the array, at three levels for a model with squares, and the Python panels give each
+  numeric factor its three levels. In the design catalog, the library's L4, L8, L9 and L12 and 13
+  published arrays now open as the app makes them.
+- **Factorial measures up to five responses, and finds the settings that balance them.** The
+  brief lists each response in a row of its own, with its units and its goal: maximise, minimise,
+  hit a target, or learn. The first response sizes the design, so the brief asks its typical value,
+  noise and smallest change worth finding for it alone. The run sheet and the workbook have a
+  column per response; a run is complete once every response has its result, and each response is
+  fitted to the runs that have its result. Practice results come from one process per response,
+  each derived from the scenario with its own coefficients and noise. Learn has a tab per response,
+  each with its own model, analysis and best settings. With two or more responses aimed at a goal,
+  Learn balances them with the library's desirability (`optimize_responses(method="desirability")`):
+  a table of each response's acceptable range, importance and shape to edit, the settings with the
+  best overall desirability, each response's prediction, 95% prediction interval and desirability
+  there, the response that holds the overall desirability down most, the leverage there, and an
+  overlay of where every response is acceptable over the two factors that move them most.
+  Confirmation runs at the balanced settings are judged response by response. The Python panels
+  and the notebook reproduce each response's analysis and the balance (`api_balance`). Studies
+  saved before, workbooks, links and catalog campaigns open unchanged, as studies of one response.
+- **Factorial finds the best settings for the response's goal.** Once the model is fitted, Learn
+  says where to run the process to maximise, minimise or hit the target the brief names: the
+  settings in the factors' own units, each categorical factor at its better level, found on the
+  fitted model inside the ranges and the limits on the settings with `optimize_responses`. Beside
+  them are the predicted response with its 95% confidence interval for the mean and its 95%
+  prediction interval for one new run, the leverage there against the runs' (a warning when the
+  prediction leans on the model beyond the runs), which factors are at an end of their range and
+  the way a next study could move it along the steepest ascent, the limits the settings are on,
+  and bars that show how much each factor moves the prediction, so the reader sees which to hold
+  tightly. The response surface is drawn through the best settings, with a star on them. A button
+  adds three confirmation runs at the best settings to the run sheet, marked in a column of their
+  own and never fitted; once their results are in, Learn says whether their average falls inside
+  the prediction interval for an average of three runs. The "Show the Python code" panel and the
+  notebook reproduce the search with the library (`api_best_settings`).
 - **Small composite designs.** A CCD with `cube="fractional"` may now sit on a cube below
   resolution V. The default half fraction must still leave the full quadratic model estimable,
   which it does for three factors (Hartley's small composite design, 4 + 6 runs). A cube given by
@@ -418,9 +459,9 @@ those changes.
   sees each one on a map of runs against factors, beside the fewest runs each model needs. A design's
   page links to the place its source prints it (for the book and the NIST e-Handbook, the section
   itself), and names the book's tables and figures by their captions. A design opens in Factorial
-  with one click: 256 published designs, which the library regenerates run for run, and every generated
-  design of the eight types the app makes. The filters are kept in the address, so a filtered view
-  can be shared. `process_improve.experiments.design_catalog` makes the records: `catalog_records`,
+  with one click: 269 published designs, which the library regenerates run for run, and every
+  generated design of the nine types the app makes, an orthogonal array when the app takes every
+  column. The filters are kept in the address, so a filtered view can be shared. `process_improve.experiments.design_catalog` makes the records: `catalog_records`,
   `normalise_family` (a source's free-text design type, read into a family), `design_facets`,
   `glyph`, `printed_checks`, `short_citation`, `catalog_sources`, `catalog_families`,
   `catalog_topics`, `figure_name`, `table_name`, `where_url`, and `search_catalog`, which filters
@@ -456,8 +497,9 @@ those changes.
 - **Every design in the catalog with a complete table of runs opens in Factorial.** Factorial holds
   *runs as given* (`design_type="given"` in `api_make_design`): the runs of a design it does not
   make, such as one a book prints, in their order and their factors' own units, analysed with the
-  largest model they estimate in full. 506 published designs open (256 before) and 99 generated
-  ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`), keeps the designs whose
+  largest model they estimate in full. 506 published designs open, 269 of them as the app makes
+  them, and 99 generated ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`),
+  keeps the designs whose
   every run meets it, marks the runs outside it, and opens a design in Factorial with the limit in
   its own units, where the D-optimal and I-optimal designs make runs inside it. A form for proposing
   a published design for the catalogue is linked from the catalog.
@@ -610,6 +652,28 @@ those changes.
   compared over the settings that can be run, Learn greys the response surface outside them, and
   the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
   factor renames it inside the limits, and the run sheet keeps its runs.
+- **Factorial picks a fractional factorial from the trade-off grid.** With a fractional factorial,
+  the Design step shows runs (4 to 128) against factors (3 to 11), each cell the resolution of the
+  minimum-aberration fraction that `trade_off_table` finds, or Full, coloured in three bands. A
+  cell in the column of the brief's factors sets the design: its resolution, V for a higher one, or
+  the full factorial. A cell whose runs the page does not make at that resolution is not offered.
+  The cell of the design the form makes is marked, and it moves as the factors or the resolution
+  change.
+- **Factorial makes and analyses mixture designs.** For a blend of 3 to 6 components, the design
+  list offers a simplex lattice of degree 1 or 2, the simplex centroid (3 or 4 components), and
+  extreme vertices for a mixture with bounds; under a mixture, each factor's low and high are its
+  lower and upper proportions, 0 and 1 when left blank, and every run's proportions sum to 1. The
+  page refuses bounds no blend can meet, a categorical factor or a process variable, and limits on
+  the settings, each with the reason. Learn fits the Scheffé model the design supports (linear,
+  quadratic or special cubic where the runs estimate it), with no intercept: the mixture ANOVA,
+  each component's effect along its Cox direction, and the fitted response drawn over the triangle
+  of blends for 3 components, or along each Cox direction for more. Lenth's method and the Pareto
+  plot are left out, saying why. A process with one synergistic and one antagonistic blend
+  simulates practice results, and the Python shown, the notebook, the workbook, renaming, saved
+  studies and links all keep a mixture a mixture. A mixture measures up to five responses as
+  other designs do, each simulated from the blend process turned to another component. The
+  comparison of designs, the best settings and the balance of the responses are for factors with
+  ranges, and say so for a mixture.
 
 ### Changed
 

@@ -15,7 +15,18 @@ from collections.abc import Callable
 from typing import Any
 
 #: The <select>s of the form; every other setting is an <input>.
-SELECTS = {"design-type", "alpha", "resolution", "model_type", "scenario", "model"}
+SELECTS = {
+    "design-type",
+    "alpha",
+    "resolution",
+    "n_levels",
+    "model_type",
+    "lattice_degree",
+    "mixture_model",
+    "scenario",
+    "model",
+    "response-goal",
+}
 
 #: The studies kept in this browser, the one saved most recently first, as the page's store reads them.
 SAVED = "async () => (await import('./store.js')).savedCampaigns()"
@@ -112,7 +123,7 @@ def name_response(page: Any, label: str, units: str = "", **known: object) -> No
     page.fill("#response", label)
     page.fill("#response-units", units)
     if "goal" in known:
-        page.check(f'input[name="goal"][value="{known.pop("goal")}"]')
+        page.select_option("#response-goal", known.pop("goal"))
     if known and not page.evaluate("document.querySelector('#response-known').open"):
         page.click("#response-known summary")
     for key, value in known.items():
@@ -249,3 +260,18 @@ def mark_corners(page: Any, *rows: int) -> None:  # noqa: ANN401
     for row in rows:
         page.click(f'#corner-table tr[data-row="{row}"] input')
     corners_done(page)
+
+
+#: A sans-serif font as wide as a reader's default may be: the page must fit a phone in it too.
+WIDE_FONT = "* { font-family: 'DejaVu Sans', sans-serif !important; }"
+
+
+def overflowing(page: Any) -> list[str]:  # noqa: ANN401
+    """Name the elements wider than the window that do not sit in a box of their own that scrolls."""
+    return page.evaluate(
+        """() => [...document.querySelectorAll('body *')]
+             .filter((e) => e.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+             .filter((e) => getComputedStyle(e).display !== 'none')
+             .filter((e) => !e.parentElement.closest('.scroll, pre, .js-plotly-plot, dialog'))
+             .map((e) => e.tagName.toLowerCase() + (e.id ? `#${e.id}` : ''))"""
+    )

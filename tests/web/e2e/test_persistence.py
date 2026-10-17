@@ -267,7 +267,10 @@ def test_the_notebook_holds_each_step_s_code(page, tmp_path: Path):
     def body(cell: str) -> str:
         return "\n".join(line for line in cell.splitlines() if not line.startswith(("import ", "from "))).strip()
 
-    assert all(body(cell) in analysis for cell in code[1:]), "a cell a step, as the analysis panel holds them all"
+    assert all(body(cell) in analysis for cell in code[1:4]), "a cell a step, as the analysis panel holds them all"
+    best = page.text_content("#py-best code")
+    assert all(body(cell) in best for cell in code[1:]), "and the best settings, as their panel holds every step"
+    assert len(code) == 5, "the install line, the design, the results, the analysis and the best settings"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

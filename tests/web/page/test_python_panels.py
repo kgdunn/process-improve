@@ -163,12 +163,20 @@ def test_results_typed_in_are_listed_in_run_order_with_none_for_runs_to_do(api, 
             "n_center_points": 2,
             "n_blocks": 2,
         },
+        {"design_type": "taguchi", "factors": FACTORS, "n_replicates": 2},
+        {
+            "design_type": "taguchi",
+            "factors": [*FACTORS, {"name": "Supplier", "low": "A", "high": "B", "units": ""}],
+            "n_levels": 3,
+        },
     ],
     ids=[
         "blocks confounding an interaction",
         "typed axial distance, replicated",
         "blocks by exchange",
         "a categorical factor, in blocks",
+        "a Taguchi L4, replicated",
+        "a Taguchi L18 at three levels, with a categorical factor",
     ],
 )
 def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distance(api, node, spec):
@@ -176,13 +184,17 @@ def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distanc
     held = held_of(api.ok("api_make_design", spec))
     simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})
     analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+    design = ("designCode", [held["spec"]])
     code = panel(
         node,
-        ("designCode", [held["spec"]]),
+        design,
         ("resultsCode", [held, simulation["responses"], simulation]),
         ("analyseCode", [analysis["formula"], True]),
     )
     assert_same_fit(run(code), analysis)
+    names = [f["name"] for f in held["spec"]["factors"]]
+    made = run(panel(node, design))["result"].design_actual[names]
+    assert made.to_numpy().tolist() == run_sheet(held)[names].to_numpy().tolist(), "the page's runs, in its order"
 
 
 @pytest.mark.slow
@@ -228,6 +240,85 @@ def test_the_comparison_code_compares_over_the_settings_the_limits_leave(api, no
     assert [m["design_type"] for m in made] == ["d_optimal", "i_optimal"], "the designs that keep every run inside"
     for label in compared["designs"]:
         assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
+
+
+#: Each mixture design, in three components with blank bounds, or with bounds for extreme vertices.
+MIXTURES = [
+    {"design_type": "simplex_lattice", "lattice_degree": 1},
+    {"design_type": "simplex_lattice", "lattice_degree": 2, "n_replicates": 2},
+    {"design_type": "simplex_centroid"},
+    {"design_type": "extreme_vertices", "mixture_model": "scheffe_linear"},
+    {"design_type": "extreme_vertices", "mixture_model": "scheffe_quadratic"},
+]
+
+
+def components(design_type: str) -> list[dict]:
+    """Return three components, each from 0 to 1, or with the bounds extreme vertices need."""
+    if design_type == "extreme_vertices":
+        bounds = [(0.2, 0.7), (0.1, 0.6), (0.0, 0.5)]
+        return [{"name": n, "low": lo, "high": hi, "units": "%"} for n, (lo, hi) in zip("ABC", bounds, strict=True)]
+    return [{"name": n, "low": None, "high": None, "units": ""} for n in ("Water", "Oil", "Wax")]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("request_", MIXTURES, ids=lambda r: "-".join(str(v) for v in r.values()))
+def test_the_design_code_reproduces_each_mixture_the_page_makes(api, node, request_):
+    """A mixture's code makes its components, each a proportion, and the library's mixture design for its model."""
+    factors = components(request_["design_type"])
+    design = api.ok("api_make_design", {**request_, "factors": factors})
+    code = page_code(node, "designCode", design["spec"])
+    assert 'design_type="mixture"' in code
+    names = [f["name"] for f in factors]
+    namespace = run(code)
+    assert [f.type for f in namespace["factors"]] == ["mixture"] * 3
+    made = namespace["result"].design_actual[names].to_numpy(dtype=float)
+    np.testing.assert_allclose(made, run_sheet(design)[names], atol=1e-11)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("request_", MIXTURES[1:3], ids=["lattice", "centroid"])
+def test_the_python_shown_reproduces_a_mixture_s_simulation_and_its_scheffe_fit(api, node, request_):
+    """The proportions are fitted as they are, not coded, with the Scheffé model the page fitted."""
+    held = held_of(api.ok("api_make_design", {**request_, "factors": components(request_["design_type"])}))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+    assert analysis["formula"] == "scheffe_quadratic"
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, simulation["responses"], simulation]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    namespace = run(code)
+    names = [f["name"] for f in held["spec"]["factors"]]
+    np.testing.assert_allclose(namespace["X"][names], run_sheet(held)[names].astype(float), atol=1e-12)
+    np.testing.assert_allclose(namespace["y"], simulation["responses"], atol=1e-9)
+    assert_same_fit(namespace, analysis)
+    assert "Intercept" not in coefficients_of(namespace)
+
+
+@pytest.mark.slow
+def test_the_python_shown_reproduces_each_response_of_a_mixture(api, node):
+    """Each response of a mixture is simulated from its own process, and its code fits its own column."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    request = {**MIXTURES[1], "factors": components("simplex_lattice"), "responses": responses}
+    held = held_of(api.ok("api_make_design", request))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    results = {"Hardness": simulation["responses"], "Cost": simulation["more"]["Cost"]["responses"]}
+    sent = {"responses": results["Hardness"], "more_responses": {"Cost": results["Cost"]}}
+    analysis = api.ok("api_analyze_runs", {**held, **sent, "response": "Cost"})
+    spec = javascript(node, source("python.js"), [("forResponse", [held["spec"], "Cost"])])[0]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("analyseCode", [analysis["formula"], True, spec]),
+    )
+    namespace = run(code)
+    for name, values in results.items():
+        np.testing.assert_allclose(namespace["runs"][name], values, atol=1e-9, err_msg=name)
+    assert namespace["y"].name == "Cost"
+    assert_same_fit(namespace, analysis)
 
 
 def notebook_of(node: str, **campaign: object) -> dict:
@@ -302,7 +393,7 @@ def test_the_code_gives_the_vifs_the_page_shows(api, node, spec, blank):
         node,
         ("designCode", [held["spec"]]),
         ("resultsCode", [held, responses]),
-        ("analyseCode", [analysis["formula"], complete, vif_model]),
+        ("analyseCode", [analysis["formula"], complete, None, vif_model]),
     )
     namespace = run(code)
     assert_same_fit(namespace, analysis)
@@ -337,3 +428,324 @@ def test_the_code_for_runs_as_given_lists_the_runs_and_gives_the_page_s_analysis
         ("analyseCode", [analysis["formula"], True]),
     )
     assert_same_fit(run(code), analysis)
+
+
+# --------------------------------------------------------------------------- the best settings for the goal
+def aimed(held: dict, goal: str, target: float | None = None) -> dict:
+    """Give the run sheet's response a goal, as the brief does."""
+    info = {"label": "Yield", "units": "%", "goal": goal, **({"target": target} if target is not None else {})}
+    return {**held, "spec": {**held["spec"], "response_info": info}}
+
+
+def assert_same_best(namespace: dict, best: dict, spec: dict) -> None:
+    """Assert that the code's optimiser finds the page's best settings, and the page's prediction and intervals."""
+    found = namespace["best"]
+    for setting, factor in zip(best["settings"], spec["factors"], strict=True):
+        if setting["kind"] == "numeric":
+            tolerance = 1e-6 * (factor["high"] - factor["low"])
+            assert found["optimal_actual"][setting["name"]] == pytest.approx(setting["value"], abs=tolerance)
+    assert found["predicted_responses"][spec["response"]] == pytest.approx(best["predicted"], abs=1e-6)
+    shown = namespace["prediction"]["predictions"][0]
+    assert shown["predicted"] == pytest.approx(best["predicted"], abs=1e-6)
+    if best["confidence"] is not None:
+        assert [shown["ci_low"], shown["ci_high"]] == pytest.approx(best["confidence"], abs=1e-6)
+        assert [shown["pi_low"], shown["pi_high"]] == pytest.approx(best["prediction"], abs=1e-6)
+
+
+def best_panel(node: str, held: dict, responses: list, replies: tuple[dict, dict], simulation=None) -> str:
+    """Return the code the best settings' panel shows: every step, the best settings last.
+
+    ``replies`` are the page's analysis and its best settings, from the same results.
+    """
+    analysis, best = replies
+    complete = all(v is not None for v in responses)
+    return panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses, simulation]),
+        ("analyseCode", [analysis["formula"], complete]),
+        ("bestCode", [best, held["spec"], analysis["formula"], complete]),
+    )
+
+
+@pytest.mark.parametrize(("goal", "target"), [("maximize", None), ("minimize", None), ("target", 60.0)])
+def test_the_best_settings_code_finds_the_page_s_best_settings(api, node, worked_example, goal, target):
+    held = aimed(worked_example["held"], goal, target)
+    simulation = worked_example["simulated"]
+    request = {**held, "responses": simulation["responses"]}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    namespace = run(best_panel(node, held, simulation["responses"], (analysis, best), simulation))
+    assert_same_fit(namespace, analysis)
+    assert_same_best(namespace, best, held["spec"])
+
+
+def test_the_notebook_ends_with_the_best_settings_when_the_page_has_them(api, node, worked_example):
+    held = aimed(worked_example["held"], "maximize")
+    simulation = worked_example["simulated"]
+    request = {**held, "responses": simulation["responses"]}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    common = {"design": held, "responses": simulation["responses"], "sources": ["simulated"] * 15}
+    book = notebook_of(node, **common, simulation=simulation, model=analysis["formula"], best=best)
+    titles = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "markdown"]
+    assert titles[-1] == "## 4. The best settings for the goal"
+    namespace: dict = {}
+    for cell in book["cells"][2:]:
+        if cell["cell_type"] == "code":
+            run("".join(cell["source"]), namespace)
+    assert_same_best(namespace, best, held["spec"])
+    learn = api.ok(
+        "api_best_settings", {**aimed(worked_example["held"], "learn"), "responses": simulation["responses"]}
+    )
+    plain = notebook_of(node, **common, simulation=simulation, model=analysis["formula"], best=learn)
+    assert not any("optimize_responses" in "".join(cell["source"]) for cell in plain["cells"]), "no goal, no step 4"
+
+
+def test_the_best_settings_code_holds_a_categorical_factor_and_the_blocks_as_the_page_does(api, node):
+    factors = [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
+    spec = {"design_type": "full_factorial", "factors": factors, "n_center_points": 2, "n_blocks": 2}
+    held = aimed(held_of(api.ok("api_make_design", spec)), "maximize")
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})
+    request = {**held, "responses": simulation["responses"]}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    assert set(best["search"]["held"]) == {"Block1", "Supplier"}, "the case holds both"
+    code = best_panel(node, held, simulation["responses"], (analysis, best), simulation)
+    assert "def held_at(coefficients, held):" in code
+    assert_same_best(run(code), best, held["spec"])
+
+
+def test_the_best_settings_code_keeps_to_the_limits_on_the_settings(api, node):
+    spec = {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS[:1]}
+    held = aimed(held_of(api.ok("api_make_design", spec)), "maximize")
+    sheet = run_sheet(held)
+    responses = (50 + 3 * (sheet["T"] - 175) / 25 + 2 * (sheet["P"] - 2) - ((sheet["F"] - 15) / 5) ** 2).tolist()
+    request = {**held, "responses": responses}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    assert best["limits"], "the case is best on its limit"
+    code = best_panel(node, held, responses, (analysis, best))
+    assert "region=DesignRegion(factors, constraints)" in code
+    assert_same_best(run(code), best, held["spec"])
+
+
+def test_the_best_settings_code_leaves_the_confirmation_runs_out_of_the_fit(api, node, worked_example):
+    held = aimed(worked_example["held"], "maximize")
+    simulation = worked_example["simulated"]
+    best = api.ok("api_best_settings", {**held, "responses": simulation["responses"]})
+    at = best["confirm_at"]
+    columns = [*held["columns"], "Confirmation run"]
+    extra = [[{"Run order": 16 + i, "Confirmation run": "yes", **at}.get(c) for c in columns] for i in range(3)]
+    sheet = {**held, "columns": columns, "rows": [*[[*row, None] for row in held["rows"]], *extra]}
+    responses = [*simulation["responses"], 60.0, 61.0, None]
+    analysis = api.ok("api_analyze_runs", {**sheet, "responses": responses})
+    again = api.ok("api_best_settings", {**sheet, "responses": responses})
+    namespace = run(best_panel(node, sheet, responses, (analysis, again)))
+    assert len(namespace["y"]) == 15, "the design's runs only"
+    assert_same_fit(namespace, analysis)
+    assert_same_best(namespace, again, held["spec"])
+
+
+# --------------------------------------------------------------------------- several responses
+#: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
+THREE = [
+    {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
+    {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
+    {"name": "Purity", "label": "Purity", "units": "%", "goal": "target", "target": 63.0},
+]
+
+
+def three_responses(api) -> tuple[dict, dict]:
+    """Make a Box-Behnken design of the three responses, and simulate their results; return it and the simulation."""
+    held = held_of(api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS, "responses": THREE}))
+    return held, api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+
+
+def by_name(simulation: dict) -> dict[str, list]:
+    """Return each response's results by its column, as the page holds them."""
+    return {"Yield": simulation["responses"], **{n: m["responses"] for n, m in simulation["more"].items()}}
+
+
+def sent_of(results: dict[str, list]) -> dict:
+    """Return the results as the page sends them: the first response's alone, the later ones' beside them."""
+    return {"responses": results["Yield"], "more_responses": {n: results[n] for n in ("Cost", "Purity")}}
+
+
+@pytest.mark.slow
+def test_the_code_simulates_each_response_from_its_own_process_as_the_page_does(api, node):
+    held, simulation = three_responses(api)
+    code = panel(node, ("designCode", [held["spec"]]), ("resultsCode", [held, by_name(simulation), simulation]))
+    namespace = run(code)
+    for name, values in by_name(simulation).items():
+        np.testing.assert_allclose(namespace["runs"][name], values, atol=1e-9, err_msg=name)
+    np.testing.assert_allclose(namespace["y"], simulation["responses"], atol=1e-9)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("response", ["Cost", "Purity"])
+def test_each_response_s_analysis_code_gives_the_page_s_analysis_of_it(api, node, response):
+    """A later response's results are typed in, one still to come: its code takes its own column and leaves it out."""
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    results[response] = [None, *results[response][1:]]
+    analysis = api.ok("api_analyze_runs", {**held, **sent_of(results), "response": response, "model": "interactions"})
+    spec = javascript(node, source("python.js"), [("forResponse", [held["spec"], response])])[0]
+    assert spec["response"] == response
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("analyseCode", [analysis["formula"], False, spec]),
+    )
+    namespace = run(code)
+    assert namespace["y"].name == response
+    assert_same_fit(namespace, analysis)
+
+
+@pytest.mark.slow
+def test_each_response_s_best_settings_code_finds_the_page_s(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    request = {**held, **sent_of(results), "response": "Cost", "model": "interactions"}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    spec = javascript(node, source("python.js"), [("forResponse", [held["spec"], "Cost"])])[0]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("analyseCode", [analysis["formula"], True, spec]),
+        ("bestCode", [best, spec, analysis["formula"], True]),
+    )
+    namespace = run(code)
+    found = namespace["best"]["optimal_coded"]
+    for name in ("T", "P", "F"):
+        assert found[name] == pytest.approx(best["coded"][name], abs=1e-6), name
+
+
+@pytest.mark.slow
+def test_the_notebook_of_three_responses_analyses_each_in_turn(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    analyses, fits = [], {}
+    for name in ("Yield", "Cost", "Purity"):
+        request = {**held, **sent_of(results), "response": name}
+        fits[name] = api.ok("api_analyze_runs", request)
+        best = api.ok("api_best_settings", request)
+        analyses.append({"response": name, "model": fits[name]["formula"], "best": best})
+    # Cost's table shows its VIFs, as the page shows them when a term is correlated: its cell works them out.
+    (terms,) = javascript(node, source("logic.js"), [("fittedFormula", [fits["Cost"]["coefficients"]])])
+    analyses[1]["vifModel"] = terms
+    marks = {name: ["simulated"] * 15 for name in results}
+    book = notebook_of(
+        node, design=held, responses=results, sources=marks, simulation=simulation, model=None, analyses=analyses
+    )
+    nbformat = pytest.importorskip("nbformat", reason="the notebook is checked against Jupyter's own schema")
+    nbformat.validate(nbformat.reads(json.dumps(book), as_version=4))
+    headings = ["".join(c["source"]) for c in book["cells"] if c["cell_type"] == "markdown"][3:]
+    assert headings == [
+        "## 3. The analysis of Yield",
+        "## 4. The best settings for Yield",
+        "## 5. The analysis of Cost",
+        "## 6. The best settings for Cost",
+        "## 7. The analysis of Purity",
+        "## 8. The best settings for Purity",
+    ]
+    namespace: dict = {}
+    for cell in book["cells"][2:]:
+        if cell["cell_type"] != "code":
+            continue
+        text = "".join(cell["source"])
+        run(text, namespace)
+        if "analysis = analyze_experiment" in text:
+            assert_same_fit(namespace, fits[str(namespace["y"].name)])
+            assert ("vif = evaluate_design" in text) == (namespace["y"].name == "Cost"), "the VIFs in Cost's cell only"
+    vifs = {c["term"]: c["vif"] for c in fits["Cost"]["coefficients"] if c.get("vif") is not None}
+    assert vifs, "the analysis gives each term's VIF"
+    for term, vif in vifs.items():
+        assert namespace["vif"][term] == pytest.approx(vif), term
+
+
+def assert_same_balance(namespace: dict, balance: dict, numeric: list[str]) -> None:
+    """Assert that the code's balance finds the page's settings, each response's d, and D."""
+    found = namespace["balanced"]
+    for name in numeric:
+        assert found["optimal_coded"][name] == pytest.approx(balance["coded"][name], abs=1e-6), name
+    assert found["composite_desirability"] == pytest.approx(balance["composite"], abs=1e-9)
+    for r in balance["responses"]:
+        assert found["individual_desirability"][r["name"]] == pytest.approx(r["d"], abs=1e-9), r["name"]
+
+
+@pytest.mark.slow
+def test_the_balance_code_finds_the_page_s_balance(api, node):
+    held, simulation = three_responses(api)
+    sent = sent_of(by_name(simulation))
+    goals = {"Yield": {"importance": 5, "shape": "more"}, "Cost": {"high": 70.0}}
+    request = {**held, **sent, "models": {"Cost": "interactions"}, "goals": goals}
+    balance = api.ok("api_balance", request)
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, by_name(simulation), simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert_same_balance(run(code), balance, ["T", "P", "F"])
+
+
+@pytest.mark.slow
+def test_the_balance_code_holds_a_categorical_factor_and_keeps_to_the_limits(api, node):
+    factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+    spec = {"design_type": "full_factorial", "factors": factors, "responses": THREE[:2], "n_center_points": 3}
+    held = held_of(api.ok("api_make_design", spec))
+    x = coded(run_sheet(held), factors)
+    yields = (60 + 4 * x["T"] - 2 * x["P"] + 3 * x["S"] + x["T"] * x["P"]).tolist()
+    costs = (20 + 2 * x["T"] + x["P"] + 0.5 * x["S"]).tolist()
+    request = {**held, "responses": yields, "more_responses": {"Cost": costs}, "models": {"Yield": "interactions"}}
+    balance = api.ok("api_balance", request)
+    assert balance["search"]["held"] == {"S": 1.0}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, {"Yield": yields, "Cost": costs}]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert "held_at(" in code
+    assert_same_balance(run(code), balance, ["T", "P"])
+
+    limit = [{"expression": "T + 25*P <= 215"}]
+    held = held_of(
+        api.ok(
+            "api_make_design",
+            {"design_type": "d_optimal", "factors": FACTORS[:2], "responses": THREE[:2], "constraints": limit},
+        )
+    )
+    x = coded(run_sheet(held), FACTORS[:2])
+    yields = (60 + 4 * x["T"] + 2 * x["P"] - 3 * x["T"] ** 2).tolist()
+    costs = (20 + 3 * x["T"] + x["P"]).tolist()
+    balance = api.ok("api_balance", {**held, "responses": yields, "more_responses": {"Cost": costs}})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, {"Yield": yields, "Cost": costs}]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert "region=DesignRegion(factors, constraints)" in code
+    assert_same_balance(run(code), balance, ["T", "P"])
+
+
+@pytest.mark.slow
+def test_the_notebook_ends_with_the_balance_when_the_page_has_one(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    balance = api.ok("api_balance", {**held, **sent_of(results)})
+    marks = {name: ["simulated"] * 15 for name in results}
+    book = notebook_of(
+        node, design=held, responses=results, sources=marks, simulation=simulation, model=None, balance=balance
+    )
+    assert "".join(book["cells"][-2]["source"]) == "## 3. The balance of the responses"
+    namespace: dict = {}
+    for cell in book["cells"][2:]:
+        if cell["cell_type"] == "code":
+            run("".join(cell["source"]), namespace)
+    assert_same_balance(namespace, balance, ["T", "P", "F"])

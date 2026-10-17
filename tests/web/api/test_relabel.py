@@ -53,6 +53,12 @@ CASES = {
         {"Supplier": "Vendor", "T": "Temperature"},
     ),
     "a DSD": ({"design_type": "dsd", "n_center_points": 3}, factors_named(*"ABCDE"), {"B": "Speed"}),
+    "a Taguchi L8": ({"design_type": "taguchi"}, factors_named(*"ABCDEG"), {"A": "Temp", "G": "Speed"}),
+    "a Taguchi L18 at three levels, with a categorical factor": (
+        {"design_type": "taguchi", "n_levels": 3},
+        [*FACTORS, {"name": "Supplier", "low": "old", "high": "new", "units": ""}],
+        {"Supplier": "Vendor", "T": "Temperature"},
+    ),
     "a D-optimal design under its budget": (
         {"design_type": "d_optimal", "model_type": "quadratic", "budget": 6},
         FACTORS,

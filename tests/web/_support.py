@@ -53,6 +53,7 @@ APP_SOURCES = (
     "picture.js",
     "charts.js",
     "python.js",
+    "best.js",
     "campaign.js",
     "store.js",
     "glossary.js",
@@ -80,12 +81,19 @@ ALL_DESIGNS = (
     "full_factorial",
     "fractional_factorial",
     "plackett_burman",
+    "taguchi",
     "dsd",
     "box_behnken",
     "ccd",
     "d_optimal",
     "i_optimal",
 )
+
+#: The designs the book has no page on: the page shows their hint without a link to it.
+NO_BOOK_PAGE = frozenset({"taguchi"})
+#: Every mixture design the page offers, kept apart from ``ALL_DESIGNS`` as ``bootstrap.MIXTURES`` is from
+#: ``DESIGNS``: its factors are the components of a blend. ``api/test_mixture.py`` checks it against ``MIXTURES``.
+ALL_MIXTURES = ("simplex_lattice", "simplex_centroid", "extreme_vertices")
 
 #: Every process the page simulates results from; ``test_simulation`` checks it against ``SCENARIOS``.
 ALL_SCENARIOS = ("reactor", "main_effects", "interaction", "optimum", "nothing", "random")

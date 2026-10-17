@@ -109,8 +109,43 @@ def _limited(design_type: str, *limits: str) -> Callable[[Example], dict]:
     return lambda _: {"design_type": design_type, "factors": FACTORS, "constraints": sent}
 
 
+def _balanced(cost: dict | None = None, costs: list | None = None, **change: object) -> Callable[[Example], dict]:
+    """Build a balance request: the worked example's yield, and a cost measured in the same runs (``cost``)."""
+
+    def payload(ex: Example) -> dict:
+        spec = ex["held"]["spec"]
+        described = cost or {"name": "Cost", "label": "Cost", "goal": "minimize"}
+        responses = [{"name": "Yield", **spec["response_info"]}, described]
+        sent = costs if costs is not None else [20 + 0.1 * i for i in range(15)]
+        return {
+            **ex["held"],
+            "spec": {**spec, "responses": responses},
+            "responses": ex["simulated"]["responses"],
+            "more_responses": {"Cost": sent},
+            **change,
+        }
+
+    return payload
+
+
 #: A temperature, a pressure and a supplier, A or B.
 WITH_SUPPLIER = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+
+#: Three components of a blend, each from 0 to 1, as the brief sends them with their bounds left blank.
+COMPONENTS = [{"name": n, "low": None, "high": None, "units": ""} for n in "ABC"]
+
+
+def _blend(*factors: dict, **change: object) -> Callable[[Example], dict]:
+    """Build a request for a simplex lattice in three components, the components changed by ``factors``, by name."""
+    named = {f["name"]: f for f in factors}
+    sent = [{**c, **named.pop(c["name"], {})} for c in COMPONENTS] + list(named.values())
+    return lambda _: {"design_type": "simplex_lattice", "factors": sent, **change}
+
+
+def _mixed(**change: object) -> Callable[[Example], dict]:
+    """Build a request about the runs of a simplex lattice in three components, with simulated results, changed."""
+    return lambda ex: {**ex["mixture"], **change}
+
 
 #: The functions a limit can use, as a refusal lists them.
 FUNCTIONS = "abs, sqrt, exp, log and log10"
@@ -165,7 +200,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(factors=[*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]),
         (
             "The Box-Behnken design needs numeric factors, and S is categorical: choose a full factorial, "
-            "fractional factorial or Plackett-Burman design."
+            "fractional factorial, Plackett-Burman or Taguchi design."
         ),
     ),
     "a run at neither label": (
@@ -186,6 +221,93 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     # The design's settings.
     "unknown design": ("api_make_design", _make(design_type="rocket"), "Unknown design type 'rocket'."),
+    # The settings that balance the responses, and the goals the reader sets for them.
+    "goals that are not goals": (
+        "api_balance",
+        _balanced(goals="narrow"),
+        "The page sent goals for the responses this page did not write.",
+    ),
+    "an acceptable range upside down": (
+        "api_balance",
+        _balanced(goals={"Yield": {"low": 70, "high": 60}}),
+        "The acceptable range of Yield must run from a lower value to a higher one.",
+    ),
+    "a target outside its acceptable range": (
+        "api_balance",
+        _balanced(
+            {"name": "Cost", "label": "Cost", "goal": "target", "target": 21}, goals={"Cost": {"low": 0, "high": 10}}
+        ),
+        "The target of Cost, 21, must lie inside its acceptable range.",
+    ),
+    "an importance of six": (
+        "api_balance",
+        _balanced(goals={"Yield": {"importance": 6}}),
+        "The importance of Yield must be a whole number from 1 to 5.",
+    ),
+    "a shape the page does not offer": (
+        "api_balance",
+        _balanced(goals={"Cost": {"shape": "steep"}}),
+        "The shape of Cost's desirability must be one the page offers.",
+    ),
+    "a response to balance without results": (
+        "api_balance",
+        _balanced(costs=[None] * 15),
+        "Enter results for Cost first: the balance is found on each response's model.",
+    ),
+    # Several responses, as the brief lists them.
+    "a list of responses that is not one": (
+        "api_make_design",
+        _make(responses="Yield, Cost"),
+        "The page sent a list of responses this page did not write.",
+    ),
+    "a first response that is not the study's": (
+        "api_make_design",
+        _make(response="Yield", responses=[{"name": "Cost"}, {"name": "Yield"}]),
+        "The page sent a list of responses this page did not write.",
+    ),
+    "six responses": (
+        "api_make_design",
+        _make(responses=[{"name": f"y{i}"} for i in range(1, 7)]),
+        "A study measures at most 5 responses; this one has 6.",
+    ),
+    "two responses of one name": (
+        "api_make_design",
+        _make(responses=[{"name": "Cost"}, {"name": "Cost"}]),
+        "Two responses cannot share the name Cost.",
+    ),
+    "a response named as a factor, after the first": (
+        "api_make_design",
+        _make(responses=[{"name": "Yield"}, {"name": "P"}]),
+        "The response name must be a variable name different from every factor.",
+    ),
+    "a response the study does not measure": (
+        "api_analyze_runs",
+        _runs(response="Colour"),
+        "The study measures no response named 'Colour'.",
+    ),
+    "results for a response the study does not measure": (
+        "api_analyze_runs",
+        _runs(more_responses={"Colour": [1.0] * 15}),
+        "The page sent results for a response the study does not measure.",
+    ),
+    "a later response's results, one short": (
+        "api_simulate",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "responses": [{"name": "Yield"}, {"name": "Cost"}]},
+            "more_responses": {"Cost": [1.0] * 14},
+        },
+        "14 responses were sent for 15 runs.",
+    ),
+    "a later response's model that is not one": (
+        "api_workbook",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "responses": [{"name": "Yield"}, {"name": "Cost"}]},
+            "models": {"Colour": "quadratic"},
+        },
+        "The page sent a design this page did not make.",
+    ),
     "response named as a factor": (
         "api_make_design",
         _make(response="T"),
@@ -195,6 +317,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         lambda _: {"design_type": "dsd", "factors": factors_named("A", "B")},
         "The Definitive screening (DSD) design takes 3 to 12 factors on this page; you have 2.",
+    ),
+    "more factors than a Taguchi array on this page takes": (
+        "api_make_design",
+        lambda _: {"design_type": "taguchi", "factors": factors_named(*(f"X{i}" for i in range(13)))},
+        "The Taguchi orthogonal array design takes 2 to 12 factors on this page; you have 13.",
+    ),
+    "a Taguchi array at levels the page does not offer": (
+        "api_make_design",
+        _make(design_type="taguchi", n_levels=4),
+        "A Taguchi array runs each numeric factor at 2 levels or at 3 on this page.",
     ),
     "unknown axial distance": (
         "api_make_design",
@@ -358,12 +490,32 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "2 sources were sent for 15 runs.",
     ),
     "unknown process": ("api_simulate", _runs(scenario="rocket"), "Unknown process 'rocket'."),
+    # The best settings, and the confirmation runs made at them.
+    "every run a confirmation run": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_runs()(ex),
+            "columns": [*ex["held"]["columns"], "Confirmation run"],
+            "rows": [[*row, "yes"] for row in ex["held"]["rows"]],
+        },
+        "Every run on the run sheet is marked as a confirmation run, and the model is fitted to the design's runs.",
+    ),
+    "best settings before any result": (
+        "api_best_settings",
+        _runs(responses=[None] * 15),
+        "Enter results first: the best settings are found on the model fitted to them.",
+    ),
+    "a surface held at best settings the page did not write": (
+        "api_plots",
+        _runs(best={"T": 1.0, "P": -1.0, "F": 3.0}),
+        "The page sent best settings this page did not write.",
+    ),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
-    "no design for these factors": (
+    "no design for these factors": (  # 13 factors, one more than any design on the page takes
         "api_candidates",
         lambda _: {
             "factors": [
-                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(11)),
+                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(12)),
                 {"name": "S", "low": "A", "high": "B"},
             ],
         },
@@ -616,14 +768,132 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         ),
         "Runs as given take 2 to 12 factors on this page; you have 13.",
     ),
+    # Mixtures: the factors are the components of a blend, each a proportion.
+    "mixture: a categorical factor": (
+        "api_make_design",
+        _blend({"name": "S", "low": "old", "high": "new", "units": ""}),
+        (
+            "A mixture's factors are its components, each a proportion, and S is categorical: remove it, or choose "
+            "a design for factors with ranges."
+        ),
+    ),
+    "mixture: a process variable": (
+        "api_make_design",
+        _blend(FACTORS[0]),
+        (
+            "Factor T runs from 150 to 200, which is no proportion: each component of a mixture lies between 0 and "
+            "1, and a mixture on this page takes no process variables, such as a temperature."
+        ),
+    ),
+    "mixture: a word for a bound": (
+        "api_make_design",
+        _blend({"name": "A", "high": "most"}),
+        "Component A: enter its lower and upper proportions as numbers, or leave them blank for 0 and 1.",
+    ),
+    "mixture: a lower bound above the upper": (
+        "api_make_design",
+        _blend({"name": "A", "low": 0.6, "high": 0.4}, design_type="extreme_vertices"),
+        "Component A: its lower proportion must be below its upper proportion.",
+    ),
+    "mixture: too few components": (
+        "api_make_design",
+        lambda _: {"design_type": "simplex_lattice", "factors": COMPONENTS[:2]},
+        "The Simplex lattice (mixture) design takes 3 to 6 components on this page; you have 2.",
+    ),
+    "mixture: too many components": (
+        "api_make_design",
+        lambda _: {"design_type": "simplex_centroid", "factors": [{"name": n, "low": 0, "high": 1} for n in "ABCDE"]},
+        "The Simplex centroid (mixture) design takes 3 to 4 components on this page; you have 5.",
+    ),
+    "mixture: lower bounds above 1 in all": (
+        "api_make_design",
+        _blend({"name": "A", "low": 0.5}, {"name": "B", "low": 0.4}, {"name": "C", "low": 0.3}),
+        (
+            "The lower proportions sum to 1.2, and must sum to less than 1: above 1 no blend gives every component "
+            "its lower proportion, and at 1 only one blend does. Lower some of them."
+        ),
+    ),
+    "mixture: upper bounds below 1 in all": (
+        "api_make_design",
+        _blend({"name": "A", "high": 0.3}, {"name": "B", "high": 0.3}, {"name": "C", "high": 0.3}),
+        (
+            "The upper proportions sum to 0.9, and must sum to more than 1: below 1 no blend of the components "
+            "reaches 1, and at 1 only one does. Raise some of them."
+        ),
+    ),
+    "mixture: a simplex design with bounds": (
+        "api_make_design",
+        _blend({"name": "A", "low": 0.1}, {"name": "C", "high": 0.8}),
+        (
+            "The Simplex lattice (mixture) design covers every blend, each component from 0 to 1, and A and C have "
+            "bounds: choose extreme vertices for a mixture with bounds."
+        ),
+    ),
+    "mixture: extreme vertices without a bound": (
+        "api_make_design",
+        _blend(design_type="extreme_vertices"),
+        (
+            "Extreme vertices are for a mixture with bounds: give a component a lower or upper proportion, or "
+            "choose the simplex lattice or simplex centroid."
+        ),
+    ),
+    "mixture: a lattice of degree 3": (
+        "api_make_design",
+        _blend(lattice_degree=3),
+        "A simplex lattice's degree is 1 or 2 on this page.",
+    ),
+    "mixture: extreme vertices for the special cubic model": (
+        "api_make_design",
+        _blend({"name": "A", "high": 0.6}, design_type="extreme_vertices", mixture_model="scheffe_special_cubic"),
+        "Extreme vertices are built for the linear or quadratic blending model, not 'scheffe_special_cubic'.",
+    ),
+    "mixture: limits on the settings": (
+        "api_make_design",
+        _blend(constraints=[{"expression": "A + B <= 0.8"}]),
+        (
+            "A mixture takes no limits on the settings on this page: give each component its lower and upper "
+            "proportions instead, or remove the limits."
+        ),
+    ),
+    "mixture: a model for factors with ranges": (
+        "api_analyze_runs",
+        _mixed(model="quadratic"),
+        "A mixture is analysed with the linear, quadratic or special cubic blending model, not 'quadratic'.",
+    ),
+    "mixture: a process for factors with ranges": (
+        "api_simulate",
+        _mixed(scenario="reactor"),
+        (
+            "The process 'Reactor yield' is for factors with ranges: a mixture's results are simulated from 'A "
+            "synergy and an antagonism'."
+        ),
+    ),
+    "mixture: a mixture's process for factors with ranges": (
+        "api_simulate",
+        _runs(scenario="blend"),
+        (
+            "The process 'A synergy and an antagonism' is for a mixture's components: choose another for factors "
+            "with ranges."
+        ),
+    ),
 }
 
 
 @pytest.fixture(scope="module")
 def example(worked_example: dict[str, Any], api) -> Example:
-    """Return the worked example, and a 9-run DSD that cannot fit the quadratic model whatever its results."""
+    """Return the worked example, a 9-run DSD that cannot fit the quadratic model whatever its results, and a mixture.
+
+    The mixture is a simplex lattice in three components, with results simulated from a blend.
+    """
     dsd = api.ok("api_make_design", {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1})
-    return {**worked_example, "dsd": {key: dsd[key] for key in ("spec", "columns", "rows")}}
+    lattice = api.ok("api_make_design", {"design_type": "simplex_lattice", "factors": COMPONENTS})
+    mixture = {key: lattice[key] for key in ("spec", "columns", "rows")}
+    responses = api.ok("api_simulate", mixture)["responses"]
+    return {
+        **worked_example,
+        "dsd": {key: dsd[key] for key in ("spec", "columns", "rows")},
+        "mixture": {**mixture, "responses": responses},
+    }
 
 
 def refusal(api, example: Example, case: str) -> str:

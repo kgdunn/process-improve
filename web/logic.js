@@ -14,6 +14,79 @@ export function nTerms(k, model) {
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 
+/** The resolutions the page offers a fraction, lowest first; mirrors bootstrap.RESOLUTIONS. */
+export const RESOLUTIONS = [3, 4, 5];
+
+/** A resolution in roman numerals, as a fraction's is written. */
+export const ROMAN = { 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII" };
+
+/** A cell of the trade-off grid whose runs are the full factorial's 2^k. */
+export const FULL = "full";
+
+/** The trade-off grid's rows, run counts, and its columns, numbers of factors: a fraction takes 3 to 11 on the page. */
+export const TRADE_OFF_RUNS = [4, 8, 16, 32, 64, 128];
+export const TRADE_OFF_FACTORS = [3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+const F = FULL;
+const _ = null;
+
+/**
+ * The trade-off of a two-level fraction, a row per run count and a column per number of factors, as
+ * process_improve.experiments.trade_off.trade_off_table finds it: each cell is the resolution of the
+ * minimum-aberration fraction, FULL where the runs are the full factorial's, and null where the factors
+ * do not fit in the runs. Below the full factorial the runs would only repeat it, which Replicates does,
+ * so those cells are null too. tests/web/page/test_parity.py compares every cell with the library's.
+ */
+export const TRADE_OFF = [
+  // 3  4  5  6  7  8  9 10 11 factors
+  [3, _, _, _, _, _, _, _, _], // 4 runs
+  [F, 4, 3, 3, 3, _, _, _, _], // 8 runs
+  [_, F, 5, 4, 4, 4, 3, 3, 3], // 16 runs
+  [_, _, F, 6, 4, 4, 4, 4, 4], // 32 runs
+  [_, _, _, F, 7, 5, 4, 4, 4], // 64 runs
+  [_, _, _, _, F, 8, 6, 5, 5], // 128 runs
+];
+
+/** The grid's cell at a run count and a number of factors: a resolution, FULL, or null. */
+export function tradeOffCell(runs, k) {
+  const row = TRADE_OFF_RUNS.indexOf(runs);
+  const column = TRADE_OFF_FACTORS.indexOf(k);
+  return row < 0 || column < 0 ? null : TRADE_OFF[row][column];
+}
+
+/** What a cell shows: Full, its resolution in roman numerals, or nothing. */
+export const cellText = (cell) => (cell === FULL ? "Full" : cell === null ? "" : ROMAN[cell]);
+
+/** The band a cell is coloured by: the full factorial or resolution V and above, IV, III; null for no design. */
+export const cellBand = (cell) => (cell === null ? null : cell === FULL || cell >= 5 ? "high" : cell === 4 ? "iv" : "iii");
+
+/**
+ * The runs of the fraction the page makes in k factors at a resolution: the fewest of the grid's whose
+ * fraction reaches it, as the library takes the minimum-aberration fraction with the fewest runs that does.
+ * Null when the grid has no column for k.
+ */
+export function fractionRuns(k, resolution) {
+  const reaches = (runs) => typeof tradeOffCell(runs, k) === "number" && tradeOffCell(runs, k) >= resolution;
+  return TRADE_OFF_RUNS.find(reaches) ?? null;
+}
+
+/** The resolution the form asks for to make a fraction cell: the cell's own, or the highest the page offers (V). */
+export const cellResolution = (cell) => Math.min(cell, Math.max(...RESOLUTIONS));
+
+/**
+ * The design a pick of a cell sets, or null for a cell the page cannot make: the full factorial for a FULL
+ * cell; else a fraction at the cell's resolution, or at V for a higher one, when the page makes that
+ * resolution in exactly the cell's runs. In seven factors resolution IV takes 16 runs, so the 32-run cell
+ * of resolution IV is not offered.
+ */
+export function cellDesign(runs, k) {
+  const cell = tradeOffCell(runs, k);
+  if (cell === null) return null;
+  if (cell === FULL) return { design_type: "full_factorial" };
+  const resolution = cellResolution(cell);
+  return fractionRuns(k, resolution) === runs ? { design_type: "fractional_factorial", resolution } : null;
+}
+
 /** The select value that asks for an axial distance typed as a number. */
 export const AXIAL_DISTANCE = "distance";
 
@@ -95,7 +168,7 @@ export function analysisModel(designModel, aim, fits, factors) {
 }
 
 /** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
-export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman"];
+export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman", "taguchi"];
 
 /**
  * The design the page holds but does not make, as bootstrap.GIVEN names it: runs taken as they are
@@ -103,6 +176,81 @@ export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "p
  * and limits on the settings, and keeps its runs as they are.
  */
 export const GIVEN = "given";
+
+// ---------------------------------------------------------------- mixtures
+/**
+ * The mixture designs, as bootstrap.MIXTURES names them: the factors are the components of a blend, each a
+ * proportion between its lower and upper bounds, and every run's proportions sum to 1.
+ */
+export const MIXTURES = ["simplex_lattice", "simplex_centroid", "extreme_vertices"];
+
+/** Whether a design type is a mixture's. */
+export const isMixture = (designType) => MIXTURES.includes(designType);
+
+/** The models a mixture is analysed with; mirrors bootstrap.MIXTURE_MODELS. */
+export const MIXTURE_MODELS = ["scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic"];
+
+/** A component's bound as the form sends it: a blank box is the bound's default, 0 for the lower and 1 for the upper. */
+export const proportionValue = (text, blank) => (String(text ?? "").trim() === "" ? blank : levelValue(text));
+
+/**
+ * What a component's bounds need, in a sentence the page shows under the table; "" when they are ready. A
+ * blank box is 0 or 1. The rules are those bootstrap.py applies to a mixture's components.
+ */
+export function componentProblem({ name, low, high }) {
+  const who = String(name ?? "").trim() || "A component without a name";
+  const [lower, upper] = [proportionValue(low, 0), proportionValue(high, 1)];
+  if (typeof lower !== "number" || typeof upper !== "number" || !Number.isFinite(lower) || !Number.isFinite(upper)) {
+    return `${who}: enter its lower and upper proportions as numbers, or leave them blank for 0 and 1.`;
+  }
+  if (lower < 0 || upper > 1) {
+    return (
+      `${who} runs from ${lower} to ${upper}, which is no proportion: each component of a mixture lies between 0 ` +
+      "and 1, and a mixture on this page takes no process variables, such as a temperature."
+    );
+  }
+  if (!(lower < upper)) return `${who}: its lower proportion must be below its upper proportion.`;
+  return "";
+}
+
+/** The components whose bounds cut the simplex: a lower proportion above 0, or an upper one below 1. */
+export const boundedComponents = (factors) => factors.filter((f) => f.low > 0 || f.high < 1).map((f) => f.name);
+
+/**
+ * What a mixture's components, each ready on its own, still need together for the design type, in a sentence;
+ * "" when nothing. The lower proportions must sum to less than 1 and the upper ones to more than 1; extreme
+ * vertices need a bound, and the simplex designs none. ``factors`` are as the form sends them for a mixture.
+ */
+export function mixtureProblem(factors, designType, label) {
+  const sum = (key) => factors.reduce((total, f) => total + f[key], 0);
+  const figures = (x) => Number(x.toPrecision(4));
+  if (sum("low") > 1 - 1e-9) {
+    return (
+      `The lower proportions sum to ${figures(sum("low"))}, and must sum to less than 1: above 1 no blend gives every ` +
+      "component its lower proportion, and at 1 only one blend does. Lower some of them."
+    );
+  }
+  if (sum("high") < 1 + 1e-9) {
+    return (
+      `The upper proportions sum to ${figures(sum("high"))}, and must sum to more than 1: below 1 no blend of the ` +
+      "components reaches 1, and at 1 only one does. Raise some of them."
+    );
+  }
+  const bounded = boundedComponents(factors);
+  if (designType === "extreme_vertices" && !bounded.length) {
+    return (
+      "Extreme vertices are for a mixture with bounds: give a component a lower or upper proportion, or choose the " +
+      "simplex lattice or simplex centroid."
+    );
+  }
+  if (designType !== "extreme_vertices" && bounded.length) {
+    return (
+      `The ${label} design covers every blend, each component from 0 to 1, and ${listNames(bounded)} ` +
+      `${bounded.length === 1 ? "has" : "have"} bounds: choose extreme vertices for a mixture with bounds.`
+    );
+  }
+  return "";
+}
 
 /** Whether text typed as a level is a label, such as old: neither blank nor a number (nor inf or nan). */
 export function isLabel(text) {
@@ -182,6 +330,138 @@ export function responseName(label, factorNames = []) {
 
 /** What the reader can want of the response, as the response card words it; the keys are bootstrap.GOALS. */
 export const GOALS = { maximize: "Maximise", minimize: "Minimise", target: "Hit a target", learn: "Just learn" };
+
+// ---------------------------------------------------------------- several responses
+/** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES. */
+export const MAX_RESPONSES = 5;
+
+/**
+ * A study's responses, the first first, as bootstrap._responses reads a specification: each is its column's
+ * ``name`` and its description. A study made before the page measured several holds one, ``response``,
+ * described by ``response_info``; one with several lists them all in ``responses``.
+ */
+export function responsesOf(spec) {
+  if (Array.isArray(spec?.responses) && spec.responses.length) return spec.responses;
+  return [{ name: spec?.response ?? DEFAULT_RESPONSE, ...(spec?.response_info ?? {}) }];
+}
+
+/** A response's description without its column's name: what a specification's ``response_info`` holds. */
+export const infoOf = ({ name: _, ...info }) => info;
+
+/**
+ * What a specification keeps of its responses, as bootstrap._stored_responses writes it: the first one's name
+ * and description, as a study of one response has always kept them, and with several the whole list.
+ */
+export function storedResponses(responses) {
+  const [first] = responses;
+  const info = infoOf(first);
+  return {
+    response: first.name,
+    ...(Object.keys(info).length ? { response_info: info } : {}),
+    ...(responses.length > 1 ? { responses } : {}),
+  };
+}
+
+/** A specification with its responses replaced: the first one's name and description, and the list with several. */
+export function withResponses(spec, responses) {
+  const { response_info: _, responses: __, ...rest } = spec;
+  return { ...rest, ...storedResponses(responses) };
+}
+
+/** Each response's results, by its column: no result yet for any of ``n`` runs. */
+export const noResults = (names, n) => Object.fromEntries(names.map((name) => [name, Array(n).fill(null)]));
+
+/** Whether a value is a result: a number typed, simulated or read, not a blank. */
+const isResult = (v) => v !== null && v !== undefined;
+
+/**
+ * Whether each run is complete: it has a result for every response. ``results`` holds each response's results
+ * by its column, and ``names`` are the columns. A run with some of its results counts for those responses only.
+ */
+export function completeRuns(results, names) {
+  const n = Math.max(0, ...names.map((name) => results[name]?.length ?? 0));
+  return Array.from({ length: n }, (_, i) => names.every((name) => isResult(results[name]?.[i])));
+}
+
+/** Whether any response has a result yet. */
+export const anyResult = (results) => Object.values(results).some((values) => values.some(isResult));
+
+/**
+ * The runs that have some of their results and not all: their places on the run sheet. Each response is fitted
+ * to the runs that have its result, so these count for some responses and not for others.
+ */
+export function partialRuns(results, names) {
+  const complete = completeRuns(results, names);
+  return complete.flatMap((done, i) => (!done && names.some((name) => isResult(results[name]?.[i])) ? [i] : []));
+}
+
+/**
+ * The results as the page sends them to Python, and as a campaign keeps them: the first response's in
+ * ``responses``, as a study of one response always has, and each later one's in ``more_responses``, by its
+ * column, only when there are several. ``key`` names the pair: ``responses``, or ``sources`` for their sources.
+ */
+export function splitResults(names, byName, key = "responses") {
+  const [first, ...more] = names;
+  const out = { [key]: byName[first] ?? [] };
+  if (more.length) out[`more_${key}`] = Object.fromEntries(more.map((name) => [name, byName[name] ?? []]));
+  return out;
+}
+
+/** The reverse of splitResults: each response's results by its column, from the first's list and the others'. */
+export function joinResults(names, first, more = {}) {
+  const [head, ...rest] = names;
+  const n = first?.length ?? 0;
+  return { [head]: first ?? [], ...Object.fromEntries(rest.map((name) => [name, more?.[name] ?? Array(n).fill(null)])) };
+}
+
+/**
+ * What Learn says of the runs that have some of their results and not all, with several responses: ``runs`` are
+ * their numbers, as the run sheet's Run order gives them, and each response is fitted to the runs that have its
+ * result: the one analysed, named ``label``, to ``fitted`` runs.
+ */
+export function partialSentence(runs, label, fitted) {
+  const one = runs.length === 1;
+  const which = one ? `Run ${runs[0]} has some of its results` : `Runs ${listNames(runs.map(String))} have some of their results`;
+  return `${which}, not all. Each response is fitted to the runs that have its result: ${label} to ${fitted}.`;
+}
+
+/**
+ * The responses as a study's title names them: one as responseTitle does ("Yield (%), maximise"), several by
+ * their names ("Yield, Cost and Purity").
+ */
+export function responsesTitle(responses) {
+  if (responses.length === 1) return responseTitle(infoOf(responses[0]), responses[0].name);
+  return listNames(responses.map((r) => r.label || r.name));
+}
+
+/**
+ * What the brief's responses still need, a sentence each, as the reader types: the later responses must differ
+ * in name from the first and from each other. ``labels`` are the names typed, in order, blanks left out.
+ */
+export function responseLabelProblems(labels) {
+  const seen = new Set();
+  const said = [];
+  for (const label of labels.map((l) => String(l ?? "").trim()).filter(Boolean)) {
+    const key = label.toLowerCase();
+    if (seen.has(key)) said.push(`${label}: two responses cannot share a name.`);
+    seen.add(key);
+  }
+  return [...new Set(said)];
+}
+
+/**
+ * The run sheet's columns for the brief's responses: each named from its label as responseName names it, unlike
+ * every factor and every response before it. ``kept`` gives a column a response holds already, by its place.
+ */
+export function responseColumns(labels, factorNames = [], kept = []) {
+  const taken = [...factorNames, ...kept.filter(Boolean)];
+  return labels.map((label, i) => {
+    if (kept[i]) return kept[i];
+    const name = responseName(label, taken);
+    taken.push(name);
+    return name;
+  });
+}
 
 /** A quantity's name with its units, as a heading or an axis shows it: "T (degC)", or the name alone. */
 export const withUnits = (name, units) => (units ? `${name} (${units})` : name);
@@ -435,6 +715,9 @@ export const TITLES = {
   true_contour: "True response surface",
   residuals: "Residuals against fitted values",
   half_normal: "Half-normal plot of the effects",
+  ternary: "Fitted response over the blends",
+  true_ternary: "True response over the blends",
+  cox: "Fitted response along each Cox direction",
 };
 
 /** What each chart shows and how to read it; some name the factors drawn. */
@@ -454,6 +737,13 @@ export const CAPTIONS = {
     return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}; the dots are the runs.`;
   },
   true_contour: "The process the results were simulated from, on the same scale.",
+  ternary:
+    "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
+    "bounds allow; the white dots are the runs.",
+  true_ternary: "The process the results were simulated from, on the same scale.",
+  cox:
+    "Each line changes one component's share of the reference blend, the centroid of the design's blends, while the " +
+    "others keep their proportions to each other; the lines cross at the reference blend.",
   residuals: "A curve or a funnel points to a missing term or a changing noise level.",
   half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
 };

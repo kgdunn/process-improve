@@ -12,7 +12,7 @@ from itertools import pairwise
 
 import pytest
 
-from tests.web._support import ALL_DESIGNS, factors_named
+from tests.web._support import ALL_DESIGNS, NO_BOOK_PAGE, factors_named
 from tests.web.e2e._page import choose, factor_table, generate, reveal, run_sheet, set_factors, settled
 
 NAMES = "ABCDEFGHJKLM"
@@ -45,7 +45,8 @@ def runs(page) -> tuple[str, str]:
 @pytest.mark.parametrize("k", [2, 7, 12])
 def test_designs_the_factor_count_rules_out_cannot_be_chosen(page, bootstrap, k):
     set_factors(page, factors_named(*NAMES[:k]))
-    expected = [d for d, info in bootstrap.DESIGNS.items() if not info["min_factors"] <= k <= info["max_factors"]]
+    designs = [*bootstrap.DESIGNS.items(), *bootstrap.MIXTURES.items()]
+    expected = [d for d, info in designs if not info["min_factors"] <= k <= info["max_factors"]]
     assert disabled_designs(page) == expected
 
 
@@ -61,6 +62,10 @@ def test_each_design_shows_its_settings_and_where_the_book_explains_it(page, boo
     choose(page, design_type=design_type)
     info = bootstrap.DESIGNS[design_type]
     assert sorted(shown_settings(page)) == sorted(info["options"])
+    if design_type in NO_BOOK_PAGE:
+        assert page.text_content("#design-hint") == info["hint"], "the hint alone, with no link"
+        assert page.locator("#design-hint a").count() == 0
+        return
     assert page.text_content("#design-hint") == f"{info['hint']} More in the book"
     assert page.get_attribute("#design-hint a", "href").startswith("https://learnche.org/pid/")
 
@@ -225,10 +230,11 @@ def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_load
 
 def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(page):
     set_factors(page, [*factors_named("A", "B"), {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
-    assert disabled_designs(page) == ["dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"]
+    numeric = ["dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"]
+    assert disabled_designs(page) == [*numeric, "simplex_lattice", "simplex_centroid", "extreme_vertices"]
     assert page.text_content("#design-hint") == (
         "Box-Behnken needs numeric factors, and Supplier is categorical: choose a full factorial, fractional "
-        "factorial or Plackett-Burman design."
+        "factorial, Plackett-Burman or Taguchi design."
     )
     assert page.is_disabled("#generate")
     choose(page, design_type="full_factorial")

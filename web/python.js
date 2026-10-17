@@ -27,13 +27,36 @@ const kwargs = (options) =>
 /** Whether a factor is categorical: its levels are labels, which the page holds as its low and high. */
 const labelled = (f) => typeof f.low === "string";
 
-function factorList(factors) {
+/**
+ * The page's mixture designs, as bootstrap.MIXTURES names them; each is the library's design type "mixture",
+ * built for the Scheffé model its options name, and its factors are the components of a blend.
+ */
+export const MIXTURES = ["simplex_lattice", "simplex_centroid", "extreme_vertices"];
+
+const isMixture = (spec) => MIXTURES.includes(spec.design_type);
+
+/**
+ * The factors as Python makes them, as the list ``name``. With ``threeLevels``, each numeric factor is
+ * given its low, center and high values as its levels, which generate_design reads as a three-level
+ * factor: the page's option n_levels=3 for a Taguchi array, which is no argument of generate_design.
+ * With ``mixture``, each is a component of a blend.
+ */
+function factorList(factors, threeLevels = false, name = "factors", mixture = false) {
+  const levels = (f) => (threeLevels ? `, levels=[${f.low}, ${(f.low + f.high) / 2}, ${f.high}]` : "");
+  const units = (f) => (f.units ? `, units=${repr(f.units)}` : "");
   const rows = factors.map((f) =>
     labelled(f)
       ? `    Factor(name=${repr(f.name)}, type="categorical", levels=[${repr(f.low)}, ${repr(f.high)}]),`
-      : `    Factor(name=${repr(f.name)}, low=${f.low}, high=${f.high}${f.units ? `, units=${repr(f.units)}` : ""}),`,
+      : `    Factor(name=${repr(f.name)}${mixture ? ', type="mixture"' : ""}, low=${f.low}, high=${f.high}${levels(f)}${units(f)}),`,
   );
-  return ["factors = [", ...rows, "]"].join("\n");
+  const said = threeLevels ? "  # each numeric factor at its low, center and high values" : "";
+  return [`${name} = [${said}`, ...rows, "]"].join("\n");
+}
+
+/** A design's options as generate_design takes them, and whether its numeric factors are at three levels. */
+function libraryOptions(options) {
+  const { n_levels: levels, ...rest } = options || {};
+  return { options: rest, threeLevels: levels === 3 };
 }
 
 /**
@@ -47,7 +70,7 @@ function constraintLines(limits) {
 
 /** Step 1: the design, as generate_design makes it, inside the limits on the settings when there are some. */
 export function designCode(spec) {
-  const options = { ...(spec.options || {}) };
+  const { options, threeLevels } = libraryOptions(spec.options);
   const limits = spec.constraints ?? [];
   if (spec.design_type === "given") {
     // Runs as given: the page made none of them, so step 1 holds the factors and step 2 the runs themselves.
@@ -59,10 +82,21 @@ export function designCode(spec) {
       "# The runs are taken as they were given: step 2 lists them, in the order given.",
     ].join("\n");
   }
+  if (isMixture(spec)) {
+    // Each component a proportion between its bounds; the library's mixture design, for the model its options name.
+    return [
+      "from process_improve.experiments import Factor, generate_design",
+      "",
+      "# The components of the blend, each a proportion between its lower and upper bounds.",
+      factorList(spec.factors, false, "factors", true),
+      `result = generate_design(factors, design_type="mixture", ${kwargs(options)})`,
+      "print(result.design_actual)  # the blends, in randomised order: each run's proportions sum to 1",
+    ].join("\n");
+  }
   return [
     "from process_improve.experiments import Factor, generate_design",
     "",
-    factorList(spec.factors),
+    factorList(spec.factors, threeLevels),
     ...constraintLines(limits),
     `result = generate_design(factors, design_type=${repr(spec.design_type)}, ${limits.length ? "constraints=constraints, " : ""}${kwargs(options)})`,
     "print(result.design_actual)  # the runs, in randomised order, in the factors' own units",
@@ -108,6 +142,15 @@ function codedLine(f) {
   return `        ${repr(f.name)}: ${scaled},`;
 }
 
+/** The run sheet's column marking a confirmation run; mirrors best.js, which this module does not import. */
+export const CONFIRMATION = "Confirmation run";
+
+/** Whether each run of a run sheet is fitted: every run but a confirmation run, which tests the model. */
+export function fittedRuns(design) {
+  const at = design.columns.indexOf(CONFIRMATION);
+  return design.rows.map((row) => at < 0 || String(row[at] ?? "").trim().toLowerCase() !== "yes");
+}
+
 /** The decimals the page rounds simulated results to: two significant decimals below the noise's size. */
 const decimals = (sigma) => Math.max(0, 2 - Math.floor(Math.log10(sigma)));
 
@@ -119,70 +162,109 @@ function responseComment(spec) {
   return `  # ${name}${info.units ? `, in ${info.units}` : ""}`;
 }
 
+/** A specification's responses' columns, the first first, as logic.js responsesOf names them. */
+const responseNames = (spec) => (spec.responses?.length ? spec.responses.map((r) => r.name) : [spec.response || "y"]);
+
+/** A study's specification as one of its responses' code reads it: that response as its ``response``. */
+export function forResponse(spec, name) {
+  const found = (spec.responses ?? []).find((r) => r.name === name);
+  if (!found || name === spec.response) return spec;
+  const { name: _, ...info } = found;
+  return { ...spec, response: name, response_info: info };
+}
+
 /**
  * Step 2: the run sheet as the page lists it, its settings in coded units as ``X``, and the
  * results as ``y``: simulated from ``simulation``'s process when it is given, else the results
  * on the page, None for a run still to do. The runs are written out rather than taken from
  * step 1's ``result``, because the page may list them in another order: as the book's table
  * does, or as a workbook was sorted.
+ *
+ * ``results`` is the first response's results, one per run, or each response's by its column. With
+ * several responses the run sheet holds a column for each, and ``y`` is the first: each response's
+ * analysis takes its own column (analyseCode). Simulated, each has its process and its seed.
  */
-export function resultsCode(design, responses, simulation = null) {
-  const { spec, columns, rows } = design;
+export function resultsCode(design, results, simulation = null) {
+  const { spec, columns } = design;
+  const names = responseNames(spec);
+  const byName = Array.isArray(results) ? { [names[0]]: results } : results;
+  const kept = fittedRuns(design);
+  const rows = design.rows.filter((_, i) => kept[i]);
+  const values = Object.fromEntries(names.map((name) => [name, (byName[name] ?? []).filter((_, i) => kept[i])]));
+  const left = kept.includes(false) ? ["# The confirmation runs are left out: they test the model, so they do not enter its fit."] : [];
   const at = (name) => columns.indexOf(name);
   const settings = (f) => rows.map((row) => (labelled(f) ? row[at(f.name)] : Number(row[at(f.name)])));
   const blocked = at("Block") >= 0 && (spec.options?.n_blocks ?? 1) > 1;
-  const response = spec.response || "y";
+  const mixture = isMixture(spec);
+  const response = names[0];
+  const several = names.length > 1;
   const runs = [
     ...spec.factors.flatMap((f) => columnLines(f.name, settings(f))),
     ...(blocked ? columnLines("Block", rows.map((row) => row[at("Block")])) : []),
-    ...(simulation ? [] : columnLines(response, responses)),
+    ...(simulation ? [] : names.flatMap((name) => columnLines(name, values[name]))),
   ];
+  const waiting = names.some((name) => values[name].includes(null));
   const lines = [
     "import pandas as pd",
     ...(simulation ? ["from process_improve.experiments import TrueProcess"] : []),
     "",
     simulation
       ? "# The run sheet, as the page lists it: each run's settings, in the factors' own units."
-      : `# The run sheet, as the page lists it: each run's settings and result${
-          responses.includes(null) ? "; None for a run still to do" : ""
+      : `# The run sheet, as the page lists it: each run's settings and ${several ? "results" : "result"}${
+          waiting ? "; None for a run still to do" : ""
         }.`,
+    ...left,
     "runs = pd.DataFrame(",
     "    {",
     ...runs,
     "    }",
     ")",
-    "# The settings in coded units, as the model is fitted: -1 at a factor's low level, +1 at its high.",
+    mixture
+      ? "# The proportions, as the Scheffé model is fitted: a mixture's components are not coded."
+      : "# The settings in coded units, as the model is fitted: -1 at a factor's low level, +1 at its high.",
     "X = pd.DataFrame(",
     "    {",
-    ...spec.factors.map(codedLine),
+    ...spec.factors.map((f) => (mixture ? `        ${repr(f.name)}: runs[${repr(f.name)}],` : codedLine(f))),
     ...(blocked ? ['        "Block": runs["Block"],'] : []),
     "    }",
     ")",
   ];
   if (!simulation) return [...lines, `y = runs[${repr(response)}]${responseComment(spec)}`].join("\n");
-  const terms = simulation.truth.map((t) => `        ${repr(t.term)}: ${t.coefficient},`);
+  const process = (one) => ["TrueProcess(", "    {", ...one.truth.map((t) => `        ${repr(t.term)}: ${t.coefficient},`), "    },", `    sigma=${one.sigma},`, ")"];
+  if (!several) {
+    return [
+      ...lines,
+      "",
+      `process = ${process(simulation).join("\n")}`,
+      ...(responseComment(spec) ? [`#${responseComment(spec).slice(3)}, simulated from a known process`] : []),
+      `y = process.simulate(X, random_state=${simulation.seed}).round(${decimals(simulation.sigma)})  # as the page rounds them`,
+    ].join("\n");
+  }
+  const each = names.map((name, i) => [name, i === 0 ? simulation : simulation.more?.[name]]).filter(([, one]) => one);
   return [
     ...lines,
     "",
-    "process = TrueProcess(",
-    "    {",
-    ...terms,
-    "    },",
-    `    sigma=${simulation.sigma},`,
-    ")",
-    ...(responseComment(spec) ? [`#${responseComment(spec).slice(3)}, simulated from a known process`] : []),
-    `y = process.simulate(X, random_state=${simulation.seed}).round(${decimals(simulation.sigma)})  # as the page rounds them`,
+    "# Each response's process, simulated with a seed of its own and rounded as the page rounds it.",
+    "processes = {}",
+    ...each.map(([name, one]) => `processes[${repr(name)}] = ${process(one).join("\n")}`),
+    `seeds = ${repr(Object.fromEntries(each.map(([name, one]) => [name, one.seed])))}`,
+    `decimals = ${repr(Object.fromEntries(each.map(([name, one]) => [name, decimals(one.sigma)])))}`,
+    "for name, process in processes.items():",
+    "    runs[name] = process.simulate(X, random_state=seeds[name]).round(decimals[name])",
+    `y = runs[${repr(response)}]${responseComment(spec)}`,
   ].join("\n");
 }
 
 /**
  * Step 3: the analysis of step 2's ``X`` and ``y``, with the model the page fitted. ``complete``
  * says every run has its result; when one does not, the runs still to do are left out first.
- * ``vifModel``, the terms fitted as a formula, is given when the page shows their VIFs: the code
- * then works them out from the same runs, as the page's VIF column has them.
+ * ``spec`` names a response other than the study's first when it is that response's analysis: ``y``
+ * is its column then. ``vifModel``, the terms fitted as a formula, is given when the page shows their
+ * VIFs: the code then works them out from the same runs, as the page's VIF column has them.
  */
-export function analyseCode(model, complete = true, vifModel = null) {
+export function analyseCode(model, complete = true, spec = null, vifModel = null) {
   const fitted = complete ? "X, y" : "X[done], y[done]";
+  const own = Boolean(spec?.response) && spec.response !== responseNames(spec)[0];
   const vif = vifModel
     ? [
         "# Each term's variance inflation factor: how many times larger its coefficient's variance is",
@@ -194,12 +276,102 @@ export function analyseCode(model, complete = true, vifModel = null) {
   return [
     `from process_improve.experiments import analyze_experiment${vifModel ? ", evaluate_design" : ""}`,
     "",
+    ...(own ? [`y = runs[${repr(spec.response)}]${responseComment(spec)}`] : []),
     ...(complete ? [] : ["done = y.notna()  # leave out the runs still to do, as the page does"]),
     "analysis = analyze_experiment(",
     `    ${fitted}, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"]`,
     ")",
     'print(analysis["coefficients"])',
     ...vif,
+  ].join("\n");
+}
+
+/** How the code shown holds some columns of the model at a value: as bootstrap._held_at does, line for line. */
+const HELD_AT = [
+  "def held_at(coefficients, held):",
+  '    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at -1 or +1."""',
+  "    model = {}",
+  "    for c in coefficients:",
+  '        parts = c["term"].split(":")',
+  '        term = ":".join(p for p in parts if p not in held) or "Intercept"',
+  '        model[term] = model.get(term, 0.0) + c["coefficient"] * math.prod(held.get(p, 1.0) for p in parts)',
+  '    return [{"term": term, "coefficient": value} for term, value in model.items()]',
+  "",
+  "",
+];
+
+/** What the code shown says of the held columns: each categorical factor at the level found best, the blocks at their average. */
+function heldComment(held, factors) {
+  const levels = factors
+    .filter((f) => labelled(f) && f.name in held)
+    .map((f) => `${f.name} at ${held[f.name] < 0 ? f.low : f.high}`);
+  const blocks = Object.keys(held).some((name) => !factors.some((f) => f.name === name));
+  const said = [];
+  if (levels.length) said.push(`The page tried each level and found ${levels.join(" and ")} best: the model is held there.`);
+  if (blocks) said.push("The blocks are held at the average block, as the equation is.");
+  return said.map((line) => `# ${line}`).join("\n");
+}
+
+/**
+ * Step 4: the best settings for the response's goal, found on step 3's model with the library's optimiser, and the
+ * prediction there with its intervals. ``best`` is what bootstrap.best_settings answered: its ``search`` holds what
+ * the page held each categorical factor and block at, and the desirability goal it searched with. ``model`` is the
+ * model step 3 fitted, and ``complete`` says every run of the design has its result, as for step 3.
+ */
+export function bestCode(best, spec, model, complete = true) {
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const held = best.search?.held ?? {};
+  const holds = Object.keys(held).length > 0;
+  const limits = spec.constraints ?? [];
+  const response = spec.response || "y";
+  const searched = Boolean(best.search?.goal);
+  const fitted = complete ? "X, y" : "X[done], y[done]";
+  const levels = Object.fromEntries(spec.factors.filter(labelled).map((f) => [f.name, best.coded[f.name]]));
+  const imports = [
+    ...(holds && searched ? ["import math"] : []),
+    "import pandas as pd",
+    `from process_improve.experiments import ${limits.length && searched ? "DesignRegion, " : ""}analyze_experiment${searched ? ", optimize_responses" : ""}`,
+    "",
+  ];
+  const at = searched
+    ? `at = pd.DataFrame([{**best["optimal_coded"]${Object.keys(levels).length ? `, **${repr(levels)}` : ""}}])`
+    : `at = pd.DataFrame([${repr(best.coded)}])`;
+  const prediction = [
+    "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
+    at,
+    `prediction = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=at)`,
+    'print(prediction["predictions"][0])',
+  ];
+  if (!searched) {
+    return [
+      ...imports,
+      "# Every factor the model holds is categorical: the page compared each combination of their levels, and these",
+      "# are best, in coded units.",
+      ...prediction,
+    ].join("\n");
+  }
+  const ranges = numeric.map((f) => `${repr(f.name)}: {"low": ${f.low}, "high": ${f.high}}`).join(", ");
+  return [
+    ...imports,
+    ...(holds ? [heldComment(held, spec.factors), ...HELD_AT, `coefficients = held_at(analysis["coefficients"], ${repr(held)})`] : []),
+    "# The goal as a desirability, its limits beyond every prediction in the ranges: a straight line in the prediction.",
+    `goal = ${repr(best.search.goal)}`,
+    "best = optimize_responses(",
+    "    [",
+    "        {",
+    `            "response_name": ${repr(response)},`,
+    `            "coefficients": ${holds ? "coefficients" : 'analysis["coefficients"]'},`,
+    `            "factor_names": ${repr(numeric.map((f) => f.name))},`,
+    "        }",
+    "    ],",
+    "    goals=[goal],",
+    `    factor_ranges={${ranges}},`,
+    ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+    ')["desirability"]',
+    'print(best["optimal_actual"])  # the best settings, in the factors\' own units',
+    `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
+    "",
+    ...prediction,
   ].join("\n");
 }
 
@@ -242,14 +414,17 @@ export function cumulative(...steps) {
  */
 export function compareCode(factors, designs, model, limits = []) {
   const kept = limits.length ? ", constraints=constraints" : "";
-  const lines = designs.map((d) => {
-    const extra = kwargs(d.options || {});
-    return `    ${repr(d.label)}: generate_design(factors, design_type=${repr(d.design_type)}${kept}${extra ? `, ${extra}` : ""}),`;
+  const asked = designs.map((d) => libraryOptions(d.options));
+  const lines = designs.map((d, i) => {
+    const extra = kwargs(asked[i].options);
+    const made = asked[i].threeLevels ? "three_levels" : "factors";
+    return `    ${repr(d.label)}: generate_design(${made}, design_type=${repr(d.design_type)}${kept}${extra ? `, ${extra}` : ""}),`;
   });
   return [
     `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}Factor, compare_designs, generate_design`,
     "",
     factorList(factors),
+    ...(asked.some((a) => a.threeLevels) ? [factorList(factors, true, "three_levels")] : []),
     ...constraintLines(limits),
     "designs = {",
     ...lines,
@@ -271,10 +446,14 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * simulated and left as they were come from the same process and seed; results typed in, edited
  * or read from a workbook are written out. ``model`` is the model the analysis fitted, or null
  * when there is no analysis yet, and ``vifModel`` its terms when the page shows their VIFs (see
- * analyseCode); ``version`` pins the release the page ran, when known.
+ * analyseCode). ``analyses`` lists each response's ``{response, model, best, vifModel}`` for a
+ * study of several responses; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, version, url }) {
-  const simulated = Boolean(simulation) && sources.every((s) => s === "simulated");
+export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, version, url, best = null, analyses = null, balance = null }) {
+  const names = responseNames(design.spec);
+  const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
+  const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
+  const simulated = Boolean(simulation) && Object.values(marks).every((list) => list.every((s) => s === "simulated"));
   const cells = [
     markdownCell(
       "about",
@@ -285,14 +464,34 @@ export function notebook({ title, design, responses, sources, simulation, model,
     markdownCell("design-step", "## 1. The design"),
     codeCell("design", designCode(design.spec)),
     markdownCell("results-step", simulated ? "## 2. The results, simulated from a known process" : "## 2. The results"),
-    codeCell("results", resultsCode(design, responses, simulated ? simulation : null)),
+    codeCell("results", resultsCode(design, results, simulated ? simulation : null)),
   ];
-  if (model !== null && model !== undefined) {
-    const complete = responses.every((v) => v !== null && v !== undefined);
+  // Each response's analysis, and its best settings when it has a goal: the first's alone for a study of one response.
+  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel }] : []);
+  const fitted = fittedRuns(design);
+  let step = 3;
+  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null } of each) {
+    if (fittedModel === null || fittedModel === undefined) continue;
+    const spec = forResponse(design.spec, response);
+    const values = results[response] ?? [];
+    const complete = values.every((v, i) => !fitted[i] || (v !== null && v !== undefined));
+    const words = spec.response_info?.label || response;
+    const id = names.length > 1 ? `-${names.indexOf(response) + 1}` : ""; // a cell's id is ASCII, as nbformat asks
     cells.push(
-      markdownCell("analysis-step", "## 3. The analysis"),
-      codeCell("analysis", analyseCode(model, complete, vifModel)),
+      markdownCell(`analysis-step${id}`, names.length > 1 ? `## ${step}. The analysis of ${words}` : `## ${step}. The analysis`),
+      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms)),
     );
+    step += 1;
+    if (found?.settings) {
+      cells.push(
+        markdownCell(`best-step${id}`, names.length > 1 ? `## ${step}. The best settings for ${words}` : `## ${step}. The best settings for the goal`),
+        codeCell(`best${id}`, bestCode(found, spec, fittedModel, complete)),
+      );
+      step += 1;
+    }
+  }
+  if (balance?.balanced) {
+    cells.push(markdownCell("balance-step", `## ${step}. The balance of the responses`), codeCell("balance", balanceCode(balance, design.spec)));
   }
   return {
     cells,
@@ -303,4 +502,56 @@ export function notebook({ title, design, responses, sources, simulation, model,
     nbformat: 4,
     nbformat_minor: 5,
   };
+}
+
+/** What a goal holds as the library's desirability takes it: mirrors bootstrap.DESIRABILITY_KEYS. */
+const DESIRABILITY_KEYS = ["response", "goal", "target", "low", "high", "weight", "importance"];
+
+/**
+ * The balance of the responses: each response with a goal fitted with its own model to the runs that have its result,
+ * its goal as a desirability over its acceptable range, and the settings with the best overall desirability found
+ * with the library's optimiser over every model. It builds on step 2's ``runs`` and ``X``. ``balance`` is what
+ * bootstrap.balance answered: its ``search`` holds each response's fitted formula, its goal, and what the page held
+ * each categorical factor and block at.
+ */
+export function balanceCode(balance, spec) {
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const held = balance.search?.held ?? {};
+  const holds = Object.keys(held).length > 0;
+  const limits = spec.constraints ?? [];
+  const formulas = balance.search.formulas;
+  const goals = balance.search.goals.map((g) => Object.fromEntries(DESIRABILITY_KEYS.filter((k) => k in g).map((k) => [k, g[k]])));
+  const ranges = numeric.map((f) => `${repr(f.name)}: {"low": ${f.low}, "high": ${f.high}}`).join(", ");
+  const imports = [
+    ...(holds ? ["import math"] : []),
+    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment, optimize_responses`,
+    "",
+  ];
+  return [
+    ...imports,
+    ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
+    "# Each response with a goal, fitted with its own model to the runs that have its result.",
+    "models = []",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    '    fit = analyze_experiment(X[done], runs[name][done], model=model, analysis_type="coefficients")',
+    `    coefficients = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
+    `    models.append({"response_name": name, "coefficients": coefficients, "factor_names": ${repr(numeric.map((f) => f.name))}})`,
+    "",
+    "# Each goal as a desirability: 0 outside its acceptable range (low to high), 1 at its good end; its weight shapes",
+    "# the ramp between, and its importance is how much it counts in the overall desirability.",
+    "goals = [",
+    ...goals.map((g) => `    ${repr(g)},`),
+    "]",
+    "balanced = optimize_responses(",
+    "    models,",
+    "    goals=goals,",
+    `    factor_ranges={${ranges}},`,
+    ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+    ')["desirability"]',
+    'print(balanced["optimal_actual"])  # the balanced settings, in the factors\' own units',
+    'print(balanced["predicted_responses"])  # what each model predicts there',
+    'print(balanced["individual_desirability"])  # each response\'s desirability, d',
+    'print(balanced["composite_desirability"])  # the overall desirability, D',
+  ].join("\n");
 }

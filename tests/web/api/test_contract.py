@@ -122,6 +122,222 @@ READS: dict[str, list[str]] = {
         "plotly_js: str",
         "contour_factors[]: str",
         "figures{}: str",
+        "shaded: bool",
+        "held: list",
+        "held_best: bool",
+    ],
+    "charts through the best settings": [
+        "held[].name: str",
+        "held[].value: any",
+        "held_best: bool",
+    ],
+    "best settings": [
+        "goal: str",
+        "target: number?",
+        "flat: bool",
+        "predicted: number",
+        "reached: bool?",
+        "level: number",
+        "confidence[]: number",
+        "prediction[]: number",
+        "leverage: number",
+        "max_leverage: number",
+        "extrapolating: bool",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: any",
+        "settings[].coded: number",
+        "settings[].in_model: bool",
+        "settings[].end: str?",
+        "settings[].beyond: bool",
+        "coded{}: number",
+        "limits: list",
+        "stationary.factors[]: str",
+        "stationary.inside: bool",
+        "stationary.kind: str",
+        "ascent{}: number",
+        "unclear: bool",
+        "sensitivity[].name: str",
+        "sensitivity[].step: number",
+        "sensitivity[].down: number",
+        "sensitivity[].up: number",
+        "sensitivity[].down_runnable: bool",
+        "sensitivity[].up_runnable: bool",
+        "sensitivity[].in_model: bool",
+        "confirm_at{}: any",
+        "confirmation: list",
+        "search.held: dict",
+        "search.goal.goal: str",
+        "search.goal.low: number",
+        "search.goal.high: number",
+    ],
+    "best settings on a limit": [
+        "limits[].index: int",
+        "limits[].expression: str",
+        "limits[].beyond: bool",
+    ],
+    "confirmation runs judged": [
+        "confirmation[].rows[]: int",
+        "confirmation[].at{}: any",
+        "confirmation[].runs: int",
+        "confirmation[].done: int",
+        "confirmation[].mean: number?",
+        "confirmation[].predicted: number",
+        "confirmation[].interval[]: number",
+        "confirmation[].inside: bool?",
+    ],
+    "best settings without a goal": [
+        "goal: str",
+    ],
+    "design of several responses": [
+        "columns[]: str",
+        "spec.response: str",
+        "spec.responses[].name: str",
+        "spec.responses[].label: str",
+        "spec.responses[].units: str",
+        "spec.responses[].goal: str",
+    ],
+    "simulation of several responses": [
+        "responses[]: number",
+        "truth[].term: str",
+        "more{}.responses[]: number",
+        "more{}.truth[].term: str",
+        "more{}.truth[].coefficient: number",
+        "more{}.equation: str",
+        "more{}.inactive: list",
+        "more{}.sigma: number",
+        "more{}.seed: int",
+    ],
+    "upload of several responses": [
+        "spec.responses[].name: str",
+        "spec.analysis_models: dict",
+        "responses[]: number?",
+        "sources[]: str?",
+        "more_responses{}.[]: number?",
+        "more_sources{}.[]: str?",
+    ],
+    "balance": [
+        "balanced: bool",
+        "aimed[]: str",
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].goal: str",
+        "responses[].low: number",
+        "responses[].high: number",
+        "responses[].default_low: number",
+        "responses[].default_high: number",
+        "responses[].importance: int",
+        "responses[].shape: str",
+        "responses[].weight: number",
+        "responses[].predicted: number",
+        "responses[].prediction[]: number",
+        "responses[].confidence[]: number",
+        "responses[].d: number",
+        "composite: number",
+        "limiting: str",
+        "coded{}: any",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: any",
+        "settings[].in_model: bool",
+        "settings[].end: str?",
+        "leverage: number",
+        "max_leverage: number",
+        "leverage_of: str",
+        "extrapolating: bool",
+        "limits: list",
+        "confirm_at{}: any",
+        "confirmation: list",
+        "overlay.x: str",
+        "overlay.y: str",
+        "overlay.grid[]: number",
+        "overlay.ticks{}.tickvals[]: number",
+        "overlay.ticks{}.ticktext[]: str",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[].[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.acceptable[].[]: int",
+        "overlay.runnable: list?",
+        "overlay.at[]: number",
+        "overlay.held[].name: str",
+        "overlay.held[].value: any",
+        "search.held: dict",
+        "search.goals[].response: str",
+        "search.goals[].low: number",
+        "search.goals[].high: number",
+        "search.goals[].weight: number",
+        "search.goals[].importance: int",
+        "search.formulas{}: str",
+    ],
+    "balance confirmed": [
+        "confirmation[].rows[]: int",
+        "confirmation[].at{}: any",
+        "confirmation[].runs: int",
+        "confirmation[].responses[].name: str",
+        "confirmation[].responses[].done: int",
+        "confirmation[].responses[].mean: number?",
+        "confirmation[].responses[].predicted: number",
+        "confirmation[].responses[].interval[]: number",
+        "confirmation[].responses[].inside: bool?",
+    ],
+    "nothing to balance": [
+        "balanced: bool",
+        "aimed: list",
+    ],
+    "relabel of several responses": [
+        "simulation.more{}.truth[].term: str",
+        "simulation.more{}.truth[].coefficient: number",
+        "simulation.more{}.equation: str",
+        "simulation.more{}.inactive: list",
+    ],
+    "mixture design": [
+        "n_runs: int",
+        "columns[]: str",
+        "rows[].[]: number?",
+        "model: str",
+        "facts.center_runs: int",
+        "facts.notes[]: str",
+        "spec.design_type: str",
+        "spec.model: str",
+        "spec.options.model_type: str",
+        "spec.factors[].name: str",
+        "spec.factors[].low: number",
+        "spec.factors[].high: number",
+    ],
+    "mixture analysis": [
+        "spec.design_type: str",
+        "model: str",
+        "formula: str",
+        "equation: str",
+        "lenth: any?",
+        "coefficients[].label: str",
+        "coefficients[].true_value: number?",
+        "anova[].source: str",
+        "effects[].component: str",
+        "effects[].effect: number",
+        "effects[].low: number",
+        "effects[].high: number",
+    ],
+    "mixture charts": [
+        "plotly_js: str",
+        "figures{}: str",
+        "ternary.components[]: str",
+        "ternary.grid.a[]: number",
+        "ternary.grid.b[]: number",
+        "ternary.grid.c[]: number",
+        "ternary.grid.fitted[]: number",
+        "ternary.grid.true[]: number",
+        "ternary.runs.a[]: number",
+        "ternary.runs.b[]: number",
+        "ternary.runs.c[]: number",
+        "ternary.runs.y[]: number",
+    ],
+    "mixture traces": [
+        "cox.traces[].component: str",
+        "cox.traces[].change[]: number",
+        "cox.traces[].fitted[]: number",
+        "cox.traces[].true[]: number",
     ],
     "workbook": [
         "xlsx_base64: str",
@@ -307,6 +523,22 @@ ENTRY_POINTS = {
     "analysis": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
+    "charts through the best settings": "api_plots",
+    "best settings": "api_best_settings",
+    "best settings on a limit": "api_best_settings",
+    "confirmation runs judged": "api_best_settings",
+    "best settings without a goal": "api_best_settings",
+    "design of several responses": "api_make_design",
+    "simulation of several responses": "api_simulate",
+    "upload of several responses": "api_read_workbook",
+    "relabel of several responses": "api_relabel",
+    "balance": "api_balance",
+    "balance confirmed": "api_balance",
+    "nothing to balance": "api_balance",
+    "mixture design": "api_make_design",
+    "mixture analysis": "api_analyze_runs",
+    "mixture charts": "api_plots",
+    "mixture traces": "api_plots",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -327,6 +559,13 @@ ENTRY_POINTS = {
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
 NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
+
+#: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
+THREE = [
+    {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
+    {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
+    {"name": "Purity", "label": "Purity", "units": "%", "goal": "target", "target": 63.0},
+]
 
 #: Two straight limits, one with a note: between them they narrow both ranges, so ``bounds`` has entries to read.
 LIMITS = [{"expression": "T + 25*P <= 215", "note": "the product chars"}, {"expression": "400 <= 3*T + 5*P <= 600"}]
@@ -357,6 +596,64 @@ def values_at(result: dict, path: str) -> list[Any]:
     return found
 
 
+#: A Box-Behnken design measuring the three responses, as the page asks for it.
+THREE_DESIGN = {"design_type": "box_behnken", "factors": FACTORS, "responses": THREE}
+
+
+def several_responses(api) -> dict[str, Callable[[], dict]]:
+    """Return the requests about a study of three responses: its design, its simulation, its workbook and a renaming."""
+
+    def simulated() -> tuple[dict, dict]:
+        design = held_of(api.ok("api_make_design", THREE_DESIGN))
+        return design, api.ok("api_simulate", {**design, "seed": 2})
+
+    def uploaded() -> dict:
+        design, sim = simulated()
+        results = {"responses": sim["responses"], "more_responses": {n: m["responses"] for n, m in sim["more"].items()}}
+        marks = {"sources": ["simulated"] * 15, "more_sources": {n: ["simulated"] * 15 for n in sim["more"]}}
+        sent = {**design, **results, **marks, "models": {"Cost": "interactions"}}
+        return {"xlsx_base64": api.ok("api_workbook", sent)["xlsx_base64"]}
+
+    def relabelled() -> dict:
+        design, sim = simulated()
+        return {"design": design, "factors": [{**f, "name": f"{f['name']}_new"} for f in FACTORS], "simulation": sim}
+
+    def balanced() -> dict:
+        design, sim = simulated()
+        results = {"responses": sim["responses"], "more_responses": {n: m["responses"] for n, m in sim["more"].items()}}
+        return {**design, **results, "models": {"Cost": "interactions"}, "goals": {"Yield": {"importance": 4}}}
+
+    def confirmed() -> dict:
+        sent = balanced()
+        at = api.ok("api_balance", sent)["confirm_at"]
+        columns = [*sent["columns"], "Confirmation run"]
+        extra = [[{"Run order": 16 + i, "Confirmation run": "yes", **at}.get(c) for c in columns] for i in range(3)]
+        rows = [*[[*row, None] for row in sent["rows"]], *extra]
+        more = {n: [*values, 50.0, None, 52.0] for n, values in sent["more_responses"].items()}
+        return {
+            **sent,
+            "columns": columns,
+            "rows": rows,
+            "responses": [*sent["responses"], 60, 61, 62],
+            "more_responses": more,
+        }
+
+    def learning() -> dict:
+        design, sim = simulated()
+        spec = {**design["spec"], "responses": [THREE[0], {**THREE[1], "goal": "learn"}, {**THREE[2], "goal": "learn"}]}
+        return {**design, "spec": spec, "responses": sim["responses"]}
+
+    return {
+        "design of several responses": lambda: THREE_DESIGN,
+        "simulation of several responses": lambda: {**simulated()[0], "seed": 2},
+        "upload of several responses": uploaded,
+        "relabel of several responses": relabelled,
+        "balance": balanced,
+        "balance confirmed": confirmed,
+        "nothing to balance": learning,
+    }
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -376,6 +673,36 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     def slow() -> dict:
         return {"factors": [{"name": n, "low": -1, "high": 1} for n in "ABCDE"], "model": "quadratic"}
 
+    def through_best() -> dict:
+        best = api.ok("api_best_settings", analysed)
+        return {**analysed, "best": best["coded"]}
+
+    def on_a_limit() -> dict:
+        spec = {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS}
+        design = held_of(api.ok("api_make_design", {**spec, "response_info": {"goal": "maximize"}}))
+        rows = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+        responses = [50 + 3 * (r["T"] - 175) / 25 + 2 * (r["P"] - 2) - ((r["F"] - 15) / 5) ** 2 for r in rows]
+        return {**design, "responses": responses}
+
+    def confirmed() -> dict:
+        at = api.ok("api_best_settings", analysed)["confirm_at"]
+        columns = [*held["columns"], "Confirmation run"]
+        extra = [[{"Run order": 16 + i, "Confirmation run": "yes", **at}.get(c) for c in columns] for i in range(3)]
+        rows = [*[[*row, None] for row in held["rows"]], *extra]
+        return {**held, "columns": columns, "rows": rows, "responses": [*simulated["responses"], 67.0, 68.0, None]}
+
+    def no_goal() -> dict:
+        spec = {**held["spec"], "response_info": {**held["spec"]["response_info"], "goal": "learn"}}
+        return {**analysed, "spec": spec}
+
+    def blend(q: int) -> dict:
+        """Return a replicated simplex lattice in ``q`` components, with results simulated from a blend."""
+        factors = [{"name": n, "low": None, "high": None, "units": ""} for n in "ABCD"[:q]]
+        spec = {"design_type": "simplex_lattice", "factors": factors, "n_replicates": 2}
+        made = held_of(api.ok("api_make_design", spec))
+        simulation = api.ok("api_simulate", made)
+        return {**made, "responses": simulation["responses"], "truth": simulation["truth"]}
+
     def relabel() -> dict:
         design = worked_example["design"]
         sent = {**held, "facts": design["facts"], "outside_range": design["outside_range"]}
@@ -389,6 +716,19 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "analysis": lambda: analysed,
         "saturated analysis": saturated,
         "charts": lambda: analysed,
+        "charts through the best settings": through_best,
+        "best settings": lambda: analysed,
+        "best settings on a limit": on_a_limit,
+        "confirmation runs judged": confirmed,
+        "best settings without a goal": no_goal,
+        **several_responses(api),
+        "mixture design": lambda: {
+            "design_type": "simplex_centroid",
+            "factors": [{"name": n, "low": 0, "high": 1, "units": ""} for n in "ABC"],
+        },
+        "mixture analysis": lambda: blend(3),
+        "mixture charts": lambda: blend(3),
+        "mixture traces": lambda: blend(4),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,
@@ -426,7 +766,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
 
 @pytest.mark.parametrize("kind", READS)
 def test_each_reply_holds_what_the_page_reads(reply, kind):
-    if kind == "charts":
+    if kind.startswith("charts"):
         pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
     for read in READS[kind]:
         path, expected = (part.strip() for part in read.split(":"))

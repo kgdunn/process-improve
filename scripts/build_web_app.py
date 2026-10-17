@@ -59,6 +59,7 @@ APP_FILES = (
     "picture.js",
     "charts.js",
     "python.js",
+    "best.js",
     "campaign.js",
     "store.js",
     "glossary.js",
@@ -152,13 +153,16 @@ def worked_example() -> dict[str, Any]:
             "response_info": inputs["design"]["response_info"],
         },
     )
+    analysis = call("api_analyze_runs", request)
+    best = call("api_best_settings", request)  # the page finds the best settings for the goal once the model is fitted
     return {
         "version": version("process-improve"),
         "inputs": inputs,
         "design": design,
         "simulation": simulation,
-        "analysis": call("api_analyze_runs", request),
-        "plots": call("api_plots", request),
+        "analysis": analysis,
+        "best": best,
+        "plots": call("api_plots", {**request, **({"best": best["coded"]} if best.get("coded") else {})}),
         "comparison": comparison,
     }
 
@@ -356,16 +360,42 @@ def generated_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     The page's design must have the record's runs: the catalog draws one design and opens the same one.
     """
     spec = record["spec"]
-    if spec["design_type"] not in load_bootstrap().DESIGNS:
+    designs = load_bootstrap().DESIGNS
+    if spec["design_type"] not in designs:
         return None, "the page does not make this kind of design"
+    options = dict(spec["options"])
+    if "array" in spec:  # an orthogonal array, all its columns: the page makes it when it takes every column
+        info = designs[spec["design_type"]]
+        if not info["min_factors"] <= len(record["factors"]) <= info["max_factors"]:
+            return None, f"the page makes this design for {info['min_factors']} to {info['max_factors']} factors"
+        levels = taguchi_options(record)
+        if isinstance(levels, str):
+            return None, levels
+        options |= levels
     factors = [{"name": f["name"], "low": f["low"], "high": f["high"], "units": ""} for f in record["factors"]]
-    asked = {"design_type": spec["design_type"], "factors": factors, "response": "y", **spec["options"]}
+    asked = {"design_type": spec["design_type"], "factors": factors, "response": "y", **options}
     design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
     design.pop("xlsx_base64")
     drawn = Counter(tuple(round(v, 2) for v in row) for row in record["coded_runs"])
     if _coded_runs(design) != drawn:
         raise SystemExit(f"the catalog's design {record['id']!r}: the page makes other runs than the library drew")
     return _campaign(record["title"], design, [None] * design["n_runs"]), ""
+
+
+def taguchi_options(record: dict[str, Any]) -> dict[str, Any] | str:
+    """Return the page's options for a Taguchi array with a record's runs, or say why the page cannot make it.
+
+    The page runs every numeric factor of an array at two levels, or every one at three (``n_levels``), and
+    each categorical factor at its two: so the numeric factors' runs must all take two levels, or all three.
+    """
+    runs = record["coded_runs"]
+    numeric = [j for j, f in enumerate(record["factors"]) if f.get("type") == "numeric"]
+    counts = {len({round(row[j], 6) for row in runs}) for j in numeric}
+    if counts <= {2}:
+        return {}
+    if counts == {3}:
+        return {"n_levels": 3}
+    return "the page runs every numeric factor of a Taguchi array at 2 levels, or every one at 3"
 
 
 def _page_factor(factor: dict[str, Any]) -> bool:
@@ -388,7 +418,7 @@ def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
 
     The design's specification is what the page would make for it: its type, its factors, a center run for
     each one the source prints and, where the source repeats every other run, that many replicates. A
-    central composite design's axial distance is read off the runs.
+    central composite design's axial distance is read off the runs, and so are a Taguchi array's levels.
     """
     designs = load_bootstrap().DESIGNS
     design_type, factors, runs = record["design_type"], record["factors"], record["coded_runs"]
@@ -414,6 +444,11 @@ def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
     if design_type == "ccd":
         axial = max(abs(v) for row in runs for v in row)
         options["alpha"] = "face_centered" if abs(axial - 1) < CODED_TOLERANCE else round(axial, 4)
+    if design_type == "taguchi":
+        levels = taguchi_options(record)
+        if isinstance(levels, str):
+            return levels
+        options |= levels
     values = record["response_values"].get(response) or [None] * len(runs)
     return {
         "name": record["id"],
@@ -484,7 +519,7 @@ def _not_given(record: dict[str, Any]) -> str:
     reasons = (
         (lambda: record["blocked"] or record["split_plot"], "the page opens designs without blocks or whole plots"),
         (lambda: not complete, "the source prints no complete table of runs"),
-        (lambda: record["n_mixture"], "the page has no model for a mixture's proportions"),
+        (lambda: record["n_mixture"], "the page makes mixtures of its own, but takes no mixture's runs as given"),
         (lambda: not low <= len(factors) <= high, f"the page opens designs of {low} to {high} factors"),
         (lambda: len(runs) > most, f"the page holds at most {most} runs"),
         (lambda: any(map(_blank_label, factors)), "a spreadsheet reads a label such as None as a blank cell"),

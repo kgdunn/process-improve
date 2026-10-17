@@ -107,26 +107,34 @@
     <div id="brief" class="brief" data-pane="plan">
       <section id="response-card" class="card" aria-labelledby="h-response">
         <h2 id="h-response">What will you measure?</h2>
-        <div class="row">
-          <label class="grow"><span class="term" data-term="response">Response</span>
-            <input id="response" maxlength="64" placeholder="Yield" autocomplete="off" spellcheck="false">
-          </label>
-          <label>Units
-            <input id="response-units" maxlength="32" size="6" placeholder="%" autocomplete="off" spellcheck="false">
-          </label>
-        </div>
-        <fieldset id="goal" class="goal">
-          <legend>Goal</legend>
-          <label><input type="radio" name="goal" value="maximize"> Maximise</label>
-          <label><input type="radio" name="goal" value="minimize"> Minimise</label>
-          <label><input type="radio" name="goal" value="target"> Hit a target</label>
-          <label><input type="radio" name="goal" value="learn" checked> Just learn</label>
-        </fieldset>
-        <label id="target-box" class="inline" hidden>Target
-          <span class="with-unit"><input id="response-target" type="number" step="any"><span class="unit"></span></span>
-        </label>
+        <!-- A row per response, up to five, as the factors are listed. The first row is the study's response and is
+             always there; app.js adds the others from it. Its goals mirror bootstrap.GOALS; tests/web/page/test_parity.py
+             keeps them in step. -->
+        <table class="factors responses" id="responses">
+          <thead><tr><th><button type="button" class="term" data-term="response">Response</button></th><th>Units</th><th>Goal</th><th>Target</th><th><span class="sr">Remove</span></th></tr></thead>
+          <tbody>
+            <tr>
+              <td data-label="Response"><input id="response" name="label" aria-label="Response" maxlength="64" placeholder="Yield" autocomplete="off" spellcheck="false"></td>
+              <td data-label="Units"><input id="response-units" name="units" aria-label="Units" maxlength="32" size="5" placeholder="%" autocomplete="off" spellcheck="false"></td>
+              <td data-label="Goal"><select id="response-goal" name="goal" aria-label="Goal" autocomplete="off">
+                <option value="maximize">Maximise</option>
+                <option value="minimize">Minimise</option>
+                <option value="target">Hit a target</option>
+                <option value="learn" selected>Just learn</option>
+              </select></td>
+              <td data-label="Target"><input id="response-target" name="target" type="number" step="any" aria-label="Target" placeholder="none" disabled></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="response-problems" class="hint error" role="status" hidden></p>
+        <p class="add-factors">
+          <button type="button" id="add-response" class="link">+ Add <span class="term" data-term="response">response</span></button>
+          <span id="responses-full" class="hint" hidden>A study measures at most 5 responses.</span>
+        </p>
+        <p id="first-sizes" class="hint" hidden>The first response sizes the design, so the page asks what you know of it.</p>
         <details id="response-known" class="known">
-          <summary>What you know of it already</summary>
+          <summary>What you know of <span id="known-name">it</span> already</summary>
           <div class="row">
             <label><span class="term" data-term="typical">Typical value</span>
               <span class="with-unit"><input id="response-typical" type="number" step="any"><span class="unit"></span></span>
@@ -145,7 +153,7 @@
       <section id="factors-card" class="card" aria-labelledby="h-factors">
         <h2 id="h-factors">What might change it?</h2>
         <table class="factors" id="factors">
-          <thead><tr><th>Factor name</th><th>Type</th><th>Low</th><th>High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
+          <thead><tr><th>Factor name</th><th>Type</th><th id="h-low">Low</th><th id="h-high">High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
           <tbody></tbody>
         </table>
         <p id="factor-problems" class="hint error" role="status" hidden></p>
@@ -157,6 +165,8 @@
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
         <details id="limits" class="known limits">
           <summary>Settings you cannot run <span id="limits-count" class="badge" hidden></span></summary>
+          <p id="limits-mixture" class="hint" hidden>A mixture takes no limits on the settings on this page: give each
+            component its lower and upper proportions instead.</p>
           <p class="hint">Type each <button type="button" class="term" data-term="limit">limit</button> as an inequality
             in the factors' own units, with + - * / and ** for a power.</p>
           <div id="limit-list"></div>
@@ -248,6 +258,8 @@
                   data-hint="A fraction of the full factorial; its resolution says what is aliased with what.">Fractional factorial (2-level)</option>
                 <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="11"
                   data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
+                <option value="taguchi" data-options="n_levels n_replicates n_blocks" data-min-factors="2" data-max-factors="12"
+                  data-hint="Main effects in a standard array of 4 to 36 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
                 <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="12"
                   data-hint="Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
                 <option value="box_behnken" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="7" selected
@@ -260,6 +272,15 @@
                   data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
                 <option value="given" data-options="" data-min-factors="2" data-max-factors="12" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
+                <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
+                <optgroup label="Mixtures: proportions that sum to 1">
+                  <option value="simplex_lattice" data-options="lattice_degree n_replicates" data-min-factors="3" data-max-factors="6"
+                    data-hint="The pure components and, at degree 2, every 50:50 blend of two, with the overall centroid to check the fit.">Simplex lattice (mixture)</option>
+                  <option value="simplex_centroid" data-options="n_replicates" data-min-factors="3" data-max-factors="4"
+                    data-hint="Every blend of equal parts: the pure components, the 50:50 blends, the blends in thirds, and so on to the overall centroid.">Simplex centroid (mixture)</option>
+                  <option value="extreme_vertices" data-options="mixture_model n_replicates" data-min-factors="3" data-max-factors="6"
+                    data-hint="The corners of the blends your lower and upper proportions allow, the midpoints of the edges between them for the quadratic model, and their centroid.">Extreme vertices (mixture with bounds)</option>
+                </optgroup>
               </select>
             </label>
           </div>
@@ -289,6 +310,12 @@
                 <option value="5">V: two-factor interactions clear as well</option>
               </select>
             </label>
+            <label data-option="n_levels">Levels of each numeric factor
+              <select id="n_levels">
+                <option value="2" selected>2: low and high</option>
+                <option value="3">3: low, center and high</option>
+              </select>
+            </label>
             <label data-option="budget">Runs
               <input id="budget" type="number" min="3" max="200" aria-describedby="budget-hint">
               <span id="budget-hint" class="hint"></span>
@@ -306,6 +333,30 @@
                 <option value="main_effects">Main effects</option>
               </select>
             </label>
+            <!-- A simplex lattice's degree, and the Scheffé model extreme vertices are built for: bootstrap.LATTICE_DEGREES
+                 and bootstrap.VERTICES_MODELS. -->
+            <label data-option="lattice_degree"><span class="term" data-term="lattice-degree">Degree</span>
+              <select id="lattice_degree">
+                <option value="2" selected>2: and every 50:50 blend</option>
+                <option value="1">1: the pure components</option>
+              </select>
+            </label>
+            <label data-option="mixture_model">Model to design for
+              <select id="mixture_model">
+                <option value="scheffe_quadratic" selected>Quadratic blending</option>
+                <option value="scheffe_linear">Linear blending</option>
+              </select>
+            </label>
+          </div>
+
+          <!-- The trade-off of a fraction (logic.js TRADE_OFF), with a design that takes a resolution: the column of
+               the brief's factors takes a pick, which sets the resolution, or the full factorial. -->
+          <div id="trade-off" class="trade-off" hidden>
+            <p id="trade-off-caption" class="hint">Each cell is the <button type="button" class="term"
+              data-term="resolution">resolution</button> of the best fraction in that many runs: going down costs runs
+              and buys resolution.</p>
+            <div class="scroll"><table id="trade-off-table" class="trade-off-table" aria-labelledby="trade-off-caption"></table></div>
+            <p id="trade-off-hint" class="hint"></p>
           </div>
 
           <p class="actions">
@@ -356,6 +407,8 @@
                   <option value="optimum" data-hint="A curved surface in the first two factors, highest at a point inside their ranges.">A maximum inside the ranges</option>
                   <option value="nothing" data-hint="No factor changes the response: whatever the analysis finds is noise.">Nothing active</option>
                   <option value="random" data-hint="Two or three active factors drawn at random, with an interaction or curvature; new noise draws a new process.">A random process</option>
+                  <!-- bootstrap.MIXTURE_SCENARIOS: offered for a mixture's run sheet only, in place of the ones above. -->
+                  <option value="blend" data-mixture hidden data-hint="The first two components blend in synergy, and the second and third against each other.">A synergy and an antagonism</option>
                 </select>
               </label>
               <label><span class="term" data-term="noise">Noise</span> (standard deviation)
@@ -370,8 +423,9 @@
             <details id="truth" hidden>
               <summary>Show the true process</summary>
               <p id="truth-equation" class="equation"></p>
+              <div id="truth-more"></div>
               <p id="truth-inactive" hidden></p>
-              <p class="hint">In coded units. The analysis estimates these coefficients from the noisy results.</p>
+              <p id="truth-units" class="hint">In coded units. The analysis estimates these coefficients from the noisy results.</p>
             </details>
           </div>
           <p id="run-source" class="hint"></p>
@@ -399,6 +453,9 @@
       <section id="step-analyse" class="pane" data-pane="learn" role="tabpanel" aria-labelledby="h-analyse" hidden>
         <h2 id="h-analyse">What the results say</h2>
         <p id="analyse-empty" class="hint">No results yet: enter them in Run, or practise with simulated ones.</p>
+        <!-- With several responses, a tab each: the analysis below is of the one chosen, with its own model. -->
+        <div id="response-picker" class="picker" role="tablist" aria-label="The response analysed" hidden></div>
+        <div id="response-panel">
         <div class="row">
           <label>Model
             <select id="model">
@@ -407,6 +464,10 @@
               <option value="interactions">Main effects + two-factor interactions</option>
               <option value="quadratic">Full quadratic</option>
               <option value="terms">Terms you choose</option>
+              <!-- bootstrap.MIXTURE_MODELS: offered for a mixture's runs only, in place of the ones above. -->
+              <option value="scheffe_linear" data-mixture hidden>Linear blending</option>
+              <option value="scheffe_quadratic" data-mixture hidden>Quadratic blending</option>
+              <option value="scheffe_special_cubic" data-mixture hidden>Special cubic blending</option>
             </select>
           </label>
         </div>
@@ -416,12 +477,74 @@
         </fieldset>
         <div id="analysis" hidden></div>
         <div id="charts" class="charts" hidden></div>
+        <!-- The best settings for the response's goal (app.js, with best.js): where to run the process, how well the
+             model knows the response there, how tightly to hold each factor, and the confirmation runs that test it. -->
+        <section id="best" class="best" aria-labelledby="h-best" hidden>
+          <h3 id="h-best">The best settings for your goal</h3>
+          <div id="best-out"></div>
+          <figure id="best-chart" class="chart" hidden>
+            <h4><button type="button" class="term" data-term="sensitivity">How tightly to hold each factor</button></h4>
+            <div class="plot"></div>
+            <figcaption id="best-chart-caption" class="hint"></figcaption>
+          </figure>
+          <div id="confirm" class="confirm" hidden>
+            <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
+            <div id="confirm-out" aria-live="polite"></div>
+            <p class="actions">
+              <button type="button" id="add-confirmation" class="button">Add 3 confirmation runs at these settings</button>
+              <button type="button" id="remove-confirmation" class="link" hidden>Remove the confirmation runs</button>
+            </p>
+          </div>
+          <details class="python" id="py-best" hidden>
+            <summary>Show the Python code</summary>
+            <p class="hint">The design, its results, their analysis and the best settings together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
         <details class="python" id="py-analyse" hidden>
           <summary>Show the Python code</summary>
           <p class="hint">The design, its results and their analysis together, so it runs as it is.</p>
           <pre><code></code></pre>
           <button type="button" class="link copy">Copy the code</button>
         </details>
+        </div>
+        <!-- With two responses or more given a goal, the settings that balance them (app.js, with best.js): each
+             response's acceptable range, importance and shape, the settings with the best overall desirability, each
+             response there, the overlay of the acceptable ranges, and the confirmation runs that test them. -->
+        <section id="balance" class="best balance" aria-labelledby="h-balance" hidden>
+          <h3 id="h-balance">Balance the responses</h3>
+          <p class="hint">Each response with a goal scores a <button type="button" class="term" data-term="desirability">desirability</button>,
+            d, from 0 where it is not acceptable to 1 where it is as good as it gets. Its range says where: to maximise,
+            0 at the low end and below, 1 at the high end and above; to minimise, the other way round; for a target, 1
+            at the target and 0 at either end. <button type="button" class="term" data-term="importance">Importance</button>
+            says how much each counts in the <button type="button" class="term" data-term="overall-desirability">overall
+            desirability</button>, D, and the <button type="button" class="term" data-term="desirability-shape">good
+            end</button> how fast d rises towards it.</p>
+          <div class="scroll"><table id="balance-goals" class="data balance-goals" aria-label="Each response's goal in the balance"></table></div>
+          <p id="balance-problems" class="hint error" role="status" hidden></p>
+          <p class="actions"><button type="button" id="balance-reset" class="link" hidden>Back to the ranges the results give</button></p>
+          <div id="balance-out" aria-live="polite"></div>
+          <figure id="balance-chart" class="chart" hidden>
+            <h4><button type="button" class="term" data-term="overlay">Where every response is acceptable</button></h4>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <div id="balance-confirm" class="confirm" hidden>
+            <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
+            <div id="balance-confirm-out" aria-live="polite"></div>
+            <p class="actions">
+              <button type="button" id="add-balance-confirmation" class="button">Add 3 confirmation runs at these settings</button>
+              <button type="button" id="remove-balance-confirmation" class="link" hidden>Remove the confirmation runs</button>
+            </p>
+          </div>
+          <details class="python" id="py-balance" hidden>
+            <summary>Show the Python code</summary>
+            <p class="hint">The design, its results and the balance of the responses together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
       </section>
     </div>
   </div>

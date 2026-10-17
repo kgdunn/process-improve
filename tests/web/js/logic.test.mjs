@@ -71,6 +71,36 @@ import {
   termLabel,
   VIF_HIGH,
   withUnits,
+  FULL,
+  RESOLUTIONS,
+  TRADE_OFF,
+  TRADE_OFF_FACTORS,
+  TRADE_OFF_RUNS,
+  cellBand,
+  cellDesign,
+  cellResolution,
+  cellText,
+  fractionRuns,
+  tradeOffCell,
+  MAX_RESPONSES,
+  anyResult,
+  completeRuns,
+  joinResults,
+  partialRuns,
+  partialSentence,
+  responseColumns,
+  responseLabelProblems,
+  responsesOf,
+  responsesTitle,
+  splitResults,
+  storedResponses,
+  withResponses,
+  MIXTURES,
+  boundedComponents,
+  componentProblem,
+  isMixture,
+  mixtureProblem,
+  proportionValue,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -103,6 +133,79 @@ describe("the design's settings", () => {
     assert.equal(axialDistance("rotatable", "1.4"), "rotatable", "a named choice ignores the box");
     assert.equal(axialDistance(AXIAL_DISTANCE, " 1.4 "), 1.4);
     assert.equal(axialDistance(AXIAL_DISTANCE, ""), null, "a blank box is null, which Python refuses in words");
+  });
+});
+
+describe("the trade-off grid of a fraction", () => {
+  const fraction = (resolution) => ({ design_type: "fractional_factorial", resolution });
+  const full = { design_type: "full_factorial" };
+
+  test("holds a cell for every run count and number of factors", () => {
+    assert.equal(TRADE_OFF.length, TRADE_OFF_RUNS.length);
+    for (const row of TRADE_OFF) assert.equal(row.length, TRADE_OFF_FACTORS.length);
+    assert.equal(tradeOffCell(8, 5), 3);
+    assert.equal(tradeOffCell(32, 5), FULL);
+    assert.equal(tradeOffCell(4, 4), null, "four factors do not fit in four runs");
+    assert.equal(tradeOffCell(16, 3), null, "below the full factorial the runs only repeat it");
+    assert.equal(tradeOffCell(16, 12), null, "no column past the page's eleven factors");
+    assert.equal(tradeOffCell(12, 5), null, "no row for a run count that is not a power of two");
+  });
+
+  test("a cell shows Full or its resolution in roman numerals, coloured in three bands", () => {
+    assert.deepEqual([FULL, 8, 5, 4, 3, null].map(cellText), ["Full", "VIII", "V", "IV", "III", ""]);
+    assert.deepEqual([FULL, 8, 5, 4, 3, null].map(cellBand), ["high", "high", "high", "iv", "iii", null]);
+  });
+
+  test("the page's fraction at a resolution has the fewest runs that reach it", () => {
+    assert.deepEqual([3, 4, 5].map((r) => fractionRuns(5, r)), [8, 16, 16], "IV in five factors is the 16-run V");
+    assert.deepEqual([3, 4, 5].map((r) => fractionRuns(7, r)), [8, 16, 64]);
+    assert.deepEqual([3, 4].map((r) => fractionRuns(4, r)), [8, 8], "the half fraction, of resolution IV");
+    assert.equal(fractionRuns(2, 3), null, "no column for two factors");
+  });
+
+  test("a cell of resolution III, IV or V sets that resolution", () => {
+    assert.deepEqual(cellDesign(4, 3), fraction(3));
+    assert.deepEqual(cellDesign(8, 5), fraction(3));
+    assert.deepEqual(cellDesign(16, 5), fraction(5));
+    assert.deepEqual(cellDesign(16, 6), fraction(4));
+    assert.deepEqual(cellDesign(128, 10), fraction(5));
+  });
+
+  test("a fraction cell asks for its own resolution, or V above it", () => {
+    assert.deepEqual([3, 4, 5, 6, 8].map(cellResolution), [3, 4, 5, 5, 5]);
+  });
+
+  test("a cell of a higher resolution sets V when V gives exactly its runs", () => {
+    assert.deepEqual(cellDesign(32, 6), fraction(5), "the 32-run VI in six factors");
+    assert.deepEqual(cellDesign(64, 7), fraction(5), "the 64-run VII in seven factors");
+    assert.deepEqual(cellDesign(128, 9), fraction(5), "the 128-run VI in nine factors");
+    assert.equal(cellDesign(128, 8), null, "V in eight factors takes 64 runs, so the 128-run VIII is not offered");
+  });
+
+  test("a cell whose runs the page makes at a lower run count is not offered", () => {
+    assert.equal(cellDesign(32, 7), null, "IV in seven factors takes 16 runs");
+    assert.equal(cellDesign(32, 8), null);
+    assert.equal(cellDesign(64, 9), null);
+  });
+
+  test("a Full cell switches to the full factorial", () => {
+    for (const k of [3, 4, 5, 6, 7]) assert.deepEqual(cellDesign(2 ** k, k), full, `${k} factors`);
+  });
+
+  test("a blank cell sets nothing", () => {
+    assert.equal(cellDesign(4, 5), null);
+    assert.equal(cellDesign(64, 3), null);
+  });
+
+  test("every resolution the page offers marks a cell a reader can pick", () => {
+    for (const k of TRADE_OFF_FACTORS) {
+      for (const r of RESOLUTIONS.filter((r) => r <= k)) {
+        const runs = fractionRuns(k, r);
+        const picked = cellDesign(runs, k);
+        assert.equal(picked.design_type, "fractional_factorial", `${k} factors, resolution ${r}`);
+        assert.equal(fractionRuns(k, picked.resolution), runs, `${k} factors, resolution ${r}`);
+      }
+    }
   });
 });
 
@@ -759,5 +862,133 @@ describe("the table of corners", () => {
     );
     assert.equal(words([0, 3, 5, 6]), "the 4 corners (T 150 degC, P 1 bar, F 10; T 150 degC, P 3 bar, F 20; and 2 more)");
     assert.equal(words([0, 7]), "the 2 corners (T 150 degC, P 1 bar, F 10; T 200 degC, P 3 bar, F 20)");
+  });
+});
+
+describe("several responses", () => {
+  const YIELD = { name: "Yield", label: "Yield", units: "%", goal: "maximize", typical: 62 };
+  const COST = { name: "Cost", label: "Cost", units: "$/kg", goal: "minimize" };
+  const PURITY = { name: "Purity", label: "Purity", units: "%", goal: "target", target: 99 };
+
+  test("a study made before measures the one response it names, described as it was", () => {
+    const old = { response: "Yield", response_info: { label: "Yield", units: "%" } };
+    assert.deepEqual(responsesOf(old), [{ name: "Yield", label: "Yield", units: "%" }]);
+    assert.deepEqual(responsesOf({ response: "y" }), [{ name: "y" }]);
+    assert.deepEqual(responsesOf({ response: "Yield", responses: [YIELD, COST] }), [YIELD, COST]);
+  });
+
+  test("one response is stored as before, several as a list beside the first", () => {
+    const { name: _, ...info } = YIELD;
+    assert.deepEqual(storedResponses([YIELD]), { response: "Yield", response_info: info });
+    assert.deepEqual(storedResponses([{ name: "y" }]), { response: "y" }, "no description, none kept");
+    assert.deepEqual(storedResponses([YIELD, COST]), { response: "Yield", response_info: info, responses: [YIELD, COST] });
+  });
+
+  test("a specification takes new responses, and loses the list when one is left", () => {
+    const spec = { design_type: "ccd", response: "Yield", response_info: { label: "Yield" }, responses: [YIELD, COST], model: "quadratic" };
+    const one = withResponses(spec, [{ name: "Yield", label: "Yield", units: "%" }]);
+    assert.deepEqual(one, { design_type: "ccd", model: "quadratic", response: "Yield", response_info: { label: "Yield", units: "%" } });
+    assert.deepEqual(withResponses(one, [YIELD, COST, PURITY]).responses, [YIELD, COST, PURITY]);
+  });
+
+  test("the most responses a study measures", () => {
+    assert.equal(MAX_RESPONSES, 5);
+  });
+
+  test("a run is complete when every response has its result", () => {
+    const results = { Yield: [60, null, 61, 62], Cost: [9, 8, null, 7] };
+    assert.deepEqual(completeRuns(results, ["Yield", "Cost"]), [true, false, false, true]);
+    assert.deepEqual(completeRuns(results, ["Yield"]), [true, false, true, true]);
+    assert.deepEqual(partialRuns(results, ["Yield", "Cost"]), [1, 2], "runs with some of their results");
+    assert.deepEqual(partialRuns({ Yield: [null, 1], Cost: [null, 2] }, ["Yield", "Cost"]), [], "a run with none is to do");
+    assert.equal(anyResult({ Yield: [null], Cost: [null] }), false);
+    assert.equal(anyResult({ Yield: [null], Cost: [0] }), true, "a result of 0 is a result");
+  });
+
+  test("the results go to Python as a study of one response sends them, the others beside", () => {
+    const results = { Yield: [60, 61], Cost: [9, null] };
+    assert.deepEqual(splitResults(["Yield"], results), { responses: [60, 61] });
+    assert.deepEqual(splitResults(["Yield", "Cost"], results), { responses: [60, 61], more_responses: { Cost: [9, null] } });
+    const marks = { Yield: ["entered", "simulated"], Cost: ["entered", null] };
+    assert.deepEqual(splitResults(["Yield", "Cost"], marks, "sources"), {
+      sources: ["entered", "simulated"],
+      more_sources: { Cost: ["entered", null] },
+    });
+    assert.deepEqual(joinResults(["Yield", "Cost"], [60, 61], { Cost: [9, null] }), results);
+    assert.deepEqual(joinResults(["Yield", "Cost"], [60, 61]), { Yield: [60, 61], Cost: [null, null] }, "no results yet");
+  });
+
+  test("a study's title names its responses", () => {
+    assert.equal(responsesTitle([YIELD]), "Yield (%), maximise");
+    assert.equal(responsesTitle([YIELD, COST, PURITY]), "Yield, Cost and Purity");
+    assert.equal(responsesTitle([YIELD, { name: "Cost_2" }]), "Yield and Cost_2", "a response not described, by its column");
+  });
+
+  test("two responses cannot share a name, whatever its case", () => {
+    assert.deepEqual(responseLabelProblems(["Yield", "Cost", "Purity"]), []);
+    assert.deepEqual(responseLabelProblems(["Yield", "", "  "]), [], "blank rows are no responses yet");
+    assert.deepEqual(responseLabelProblems(["Yield", "Cost", "cost"]), ["cost: two responses cannot share a name."]);
+    assert.deepEqual(responseLabelProblems(["Cost", "Cost", "Cost"]), ["Cost: two responses cannot share a name."], "said once");
+  });
+
+  test("each response's column is named from its words, unlike the factors and the responses before it", () => {
+    assert.deepEqual(responseColumns(["Yield", "Cost ($/kg)", "Purity"], ["T", "P"]), ["Yield", "Cost_kg", "Purity"]);
+    assert.deepEqual(responseColumns(["Yield", "yield", "Yield"], ["T"]), ["Yield", "yield", "Yield_2"]);
+    assert.deepEqual(responseColumns(["", ""], ["T"]), ["y", "y_2"]);
+    assert.deepEqual(responseColumns(["T", "Block"], ["T"]), ["T_2", "Block_2"]);
+  });
+
+  test("a response on the run sheet keeps its column, which no new one takes", () => {
+    const kept = ["Yield", undefined, "Cost"];
+    assert.deepEqual(responseColumns(["Yield of A", "Cost", "Costs"], ["T"], kept), ["Yield", "Cost_2", "Cost"]);
+  });
+
+  test("Learn says how a run with some of its results is fitted", () => {
+    assert.equal(
+      partialSentence([3], "Cost", 14),
+      "Run 3 has some of its results, not all. Each response is fitted to the runs that have its result: Cost to 14.",
+    );
+    assert.equal(
+      partialSentence([3, 7, 9], "Yield", 12),
+      "Runs 3, 7 and 9 have some of their results, not all. Each response is fitted to the runs that have its result: Yield to 12.",
+    );
+  });
+});
+
+describe("a mixture's components", () => {
+  test("the mixture designs, and no other, read the factors as a blend's components", () => {
+    assert.deepEqual(MIXTURES.filter(isMixture), MIXTURES);
+    assert.equal(isMixture("box_behnken"), false);
+    assert.equal(isMixture(undefined), false);
+  });
+
+  test("a blank bound is 0 for the lower proportion and 1 for the upper; anything else is read as a level", () => {
+    assert.equal(proportionValue("", 0), 0);
+    assert.equal(proportionValue("  ", 1), 1);
+    assert.equal(proportionValue("0.25", 0), 0.25);
+    assert.equal(proportionValue("most", 1), "most");
+  });
+
+  test("each component's bounds are proportions, the lower below the upper", () => {
+    assert.equal(componentProblem({ name: "A", low: "", high: "" }), "");
+    assert.equal(componentProblem({ name: "A", low: "0.1", high: "0.6" }), "");
+    assert.match(componentProblem({ name: "A", low: "", high: "most" }), /^A: enter its lower and upper proportions as numbers/);
+    assert.match(componentProblem({ name: "T", low: "150", high: "200" }), /^T runs from 150 to 200, which is no proportion/);
+    assert.equal(componentProblem({ name: "A", low: "0.6", high: "0.4" }), "A: its lower proportion must be below its upper proportion.");
+    assert.match(componentProblem({ name: "", low: "inf", high: "" }), /^A component without a name:/);
+  });
+
+  test("together, the bounds leave more than one blend, and suit the design type", () => {
+    const blank = ["A", "B", "C"].map((name) => ({ name, low: 0, high: 1 }));
+    const bounded = [{ ...blank[0], low: 0.2 }, blank[1], { ...blank[2], high: 0.5 }];
+    assert.deepEqual(boundedComponents(bounded), ["A", "C"]);
+    assert.equal(mixtureProblem(blank, "simplex_lattice", "Simplex lattice (mixture)"), "");
+    assert.equal(mixtureProblem(bounded, "extreme_vertices", "Extreme vertices"), "");
+    assert.match(mixtureProblem(bounded, "simplex_lattice", "Simplex lattice (mixture)"), /A and C have bounds: choose extreme vertices/);
+    assert.match(mixtureProblem(blank, "extreme_vertices", "Extreme vertices"), /^Extreme vertices are for a mixture with bounds/);
+    const heavy = blank.map((f) => ({ ...f, low: 0.4 }));
+    assert.match(mixtureProblem(heavy, "extreme_vertices", ""), /^The lower proportions sum to 1.2, and must sum to less than 1/);
+    const light = blank.map((f) => ({ ...f, high: 1 / 3 }));
+    assert.match(mixtureProblem(light, "extreme_vertices", ""), /^The upper proportions sum to 1, and must sum to more than 1/);
   });
 });

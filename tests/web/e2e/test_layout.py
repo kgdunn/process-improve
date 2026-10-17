@@ -11,7 +11,17 @@ from __future__ import annotations
 import pytest
 
 from tests.web._support import FACTORS
-from tests.web.e2e._page import candidates_done, corners_done, mark_corners, reveal, set_factors, settled, type_limit
+from tests.web.e2e._page import (
+    WIDE_FONT,
+    candidates_done,
+    corners_done,
+    mark_corners,
+    overflowing,
+    reveal,
+    set_factors,
+    settled,
+    type_limit,
+)
 
 SIDEWAYS = "#comparison p.hint >> text=Scroll the table sideways"
 PHASES = ("plan", "run", "learn")
@@ -20,21 +30,6 @@ PHASES = ("plan", "run", "learn")
 def background(page) -> tuple[int, ...]:
     colour = page.evaluate("getComputedStyle(document.body).backgroundColor")
     return tuple(int(v) for v in colour.removeprefix("rgb(").removesuffix(")").split(", "))
-
-
-#: A sans-serif font as wide as a reader's default may be: the page must fit a phone in it too.
-WIDE_FONT = "* { font-family: 'DejaVu Sans', sans-serif !important; }"
-
-
-def overflowing(page) -> list[str]:
-    """Name the elements wider than the window that do not sit in a box of their own that scrolls."""
-    return page.evaluate(
-        """() => [...document.querySelectorAll('body *')]
-             .filter((e) => e.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
-             .filter((e) => getComputedStyle(e).display !== 'none')
-             .filter((e) => !e.parentElement.closest('.scroll, pre, .js-plotly-plot, dialog'))
-             .map((e) => e.tagName.toLowerCase() + (e.id ? `#${e.id}` : ''))"""
-    )
 
 
 def box(page, selector: str) -> dict:
