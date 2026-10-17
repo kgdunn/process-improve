@@ -373,8 +373,14 @@ def _page_factor(factor: dict[str, Any]) -> bool:
     low, high = factor.get("low"), factor.get("high")
     numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (low, high))
     labels = all(load_bootstrap()._label(v) is not None for v in (low, high))  # a label that reads as no number
-    in_order = low < high if numbers else labels and low != high  # type: ignore[operator]
+    in_order = low < high if numbers else labels and low != high and not _blank_label(factor)  # type: ignore[operator]
     return str(factor["name"]).isidentifier() and factor.get("type") in {"numeric", "categorical"} and in_order
+
+
+def _blank_label(factor: dict[str, Any]) -> bool:
+    """Say whether a factor has a label a spreadsheet reads back as a blank cell, such as None: the page refuses it."""
+    bootstrap = load_bootstrap()
+    return any(bootstrap._label(v) in bootstrap.BLANK_LABELS for v in (factor.get("low"), factor.get("high")))
 
 
 def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
@@ -481,6 +487,7 @@ def _not_given(record: dict[str, Any]) -> str:
         (lambda: record["n_mixture"], "the page has no model for a mixture's proportions"),
         (lambda: not low <= len(factors) <= high, f"the page opens designs of {low} to {high} factors"),
         (lambda: len(runs) > most, f"the page holds at most {most} runs"),
+        (lambda: any(map(_blank_label, factors)), "a spreadsheet reads a label such as None as a blank cell"),
         (lambda: not all(map(_page_factor, factors)), "a factor's name, type or range is not one the page accepts"),
     )
     return next((why for holds, why in reasons if holds()), "")
