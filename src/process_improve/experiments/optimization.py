@@ -443,8 +443,25 @@ def _canonical_analysis(
         ``"rising_ridge"``), and ``canonical_form_description``, which labels
         each canonical axis concave, convex, or flat (a zero eigenvalue). A
         ridge also carries ``ridge_of``, ``"maxima"`` or ``"minima"``.
+
+        ``b_canonical`` is the surface in Box and Draper's B canonical form,
+        the form a ridge is read in: y = y0 + theta * X_k + sum of lambda_i X_i^2,
+        with X_i = v_i'(x - x0). Its axis ``k`` is that of the smallest
+        eigenvalue in size, the ridge's direction, and its ``origin`` x0 is the
+        point nearest the design centre where the response stops changing
+        along every other axis. It holds the ``origin`` (coded), the
+        ``origin_response`` y0 there, the ``linear`` coefficient theta along
+        the ridge, v_k'b, and each axis's ``offset``, the constant c_i of the
+        plane X_i = v_i'x + c_i = 0. The form is exact for any surface: a
+        maximum, minimum or saddle is a ridge whose theta is zero and whose
+        smallest eigenvalue is not.
+
+        When the surface has a stationary point x_s, ``canonical_axes`` gives
+        each canonical variable W_i = v_i'(x - x_s) as its ``constant``,
+        -v_i'x_s, and ``coefficients``: the A canonical form is
+        y = y_s + sum of lambda_i W_i^2.
     """
-    _b0, b, B = _extract_b_and_B(coefficients, factor_names)
+    b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
     if np.allclose(B, 0):
         return {"error": "Model has no quadratic or interaction terms - canonical analysis not applicable."}
@@ -468,10 +485,46 @@ def _canonical_analysis(
         "classification": shape.classification,
         "canonical_form_description": desc_parts,
         "factor_names": factor_names,
+        "b_canonical": _b_canonical(b0, b, B, eigenvalues, eigenvectors, factor_names),
     }
+    if not shape.drifts:  # a stationary point exists: the A canonical form's axes are centred on it
+        curved = ~shape.flat
+        x_s = eigenvectors[:, curved] @ (-0.5 * (eigenvectors[:, curved].T @ b) / eigenvalues[curved])
+        result["canonical_axes"] = [
+            {
+                "constant": float(-eigenvectors[:, i] @ x_s),
+                "coefficients": dict(zip(factor_names, map(float, eigenvectors[:, i]), strict=True)),
+            }
+            for i in range(len(eigenvalues))
+        ]
     if shape.ridge_of is not None:
         result["ridge_of"] = shape.ridge_of
     return result
+
+
+def _b_canonical(  # noqa: PLR0913 - the fitted surface, its eigen-decomposition and the names of its axes
+    b0: float,
+    b: np.ndarray,
+    B: np.ndarray,
+    eigenvalues: np.ndarray,
+    eigenvectors: np.ndarray,
+    factor_names: list[str],
+) -> dict[str, Any]:
+    """Return Box and Draper's B canonical form, taking the last axis (the smallest eigenvalue in size) as the ridge.
+
+    The origin x0 = -1/2 sum over the other axes of (v_i'b / lambda_i) v_i is the point nearest the
+    centre where the gradient has no component along them, so the form keeps one linear term, along
+    the ridge.
+    """
+    others = eigenvectors[:, :-1]
+    origin = others @ (-0.5 * (others.T @ b) / eigenvalues[:-1])
+    return {
+        "ridge_axis": len(eigenvalues) - 1,
+        "origin": dict(zip(factor_names, map(float, origin), strict=True)),
+        "origin_response": float(b0 + b @ origin + origin @ B @ origin),
+        "linear": float(eigenvectors[:, -1] @ b),
+        "offsets": [float(-eigenvectors[:, i] @ origin) for i in range(len(eigenvalues))],
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -764,7 +764,9 @@ def _optimum(out: dict, check: dict, experiment: dict) -> float:
     ``check["method"]`` is ``"stationary_point"`` or ``"canonical_analysis"`` of
     :func:`optimize_responses`, and ``check["key"]`` reads into its result, as
     ``stationary_point.stationary_point_actual.T`` or ``canonical_analysis.eigenvectors.0.1``.
-    An eigenvector's sign is arbitrary, so ``"abs": true`` compares its size only.
+    An eigenvector's sign is arbitrary, so ``"abs": true`` compares its size only, and
+    ``check["sign_of"]`` names the element the source prints positive: the vector is turned to
+    match, so the other elements keep their signs relative to it.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -772,6 +774,8 @@ def _optimum(out: dict, check: dict, experiment: dict) -> float:
             [_response_model(out, experiment)], method=check["method"], factor_ranges=_factor_ranges(experiment)
         )
     value = _read(found, check["key"])
+    if check.get("sign_of"):
+        value *= math.copysign(1.0, _read(found, check["sign_of"]))
     return abs(value) if check.get("abs") else value
 
 
@@ -782,15 +786,20 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     of ``check["per"]``) and moves the others in proportion; the setting of ``check["key"]`` after
     ``check["steps"]`` such steps is returned, or its change from the centre with ``"from_centre": true``.
     ``"units": "coded"`` returns it in coded units, as a source that steps in coded units prints it.
+    A source that steps a distance rho in coded units along the gradient, to rho b / ||b||, gives
+    ``check["radius"]`` instead of ``change`` and ``per``.
     """
     model, ranges = _response_model(out, experiment), _factor_ranges(experiment)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        unit = optimize_responses([model], method="steepest_ascent", step_size=1.0, n_steps=1, factor_ranges=ranges)
-        start, one = (step["actual"] for step in unit["steepest_path"]["steps"])
-        size = check["change"] / (one[check["per"]] - start[check["per"]])  # the coded step making that change
+        if "radius" in check:
+            size = float(check["radius"])
+        else:
+            unit = optimize_responses([model], method="steepest_ascent", step_size=1.0, n_steps=1, factor_ranges=ranges)
+            start, one = (step["actual"] for step in unit["steepest_path"]["steps"])
+            size = check["change"] / (one[check["per"]] - start[check["per"]])  # the coded step making that change
         path = optimize_responses(
-            [model], method="steepest_ascent", step_size=size, n_steps=check["steps"], factor_ranges=ranges
+            [model], method="steepest_ascent", step_size=size, n_steps=check.get("steps", 1), factor_ranges=ranges
         )
     steps = path["steepest_path"]["steps"]
     units = check.get("units", "actual")
