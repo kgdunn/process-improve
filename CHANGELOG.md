@@ -13,14 +13,14 @@ those changes.
 
 ### Added
 
-- **Least-squares means and their multiple comparisons.** `least_squares_means(runs, response,
-  model, factor)` gives each level's adjusted mean: the model's prediction averaged with equal
+- **Least-squares means and their multiple comparisons.** `least_squares_means(runs,
+  "y ~ treatment + block", factor)` gives each level's adjusted mean: the model's prediction averaged with equal
   weight over the other factors' levels, as an incomplete block design or a Youden square needs.
   Pairs are compared by Tukey's studentized range (Tukey-Kramer), by Dunnett's multivariate t
-  against a `control`, or unadjusted (Fisher's LSD), with adjusted p-values, simultaneous
+  against a control (`Comparisons("dunnett", control=...)`), or unadjusted (Fisher's LSD), with adjusted p-values, simultaneous
   intervals, connecting letters, and the confidence each interval has alone and the family has
   together. `at=` compares the levels within one level of another factor, on the error of the
-  whole model. The reference catalogue checks 33 more printed numbers with it: Minitab's Tukey
+  whole model, and `C(x)` in the formula takes a numeric column as levels. The reference catalogue checks 33 more printed numbers with it: Minitab's Tukey
   comparisons of Montgomery's catalyst design (its p-values agree; its intervals use a
   studentized range point 0.0014 larger than the exact one), Box, Hunter and Hunter's Youden-square
   adjusted averages, Dunnett's d0.05(3,16), Fisher's family confidence and JMP's connecting letters.

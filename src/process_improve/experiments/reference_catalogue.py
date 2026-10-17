@@ -67,7 +67,7 @@ from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
-from process_improve.experiments.least_squares_means import least_squares_means
+from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.omars_trade_off import omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
@@ -2439,17 +2439,11 @@ def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
     settings, responses = _coded_runs(experiment, check.get("runs"))
     response = check.get("response") or responses.columns[0]
     table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
-    return least_squares_means(
-        table,
-        response,
-        check["model"],
-        check["factor"],
-        comparisons=check.get("comparisons", "tukey"),
-        control=check.get("control"),
-        conflevel=check.get("confidence", 0.95),
-        at=check.get("at"),
-        categorical=check.get("categorical"),
-    )
+    model = check["model"]
+    for name in check.get("categorical") or []:  # numeric columns the model takes as levels
+        model = re.sub(rf"\b{re.escape(name)}\b", f"C({name})", model)
+    method = Comparisons(check.get("comparisons", "tukey"), check.get("control"), check.get("confidence", 0.95))
+    return least_squares_means(table, f"{response} ~ {model}", check["factor"], method, at=check.get("at"))
 
 
 def _least_squares_means(experiment: dict, check: dict) -> float:

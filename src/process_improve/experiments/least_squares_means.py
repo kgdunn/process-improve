@@ -13,8 +13,8 @@ freedom; so are the differences of two of them.
 
 - Tukey's comparisons (``"tukey"``) test every pair against the studentized range of the
   number of levels, so the family of all pairs has the stated confidence (Tukey-Kramer).
-- Dunnett's (``"dunnett"``) compare each level with one ``control``, against the largest of the
-  correlated t statistics, with their correlations from the model.
+- Dunnett's (``Comparisons("dunnett", control=...)``) compare each level with one control,
+  against the largest of the correlated t statistics, with their correlations from the model.
 - ``"none"`` gives each pair's plain t test and interval (Fisher's least significant difference),
   and the confidence the whole family of those intervals has, which is lower.
 
@@ -28,7 +28,7 @@ Examples
 >>> import pandas as pd
 >>> from process_improve.experiments.least_squares_means import least_squares_means
 >>> runs = pd.DataFrame({"t": list("AABBCC"), "b": list("121212"), "y": [1.0, 2.0, 3.0, 4.5, 2.0, 3.5]})
->>> found = least_squares_means(runs, "y", "t + b", "t")
+>>> found = least_squares_means(runs, "y ~ t + b", "t")
 >>> [round(m["mean"], 2) for m in found["means"]]
 [1.5, 3.75, 2.75]
 """
@@ -38,6 +38,7 @@ from __future__ import annotations
 import itertools
 import re
 import string
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -49,6 +50,28 @@ from scipy import optimize, stats
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 COMPARISONS = ("tukey", "dunnett", "none")
+
+
+@dataclass(frozen=True)
+class Comparisons:
+    """How the levels of a factor are compared, and at what confidence.
+
+    Attributes
+    ----------
+    method : {"tukey", "dunnett", "none"}
+        All pairs by Tukey's studentized range, each level against *control* by Dunnett's
+        multivariate t, or all pairs unadjusted.
+    control : str or None
+        For Dunnett's comparisons, the control level; the first level by default.
+    conflevel : float
+        The confidence of the intervals, and of the family for Tukey's and Dunnett's.
+    """
+
+    method: str = "tukey"
+    control: Any = None
+    conflevel: float = 0.95
+
+
 _SEED = 20_260_101  # the multivariate t's quadrature is randomised: one seed makes Dunnett's numbers repeat
 
 
@@ -104,17 +127,18 @@ def _dunnett(t_values: np.ndarray, correlation: np.ndarray, df: float, conflevel
     return np.clip(p_values, 0.0, 1.0), critical
 
 
-def _compare(  # noqa: PLR0913 - the fitted model's pieces, and how the levels are compared
+def _compare(
     levels: list[str],
     weights: np.ndarray,
-    beta: np.ndarray,
-    cov: np.ndarray,
-    df: float,
-    comparisons: str,
-    control: str | None,
-    conflevel: float,
+    fit: tuple[np.ndarray, np.ndarray, float],
+    spec: Comparisons,
 ) -> tuple[list[dict[str, Any]], float]:
-    """Return one row per compared pair of levels, and the critical value the intervals use."""
+    """Return one row per compared pair of levels, and the critical value the intervals use.
+
+    *fit* is the model's coefficients, their covariance and the residual degrees of freedom.
+    """
+    beta, cov, df = fit
+    comparisons, control, conflevel = spec.method, spec.control, spec.conflevel
     if comparisons == "dunnett":
         if control is not None and control not in levels:
             raise ValueError(f"The factor has no level {control!r}; its levels are {levels}.")
@@ -153,16 +177,37 @@ def _compare(  # noqa: PLR0913 - the fitted model's pieces, and how the levels a
     return rows, float(critical)
 
 
-def least_squares_means(  # noqa: PLR0913 - the data, the model, the factor, and how its levels are compared
+def _prepared(
+    design_matrix: pd.DataFrame, formula: str, factor: str, at: dict[str, Any] | None
+) -> tuple[pd.DataFrame, str, list[str], dict[str, Any]]:
+    """Return the runs with the factors taken as levels turned to labels, the plain formula, its columns and *at*."""
+    validate_identifier_is_safe(factor)
+    wrapped = re.findall(r"\bC\(\s*([A-Za-z_]\w*)\s*\)", formula)
+    plain = re.sub(r"\bC\(\s*([A-Za-z_]\w*)\s*\)", r"\1", formula)
+    table = design_matrix.reset_index(drop=True)
+    validate_formula_is_safe(plain, table.columns)
+    rhs = plain.split("~", 1)[1]
+    used = sorted(
+        {c for c in table.columns if re.search(rf"\b{re.escape(str(c))}\b", rhs)}, key=list(table.columns).index
+    )
+    labels = [factor, *wrapped]
+    missing = [c for c in labels if c not in used]
+    if missing:
+        raise ValueError(f"The model {formula!r} does not hold {missing}.")
+    unknown = sorted(set(at or {}) - set(used) | {factor} & set(at or {}))
+    if unknown:
+        raise ValueError(f"`at` names {unknown}, which are not other factors of the model.")
+    named = {c for c in used if c in labels or not pd.api.types.is_numeric_dtype(table[c])}
+    at = {c: _label(table[c], v) if c in named else v for c, v in (at or {}).items()}
+    return table.astype(dict.fromkeys(labels, str)), plain, used, at
+
+
+def least_squares_means(
     design_matrix: pd.DataFrame,
-    response: str,
-    model: str,
+    formula: str,
     factor: str,
-    comparisons: str = "tukey",
-    control: str | None = None,
-    conflevel: float = 0.95,
+    comparisons: str | Comparisons = "tukey",
     at: dict[str, Any] | None = None,
-    categorical: list[str] | None = None,
 ) -> dict[str, Any]:
     r"""Return the least-squares mean of each level of a factor, and their comparisons.
 
@@ -170,27 +215,20 @@ def least_squares_means(  # noqa: PLR0913 - the data, the model, the factor, and
     ----------
     design_matrix : DataFrame
         The runs: the factors and the response. A categorical factor is a column of labels.
-    response : str
-        The response column.
-    model : str
-        The right-hand side of the model, a plain formula over the columns, ``"treatment + block"``;
-        it must hold *factor*.
+    formula : str
+        The model, a plain formula over the columns, ``"y ~ treatment + block"``; its right-hand
+        side must hold *factor*. ``C(temperature)`` takes a numeric column as levels, such as a
+        temperature set at three values, rather than as a covariate with a slope; a column of
+        labels is always taken as levels.
     factor : str
         The factor whose levels are compared, taken as levels even when they are numbers.
-    comparisons : {"tukey", "dunnett", "none"}
-        All pairs by Tukey's studentized range, each level against *control* by Dunnett's
-        multivariate t, or all pairs unadjusted.
-    control : str or None
-        For Dunnett's comparisons, the control level; the first level by default.
-    conflevel : float
-        The confidence of the intervals, and of the family for Tukey's and Dunnett's.
+    comparisons : str or Comparisons
+        How the levels are compared: ``"tukey"``, ``"dunnett"`` or ``"none"``, or a
+        :class:`Comparisons` that also names Dunnett's control or the confidence (0.95).
     at : dict[str, Any] or None
         Other factors held at one level, ``{"temperature": 70}``, and covariates held at one value,
         instead of averaged over: the comparisons are then within that level, on the residual of
         the whole model.
-    categorical : list[str] or None
-        Other numeric columns the model takes as levels, such as a temperature set at three values,
-        rather than as a covariate with a slope. A column of labels is always taken as levels.
 
     Returns
     -------
@@ -206,29 +244,16 @@ def least_squares_means(  # noqa: PLR0913 - the data, the model, the factor, and
         ``"none"``, the studentized range's, exact when the levels are equally replicated). Tukey's
         also give the ``studentized_range`` point, the critical value times the square root of 2,
         and Tukey's and the unadjusted give ``letters``, each level's connecting letters at the
-        significance level 1 - *conflevel*.
+        significance level 1 - the confidence.
     """
-    if comparisons not in COMPARISONS:
-        raise ValueError(f"comparisons must be one of {COMPARISONS}; got {comparisons!r}.")
-    for name in (response, factor):
-        validate_identifier_is_safe(name)
-    table = design_matrix.reset_index(drop=True)
-    validate_formula_is_safe(f"{response} ~ {model}", table.columns)
-    used = sorted(
-        {c for c in table.columns if re.search(rf"\b{re.escape(str(c))}\b", model)}, key=list(table.columns).index
-    )
-    labels = [factor, *(categorical or [])]
-    missing = [c for c in labels if c not in used]
-    if missing:
-        raise ValueError(f"The model {model!r} does not hold {missing}.")
-    unknown = sorted(set(at or {}) - set(used) | {factor} & set(at or {}))
-    if unknown:
-        raise ValueError(f"`at` names {unknown}, which are not other factors of the model.")
-    named = {c for c in used if c in labels or not pd.api.types.is_numeric_dtype(table[c])}
-    at = {c: _label(table[c], v) if c in named else v for c, v in (at or {}).items()}
-    control = None if control is None else _label(table[factor], control)
-    table = table.astype(dict.fromkeys(labels, str))
-    outcome, exog = dmatrices(f"{response} ~ {model}", table, return_type="dataframe")
+    spec = Comparisons(comparisons) if isinstance(comparisons, str) else comparisons
+    if spec.method not in COMPARISONS:
+        raise ValueError(f"comparisons must be one of {COMPARISONS}; got {spec.method!r}.")
+    table, model, used, at = _prepared(design_matrix, formula, factor, at)
+    if spec.control is not None:
+        spec = Comparisons(spec.method, _label(design_matrix[factor], spec.control), spec.conflevel)
+    conflevel = spec.conflevel
+    outcome, exog = dmatrices(model, table, return_type="dataframe")
     fit = sm.OLS(outcome, exog).fit()
     grid = _grid(table, used, factor, at)
     rows = np.asarray(build_design_matrices([exog.design_info], grid)[0], dtype=float)
@@ -250,7 +275,7 @@ def least_squares_means(  # noqa: PLR0913 - the data, the model, the factor, and
             }
         )
 
-    comparison_rows, critical = _compare(levels, weights, beta, cov, df, comparisons, control, conflevel)
+    comparison_rows, critical = _compare(levels, weights, (beta, cov, df), spec)
     k = len(levels)
     result: dict[str, Any] = {
         "means": mean_rows,
@@ -258,16 +283,16 @@ def least_squares_means(  # noqa: PLR0913 - the data, the model, the factor, and
         "comparisons": comparison_rows,
         "pairs": {f"{row['level']} - {row['versus']}": row for row in comparison_rows},
         "df": df,
-        "method": comparisons,
+        "method": spec.method,
         "critical_value": float(critical),
         "individual_confidence": float(1 - 2 * stats.t.sf(critical, df)),
         "family_confidence": float(stats.studentized_range.cdf(critical * np.sqrt(2), k, df))
-        if comparisons == "none"
+        if spec.method == "none"
         else conflevel,
     }
-    if comparisons == "tukey":
+    if spec.method == "tukey":
         result["studentized_range"] = float(critical * np.sqrt(2))
-    if comparisons != "dunnett":
+    if spec.method != "dunnett":
         different = [(row["level"], row["versus"]) for row in comparison_rows if row["p_value"] < 1 - conflevel]
         result["letters"] = _letters(dict(zip(map(str, levels), map(float, means), strict=True)), different)
     return result
