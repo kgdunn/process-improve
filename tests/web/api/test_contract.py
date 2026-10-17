@@ -11,6 +11,8 @@ from __future__ import annotations
 import functools
 import json
 import re
+import sys
+import types
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -45,6 +47,9 @@ READS: dict[str, list[str]] = {
         "demo.model: str",
         "demo.seed: int",
         "version: str?",
+        "runtime.python: str",
+        "runtime.packages{}: str",
+        "runtime.pyodide: str?",
     ],
     "design": [
         "n_runs: int",
@@ -894,3 +899,16 @@ def test_a_page_run_from_a_source_tree_names_no_release(api, bootstrap, monkeypa
 
     monkeypatch.setattr(bootstrap, "version", not_installed)
     assert api.ok("api_catalogue")["version"] is None
+    assert api.ok("api_catalogue")["runtime"]["packages"] == {}, "nor any package's, which a report then leaves out"
+
+
+def test_the_catalogue_names_what_the_page_runs_on_for_a_report(api, bootstrap, monkeypatch):
+    import platform
+    from importlib.metadata import version
+
+    runtime = api.ok("api_catalogue")["runtime"]
+    assert runtime["python"] == platform.python_version()
+    assert runtime["packages"] == {name: version(name) for name in bootstrap.RUNTIME_PACKAGES}
+    assert runtime["pyodide"] is None, "outside a browser, no Pyodide"
+    monkeypatch.setitem(sys.modules, "pyodide", types.SimpleNamespace(__version__="314.0.7"))
+    assert api.ok("api_catalogue")["runtime"]["pyodide"] == "314.0.7"

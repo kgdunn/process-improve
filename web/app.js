@@ -16,6 +16,7 @@ import {
   coefficientFigure,
   correlationFigure,
   coxFigure,
+  chartImage,
   draw,
   fdsFigure,
   markBest,
@@ -195,6 +196,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
+import { briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
@@ -342,6 +344,7 @@ const state = {
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
   example: false, // the worked example is on the page, as the build made it or as run again here
   version: null, // the process-improve release Python runs, once it has started
+  runtime: null, // the Python, packages and Pyodide it runs on, which a report names
 };
 let seed = 1;
 let catalogue = null;
@@ -2125,6 +2128,167 @@ async function downloadNotebook() {
   download(blob, `${state.design.spec.design_type}-${runCount()}-runs.ipynb`);
 }
 
+// ---------------------------------------------------------------- the study as a report
+/** The steps whose code a report gives, in the order they run: each builds on those before it. */
+const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
+
+/** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart";
+
+/** The attributes a report's copy keeps: those that say how a cell spans, where a link goes, and how a part looks. */
+const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan"]);
+
+/**
+ * A part of the page as a report holds it, as HTML: a copy without what NOT_REPORTED names, a table's heading that
+ * sorts it and a dotted word each left as its text, and with none of the page's ids, ARIA or data. The page set its
+ * text as text, so the HTML is safe as it is.
+ */
+function reportCopy(node) {
+  const copy = node.cloneNode(true);
+  for (const word of copy.querySelectorAll("th button, .term")) word.replaceWith(word.textContent);
+  for (const part of copy.querySelectorAll(NOT_REPORTED)) part.remove();
+  for (const part of [copy, ...copy.querySelectorAll("*")]) {
+    for (const { name } of [...part.attributes]) if (!REPORTED_ATTRIBUTES.has(name)) part.removeAttribute(name);
+  }
+  return copy.innerHTML;
+}
+
+/** Whether a part of ``root`` is on show there: neither it nor a part between them is hidden. */
+function shownWithin(node, root) {
+  for (let part = node; part && part !== root.parentElement; part = part.parentElement) if (part.hidden) return false;
+  return true;
+}
+
+/** The charts the page drew inside ``root``, as a report shows them: each card's heading, its image and its caption. */
+async function chartsWithin(root) {
+  const charts = [];
+  for (const card of root.querySelectorAll("figure.chart")) {
+    if (!shownWithin(card, root)) continue;
+    const src = await chartImage(card.querySelector(".plot"));
+    const title = card.querySelector("h3, h4")?.textContent ?? "";
+    if (src) charts.push({ title, caption: card.querySelector("figcaption")?.textContent ?? "", src });
+  }
+  return charts;
+}
+
+/** The aim a design was made for, as Design words it: the choice's heading and what it fits; "" for none. */
+function aimWords(aim) {
+  const label = document.querySelector(`input[name=aim][value="${aim}"]`)?.closest("label");
+  if (!label) return "";
+  const words = (part) => label.querySelector(part)?.textContent.replace(/\s+/g, " ").trim() ?? "";
+  return `${words("strong")}: ${words(".hint")}`;
+}
+
+/** What Learn shows of the response it shows, as a report section: its analysis, charts and best settings. */
+async function learnSection() {
+  const parts = [reportCopy($("#analysis")), chartsHtml(await chartsWithin($("#charts")))];
+  if (!$("#best").hidden) {
+    parts.push(`<h3>${$("#h-best").textContent}</h3>`, reportCopy($("#best-out")), chartsHtml(await chartsWithin($("#best"))));
+    if (!$("#confirm").hidden) parts.push(reportCopy($("#confirm-out")));
+  }
+  const heading = several() ? `What the results say of ${wordsOf(state.shown).label}` : "What the results say";
+  return { heading, html: parts.join("\n") };
+}
+
+/**
+ * Learn's analysis of each response with results, as report sections, each as Learn shows it: with several
+ * responses, Learn shows each in turn, and then the one it showed. The analysis waiting for typing to pause is
+ * made first, so the report holds the results on the page.
+ */
+async function learnSections() {
+  if (analysisTimer !== null) {
+    clearTimeout(analysisTimer);
+    analysisTimer = null;
+    await analyseRuns();
+  }
+  if (!state.analysis && anyResult(state.results)) await analyseRuns();
+  const shown = state.shown;
+  const sections = [];
+  for (const name of resultNames().filter((one) => state.results[one]?.some((v) => v !== null))) {
+    if (name !== state.shown) await showAnalysisOf(name);
+    if (state.analysis) sections.push(await learnSection());
+  }
+  if (state.shown !== shown) await showAnalysisOf(shown);
+  return sections;
+}
+
+/** The sections a report ends with, after the analysis: the balance of the responses, the next step and the code. */
+async function closingSections() {
+  const sections = [];
+  if (!$("#balance").hidden && state.balance) {
+    const html = [reportCopy($("#balance-out")), chartsHtml(await chartsWithin($("#balance")))];
+    sections.push({ heading: $("#h-balance").textContent, html: html.join("\n") });
+  }
+  if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
+  const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
+  sections.push({
+    heading: "The Python code",
+    html:
+      '<p class="hint">The design, its results and what Learn made of them, so it runs as it is with the releases ' +
+      `the stamp names.</p>\n<pre><code>${escape(code)}</code></pre>`,
+  });
+  return sections;
+}
+
+/**
+ * The study's inputs, as a report's digest and link hold them: what its link carries, as Factorial reads a link,
+ * so a study opened from the link gives the same digest. What the page works out again (a design's aliases, the
+ * simulated results) is left out by that reading.
+ */
+function reportedInputs() {
+  const carried = shareable(currentCampaign(), true);
+  try {
+    return checkCampaign(JSON.parse(JSON.stringify(carried)));
+  } catch {
+    return carried; // what a link could not carry is still the study's: its digest is of it as it is
+  }
+}
+
+/**
+ * Download the study as a report: one HTML page with the brief, the design and its run sheet, what Learn makes of
+ * the results, the next step and the Python code, under a stamp that says how to get the same numbers again: the
+ * releases, the seeds, the SHA-256 of the study's inputs, and a link that opens the study with its results.
+ */
+async function downloadReport() {
+  if (!state.design) return;
+  setStatus("Making the report...", "busy");
+  const learned = await learnSections();
+  const closing = await closingSections();
+  const inputs = reportedInputs();
+  const url = `${location.origin}${location.pathname}`;
+  const packed = await packCampaign(inputs).catch(() => null); // a study too large for a link has none
+  const { spec, rows } = state.design;
+  const notes = state.design.facts?.notes ?? [];
+  const noted = notes.length ? `<ul>${notes.map((n) => `<li>${escape(n)}</li>`).join("")}</ul>\n` : "";
+  const page = report({
+    title: state.campaign?.title ?? titleOf(spec),
+    stamp: stampRows({
+      made: new Date(),
+      version: state.version,
+      runtime: state.runtime,
+      url,
+      spec,
+      runs: rows.length,
+      results: state.results,
+      marks: state.marks,
+      simulation: someSimulated() ? state.simulation : null,
+      sha: await sha256(canonicalJson(inputs)),
+      link: packed ? `${url}${LINK_KEY}${packed}` : null,
+    }),
+    sections: [
+      { heading: "The brief", html: briefHtml(spec, { aim: aimWords(spec.aim), mixture: isMixture(spec.design_type) }) },
+      {
+        heading: `The design: ${designLabel(spec.design_type)}, ${rows.length} runs`,
+        html: noted + runSheetHtml(state.design, state.results, state.marks),
+      },
+      ...learned,
+      ...closing,
+    ],
+  });
+  download(new Blob([page], { type: "text/html" }), `${spec.design_type}-${rows.length}-runs-report.html`);
+  setStatus("Report downloaded: open it in a browser, or print it to PDF.");
+}
+
 async function readUpload(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = "";
@@ -2173,7 +2337,10 @@ let ticket = 0;
 /** Analyse a moment after the last keystroke, rather than on every one. */
 function scheduleAnalysis() {
   clearTimeout(analysisTimer);
-  analysisTimer = setTimeout(analyseRuns, 700);
+  analysisTimer = setTimeout(() => {
+    analysisTimer = null;
+    analyseRuns();
+  }, 700);
 }
 
 /** What Learn says while there is nothing to analyse. */
@@ -2190,6 +2357,7 @@ function clearAnalysis() {
   $("#analyse-empty").textContent = NOTHING_TO_LEARN;
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
+  $("#learn-report").hidden = true;
   clearBest();
   renderBadges();
 }
@@ -2253,6 +2421,7 @@ function renderAnalysis(reply) {
   out.hidden = false;
   $("#analyse-empty").hidden = true;
   $("#to-learn").hidden = !reply.ok;
+  $("#learn-report").hidden = !reply.ok;
   renderBadges();
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
@@ -2422,12 +2591,17 @@ function renderPicker() {
 /** Show a response's analysis in Learn: its own model, its fit, its charts and its best settings. */
 function pickResponse(name) {
   if (name === state.shown || !resultNames().includes(name)) return;
+  showAnalysisOf(name);
+  scheduleSave();
+}
+
+/** Put a response's analysis in Learn, with its own model, keeping the model of the one it showed; resolves once it is there. */
+async function showAnalysisOf(name) {
   state.models[state.shown] = modelChoice();
   state.shown = name;
   setModel(state.models[name] ?? "");
   renderPicker();
-  analyseRuns();
-  scheduleSave();
+  await analyseRuns();
 }
 
 // ---------------------------------------------------------------- the model's terms
@@ -4082,6 +4256,8 @@ $("#balance-reset").onclick = () => {
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
+$("#report").onclick = downloadReport;
+$("#learn-report-button").onclick = downloadReport;
 $("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
@@ -4150,6 +4326,7 @@ call("api_catalogue").then((reply) => {
   }
   catalogue = reply.result;
   state.version = catalogue.version ?? null;
+  state.runtime = catalogue.runtime ?? null;
   pythonReady = true;
   for (const id of ["#upload", "#simulate", "#reroll"]) $(id).disabled = false;
   refreshDesign();

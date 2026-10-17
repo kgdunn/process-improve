@@ -28,7 +28,9 @@ import itertools
 import json
 import logging
 import math
+import platform
 import re
+import sys
 import unicodedata
 import warnings
 from importlib.metadata import PackageNotFoundError, version
@@ -258,6 +260,10 @@ PROPORTION_DIGITS = 12
 
 #: The number of components of a blend of equal parts, in words.
 PARTS = {2: "two", 3: "three", 4: "four", 5: "five"}
+
+#: The seed a design's runs are put in random order with, unless its specification names one; the runs added to a
+#: study are put in random order with it too. A study's report names it (report.js's RUN_ORDER_SEED).
+RUN_ORDER_SEED = 42
 
 #: Designs whose non-centre runs all lie on one sphere (Box-Behnken at any size, a
 #: rotatable CCD at 2 or 4 factors), so without a center run the squared terms sum
@@ -952,10 +958,28 @@ def _release() -> str | None:
         return None
 
 
+#: The packages whose releases decide an analysis's numbers, which a study's report names beside process-improve.
+RUNTIME_PACKAGES = ("numpy", "pandas", "scipy", "statsmodels")
+
+
+def _runtime() -> dict[str, Any]:
+    """Name the Python the page runs, each of :data:`RUNTIME_PACKAGES` installed, and Pyodide's release.
+
+    Pyodide is the one that has already imported its own ``pyodide`` package, so outside a browser it is None.
+    """
+    packages = {}
+    for name in RUNTIME_PACKAGES:
+        with contextlib.suppress(PackageNotFoundError):
+            packages[name] = version(name)
+    pyodide = sys.modules.get("pyodide")
+    return {"python": platform.python_version(), "packages": packages, "pyodide": getattr(pyodide, "__version__", None)}
+
+
 def catalogue(_: dict) -> dict:
     """List what the page offers: design types, mixtures, models, CCD axial choices, processes, and the worked example.
 
-    ``version`` is the process-improve release the page runs, which a notebook it writes installs.
+    ``version`` is the process-improve release the page runs, which a notebook it writes installs, and ``runtime``
+    the Python, packages and Pyodide it runs on (see :func:`_runtime`), which a study's report names.
     """
     scenarios = {key: {"label": s["label"], "hint": s["hint"], "sigma": s["sigma"]} for key, s in SCENARIOS.items()}
     mixture_scenarios = {
@@ -971,6 +995,7 @@ def catalogue(_: dict) -> dict:
         "mixture_scenarios": mixture_scenarios,
         "demo": DEMO,
         "version": _release(),
+        "runtime": _runtime(),
     }
 
 
@@ -1242,7 +1267,7 @@ def _mixture_options(spec: dict, design_type: str) -> dict[str, Any]:
     The simplex centroid is the library's design for the special cubic model, which in three or
     four components is every blend of equal parts.
     """
-    kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
+    kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", RUN_ORDER_SEED)))}
     if design_type == "simplex_lattice":
         degree = _number(spec.get("lattice_degree", DEFAULT_LATTICE_DEGREE))
         if degree not in LATTICE_DEGREES:
@@ -1555,7 +1580,7 @@ def _array_sentence(name: str, model: str) -> str:
 
 def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     """Pick the ``generate_design`` keyword arguments this design type accepts."""
-    kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", 42)))}
+    kwargs: dict[str, Any] = {"random_state": int(spec.get("random_state", spec.get("random_seed", RUN_ORDER_SEED)))}
     allowed = DESIGNS[design_type]["options"]
     n_factors = len(spec.get("factors") or [])
     alpha = _alpha(spec) if "alpha" in allowed else None
@@ -5242,9 +5267,6 @@ GROWN = "grown"
 #: SPARE_FOR_NOISE). With fewer, Learn offers to make every run again.
 SPARE_FOR_NOISE = 3
 
-#: The seed the runs added are put in random order with, as ``generate_design`` randomises a design's runs.
-EXTENSION_SEED = 42
-
 #: Each model in the words a sentence names it with, as "the full quadratic model".
 MODEL_WORDS = {
     "main_effects": "main effects",
@@ -5319,7 +5341,7 @@ def add_runs(request: dict) -> dict:
     before = pd.DataFrame(rows, columns=columns)
     first_std, first_run = _last(before, "Std order") + 1, _last(before, "Run order") + 1
     block = _last(before, BLOCK) + 1 if made["blocked"] else None
-    order = np.random.default_rng(EXTENSION_SEED).permutation(len(made["new"]))
+    order = np.random.default_rng(RUN_ORDER_SEED).permutation(len(made["new"]))
     for place, i in enumerate(order):  # in run order, each with its place in the standard order of the runs added
         settings = {f["name"]: _setting(f, made["new"][i][j]) for j, f in enumerate(spec["factors"])}
         numbers = {"Std order": first_std + int(i), "Run order": first_run + place, BLOCK: block}

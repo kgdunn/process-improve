@@ -54,6 +54,7 @@ APP_SOURCES = (
     "charts.js",
     "python.js",
     "best.js",
+    "report.js",
     "campaign.js",
     "store.js",
     "glossary.js",
