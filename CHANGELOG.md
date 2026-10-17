@@ -24,6 +24,30 @@ those changes.
   compares the array, at three levels for a model with squares, and the Python panels give each
   numeric factor its three levels. In the design catalog, the library's L4, L8, L9 and L12 and 13
   published arrays now open as the app makes them.
+- **The information matrix and exact region values in `evaluate_design`.** The new metric
+  `information_matrix` gives X'X, its determinant, the D-, A- and E-criteria, the rank, the residual
+  degrees of freedom, the inverse and each coefficient's variance; `estimable_interactions` counts
+  the omitted two-factor interactions a design estimates beside its model. `integration="exact"`
+  works out the average prediction variance over the cube by Gauss-Legendre quadrature,
+  trace((X'X)^-1 W), in place of a sample; `max_search="optimize"` climbs from the sample's largest
+  points by a compass search, so a maximum inside a face or an edge is not missed.
+- **`evaluate_projections`** evaluates a design on every projection onto a number of its factors,
+  or a number from each of several groups (quantitative and categorical, say), and reports the
+  fraction that estimate the model (the projection estimation capacity) and the metrics' averages.
+- **`design_measures.design_structure`** counts what a design's runs are made of: levels and how
+  often each factor takes each one, middle-level zeros of the main effects and of the products of two
+  three-level factors (n0ME, n0IE), centre runs, mirror-image pairs, replicated runs and blocks.
+- **`allocate_runs`** tabulates every whole-run split of a budget between two levels that differ
+  in noise or cost, with each split's variance and efficiency, and finds the most precise one.
+- **Reference catalogue: design checks.** New check kinds read a design's structure
+  (`design_structure`), its projections (`projections`) and its projectivity (`design_measure`);
+  a printed vector or matrix is compared entry by entry with X, X'X, X'y or (X'X)^-1; a design
+  metric's table of terms can be picked by a regular expression and reduced; and a check may name
+  a design `generate_omars` chooses; `library_text` compares a label the library gives word for
+  word; and `desirability_optimum` runs the library's desirability search on the fitted responses.
+  With these, 565 printed numbers that were set aside by hand in Núñez Ares and Goos (2020), Núñez
+  Ares et al. (2023), Goos (2025), Jones and Nachtsheim (2013) and the PID book are now checked.
+
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
@@ -340,7 +364,8 @@ those changes.
   *runs as given* (`design_type="given"` in `api_make_design`): the runs of a design it does not
   make, such as one a book prints, in their order and their factors' own units, analysed with the
   largest model they estimate in full. 506 published designs open, 269 of them as the app makes
-  them, and 99 generated ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`), keeps the designs whose
+  them, and 99 generated ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`),
+  keeps the designs whose
   every run meets it, marks the runs outside it, and opens a design in Factorial with the limit in
   its own units, where the D-optimal and I-optimal designs make runs inside it. A form for proposing
   a published design for the catalogue is linked from the catalog.
