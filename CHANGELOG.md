@@ -411,18 +411,22 @@ those changes.
   Schmidt and Launsby print (eight plating models and the ball weld D-optimal design) agree.
 - **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 1039 published
   experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
-  factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
-  estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
-  numbers, and the year the source appeared or the date the entry was added; and sees each one on a
-  map of runs against factors, beside the fewest runs each model needs. A design opens in Factorial
-  with one click: 256 published designs, which the library regenerates run for run, and every
-  generated design of the eight types the app makes. The filters are kept in the address, so a
-  filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
-  `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
-  `design_facets`, `glyph`, `printed_checks`, `short_citation`, `catalog_sources`,
-  `catalog_families`, and `search_catalog`, which filters them as the page does. The tool
-  `search_design_catalog` searches the same records for an agent or the MCP server, and returns each
-  design with its page in the catalog. The user guide's new page, *The Design Catalog*, lists what a
+  factors, <=30 runs, quadratic, since 1990"); filters them by family, application (the industry
+  sector of the reference catalogue's topics, such as food and beverages or semiconductors), runs,
+  factors, the model they estimate in full, categorical factors, blocks, split plot, mixture, printed
+  results, recomputed numbers, and the year the source appeared or the date the entry was added; and
+  sees each one on a map of runs against factors, beside the fewest runs each model needs. A design's
+  page links to the place its source prints it (for the book and the NIST e-Handbook, the section
+  itself), and names the book's tables and figures by their captions. A design opens in Factorial
+  with one click: 256 published designs, which the library regenerates run for run, and every generated
+  design of the eight types the app makes. The filters are kept in the address, so a filtered view
+  can be shared. `process_improve.experiments.design_catalog` makes the records: `catalog_records`,
+  `normalise_family` (a source's free-text design type, read into a family), `design_facets`,
+  `glyph`, `printed_checks`, `short_citation`, `catalog_sources`, `catalog_families`,
+  `catalog_topics`, `figure_name`, `table_name`, `where_url`, and `search_catalog`, which filters
+  them as the page does. The tool `search_design_catalog` searches the same records for an agent or
+  the MCP server, and returns each design with its page in the catalog. The user guide's new page,
+  *The Design Catalog*, lists what a
   record holds.
 - **What a design withstands, read off its runs: `process_improve.experiments.design_measures`.**
   `run_loss` says whether a design still estimates its model if any one run is lost, and the
