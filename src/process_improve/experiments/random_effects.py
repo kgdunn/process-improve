@@ -32,8 +32,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from patsy import ModelDesc
 from scipy import stats
 
+from process_improve.experiments.models import validate_formula_is_safe
 from process_improve.regression._variance_components import fit_variance_components
 
 ERROR = "Error"
@@ -71,11 +73,10 @@ def _group_columns(name: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------- REML variance components
-def variance_components(  # noqa: PLR0913
+def variance_components(
     design_matrix: pd.DataFrame,
-    response_column: str,
+    formula: str,
     random: Sequence[str],
-    fixed: Sequence[str] = (),
     bounded: bool = True,
     significance_level: float = 0.05,
 ) -> dict[str, Any]:
@@ -85,15 +86,15 @@ def variance_components(  # noqa: PLR0913
     ----------
     design_matrix : DataFrame
         One row per observation, holding the response and the factors.
-    response_column : str
-        The response.
+    formula : str
+        The response and the fixed terms, ``"y ~ operator"`` (``"y ~ 1"`` for the mean alone): a
+        plain formula of factors and ``a:b`` interactions of them (``a * b`` expands to both and
+        their interaction), each coded to sum to zero over its levels. The overall mean is always
+        fixed.
     random : sequence of str
         The random terms: a factor, ``"a:b"`` for the random interaction of two factors (each
         combination of their levels), or ``"b(a)"`` for ``b`` nested in ``a`` (each ``b`` within
         each ``a``, so labels may repeat from one ``a`` to the next).
-    fixed : sequence of str
-        The fixed factors, or ``"a:b"`` interactions of them, each coded to sum to zero over its
-        levels. The overall mean is always fixed.
     bounded : bool
         Keep every component at or above zero, as lme4 does (the default). ``False`` lets a
         component go negative, as JMP's unbounded estimates do: in a balanced design they are
@@ -119,6 +120,7 @@ def variance_components(  # noqa: PLR0913
           reports them for a REML fit, the adjusted one on the fixed parameters' count.
     """
     table = design_matrix.reset_index(drop=True)
+    response_column, fixed = _response_and_terms(formula, [str(c) for c in table.columns])
     y = table[response_column].to_numpy(dtype=float)
     blocks = [pd.DataFrame({"Intercept": np.ones(len(y))}), *(fixed_columns(table, name) for name in fixed)]
     design = pd.concat(blocks, axis=1).astype(float)
@@ -161,6 +163,16 @@ def variance_components(  # noqa: PLR0913
         "r_squared": r_squared,
         "r_squared_adj": 1 - (1 - r_squared) * (n - 1) / (n - p),
     }
+
+
+def _response_and_terms(formula: str, columns: Sequence[str]) -> tuple[str, list[str]]:
+    """Return a formula's response and its terms, ``a:b`` for an interaction, the intercept left out."""
+    validate_formula_is_safe(formula, columns)
+    description = ModelDesc.from_formula(formula)
+    if len(description.lhs_termlist) != 1:
+        raise ValueError(f"The formula {formula!r} must name one response on the left of '~'.")
+    response = description.lhs_termlist[0].name()
+    return response, [term.name() for term in description.rhs_termlist if term.factors]
 
 
 def _fixed_effects(fit: Any, columns: list[str]) -> list[dict[str, float | str]]:  # noqa: ANN401 - the REML fit
@@ -211,15 +223,17 @@ def _terms(levels: Mapping[str, int], nested: Mapping[str, str]) -> list[tuple[s
 _Term = tuple[str, frozenset[str], frozenset[str]]
 
 
-def _ems_row(  # noqa: PLR0913 - the term, the model, and the rules that decide what its mean square holds
+def _ems_row(
     term: _Term,
     model: list[_Term],
-    is_random: Mapping[str, bool],
-    random_set: set[str],
-    restricted: bool,
+    rules: tuple[Mapping[str, bool], set[str], bool],
     coefficient: Any,  # noqa: ANN401 - the multiple of a component, from the subscripts it carries
 ) -> tuple[dict[str, int], list[str]]:
-    """Return one term's expected mean square, component by component, and the fixed forms it holds."""
+    """Return one term's expected mean square, component by component, and the fixed forms it holds.
+
+    *rules* are which terms are random, the random factors, and whether the model is restricted.
+    """
+    is_random, random_set, restricted = rules
     name, _, carried = term
     row: dict[str, int] = {}
     forms = []
@@ -249,10 +263,9 @@ def _error_terms(ems: Mapping[str, Mapping[str, int]], names: list[str]) -> dict
     return found
 
 
-def expected_mean_squares(  # noqa: PLR0913 - a balanced design is its levels, random factors, nesting and replicates
+def expected_mean_squares(
     levels: Mapping[str, int],
     random: Sequence[str] = (),
-    nested: Mapping[str, str] | None = None,
     replicates: int = 1,
     restricted: bool = True,
     terms: Sequence[str] | None = None,
@@ -272,12 +285,11 @@ def expected_mean_squares(  # noqa: PLR0913 - a balanced design is its levels, r
     Parameters
     ----------
     levels : mapping of str to int
-        Each factor's number of levels (for a nested factor, its levels within each level of the
-        factor it is nested in), in the order the terms are to be listed.
+        Each factor's number of levels, in the order the terms are to be listed. A nested factor
+        is named with the factor it is nested in, ``{"supplier": 3, "batch(supplier)": 4}``, and
+        its count is its levels within each level of that factor.
     random : sequence of str
-        The random factors; the rest are fixed.
-    nested : mapping of str to str, optional
-        Each nested factor and the factor it is nested in: ``{"batch": "supplier"}``.
+        The random factors, by their own names (``"batch"``); the rest are fixed.
     replicates : int
         Observations in each cell.
     restricted : bool
@@ -299,7 +311,7 @@ def expected_mean_squares(  # noqa: PLR0913 - a balanced design is its levels, r
         the one whose expected mean square differs from it by the term's own part alone, or
         ``None`` when no single mean square does (an approximate F test is then needed).
     """
-    nested = dict(nested or {})
+    levels, nested = _nesting(levels)
     every = _terms(levels, nested)
     if terms is not None:
         unknown = set(terms) - {name for name, _, _ in every}
@@ -315,7 +327,7 @@ def expected_mean_squares(  # noqa: PLR0913 - a balanced design is its levels, r
     ems: dict[str, dict[str, int]] = {}
     fixed_forms: dict[str, list[str]] = {}
     for term in model:
-        ems[term[0]], forms = _ems_row(term, model, is_random, random_set, restricted, coefficient)
+        ems[term[0]], forms = _ems_row(term, model, (is_random, random_set, restricted), coefficient)
         if not is_random[term[0]]:
             fixed_forms[term[0]] = forms
     ems[ERROR] = {ERROR: 1}
@@ -334,12 +346,23 @@ def expected_mean_squares(  # noqa: PLR0913 - a balanced design is its levels, r
     }
 
 
+def _nesting(levels: Mapping[str, int]) -> tuple[dict[str, int], dict[str, str]]:
+    """Split ``"b(a)"`` names into the factor ``b`` and its nesting in ``a``; return the levels and the nesting."""
+    plain: dict[str, int] = {}
+    nested: dict[str, str] = {}
+    for name, count in levels.items():
+        factor, _, outer = name.partition("(")
+        plain[factor.strip()] = count
+        if outer:
+            nested[factor.strip()] = outer.rstrip(")").strip()
+    return plain, nested
+
+
 # --------------------------------------------------------------------------- a single random factor
-def intraclass_correlation_interval(  # noqa: PLR0913 - two mean squares, their degrees of freedom, n and the level
+def intraclass_correlation_interval(
     ms_treatment: float,
     ms_error: float,
     df_treatment: int,
-    df_error: int,
     n: int,
     conflevel: float = 0.95,
 ) -> dict[str, float]:
@@ -348,7 +371,8 @@ def intraclass_correlation_interval(  # noqa: PLR0913 - two mean squares, their 
     With :math:`F_0 = MS_{Treatments}/MS_E`, the limits :math:`L` and :math:`U` of
     :math:`\sigma^2_\tau / \sigma^2` are :math:`\frac1n(F_0 / F_{\alpha/2} - 1)` and
     :math:`\frac1n(F_0 / F_{1-\alpha/2} - 1)`, with :math:`F_{\alpha/2}` the upper :math:`\alpha/2`
-    point of F on ``df_treatment`` and ``df_error`` degrees of freedom; the intraclass
+    point of F on ``df_treatment`` and the error's :math:`a(n - 1)` degrees of freedom, for
+    :math:`a` = ``df_treatment`` + 1 levels of :math:`n` observations each; the intraclass
     correlation :math:`\sigma^2_\tau / (\sigma^2_\tau + \sigma^2)` lies between
     :math:`L/(1 + L)` and :math:`U/(1 + U)` (Montgomery, 2013, section 3.9).
 
@@ -359,6 +383,7 @@ def intraclass_correlation_interval(  # noqa: PLR0913 - two mean squares, their 
         and ``error_low`` and ``error_high``, the chi-squared interval of the error variance.
     """
     alpha = 1 - conflevel
+    df_error = (df_treatment + 1) * (n - 1)  # a levels of n observations each
     f0 = ms_treatment / ms_error
     upper = float(stats.f.ppf(1 - alpha / 2, df_treatment, df_error))
     lower = float(stats.f.ppf(alpha / 2, df_treatment, df_error))

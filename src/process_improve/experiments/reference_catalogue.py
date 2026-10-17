@@ -2429,10 +2429,10 @@ def _expected_mean_squares(_experiment: dict, check: dict) -> float:
     ``other``'s, as Minitab's ``Q[1,4]``; or ``"error_term.<term>"``, the 1-based place, in the
     terms' order with the error last, of the term that tests it, as Minitab numbers it.
     """
+    nested = check.get("nested") or {}
     found = expected_mean_squares(
-        check["levels"],
+        {f"{name}({nested[name]})" if name in nested else name: n for name, n in check["levels"].items()},
         random=check.get("random", ()),
-        nested=check.get("nested"),
         replicates=check.get("replicates", 1),
         restricted=check.get("restricted", True),
         terms=check.get("terms"),

@@ -32,7 +32,7 @@ def gauge() -> pd.DataFrame:
 
 
 def test_unbounded_reml_reproduces_jmp_negative_interaction_component(gauge):
-    found = variance_components(gauge, "y", random=["part", "operator", "part:operator"], bounded=False)
+    found = variance_components(gauge, "y ~ 1", random=["part", "operator", "part:operator"], bounded=False)
     components = found["components"]
     assert components["part"] == pytest.approx(10.279825, abs=5e-7)
     assert components["operator"] == pytest.approx(0.0149123, abs=5e-8)
@@ -43,7 +43,7 @@ def test_unbounded_reml_reproduces_jmp_negative_interaction_component(gauge):
 
 
 def test_bounded_reml_keeps_every_component_at_or_above_zero(gauge):
-    found = variance_components(gauge, "y", random=["part", "operator", "part:operator"])
+    found = variance_components(gauge, "y ~ 1", random=["part", "operator", "part:operator"])
     assert found["components"]["part:operator"] == 0
     assert all(value >= 0 for value in found["components"].values())
     assert sum(found["percent"].values()) == pytest.approx(100)
@@ -52,7 +52,7 @@ def test_bounded_reml_keeps_every_component_at_or_above_zero(gauge):
 
 def test_fixed_operators_are_tested_on_satterthwaite_degrees_of_freedom(gauge):
     """JMP's mixed model, operators fixed: F = 1.8380, R-square 0.911896, adjusted 0.91039."""
-    found = variance_components(gauge, "y", random=["part", "part:operator"], fixed=["operator"], bounded=False)
+    found = variance_components(gauge, "y ~ operator", random=["part", "part:operator"], bounded=False)
     test = found["tests"][0]
     assert (test["term"], test["df_num"]) == ("operator", 2)
     assert test["f"] == pytest.approx(1.8380, abs=5e-5)
@@ -62,7 +62,7 @@ def test_fixed_operators_are_tested_on_satterthwaite_degrees_of_freedom(gauge):
 
 def test_blups_are_the_random_effects_predicted_level_by_level():
     looms = _runs("montgomery-looms-random")
-    found = variance_components(looms, "y", random=["loom"])
+    found = variance_components(looms, "y ~ 1", random=["loom"])
     assert set(found["blups"]["loom"]) == {"1", "2", "3", "4"}
     assert sum(found["blups"]["loom"].values()) == pytest.approx(0, abs=1e-9)  # balanced: they sum to zero
     assert found["r_squared"] == found["r_squared_adj"] == pytest.approx(0.793521, abs=5e-7)
@@ -73,8 +73,8 @@ def test_blups_are_the_random_effects_predicted_level_by_level():
 
 def test_a_nested_random_factor_is_grouped_within_its_outer_factor():
     purity = _runs("montgomery-purity-nested")
-    by_name = variance_components(purity, "purity", random=["batch(supplier)"], fixed=["supplier"])
-    by_pair = variance_components(purity, "purity", random=["supplier:batch"], fixed=["supplier"])
+    by_name = variance_components(purity, "purity ~ supplier", random=["batch(supplier)"])
+    by_pair = variance_components(purity, "purity ~ supplier", random=["supplier:batch"])
     assert list(by_name["components"].values()) == pytest.approx(list(by_pair["components"].values()))
     assert list(by_name["components"]) == ["batch(supplier)", "residual"]
 
@@ -94,8 +94,8 @@ def test_the_restricted_model_drops_a_random_interaction_with_a_fixed_factor(res
 
 def test_nested_and_crossed_factors_in_one_design():
     """Montgomery's Example 14.2: fixtures and layouts fixed, operators random within layouts."""
-    levels = {"layout": 2, "operator": 4, "fixture": 3}
-    found = expected_mean_squares(levels, random=["operator"], nested={"operator": "layout"}, replicates=2)
+    levels = {"layout": 2, "operator(layout)": 4, "fixture": 3}
+    found = expected_mean_squares(levels, random=["operator"], replicates=2)
     assert found["terms"] == [
         "layout",
         "operator(layout)",
@@ -112,9 +112,7 @@ def test_nested_and_crossed_factors_in_one_design():
         "layout:fixture": 2,
         "operator:fixture(layout)": 12,
     }
-    unrestricted = expected_mean_squares(
-        levels, random=["operator"], nested={"operator": "layout"}, replicates=2, restricted=False
-    )
+    unrestricted = expected_mean_squares(levels, random=["operator"], replicates=2, restricted=False)
     assert unrestricted["fixed_forms"]["layout"] == ["layout", "layout:fixture"]  # Minitab's Q[1,4]
     assert unrestricted["error_term"]["operator(layout)"] == "operator:fixture(layout)"
 
@@ -137,7 +135,7 @@ def test_a_term_with_no_exact_error_term_says_so():
 
 def test_the_intraclass_correlation_interval_of_a_one_way_random_model():
     """The looms: L and U from the F points, the intraclass correlation between L/(1+L) and U/(1+U)."""
-    found = intraclass_correlation_interval(29.73, 1.90, 3, 12, 4)
+    found = intraclass_correlation_interval(29.73, 1.90, 3, 4)
     f0 = 29.73 / 1.90
     assert found["ratio_low"] == pytest.approx((f0 / 4.4742 - 1) / 4, abs=5e-4)
     assert found["icc_low"] == pytest.approx(found["ratio_low"] / (1 + found["ratio_low"]))
