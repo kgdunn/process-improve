@@ -348,8 +348,9 @@ change; a divergence introduced quietly is expensive to find later.
 
 - Open a pull request against `main` with a clear description of the change
   and why it is needed.
-- Do not bump the version. Add your entry under `## [Unreleased]` in
-  `CHANGELOG.md` and leave `pyproject.toml` and `CITATION.cff` alone; the
+- Do not bump the version. Add your changelog entry as a fragment,
+  `changelog.d/<slug>.<type>.md` (see [`changelog.d/README.md`](changelog.d/README.md)),
+  and leave `CHANGELOG.md`, `pyproject.toml` and `CITATION.cff` alone; the
   version is set at release time (see "Versioning policy" below).
 - Bugs and feature requests can also be filed on the
   [issue tracker](https://github.com/kgdunn/process-improve/issues).
@@ -376,22 +377,24 @@ Reset rules:
 
 ### When the version is bumped
 
-**Not in your pull request.** A pull request adds its entry under
-`## [Unreleased]` in `CHANGELOG.md` and leaves `pyproject.toml` and
+**Not in your pull request.** A pull request adds its entry as a fragment in
+`changelog.d/` and leaves `CHANGELOG.md`, `pyproject.toml` and
 `CITATION.cff` alone. The version is set once, at release time, from
-everything that accumulated under `[Unreleased]`.
+everything that accumulated in the fragments and under `[Unreleased]`.
 
 This is deliberate. Every pull request bumping the same line of
 `pyproject.toml`, the same line of `CITATION.cff`, and inserting at the
 same anchor in `CHANGELOG.md` makes every open pull request conflict with
 every other one, on three lines that have nothing to do with the work.
 The conflicts are not telling you anything, and resolving them costs a
-rebase per merge.
+rebase per merge. A fragment is a file of its own, so two pull requests'
+entries never meet until the release files them.
 
 ### Choosing the level at release
 
 The headings under `[Unreleased]` decide it, so the level is read off the
-changelog rather than argued about:
+changelog rather than argued about. A fragment's type is the heading it is
+filed under, so `changelog.d/glm.added.md` counts as `### Added`:
 
 | Highest heading present under `[Unreleased]` | Level |
 |---|---|
@@ -415,13 +418,16 @@ number is.
 
 ### Cutting a release
 
-1. Read the headings under `[Unreleased]` and pick the level from the
+1. Run `python tools/changelog.py build`. It files every fragment in
+   `changelog.d/` under its heading in `## [Unreleased]` and deletes it.
+2. Read the headings under `[Unreleased]` and pick the level from the
    table above.
-2. In one commit: set `pyproject.toml` `version`, set `CITATION.cff`
-   `version` to the identical value and `date-released` to today, rename
-   `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a fresh empty
-   `## [Unreleased]` above it, and add the compare link to the footer.
-3. Tag `vX.Y.Z` and push the tag.
+3. In one commit, with the result of step 1: set `pyproject.toml` `version`,
+   set `CITATION.cff` `version` to the identical value and `date-released`
+   to today, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a
+   fresh empty `## [Unreleased]` above it, and add the compare link to the
+   footer.
+4. Tag `vX.Y.Z` and push the tag.
 
 `publish.yml` refuses to ship if the tag does not equal
 `v<pyproject version>`, or if `CHANGELOG.md` has no `## [X.Y.Z]` heading,
