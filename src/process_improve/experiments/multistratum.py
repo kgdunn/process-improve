@@ -68,8 +68,8 @@ def error_terms(strata: str | list[str]) -> list[str]:
 
 def _basis(columns: np.ndarray) -> np.ndarray:
     """Return an orthonormal basis of the space the columns span."""
-    if columns.shape[1] == 0:
-        return columns
+    if columns.size == 0:  # no columns, or a stratum with no units left: it spans nothing
+        return columns[:, :0]
     u, s, _ = np.linalg.svd(columns, full_matrices=False)
     return u[:, s > _RANK_TOLERANCE * max(1.0, float(s[0]))]
 

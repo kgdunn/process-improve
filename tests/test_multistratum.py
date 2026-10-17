@@ -76,6 +76,33 @@ def test_split_plot_tests_each_term_on_its_own_stratum():
     assert table.loc[("Within", "Residual"), "ss"] == pytest.approx(71.5, abs=5e-5)
 
 
+def test_an_error_term_that_names_every_run_leaves_the_within_stratum_empty():
+    """Error(replicate/method/temperature): each sample is a unit, so that stratum holds Montgomery's subplots."""
+    runs = _montgomery("montgomery-tensile-strength-split-plot")
+    found = multistratum_anova(runs, "method * temperature", "replicate/method/temperature", response="strength")
+    table = found["table"].set_index(["stratum", "term"])
+    assert table.loc[("replicate:method:temperature", "temperature"), "ss"] == pytest.approx(434.0833, abs=5e-5)
+    assert table.loc[("replicate:method:temperature", "Residual"), "ss"] == pytest.approx(71.5, abs=5e-5)
+    assert found["df"]["Within"] == {"Residual": 0}
+    assert "Within" not in table.index.get_level_values("stratum")
+
+
+def test_the_catalogue_reads_a_term_of_a_stratum_from_the_runs_it_prints():
+    """The catalogue's check fits the experiment's own runs, and names the stratum a term is not in."""
+    path = reference_catalogue._CATALOGUE_DIR / "montgomery-2013.json"
+    entry = next(
+        e
+        for e in json.loads(path.read_text(encoding="utf-8"))["experiments"]
+        if e["name"] == "montgomery-tensile-strength-split-plot"
+    )
+    check = {"model": "method * temperature", "strata": "replicate/method", "stratum": "replicate:method"}
+    assert reference_catalogue._multistratum(entry, {**check, "term": "method", "key": "ss"}) == pytest.approx(
+        128.3889, abs=5e-5
+    )
+    with pytest.raises(KeyError, match="No term 'temperature' in the stratum 'replicate:method'"):
+        reference_catalogue._multistratum(entry, {**check, "term": "temperature", "key": "ss"})
+
+
 def test_an_incomplete_block_design_estimates_treatments_in_two_strata():
     """The catalyst design: treatments between blocks and within them, the intrablock analysis the second."""
     runs = _montgomery("montgomery-catalyst-bibd")
