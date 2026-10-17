@@ -297,6 +297,30 @@ def test_the_python_shown_reproduces_a_mixture_s_simulation_and_its_scheffe_fit(
     assert "Intercept" not in coefficients_of(namespace)
 
 
+@pytest.mark.slow
+def test_the_python_shown_reproduces_each_response_of_a_mixture(api, node):
+    """Each response of a mixture is simulated from its own process, and its code fits its own column."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    request = {**MIXTURES[1], "factors": components("simplex_lattice"), "responses": responses}
+    held = held_of(api.ok("api_make_design", request))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    results = {"Hardness": simulation["responses"], "Cost": simulation["more"]["Cost"]["responses"]}
+    sent = {"responses": results["Hardness"], "more_responses": {"Cost": results["Cost"]}}
+    analysis = api.ok("api_analyze_runs", {**held, **sent, "response": "Cost"})
+    spec = javascript(node, source("python.js"), [("forResponse", [held["spec"], "Cost"])])[0]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("analyseCode", [analysis["formula"], True, spec]),
+    )
+    namespace = run(code)
+    for name, values in results.items():
+        np.testing.assert_allclose(namespace["runs"][name], values, atol=1e-9, err_msg=name)
+    assert namespace["y"].name == "Cost"
+    assert_same_fit(namespace, analysis)
+
+
 def notebook_of(node: str, **campaign: object) -> dict:
     """Return the notebook ``web/python.js`` writes for a campaign, as the page downloads it."""
     defaults = {"title": "A design", "version": "1.2.3", "url": "https://example.org/app/", "simulation": None}
@@ -610,6 +634,9 @@ def test_the_notebook_of_three_responses_analyses_each_in_turn(api, node):
         fits[name] = api.ok("api_analyze_runs", request)
         best = api.ok("api_best_settings", request)
         analyses.append({"response": name, "model": fits[name]["formula"], "best": best})
+    # Cost's table shows its VIFs, as the page shows them when a term is correlated: its cell works them out.
+    (terms,) = javascript(node, source("logic.js"), [("fittedFormula", [fits["Cost"]["coefficients"]])])
+    analyses[1]["vifModel"] = terms
     marks = {name: ["simulated"] * 15 for name in results}
     book = notebook_of(
         node, design=held, responses=results, sources=marks, simulation=simulation, model=None, analyses=analyses
@@ -633,6 +660,11 @@ def test_the_notebook_of_three_responses_analyses_each_in_turn(api, node):
         run(text, namespace)
         if "analysis = analyze_experiment" in text:
             assert_same_fit(namespace, fits[str(namespace["y"].name)])
+            assert ("vif = evaluate_design" in text) == (namespace["y"].name == "Cost"), "the VIFs in Cost's cell only"
+    vifs = {c["term"]: c["vif"] for c in fits["Cost"]["coefficients"] if c.get("vif") is not None}
+    assert vifs, "the analysis gives each term's VIF"
+    for term, vif in vifs.items():
+        assert namespace["vif"][term] == pytest.approx(vif), term
 
 
 def assert_same_balance(namespace: dict, balance: dict, numeric: list[str]) -> None:
