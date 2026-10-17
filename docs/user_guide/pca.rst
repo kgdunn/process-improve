@@ -429,7 +429,7 @@ Troubleshooting
        combinations of other columns. Remove constant columns and check for
        duplicate or perfectly correlated variables.
    * - Missing-data algorithm does not converge
-     - Increase ``md_max_iter`` or relax ``md_tol``. If the fraction of
+     - Increase ``max_iter`` or relax ``tol``. If the fraction of
        missing data is very large (>40 %), the algorithm may struggle - try
        removing rows or columns with excessive missingness first.
    * - Shape mismatch in ``diagnose()`` or ``transform()``

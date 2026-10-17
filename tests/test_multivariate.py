@@ -670,7 +670,7 @@ def test_pca_invalid_calls() -> None:
         model.fit(data)
     data.iloc[0, 0] = np.nan
     with pytest.raises(ValueError, match="Tolerance must exceed machine precision"):
-        _ = PCA(n_components=A, algorithm="nipals", missing_data_settings=dict(md_tol=0)).fit(data)
+        _ = PCA(n_components=A, algorithm="nipals", tol=0.0).fit(data)
 
     with pytest.raises(ValueError, match=r"Algorithm .* is not recognized(.*)"):
         _ = PCA(n_components=A, algorithm="SCP").fit(data)
@@ -6721,7 +6721,7 @@ def test_a_criterion_that_never_turns_over_says_so() -> None:
 class TestPlsMissingDataSettingsResolution:
     """The fit-time resolution of ``missing_data_settings`` (#588).
 
-    Three defects, each verified by a test that fails against the previous code.
+    Each defect is verified by a test that fails against the previous code.
     """
 
     @staticmethod
@@ -6733,17 +6733,6 @@ class TestPlsMissingDataSettingsResolution:
             x = x.copy()
             x.iloc[0, 0] = np.nan
         return x, y
-
-    def test_partial_settings_do_not_raise_key_error(self) -> None:
-        """A dict giving only ``md_tol`` leaves ``md_max_iter`` to the constructor.
-
-        Previously the complete-data branch passed the caller's dict through as the whole
-        settings mapping, so ``_fit_nipals`` hit ``settings["md_max_iter"]`` and raised
-        ``KeyError``.
-        """
-        x, y = self._xy(gapped=False)
-        model = PLS(n_components=2, max_iter=321, missing_data_settings={"md_tol": 1e-3}).fit(x, y)
-        assert model.n_components_ == 2
 
     def test_tol_reaches_the_nipals_loop_when_data_has_gaps(self) -> None:
         """``PLS(tol=...)`` governs convergence whether or not a cell is missing.
@@ -6759,15 +6748,6 @@ class TestPlsMissingDataSettingsResolution:
             tight = PLS(n_components=2, tol=1e-14, max_iter=500).fit(x, y)
             loose = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
         assert loose.fitting_info_["iterations"][0] < tight.fitting_info_["iterations"][0]
-
-    def test_explicit_md_tol_still_wins_over_tol(self) -> None:
-        """The dict overrides the constructor, which is the point of passing one."""
-        x, y = self._xy(gapped=True)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            via_ctor = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
-            overridden = PLS(n_components=2, tol=5e-1, max_iter=500, missing_data_settings={"md_tol": 1e-14}).fit(x, y)
-        assert overridden.fitting_info_["iterations"][0] > via_ctor.fitting_info_["iterations"][0]
 
     @pytest.mark.parametrize("bad", ["scp", "rubbish", "NIPALs "])
     def test_unknown_md_method_is_refused(self, bad: str) -> None:
@@ -6808,7 +6788,7 @@ class TestPlsMissingDataSettingsResolution:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model = PLS(n_components=2).fit(x, y)
-            pinned = PLS(n_components=2, missing_data_settings={"md_tol": epsqrt}).fit(x, y)
+            pinned = PLS(n_components=2, tol=epsqrt).fit(x, y)
         np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
         np.testing.assert_allclose(model.predictions_.to_numpy(), pinned.predictions_.to_numpy(), rtol=0, atol=0)
 
@@ -6836,9 +6816,7 @@ class TestPcaIterationParameters:
         """A model built with no arguments must fit exactly as it did before the parameters existed."""
         x = self._x()
         model = PCA(n_components=3, algorithm="nipals").fit(x)
-        pinned = PCA(
-            n_components=3, algorithm="nipals", missing_data_settings={"md_tol": epsqrt, "md_max_iter": 1000}
-        ).fit(x)
+        pinned = PCA(n_components=3, algorithm="nipals", tol=epsqrt, max_iter=1000).fit(x)
         np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
         np.testing.assert_array_equal(model.scores_.to_numpy(), pinned.scores_.to_numpy())
 
@@ -6860,20 +6838,6 @@ class TestPcaIterationParameters:
         with pytest.warns(SpecificationWarning, match="without converging"):
             model = PCA(n_components=2, algorithm="nipals", max_iter=2).fit(x)
         np.testing.assert_array_equal(model.fitting_info_["iterations"], [2, 2])
-
-    def test_missing_data_settings_still_wins(self) -> None:
-        """The dict keeps overriding the constructor, so existing callers are unaffected."""
-        x = self._x()
-        model = PCA(n_components=3, algorithm="nipals", tol=1e-1, missing_data_settings={"md_tol": epsqrt}).fit(x)
-        pinned = PCA(n_components=3, algorithm="nipals", tol=epsqrt).fit(x)
-        np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
-
-    def test_a_partial_missing_data_settings_is_filled_in(self) -> None:
-        """Half a dict must not leave the other key unset; the constructor supplies it."""
-        x = self._x(gapped=True)
-        with pytest.warns(SpecificationWarning, match=r"maximum number of iterations \(7\)"):
-            model = PCA(n_components=2, algorithm="nipals", max_iter=7, missing_data_settings={"md_tol": 1e-3}).fit(x)
-        assert np.all(model.fitting_info_["iterations"] <= 7)
 
     def test_clone_carries_both_parameters(self) -> None:
         """Sklearn's contract: the constructor parameters survive get_params / clone."""
@@ -7028,17 +6992,14 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
             tight = np.sum(np.asarray(fit(tol=1e-10).fitting_info_["iterations"], dtype=float))
         assert loose <= tight, f"{name}: tol=1e-1 took {loose} iterations, tol=1e-10 took {tight}"
 
-    @pytest.mark.parametrize("key", ["md_tol", "md_max_iter"])
+    @pytest.mark.parametrize(("key", "replacement"), [("md_tol", "tol"), ("md_max_iter", "max_iter")])
     @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
-    def test_the_md_keys_warn_but_still_take_effect(self, name: str, key: str) -> None:
-        """Deprecated, not ignored: silently demoting a value a caller set would be worse."""
+    def test_the_removed_md_keys_are_refused(self, name: str, key: str, replacement: str) -> None:
+        """Removed in 2.0, and refused rather than ignored: ignoring a convergence setting changes the fit."""
         value = 1e-1 if key == "md_tol" else 2
-        fit = self._fitters()[name]
-        with pytest.warns(DeprecationWarning, match=rf"missing_data_settings\['{key}'\]"):
-            model = fit(missing_data_settings={key: value})
-        iterations = np.asarray(model.fitting_info_["iterations"], dtype=float)
-        if key == "md_max_iter":
-            assert np.all(iterations <= value), f"{name}: md_max_iter did not cap the loop"
+        message = rf"{name}\(missing_data_settings=\.\.\.\) no longer takes '{key}'.*Pass {replacement}="
+        with pytest.raises(ValueError, match=message):
+            self._fitters()[name](missing_data_settings={key: value})
 
     @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
     def test_a_default_fit_does_not_warn(self, name: str) -> None:
@@ -7047,25 +7008,6 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
             warnings.simplefilter("error", DeprecationWarning)
             warnings.simplefilter("ignore", SpecificationWarning)
             self._fitters()[name]()
-
-    @pytest.mark.parametrize("name", ["MBPCA", "MBPLS"])
-    def test_the_multiblock_pair_no_longer_discards_the_dict(self, name: str) -> None:
-        """They resolved `missing_data_settings` and threw the result away (#588).
-
-        Measured before the fix: `md_max_iter=3` ran the same 180 and 85 iterations as
-        passing nothing. The dict has to change the fit, or it is decoration.
-        """
-        fit = self._fitters()[name]
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            ignored_before = np.asarray(fit().fitting_info_["iterations"], dtype=float)
-            honoured = np.asarray(
-                fit(missing_data_settings={"md_max_iter": 1}).fitting_info_["iterations"], dtype=float
-            )
-        # A cap of 1 bites for both: MBPLS needs 2 iterations per component on this data
-        # and MBPCA far more, so anything above 1 would leave MBPLS unable to go lower.
-        assert np.all(honoured <= 1)
-        assert np.sum(honoured) < np.sum(ignored_before), f"{name}: the dict still has no effect"
 
 
 class TestEkfLoopKnobsWereRenamed:

@@ -222,7 +222,7 @@ class TestPLSInference:
     def test_pca_warns_when_nipals_hits_max_iter(self) -> None:
         x, _ = self._xy(seed=14)
         with pytest.warns(SpecificationWarning, match="maximum number of iterations"):
-            PCA(n_components=1, algorithm="nipals", missing_data_settings={"md_max_iter": 1}).fit(x)
+            PCA(n_components=1, algorithm="nipals", max_iter=1).fit(x)
 
 
 class TestRankDeficiencyGuards:

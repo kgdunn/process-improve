@@ -514,9 +514,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         the blocks it does have; only a row observed in no block at all is refused.
 
     missing_data_settings : dict or None, default=None
-        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
-        and ``max_iter`` for this fit and warn when used. Deprecated since
-        1.98.0 and removed in 2.0; set ``tol`` and ``max_iter`` instead.
+        MBPLS reads no keys from it. The keys ``md_tol`` and ``md_max_iter``
+        were removed in 2.0 and raise a :class:`ValueError`; set ``tol`` and
+        ``max_iter`` instead.
 
     Attributes (after fitting)
     --------------------------
@@ -685,9 +685,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         y = _validate_fit_arguments(X, y)
         self._record_data_shape(X, y)
         algo = self._resolve_algorithm(X, y)
-        # The resolved settings now reach the loop. They used to be computed here and
-        # dropped, so a caller's ``missing_data_settings`` was validated and then ignored
-        # (#588).
+        # The resolved settings reach the loop. They used to be computed here and dropped,
+        # so the caller's loop settings were validated and then ignored (#588).
         settings = resolve_loop_settings(
             tol=self.tol,
             max_iter=self.max_iter,

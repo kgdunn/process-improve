@@ -799,11 +799,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         same default as every other iterative estimator in the package (#588).
 
     missing_data_settings : dict or None, default=None
-        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
-        and ``max_iter`` for this fit and warn when used. They are removed in
-        2.0; set ``tol`` and ``max_iter`` instead. The dict itself stays: it is
-        where the imputation method is named on the estimators that offer a
-        choice.
+        PCA reads no keys from it; it is kept for the same signature as the
+        estimators that name their imputation method here. The keys
+        ``md_tol`` and ``md_max_iter`` were removed in 2.0 and raise a
+        :class:`ValueError`; set ``tol`` and ``max_iter`` instead.
 
     Attributes (after fitting)
     --------------------------
@@ -1014,8 +1013,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError("SVD algorithm cannot handle missing data. Use 'nipals', 'tsr', or 'auto'.")
         self.algorithm_ = algo
 
-        # One resolver for every iterative estimator, so the precedence and the
-        # deprecation of the ``md_*`` keys are defined in a single place (#588). The
+        # One resolver for every iterative estimator, so the loop settings and the
+        # refusal of the removed ``md_*`` keys are defined in a single place (#588). The
         # bounds are checked only for the iterative algorithms: under ``"svd"`` the
         # tolerance governs nothing, and rejecting a value that cannot matter would
         # refuse a fit that is perfectly well posed.
@@ -1232,7 +1231,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                     stacklevel=2,
                 )
             logger.debug(
-                "PCA NIPALS: component %d converged in %d iterations (md_tol=%g)",
+                "PCA NIPALS: component %d converged in %d iterations (tol=%g)",
                 a + 1,
                 itern,
                 settings["md_tol"],
