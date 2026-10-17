@@ -15,7 +15,7 @@ from collections.abc import Callable
 from typing import Any
 
 #: The <select>s of the form; every other setting is an <input>.
-SELECTS = {"design-type", "alpha", "resolution", "n_levels", "model_type", "scenario", "model"}
+SELECTS = {"design-type", "alpha", "resolution", "n_levels", "model_type", "scenario", "model", "response-goal"}
 
 #: The studies kept in this browser, the one saved most recently first, as the page's store reads them.
 SAVED = "async () => (await import('./store.js')).savedCampaigns()"
@@ -112,7 +112,7 @@ def name_response(page: Any, label: str, units: str = "", **known: object) -> No
     page.fill("#response", label)
     page.fill("#response-units", units)
     if "goal" in known:
-        page.check(f'input[name="goal"][value="{known.pop("goal")}"]')
+        page.select_option("#response-goal", known.pop("goal"))
     if known and not page.evaluate("document.querySelector('#response-known').open"):
         page.click("#response-known summary")
     for key, value in known.items():

@@ -24,6 +24,36 @@ those changes.
   compares the array, at three levels for a model with squares, and the Python panels give each
   numeric factor its three levels. In the design catalog, the library's L4, L8, L9 and L12 and 13
   published arrays now open as the app makes them.
+- **Factorial measures up to five responses, and finds the settings that balance them.** The
+  brief lists each response in a row of its own, with its units and its goal: maximise, minimise,
+  hit a target, or learn. The first response sizes the design, so the brief asks its typical value,
+  noise and smallest change worth finding for it alone. The run sheet and the workbook have a
+  column per response; a run is complete once every response has its result, and each response is
+  fitted to the runs that have its result. Practice results come from one process per response,
+  each derived from the scenario with its own coefficients and noise. Learn has a tab per response,
+  each with its own model, analysis and best settings. With two or more responses aimed at a goal,
+  Learn balances them with the library's desirability (`optimize_responses(method="desirability")`):
+  a table of each response's acceptable range, importance and shape to edit, the settings with the
+  best overall desirability, each response's prediction, 95% prediction interval and desirability
+  there, the response that holds the overall desirability down most, the leverage there, and an
+  overlay of where every response is acceptable over the two factors that move them most.
+  Confirmation runs at the balanced settings are judged response by response. The Python panels
+  and the notebook reproduce each response's analysis and the balance (`api_balance`). Studies
+  saved before, workbooks, links and catalog campaigns open unchanged, as studies of one response.
+- **Factorial finds the best settings for the response's goal.** Once the model is fitted, Learn
+  says where to run the process to maximise, minimise or hit the target the brief names: the
+  settings in the factors' own units, each categorical factor at its better level, found on the
+  fitted model inside the ranges and the limits on the settings with `optimize_responses`. Beside
+  them are the predicted response with its 95% confidence interval for the mean and its 95%
+  prediction interval for one new run, the leverage there against the runs' (a warning when the
+  prediction leans on the model beyond the runs), which factors are at an end of their range and
+  the way a next study could move it along the steepest ascent, the limits the settings are on,
+  and bars that show how much each factor moves the prediction, so the reader sees which to hold
+  tightly. The response surface is drawn through the best settings, with a star on them. A button
+  adds three confirmation runs at the best settings to the run sheet, marked in a column of their
+  own and never fitted; once their results are in, Learn says whether their average falls inside
+  the prediction interval for an average of three runs. The "Show the Python code" panel and the
+  notebook reproduce the search with the library (`api_best_settings`).
 - **Small composite designs.** A CCD with `cube="fractional"` may now sit on a cube below
   resolution V. The default half fraction must still leave the full quadratic model estimable,
   which it does for three factors (Hartley's small composite design, 4 + 6 runs). A cube given by

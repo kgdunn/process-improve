@@ -50,6 +50,7 @@ from process_improve.experiments import (
     rename_factors,
     separating_constraint,
 )
+from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models
@@ -65,6 +66,14 @@ SPEC_VERSION = 1
 #: The run sheet's column marking simulated results. Its space keeps it apart from every factor
 #: and response, which must be variable names; workbooks written before used ``Source``.
 MARKS = "Result source"
+
+#: The run sheet's column marking a confirmation run: a run made at the best settings, to test the model
+#: there. Its space keeps it apart from every factor and response, as for :data:`MARKS`. A run sheet has it
+#: once the reader adds confirmation runs, and the model is never fitted to the runs it marks.
+CONFIRMATION = "Confirmation run"
+
+#: What that column holds for a confirmation run; a run of the design leaves it blank.
+CONFIRMS = "yes"
 
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
 #: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
@@ -285,6 +294,14 @@ MODELS = ("main_effects", "interactions", "quadratic")
 #: What the reader wants of the response, as the library's ``ResponseGoal`` names it, or ``learn``:
 #: to see how the factors act on it, with no setting to aim for.
 GOALS = ("maximize", "minimize", "target", "learn")
+
+#: The most responses a study measures. Each has a column of its own on the run sheet, its own model and its own
+#: analysis; the first one sizes the design, as the brief's typical value, noise and smallest change are its own.
+MAX_RESPONSES = 5
+
+#: How far apart the seeds of two responses' simulated noise are: the response in place j (0 for the first) draws
+#: its noise with the seed plus j times this, so each response has noise of its own and the first keeps the seed's.
+SEED_STEP = 1000
 
 #: A model of terms the reader chose, each a list of factor names (see :func:`_chosen_terms`),
 #: is named this in a reply. It too is read as data and never as a formula.
@@ -777,8 +794,8 @@ def make_design(spec: dict) -> dict:
             f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
             "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design."
         )
-    response = _response_name(str(spec.get("response") or "y").strip(), factors)
-    described = _described(spec)
+    responses = _checked_responses(spec, factors, blank="y")
+    described = {**_stored_responses(responses), **_aimed(spec)}
 
     kwargs = _design_options(spec, design_type)
     made, asked = _library_arguments(factors, kwargs)
@@ -793,13 +810,14 @@ def make_design(spec: dict) -> dict:
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", result.run_order)
-    runs[response] = np.nan
+    for response in responses:  # a column for each response's results, in the brief's order
+        runs[response["name"]] = np.nan
 
     stored = {
         "version": SPEC_VERSION,
         "design_type": design_type,
         "factors": [_factor_spec(f) for f in factors],
-        "response": response,
+        "response": responses[0]["name"],
         "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution, made),
         "options": kwargs,
         **described,
@@ -857,15 +875,16 @@ def _given_design(spec: dict) -> dict:
         if None in values:
             raise ValueError(f"Factor {f.name}: each run's setting must be a number.")
         runs[f.name] = values
-    response = _response_name(str(spec.get("response") or "y").strip(), factors)
+    responses = _checked_responses(spec, factors, blank="y")
     limits = _checked_constraints(spec.get("constraints"), factors)
     stored: dict[str, Any] = {
         "version": SPEC_VERSION,
         "design_type": GIVEN,
         "factors": [_factor_spec(f) for f in factors],
-        "response": response,
+        "response": responses[0]["name"],
         "options": {},
-        **_described(spec),
+        **_stored_responses(responses),
+        **_aimed(spec),
         **({"constraints": limits} if limits else {}),
     }
     coded = _coded(runs, stored["factors"]).to_numpy(dtype=float)
@@ -874,7 +893,8 @@ def _given_design(spec: dict) -> dict:
     stored["model"] = next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", range(1, len(runs) + 1))
-    runs[response] = np.nan
+    for response in responses:
+        runs[response["name"]] = np.nan
     groups = _aliased_groups(coded, names)
     notes = [GIVEN_NOTE, _aliasing_sentence(groups)]
     if limits:
@@ -1005,18 +1025,83 @@ def _described_number(value: object, what: str, *, positive: bool) -> float | No
     return number
 
 
-def _described(spec: dict) -> dict[str, Any]:
-    """Return the specification's description of the response and the model it aims to learn, cleaned.
+def _aimed(spec: dict) -> dict[str, Any]:
+    """Return the model the study aims to learn, cleaned: one of the comparison's models, or nothing.
 
-    Both are optional: a design made before the page asked for them has neither, and keeps
-    working. ``aim`` is one of the comparison's models; one this page does not know is left out.
+    It is optional: a design made before the page asked for it has none, and keeps working. One
+    this page does not know is left out.
     """
-    out: dict[str, Any] = {}
-    if info := _response_info(spec.get("response_info")):
-        out["response_info"] = info
-    if spec.get("aim") in COMPARISON_MODELS:
-        out["aim"] = spec["aim"]
-    return out
+    return {"aim": spec["aim"]} if spec.get("aim") in COMPARISON_MODELS else {}
+
+
+def _described(spec: dict) -> dict[str, Any]:
+    """Return the specification's description of the first response and the model it aims to learn, cleaned."""
+    info = _response_info(spec.get("response_info"))
+    return {**({"response_info": info} if info else {}), **_aimed(spec)}
+
+
+def _checked_responses(spec: dict, factors: list[Factor], *, blank: str = "") -> list[dict[str, Any]]:
+    """Check the responses a specification names, and return each as its column's ``name`` and its description.
+
+    A study made before the page measured several responses names one, ``response``, described by
+    ``response_info``. One with several lists them all in ``responses``, up to :data:`MAX_RESPONSES`, each
+    ``{name, ...}`` with its description beside its name, and the first of them is ``response``. Each name
+    is a variable name unlike every factor's, the blocks column's and every other response's. ``blank`` is
+    the name a blank first response takes when a design is made, as it always has; elsewhere it is refused.
+    """
+    raw = spec.get("responses")
+    if raw is None:
+        name = _response_name(str(spec.get("response") or blank).strip(), factors)
+        info = _response_info(spec.get("response_info"))
+        return [{"name": name, **info}]
+    if not isinstance(raw, list) or not raw or not all(isinstance(r, dict) for r in raw):
+        raise ValueError("The page sent a list of responses this page did not write.")
+    if len(raw) > MAX_RESPONSES:
+        raise ValueError(f"A study measures at most {MAX_RESPONSES} responses; this one has {len(raw)}.")
+    responses: list[dict[str, Any]] = []
+    for r in raw:
+        name = _response_name(str(r.get("name") or "").strip(), factors)
+        if any(name == other["name"] for other in responses):
+            raise ValueError(f"Two responses cannot share the name {name}.")
+        responses.append({"name": name, **_response_info({key: v for key, v in r.items() if key != "name"})})
+    if spec.get("response") not in (None, "", responses[0]["name"]):
+        raise ValueError("The page sent a list of responses this page did not write.")
+    return responses
+
+
+def _stored_responses(responses: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return what a specification keeps of its responses, besides the first one's name (``response``).
+
+    The first response's description is its ``response_info``, as a study of one response has always
+    kept it, so a study of one response is stored as before. With several, ``responses`` lists them all.
+    """
+    info = {key: value for key, value in responses[0].items() if key != "name"}
+    return {**({"response_info": info} if info else {}), **({"responses": responses} if len(responses) > 1 else {})}
+
+
+def _responses(spec: dict) -> list[dict[str, Any]]:
+    """Return the responses of a checked specification, the first first, each its column's ``name`` and description."""
+    return spec.get("responses") or [{"name": spec["response"], **(spec.get("response_info") or {})}]
+
+
+def _for_response(spec: dict, name: object) -> dict[str, Any]:
+    """Return a checked specification as one response's analysis reads it: with that response as its ``response``.
+
+    The analysis, its charts and the best settings read the response from ``response`` and
+    ``response_info``. ``name`` is the column of the response the page asks about; None asks about the
+    first. A workbook keeps the model each response was last analysed with, the first's as
+    ``analysis_model`` and the others' in ``analysis_models``: the response's own is its ``analysis_model``.
+    """
+    if name is None or name == spec["response"]:
+        return spec
+    found = next((r for r in _responses(spec) if r["name"] == name), None)
+    if found is None:
+        raise ValueError(f"The study measures no response named {name!r}.")
+    info = {key: value for key, value in found.items() if key != "name"}
+    view = {key: value for key, value in spec.items() if key not in ("response_info", "analysis_model")}
+    if (model := (spec.get("analysis_models") or {}).get(name)) is not None:
+        view["analysis_model"] = model
+    return {**view, "response": name, **({"response_info": info} if info else {})}
 
 
 def _check_factor_count(design_type: str, n_factors: int) -> None:
@@ -1359,7 +1444,9 @@ def analyze(request: dict) -> dict:
     workbook can be analysed as the runs come in.
     """
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
-    spec = _checked_spec(stored)  # a workbook can arrive from anywhere: its specification is checked as data
+    # A workbook can arrive from anywhere: its specification is checked as data. ``response`` names the response to
+    # analyse, by its column; the first without it.
+    spec = _for_response(_checked_spec(stored), request.get("response"))
     return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
@@ -1369,6 +1456,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     With the true process the results were simulated from, each coefficient also
     carries the true value of what it estimates (see :func:`_add_true_values`).
     """
+    runs = _design_runs(runs)
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
@@ -1855,25 +1943,34 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     if not isinstance(spec, dict) or spec.get("design_type") not in (*DESIGNS, GIVEN):
         raise ValueError("The page sent a design this page did not make.")
     factors = _factors(spec)
-    response = _response_name(str(spec.get("response") or ""), factors)
+    responses = _checked_responses(spec, factors)
     model = spec.get("model") or DESIGNS.get(spec["design_type"], {}).get("model", MODELS[0])
     if model not in (*MODELS, MAIN_QUADRATIC):  # the second, a model a design is made for: see _checked_model
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     options = spec.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError("The page sent a design this page did not make.")  # noqa: TRY004 - a refusal, like the rest
+    names = [f.name for f in factors]
+    labelled = tuple(f.name for f in factors if f.type == "categorical")
     if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
-        labelled = tuple(f.name for f in factors if f.type == "categorical")
-        _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
-    checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim", "constraints")}
+        _checked_model(spec["analysis_model"], names, labelled)
+    if "analysis_models" in spec:  # and those of the other responses, by their columns
+        others = spec["analysis_models"]
+        if not isinstance(others, dict) or not set(others) <= {r["name"] for r in responses[1:]}:
+            raise ValueError("The page sent a design this page did not make.")
+        for chosen in others.values():
+            _checked_model(chosen, names, labelled)
+    dropped = ("response_info", "responses", "aim", "constraints")
+    checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     return {
         **checked,
         "factors": [_factor_spec(f) for f in factors],
-        "response": response,
+        "response": responses[0]["name"],
         "model": model,
         "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
-        **_described(spec),
+        **_stored_responses(responses),
+        **_aimed(spec),
         **({"constraints": limits} if limits else {}),
     }
 
@@ -1895,7 +1992,11 @@ def _blocked(spec: dict) -> bool:
 
 
 def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
-    """Rebuild the run sheet the page shows, with the responses it holds in the response column."""
+    """Rebuild the run sheet the page shows, with the results it holds in the responses' columns.
+
+    ``responses`` holds the first response's results, one per run, as the page has always sent them;
+    ``more_responses`` the others', a list per run for each of their columns.
+    """
     columns = [str(c) for c in request.get("columns") or []]
     rows = request.get("rows") or []
     names = [f["name"] for f in spec["factors"]]
@@ -1905,12 +2006,39 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
     runs = pd.DataFrame(rows, columns=columns)
     numeric = [f["name"] for f in spec["factors"] if not _categorical(f)]  # a category's labels stay text
     runs[numeric] = runs[numeric].apply(pd.to_numeric, errors="raise")
-    responses = request.get("responses")
-    if responses is not None:
-        if len(responses) != len(runs):
-            raise ValueError(f"{len(responses)} responses were sent for {len(runs)} runs.")
-        runs[spec["response"]] = pd.to_numeric(pd.Series(responses, dtype=object), errors="coerce").to_numpy()
+    first, *others = [r["name"] for r in _responses(spec)]
+    results = {first: request.get("responses")} if request.get("responses") is not None else {}
+    more = request.get("more_responses") or {}
+    if not isinstance(more, dict) or not set(more) <= set(others):
+        raise ValueError("The page sent results for a response the study does not measure.")
+    for name, values in {**results, **more}.items():
+        if not isinstance(values, list) or len(values) != len(runs):
+            sent = len(values) if isinstance(values, list) else 0
+            raise ValueError(f"{sent} responses were sent for {len(runs)} runs.")
+        runs[name] = pd.to_numeric(pd.Series(values, dtype=object), errors="coerce").to_numpy()
     return runs
+
+
+def _confirming(runs: pd.DataFrame) -> pd.Series:
+    """Say which runs of a run sheet are confirmation runs: those its :data:`CONFIRMATION` column marks."""
+    if CONFIRMATION not in runs.columns:
+        return pd.Series(False, index=runs.index)
+    return runs[CONFIRMATION].map(lambda mark: isinstance(mark, str) and mark.strip().lower() == CONFIRMS)
+
+
+def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
+    """Return the runs the model is fitted to: the run sheet less its confirmation runs, which test the model.
+
+    A confirmation run is made at the settings the model recommends, to see whether the process
+    gives what the model predicts there. Fitted to it, the model would be judged on a run it was
+    made to fit, so every fit leaves the confirmation runs out, as if they were not on the sheet.
+    """
+    confirming = _confirming(runs)
+    if confirming.all():
+        raise ValueError(
+            "Every run on the run sheet is marked as a confirmation run, and the model is fitted to the design's runs."
+        )
+    return runs.loc[~confirming].drop(columns=[CONFIRMATION], errors="ignore").reset_index(drop=True)
 
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
@@ -1961,13 +2089,14 @@ def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], flo
     return terms
 
 
-def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request, and the reader's scale
+def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request, the reader's scale and the place
     key: str,
     names: list[str],
     request: dict,
     categorical: tuple[str, ...] = (),
     typical: float | None = None,
     noise: float | None = None,
+    place: int = 0,
 ) -> TrueProcess:
     """Return the scenario's process over the reader's factors, with the noise the reader chose.
 
@@ -1976,6 +2105,10 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
     noise standard deviations; given the response's ``typical`` value and run-to-run ``noise``,
     the process is centred on the one and its effects scaled by the other, so practice results
     look like the reader's own. Without them the scenario's own centre and a noise of 1 are kept.
+
+    ``place`` is the response's place in the brief, 0 for the first. The first response follows the
+    scenario, with the noise the reader chose (``sigma``); a later one follows it moved to other factors
+    (see :func:`_moved_terms`), with its own run-to-run noise, else the scenario's.
     """
     if key not in SCENARIOS:
         raise ValueError(f"Unknown process {key!r}.")
@@ -1983,7 +2116,7 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
     terms = scenario["terms"]
     if terms is None:
         terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
-    kept = {t: c for t, c in terms.items() if all(i < len(names) for i in t)}
+    kept = _moved_terms({t: c for t, c in terms.items() if all(i < len(names) for i in t)}, place, len(names))
     squares = {t for t in kept if len(t) == 2 and t[0] == t[1] and names[t[0]] in categorical}
     scale = 1.0 if noise is None else noise
     coefficients = {
@@ -1991,11 +2124,29 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
         for t, c in kept.items()
         if t not in squares
     }
+    if place:
+        return TrueProcess(coefficients, sigma=scenario["sigma"] if noise is None else noise)
     # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
     sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
     if sigma is None or sigma <= 0:
         raise ValueError("The noise standard deviation must be a number above 0.")
     return TrueProcess(coefficients, sigma=sigma)
+
+
+def _moved_terms(terms: dict[tuple[int, ...], float], place: int, k: int) -> dict[tuple[int, ...], float]:
+    """Move a scenario's terms to other factors, for the response in ``place`` (0 for the first) of ``k`` factors.
+
+    The first response follows the scenario as it is. A later one follows it moved, so its best settings lie
+    elsewhere and the responses have to be balanced: what the scenario puts on factor ``i`` acts on factor
+    ``(i + place) mod k``, and for an odd ``place`` every factor's setting is reflected, high for low, which
+    flips the sign of each term of odd order (a main effect, a three-factor interaction) and keeps the others
+    (the intercept, a two-factor interaction, a square). Moving the factors round is one to one, so no two
+    terms land on one.
+    """
+    if not place:
+        return terms
+    sign = -1.0 if place % 2 else 1.0
+    return {tuple(sorted((i + place) % k for i in t)): c * sign ** len(t) for t, c in terms.items()}
 
 
 def _truth(process: TrueProcess) -> list[dict[str, Any]]:
@@ -2008,39 +2159,61 @@ def simulate(request: dict) -> dict:
 
     The responses are rounded to the noise's precision, two significant decimals below
     its standard deviation, as a measurement would be.
+
+    Each response has a process of its own (see :func:`_scenario_process`), and its noise is drawn
+    with the seed plus :data:`SEED_STEP` times its place. The first response's results, process and
+    noise are the reply's own keys, as for a study of one response; with several, ``more`` holds
+    each later response's, by its column, with its ``seed``.
     """
     spec = _checked_spec(request.get("spec") or {})
     runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
     key = str(request.get("scenario") or "reactor")
-    info = spec.get("response_info") or {}
-    process = _scenario_process(
-        key, names, request, _categorical_names(spec), typical=info.get("typical"), noise=info.get("noise")
-    )
     seed = int(request.get("seed", 1))
-    values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
-    decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
-    truth = _truth(process)
-    return {
-        "scenario": key,
-        "label": SCENARIOS[key]["label"],
-        "sigma": process.sigma,
-        "seed": seed,
-        "responses": [round(float(v), decimals) for v in values],
-        "truth": truth,
-        "equation": _equation(_response_words(spec)[0], truth),
-        "inactive": [name for name in names if name not in process.factors],  # factors the process leaves out
-    }
+    coded = _coded(runs, spec["factors"])
+    simulated = []
+    for place, response in enumerate(_responses(spec)):
+        process = _scenario_process(
+            key,
+            names,
+            request,
+            _categorical_names(spec),
+            typical=response.get("typical"),
+            noise=response.get("noise"),
+            place=place,
+        )
+        values = process.simulate(coded, random_state=seed + SEED_STEP * place)
+        decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
+        truth = _truth(process)
+        simulated.append(
+            {
+                "sigma": process.sigma,
+                "seed": seed + SEED_STEP * place,
+                "responses": [round(float(v), decimals) for v in values],
+                "truth": truth,
+                "equation": _equation(response.get("label") or response["name"], truth),
+                "inactive": [name for name in names if name not in process.factors],  # factors the process leaves out
+            }
+        )
+    first, *more = simulated
+    reply = {"scenario": key, "label": SCENARIOS[key]["label"], **first, "seed": seed}
+    if more:
+        reply["more"] = {r["name"]: one for r, one in zip(_responses(spec)[1:], more, strict=True)}
+    return reply
 
 
 def analyze_runs(request: dict) -> dict:
     """Fit the model to the runs the page holds, with the responses typed or simulated there.
 
     ``truth``, the process the results were simulated from, adds each coefficient's true value.
+    ``response`` names the response to analyse, by its column; the first without it. Each response
+    is fitted to the runs that have its result, so a run with some of its results in counts for those.
     """
     spec = _checked_spec(request.get("spec") or {})
+    runs = _runs_frame(request, spec)
+    spec = _for_response(spec, request.get("response"))
     model = request.get("model") or spec["model"]
-    return _analysis(_runs_frame(request, spec), spec, model, request.get("truth"))
+    return _analysis(runs, spec, model, request.get("truth"))
 
 
 def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
@@ -2071,32 +2244,48 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
 
 
 def read_workbook(request: dict) -> dict:
-    """Read an uploaded workbook into the runs, responses and sources the page holds."""
+    """Read an uploaded workbook into the runs, responses and sources the page holds.
+
+    The first response's results and their sources are ``responses`` and ``sources``, as for a study of
+    one response; with several, ``more_responses`` and ``more_sources`` hold each later one's, by its column.
+    A run the workbook marks as simulated has every result it holds marked so.
+    """
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     spec = _checked_spec(stored)
-    response = spec["response"]
-    if response not in runs.columns:
-        raise ValueError(f"The Runs sheet has no {response!r} column for the results.")
-    values = pd.to_numeric(runs[response], errors="coerce")
+    names = [r["name"] for r in _responses(spec)]
+    if missing := next((name for name in names if name not in runs.columns), None):
+        raise ValueError(f"The Runs sheet has no {missing!r} column for the results.")
     column = _marks_column(runs, spec)
     marks = runs[column].fillna("").astype(str) if column else pd.Series("", index=runs.index)
     sheet = runs.drop(columns=[column] if column else [])
-    sheet[response] = np.nan
-    return {
+    results = {}
+    for name in names:
+        values = pd.to_numeric(runs[name], errors="coerce")
+        sheet[name] = np.nan
+        results[name] = (
+            [None if pd.isna(v) else float(v) for v in values],
+            [
+                None if pd.isna(v) else ("simulated" if mark == "simulated" else "entered")
+                for v, mark in zip(values, marks, strict=True)
+            ],
+        )
+    (responses, sources), *_ = results.values()
+    reply = {
         "spec": spec,
         "columns": list(sheet.columns),
         "rows": [list(row) for row in sheet.itertuples(index=False)],
-        "responses": [None if pd.isna(v) else float(v) for v in values],
-        "sources": [
-            None if pd.isna(v) else ("simulated" if mark == "simulated" else "entered")
-            for v, mark in zip(values, marks, strict=True)
-        ],
+        "responses": responses,
+        "sources": sources,
     }
+    if len(names) > 1:
+        reply["more_responses"] = {name: results[name][0] for name in names[1:]}
+        reply["more_sources"] = {name: results[name][1] for name in names[1:]}
+    return reply
 
 
 def _marks_column(runs: pd.DataFrame, spec: dict) -> str | None:
     """Name the run sheet's column of marks, if it has one: an older workbook's ``Source``, unless that is data."""
-    data = {spec["response"], *(f["name"] for f in spec["factors"])}
+    data = {*(r["name"] for r in _responses(spec)), *(f["name"] for f in spec["factors"])}
     return next((c for c in (MARKS, "Source") if c in runs.columns and c not in data), None)
 
 
@@ -2106,18 +2295,29 @@ def workbook(request: dict) -> dict:
     Simulated responses are marked, in the ``MARKS`` column and in the stored
     specification, so the workbook says which values were measured. The model the reader
     analyses with, ``model``, is kept as the specification's ``analysis_model``, so the
-    workbook is analysed the same way when it comes back.
+    workbook is analysed the same way when it comes back; with several responses, ``models``
+    holds each later response's, by its column, kept as ``analysis_models``.
+
+    A run is marked simulated when every result it holds is: ``sources`` holds the first
+    response's sources, and ``more_sources`` each later response's, by its column.
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
         _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
         spec = {**spec, "analysis_model": request["model"]}
+    if models := request.get("models"):  # each later response's, but one analysed as designed, as for the first
+        chosen = {name: m for name, m in models.items() if m} if isinstance(models, dict) else models
+        spec = _checked_spec({**spec, "analysis_models": chosen})
     runs = _runs_frame(request, spec)
-    sources = request.get("sources")
-    if sources and any(sources):
-        if len(sources) != len(runs):
-            raise ValueError(f"{len(sources)} sources were sent for {len(runs)} runs.")
-        runs[MARKS] = ["simulated" if s == "simulated" else "" for s in sources]
+    marks = [request.get("sources"), *(request.get("more_sources") or {}).values()]
+    marks = [m for m in marks if m and any(m)]
+    if marks:
+        if bad := next((m for m in marks if not isinstance(m, list) or len(m) != len(runs)), None):
+            raise ValueError(f"{len(bad)} sources were sent for {len(runs)} runs.")
+        runs[MARKS] = [
+            "simulated" if "simulated" in run and all(s in (None, "simulated") for s in run) else ""
+            for run in zip(*marks, strict=True)
+        ]
     simulated = request.get("simulated")
     if simulated:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
@@ -2149,10 +2349,12 @@ def plots(request: dict) -> dict:
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
+    every_run = _runs_frame(request, spec)
+    spec = _for_response(spec, request.get("response"))  # the response drawn: the first, or the one named
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
-    runs = _runs_frame(request, spec)
+    runs = _design_runs(every_run)
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
     done = y.notna().to_numpy()
@@ -2164,6 +2366,8 @@ def plots(request: dict) -> dict:
     rows = coded.assign(**{response: y}).to_dict("records")
     pair = _contour_pair(out["coefficients"], names)
     shading, held = _shading(spec, pair)
+    if best := _held_at_best(request.get("best"), spec, pair):
+        shading, held = {**shading, "hold_values": best[0]}, best[1]
 
     def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
@@ -2185,10 +2389,44 @@ def plots(request: dict) -> dict:
     return {
         "figures": figures,
         "contour_factors": pair,
-        "shaded": bool(shading),
+        "shaded": "region" in shading,
         "held": held,
+        "held_best": best is not None,
         "plotly_js": get_plotlyjs_version(),
     }
+
+
+def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, float], list[dict[str, Any]]] | None:
+    """Return where the response surface holds the factors it does not draw when the page has the best settings.
+
+    ``raw`` is the best settings as :func:`best_settings` gives them, every factor coded, or None.
+    The surface is then a slice through the best settings, so the star the page puts on it sits on
+    the surface it marks. Returns the coded values to hold, and each held factor in its own units,
+    or its level, for the caption to say; None without best settings.
+    """
+    if raw is None:
+        return None
+    factors = spec["factors"]
+    if not (
+        isinstance(raw, dict)
+        and set(raw) == {f["name"] for f in factors}
+        and all(_number(v) is not None and -1 - AT_EDGE <= _number(v) <= 1 + AT_EDGE for v in raw.values())  # type: ignore[operator]
+    ):
+        raise ValueError("The page sent best settings this page did not write.")
+    hold: dict[str, float] = {}
+    held = []
+    for f in factors:
+        if f["name"] in pair:
+            continue
+        coded = float(raw[f["name"]])
+        hold[f["name"]] = coded
+        value = (
+            (f["low"] if coded < 0 else f["high"])
+            if _categorical(f)
+            else (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+        )
+        held.append({"name": f["name"], "value": value})
+    return hold, held
 
 
 def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -2271,36 +2509,65 @@ def relabel(request: dict) -> dict:
     if [(f["low"], f["high"]) for f in after] != levels:
         raise ValueError("Only the factors' names and units can change without making the run sheet again.")
     columns = [str(c) for c in design.get("columns") or []]
-    for taken in (spec["response"], *([BLOCK] if BLOCK in columns else [])):
+    for taken in (*(r["name"] for r in _responses(spec)), *([BLOCK] if BLOCK in columns else [])):
         if taken in {f.name for f in renamed}:
             raise ValueError(f"A factor cannot be named {taken}: the run sheet has a {taken} column.")
     names = {old["name"]: new["name"] for old, new in zip(before, after, strict=True)}
-    spec = {**spec, "factors": after}
-    if limits := spec.get("constraints"):  # the limits on the settings, written with the new names, all at once
-        spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
-    if isinstance(chosen := spec.get("analysis_model"), dict):  # the terms a workbook was last analysed with
-        spec["analysis_model"] = {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
+    spec = _relabelled_spec(spec, after, names)
     reply: dict[str, Any] = {
         "spec": spec,
         "columns": [names.get(c, c) for c in columns],
         "outside_range": [names.get(n, n) for n in design.get("outside_range") or []],
     }
     if design.get("facts"):
-        coded = _coded(_runs_frame({**design, "columns": reply["columns"]}, spec), after).to_numpy(dtype=float)
+        runs = _design_runs(_runs_frame({**design, "columns": reply["columns"]}, spec))
+        coded = _coded(runs, after).to_numpy(dtype=float)
         reply["facts"] = _relabelled_facts(design["facts"], coded, names)
     if simulation := request.get("simulation"):
-        truth = [
-            {"term": term, "label": _pretty(term), "coefficient": t["coefficient"]}
-            for t in simulation.get("truth") or []
-            for term in [_renamed_term(str(t["term"]), names)]
-        ]
-        reply["simulation"] = {
-            **simulation,
-            "truth": truth,
-            "equation": _equation(_response_words(spec)[0], truth),
-            "inactive": [names.get(n, n) for n in simulation.get("inactive") or []],
-        }
+        words = {r["name"]: r.get("label") or r["name"] for r in _responses(spec)}
+        reply["simulation"] = _relabelled_process(simulation, words[spec["response"]], names)
+        if isinstance(more := simulation.get("more"), dict):
+            reply["simulation"]["more"] = {
+                name: _relabelled_process(p, words.get(name, name), names) for name, p in more.items()
+            }
     return reply
+
+
+def _relabelled_spec(spec: dict, after: list[dict], names: dict[str, str]) -> dict[str, Any]:
+    """Write a specification again with its factors renamed: the factors, the limits, and the models a workbook keeps.
+
+    The limits on the settings are written with the new names all at once, so a swap works; so are the
+    terms a workbook was last analysed with, for the first response and each later one.
+    """
+
+    def terms_renamed(chosen: object) -> object:
+        if not isinstance(chosen, dict):
+            return chosen
+        return {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
+
+    spec = {**spec, "factors": after}
+    if limits := spec.get("constraints"):
+        spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
+    if "analysis_model" in spec:
+        spec["analysis_model"] = terms_renamed(spec["analysis_model"])
+    if "analysis_models" in spec:
+        spec["analysis_models"] = {name: terms_renamed(m) for name, m in spec["analysis_models"].items()}
+    return spec
+
+
+def _relabelled_process(process: dict, label: str, names: dict[str, str]) -> dict[str, Any]:
+    """Write one response's simulated process again with its factors renamed: its terms, equation and quiet factors."""
+    truth = [
+        {"term": term, "label": _pretty(term), "coefficient": t["coefficient"]}
+        for t in process.get("truth") or []
+        for term in [_renamed_term(str(t["term"]), names)]
+    ]
+    return {
+        **process,
+        "truth": truth,
+        "equation": _equation(label, truth),
+        "inactive": [names.get(n, n) for n in process.get("inactive") or []],
+    }
 
 
 def _renamed_term(term: str, names: dict[str, str]) -> str:
@@ -3122,6 +3389,1070 @@ def _coded_value(factor: Factor, value: float) -> float:
     return (value - (factor.low + factor.high) / 2) / ((factor.high - factor.low) / 2)
 
 
+# --------------------------------------------------------------------------- the best settings for the response's goal
+#: The goals the page finds the best settings for: what the reader wants of the response, less ``learn``.
+AIMED = ("maximize", "minimize", "target")
+
+#: The confidence level of the intervals at the best settings.
+LEVEL = 0.95
+
+#: How far each numeric factor moves from the best settings, either way, to show how tightly it must be held: this
+#: share of its range, 0.1 in coded units.
+NUDGE = 0.05
+
+#: How many confirmation runs the page adds at the best settings: enough for their average to vary less than one run.
+CONFIRMATION_RUNS = 3
+
+#: Within this, in coded units, of an end of its range a factor is at that end, and of a limit's boundary the best
+#: settings are on that limit. The optimiser stops on a bound or a limit to far better than this.
+AT_EDGE = 1e-5
+
+#: How many combinations of the categorical factors' levels the optimiser searches in full: the best of them, judged
+#: first at :data:`LEVEL_SAMPLE` settings of the numeric factors and every corner of their ranges. One search takes
+#: about a tenth of a second in the browser, so a study with many categorical factors still answers at once.
+SEARCHED_LEVELS = 3
+LEVEL_SAMPLE = 64
+
+#: The most corners of the numeric factors' ranges each combination of levels is judged at: all of them up to 8 factors.
+LEVEL_CORNERS = 256
+
+#: The significance level below which a term is clearly larger than the noise.
+CLEAR = 0.05
+
+#: The best settings are a stationary point when no slope there is above this share of the model's spread: the
+#: optimiser stops far closer to a flat point than this.
+STATIONARY = 1e-4
+
+#: A factor whose slope is below this share of the largest is left out of the way the prediction improves fastest.
+SHARE = 0.01
+
+#: How far past a limit, in its own units, the optimiser accepts its settings as inside it (the library's
+#: ``_within_region``): the best settings on a limit lie on it to this, and so do the confirmation runs made there.
+ON_LIMIT = 1e-6
+
+
+def best_settings(request: dict) -> dict:
+    """Find the settings that best meet the response's goal on the fitted model, and say how well they are known.
+
+    The goal is the brief's (``response_info.goal``): ``maximize``, ``minimize``, or ``target`` with its
+    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else.
+
+    The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
+    and one response, over the numeric factors' ranges and inside the limits on the settings. Its
+    limits are set beyond anything the model predicts in the ranges (see :func:`_goal`), so the
+    desirability is a straight line in the prediction, or in its distance from the target, and its
+    best is the goal's best. Each categorical factor is held at each of its levels in turn (see
+    :func:`_held_at`): every combination of levels is judged at a sample of settings, and the
+    :data:`SEARCHED_LEVELS` best are searched in full.
+
+    At the best settings the reply gives the prediction with its 95% confidence interval for the
+    mean and prediction interval for one new run, from the fit's covariance and residual variance;
+    the leverage there against the largest leverage of the runs fitted; each factor at an end of its
+    range and each limit the settings are on, with whether the goal improves beyond it, or the kind
+    of stationary point when the settings are inside; and the change in the prediction when each
+    numeric factor alone moves by :data:`NUDGE` of its range either way. ``confirm_at`` is where
+    confirmation runs go, each setting rounded for the plant (see :func:`_practical`), and
+    ``confirmation`` judges the confirmation runs on the sheet: the average of each group's results
+    against the prediction interval for the average of that many runs. ``search`` is what the code
+    the page shows needs to make the same search.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    spec = _for_response(whole, request.get("response"))  # the response whose goal is met: the first, or the one named
+    info = spec.get("response_info") or {}
+    goal = info.get("goal", "learn")
+    if goal not in AIMED:
+        return {"goal": "learn"}
+    target = info.get("target")
+    if goal == "target" and target is None:
+        return {"goal": goal, "target": None}
+    every_run = _runs_frame(request, whole)
+    names = [f["name"] for f in spec["factors"]]
+    categorical = _categorical_names(spec)
+    model = _checked_model(request.get("model") or spec["model"], names, categorical)
+    design = _design_runs(every_run)
+    fitted = _fitted(design, spec, model)
+    zero = ROUND_OFF * float(pd.to_numeric(design[spec["response"]], errors="coerce").abs().max())
+    coefficients = [  # as the analysis shows them: a coefficient within the fit's round-off of 0 is 0
+        {"term": c["term"], "coefficient": _snapped(c["coefficient"], zero)} for c in fitted.out["coefficients"]
+    ]
+    region = _spec_region(spec)
+    found = _search(coefficients, spec, region, goal, target)
+    reply: dict[str, Any] = {"goal": goal, "target": target, "flat": found is None, "confirmation": []}
+    if found is None:
+        return reply
+    x, levels, reduced = found["x"], found["levels"], found["model"]
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    point = _full_point(spec, x, levels)
+    predicted, confidence, prediction, leverage = fitted.at(point)
+    reached = None if goal != "target" else abs(predicted - target) <= 1e-4 * max(found["spread"], 1e-12)
+    sense = _sense(goal, target, predicted, reached=bool(reached))
+    gradient = _gradient(reduced, [f["name"] for f in numeric], x)
+    tiny = 1e-9 * max(found["spread"], 1.0)
+    in_model = _factors_in(coefficients, names)
+    reply |= {
+        "predicted": predicted,
+        "reached": reached,
+        "level": LEVEL,
+        "confidence": confidence,
+        "prediction": prediction,
+        "leverage": leverage,
+        "max_leverage": fitted.max_leverage,
+        "extrapolating": leverage > fitted.max_leverage * (1 + 1e-9) + 1e-12,
+        "settings": _settings_reply(spec, point, in_model, sense * gradient, tiny),
+        "coded": point,
+        "limits": _limits_on(spec, region, x, sense * gradient, tiny) if not reached else [],
+        "stationary": _stationary(reduced, numeric, x, sense * gradient, region, in_model, found["spread"])
+        if sense
+        else None,
+        "ascent": _ascent(numeric, sense * gradient, tiny) if sense else None,
+        "unclear": _unclear(fitted.out["coefficients"], names),
+        "sensitivity": _sensitivity(reduced, numeric, x, region, in_model),
+        "confirm_at": _practical(spec, point, region),
+        "confirmation": _confirmation(every_run, spec, fitted),
+        "search": {"held": found["held"], "goal": found["goal"]},
+    }
+    return reply
+
+
+class _FittedModel:
+    """A least-squares fit as the page made it, with what a prediction at new settings needs.
+
+    The model matrix is built from the fitted terms over the coded runs, so the covariance of the
+    coefficients is the fit's own: ``mse_residual`` times the inverse of ``X'X``. A new point's
+    row holds its coded settings in the same terms, and zero in each block contrast, which is the
+    average block, as the equation is written.
+    """
+
+    def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str]) -> None:
+        from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+        self.out = fit["out"]
+        self.formula = fit["formula"]
+        self.names = names
+        self.terms = [c["term"] for c in self.out["coefficients"]]
+        self.beta = np.array([c["coefficient"] for c in self.out["coefficients"]], dtype=float)
+        x = _model_matrix(coded, self.terms, names)
+        self.inverse = np.linalg.pinv(x.T @ x)
+        summary = self.out["model_summary"]
+        self.df = int(summary["df_residual"])
+        self.mse = float(summary["mse_residual"]) if self.df > 0 else None
+        self.t = float(stats.t.ppf(1 - (1 - LEVEL) / 2, self.df)) if self.df > 0 else None
+        leverages = np.einsum("ij,jk,ik->i", x, self.inverse, x)
+        self.max_leverage = float(leverages.max())
+
+    def row(self, point: dict[str, float]) -> np.ndarray:
+        """Return a point's row of the model matrix, its settings coded, in the average block."""
+        frame = pd.DataFrame([{name: point[name] for name in self.names}])
+        return _model_matrix(frame, self.terms, self.names)[0]
+
+    def at(self, point: dict[str, float]) -> tuple[float, list[float] | None, list[float] | None, float]:
+        """Return the prediction at a point, its confidence and prediction intervals, and its leverage.
+
+        Without residual degrees of freedom there is no estimate of the error, and both intervals are None.
+        """
+        row = self.row(point)
+        predicted = float(row @ self.beta)
+        leverage = float(row @ self.inverse @ row)
+        if self.mse is None or self.t is None:
+            return predicted, None, None, leverage
+        mean = self.t * math.sqrt(self.mse * leverage)
+        single = self.t * math.sqrt(self.mse * (1 + leverage))
+        return predicted, [predicted - mean, predicted + mean], [predicted - single, predicted + single], leverage
+
+    def average_of(self, point: dict[str, float], runs: int) -> list[float] | None:
+        """Return the prediction interval for the average of ``runs`` new runs at a point; None without error left."""
+        if self.mse is None or self.t is None:
+            return None
+        row = self.row(point)
+        predicted = float(row @ self.beta)
+        half = self.t * math.sqrt(self.mse * (1 / runs + float(row @ self.inverse @ row)))
+        return [predicted - half, predicted + half]
+
+
+def _fitted(runs: pd.DataFrame, spec: dict, model: str | list[str]) -> _FittedModel:
+    """Fit the model to the runs with results, as the analysis fits it, and return the fit with its covariance."""
+    names = [f["name"] for f in spec["factors"]]
+    y = pd.to_numeric(runs[spec["response"]], errors="coerce")
+    done = y.notna().to_numpy()
+    if not done.any():
+        raise ValueError("Enter results first: the best settings are found on the model fitted to them.")
+    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
+    with _listening():
+        fit = _fit_estimable(
+            coded, y[done].reset_index(drop=True).rename(spec["response"]), model, names, _categorical_names(spec)
+        )
+    return _FittedModel(fit, coded, names)
+
+
+def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np.ndarray:
+    """Return the model matrix of the fitted terms over coded settings: a column per term, as the fit made it.
+
+    A block contrast (``Block1``, ...) is coded as the library codes it, against the blocks in sorted
+    order, the last one -1 in every contrast; settings without a ``Block`` are the average block, 0.
+    """
+    blocks = sorted(coded[BLOCK].unique(), key=str) if BLOCK in coded.columns else []
+    columns = []
+    for term in terms:
+        if term == "Intercept":
+            columns.append(np.ones(len(coded)))
+        elif _block_contrast(term, names):
+            if not blocks:
+                columns.append(np.zeros(len(coded)))
+                continue
+            level = blocks[int(re.fullmatch(rf"{BLOCK}(\d+)_*", term)[1]) - 1]  # type: ignore[index]
+            block = coded[BLOCK].to_numpy()
+            columns.append(np.where(block == level, 1.0, np.where(block == blocks[-1], -1.0, 0.0)))
+        else:
+            columns.append(np.prod([coded[p].to_numpy(dtype=float) for p in _parts(term)], axis=0))
+    return np.column_stack(columns)
+
+
+def _parts(term: str) -> tuple[str, ...]:
+    """Return the factors a model term multiplies: none for the intercept, ``(T, T)`` for ``I(T ** 2)``."""
+    if term == "Intercept":
+        return ()
+    if square := re.fullmatch(r"I\((\w+) \*\* 2\)", term):
+        return (square[1], square[1])
+    return tuple(term.split(":"))
+
+
+def _factors_in(coefficients: list[dict], names: list[str]) -> set[str]:
+    """Return the factors some term of the fitted model names, block contrasts aside."""
+    return {p for c in coefficients if not _block_contrast(c["term"], names) for p in _parts(c["term"])}
+
+
+def _spec_region(spec: dict) -> DesignRegion | None:
+    """Return the region the limits on the settings leave, or None for a study without limits."""
+    limits = spec.get("constraints") or []
+    return _region(_factors(spec), [limit["expression"] for limit in limits]) if limits else None
+
+
+def _held_at(coefficients: list[dict], held: dict[str, float]) -> list[dict]:
+    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at -1 or +1.
+
+    Each term loses the columns held, its coefficient multiplied by their values, and the terms that
+    are then the same are added together, in the order each first appears. The code the page shows
+    (``web/python.js``) holds them in the same way, so both hand the optimiser the same model.
+    """
+    model: dict[str, float] = {}
+    for c in coefficients:
+        parts = c["term"].split(":")
+        term = ":".join(p for p in parts if p not in held) or "Intercept"
+        model[term] = model.get(term, 0.0) + c["coefficient"] * math.prod(held.get(p, 1.0) for p in parts)
+    return [{"term": term, "coefficient": value} for term, value in model.items()]
+
+
+def _predict(model: list[dict], names: list[str], points: np.ndarray) -> np.ndarray:
+    """Return a model's predictions at coded settings of ``names``, one row each."""
+    values = np.zeros(len(points))
+    for c in model:
+        column = np.ones(len(points))
+        for p in _parts(c["term"]):
+            column = column * points[:, names.index(p)]
+        values += c["coefficient"] * column
+    return values
+
+
+def _gradient(model: list[dict], names: list[str], x: np.ndarray) -> np.ndarray:
+    """Return a model's gradient at coded settings ``x``: the change in the prediction per coded unit of each factor."""
+    gradient = np.zeros(len(names))
+    for c in model:
+        parts = _parts(c["term"])
+        for i, p in enumerate(parts):
+            rest = math.prod(x[names.index(q)] for j, q in enumerate(parts) if j != i)
+            gradient[names.index(p)] += c["coefficient"] * rest
+    return gradient
+
+
+def _hessian(model: list[dict], names: list[str], x: np.ndarray) -> np.ndarray:
+    """Return a model's matrix of second derivatives at coded settings ``x``."""
+    hessian = np.zeros((len(names), len(names)))
+    for c in model:
+        parts = _parts(c["term"])
+        for i, j in itertools.permutations(range(len(parts)), 2):
+            rest = math.prod(x[names.index(q)] for m, q in enumerate(parts) if m not in (i, j))
+            hessian[names.index(parts[i]), names.index(parts[j])] += c["coefficient"] * rest
+    return hessian
+
+
+def _objective(goal: str, value: float, target: float | None) -> float:
+    """Score a prediction for the goal: larger is better."""
+    if goal == "maximize":
+        return value
+    if goal == "minimize":
+        return -value
+    return -abs(value - float(target))  # type: ignore[arg-type]
+
+
+def _goal(goal: str, target: float | None, model: list[dict], response: str) -> dict[str, Any]:
+    """Return the desirability goal whose best is the goal's best, for one response on this model.
+
+    In the ranges, every term of a coded model is between -1 and +1, so no prediction is further
+    from the intercept than the sum of the other coefficients' sizes, the model's ``spread``.
+    Limits twice that far out leave every prediction strictly inside them, where the desirability
+    is a straight line: rising with the prediction to maximise it, falling to minimise it, and for
+    a target, with limits as far out on each side, falling with the distance from the target.
+    """
+    intercept = next((c["coefficient"] for c in model if c["term"] == "Intercept"), 0.0)
+    spread = sum(abs(c["coefficient"]) for c in model if c["term"] != "Intercept")
+    if goal == "target":
+        reach = abs(intercept - float(target)) + 2 * spread  # type: ignore[arg-type]
+        return {"response": response, "goal": goal, "target": target, "low": target - reach, "high": target + reach}  # type: ignore[operator]
+    return {"response": response, "goal": goal, "low": intercept - 2 * spread, "high": intercept + 2 * spread}
+
+
+def _search(
+    coefficients: list[dict], spec: dict, region: DesignRegion | None, goal: str, target: float | None
+) -> dict[str, Any] | None:
+    """Find the best settings on the fitted model: the numeric factors coded, and each categorical factor's level.
+
+    Returns ``x``, the numeric factors' coded settings; ``levels``, each categorical factor's coded
+    level; ``model``, the model with those levels held; ``held``, what is held (the block contrasts
+    at 0 too); ``goal``, the desirability goal searched with, or None when no numeric factor is in the
+    model; and ``spread``, the most the prediction moves from its intercept in the ranges. None when
+    no factor is in the model, so no setting is better than another.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a goal asks for it
+
+    names = [f["name"] for f in spec["factors"]]
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    numeric_names = [f["name"] for f in numeric]
+    in_model = _factors_in(coefficients, names)
+    if not in_model or all(c["coefficient"] == 0 for c in coefficients if _parts(c["term"])):
+        return None
+    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
+    blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], names)}
+    combinations = [
+        dict(zip(labelled, levels, strict=True)) for levels in itertools.product((-1.0, 1.0), repeat=len(labelled))
+    ]
+    if len(combinations) > SEARCHED_LEVELS:
+        points = _sample(len(numeric), region)
+        scores = [
+            max(
+                _objective(goal, v, target)
+                for v in _predict(_held_at(coefficients, {**blocks, **levels}), numeric_names, points)
+            )
+            for levels in combinations
+        ]
+        combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
+    best: dict[str, Any] | None = None
+    for levels in combinations:
+        held = {**blocks, **levels}
+        model = _held_at(coefficients, held)
+        sought = _goal(goal, target, model, spec["response"])
+        spread = sum(abs(c["coefficient"]) for c in model if c["term"] != "Intercept")
+        if spread > 0 and numeric:
+            with _listening() as heard:
+                result = optimize_responses(
+                    [{"response_name": spec["response"], "coefficients": model, "factor_names": numeric_names}],
+                    goals=[sought],
+                    factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
+                    region=region,
+                )["desirability"]
+            _relay(heard)
+            x = np.array([result["optimal_coded"][n] for n in numeric_names])
+            at_end = np.abs(np.abs(x) - 1) <= 1e-9  # stopped on an end of the range, to rounding: put it there
+            x[at_end] = np.sign(x[at_end])
+        else:
+            x, sought = _centre(numeric, region), None
+        x = _unmodelled_at_centre(x, numeric_names, in_model, region)
+        value = float(_predict(model, numeric_names, x[None, :])[0])
+        found = {
+            "x": x,
+            "levels": levels,
+            "model": model,
+            "held": held,
+            "goal": sought,
+            "spread": spread,
+            "value": value,
+        }
+        if best is None or _objective(goal, value, target) > _objective(goal, best["value"], target) + 1e-12:
+            best = found
+    return best
+
+
+def _sample(k: int, region: DesignRegion | None) -> np.ndarray:
+    """Return settings of ``k`` numeric factors, coded, to judge each combination of levels at: corners, centre, random.
+
+    Every corner of the ranges up to 8 factors (a model without squares is best at one of them), the
+    centre, and :data:`LEVEL_SAMPLE` settings drawn at random, from a fixed seed, so a study is judged
+    the same way each time. Settings outside the limits are left out.
+    """
+    if k == 0:
+        return np.zeros((1, 0))
+    rng = np.random.default_rng(1)
+    if 2**k <= LEVEL_CORNERS:
+        corners = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))
+    else:
+        corners = rng.choice([-1.0, 1.0], size=(LEVEL_CORNERS, k))
+    points = np.vstack([corners, np.zeros((1, k)), rng.uniform(-1.0, 1.0, size=(LEVEL_SAMPLE, k))])
+    if region is not None:
+        points = points[region.feasible(points)]
+    return points if len(points) else np.zeros((1, k))
+
+
+def _centre(numeric: list[dict], region: DesignRegion | None) -> np.ndarray:
+    """Return the centre of the ranges, coded, or a central setting the limits allow when they rule the centre out."""
+    x = np.zeros(len(numeric))
+    if region is None or region.feasible(x[None, :])[0]:
+        return x
+    centroid = region.centroid() or {}
+    return np.array(
+        [(centroid[f["name"]] - (f["low"] + f["high"]) / 2) / ((f["high"] - f["low"]) / 2) for f in numeric]
+    )
+
+
+def _unmodelled_at_centre(
+    x: np.ndarray, names: list[str], in_model: set[str], region: DesignRegion | None
+) -> np.ndarray:
+    """Hold each numeric factor the model leaves out at the centre of its range, where the limits allow it.
+
+    The prediction does not depend on such a factor, so the optimiser may stop anywhere along it.
+    """
+    x = x.copy()
+    for i, name in enumerate(names):
+        if name in in_model:
+            continue
+        moved = x.copy()
+        moved[i] = 0.0
+        if region is None or region.feasible(moved[None, :])[0]:
+            x = moved
+    return x
+
+
+def _full_point(spec: dict, x: np.ndarray, levels: dict[str, float]) -> dict[str, float]:
+    """Return the best settings of every factor, coded: a categorical factor the model leaves out at its first level."""
+    numeric = iter(x.tolist())
+    return {
+        f["name"]: levels.get(f["name"], -1.0) if _categorical(f) else float(next(numeric)) for f in spec["factors"]
+    }
+
+
+def _sense(goal: str, target: float | None, predicted: float, *, reached: bool) -> float:
+    """Return which way the prediction should move: +1 up, -1 down, 0 for a target reached."""
+    if goal == "maximize":
+        return 1.0
+    if goal == "minimize":
+        return -1.0
+    return 0.0 if reached else float(np.sign(float(target) - predicted))  # type: ignore[arg-type]
+
+
+def _settings_reply(
+    spec: dict, point: dict[str, float], in_model: set[str], ascent: np.ndarray, tiny: float
+) -> list[dict[str, Any]]:
+    """Describe each factor's best setting: its value in its own units or its level, and where it lies in its range.
+
+    ``end`` is ``low`` or ``high`` for a numeric factor at that end of its range, and ``beyond`` says
+    whether the goal improves past that end, by the gradient's sign there (``ascent``, which points
+    the way the prediction should move, coded, for the numeric factors in order).
+    """
+    numeric = iter(ascent.tolist())
+    settings = []
+    for f in spec["factors"]:
+        coded = point[f["name"]]
+        if _categorical(f):
+            level = f["low"] if coded < 0 else f["high"]
+            settings.append(
+                {
+                    "name": f["name"],
+                    "kind": "categorical",
+                    "value": level,
+                    "coded": coded,
+                    "in_model": f["name"] in in_model,
+                    "end": None,
+                    "beyond": False,
+                }
+            )
+            continue
+        slope = next(numeric)
+        end = "low" if coded <= -1 + AT_EDGE else "high" if coded >= 1 - AT_EDGE else None
+        beyond = (end == "high" and slope > tiny) or (end == "low" and slope < -tiny)
+        value = (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+        settings.append(
+            {
+                "name": f["name"],
+                "kind": "numeric",
+                "value": value,
+                "coded": coded,
+                "units": f["units"],
+                "in_model": f["name"] in in_model,
+                "end": end,
+                "beyond": beyond,
+            }
+        )
+    return settings
+
+
+def _limits_on(
+    spec: dict, region: DesignRegion | None, x: np.ndarray, ascent: np.ndarray, tiny: float
+) -> list[dict[str, Any]]:
+    """List the limits the best settings are on, numbered by their place, and whether the goal improves beyond each.
+
+    A limit is on the boundary of the settings it allows when the best settings are within
+    :data:`AT_EDGE` of it, in coded units: its value over the length of its gradient there. The goal
+    improves beyond it when the way the prediction should move (``ascent``) leaves the limit's side.
+    """
+    if region is None:
+        return []
+    factors = _factors(spec)
+    on = []
+    for i, limit in enumerate(spec["constraints"]):
+        alone = _region(factors, [limit["expression"]])
+        for g in alone.inequalities:
+            value, normal = _value_and_normal(g, x)
+            length = float(np.linalg.norm(normal))
+            if length > 0 and value / length >= -AT_EDGE:
+                on.append({"index": i, "expression": limit["expression"], "beyond": bool(normal @ ascent > tiny)})
+                break
+    return on
+
+
+def _value_and_normal(
+    g: Callable[[np.ndarray], np.ndarray], x: np.ndarray, step: float = 1e-6
+) -> tuple[float, np.ndarray]:
+    """Return a limit's value at coded settings ``x`` and its gradient there, by central differences."""
+    value = float(g(x[None, :])[0])
+    eye = np.eye(len(x)) * step
+    normal = (g(x + eye) - g(x - eye)) / (2 * step)
+    return value, np.asarray(normal, dtype=float)
+
+
+def _stationary(  # noqa: PLR0913 - the model, the factors, the point, the way to move, the region and the terms
+    model: list[dict],
+    numeric: list[dict],
+    x: np.ndarray,
+    ascent: np.ndarray,
+    region: DesignRegion | None,
+    in_model: set[str],
+    spread: float,
+) -> dict[str, Any] | None:
+    """Say where the surface is flat at the best settings: along the factors inside their ranges, or everywhere.
+
+    ``factors`` are the numeric factors the model holds that are inside their ranges at the best
+    settings, and ``inside`` says they are all of them, so the best settings are a stationary point
+    inside the region. Along those factors the surface is flat there, and its curvature over them
+    names the ``kind``: ``maximum``, ``minimum``, ``saddle``, or ``ridge`` when it is flat along some
+    direction too, so settings along it predict alike. None when no such factor is left, when the
+    best settings are on a limit (the surface is then flat along the limit, not along the factors),
+    or when a slope along them is not flat.
+    """
+    names = [f["name"] for f in numeric]
+    held = [i for i, name in enumerate(names) if name in in_model]
+    free = [i for i in held if abs(x[i]) < 1 - AT_EDGE]
+    if not free:
+        return None
+    if region is not None:
+        for g in region.inequalities:
+            value, normal = _value_and_normal(g, x)
+            length = float(np.linalg.norm(normal))
+            if length > 0 and value / length >= -AT_EDGE:
+                return None
+    if np.abs(ascent[free]).max() > STATIONARY * spread:
+        return None
+    eigenvalues = np.linalg.eigvalsh(_hessian(model, names, x)[np.ix_(free, free)])
+    scale = float(np.abs(eigenvalues).max())
+    if scale == 0:
+        kind = "ridge"
+    else:
+        curved = eigenvalues[np.abs(eigenvalues) > 1e-8 * scale]
+        if len(curved) < len(eigenvalues):
+            kind = "ridge"
+        else:
+            kind = "maximum" if np.all(curved < 0) else "minimum" if np.all(curved > 0) else "saddle"
+    return {"factors": [names[i] for i in free], "inside": len(free) == len(held), "kind": kind}
+
+
+def _ascent(numeric: list[dict], ascent: np.ndarray, tiny: float) -> dict[str, float] | None:
+    """Return the way the prediction improves fastest from the best settings, a share per factor; None when flat.
+
+    Each factor's share is its slope over the largest slope, in coded units: a factor with share 1
+    moves half its range while another with share -0.5 moves a quarter of its range down.
+    """
+    if not len(ascent) or np.abs(ascent).max() <= tiny:
+        return None
+    largest = float(np.abs(ascent).max())
+    return {f["name"]: float(s / largest) for f, s in zip(numeric, ascent, strict=True) if abs(s) >= SHARE * largest}
+
+
+def _unclear(coefficients: list[dict], names: list[str]) -> bool:
+    """Say whether no term of the model is clearly larger than the noise: every p-value at or above :data:`CLEAR`."""
+    p_values = [
+        c.get("p_value") for c in coefficients if c["term"] != "Intercept" and not _block_contrast(c["term"], names)
+    ]
+    known = [p for p in p_values if p is not None and math.isfinite(p)]
+    return bool(known) and all(p >= CLEAR for p in known)
+
+
+def _sensitivity(
+    model: list[dict], numeric: list[dict], x: np.ndarray, region: DesignRegion | None, in_model: set[str]
+) -> list[dict[str, Any]]:
+    """Return how much the prediction changes when each numeric factor alone moves :data:`NUDGE` of its range.
+
+    ``down`` and ``up`` are the changes from the prediction at the best settings; ``step`` is the
+    move in the factor's own units; ``down_runnable`` and ``up_runnable`` say whether the setting
+    moved to is still inside the ranges and the limits.
+    """
+    names = [f["name"] for f in numeric]
+    at = float(_predict(model, names, x[None, :])[0])
+    out = []
+    for i, f in enumerate(numeric):
+        moved = np.vstack([x, x])
+        moved[0, i] -= 2 * NUDGE
+        moved[1, i] += 2 * NUDGE
+        down, up = (_predict(model, names, moved) - at).tolist()
+        inside = np.all(np.abs(moved) <= 1 + 1e-9, axis=1)
+        if region is not None:
+            inside &= region.feasible(moved)
+        out.append(
+            {
+                "name": f["name"],
+                "step": NUDGE * (f["high"] - f["low"]),
+                "down": down,
+                "up": up,
+                "down_runnable": bool(inside[0]),
+                "up_runnable": bool(inside[1]),
+                "in_model": f["name"] in in_model,
+            }
+        )
+    return out
+
+
+def _practical(spec: dict, point: dict[str, float], region: DesignRegion | None) -> dict[str, Any]:
+    """Return the best settings as a confirmation run is made at them: each in its own units, rounded for the plant.
+
+    A numeric setting is rounded to a thousandth of its range's order of magnitude (0.01 degC for a
+    range of 50 degC), and kept inside its range; when the rounding takes the settings outside the
+    limits, it is done again a digit finer, up to 12 digits. Inside means as the optimiser means it,
+    to :data:`ON_LIMIT`: the best settings on a limit are on it to that. A categorical factor's
+    setting is its level.
+    """
+    factors = spec["factors"]
+    numeric = [f for f in factors if not _categorical(f)]
+    for extra in range(10):
+        values: dict[str, Any] = {}
+        for f in factors:
+            coded = point[f["name"]]
+            if _categorical(f):
+                values[f["name"]] = f["low"] if coded < 0 else f["high"]
+                continue
+            decimals = 3 - math.floor(math.log10(f["high"] - f["low"])) + extra
+            exact = (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+            values[f["name"]] = min(max(round(exact, decimals), f["low"]), f["high"]) + 0.0
+        coded_values = np.array([[_coded_value(_factor_of(f), values[f["name"]]) for f in numeric]])
+        if region is None or region.feasible(coded_values, tol=ON_LIMIT)[0]:
+            return values
+    return {
+        f["name"]: (f["low"] + f["high"]) / 2 + point[f["name"]] * (f["high"] - f["low"]) / 2
+        if not _categorical(f)
+        else values[f["name"]]
+        for f in factors
+    }
+
+
+def _factor_of(factor: dict) -> Factor:
+    """Return a numeric factor the page holds as the library's ``Factor``."""
+    return Factor(name=factor["name"], low=factor["low"], high=factor["high"], units=factor.get("units", ""))
+
+
+def _confirmation(runs: pd.DataFrame, spec: dict, fitted: _FittedModel) -> list[dict[str, Any]]:
+    """Judge the confirmation runs on the run sheet against the model fitted to the design's runs.
+
+    The confirmation runs are grouped by their settings, in the order each group first appears.
+    Each group's ``rows`` are its places on the run sheet; ``runs`` how many it has and ``done``
+    how many have a result; ``mean`` their average; ``predicted`` the model's prediction there; and
+    ``interval`` the prediction interval for the average of ``done`` new runs there (of ``runs``
+    while none has a result), which the average falls ``inside`` when the model holds there.
+    """
+    confirming = _confirming(runs).to_numpy()
+    if not confirming.any():
+        return []
+    names = [f["name"] for f in spec["factors"]]
+    values = pd.to_numeric(runs[spec["response"]], errors="coerce")
+    coded = _coded(runs, spec["factors"])
+    groups: dict[tuple, list[int]] = {}
+    for i in np.flatnonzero(confirming).tolist():
+        groups.setdefault(tuple(runs.loc[i, names].tolist()), []).append(i)
+    out = []
+    for rows in groups.values():
+        point = {name: float(coded.loc[rows[0], name]) for name in names}
+        results = values.iloc[rows].dropna()
+        done = len(results)
+        predicted = float(fitted.row(point) @ fitted.beta)
+        interval = fitted.average_of(point, done or len(rows))
+        mean = float(results.mean()) if done else None
+        out.append(
+            {
+                "rows": rows,
+                "at": {name: runs.loc[rows[0], name] for name in names},
+                "runs": len(rows),
+                "done": done,
+                "mean": mean,
+                "predicted": predicted,
+                "interval": interval,
+                "inside": None if mean is None or interval is None else bool(interval[0] <= mean <= interval[1]),
+            }
+        )
+    return out
+
+
+# --------------------------------------------------------------------------- the settings that balance the responses
+#: The importance a response has in the overall desirability unless the reader sets it: the middle of 1 to 5, so a
+#: response can count more, or less, than the others.
+IMPORTANCE = 3
+
+#: The importances the reader can give a response, from least to most.
+IMPORTANCES = (1, 2, 3, 4, 5)
+
+#: How strongly the good end of a response's acceptable range counts: the exponent of its desirability's ramp. At 1,
+#: the desirability rises in a straight line across the range; above 1, a result counts well only near the good
+#: end; below 1, most of the range counts nearly as well as the good end. The page offers these, by its words.
+SHAPES = {"less": 0.5, "even": 1.0, "more": 2.0, "much_more": 4.0}
+
+#: The shape a response's desirability has unless the reader chooses another.
+SHAPE = "even"
+
+#: How many points each axis of the overlay of the acceptable ranges has.
+OVERLAY_POINTS = 51
+
+#: The share of a response's results' size a range takes when every result is the same, so it is still a range.
+FLAT_RANGE = 0.1
+
+#: What the library's desirability takes of a goal.
+DESIRABILITY_KEYS = ("response", "goal", "target", "low", "high", "weight", "importance")
+
+
+def balance(request: dict) -> dict:
+    """Find the settings that balance the responses with a goal, by their overall desirability, on the fitted models.
+
+    Each response with a goal (maximise, minimise, or a target typed) is fitted with its own model
+    (``models``, by its column; the design's without one) to the runs that have its result. Its goal
+    becomes a Derringer-Suich desirability d, from 0 (not acceptable) to 1 (as good as it gets), over
+    an acceptable range (``low`` to ``high``), with an ``importance`` from 1 to 5 and a ``shape``, how
+    strongly the good end counts (see :data:`SHAPES`). ``goals`` holds the reader's, by its column; a
+    part left out takes its default (see :func:`_balance_goal`). The overall desirability D is the
+    geometric mean of the d's, each weighted by its importance.
+
+    The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
+    and every model, over the numeric factors' ranges and inside the limits on the settings, each
+    categorical factor held at each of its levels as for the best settings (see :func:`_balance_search`).
+
+    The reply lists each response's goal, as used and as the defaults would have it; the settings,
+    coded and in their own units, with ``confirm_at`` rounded for the plant; at them, each response's
+    prediction with its 95% confidence and prediction intervals, its d, and D; the response that holds D
+    down most (``limiting``); the leverage there against the runs' for the model that leans furthest;
+    the limits the settings are on; the confirmation runs judged response by response; the
+    ``overlay`` of the acceptable ranges over two factors (see :func:`_overlay`); and ``search``, what
+    the code the page shows needs. With fewer than two responses with a goal, it says so and holds no more.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    every_run = _runs_frame(request, whole)
+    design = _design_runs(every_run)
+    aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
+    if len(aimed) < 2:  # two responses or more are balanced
+        return {"balanced": False, "aimed": [r["name"] for r in aimed]}
+    names = [f["name"] for f in whole["factors"]]
+    categorical = _categorical_names(whole)
+    raw_goals = request.get("goals") or {}
+    raw_models = request.get("models") or {}
+    if not isinstance(raw_goals, dict) or not isinstance(raw_models, dict):
+        raise ValueError("The page sent goals for the responses this page did not write.")  # noqa: TRY004
+    fits: dict[str, _FittedModel] = {}
+    goals: list[dict[str, Any]] = []
+    for r in aimed:
+        spec = _for_response(whole, r["name"])
+        model = _checked_model(raw_models.get(r["name"]) or spec["model"], names, categorical)
+        results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
+        if results.empty:
+            raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
+        fits[r["name"]] = _fitted(design, spec, model)
+        goals.append(_balance_goal(r, results, raw_goals.get(r["name"])))
+    region = _spec_region(whole)
+    found = _balance_search(fits, goals, whole, region)
+    point = _full_point(whole, found["x"], found["levels"])
+    responses = _balanced_responses(aimed, goals, fits, point)
+    weights = [g["importance"] for g in goals]
+    composite = float(composite_desirability([r["d"] for r in responses], weights))
+    share = [r["d"] ** (w / sum(weights)) for r, w in zip(responses, weights, strict=True)]
+    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], names) for fit in fits.values()))
+    numeric = [f for f in whole["factors"] if not _categorical(f)]
+    still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
+    return {
+        "balanced": True,
+        "aimed": [r["name"] for r in aimed],
+        "responses": responses,
+        "composite": composite,
+        "limiting": responses[int(np.argmin(share))]["name"],
+        "coded": point,
+        "settings": _settings_reply(whole, point, in_model, still, 1.0),
+        "leverage": leaning["leverage"],
+        "max_leverage": leaning["max_leverage"],
+        "leverage_of": leaning["name"],
+        "extrapolating": any(r["extrapolating"] for r in responses),
+        "limits": _limits_on(whole, region, found["x"], still, 1.0),
+        "confirm_at": _practical(whole, point, region),
+        "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
+        "overlay": _overlay(whole, found, goals, region),
+        "search": {"held": found["held"], "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+    }
+
+
+def _words(response: dict) -> str:
+    """Name a response as the reader does: its label, else its column."""
+    return response.get("label") or response["name"]
+
+
+def _balance_goal(response: dict, results: pd.Series, raw: object) -> dict[str, Any]:
+    """Return a response's desirability goal: the reader's acceptable range, importance and shape, else the defaults.
+
+    The default range is the results' own, the least to the greatest: for a response to maximise, the
+    worst result scores 0 and the best 1, and for one to minimise the other way round. For a target it
+    is centred on the target and reaches the result farthest from it, so every result is inside it. A
+    range the results cannot span, all of them alike, is widened by :data:`FLAT_RANGE` of their size.
+    ``default_low`` and ``default_high`` keep the defaults beside the range used.
+    """
+    least, most = float(results.min()), float(results.max())
+    if most - least <= ROUND_OFF * max(abs(least), abs(most), 1.0):
+        spread = FLAT_RANGE * max(abs(least), 1.0)
+        least, most = least - spread, most + spread
+    goal = response["goal"]
+    if goal == "target":
+        target = float(response["target"])
+        half = max(target - least, most - target, (most - least) / 2)
+        least, most = target - half, target + half
+    if raw is not None and not isinstance(raw, dict):
+        raise ValueError("The page sent goals for the responses this page did not write.")
+    raw = raw or {}
+    words = _words(response)
+    low = least if raw.get("low") is None else _number(raw["low"])
+    high = most if raw.get("high") is None else _number(raw["high"])
+    if low is None or high is None or not low < high:
+        raise ValueError(f"The acceptable range of {words} must run from a lower value to a higher one.")
+    if goal == "target" and not low < response["target"] < high:
+        raise ValueError(f"The target of {words}, {response['target']:g}, must lie inside its acceptable range.")
+    importance = raw.get("importance", IMPORTANCE)
+    if isinstance(importance, bool) or importance not in IMPORTANCES:
+        raise ValueError(f"The importance of {words} must be a whole number from 1 to 5.")
+    shape = raw.get("shape", SHAPE)
+    if shape not in SHAPES:
+        raise ValueError(f"The shape of {words}'s desirability must be one the page offers.")
+    return {
+        "response": response["name"],
+        "goal": goal,
+        **({"target": float(response["target"])} if goal == "target" else {}),
+        "low": float(low),
+        "high": float(high),
+        "weight": SHAPES[shape],
+        "importance": int(importance),
+        "shape": shape,
+        "default_low": least,
+        "default_high": most,
+    }
+
+
+def _desirability_of(goal: dict) -> dict[str, Any]:
+    """Return a goal as the library's desirability takes it, without the page's own keys."""
+    return {key: goal[key] for key in DESIRABILITY_KEYS if key in goal}
+
+
+def _balance_search(
+    fits: dict[str, _FittedModel], goals: list[dict], spec: dict, region: DesignRegion | None
+) -> dict[str, Any]:
+    """Find the settings with the best overall desirability: the numeric factors coded, each categorical one's level.
+
+    Each categorical factor some model holds is held at each of its levels, and the block contrasts at 0,
+    the average block, as for the best settings (see :func:`_search`): every combination of levels is
+    judged at a sample of settings, and the :data:`SEARCHED_LEVELS` best are searched in full with the
+    library's optimiser. Returns ``x``, ``levels``, ``held``, each response's ``models`` with the levels
+    held, and ``D``.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
+
+    names = [f["name"] for f in spec["factors"]]
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    numeric_names = [f["name"] for f in numeric]
+    coefficients = {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+    in_model = set().union(*(_factors_in(c, names) for c in coefficients.values()))
+    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
+    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], names)}
+    combinations = [dict(zip(labelled, v, strict=True)) for v in itertools.product((-1.0, 1.0), repeat=len(labelled))]
+    desirable = [_desirability_of(g) for g in goals]
+    weights = [g["importance"] for g in goals]
+
+    def held_models(levels: dict[str, float]) -> dict[str, list[dict]]:
+        return {name: _held_at(c, {**blocks, **levels}) for name, c in coefficients.items()}
+
+    def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
+        predicted = [_predict(models[g["response"]], numeric_names, points) for g in goals]
+        each = [[individual_desirability(float(v), g) for v in p] for p, g in zip(predicted, desirable, strict=True)]
+        return np.array([composite_desirability(list(d), weights) for d in zip(*each, strict=True)])
+
+    if len(combinations) > SEARCHED_LEVELS:
+        points = _sample(len(numeric), region)
+        scores = [float(overall(held_models(levels), points).max()) for levels in combinations]
+        combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
+    best: dict[str, Any] | None = None
+    for levels in combinations:
+        models = held_models(levels)
+        heard: list[str] = []
+        x = np.zeros(0)
+        if numeric:
+            with _listening() as heard:
+                result = optimize_responses(
+                    [{"response_name": n, "coefficients": m, "factor_names": numeric_names} for n, m in models.items()],
+                    goals=desirable,
+                    factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
+                    region=region,
+                )["desirability"]
+            x = np.array([result["optimal_coded"][n] for n in numeric_names])
+            at_end = np.abs(np.abs(x) - 1) <= 1e-9  # stopped on an end of the range, to rounding: put it there
+            x[at_end] = np.sign(x[at_end])
+        x = _unmodelled_at_centre(x, numeric_names, in_model, region)
+        value = float(overall(models, x[None, :])[0])
+        if best is None or value > best["D"] + 1e-12:
+            best = {
+                "x": x,
+                "levels": levels,
+                "held": {**blocks, **levels},
+                "models": models,
+                "D": value,
+                "heard": heard,
+            }
+    assert best is not None  # there is always one combination of levels, the empty one
+    _relay(best.pop("heard"))
+    return best
+
+
+def _balanced_responses(
+    aimed: list[dict], goals: list[dict], fits: dict[str, _FittedModel], point: dict[str, float]
+) -> list[dict[str, Any]]:
+    """Describe each response at the balanced settings: its goal, its prediction and intervals, its d and leverage."""
+    out = []
+    for r, goal in zip(aimed, goals, strict=True):
+        fit = fits[r["name"]]
+        predicted, confidence, prediction, leverage = fit.at(point)
+        out.append(
+            {
+                "name": r["name"],
+                "label": _words(r),
+                "units": r.get("units", ""),
+                **{key: value for key, value in goal.items() if key != "response"},
+                "predicted": predicted,
+                "confidence": confidence,
+                "prediction": prediction,
+                "d": float(individual_desirability(predicted, _desirability_of(goal))),
+                "leverage": leverage,
+                "max_leverage": fit.max_leverage,
+                "extrapolating": leverage > fit.max_leverage * (1 + 1e-9) + 1e-12,
+            }
+        )
+    return out
+
+
+def _balanced_confirmation(
+    runs: pd.DataFrame, spec: dict, aimed: list[dict], fits: dict[str, _FittedModel]
+) -> list[dict[str, Any]]:
+    """Judge the confirmation runs on the run sheet response by response, each against its own model.
+
+    The groups are those of :func:`_confirmation`, by their settings; each lists every balanced
+    response's verdict in ``responses``: its results' average against the prediction interval for the
+    average of that many runs.
+    """
+    judged = {r["name"]: _confirmation(runs, _for_response(spec, r["name"]), fits[r["name"]]) for r in aimed}
+    first = judged[aimed[0]["name"]]
+    keep = ("done", "mean", "predicted", "interval", "inside")
+    return [
+        {
+            "rows": group["rows"],
+            "at": group["at"],
+            "runs": group["runs"],
+            "responses": [{"name": r["name"], **{k: judged[r["name"]][i][k] for k in keep}} for r in aimed],
+        }
+        for i, group in enumerate(first)
+    ]
+
+
+def _overlay(spec: dict, found: dict, goals: list[dict], region: DesignRegion | None) -> dict[str, Any] | None:
+    """Return the overlay of the acceptable ranges over two numeric factors, the others at the balanced settings.
+
+    The two factors are those that move the responses' desirabilities most: each factor's main effects,
+    summed over the responses, each over its acceptable range's width. Over a grid of their coded
+    settings, each response's prediction (``z``) and the levels its acceptable boundary is at (``levels``:
+    the low end to maximise, the high end to minimise, both for a target); ``acceptable``, 1 where every
+    response has a desirability above 0; and ``runnable``, 1 where the limits on the settings allow the
+    setting, or None without limits. ``at`` is the balanced settings, coded; ``ticks`` mark each axis
+    with the factor's own settings; ``held`` lists the other factors at the balanced settings, in their
+    own units or levels. None when the study has fewer than two numeric factors.
+    """
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    if len(numeric) < 2:  # an overlay is over two factors
+        return None
+    names = [f["name"] for f in numeric]
+    size = dict.fromkeys(names, 0.0)
+    for goal in goals:
+        for c in found["models"][goal["response"]]:
+            if c["term"] in size:
+                size[c["term"]] += abs(c["coefficient"]) / (goal["high"] - goal["low"])
+    pair = sorted(names, key=lambda n: -size[n])[:2]
+    axis = np.linspace(-1.0, 1.0, OVERLAY_POINTS)
+    u, v = np.meshgrid(axis, axis)  # v down the rows, u across: z[row][column] as Plotly draws it
+    points = np.tile(found["x"], (u.size, 1))
+    points[:, names.index(pair[0])] = u.ravel()
+    points[:, names.index(pair[1])] = v.ravel()
+    acceptable = np.ones(u.size, dtype=bool)
+    surfaces = []
+    for goal in goals:
+        z = _predict(found["models"][goal["response"]], names, points)
+        inside, levels = _acceptable(goal, z)
+        acceptable &= inside
+        surfaces.append({"name": goal["response"], "z": _grid(z, u.shape), "levels": levels})
+    runnable = None
+    if region is not None:
+        runnable = region.feasible(points[:, [names.index(n) for n in region.names]]).astype(int)
+        runnable = runnable.reshape(u.shape).tolist()
+    factors = {f["name"]: f for f in spec["factors"]}
+    point = _full_point(spec, found["x"], found["levels"])
+    return {
+        "x": pair[0],
+        "y": pair[1],
+        "grid": axis.tolist(),
+        "ticks": {name: _ticks(factors[name]) for name in pair},
+        "responses": surfaces,
+        "acceptable": acceptable.astype(int).reshape(u.shape).tolist(),
+        "runnable": runnable,
+        "at": [point[pair[0]], point[pair[1]]],
+        "held": [
+            {"name": f["name"], "value": _in_units(f, point[f["name"]])}
+            for f in spec["factors"]
+            if f["name"] not in pair
+        ],
+    }
+
+
+def _acceptable(goal: dict, z: np.ndarray) -> tuple[np.ndarray, list[float]]:
+    """Return where a response is acceptable, a desirability above 0, and the levels its acceptable boundary is at."""
+    if goal["goal"] == "maximize":
+        return z > goal["low"], [goal["low"]]
+    if goal["goal"] == "minimize":
+        return z < goal["high"], [goal["high"]]
+    return (z > goal["low"]) & (z < goal["high"]), [goal["low"], goal["high"]]
+
+
+def _in_units(factor: dict, coded: float) -> float | str:
+    """Return a factor's coded setting in its own units, or a categorical factor's level."""
+    if _categorical(factor):
+        return factor["low"] if coded < 0 else factor["high"]
+    return (factor["low"] + factor["high"]) / 2 + coded * (factor["high"] - factor["low"]) / 2
+
+
+def _grid(values: np.ndarray, shape: tuple[int, ...]) -> list[list[float]]:
+    """Return a surface's values on its grid, rows of columns, each to six significant figures: enough to draw it."""
+    return [[float(f"{v:.6g}") for v in row] for row in values.reshape(shape)]
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -3186,3 +4517,13 @@ def api_relabel(payload: str) -> str:
 def api_limits(payload: str) -> str:
     """JSON wrapper around :func:`limits`."""
     return _reply(limits, payload)
+
+
+def api_best_settings(payload: str) -> str:
+    """JSON wrapper around :func:`best_settings`."""
+    return _reply(best_settings, payload)
+
+
+def api_balance(payload: str) -> str:
+    """JSON wrapper around :func:`balance`."""
+    return _reply(balance, payload)

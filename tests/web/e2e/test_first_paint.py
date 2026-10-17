@@ -112,7 +112,7 @@ def test_the_brief_holds_the_worked_example_s_response_factors_and_aim(page, fir
     described = inputs["design"]["response_info"]
     assert page.input_value("#response") == described["label"]
     assert page.input_value("#response-units") == described["units"]
-    assert page.is_checked(f'input[name="goal"][value="{described["goal"]}"]')
+    assert page.input_value("#response-goal") == described["goal"]
     assert float(page.input_value("#response-typical")) == described["typical"]
     assert float(page.input_value("#response-noise")) == described["noise"]
     assert float(page.input_value("#response-change")) == described["smallest_change"]
@@ -168,7 +168,7 @@ def test_without_a_built_example_the_worked_example_runs_live(context, site, con
     page.wait_for_function(f"document.querySelectorAll('#charts .js-plotly-plot').length === {EXAMPLE_CHARTS}")
     settled(page)
     fns = [c["fn"] for c in calls(page)]
-    assert fns[-4:] == ["api_make_design", "api_simulate", "api_analyze_runs", "api_plots"]
+    assert fns[-5:] == ["api_make_design", "api_simulate", "api_analyze_runs", "api_best_settings", "api_plots"]
     assert page.text_content("#analysis .equation") == first_paint["analysis"]["equation"]
     assert phase(page) == "learn"
     assert page.is_hidden("#library"), "the worked example run here is not saved"

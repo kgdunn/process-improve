@@ -45,7 +45,7 @@ BUDGET = {
     "a limit proposed from a corner": 270,
     "a new run sheet": 125,
     "practising": 150,
-    "the worked example's analysis": 200,
+    "the worked example's analysis": 270,  # with the best settings for its goal, which add some 55 words
     "the comparison in detail": 175,
 }
 

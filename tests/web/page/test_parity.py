@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+import pandas as pd
 import pytest
 
 from tests.web._support import (
@@ -195,8 +196,32 @@ def test_an_optimal_design_is_built_for_the_aim_as_the_comparison_builds_it(boot
 
 
 def test_the_goals_are_bootstrap_s_and_a_new_study_just_learns(bootstrap):
-    assert [r["value"] for r in page().radios["goal"]] == list(bootstrap.GOALS)
-    assert page().checked("goal") == "learn"
+    assert page().values("response-goal") == list(bootstrap.GOALS)
+    assert page().selected("response-goal") == "learn"
+
+
+def test_the_most_responses_a_study_measures_is_bootstrap_s(bootstrap, node):
+    """The page, the campaigns it reads and its words all hold as many responses as bootstrap.py takes."""
+    (page_most,) = javascript(node, source("logic.js"), [("MAX_RESPONSES", [])])
+    (campaign_most,) = javascript(node, source("campaign.js"), [("RESPONSES_HELD", [])])
+    assert page_most == campaign_most == bootstrap.MAX_RESPONSES
+    assert page().ids["responses-full"]["tag"] == "span"
+    assert f"A study measures at most {bootstrap.MAX_RESPONSES} responses." in source("index.html")
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [["Yield", "Cost", "Purity"], ["Yield", "Yield", "yield"], ["", "Cost"], ["T", "Cost ($/kg)", "Cost"]],
+)
+def test_the_page_names_each_response_s_column_as_bootstrap_takes_them(api, node, labels):
+    """The columns the page derives for several responses are names bootstrap.py takes for them, all different."""
+    (names,) = javascript(node, source("logic.js"), [("responseColumns", [labels, ["T", "P"]])])
+    assert len(set(names)) == len(names)
+    made = api.ok(
+        "api_make_design",
+        {"design_type": "full_factorial", "factors": FACTORS[:2], "responses": [{"name": n} for n in names]},
+    )
+    assert made["columns"][-len(names) :] == names
 
 
 def test_the_form_opens_on_a_new_study_with_bootstrap_s_defaults(api, bootstrap):
@@ -438,6 +463,19 @@ def test_the_list_of_saved_designs_says_how_many_store_js_keeps():
     assert f"The {keep.group(1)} most recent are kept." in " ".join(source("index.html").split())
 
 
+def test_confirmation_runs_are_marked_and_counted_as_bootstrap_marks_and_counts_them(bootstrap, node):
+    """The run sheet's column, its mark, how many runs the page adds, and how far each factor moves for the chart."""
+    asked = ["CONFIRMATION", "CONFIRMS", "CONFIRMATION_RUNS", "NUDGE"]
+    assert javascript(node, source("best.js"), [(name, []) for name in asked]) == [
+        bootstrap.CONFIRMATION,
+        bootstrap.CONFIRMS,
+        bootstrap.CONFIRMATION_RUNS,
+        bootstrap.NUDGE,
+    ]
+    assert javascript(node, source("python.js"), [("CONFIRMATION", [])]) == [bootstrap.CONFIRMATION]
+    assert f"Add {bootstrap.CONFIRMATION_RUNS} confirmation runs" in source("index.html"), "before app.js writes it"
+
+
 def test_the_limits_on_the_settings_are_held_as_bootstrap_holds_them(bootstrap, node):
     """The most limits, the longest note and limit, the designs that keep to them, and the signs read as operators."""
     asked = ["MAX_CONSTRAINTS", "NOTE_LENGTH", "EXPRESSION_LENGTH", "REGION_DESIGNS", "LIMIT_SYMBOLS"]
@@ -474,3 +512,35 @@ def test_a_limit_s_key_is_the_same_as_typed_and_as_python_writes_it(api, node):
     stored = [entry["expression"] for entry in reply["constraints"]]
     keys = javascript(node, source("logic.js"), [("positional", [text, names]) for text in [*typed, *stored]])
     assert keys[: len(typed)] == keys[len(typed) :]
+
+
+# --------------------------------------------------------------------------- the balance of the responses
+def test_the_balance_offers_bootstrap_s_shapes_and_importances(bootstrap, node):
+    shapes, importances, importance, shape = javascript(
+        node, source("best.js"), [("GOOD_END", []), ("IMPORTANCES", []), ("IMPORTANCE", []), ("SHAPE", [])]
+    )
+    assert list(shapes) == list(bootstrap.SHAPES)
+    assert importances == list(bootstrap.IMPORTANCES)
+    assert importance == bootstrap.IMPORTANCE
+    assert shape == bootstrap.SHAPE
+    (kept,) = javascript(node, source("campaign.js"), [("GOAL_SHAPES", [])])
+    assert kept == list(bootstrap.SHAPES), "a study keeps the shapes the balance takes"
+
+
+@pytest.mark.parametrize(
+    ("goal", "low", "high"),
+    [
+        ({"goal": "maximize"}, 60.0, 50.0),
+        ({"goal": "minimize"}, 20.0, 20.0),
+        ({"goal": "target", "target": 98.5}, 99.0, 100.0),
+        ({"goal": "target", "target": 98.5}, 90.0, 98.5),
+    ],
+)
+def test_the_page_says_a_goal_s_problem_in_bootstrap_s_words(bootstrap, node, goal, low, high):
+    """The balance's table says what a range typed still needs before Python is asked, as Python would refuse it."""
+    response = {"name": "Purity", "label": "Purity", **goal}
+    results = pd.Series([97.0, 98.0, 99.5])
+    with pytest.raises(ValueError, match="Purity") as refused:
+        bootstrap._balance_goal(response, results, {"low": low, "high": high})
+    (said,) = javascript(node, source("best.js"), [("goalProblem", [response, low, high])])
+    assert said == str(refused.value)

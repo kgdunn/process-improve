@@ -109,6 +109,25 @@ def _limited(design_type: str, *limits: str) -> Callable[[Example], dict]:
     return lambda _: {"design_type": design_type, "factors": FACTORS, "constraints": sent}
 
 
+def _balanced(cost: dict | None = None, costs: list | None = None, **change: object) -> Callable[[Example], dict]:
+    """Build a balance request: the worked example's yield, and a cost measured in the same runs (``cost``)."""
+
+    def payload(ex: Example) -> dict:
+        spec = ex["held"]["spec"]
+        described = cost or {"name": "Cost", "label": "Cost", "goal": "minimize"}
+        responses = [{"name": "Yield", **spec["response_info"]}, described]
+        sent = costs if costs is not None else [20 + 0.1 * i for i in range(15)]
+        return {
+            **ex["held"],
+            "spec": {**spec, "responses": responses},
+            "responses": ex["simulated"]["responses"],
+            "more_responses": {"Cost": sent},
+            **change,
+        }
+
+    return payload
+
+
 #: A temperature, a pressure and a supplier, A or B.
 WITH_SUPPLIER = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
 
@@ -186,6 +205,93 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     # The design's settings.
     "unknown design": ("api_make_design", _make(design_type="rocket"), "Unknown design type 'rocket'."),
+    # The settings that balance the responses, and the goals the reader sets for them.
+    "goals that are not goals": (
+        "api_balance",
+        _balanced(goals="narrow"),
+        "The page sent goals for the responses this page did not write.",
+    ),
+    "an acceptable range upside down": (
+        "api_balance",
+        _balanced(goals={"Yield": {"low": 70, "high": 60}}),
+        "The acceptable range of Yield must run from a lower value to a higher one.",
+    ),
+    "a target outside its acceptable range": (
+        "api_balance",
+        _balanced(
+            {"name": "Cost", "label": "Cost", "goal": "target", "target": 21}, goals={"Cost": {"low": 0, "high": 10}}
+        ),
+        "The target of Cost, 21, must lie inside its acceptable range.",
+    ),
+    "an importance of six": (
+        "api_balance",
+        _balanced(goals={"Yield": {"importance": 6}}),
+        "The importance of Yield must be a whole number from 1 to 5.",
+    ),
+    "a shape the page does not offer": (
+        "api_balance",
+        _balanced(goals={"Cost": {"shape": "steep"}}),
+        "The shape of Cost's desirability must be one the page offers.",
+    ),
+    "a response to balance without results": (
+        "api_balance",
+        _balanced(costs=[None] * 15),
+        "Enter results for Cost first: the balance is found on each response's model.",
+    ),
+    # Several responses, as the brief lists them.
+    "a list of responses that is not one": (
+        "api_make_design",
+        _make(responses="Yield, Cost"),
+        "The page sent a list of responses this page did not write.",
+    ),
+    "a first response that is not the study's": (
+        "api_make_design",
+        _make(response="Yield", responses=[{"name": "Cost"}, {"name": "Yield"}]),
+        "The page sent a list of responses this page did not write.",
+    ),
+    "six responses": (
+        "api_make_design",
+        _make(responses=[{"name": f"y{i}"} for i in range(1, 7)]),
+        "A study measures at most 5 responses; this one has 6.",
+    ),
+    "two responses of one name": (
+        "api_make_design",
+        _make(responses=[{"name": "Cost"}, {"name": "Cost"}]),
+        "Two responses cannot share the name Cost.",
+    ),
+    "a response named as a factor, after the first": (
+        "api_make_design",
+        _make(responses=[{"name": "Yield"}, {"name": "P"}]),
+        "The response name must be a variable name different from every factor.",
+    ),
+    "a response the study does not measure": (
+        "api_analyze_runs",
+        _runs(response="Colour"),
+        "The study measures no response named 'Colour'.",
+    ),
+    "results for a response the study does not measure": (
+        "api_analyze_runs",
+        _runs(more_responses={"Colour": [1.0] * 15}),
+        "The page sent results for a response the study does not measure.",
+    ),
+    "a later response's results, one short": (
+        "api_simulate",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "responses": [{"name": "Yield"}, {"name": "Cost"}]},
+            "more_responses": {"Cost": [1.0] * 14},
+        },
+        "14 responses were sent for 15 runs.",
+    ),
+    "a later response's model that is not one": (
+        "api_workbook",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "responses": [{"name": "Yield"}, {"name": "Cost"}]},
+            "models": {"Colour": "quadratic"},
+        },
+        "The page sent a design this page did not make.",
+    ),
     "response named as a factor": (
         "api_make_design",
         _make(response="T"),
@@ -368,6 +474,26 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "2 sources were sent for 15 runs.",
     ),
     "unknown process": ("api_simulate", _runs(scenario="rocket"), "Unknown process 'rocket'."),
+    # The best settings, and the confirmation runs made at them.
+    "every run a confirmation run": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_runs()(ex),
+            "columns": [*ex["held"]["columns"], "Confirmation run"],
+            "rows": [[*row, "yes"] for row in ex["held"]["rows"]],
+        },
+        "Every run on the run sheet is marked as a confirmation run, and the model is fitted to the design's runs.",
+    ),
+    "best settings before any result": (
+        "api_best_settings",
+        _runs(responses=[None] * 15),
+        "Enter results first: the best settings are found on the model fitted to them.",
+    ),
+    "a surface held at best settings the page did not write": (
+        "api_plots",
+        _runs(best={"T": 1.0, "P": -1.0, "F": 3.0}),
+        "The page sent best settings this page did not write.",
+    ),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
     "no design for these factors": (  # 13 factors, one more than any design on the page takes
         "api_candidates",
