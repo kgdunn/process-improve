@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -140,14 +141,24 @@ def _hosmer_lemeshow(successes: np.ndarray, trials: np.ndarray, p: np.ndarray, p
     return {"statistic": float(statistic), "df": df, "p_value": float(stats.chi2.sf(statistic, df)) if df > 0 else None}
 
 
-def run_glm(  # noqa: PLR0913
+@dataclass(frozen=True)
+class GlmSpec:
+    """The generalized linear model to fit: its family, link, and how its trials, dispersion and covariance are found.
+
+    :func:`run_glm` documents each field under its *spec* parameter.
+    """
+
+    family: str
+    link: str | None = None
+    trials: str | float | Sequence[float] | None = None
+    dispersion: str | float | None = None
+    information: str = "expected"
+
+
+def run_glm(
     df: pd.DataFrame,
     formula: str,
-    family: str,
-    link: str | None = None,
-    trials: str | float | Sequence[float] | None = None,
-    dispersion: str | float | None = None,
-    information: str = "expected",
+    spec: GlmSpec | str,
     alpha: float = 0.05,
     new_points: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
@@ -159,20 +170,21 @@ def run_glm(  # noqa: PLR0913
         The runs: the factors, the response and, for a binomial count, the trials.
     formula : str
         A patsy formula, ``"y ~ A + B + A:B"``.
-    family : str
-        ``"binomial"``, ``"poisson"``, ``"gamma"``, ``"gaussian"`` or ``"inverse_gaussian"``.
-    link : str or None
-        The link function; ``None`` uses the family's canonical link (``"logit"``, ``"log"``,
-        ``"inverse"``, ``"identity"``, ``"inverse_squared"``).
-    trials : str, float, sequence of float or None
-        For the binomial family, the number of trials of each run, whose response is then the
-        number of successes: a column of *df*, one number for every run, or one per run. ``None``
-        takes the response as 0 or 1 (one trial per run).
-    dispersion : {"pearson", "deviance", "ml"}, float or None
-        How the dispersion is found; ``None`` fixes it at 1 for the binomial and Poisson families
-        and estimates it by Pearson's statistic for the others. A number fixes it there.
-    information : {"expected", "observed"}
-        Which information matrix the covariance of the coefficients inverts.
+    spec : GlmSpec or str
+        The model: a :class:`GlmSpec`, or the family's name alone for its canonical link and
+        the defaults below.
+
+        - ``family``: ``"binomial"``, ``"poisson"``, ``"gamma"``, ``"gaussian"`` or ``"inverse_gaussian"``.
+        - ``link``: the link function; ``None`` uses the family's canonical link (``"logit"``, ``"log"``,
+          ``"inverse"``, ``"identity"``, ``"inverse_squared"``).
+        - ``trials``: for the binomial family, the number of trials of each run, whose response is
+          then the number of successes: a column of *df*, one number for every run, or one per run.
+          ``None`` takes the response as 0 or 1 (one trial per run).
+        - ``dispersion``: ``"pearson"``, ``"deviance"``, ``"ml"`` or a number; ``None`` fixes it at 1
+          for the binomial and Poisson families and estimates it by Pearson's statistic for the
+          others. A number fixes it there.
+        - ``information``: ``"expected"`` or ``"observed"``, the information matrix the covariance
+          of the coefficients inverts.
     alpha : float
         One less the confidence level of the intervals.
     new_points : DataFrame or None
@@ -191,6 +203,14 @@ def run_glm(  # noqa: PLR0913
         For the binomial family with trials, ``log_likelihood_trials`` is the log-likelihood of the
         individual trials (without the binomial coefficients), which Minitab prints.
     """
+    spec = GlmSpec(spec) if isinstance(spec, str) else spec
+    family, link, trials, dispersion, information = (
+        spec.family,
+        spec.link,
+        spec.trials,
+        spec.dispersion,
+        spec.information,
+    )
     family_class, canonical = FAMILIES[family]
     link_name = link or canonical
     glm_family = family_class(LINKS[link_name]())

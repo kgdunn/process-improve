@@ -41,7 +41,7 @@ from process_improve.experiments._analyses.aliasing import chain_reduced_fit
 from process_improve.experiments._analyses.box_cox import _run_box_cox
 from process_improve.experiments._analyses.curvature import _run_curvature_test
 from process_improve.experiments._analyses.diagnostics import _run_residual_diagnostics
-from process_improve.experiments._analyses.glm import check_glm_options, run_glm
+from process_improve.experiments._analyses.glm import GlmSpec, check_glm_options, run_glm
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.lenth import _run_lenth_method
 from process_improve.experiments._analyses.mixture import (
@@ -706,7 +706,9 @@ def _handlers(
         "prediction": prediction,
         "confirmation_test": confirmation,
         "split_plot": lambda: _split_plot(fit),
-        "glm": lambda: {"glm": run_glm(fit.df, fit.ols.model.formula, alpha=fit.alpha, new_points=points, **fit.glm)},
+        "glm": lambda: {
+            "glm": run_glm(fit.df, fit.ols.model.formula, GlmSpec(**fit.glm), alpha=fit.alpha, new_points=points)
+        },
     }
     if fit.model in SCHEFFE_MODELS:
         # The usual ANOVA, significance and effects test each blending coefficient

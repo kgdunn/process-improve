@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from process_improve.experiments import reference_catalogue
-from process_improve.experiments._analyses.glm import run_glm
+from process_improve.experiments._analyses.glm import GlmSpec, run_glm
 from process_improve.experiments._tools.analyze_experiment import AnalyzeExperimentInput, analyze_experiment_tool
 from process_improve.experiments.analysis import analyze_experiment
 
@@ -62,7 +62,7 @@ def test_one_trial_per_row_gives_the_same_fit_as_the_counts(coupons):
     """Successes out of trials, or each trial as its own 0/1 row: the same coefficients and standard errors."""
     small = coupons.assign(n=20.0, redeemed=lambda d: np.round(d["redeemed"] / 50))
     rows = [{"A": r.A, "B": r.B, "C": r.C, "y": float(i < r.redeemed)} for r in small.itertuples() for i in range(20)]
-    grouped = run_glm(small, "redeemed ~ A + B", "binomial", trials="n")
+    grouped = run_glm(small, "redeemed ~ A + B", GlmSpec("binomial", trials="n"))
     single = run_glm(pd.DataFrame(rows), "y ~ A + B", "binomial")
     for a, b in zip(grouped["coefficients"], single["coefficients"], strict=True):
         assert (a["coefficient"], a["std_error"]) == pytest.approx((b["coefficient"], b["std_error"]), rel=1e-6)
@@ -83,10 +83,10 @@ def test_poisson_means_and_their_intervals_reproduce_genmod():
 def test_gamma_intervals_follow_the_package_convention_asked_for():
     """GENMOD's maximum-likelihood dispersion and observed information reproduce Montgomery's intervals; R's do not."""
     yarn = _runs("montgomery-worsted-yarn-glm")
-    sas = run_glm(yarn, "cycles ~ x1 + x2 + x3", "gamma", link="log", dispersion="ml", information="observed")
+    sas = run_glm(yarn, "cycles ~ x1 + x2 + x3", GlmSpec("gamma", link="log", dispersion="ml", information="observed"))
     first = sas["fitted"][0]
     assert (first["predicted"], first["ci_low"], first["ci_high"]) == pytest.approx((680.52, 583.83, 793.22), abs=0.005)
-    r_like = run_glm(yarn, "cycles ~ x1 + x2 + x3", "gamma", link="log")
+    r_like = run_glm(yarn, "cycles ~ x1 + x2 + x3", GlmSpec("gamma", link="log"))
     assert r_like["fitted"][0]["predicted"] == pytest.approx(first["predicted"])  # the same fit,
     assert r_like["fitted"][0]["ci_low"] < first["ci_low"]  # a wider interval
     assert r_like["dispersion"] == pytest.approx(r_like["pearson_chi2"] / r_like["df_residual"])
@@ -95,8 +95,8 @@ def test_gamma_intervals_follow_the_package_convention_asked_for():
 
 def test_observed_and_expected_information_agree_under_the_canonical_link():
     defects = _runs("montgomery-grill-defects-glm")
-    expected = run_glm(defects, "c ~ D + F", "poisson", information="expected")
-    observed = run_glm(defects, "c ~ D + F", "poisson", information="observed")
+    expected = run_glm(defects, "c ~ D + F", GlmSpec("poisson", information="expected"))
+    observed = run_glm(defects, "c ~ D + F", GlmSpec("poisson", information="observed"))
     for a, b in zip(expected["coefficients"], observed["coefficients"], strict=True):
         assert a["std_error"] == pytest.approx(b["std_error"], rel=1e-8)
 
