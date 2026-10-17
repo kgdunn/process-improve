@@ -101,7 +101,8 @@ export const extrapolationSentence = (best) =>
 
 /**
  * The way a next study could move its ranges, along the steepest ascent (or descent): each factor that moves, up or
- * down, by its share of half its range. ``factors`` are the spec's, for their ranges and units.
+ * down, by its share of half its range, to two significant figures, as a direction is, not a setting. ``factors``
+ * are the spec's, for their ranges and units.
  */
 export function ascentSentence(best, factors) {
   const shares = Object.entries(best.ascent ?? {});
@@ -109,7 +110,8 @@ export function ascentSentence(best, factors) {
   const range = Object.fromEntries(factors.map((f) => [f.name, f]));
   const step = ([name, share]) => {
     const f = range[name];
-    return { name, share, size: withUnit((Math.abs(share) * (f.high - f.low)) / 2, f.units ?? "") };
+    const size = Number(((Math.abs(share) * (f.high - f.low)) / 2).toPrecision(2));
+    return { name, share, size: withUnit(size, f.units ?? "") };
   };
   const steps = shares.map(step).sort((a, b) => Math.abs(b.share) - Math.abs(a.share));
   const way = (s) => (s.share > 0 ? "up" : "down");

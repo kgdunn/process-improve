@@ -187,6 +187,7 @@ def test_confirmation_runs_added_while_practising_are_simulated_and_judged(page,
     assert [row[:5] for row in rows] == [["", str(order), "200", "1", num(at["F"])] for order in (16, 17, 18)]
     assert page.locator("#design-table input.sim").count() == 18, "their results simulated too"
     assert "15 completed runs" in page.text_content("#analysis"), "they do not enter the fit"
+    assert page.text_content("#badge-run") == "15 of 15", "Run counts the designed runs; Learn judges these"
     reveal(page, "#best")
     verdict = page.locator("#confirm-out .verdict")
     assert verdict.count() == 1

@@ -156,7 +156,7 @@ describe("what the panel says first", () => {
 describe("where the best settings lie", () => {
   test("two factors at the ends of their ranges: the way a next study could move them", () => {
     assert.deepEqual(whereSentences(WORKED, FACTORS, WORDS), [
-      "A next study could move the ranges along the steepest ascent: T up 25 degC, P down 0.6712 bar.",
+      "A next study could move the ranges along the steepest ascent: T up 25 degC, P down 0.67 bar.",
     ]);
   });
 

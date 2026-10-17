@@ -342,8 +342,11 @@ function renderBadges() {
   };
   const stale = planIsStale();
   badge("plan", stale ? "changed" : "", stale ? "stale" : "");
-  const done = state.responses.length > 0 && state.responses.every((v) => v !== null);
-  badge("run", state.design ? runBadge(state.responses) : "", done ? "done" : "");
+  // The designed runs: confirmation runs are checked in Learn, beside the settings they test.
+  const confirming = new Set(state.design ? confirmationRows(state.design) : []);
+  const designed = state.responses.filter((_, i) => !confirming.has(i));
+  const done = designed.length > 0 && designed.every((v) => v !== null);
+  badge("run", state.design ? runBadge(designed) : "", done ? "done" : "");
   const r2 = state.analysis?.summary?.r_squared;
   badge("learn", r2 === null || r2 === undefined ? "" : `R² ${Number(r2).toFixed(2)}`);
 }
