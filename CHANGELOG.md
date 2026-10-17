@@ -13,6 +13,17 @@ those changes.
 
 ### Added
 
+- **The canonical forms of a fitted quadratic.** `optimize_responses(..., method="canonical_analysis")`
+  now also returns the surface in Box and Draper's B canonical form (`b_canonical`), the form a ridge is
+  read in. It is rotated to the eigenvectors, with its origin where the response stops changing across
+  the ridge and one linear term along it. Where a stationary point exists, it also returns each
+  canonical variable W = v'(x - x*) (`canonical_axes`). The reference catalogue checks 26 more items
+  with these and the existing stationary point and steepest-ascent path: NIST's chemical CCD
+  (stationary point, eigenvalues, eigenvectors with their signs, canonical axes) and its first-order
+  steepest-ascent step, an EFI wind-turbine optimum, Montgomery's tool-life maximum and Box, Hunter and
+  Hunter's ridge. Several printed values carry recorded disagreements: NIST's stationary point from
+  rounded coefficients, two NIST canonical-axis constants that do not follow from the page's own sums,
+  and BHH's B canonical numbers, which do not follow from their equation 15.19.
 - **The overall F test and likelihood criteria in `analyze_experiment`'s model summary.**
   `model_summary` now carries `f_statistic` and `f_p_value` (the model against the intercept
   alone; against zero, on uncorrected sums of squares, for a model without an intercept whose

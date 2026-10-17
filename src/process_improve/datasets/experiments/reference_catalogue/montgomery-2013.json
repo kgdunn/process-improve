@@ -45932,8 +45932,12 @@
       "quote": "20.2381 Angle"
      },
      "check": {
-      "manual": "the stationary point of the fitted quadratic, where the profiler sets the factors to maximise the predicted life; it is (20 + 5/21, 150 + 50/3 − 25/42), the solution of the two linear equations of the gradient, and the prediction there is checked"
-     }
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "angle + speed + angle:speed + I(angle**2) + I(speed**2)",
+      "key": "stationary_point.stationary_point_coded.angle"
+     },
+     "analysis": "the library's stationary point of the quadratic fitted in the factors' own units (coding none), so its coded point is in degrees and in/min"
     },
     {
      "what": "setting",
@@ -45945,8 +45949,12 @@
       "quote": "166.0714 Speed"
      },
      "check": {
-      "manual": "the stationary point's speed, as above"
-     }
+      "kind": "optimum",
+      "method": "stationary_point",
+      "model": "angle + speed + angle:speed + I(angle**2) + I(speed**2)",
+      "key": "stationary_point.stationary_point_coded.speed"
+     },
+     "analysis": "the library's stationary point of the quadratic fitted in the factors' own units (coding none), so its coded point is in degrees and in/min"
     },
     {
      "what": "desirability",

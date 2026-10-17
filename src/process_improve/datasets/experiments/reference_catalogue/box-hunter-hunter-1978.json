@@ -56457,9 +56457,26 @@
       "source_kind": "prose",
       "quote": "ŷ - 88.2 = -5.12X1² + 2.4X2 - 0.15X2² (15.30)"
      },
-     "check": {
-      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge; the library places the stationary point at (-3.47, 2.78) coded, ŷ = 90.3, far outside the region, and calls the surface a maximum"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "key": "canonical_analysis.b_canonical.origin_response",
+       "printed": "88.2",
+       "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 88.2 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "key": "canonical_analysis.b_canonical.linear",
+       "abs": true,
+       "printed": "2.4",
+       "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 2.4 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+      }
+     ],
+     "analysis": "the library's B canonical form (Box and Draper): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge"
     },
     {
      "what": "canonical",
@@ -56500,8 +56517,15 @@
       "quote": "0.63x1 + 0.77x2 + 0.33 = 0"
      },
      "check": {
-      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+      "key": "canonical_analysis.b_canonical.offsets.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0",
+      "printed": "0.33",
+      "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 0.33 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+     },
+     "analysis": "the library's B canonical form (Box and Draper): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge: the constant of the ridge X1 = 0"
     }
    ]
   },
