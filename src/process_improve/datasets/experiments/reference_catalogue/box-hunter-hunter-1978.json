@@ -18182,9 +18182,25 @@
       "source_kind": "table",
       "quote": "the 95% confidence limits for the mean difference ηB - ηA are 5 ± 2.09√2.33, that is, 5 ± 3.2"
      },
-     "check": {
-      "manual": "an interval for one difference between two treatment means, which no check computes (pairwise comparisons)"
-     }
+     "check": [
+      {
+       "kind": "least_squares_means",
+       "model": "diet",
+       "factor": "diet",
+       "comparisons": "none",
+       "key": "pairs.B - A.difference",
+       "printed": "5"
+      },
+      {
+       "kind": "least_squares_means",
+       "model": "diet",
+       "factor": "diet",
+       "comparisons": "none",
+       "key": "pairs.B - A.half_width",
+       "printed": "3.2"
+      }
+     ],
+     "analysis": "the library's least_squares_means, unadjusted comparisons: the difference of two diets' means and its 95% interval's half-width, t0.025,20 √(s²(1/4 + 1/6))"
     },
     {
      "what": "coefficient",
@@ -26852,8 +26868,12 @@
       "quote": "A 1446 5481 303 21.64 367.43"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.A.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -26894,8 +26914,12 @@
       "quote": "B 2286 6162 2982 213.00 558.79"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.B.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -26936,8 +26960,12 @@
       "quote": "C 1002 5267 -1259 -89.93 255.86"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.C.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -26978,8 +27006,12 @@
       "quote": "D 928 5476 -1764 -126.00 219.79"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.D.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -27020,8 +27052,12 @@
       "quote": "E 739 5236 -2280 -162.86 182.93"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.E.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -27062,8 +27098,12 @@
       "quote": "F 2206 5883 2941 210.07 555.86"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.F.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -27104,8 +27144,12 @@
       "quote": "G 1075 5223 -923 -65.93 279.86"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.G.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",

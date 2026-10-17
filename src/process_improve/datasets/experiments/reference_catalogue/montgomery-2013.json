@@ -9375,8 +9375,14 @@
       "quote": "d0.05(3, 16) = 2.59"
      },
      "check": {
-      "manual": "Dunnett's critical value from Appendix Table VIII; the library's dunnett_vs_control gives p-values, not the critical difference"
-     }
+      "kind": "least_squares_means",
+      "model": "power",
+      "factor": "power",
+      "comparisons": "dunnett",
+      "control": 220,
+      "key": "critical_value"
+     },
+     "analysis": "the library's least_squares_means, Dunnett's comparisons with 220 W: the two-sided critical value of the largest of three correlated t statistics on 16 degrees of freedom, from the multivariate t"
     },
     {
      "what": "Dunnett critical difference",
@@ -9388,8 +9394,15 @@
       "quote": "d0.05(3, 16) √(2MSE/n) = 2.59 √(2(333.70)/5) = 29.92"
      },
      "check": {
-      "manual": "Dunnett's critical value, from the table, times the standard error of a difference, 11.55, which is checked"
-     }
+      "kind": "least_squares_means",
+      "model": "power",
+      "factor": "power",
+      "comparisons": "dunnett",
+      "control": 220,
+      "key": "pairs.160.0 - 220.0.half_width",
+      "disagreement": "the book multiplies the table's rounded d0.05(3,16) = 2.59 by 11.55; the library's point is 2.5923, so its critical difference is 29.95"
+     },
+     "analysis": "the library's least_squares_means, Dunnett's comparisons with 220 W: the critical value times the standard error of a difference"
     },
     {
      "what": "difference",
@@ -12702,8 +12715,13 @@
       "quote": "Individual confidence level = 98.87%"
      },
      "check": {
-      "manual": "the confidence of each Tukey interval alone, 1 − 2 P(t16 > q0.05(4,16)/√2), which the library does not compute (it is 98.868%)"
-     }
+      "kind": "least_squares_means",
+      "model": "power",
+      "factor": "power",
+      "key": "individual_confidence",
+      "printed": "0.9887"
+     },
+     "analysis": "the library's least_squares_means, Tukey's comparisons: the confidence of each interval alone, 1 - 2 P(t16 > q0.05(4,16)/√2)"
     },
     {
      "what": "ci_low",
@@ -14911,8 +14929,14 @@
       "quote": "Simultaneous confidence level = 88.02%"
      },
      "check": {
-      "manual": "the family confidence of three 95% Fisher intervals, 1 − P(range of 3 means > t0.025,33 √2), which the library does not compute (it is 88.020%)"
-     }
+      "kind": "least_squares_means",
+      "model": "diet",
+      "factor": "diet",
+      "comparisons": "none",
+      "key": "family_confidence",
+      "printed": "0.8802"
+     },
+     "analysis": "the library's least_squares_means, unadjusted (Fisher's) comparisons: the family confidence of the three 95% intervals, P(range of 3 means < t0.025,33 √2)"
     },
     {
      "what": "n_runs",
@@ -15701,8 +15725,12 @@
       "quote": "Level 3 A 8.3180000 ; 2 B 6.2380000 ; 1 B 5.7320000"
      },
      "check": {
-      "manual": "connecting letters read from the pairwise comparisons, which are checked"
-     }
+      "kind": "connecting_letters",
+      "model": "display",
+      "factor": "display",
+      "comparisons": "none"
+     },
+     "analysis": "the library's least_squares_means, Student's t comparisons at 0.05: its connecting letters, levels sharing a letter not significantly different"
     },
     {
      "what": "coefficient",
@@ -29860,8 +29888,13 @@
       "quote": "Catalyst = 1 subtracted from: 2 Lower -2.327 Center 0.2500 Upper 2.827 ... Difference of Means 0.2500 SE of Difference 0.6982 T-Value 0.3581 Adjusted P-Value 0.9825"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give: it compares the unadjusted means (it reproduces: the difference less q0.05(4,5)/√2 = 3.690 times the standard error checked here)"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.2 - 1.ci_low",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "ci_high",
@@ -29873,8 +29906,13 @@
       "quote": "Catalyst = 1 subtracted from: 2 Lower -2.327 Center 0.2500 Upper 2.827 ... Difference of Means 0.2500 SE of Difference 0.6982 T-Value 0.3581 Adjusted P-Value 0.9825"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.2 - 1.ci_high",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "p_value",
@@ -29886,8 +29924,12 @@
       "quote": "Catalyst = 1 subtracted from: 2 Lower -2.327 Center 0.2500 Upper 2.827 ... Difference of Means 0.2500 SE of Difference 0.6982 T-Value 0.3581 Adjusted P-Value 0.9825"
      },
      "check": {
-      "manual": "Tukey's adjusted P-value on adjusted means, P(q4,5 > t√2), which the library's tukey_hsd does not give: it compares the unadjusted means"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.2 - 1.p_value"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means; its adjusted P-value is P(q4,5 > |t|√2)"
     },
     {
      "what": "coefficient",
@@ -29945,8 +29987,13 @@
       "quote": "Catalyst = 1 subtracted from: 3 Lower -1.952 Center 0.6250 Upper 3.202 ... Difference of Means 0.6250 SE of Difference 0.6982 T-Value 0.8951 Adjusted P-Value 0.8085"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give: it compares the unadjusted means (it reproduces: the difference less q0.05(4,5)/√2 = 3.690 times the standard error checked here)"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.3 - 1.ci_low",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "ci_high",
@@ -29958,8 +30005,13 @@
       "quote": "Catalyst = 1 subtracted from: 3 Lower -1.952 Center 0.6250 Upper 3.202 ... Difference of Means 0.6250 SE of Difference 0.6982 T-Value 0.8951 Adjusted P-Value 0.8085"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.3 - 1.ci_high",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "p_value",
@@ -29971,8 +30023,12 @@
       "quote": "Catalyst = 1 subtracted from: 3 Lower -1.952 Center 0.6250 Upper 3.202 ... Difference of Means 0.6250 SE of Difference 0.6982 T-Value 0.8951 Adjusted P-Value 0.8085"
      },
      "check": {
-      "manual": "Tukey's adjusted P-value on adjusted means, P(q4,5 > t√2), which the library's tukey_hsd does not give: it compares the unadjusted means"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.3 - 1.p_value"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means; its adjusted P-value is P(q4,5 > |t|√2)"
     },
     {
      "what": "coefficient",
@@ -30030,8 +30086,13 @@
       "quote": "Catalyst = 1 subtracted from: 4 Lower 1.048 Center 3.6250 Upper 6.202 ... Difference of Means 3.6250 SE of Difference 0.6982 T-Value 5.1918 Adjusted P-Value 0.0130"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give: it compares the unadjusted means (it reproduces: the difference less q0.05(4,5)/√2 = 3.690 times the standard error checked here)"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 1.ci_low",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "ci_high",
@@ -30043,8 +30104,13 @@
       "quote": "Catalyst = 1 subtracted from: 4 Lower 1.048 Center 3.6250 Upper 6.202 ... Difference of Means 3.6250 SE of Difference 0.6982 T-Value 5.1918 Adjusted P-Value 0.0130"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 1.ci_high",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "p_value",
@@ -30056,8 +30122,12 @@
       "quote": "Catalyst = 1 subtracted from: 4 Lower 1.048 Center 3.6250 Upper 6.202 ... Difference of Means 3.6250 SE of Difference 0.6982 T-Value 5.1918 Adjusted P-Value 0.0130"
      },
      "check": {
-      "manual": "Tukey's adjusted P-value on adjusted means, P(q4,5 > t√2), which the library's tukey_hsd does not give: it compares the unadjusted means"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 1.p_value"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means; its adjusted P-value is P(q4,5 > |t|√2)"
     },
     {
      "what": "coefficient",
@@ -30115,8 +30185,13 @@
       "quote": "Catalyst = 2 subtracted from: 3 Lower -2.202 Center 0.3750 Upper 2.952 ... Difference of Means 0.3750 SE of Difference 0.6982 T-Value 0.5371 Adjusted P-Value 0.9462"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give: it compares the unadjusted means (it reproduces: the difference less q0.05(4,5)/√2 = 3.690 times the standard error checked here)"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.3 - 2.ci_low",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "ci_high",
@@ -30128,8 +30203,13 @@
       "quote": "Catalyst = 2 subtracted from: 3 Lower -2.202 Center 0.3750 Upper 2.952 ... Difference of Means 0.3750 SE of Difference 0.6982 T-Value 0.5371 Adjusted P-Value 0.9462"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.3 - 2.ci_high",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "p_value",
@@ -30141,8 +30221,12 @@
       "quote": "Catalyst = 2 subtracted from: 3 Lower -2.202 Center 0.3750 Upper 2.952 ... Difference of Means 0.3750 SE of Difference 0.6982 T-Value 0.5371 Adjusted P-Value 0.9462"
      },
      "check": {
-      "manual": "Tukey's adjusted P-value on adjusted means, P(q4,5 > t√2), which the library's tukey_hsd does not give: it compares the unadjusted means"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.3 - 2.p_value"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means; its adjusted P-value is P(q4,5 > |t|√2)"
     },
     {
      "what": "coefficient",
@@ -30200,8 +30284,13 @@
       "quote": "Catalyst = 2 subtracted from: 4 Lower 0.798 Center 3.3750 Upper 5.952 ... Difference of Means 3.3750 SE of Difference 0.6982 T-Value 4.8338 Adjusted P-Value 0.0175"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give: it compares the unadjusted means (it reproduces: the difference less q0.05(4,5)/√2 = 3.690 times the standard error checked here)"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 2.ci_low",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "ci_high",
@@ -30213,8 +30302,13 @@
       "quote": "Catalyst = 2 subtracted from: 4 Lower 0.798 Center 3.3750 Upper 5.952 ... Difference of Means 3.3750 SE of Difference 0.6982 T-Value 4.8338 Adjusted P-Value 0.0175"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 2.ci_high",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "p_value",
@@ -30226,8 +30320,12 @@
       "quote": "Catalyst = 2 subtracted from: 4 Lower 0.798 Center 3.3750 Upper 5.952 ... Difference of Means 3.3750 SE of Difference 0.6982 T-Value 4.8338 Adjusted P-Value 0.0175"
      },
      "check": {
-      "manual": "Tukey's adjusted P-value on adjusted means, P(q4,5 > t√2), which the library's tukey_hsd does not give: it compares the unadjusted means"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 2.p_value"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means; its adjusted P-value is P(q4,5 > |t|√2)"
     },
     {
      "what": "coefficient",
@@ -30285,8 +30383,13 @@
       "quote": "Catalyst = 3 subtracted from: 4 Lower 0.4228 Center 3.000 Upper 5.577 ... Difference of Means 3.000 SE of Difference 0.6982 T-Value 4.297 Adjusted P-Value 0.0281"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give: it compares the unadjusted means (it reproduces: the difference less q0.05(4,5)/√2 = 3.690 times the standard error checked here)"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 3.ci_low",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "ci_high",
@@ -30298,8 +30401,13 @@
       "quote": "Catalyst = 3 subtracted from: 4 Lower 0.4228 Center 3.000 Upper 5.577 ... Difference of Means 3.000 SE of Difference 0.6982 T-Value 4.297 Adjusted P-Value 0.0281"
      },
      "check": {
-      "manual": "Tukey's simultaneous interval on adjusted means, which the library's tukey_hsd does not give"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 3.ci_high",
+      "disagreement": "Minitab's interval is 2.577 either side of the difference, a studentized range point of 5.2197 on the standard error 0.6982; the library takes q0.05(4,5) = 5.2183, as R's qtukey does, so its limits lie 0.001 inside Minitab's"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means"
     },
     {
      "what": "p_value",
@@ -30311,8 +30419,12 @@
       "quote": "Catalyst = 3 subtracted from: 4 Lower 0.4228 Center 3.000 Upper 5.577 ... Difference of Means 3.000 SE of Difference 0.6982 T-Value 4.297 Adjusted P-Value 0.0281"
      },
      "check": {
-      "manual": "Tukey's adjusted P-value on adjusted means, P(q4,5 > t√2), which the library's tukey_hsd does not give: it compares the unadjusted means"
-     }
+      "kind": "least_squares_means",
+      "model": "catalyst + block",
+      "factor": "catalyst",
+      "key": "pairs.4 - 3.p_value"
+     },
+     "analysis": "the library's least_squares_means of the catalysts in the intrablock model catalyst + block: Tukey's comparison of two adjusted means, on the studentized range of four means; its adjusted P-value is P(q4,5 > |t|√2)"
     },
     {
      "what": "coefficient",
@@ -35346,8 +35458,19 @@
       "quote": "where we obtained q0.05(3, 27) ≃ 3.50 by interpolation in Appendix Table VII"
      },
      "check": {
-      "manual": "the studentized range's upper 5% point, interpolated in a table; it is 3.5064, which the library's tukey_hsd uses, but the check would compare three cell means of one temperature on the error of the whole factorial, which tukey_hsd, fitting the runs it is given, does not do"
-     }
+      "kind": "least_squares_means",
+      "model": "material * T",
+      "factor": "material",
+      "categorical": [
+       "T"
+      ],
+      "at": {
+       "T": 70
+      },
+      "key": "studentized_range",
+      "disagreement": "the book interpolates q0.05(3,27) ≃ 3.50 in Appendix Table VII; the studentized range's point is 3.5064"
+     },
+     "analysis": "the library's least_squares_means of the materials at 70 °F in the full factorial material * C(T): Tukey's comparisons within one temperature, on the error of the whole factorial, 27 degrees of freedom"
     },
     {
      "what": "Tukey critical difference",
@@ -35359,8 +35482,19 @@
       "quote": "T0.05 = q0.05(3, 27) √(MSE/n) = 3.50 √(675.21/4) = 45.47"
      },
      "check": {
-      "manual": "3.50 from the table times √(675.21/4) = 12.99, which is checked as the standard error of a cell mean; with q = 3.5064 it is 45.56"
-     }
+      "kind": "least_squares_means",
+      "model": "material * T",
+      "factor": "material",
+      "categorical": [
+       "T"
+      ],
+      "at": {
+       "T": 70
+      },
+      "key": "pairs.2 - 1.half_width",
+      "disagreement": "the book works 3.50 √(675.21/4) = 45.47 from its interpolated q; with q0.05(3,27) = 3.5064 the library's critical difference is 45.56"
+     },
+     "analysis": "the library's least_squares_means of the materials at 70 °F in the full factorial material * C(T): Tukey's comparisons within one temperature, on the error of the whole factorial, 27 degrees of freedom"
     },
     {
      "what": "std_error",
