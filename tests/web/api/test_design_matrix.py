@@ -204,7 +204,8 @@ TAGUCHI_RUNS = {2: [(3, 4), (7, 8), (11, 12), (15, 16)], 3: [(4, 9), (7, 18), (1
 
 def _check_taguchi(x: np.ndarray, k: int, options: dict, _result: dict) -> None:
     levels = options.get("n_levels", 2)
-    assert len(x) == next(runs for most, runs in TAGUCHI_RUNS[levels] if k <= most), "the smallest array that fits"
+    smallest = next(runs for most, runs in TAGUCHI_RUNS[levels] if k <= most)
+    assert len(x) == smallest, "the smallest array that fits"
     expected = [-1, 1] if levels == 2 else [-1, 0, 1]
     for i, j in itertools.combinations(range(k), 2):
         pairs = pd.Series(list(map(tuple, np.round(x[:, [i, j]], 9)))).value_counts()
