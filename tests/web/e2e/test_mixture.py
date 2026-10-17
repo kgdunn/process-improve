@@ -11,9 +11,12 @@ import pytest
 
 from tests.web._support import FACTORS
 from tests.web.e2e._page import (
+    calls,
     choose,
     factor_table,
     generate,
+    headers,
+    name_response,
     practise,
     reveal,
     run_sheet,
@@ -22,6 +25,7 @@ from tests.web.e2e._page import (
     type_limit,
 )
 from tests.web.e2e.test_layout import WIDE_FONT, overflowing
+from tests.web.e2e.test_responses import add_response, pick, tabs
 
 #: Three components with their bounds left blank, as a reader types them.
 BLEND = [{"name": "Water"}, {"name": "Oil"}, {"name": "Wax"}]
@@ -175,3 +179,27 @@ def test_a_mixture_on_a_phone_scrolls_only_downwards(fresh_page):
         page.click(f"#go-{phase}")
         assert overflowing(page) == [], phase
         assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), phase
+
+
+def test_a_mixture_measures_two_responses_and_says_its_best_blend_is_not_searched(fresh_page):
+    page = fresh_page
+    name_response(page, "Hardness", "HV", goal="maximize")
+    add_response(page, "Cost", "$/kg", "minimize")
+    made_mixture(page)
+    assert headers(page)[-2:] == ["Hardness", "Cost"], "a column for each response"
+    page.click("#go-learn")
+    settled(page)
+    reveal(page, "#response-picker")
+    assert tabs(page) == [["Hardness", "true"], ["Cost", "false"]]
+    assert page.text_content("#analysis .equation").startswith("Hardness = ")
+    assert page.text_content("#best-out") == (
+        "The page does not yet search a mixture's blends for the one that best meets the goal for Hardness. "
+        "The charts below show the fitted Hardness over the blends."
+    )
+    assert page.is_hidden("#best-chart")
+    assert page.is_hidden("#balance"), "two goals, and no balance searched over a mixture's blends"
+    assert calls(page, "api_balance"), "the page asked, and was told it is a mixture"
+    pick(page, "Cost")
+    assert page.text_content("#analysis .equation").startswith("Cost = ")
+    assert "Fitted response over the blends" in charts(page)
+    assert "for Cost" in page.text_content("#best-out")

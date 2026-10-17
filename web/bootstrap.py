@@ -1142,7 +1142,7 @@ def _mixture_design(spec: dict) -> dict:
             "proportions instead, or remove the limits."
         )
     components = _components(spec)
-    response = _response_name(str(spec.get("response") or "y").strip(), components)
+    responses = _checked_responses(spec, components, blank="y")
     kwargs = _mixture_options(spec, design_type)
     result = generate_design(components, design_type=MIXTURE, **kwargs)
     names = [c.name for c in components]
@@ -1150,16 +1150,18 @@ def _mixture_design(spec: dict) -> dict:
     runs = pd.DataFrame(blends, columns=names)
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", result.run_order)
-    runs[response] = np.nan
+    for response in responses:  # a column for each response's results, in the brief's order
+        runs[response["name"]] = np.nan
     model_type = kwargs["model_type"]
     stored = {
         "version": SPEC_VERSION,
         "design_type": design_type,
         "factors": [_factor_spec(c) for c in components],
-        "response": response,
+        "response": responses[0]["name"],
         "model": "scheffe_quadratic" if design_type == "simplex_centroid" else model_type,
         "options": kwargs,
-        **_described(spec),
+        **_stored_responses(responses),
+        **_aimed(spec),
     }
     facts = {
         "resolution": None,
@@ -4102,7 +4104,8 @@ def best_settings(request: dict) -> dict:
     """Find the settings that best meet the response's goal on the fitted model, and say how well they are known.
 
     The goal is the brief's (``response_info.goal``): ``maximize``, ``minimize``, or ``target`` with its
-    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else.
+    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else; so
+    does it for a mixture (``mixture``), whose blends this search does not keep to a sum of 1.
 
     The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
     and one response, over the numeric factors' ranges and inside the limits on the settings. Its
@@ -4132,6 +4135,8 @@ def best_settings(request: dict) -> dict:
     target = info.get("target")
     if goal == "target" and target is None:
         return {"goal": goal, "target": None}
+    if _mixture(spec):  # a blend's proportions sum to 1, which the search over each factor's range does not keep
+        return {"goal": goal, "target": target, "mixture": True}
     every_run = _runs_frame(request, whole)
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
@@ -4809,14 +4814,19 @@ def balance(request: dict) -> dict:
     down most (``limiting``); the leverage there against the runs' for the model that leans furthest;
     the limits the settings are on; the confirmation runs judged response by response; the
     ``overlay`` of the acceptable ranges over two factors (see :func:`_overlay`); and ``search``, what
-    the code the page shows needs. With fewer than two responses with a goal, it says so and holds no more.
+    the code the page shows needs. With fewer than two responses with a goal, or for a mixture (``mixture``),
+    it says so and holds no more.
     """
     whole = _checked_spec(request.get("spec") or {})
     every_run = _runs_frame(request, whole)
     design = _design_runs(every_run)
     aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
-    if len(aimed) < 2:  # two responses or more are balanced
-        return {"balanced": False, "aimed": [r["name"] for r in aimed]}
+    if len(aimed) < 2 or _mixture(whole):  # two responses or more are balanced; a mixture's blends are not searched
+        return {
+            "balanced": False,
+            "aimed": [r["name"] for r in aimed],
+            **({"mixture": True} if _mixture(whole) else {}),
+        }
     names = [f["name"] for f in whole["factors"]]
     categorical = _categorical_names(whole)
     raw_goals = request.get("goals") or {}

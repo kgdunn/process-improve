@@ -363,3 +363,50 @@ def test_renaming_a_mixture_s_components_keeps_its_runs_and_its_notes(api):
         "Water·Wax",
         "Oil·Wax",
     ]
+
+
+# --------------------------------------------------------------------------- with the other parts of Learn
+def two_responses(api) -> tuple[dict, dict]:
+    """Make a simplex lattice measuring a hardness to maximise and a cost to minimise; simulate both."""
+    responses = [{"name": "Hardness", "goal": "maximize", "units": "HV"}, {"name": "Cost", "goal": "minimize"}]
+    design = make(api, "simplex lattice, degree 2", 3, n_replicates=2, responses=responses)
+    return held_of(design), api.ok("api_simulate", {**held_of(design), "seed": 2})
+
+
+def test_a_mixture_measures_several_responses_each_from_its_own_process(api):
+    held, simulation = two_responses(api)
+    assert held["columns"][-2:] == ["Hardness", "Cost"]
+    first = {t["term"]: t["coefficient"] for t in simulation["truth"]}
+    second = {t["term"]: t["coefficient"] for t in simulation["more"]["Cost"]["truth"]}
+    # The second process is the first turned one component along: B takes A's part, C takes B's, A takes C's.
+    assert first == {"A": 54.0, "B": 48.0, "C": 51.0, "A:B": 12.0, "B:C": -10.0}
+    assert second == {"A": 51.0, "B": 54.0, "C": 48.0, "B:C": 12.0, "A:C": -10.0}
+    assert simulation["more"]["Cost"]["seed"] != simulation["seed"]
+
+
+def test_each_response_of_a_mixture_is_fitted_and_drawn_on_its_own(api, plotly):
+    held, simulation = two_responses(api)
+    results = {
+        "responses": simulation["responses"],
+        "more_responses": {"Cost": simulation["more"]["Cost"]["responses"]},
+    }
+    cost = {**held, **results, "response": "Cost", "truth": simulation["more"]["Cost"]["truth"]}
+    analysis = api.ok("api_analyze_runs", cost)
+    assert analysis["equation"].startswith("Cost = ")
+    for c in analysis["coefficients"]:
+        assert c["true_value"] == pytest.approx(
+            {t["term"]: t["coefficient"] for t in simulation["more"]["Cost"]["truth"]}.get(c["term"], 0.0)
+        )
+    assert "ternary" in api.ok("api_plots", cost)
+
+
+def test_a_mixture_s_best_blend_and_balance_are_not_searched_yet(api):
+    held, simulation = two_responses(api)
+    results = {
+        "responses": simulation["responses"],
+        "more_responses": {"Cost": simulation["more"]["Cost"]["responses"]},
+    }
+    best = api.ok("api_best_settings", {**held, **results})
+    assert best == {"goal": "maximize", "target": None, "mixture": True}, "the search keeps no sum of 1"
+    balance = api.ok("api_balance", {**held, **results})
+    assert balance == {"balanced": False, "aimed": ["Hardness", "Cost"], "mixture": True}

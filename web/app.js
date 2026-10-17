@@ -53,6 +53,7 @@ import {
   intervalRows,
   leadSentence,
   limitingSentence,
+  mixtureSentence,
   noGoalSentence,
   noIntervalSentence,
   num,
@@ -2620,7 +2621,8 @@ function renderBest(reply) {
   $("#confirm").hidden = true;
   if (!best.settings) {
     hidePython("best");
-    $("#best-out").replaceChildren(said("hint", best.flat ? flatSentence(words) : noGoalSentence(best, words)));
+    const text = best.mixture ? mixtureSentence(words) : best.flat ? flatSentence(words) : noGoalSentence(best, words);
+    $("#best-out").replaceChildren(said("hint", text));
     return;
   }
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));

@@ -181,6 +181,10 @@ export function noGoalSentence(best, { label }) {
   return `Set a goal for ${label} in the brief, to maximise, minimise or hit a target, and the page finds the best settings here.`;
 }
 
+/** What the panel says for a mixture: the search keeps each factor to its range, and a blend's proportions to no sum. */
+export const mixtureSentence = ({ label }) =>
+  `The page does not yet search a mixture's blends for the one that best meets the goal for ${label}. The charts below show the fitted ${label} over the blends.`;
+
 /** What the panel says when no term of the model changes the response. */
 export const flatSentence = ({ label }) => `No term of the model changes ${label}, so no setting is better than another.`;
 
