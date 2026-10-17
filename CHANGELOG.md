@@ -295,13 +295,13 @@ those changes.
   matrix with each column scaled to unit length, so the factors' units do not count: 1 for
   orthogonal columns, whatever their units. RS/Discover prints it as Cond. No.; the nine that
   Schmidt and Launsby print (eight plating models and the ball weld D-optimal design) agree.
-- **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 665 published
+- **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 1039 published
   experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
   factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
   estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
   numbers, and the year the source appeared or the date the entry was added; and sees each one on a
   map of runs against factors, beside the fewest runs each model needs. A design opens in Factorial
-  with one click: 183 published designs, which the library regenerates run for run, and every
+  with one click: 256 published designs, which the library regenerates run for run, and every
   generated design of the eight types the app makes. The filters are kept in the address, so a
   filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
   `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
@@ -318,19 +318,19 @@ those changes.
   screening design), and `projectivity` the most whose every projection holds all their two-level
   combinations (3 for the 12-run Plackett-Burman design). `fingerprint`, `same_design` and
   `design_classes` find one design under other labels, its runs, factors or levels reordered: the
-  catalog lists 76 designs printed or made in more than one place, among them the 12-run
+  catalog lists 115 designs printed or made in more than one place, among them the 12-run
   Plackett-Burman design, which is also Schmidt and Launsby's Taguchi L12 and Table 3.18 of the NIST
   e-Handbook. `estimable_models` and `model_matrix` are here too. The catalog filters on all of them,
   and a design's page draws its runs' leverages.
 - **The design catalog compares designs, explores their projections and lists the errata.** Up to
   four designs of one size are set side by side on the measures of `compare_designs`, for the model
-  they all fit, with their fraction-of-design-space curves (`design_measures.fds_curve`); 409 designs
+  they all fit, with their fraction-of-design-space curves (`design_measures.fds_curve`); 586 designs
   of numeric factors are scored at build time (`design_catalog.catalog_comparisons`). A design's
   page projects its runs onto any two or three of its factors, says whether that projection
   estimates the full quadratic, draws its correlation map, and links to the families it can be
   augmented to (`catalog_families` reads them from the knowledge base). A timeline under the map
   counts the published designs by year in their families' colours, marks the year each family was
-  first published, and keeps the years a reader drags across. The errata list the 887 printed
+  first published, and keeps the years a reader drags across. The errata list the 1381 printed
   numbers the library does not reproduce, each with the value printed, its page and the recorded
   reason (`catalog_errata`). A source filter and a "no source prints it" filter find the generated
   designs no source in the catalogue prints. `catalog/feed.xml` is an Atom feed with an entry for
@@ -338,7 +338,7 @@ those changes.
 - **Every design in the catalog with a complete table of runs opens in Factorial.** Factorial holds
   *runs as given* (`design_type="given"` in `api_make_design`): the runs of a design it does not
   make, such as one a book prints, in their order and their factors' own units, analysed with the
-  largest model they estimate in full. 337 published designs open (183 before) and 99 generated
+  largest model they estimate in full. 506 published designs open (256 before) and 99 generated
   ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`), keeps the designs whose
   every run meets it, marks the runs outside it, and opens a design in Factorial with the limit in
   its own units, where the D-optimal and I-optimal designs make runs inside it. A form for proposing
