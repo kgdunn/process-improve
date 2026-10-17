@@ -6998,7 +6998,7 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
         signature = inspect.signature(classes[name].__init__)
         for parameter_name in ("tol", "max_iter"):
             parameter = signature.parameters.get(parameter_name)
-            if parameter is None:  # TPLS has no missing-data path; OPLS's are deprecated
+            if parameter is None:  # OPLS is closed form and has neither
                 continue
             assert parameter.default is not None, f"{name}.{parameter_name} still defaults to None"
             assert isinstance(parameter.default, (int, float)), (
