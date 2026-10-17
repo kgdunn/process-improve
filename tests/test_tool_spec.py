@@ -451,8 +451,10 @@ class TestTtestTwoSamples:
             "ttest_two_samples",
             {"group_a": [1, 2, 3], "group_b": [4, 5, 6]},
         )
-        for key in ("p_value", "z_value", "conf_int_lower", "conf_int_upper", "interpretation"):
+        for key in ("p_value", "t_value", "conf_int_lower", "conf_int_upper", "interpretation"):
             assert key in result
+        # 2.0.0 removed the misleading aliases of t_value and std_error_of_difference.
+        assert {"z_value", "pooled_std"}.isdisjoint(result)
 
     def test_result_json_serialisable(self) -> None:
         """Verify the result is JSON-serialisable."""

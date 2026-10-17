@@ -59,6 +59,8 @@ BUDGET: dict[str, int] = {
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
     "PLR0912": 21,
+    # 85: 2.0.0 removed the deprecated `discriminate_observational` alias of
+    # `find_predictive_descriptors`, and its PLR0913 suppression went with it.
     # 83, and none of the five moves is a regression any one branch introduced.
     # #598 merged `smooth_trajectories`, whose seven arguments are the two
     # smoothers' settings side by side: naming them beats a settings dict whose
@@ -83,7 +85,7 @@ BUDGET: dict[str, int] = {
     # `select_n_components`' own. The width stops there: the function forms forward
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
-    "PLR0913": 86,
+    "PLR0913": 85,
     # 28: #513 (see C901). 29 before that.
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
