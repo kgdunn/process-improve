@@ -63,16 +63,43 @@
      "what": "sparsity",
      "term": "3 factors",
      "value": "(4,6)",
-     "analysis": "Central composite designs (CCD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the ccd design the library makes for 3 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 3 14, (4,6) 10, (4,6) 12, (4,8) 8, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('ccd') makes for 3 factors (centre runs removed): (4, 6)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 3,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "4"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 3,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "6"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -103,16 +130,43 @@
      "what": "sparsity",
      "term": "4 factors",
      "value": "(6,8)",
-     "analysis": "Central composite designs (CCD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the ccd design the library makes for 4 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 4 24, (6,8) 16, (6,8) 24, (12,20) 8, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('ccd') makes for 4 factors (centre runs removed): (6, 8)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 4,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "6"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 4,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "8"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -143,16 +197,43 @@
      "what": "sparsity",
      "term": "5 factors",
      "value": "(8,10)",
-     "analysis": "Central composite designs (CCD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the ccd design the library makes for 5 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 5 42, (8,10) 26, (8,10) 40, (24,36) 12, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('ccd') makes for 5 factors (centre runs removed): (8, 10)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 5,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "8"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 5,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "10"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -183,16 +264,43 @@
      "what": "sparsity",
      "term": "6 factors",
      "value": "(10,12)",
-     "analysis": "Central composite designs (CCD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the ccd design the library makes for 6 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 6 76, (10,12) 44, (10,12) 48, (24,32&40) 12, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('ccd') makes for 6 factors (centre runs removed): (10, 12)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 6,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "10"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 6,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "12"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -223,16 +331,43 @@
      "what": "sparsity",
      "term": "7 factors",
      "value": "(12,14)",
-     "analysis": "Central composite designs (CCD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the ccd design the library makes for 7 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 7 142, (12,14) 78, (12,14) 56, (32,48) 16, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('ccd') makes for 7 factors (centre runs removed): (12, 14)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 7,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "12"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "ccd",
+        "k": 7,
+        "options": {
+         "n_center_points": 0,
+         "alpha": "face_centered",
+         "cube": "full"
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "14"
+      }
+     ]
     }
    ]
   },
@@ -525,16 +660,39 @@
      "what": "sparsity",
      "term": "3 factors",
      "value": "(4,8)",
-     "analysis": "Box-Behnken designs (BBD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the box_behnken design the library makes for 3 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 3 14, (4,6) 10, (4,6) 12, (4,8) 8, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('box_behnken') makes for 3 factors (centre runs removed): (4, 8)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 3,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "4"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 3,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "8"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -563,16 +721,39 @@
      "what": "sparsity",
      "term": "4 factors",
      "value": "(12,20)",
-     "analysis": "Box-Behnken designs (BBD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the box_behnken design the library makes for 4 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 4 24, (6,8) 16, (6,8) 24, (12,20) 8, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('box_behnken') makes for 4 factors (centre runs removed): (12, 20)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 4,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "12"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 4,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "20"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -601,16 +782,39 @@
      "what": "sparsity",
      "term": "5 factors",
      "value": "(24,36)",
-     "analysis": "Box-Behnken designs (BBD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the box_behnken design the library makes for 5 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 5 42, (8,10) 26, (8,10) 40, (24,36) 12, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('box_behnken') makes for 5 factors (centre runs removed): (24, 36)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 5,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "24"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 5,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "36"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -639,16 +843,51 @@
      "what": "sparsity",
      "term": "6 factors",
      "value": "(24,32&40)",
-     "analysis": "Box-Behnken designs (BBD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the box_behnken design the library makes for 6 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 6 76, (10,12) 44, (10,12) 48, (24,32&40) 12, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('box_behnken') makes for 6 factors (centre runs removed): (24, 32 and 40)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 6,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "24"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 6,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.interactions.min",
+       "printed": "32"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 6,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.interactions.max",
+       "printed": "40"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -677,16 +916,39 @@
      "what": "sparsity",
      "term": "7 factors",
      "value": "(32,48)",
-     "analysis": "Box-Behnken designs (BBD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the box_behnken design the library makes for 7 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 7 142, (12,14) 78, (12,14) 56, (32,48) 16, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('box_behnken') makes for 7 factors (centre runs removed): (32, 48)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 7,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "32"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "box_behnken",
+        "k": 7,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "48"
+      }
+     ]
     }
    ]
   },
@@ -724,16 +986,39 @@
      "what": "sparsity",
      "term": "3 factors",
      "value": "(2,4)",
-     "analysis": "Definitive screening designs (DSD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the dsd design the library makes for 3 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 3 14, (4,6) 10, (4,6) 12, (4,8) 8, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('dsd') makes for 3 factors (centre runs removed): (2, 4)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 3,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 3,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -754,16 +1039,39 @@
      "what": "sparsity",
      "term": "4 factors",
      "value": "(2,4)",
-     "analysis": "Definitive screening designs (DSD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the dsd design the library makes for 4 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 4 24, (6,8) 16, (6,8) 24, (12,20) 8, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('dsd') makes for 4 factors (centre runs removed): (2, 4)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -784,16 +1092,39 @@
      "what": "sparsity",
      "term": "5 factors",
      "value": "(2,4)",
-     "analysis": "Definitive screening designs (DSD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the dsd design the library makes for 5 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 5 42, (8,10) 26, (8,10) 40, (24,36) 12, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('dsd') makes for 5 factors (centre runs removed): (2, 4)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 5,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 5,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -814,16 +1145,39 @@
      "what": "sparsity",
      "term": "6 factors",
      "value": "(2,4)",
-     "analysis": "Definitive screening designs (DSD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the dsd design the library makes for 6 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 6 76, (10,12) 44, (10,12) 48, (24,32&40) 12, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('dsd') makes for 6 factors (centre runs removed): (2, 4)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      }
+     ]
     },
     {
      "what": "n_runs",
@@ -844,16 +1198,39 @@
      "what": "sparsity",
      "term": "7 factors",
      "value": "(2,4)",
-     "analysis": "Definitive screening designs (DSD) without centre runs: sparsity (n0ME, n0IE)",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure, on the dsd design the library makes for 7 factors",
      "where": {
       "page": 22,
       "pdf_page": 3,
       "source_kind": "table",
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 7 142, (12,14) 78, (12,14) 56, (32,48) 16, (2,4)"
      },
-     "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros; counted on the design generate_design('dsd') makes for 7 factors (centre runs removed): (2, 4)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 7,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 7,
+        "options": {
+         "n_center_points": 0
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      }
+     ]
     }
    ]
   },
@@ -1422,7 +1799,7 @@
      "what": "n_center_points",
      "term": "nCP",
      "value": "0",
-     "analysis": "number of centre runs",
+     "analysis": "the runs with every three-level factor at 0",
      "where": {
       "page": 25,
       "pdf_page": 6,
@@ -1430,14 +1807,15 @@
       "quote": "Table 3. General morphology of Design 1. ... nCP 0"
      },
      "check": {
-      "manual": "a count of the runs at the centre; no check kind counts them; the printed matrix has none"
+      "kind": "design_structure",
+      "key": "n_center_runs"
      }
     },
     {
      "what": "sparsity",
      "term": "n0ME",
      "value": "6",
-     "analysis": "number of zeros in every main-effect column",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure",
      "where": {
       "page": 25,
       "pdf_page": 6,
@@ -1445,14 +1823,15 @@
       "quote": "Table 3. General morphology of Design 1. ... nME0 6"
      },
      "check": {
-      "manual": "a count of zeros; no check kind counts them (omars_properties does not report it); every column of the printed matrix has 6 zeros"
+      "kind": "design_structure",
+      "key": "zeros.n0ME"
      }
     },
     {
      "what": "sparsity",
      "term": "n0IE",
      "value": "10",
-     "analysis": "number of zeros in every two-factor interaction column",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure",
      "where": {
       "page": 25,
       "pdf_page": 6,
@@ -1460,23 +1839,33 @@
       "quote": "Table 3. General morphology of Design 1. ... nIE0 10"
      },
      "check": {
-      "manual": "a count of zeros; no check kind counts them; every one of the 10 interaction columns of the printed matrix has 10 zeros"
+      "kind": "design_structure",
+      "key": "zeros.n0IE"
      }
     },
     {
      "what": "sparsity",
      "term": "(n0ME, n0IE)",
      "value": "(6, 10)",
-     "analysis": "the sparsity in the design's label",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure",
      "where": {
       "page": 25,
       "pdf_page": 6,
       "source_kind": "text",
       "quote": "basic design bd.5.22.6.10.154, with identification number 154, 5 factors, 22 runs and a sparsity of (nME0, nIE0) = (6, 10)"
      },
-     "check": {
-      "manual": "a count of zeros; no check kind counts them; the printed matrix has 6 zeros in every column and 10 in every interaction column"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "zeros.n0ME",
+       "printed": "6"
+      },
+      {
+       "kind": "design_structure",
+       "key": "zeros.n0IE",
+       "printed": "10"
+      }
+     ]
     },
     {
      "what": "n_isomorphisms",
@@ -1612,7 +2001,7 @@
      "what": "relative_standard_error",
      "term": "β_i, ME",
      "value": "0.250",
-     "analysis": "relative standard error, the square root of a diagonal element of (X'X)^-1, main effects, ME model",
+     "analysis": "the square root of the coefficient's variance in units of sigma^2, a diagonal entry of (X'X)^-1 from the library's information_matrix, the same for every main effect",
      "where": {
       "page": 26,
       "pdf_page": 7,
@@ -1620,14 +2009,20 @@
       "quote": "Table 5. Relative standard errors of estimates from Design 1. ... β_i ME 0.250"
      },
      "check": {
-      "manual": "no evaluate_design metric returns the per-coefficient variance; numpy's inverse of the main-effects model matrix's X'X gives 0.250 for every main effect"
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "key": "coefficient_variances",
+      "root": true,
+      "model": "main_effects",
+      "terms": "X\\d",
+      "reduce": "max"
      }
     },
     {
      "what": "relative_standard_error",
      "term": "β_i, ME+IE",
      "value": "0.250",
-     "analysis": "relative standard error, the square root of a diagonal element of (X'X)^-1, main effects, ME+IE model",
+     "analysis": "the square root of the coefficient's variance in units of sigma^2, a diagonal entry of (X'X)^-1 from the library's information_matrix, the same for every main effect",
      "where": {
       "page": 26,
       "pdf_page": 7,
@@ -1635,14 +2030,20 @@
       "quote": "Table 5. Relative standard errors of estimates from Design 1. ... β_i ME+IE 0.250"
      },
      "check": {
-      "manual": "no evaluate_design metric returns the per-coefficient variance; numpy's inverse of the interaction model matrix's X'X gives 0.250 for every main effect"
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "key": "coefficient_variances",
+      "root": true,
+      "model": "interactions",
+      "terms": "X\\d",
+      "reduce": "max"
      }
     },
     {
      "what": "relative_standard_error",
      "term": "β_ij, ME+IE, average",
      "value": "0.570",
-     "analysis": "relative standard error, the square root of a diagonal element of (X'X)^-1, average over the 10 interactions, ME+IE model",
+     "analysis": "the square root of the coefficient's variance in units of sigma^2, a diagonal entry of (X'X)^-1 from the library's information_matrix, the mean over the ten interactions",
      "where": {
       "page": 26,
       "pdf_page": 7,
@@ -1650,14 +2051,20 @@
       "quote": "Table 5. Relative standard errors of estimates from Design 1. ... β_ij ME+IE 0.570 0.485 0.674"
      },
      "check": {
-      "manual": "no evaluate_design metric returns the per-coefficient variance; numpy's inverse of the interaction model matrix's X'X gives 0.570 as the average over the interactions (0.485, 0.603 and 0.674 for four, four and two of them)"
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "key": "coefficient_variances",
+      "root": true,
+      "model": "interactions",
+      "terms": "X\\d:X\\d",
+      "reduce": "mean"
      }
     },
     {
      "what": "relative_standard_error",
      "term": "β_ij, ME+IE, minimum",
      "value": "0.485",
-     "analysis": "relative standard error, the square root of a diagonal element of (X'X)^-1, minimum over the 10 interactions, ME+IE model",
+     "analysis": "the square root of the coefficient's variance in units of sigma^2, a diagonal entry of (X'X)^-1 from the library's information_matrix, the min over the ten interactions",
      "where": {
       "page": 26,
       "pdf_page": 7,
@@ -1665,14 +2072,20 @@
       "quote": "Table 5. Relative standard errors of estimates from Design 1. ... β_ij ME+IE 0.570 0.485 0.674"
      },
      "check": {
-      "manual": "no evaluate_design metric returns the per-coefficient variance; numpy's inverse of the interaction model matrix's X'X gives 0.485 as the minimum over the interactions (0.485, 0.603 and 0.674 for four, four and two of them)"
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "key": "coefficient_variances",
+      "root": true,
+      "model": "interactions",
+      "terms": "X\\d:X\\d",
+      "reduce": "min"
      }
     },
     {
      "what": "relative_standard_error",
      "term": "β_ij, ME+IE, maximum",
      "value": "0.674",
-     "analysis": "relative standard error, the square root of a diagonal element of (X'X)^-1, maximum over the 10 interactions, ME+IE model",
+     "analysis": "the square root of the coefficient's variance in units of sigma^2, a diagonal entry of (X'X)^-1 from the library's information_matrix, the max over the ten interactions",
      "where": {
       "page": 26,
       "pdf_page": 7,
@@ -1680,7 +2093,13 @@
       "quote": "Table 5. Relative standard errors of estimates from Design 1. ... β_ij ME+IE 0.570 0.485 0.674"
      },
      "check": {
-      "manual": "no evaluate_design metric returns the per-coefficient variance; numpy's inverse of the interaction model matrix's X'X gives 0.674 as the maximum over the interactions (0.485, 0.603 and 0.674 for four, four and two of them)"
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "key": "coefficient_variances",
+      "root": true,
+      "model": "interactions",
+      "terms": "X\\d:X\\d",
+      "reduce": "max"
      }
     },
     {
@@ -2572,67 +2991,119 @@
      "what": "projection_estimation_capacity",
      "term": "ME+IE, 3 factors",
      "value": "10/10",
-     "analysis": "number of 3-factor projections for which the ME+IE model is estimable, of all of them",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the interactions model: how many estimate it, of how many",
      "where": {
       "page": 27,
       "pdf_page": 8,
       "source_kind": "table",
       "quote": "Table 9. Projection estimation capacity (PEC) of Design 1. ... ME+IE 10/10 5/5"
      },
-     "check": {
-      "manual": "a count over projections, which no check kind loops over; evaluate_design finds the ME+IE model estimable (a D-efficiency) on every one of the 10 projections on 3 factors"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": 3,
+       "model": "interactions",
+       "key": "n_estimable",
+       "printed": "10"
+      },
+      {
+       "kind": "projections",
+       "size": 3,
+       "model": "interactions",
+       "key": "n_projections",
+       "printed": "10"
+      }
+     ]
     },
     {
      "what": "projection_estimation_capacity",
      "term": "ME+IE, 4 factors",
      "value": "5/5",
-     "analysis": "number of 4-factor projections for which the ME+IE model is estimable, of all of them",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the interactions model: how many estimate it, of how many",
      "where": {
       "page": 27,
       "pdf_page": 8,
       "source_kind": "table",
       "quote": "Table 9. Projection estimation capacity (PEC) of Design 1. ... ME+IE 10/10 5/5"
      },
-     "check": {
-      "manual": "a count over projections, which no check kind loops over; evaluate_design finds the ME+IE model estimable (a D-efficiency) on every one of the 5 projections on 4 factors"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": 4,
+       "model": "interactions",
+       "key": "n_estimable",
+       "printed": "5"
+      },
+      {
+       "kind": "projections",
+       "size": 4,
+       "model": "interactions",
+       "key": "n_projections",
+       "printed": "5"
+      }
+     ]
     },
     {
      "what": "projection_estimation_capacity",
      "term": "SOE, 3 factors",
      "value": "10/10",
-     "analysis": "number of 3-factor projections for which the SOE model is estimable, of all of them",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model: how many estimate it, of how many",
      "where": {
       "page": 27,
       "pdf_page": 8,
       "source_kind": "table",
       "quote": "Table 9. Projection estimation capacity (PEC) of Design 1. ... SOE 10/10 5/5"
      },
-     "check": {
-      "manual": "a count over projections, which no check kind loops over; evaluate_design finds the SOE model estimable (a D-efficiency) on every one of the 10 projections on 3 factors"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": 3,
+       "model": "quadratic",
+       "key": "n_estimable",
+       "printed": "10"
+      },
+      {
+       "kind": "projections",
+       "size": 3,
+       "model": "quadratic",
+       "key": "n_projections",
+       "printed": "10"
+      }
+     ]
     },
     {
      "what": "projection_estimation_capacity",
      "term": "SOE, 4 factors",
      "value": "5/5",
-     "analysis": "number of 4-factor projections for which the SOE model is estimable, of all of them",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the quadratic model: how many estimate it, of how many",
      "where": {
       "page": 27,
       "pdf_page": 8,
       "source_kind": "table",
       "quote": "Table 9. Projection estimation capacity (PEC) of Design 1. ... SOE 10/10 5/5"
      },
-     "check": {
-      "manual": "a count over projections, which no check kind loops over; evaluate_design finds the SOE model estimable (a D-efficiency) on every one of the 5 projections on 4 factors"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": 4,
+       "model": "quadratic",
+       "key": "n_estimable",
+       "printed": "5"
+      },
+      {
+       "kind": "projections",
+       "size": 4,
+       "model": "quadratic",
+       "key": "n_projections",
+       "printed": "5"
+      }
+     ]
     },
     {
      "what": "projection_d_efficiency",
      "term": "ME+IE, 3 factors, average",
      "value": "66.221",
-     "analysis": "D-efficiency of the ME+IE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the interactions model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2640,7 +3111,11 @@
       "quote": "Table 10 ... 3 ME+IE 66.221 64.911 66.548"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 66.2206, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "interactions",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
@@ -2681,7 +3156,7 @@
      "what": "projection_a_efficiency",
      "term": "ME+IE, 3 factors, average",
      "value": "63.370",
-     "analysis": "A-efficiency of the ME+IE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the interactions model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2689,7 +3164,11 @@
       "quote": "Table 10 ... 3 ME+IE 63.370 59.969 64.220"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 63.3700, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "interactions",
+      "metric": ["a_optimality"],
+      "key": "averages.a_efficiency"
      }
     },
     {
@@ -2730,7 +3209,7 @@
      "what": "projection_d_efficiency",
      "term": "SOE, 3 factors, average",
      "value": "44.328",
-     "analysis": "D-efficiency of the SOE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2738,7 +3217,11 @@
       "quote": "Table 10 ... 3 SOE 44.328 41.638 45.001"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 44.3284, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
@@ -2779,7 +3262,7 @@
      "what": "projection_a_efficiency",
      "term": "SOE, 3 factors, average",
      "value": "27.079",
-     "analysis": "A-efficiency of the SOE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2787,7 +3270,11 @@
       "quote": "Table 10 ... 3 SOE 27.079 22.523 28.218"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 27.0792, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["a_optimality"],
+      "key": "averages.a_efficiency"
      }
     },
     {
@@ -2828,7 +3315,7 @@
      "what": "projection_d_efficiency",
      "term": "ME+IE, 4 factors, average",
      "value": "56.767",
-     "analysis": "D-efficiency of the ME+IE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the interactions model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2836,7 +3323,11 @@
       "quote": "Table 10 ... 4 ME+IE 56.767 52.330 57.877"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 56.7673, which agrees"
+      "kind": "projections",
+      "size": 4,
+      "model": "interactions",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
@@ -2877,7 +3368,7 @@
      "what": "projection_a_efficiency",
      "term": "ME+IE, 4 factors, average",
      "value": "44.596",
-     "analysis": "A-efficiency of the ME+IE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the interactions model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2885,7 +3376,11 @@
       "quote": "Table 10 ... 4 ME+IE 44.596 32.604 47.593"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 44.5955, which agrees"
+      "kind": "projections",
+      "size": 4,
+      "model": "interactions",
+      "metric": ["a_optimality"],
+      "key": "averages.a_efficiency"
      }
     },
     {
@@ -2926,7 +3421,7 @@
      "what": "projection_d_efficiency",
      "term": "SOE, 4 factors, average",
      "value": "35.433",
-     "analysis": "D-efficiency of the SOE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the quadratic model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2934,7 +3429,11 @@
       "quote": "Table 10 ... 4 SOE 35.433 34.695 38.384"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 35.4330, which agrees"
+      "kind": "projections",
+      "size": 4,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
@@ -2975,7 +3474,7 @@
      "what": "projection_a_efficiency",
      "term": "SOE, 4 factors, average",
      "value": "11.697",
-     "analysis": "A-efficiency of the SOE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the quadratic model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -2983,7 +3482,11 @@
       "quote": "Table 10 ... 4 SOE 11.697 9.399 20.890"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 11.6969, which agrees"
+      "kind": "projections",
+      "size": 4,
+      "model": "quadratic",
+      "metric": ["a_optimality"],
+      "key": "averages.a_efficiency"
      }
     },
     {
@@ -3024,7 +3527,7 @@
      "what": "projection_g_efficiency",
      "term": "ME+IE, 3 factors, average",
      "value": "58.035",
-     "analysis": "G-efficiency of the ME+IE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the interactions model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3032,7 +3535,11 @@
       "quote": "Table 11 ... 3 ME+IE 58.035 45.635 61.135"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 58.0352, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "interactions",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
@@ -3074,7 +3581,7 @@
      "what": "projection_average_prediction_variance",
      "term": "ME+IE, 3 factors, average",
      "value": "0.138",
-     "analysis": "average prediction variance of the ME+IE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the interactions model, averaged: the exact average over the cube",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3082,7 +3589,14 @@
       "quote": "Table 11 ... 3 ME+IE 0.138 0.136 0.142"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 0.1378, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "interactions",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      }
      }
     },
     {
@@ -3125,7 +3639,7 @@
      "what": "projection_g_efficiency",
      "term": "SOE, 3 factors, average",
      "value": "67.243",
-     "analysis": "G-efficiency of the SOE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3133,7 +3647,11 @@
       "quote": "Table 11 ... 3 SOE 67.243 38.805 74.352"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 67.2428, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
@@ -3174,7 +3692,7 @@
      "what": "projection_average_prediction_variance",
      "term": "SOE, 3 factors, average",
      "value": "0.316",
-     "analysis": "average prediction variance of the SOE model averaged over the 10 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged: the exact average over the cube",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3182,7 +3700,14 @@
       "quote": "Table 11 ... 3 SOE 0.316 0.303 0.365"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 10 projections gives an average of 0.3155, not the printed 0.316: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      }
      }
     },
     {
@@ -3225,7 +3750,7 @@
      "what": "projection_g_efficiency",
      "term": "ME+IE, 4 factors, average",
      "value": "27.094",
-     "analysis": "G-efficiency of the ME+IE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the interactions model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3233,7 +3758,11 @@
       "quote": "Table 11 ... 4 ME+IE 27.094 16.613 29.715"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 27.0941, which agrees"
+      "kind": "projections",
+      "size": 4,
+      "model": "interactions",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
@@ -3275,7 +3804,7 @@
      "what": "projection_average_prediction_variance",
      "term": "ME+IE, 4 factors, average",
      "value": "0.225",
-     "analysis": "average prediction variance of the ME+IE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the interactions model, averaged: the exact average over the cube",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3283,7 +3812,15 @@
       "quote": "Table 11 ... 4 ME+IE 0.225 0.212 0.272"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 0.2230, not the printed 0.225: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 4,
+      "model": "interactions",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      },
+      "disagreement": "the exact average over the cube, by quadrature, is 0.2234; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
      }
     },
     {
@@ -3325,7 +3862,7 @@
      "what": "projection_g_efficiency",
      "term": "SOE, 4 factors, average",
      "value": "10.307",
-     "analysis": "G-efficiency of the SOE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the quadratic model, averaged",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3333,7 +3870,12 @@
       "quote": "Table 11 ... 4 SOE 10.307 7.548 21.344"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 10.3073, which agrees"
+      "kind": "projections",
+      "size": 4,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency",
+      "disagreement": "the library's sample of each four-factor cube gives an average of 10.282, and its searched maxima (max_search='optimize') 9.910: the largest prediction variance of a projection lies inside the cube, where a sample can miss it. The paper's 10.307 is a sample's value too; the library's sample of the five-factor cube, with the fifth factor out of the model, happens to give it"
      }
     },
     {
@@ -3374,7 +3916,7 @@
      "what": "projection_average_prediction_variance",
      "term": "SOE, 4 factors, average",
      "value": "0.856",
-     "analysis": "average prediction variance of the SOE model averaged over the 5 projections on 4 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 4 factors under the quadratic model, averaged: the exact average over the cube",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3382,7 +3924,15 @@
       "quote": "Table 11 ... 4 SOE 0.856 0.542 0.941"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 5 projections gives an average of 0.8508, not the printed 0.856: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 4,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      },
+      "disagreement": "the exact average over the cube, by quadrature, is 0.8523; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
      }
     },
     {
@@ -3524,7 +4074,7 @@
      "what": "n_center_points",
      "term": "CP",
      "value": "0",
-     "analysis": "number of centre runs added to the basic design",
+     "analysis": "the runs with every factor at 0",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3532,7 +4082,8 @@
       "quote": "Table 12 ... ξ1 0 14 61.28 60.38 0.38 0.80 0.38 0.34 31.44 25.83 0.63 0.69"
      },
      "check": {
-      "manual": "a count of centre runs, which no check kind takes; this design is the basic design with 0 centre runs added, as the paper builds it"
+      "kind": "design_structure",
+      "key": "n_center_runs"
      }
     },
     {
@@ -3675,7 +4226,7 @@
      "what": "projection_d_efficiency",
      "term": "PIC3, SOE",
      "value": "31.44",
-     "analysis": "D-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3683,14 +4234,18 @@
       "quote": "Table 12 ... ξ1 0 14 61.28 60.38 0.38 0.80 0.38 0.34 31.44 25.83 0.63 0.69"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 31.440, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "PIC3, SOE",
      "value": "25.83",
-     "analysis": "G-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3698,14 +4253,18 @@
       "quote": "Table 12 ... ξ1 0 14 61.28 60.38 0.38 0.80 0.38 0.34 31.44 25.83 0.63 0.69"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 25.833, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "PIC3, SOE, average",
      "value": "0.63",
-     "analysis": "average prediction variance of the SOE model, averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3713,7 +4272,15 @@
       "quote": "Table 12 ... ξ1 0 14 61.28 60.38 0.38 0.80 0.38 0.34 31.44 25.83 0.63 0.69"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 0.623, not the printed 0.63: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      },
+      "disagreement": "the exact average over the cube, by quadrature, is 0.6238; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
      }
     },
     {
@@ -3738,16 +4305,39 @@
      "what": "weighing_matrix",
      "term": "W",
      "value": "order 7 and weight 4",
-     "analysis": "the printed W is a weighing matrix: W W' = 4 I",
+     "analysis": "W'W of the printed W (runs 1 to 7): order 7, and every eigenvalue 4, so W'W = 4I",
      "where": {
       "page": 27,
       "pdf_page": 8,
       "source_kind": "text",
       "quote": "can be obtained by folding over the following weighing matrix of order 7 and weight 4"
      },
-     "check": {
-      "manual": "a property of the printed matrix, which no check kind reads; numpy gives W W' = 4 I for the printed W (and so W'W = 4 I: the columns are orthogonal with four nonzero entries)"
-     }
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "0 + A + B + C + D + E + F + G",
+       "runs": [1, 2, 3, 4, 5, 6, 7],
+       "key": "n_parameters",
+       "printed": "7"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "0 + A + B + C + D + E + F + G",
+       "runs": [1, 2, 3, 4, 5, 6, 7],
+       "key": "eigenvalues.min",
+       "printed": "4"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "0 + A + B + C + D + E + F + G",
+       "runs": [1, 2, 3, 4, 5, 6, 7],
+       "key": "eigenvalues.max",
+       "printed": "4"
+      }
+     ]
     }
    ]
   },
@@ -3853,7 +4443,7 @@
      "what": "n_center_points",
      "term": "CP",
      "value": "1",
-     "analysis": "number of centre runs added to the basic design",
+     "analysis": "the runs with every factor at 0",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -3861,7 +4451,8 @@
       "quote": "Table 12 ... ξ2 1 15 57.69 56.64 0.37 0.81 0.42 0.40 30.74 24.85 0.56 0.61"
      },
      "check": {
-      "manual": "a count of centre runs, which no check kind takes; this design is the basic design with 1 centre run added, as the paper builds it"
+      "kind": "design_structure",
+      "key": "n_center_runs"
      }
     },
     {
@@ -4004,7 +4595,7 @@
      "what": "projection_d_efficiency",
      "term": "PIC3, SOE",
      "value": "30.74",
-     "analysis": "D-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4012,14 +4603,18 @@
       "quote": "Table 12 ... ξ2 1 15 57.69 56.64 0.37 0.81 0.42 0.40 30.74 24.85 0.56 0.61"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 30.738, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "PIC3, SOE",
      "value": "24.85",
-     "analysis": "G-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4027,14 +4622,18 @@
       "quote": "Table 12 ... ξ2 1 15 57.69 56.64 0.37 0.81 0.42 0.40 30.74 24.85 0.56 0.61"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 24.851, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "PIC3, SOE, average",
      "value": "0.56",
-     "analysis": "average prediction variance of the SOE model, averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4042,7 +4641,15 @@
       "quote": "Table 12 ... ξ2 1 15 57.69 56.64 0.37 0.81 0.42 0.40 30.74 24.85 0.56 0.61"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 0.554, not the printed 0.56: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      },
+      "disagreement": "the exact average over the cube, by quadrature, is 0.5542; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
      }
     },
     {
@@ -4169,7 +4776,7 @@
      "what": "n_center_points",
      "term": "CP",
      "value": "2",
-     "analysis": "number of centre runs added to the basic design",
+     "analysis": "the runs with every factor at 0",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4177,7 +4784,8 @@
       "quote": "Table 12 ... ξ3 2 16 54.53 53.33 0.37 0.81 0.46 0.46 29.74 23.64 0.53 0.58"
      },
      "check": {
-      "manual": "a count of centre runs, which no check kind takes; this design is the basic design with 2 centre runs added, as the paper builds it"
+      "kind": "design_structure",
+      "key": "n_center_runs"
      }
     },
     {
@@ -4320,7 +4928,7 @@
      "what": "projection_d_efficiency",
      "term": "PIC3, SOE",
      "value": "29.74",
-     "analysis": "D-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4328,14 +4936,18 @@
       "quote": "Table 12 ... ξ3 2 16 54.53 53.33 0.37 0.81 0.46 0.46 29.74 23.64 0.53 0.58"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 29.740, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "PIC3, SOE",
      "value": "23.64",
-     "analysis": "G-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4343,14 +4955,18 @@
       "quote": "Table 12 ... ξ3 2 16 54.53 53.33 0.37 0.81 0.46 0.46 29.74 23.64 0.53 0.58"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 23.636, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "PIC3, SOE, average",
      "value": "0.53",
-     "analysis": "average prediction variance of the SOE model, averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4358,7 +4974,15 @@
       "quote": "Table 12 ... ξ3 2 16 54.53 53.33 0.37 0.81 0.46 0.46 29.74 23.64 0.53 0.58"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 0.522, not the printed 0.53: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      },
+      "disagreement": "the exact average over the cube, by quadrature, is 0.5226; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
      }
     },
     {
@@ -4504,7 +5128,7 @@
      "what": "n_center_points",
      "term": "CP",
      "value": "0",
-     "analysis": "number of centre runs added to the basic design",
+     "analysis": "the runs with every factor at 0",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4512,7 +5136,8 @@
       "quote": "Table 12 ... ξ4 0 16 88.97 88.89 0.24 0.96 0.87 0.25 41.82 26.56 1.25 1.26"
      },
      "check": {
-      "manual": "a count of centre runs, which no check kind takes; this design is the basic design with 0 centre runs added, as the paper builds it"
+      "kind": "design_structure",
+      "key": "n_center_runs"
      }
     },
     {
@@ -4655,7 +5280,7 @@
      "what": "projection_d_efficiency",
      "term": "PIC3, SOE",
      "value": "41.82",
-     "analysis": "D-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4663,14 +5288,18 @@
       "quote": "Table 12 ... ξ4 0 16 88.97 88.89 0.24 0.96 0.87 0.25 41.82 26.56 1.25 1.26"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 41.818, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "PIC3, SOE",
      "value": "26.56",
-     "analysis": "G-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4678,14 +5307,19 @@
       "quote": "Table 12 ... ξ4 0 16 88.97 88.89 0.24 0.96 0.87 0.25 41.82 26.56 1.25 1.26"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 26.501, not the printed 26.56: the largest prediction variance of these projections is not at a vertex of the cube, so a G-efficiency depends on how densely the region is sampled (with 5,000 points, and no vertices, the library's average is 26.584); the paper's larger value presumably comes from a sample that misses the maximum"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency",
+      "disagreement": "the library's sample gives an average of 26.511 and its searched maxima 26.490; the paper's 26.56 implies smaller largest prediction variances than either finds"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "PIC3, SOE, average",
      "value": "1.25",
-     "analysis": "average prediction variance of the SOE model, averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4693,7 +5327,14 @@
       "quote": "Table 12 ... ξ4 0 16 88.97 88.89 0.24 0.96 0.87 0.25 41.82 26.56 1.25 1.26"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 1.251, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      }
      }
     },
     {
@@ -4780,7 +5421,7 @@
      "what": "n_center_points",
      "term": "CP",
      "value": "1",
-     "analysis": "number of centre runs added to the basic design",
+     "analysis": "the runs with every factor at 0",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4788,7 +5429,15 @@
       "quote": "Table 12 ... ξ5 1 17 84.38 84.21 0.23 0.96 0.89 0.34 44.43 66.20 0.53 0.54"
      },
      "check": {
-      "manual": "a count of centre runs, which no check kind takes; this design is the basic design with 1 centre run added, as the paper builds it"
+      "kind": "design_structure",
+      "key": "n_center_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 1
+       }
+      }
      }
     },
     {
@@ -4977,7 +5626,7 @@
      "what": "projection_d_efficiency",
      "term": "PIC3, SOE",
      "value": "44.43",
-     "analysis": "D-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -4985,14 +5634,25 @@
       "quote": "Table 12 ... ξ5 1 17 84.38 84.21 0.23 0.96 0.89 0.34 44.43 66.20 0.53 0.54"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 44.429, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 1
+       }
+      }
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "PIC3, SOE",
      "value": "66.20",
-     "analysis": "G-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -5000,14 +5660,26 @@
       "quote": "Table 12 ... ξ5 1 17 84.38 84.21 0.23 0.96 0.89 0.34 44.43 66.20 0.53 0.54"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 63.653, not the printed 66.20: the largest prediction variance of these projections is not at a vertex of the cube, so a G-efficiency depends on how densely the region is sampled (with 5,000 points, and no vertices, the library's average is 65.979); the paper's larger value presumably comes from a sample that misses the maximum"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "disagreement": "the library's sample gives an average of 63.433 and its searched maxima 62.575; the paper's 66.20 implies smaller largest prediction variances than the cube's vertices and centre already give (63.49 over the three-level grid)"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "PIC3, SOE, average",
      "value": "0.53",
-     "analysis": "average prediction variance of the SOE model, averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -5015,7 +5687,21 @@
       "quote": "Table 12 ... ξ5 1 17 84.38 84.21 0.23 0.96 0.89 0.34 44.43 66.20 0.53 0.54"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 0.533, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "options": {
+       "integration": "exact"
+      }
      }
     },
     {
@@ -5073,7 +5759,7 @@
      "what": "n_center_points",
      "term": "CP",
      "value": "2",
-     "analysis": "number of centre runs added to the basic design",
+     "analysis": "the runs with every factor at 0",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -5081,7 +5767,15 @@
       "quote": "Table 12 ... ξ6 2 18 80.26 80.00 0.23 0.96 0.90 0.41 44.25 64.11 0.41 0.41"
      },
      "check": {
-      "manual": "a count of centre runs, which no check kind takes; this design is the basic design with 2 centre runs added, as the paper builds it"
+      "kind": "design_structure",
+      "key": "n_center_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 2
+       }
+      }
      }
     },
     {
@@ -5271,7 +5965,7 @@
      "what": "projection_d_efficiency",
      "term": "PIC3, SOE",
      "value": "44.25",
-     "analysis": "D-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -5279,14 +5973,25 @@
       "quote": "Table 12 ... ξ6 2 18 80.26 80.00 0.23 0.96 0.90 0.41 44.25 64.11 0.41 0.41"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 44.253, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 2
+       }
+      }
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "PIC3, SOE",
      "value": "64.11",
-     "analysis": "G-efficiency of the SOE model averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -5294,14 +5999,26 @@
       "quote": "Table 12 ... ξ6 2 18 80.26 80.00 0.23 0.96 0.90 0.41 44.25 64.11 0.41 0.41"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 61.749, not the printed 64.11: the largest prediction variance of these projections is not at a vertex of the cube, so a G-efficiency depends on how densely the region is sampled (with 5,000 points, and no vertices, the library's average is 64.196); the paper's larger value presumably comes from a sample that misses the maximum"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 2
+       }
+      },
+      "disagreement": "the library's sample gives an average of 61.469 and its searched maxima 60.625; the paper's 64.11 implies smaller largest prediction variances than the cube's vertices and centre already give (61.75 over the three-level grid)"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "PIC3, SOE, average",
      "value": "0.41",
-     "analysis": "average prediction variance of the SOE model, averaged over the 35 projections on 3 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 3 factors under the quadratic model, averaged over the 35",
      "where": {
       "page": 28,
       "pdf_page": 9,
@@ -5309,7 +6026,21 @@
       "quote": "Table 12 ... ξ6 2 18 80.26 80.00 0.23 0.96 0.90 0.41 44.25 64.11 0.41 0.41"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 35 projections gives an average of 0.407, which agrees"
+      "kind": "projections",
+      "size": 3,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "design": {
+       "design_type": "dsd",
+       "k": 7,
+       "options": {
+        "n_center_points": 2
+       }
+      },
+      "options": {
+       "integration": "exact"
+      }
      }
     },
     {
@@ -5466,16 +6197,25 @@
      "what": "sparsity",
      "term": "(n0ME, n0IE)",
      "value": "(9, 15)",
-     "analysis": "the sparsity of Design 2",
+     "analysis": "the largest counts of zeros over the columns and over the interaction columns: as printed, X5 has 8 and some interactions 14, run 17's X5 being printed nonzero (runs.notes)",
      "where": {
       "page": 28,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "and therefore an odd sparsity, (9, 15)."
      },
-     "check": {
-      "manual": "a count of zeros, which no check kind takes; in the matrix as printed, columns X1 to X4 and X6 have 9 zeros but X5 has 8, and the interaction columns have 14 or 15; with run 17's X5 read as 0 (runs.notes) every column has 9 and every interaction column 15, so the sparsity is right and the printed run 17 is a misprint"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "zeros.main_effects.max",
+       "printed": "9"
+      },
+      {
+       "kind": "design_structure",
+       "key": "zeros.interactions.max",
+       "printed": "15"
+      }
+     ]
     }
    ]
   },
@@ -5609,16 +6349,25 @@
      "what": "sparsity",
      "term": "(n0ME, n0IE)",
      "value": "(10, 18)",
-     "analysis": "the sparsity of Design 3",
+     "analysis": "the count of zeros, centre runs left out, by the library's design_structure",
      "where": {
       "page": 28,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "Design 3 is a foldover design with sparsity (10, 18)."
      },
-     "check": {
-      "manual": "a count of zeros, which no check kind takes; leaving out the centre run, every column of the printed matrix has 10 zeros and every interaction column 18"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "zeros.n0ME",
+       "printed": "10"
+      },
+      {
+       "kind": "design_structure",
+       "key": "zeros.n0IE",
+       "printed": "18"
+      }
+     ]
     }
    ]
   },
@@ -6238,7 +6987,7 @@
      "what": "projection_d_efficiency",
      "term": "SOE, 5 factors (D-eff.ave)",
      "value": "26.148",
-     "analysis": "D-efficiency of the SOE model averaged over the 6 projections on 5 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 5 factors under the quadratic model, averaged over the 6",
      "where": {
       "page": 32,
       "pdf_page": 13,
@@ -6246,14 +6995,18 @@
       "quote": "Table 13. Designs which survived the dominance stage in the example in Section 5.2. ... bd.6.35.17.27.275.0 26.126 11.105 0.528 26.148 13.160 0.504"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 6 projections gives an average of 26.1478, which agrees"
+      "kind": "projections",
+      "size": 5,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "SOE, 5 factors (G-eff.ave)",
      "value": "13.160",
-     "analysis": "G-efficiency of the SOE model averaged over the 6 projections on 5 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 5 factors under the quadratic model, averaged over the 6",
      "where": {
       "page": 32,
       "pdf_page": 13,
@@ -6261,14 +7014,18 @@
       "quote": "Table 13. Designs which survived the dominance stage in the example in Section 5.2. ... bd.6.35.17.27.275.0 26.126 11.105 0.528 26.148 13.160 0.504"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 6 projections gives an average of 13.1602, which agrees"
+      "kind": "projections",
+      "size": 5,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "SOE, 5 factors (pv.ave.ave)",
      "value": "0.504",
-     "analysis": "average prediction variance of the SOE model averaged over the 6 projections on 5 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 5 factors under the quadratic model, averaged over the 6",
      "where": {
       "page": 32,
       "pdf_page": 13,
@@ -6276,7 +7033,15 @@
       "quote": "Table 13. Designs which survived the dominance stage in the example in Section 5.2. ... bd.6.35.17.27.275.0 26.126 11.105 0.528 26.148 13.160 0.504"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 6 projections gives an average of 0.4910, not the printed 0.504: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 5,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      },
+      "disagreement": "the exact average over the cube, by quadrature, is 0.4909; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
      }
     }
    ]
@@ -6449,7 +7214,7 @@
      "what": "projection_d_efficiency",
      "term": "SOE, 5 factors (D-eff.ave)",
      "value": "25.942",
-     "analysis": "D-efficiency of the SOE model averaged over the 6 projections on 5 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 5 factors under the quadratic model, averaged over the 6",
      "where": {
       "page": 32,
       "pdf_page": 13,
@@ -6457,14 +7222,18 @@
       "quote": "Table 13. Designs which survived the dominance stage in the example in Section 5.2. ... bd.6.35.17.27.275.1 25.433 10.798 0.525 25.942 14.168 0.465"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 6 projections gives an average of 25.9422, which agrees"
+      "kind": "projections",
+      "size": 5,
+      "model": "quadratic",
+      "metric": ["d_efficiency"],
+      "key": "averages.d_efficiency"
      }
     },
     {
      "what": "projection_g_efficiency",
      "term": "SOE, 5 factors (G-eff.ave)",
      "value": "14.168",
-     "analysis": "G-efficiency of the SOE model averaged over the 6 projections on 5 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 5 factors under the quadratic model, averaged over the 6",
      "where": {
       "page": 32,
       "pdf_page": 13,
@@ -6472,14 +7241,18 @@
       "quote": "Table 13. Designs which survived the dominance stage in the example in Section 5.2. ... bd.6.35.17.27.275.1 25.433 10.798 0.525 25.942 14.168 0.465"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 6 projections gives an average of 14.1676, which agrees"
+      "kind": "projections",
+      "size": 5,
+      "model": "quadratic",
+      "metric": ["g_efficiency"],
+      "key": "averages.g_efficiency"
      }
     },
     {
      "what": "projection_average_prediction_variance",
      "term": "SOE, 5 factors (pv.ave.ave)",
      "value": "0.465",
-     "analysis": "average prediction variance of the SOE model averaged over the 6 projections on 5 factors",
+     "analysis": "the library's evaluate_projections, every projection onto 5 factors under the quadratic model, averaged over the 6",
      "where": {
       "page": 32,
       "pdf_page": 13,
@@ -6487,7 +7260,15 @@
       "quote": "Table 13. Designs which survived the dominance stage in the example in Section 5.2. ... bd.6.35.17.27.275.1 25.433 10.798 0.525 25.942 14.168 0.465"
      },
      "check": {
-      "manual": "an average over projections, which no check kind takes; evaluate_design on each of the 6 projections gives an average of 0.4494, not the printed 0.465: the paper's averages of the prediction variance come from its own sample of the region, and differ from the library's by up to 0.04 (see the disagreements on the checked ones)"
+      "kind": "projections",
+      "size": 5,
+      "model": "quadratic",
+      "metric": ["average_prediction_variance"],
+      "key": "averages.average_prediction_variance",
+      "options": {
+       "integration": "exact"
+      },
+      "disagreement": "the exact average over the cube, by quadrature, is 0.4493; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
      }
     }
    ]
