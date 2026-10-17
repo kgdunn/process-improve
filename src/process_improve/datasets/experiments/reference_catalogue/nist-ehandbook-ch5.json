@@ -24199,8 +24199,13 @@
       "quote": "= \\frac{(1)(-1.2925)}{\\sqrt{(-1.2925)^{2} + (11.14)^2}} = -0.1152"
      },
      "check": {
-      "manual": "a point on the path of steepest ascent, rho * b / ||b||, computed from the coefficients; no check computes it (the library's optimize_responses traces such a path)"
-     }
+      "kind": "steepest_path",
+      "model": "x1 + x2",
+      "radius": 1,
+      "key": "x1",
+      "units": "coded"
+     },
+     "analysis": "the library's path of steepest ascent of the first-order fit, one coded unit out from the centre: rho b / ||b|| with rho = 1"
     },
     {
      "what": "steepest-ascent point",
@@ -24213,8 +24218,13 @@
       "quote": "= \\frac{(1)(11.14)}{\\sqrt{(-1.2925)^{2} + (11.14)^2}} = 0.9933"
      },
      "check": {
-      "manual": "a point on the path of steepest ascent, rho * b / ||b||, computed from the coefficients; no check computes it (the library's optimize_responses traces such a path)"
-     }
+      "kind": "steepest_path",
+      "model": "x1 + x2",
+      "radius": 1,
+      "key": "x2",
+      "units": "coded"
+     },
+     "analysis": "the library's path of steepest ascent of the first-order fit, one coded unit out from the centre: rho b / ||b|| with rho = 1"
     },
     {
      "what": "step in temperature",
@@ -24227,8 +24237,16 @@
       "quote": "for every (-0.1152)(30) = -3.456 ^{\\circ} C that temperature is varied"
      },
      "check": {
-      "manual": "the steepest-ascent step converted to degrees, a unit conversion of a manual number"
-     }
+      "kind": "steepest_path",
+      "model": "x1 + x2",
+      "radius": 1,
+      "key": "x1",
+      "units": "actual",
+      "from_centre": true,
+      "printed": "-3.456",
+      "disagreement": "the page multiplies the rounded -0.1152 by 30; the unrounded step is -0.11523 x 30 = -3.457"
+     },
+     "analysis": "the library's path of steepest ascent of the first-order fit, one coded unit out from the centre: rho b / ||b|| with rho = 1, in degrees"
     },
     {
      "what": "step in time",
@@ -24241,8 +24259,16 @@
       "quote": "the reaction time should be varied by (0.9933)(50) = 49.66 minutes"
      },
      "check": {
-      "manual": "the steepest-ascent step converted to minutes, a unit conversion of a manual number"
-     }
+      "kind": "steepest_path",
+      "model": "x1 + x2",
+      "radius": 1,
+      "key": "x2",
+      "units": "actual",
+      "from_centre": true,
+      "printed": "49.66",
+      "disagreement": "the page multiplies the rounded 0.9933 by 50 (49.665) and prints 49.66; the unrounded step is 0.99334 x 50 = 49.667"
+     },
+     "analysis": "the library's path of steepest ascent of the first-order fit, one coded unit out from the centre: rho b / ||b|| with rho = 1, in minutes"
     },
     {
      "what": "variance of a coefficient",
@@ -25957,9 +25983,25 @@
       "source_kind": "text",
       "quote": "this optimum is calculated below to be (-0.9285, 0.3472), in coded x1, x2 units"
      },
-     "check": {
-      "manual": "the stationary point of the fitted quadratic, x* = -B^-1 b / 2; no check computes it (optimize_responses would)"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "stationary_point.stationary_point_coded.x1",
+       "printed": "-0.9285",
+       "disagreement": "(-0.9285, 0.3472) is the stationary point of the rounded coefficients printed (-11.78, 0.74, -7.25, -7.55, -4.85); the unrounded fit's, the library's, is (-0.9279, 0.3468), as the page itself gives later"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "stationary_point.stationary_point_coded.x2",
+       "printed": "0.3472",
+       "disagreement": "(-0.9285, 0.3472) is the stationary point of the rounded coefficients printed (-11.78, 0.74, -7.25, -7.55, -4.85); the unrounded fit's, the library's, is (-0.9279, 0.3468), as the page itself gives later"
+      }
+     ],
+     "analysis": "the library's stationary point of the fitted quadratic, x* = -B^-1 b / 2"
     },
     {
      "what": "predicted yield at the optimum",
@@ -25992,8 +26034,14 @@
       "quote": "The results are X_{1}^{*} = 161.64^{\\circ}C, X_{2}^{*} = 367.32 minutes."
      },
      "check": {
-      "manual": "the stationary point in original units, 189.5 + 30 x*1; a unit conversion of a manual number"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_actual.x1",
+      "printed": "161.64",
+      "disagreement": "the page converts its rounded stationary point: 189.5 + 30(-0.9285) = 161.64; the library's x*1 = -0.9279 gives 161.66"
+     },
+     "analysis": "the library's stationary point in original units, 189.5 + 30 x*1 and 350 + 50 x*2"
     },
     {
      "what": "optimal time",
@@ -26006,9 +26054,15 @@
       "quote": "The results are X_{1}^{*} = 161.64^{\\circ}C, X_{2}^{*} = 367.32 minutes."
      },
      "check": {
-      "manual": "the stationary point in original units, 350 + 50 x*2; a unit conversion of a manual number"
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_actual.x2",
+      "printed": "367.32",
+      "disagreement": "the page prints 367.32 here and 367.36 below; 350 + 50(0.3472) = 367.36, and the library's x*2 = 0.3468 gives 367.34"
      },
-     "note": "350 + 50(0.3472) = 367.36, the value Technical Appendix 5C prints; 367.32 looks like a typo"
+     "note": "350 + 50(0.3472) = 367.36, the value Technical Appendix 5C prints; 367.32 looks like a typo",
+     "analysis": "the library's stationary point in original units, 189.5 + 30 x*1 and 350 + 50 x*2"
     },
     {
      "what": "predicted yield at the optimum",
@@ -26157,8 +26211,13 @@
       "quote": "x^{*} = ... = ( -0.9285 \\\\ 0.3472 )"
      },
      "check": {
-      "manual": "the stationary point of the fitted quadratic, x* = -B^-1 b / 2; no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_coded.x1",
+      "disagreement": "(-0.9285, 0.3472) is the stationary point of the rounded coefficients printed (-11.78, 0.74, -7.25, -7.55, -4.85); the unrounded fit's, the library's, is (-0.9279, 0.3468), as the page itself gives later"
+     },
+     "analysis": "the library's stationary point of the fitted quadratic, x* = -B^-1 b / 2"
     },
     {
      "what": "stationary point",
@@ -26171,8 +26230,13 @@
       "quote": "x^{*} = ... = ( -0.9285 \\\\ 0.3472 )"
      },
      "check": {
-      "manual": "the stationary point of the fitted quadratic, x* = -B^-1 b / 2; no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_coded.x2",
+      "disagreement": "(-0.9285, 0.3472) is the stationary point of the rounded coefficients printed (-11.78, 0.74, -7.25, -7.55, -4.85); the unrounded fit's, the library's, is (-0.9279, 0.3468), as the page itself gives later"
+     },
+     "analysis": "the library's stationary point of the fitted quadratic, x* = -B^-1 b / 2"
     },
     {
      "what": "stationary point in original units",
@@ -26185,8 +26249,14 @@
       "quote": "X^{*} = ( 161.64^{\\circ}C \\\\ 367.36 minutes )"
      },
      "check": {
-      "manual": "the stationary point in original units, a unit conversion of a manual number"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_actual.x1",
+      "printed": "161.64",
+      "disagreement": "the page converts its rounded stationary point: 189.5 + 30(-0.9285) = 161.64; the library's x*1 = -0.9279 gives 161.66"
+     },
+     "analysis": "the library's stationary point in original units, 189.5 + 30 x*1 and 350 + 50 x*2"
     },
     {
      "what": "stationary point in original units",
@@ -26199,8 +26269,14 @@
       "quote": "X^{*} = ( 161.64^{\\circ}C \\\\ 367.36 minutes )"
      },
      "check": {
-      "manual": "the stationary point in original units, a unit conversion of a manual number"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "stationary_point.stationary_point_actual.x2",
+      "printed": "367.36",
+      "disagreement": "350 + 50(0.3472) = 367.36, from the stationary point of the rounded coefficients; the library's x*2 = 0.3468 gives 367.34"
+     },
+     "analysis": "the library's stationary point in original units, 189.5 + 30 x*1 and 350 + 50 x*2"
     },
     {
      "what": "predicted yield at the stationary point",
@@ -26233,8 +26309,12 @@
       "quote": "Eigenvalues ... -4.973187 0.728460 -0.685089 ... -9.827317 0.685089 0.728460"
      },
      "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvalues.1"
+     },
+     "analysis": "the library's canonical analysis of B: its eigenvalues and eigenvectors, the smaller in size second"
     },
     {
      "what": "eigenvalue",
@@ -26247,8 +26327,12 @@
       "quote": "Eigenvalues ... -4.973187 0.728460 -0.685089 ... -9.827317 0.685089 0.728460"
      },
      "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvalues.0"
+     },
+     "analysis": "the library's canonical analysis of B: its eigenvalues and eigenvectors, the larger in size first"
     },
     {
      "what": "eigenvector",
@@ -26261,8 +26345,13 @@
       "quote": "Eigenvalues ... -4.973187 0.728460 -0.685089 ... -9.827317 0.685089 0.728460"
      },
      "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.1.0",
+      "sign_of": "canonical_analysis.eigenvectors.1.0"
+     },
+     "analysis": "the library's canonical analysis of B: its eigenvalues and eigenvectors, turned so that its first element is positive, as the page prints it"
     },
     {
      "what": "eigenvector",
@@ -26275,8 +26364,13 @@
       "quote": "Eigenvalues ... -4.973187 0.728460 -0.685089 ... -9.827317 0.685089 0.728460"
      },
      "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.1.1",
+      "sign_of": "canonical_analysis.eigenvectors.1.0"
+     },
+     "analysis": "the library's canonical analysis of B: its eigenvalues and eigenvectors, turned so that its first element is positive, as the page prints it"
     },
     {
      "what": "eigenvector",
@@ -26289,8 +26383,13 @@
       "quote": "Eigenvalues ... -4.973187 0.728460 -0.685089 ... -9.827317 0.685089 0.728460"
      },
      "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.0.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0"
+     },
+     "analysis": "the library's canonical analysis of B: its eigenvalues and eigenvectors, turned so that its first element is positive, as the page prints it"
     },
     {
      "what": "eigenvector",
@@ -26303,8 +26402,13 @@
       "quote": "Eigenvalues ... -4.973187 0.728460 -0.685089 ... -9.827317 0.685089 0.728460"
      },
      "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "x1*x2 + I(x1**2) + I(x2**2)",
+      "key": "canonical_analysis.eigenvectors.0.1",
+      "sign_of": "canonical_analysis.eigenvectors.0.0"
+     },
+     "analysis": "the library's canonical analysis of B: its eigenvalues and eigenvectors, turned so that its first element is positive, as the page prints it"
     },
     {
      "what": "stationary point",
@@ -26316,10 +26420,25 @@
       "source_kind": "text",
       "quote": "the stationary point is (x*)' = (-0.9278, 0.3468), which corresponds to X*' = (161.64, 367.36)"
      },
-     "check": {
-      "manual": "the stationary point of the fitted quadratic, x* = -B^-1 b / 2; no check computes it (optimize_responses would)"
-     },
-     "note": "from the unrounded coefficients; 'As mentioned previously' refers to (-0.9285, 0.3472), from the rounded ones"
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "stationary_point.stationary_point_coded.x1",
+       "printed": "-0.9278",
+       "disagreement": "the stationary point of the unrounded fit has x1 = -0.92785, which rounds to -0.9279; the page prints -0.9278"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "stationary_point.stationary_point_coded.x2",
+       "printed": "0.3468"
+      }
+     ],
+     "note": "from the unrounded coefficients; 'As mentioned previously' refers to (-0.9285, 0.3472), from the rounded ones",
+     "analysis": "the library's stationary point of the fitted quadratic, x* = -B^-1 b / 2"
     },
     {
      "what": "stationary point in original units",
@@ -26331,9 +26450,25 @@
       "source_kind": "text",
       "quote": "which corresponds to X*' = (161.64, 367.36)"
      },
-     "check": {
-      "manual": "the stationary point in original units, a unit conversion of a manual number"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "stationary_point.stationary_point_actual.x1",
+       "printed": "161.64",
+       "disagreement": "the page pairs x*1 = -0.9278 with 161.64, which is 189.5 + 30(-0.9285); -0.9278 gives 161.67, and the library's -0.9279 161.66"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "stationary_point.stationary_point_actual.x2",
+       "printed": "367.36",
+       "disagreement": "350 + 50(0.3472) = 367.36, from the stationary point of the rounded coefficients; the library's x*2 = 0.3468 gives 367.34"
+      }
+     ],
+     "analysis": "the library's stationary point in original units, 189.5 + 30 x*1 and 350 + 50 x*2"
     },
     {
      "what": "canonical axis",
@@ -26345,10 +26480,35 @@
       "source_kind": "text",
       "quote": "w1 = 0.7285(x1 + 0.9278) - 0.6851(x2 - 0.3468) = 0.9143 + 0.7285x1 - 0.6851x2"
      },
-     "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     },
-     "note": "0.7285(0.9278) + 0.6851(0.3468) = 0.9135, not 0.9143"
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "canonical_analysis.canonical_axes.1.constant",
+       "sign_of": "canonical_analysis.canonical_axes.1.coefficients.x1",
+       "printed": "0.9143",
+       "disagreement": "the page's own sum 0.7285(0.9278) + 0.6851(0.3468) is 0.9135, as the library finds; 0.9143 is the same sum at its first stationary point (-0.9285, 0.3472)"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "canonical_analysis.canonical_axes.1.coefficients.x1",
+       "sign_of": "canonical_analysis.canonical_axes.1.coefficients.x1",
+       "printed": "0.7285"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "canonical_analysis.canonical_axes.1.coefficients.x2",
+       "sign_of": "canonical_analysis.canonical_axes.1.coefficients.x1",
+       "printed": "-0.6851"
+      }
+     ],
+     "note": "0.7285(0.9278) + 0.6851(0.3468) = 0.9135, not 0.9143",
+     "analysis": "the library's canonical axes, W = v'(x - x*): the constant -v'x* and the coefficients, the vector turned so that its x1 coefficient is positive"
     },
     {
      "what": "canonical axis",
@@ -26360,10 +26520,35 @@
       "source_kind": "text",
       "quote": "w2 = 0.6851(x1 + 0.9278) - 0.7285(x2 - 0.3468) = 0.8830 + 0.6851x1 + 0.7285x2"
      },
-     "check": {
-      "manual": "a result of the canonical analysis of B (its eigenvalues and eigenvectors); no check computes it (optimize_responses would)"
-     },
-     "note": "with the eigenvector (0.685089, 0.728460) the axis is 0.6851(x1 + 0.9278) + 0.7285(x2 - 0.3468) = 0.3830 + 0.6851x1 + 0.7285x2: the page's middle expression has the wrong sign and its constant 0.8830 should be 0.3830"
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "canonical_analysis.canonical_axes.0.constant",
+       "sign_of": "canonical_analysis.canonical_axes.0.coefficients.x1",
+       "printed": "0.8830",
+       "disagreement": "with v2 = (0.6851, 0.7285), w2 = 0.6851(x1 + 0.9278) + 0.7285(x2 - 0.3468) = 0.3830 + 0.6851x1 + 0.7285x2, as the library finds (0.3830); the page writes -0.7285(x2 - 0.3468) in the middle, and its 0.8830 follows from neither sign (the other gives 0.8883)"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "canonical_analysis.canonical_axes.0.coefficients.x1",
+       "sign_of": "canonical_analysis.canonical_axes.0.coefficients.x1",
+       "printed": "0.6851"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "x1*x2 + I(x1**2) + I(x2**2)",
+       "key": "canonical_analysis.canonical_axes.0.coefficients.x2",
+       "sign_of": "canonical_analysis.canonical_axes.0.coefficients.x1",
+       "printed": "0.7285"
+      }
+     ],
+     "note": "with the eigenvector (0.685089, 0.728460) the axis is 0.6851(x1 + 0.9278) + 0.7285(x2 - 0.3468) = 0.3830 + 0.6851x1 + 0.7285x2: the page's middle expression has the wrong sign and its constant 0.8830 should be 0.3830",
+     "analysis": "the library's canonical axes, W = v'(x - x*): the constant -v'x* and the coefficients, the vector turned so that its x1 coefficient is positive"
     }
    ]
   },
