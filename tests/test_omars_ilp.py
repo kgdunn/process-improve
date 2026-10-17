@@ -137,7 +137,7 @@ def test_sparsity_counts_the_extra_center_runs() -> None:
     """The sparsity pair was computed on the foldover alone, without the extra centre runs."""
     from process_improve.experiments import generate_omars
 
-    result = generate_omars(_factors(3), center_runs=3, random_seed=3, solver_options=_SOLVER)
+    result = generate_omars(_factors(3), center_runs=3, random_state=3, solver_options=_SOLVER)
     coded = _coded(result)
     n_me0, n_ie0 = result.metadata["sparsity"]
     assert n_me0 == int(np.min(np.sum(coded == 0, axis=0)))

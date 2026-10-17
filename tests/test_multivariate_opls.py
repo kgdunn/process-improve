@@ -11,12 +11,10 @@ and the O-PLS orthogonal space is the same linear space as the PLS null space.
 from __future__ import annotations
 
 import pathlib
-import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.base import clone
 
 from process_improve.multivariate.methods import OPLS, PLS, MCUVScaler
 
@@ -238,53 +236,10 @@ def test_opls_reproduces_paper_case_study_1() -> None:
     assert opls.invert(yy).y_hat == pytest.approx(pls_y_hat, abs=1e-6)
 
 
-class TestDeprecatedInertParameters:
-    """``max_iter`` and ``tol`` are accepted, warned about, and ignored (#588).
-
-    The single-response Trygg-Wold algorithm is closed form: the predictive weight is
-    ``X'y`` normalised, and the orthogonal components come from a loop that runs exactly
-    ``n_orthogonal_components`` times. Nothing iterates to convergence, so neither
-    parameter has anything to bind to. They stay on the signature through the deprecation
-    window so ``get_params`` / ``set_params`` / ``clone`` keep working.
-    """
-
-    @staticmethod
-    def _xy() -> tuple[pd.DataFrame, pd.DataFrame]:
-        rng = np.random.default_rng(0)
-        x = pd.DataFrame(rng.standard_normal((40, 6)))
-        y = pd.DataFrame(x.to_numpy() @ rng.standard_normal((6, 1)) + 0.1 * rng.standard_normal((40, 1)))
-        return x, y
-
-    def test_defaults_are_silent(self) -> None:
-        """A caller who never mentions them must not be warned at."""
-        x, y = self._xy()
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", DeprecationWarning)
-            OPLS(n_orthogonal_components=2).fit(x, y)
-
-    @pytest.mark.parametrize(("name", "value"), [("tol", 1e-3), ("max_iter", 7)])
-    def test_setting_one_warns_and_names_it(self, name: str, value: float) -> None:
-        x, y = self._xy()
-        with pytest.warns(DeprecationWarning, match=rf"OPLS\(\.\.\., {name}=\.\.\.\) is deprecated"):
-            OPLS(n_orthogonal_components=2, **{name: value}).fit(x, y)
-
-    def test_the_parameters_really_do_nothing(self) -> None:
-        """Bit-for-bit equality is the claim the deprecation rests on.
-
-        If either value reached the algorithm, an iteration cap of 7 or a tolerance five
-        orders of magnitude looser than the default would move something.
-        """
-        x, y = self._xy()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            default = OPLS(n_orthogonal_components=2).fit(x, y)
-            meddled = OPLS(n_orthogonal_components=2, max_iter=7, tol=1e-3).fit(x, y)
-        np.testing.assert_array_equal(np.asarray(default.predict(x)), np.asarray(meddled.predict(x)))
-        np.testing.assert_array_equal(default.transform(x).to_numpy(), meddled.transform(x).to_numpy())
-
-    def test_clone_still_carries_them(self) -> None:
-        """Removing them from the signature would break sklearn's contract, so they stay."""
-        model = OPLS(n_orthogonal_components=2, tol=1e-3, max_iter=7)
-        cloned = clone(model)
-        assert cloned.get_params()["tol"] == 1e-3
-        assert cloned.get_params()["max_iter"] == 7
+@pytest.mark.parametrize(("name", "value"), [("tol", 1e-3), ("max_iter", 7)])
+def test_the_removed_inert_parameters_are_refused(name: str, value: float) -> None:
+    """``max_iter`` and ``tol`` never reached the closed-form algorithm and were removed in 2.0 (#588)."""
+    assert name not in OPLS(n_orthogonal_components=2).get_params()
+    # The removed keyword goes in through a dict, so a static analyser does not flag the call.
+    with pytest.raises(TypeError, match=name):
+        OPLS(n_orthogonal_components=2, **{name: value})

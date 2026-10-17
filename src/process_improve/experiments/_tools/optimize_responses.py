@@ -102,10 +102,6 @@ class OptimizeResponsesInput(BaseModel):
             "the search covers the region the experiment actually explored."
         ),
     )
-    desirability_weights: list[float] | None = Field(
-        None,
-        description="Deprecated alias for 'response_importance'. Use 'response_importance' instead.",
-    )
     ridge_direction: Literal["maximize", "minimize"] = Field(
         "maximize",
         description="Which ridge method='ridge_analysis' traces (default 'maximize').",
@@ -229,7 +225,6 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             response_importance=spec.response_importance,
             significance_level=spec.significance_level,
             search_bounds=_as_bounds(spec.search_bounds),
-            desirability_weights=spec.desirability_weights,
             ridge_direction=spec.ridge_direction,
             n_pareto_points=spec.n_pareto_points,
             region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,

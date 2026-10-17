@@ -1493,11 +1493,10 @@ def _terms(result: dict, key: str = "coefficient") -> dict[str, float]:
 class TestCoding:
     """``coding`` sets the scale of the coefficients and their confidence intervals."""
 
-    def test_actual_is_the_default_and_is_the_fit_as_given(self) -> None:
-        with pytest.warns(FutureWarning, match="In 2.0 the default becomes coding='auto'"):
-            result = analyze_experiment(
-                _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients"
-            )
+    def test_actual_is_the_fit_as_given(self) -> None:
+        result = analyze_experiment(
+            _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients", coding="actual"
+        )
         assert result["coding"] == "actual"
         assert _terms(result)["T"] == pytest.approx(0.12)
         assert result["factor_coding"] == {"T": {"low": 150.0, "high": 200.0}, "P": {"low": 1.0, "high": 3.0}}
@@ -1518,7 +1517,7 @@ class TestCoding:
     def test_a_coded_main_effect_is_tested_at_the_centre(self) -> None:
         """On the actual scale P is tested at 0 degC, and misses what the ANOVA finds."""
         kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": ["coefficients", "anova"]}
-        actual = analyze_experiment(_reactor(), **kwargs)
+        actual = analyze_experiment(_reactor(), coding="actual", **kwargs)
         coded = analyze_experiment(_reactor(), coding="coded", **kwargs)
         anova_p = next(row["p_value"] for row in coded["anova_table"] if row["source"] == "P")
         assert _terms(coded, "p_value")["P"] == pytest.approx(anova_p)
@@ -1529,7 +1528,9 @@ class TestCoding:
         kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
         celsius, kelvin = (analyze_experiment(_reactor(k), coding="coded", **kwargs) for k in (False, True))
         assert _terms(kelvin, "p_value") == pytest.approx(_terms(celsius, "p_value"))
-        actual = [_terms(analyze_experiment(_reactor(k), **kwargs), "p_value")["P"] for k in (False, True)]
+        actual = [
+            _terms(analyze_experiment(_reactor(k), coding="actual", **kwargs), "p_value")["P"] for k in (False, True)
+        ]
         assert actual[0] != pytest.approx(actual[1], rel=0.1)
 
     def test_a_range_puts_minus_and_plus_one_at_its_levels(self) -> None:
@@ -1658,43 +1659,33 @@ _REACTOR_COEFFICIENTS = {"response_column": "y", "model": "y ~ T * P", "analysis
 
 
 class TestDefaultCoding:
-    """The default scale of the coefficients becomes coded in 2.0; until then, the calls it changes say so."""
+    """Since 2.0.0 the default scale of the coefficients is ``"auto"``, and a call says nothing about it."""
 
-    def test_a_call_the_change_affects_is_warned_and_noted(self) -> None:
-        with pytest.warns(FutureWarning, match=r"T from 150.0 to 200.0.*coding='actual' to keep") as caught:
-            result = analyze_experiment(_reactor(), **_REACTOR_COEFFICIENTS)
-        assert caught[0].filename == __file__  # it points at the caller's line
-        assert result["coding_note"] == str(caught[0].message)
-        assert result["coding"] == "actual"
+    def test_the_default_is_auto_and_silent(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            default = analyze_experiment(_reactor(), **_REACTOR_COEFFICIENTS)
+        auto = analyze_experiment(_reactor(), coding="auto", **_REACTOR_COEFFICIENTS)
+        actual = analyze_experiment(_reactor(), coding="actual", **_REACTOR_COEFFICIENTS)
+        assert default["coding"] == "coded"
+        assert default["coefficients"] == auto["coefficients"]
+        assert default["coefficients_actual"] == actual["coefficients"]  # the scale the default gave before 2.0
+        assert "coding_note" not in default
+
+    def test_none_means_auto(self) -> None:
+        none = analyze_experiment(_reactor(), coding=None, **_REACTOR_COEFFICIENTS)
+        assert none["coding"] == "coded"
         assert (
-            result["coefficients"]
-            == analyze_experiment(_reactor(), coding="actual", **_REACTOR_COEFFICIENTS)["coefficients"]
+            none["coefficients"]
+            == analyze_experiment(_reactor(), coding="auto", **_REACTOR_COEFFICIENTS)["coefficients"]
         )
 
-    @pytest.mark.parametrize(
-        ("data", "kwargs"),
-        [
-            pytest.param(_reactor(), {"coding": "actual"}, id="coding chosen: actual"),
-            pytest.param(_reactor(), {"coding": "auto"}, id="coding chosen: auto"),
-            pytest.param(_reactor(), {"coding": "coded"}, id="coding chosen: coded"),
-            pytest.param(_reactor(), {"analysis_type": "anova"}, id="no coefficients asked for"),
-            pytest.param(_reactor().assign(T=[-1, 1, -1, 1, 0, 0], P=[-1, -1, 1, 1, 0, 0]), {}, id="already coded"),
-        ],
-    )
-    def test_calls_the_change_leaves_alone_are_quiet(self, data: pd.DataFrame, kwargs: dict) -> None:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", FutureWarning)
-            result = analyze_experiment(data, **{**_REACTOR_COEFFICIENTS, **kwargs})
-        assert "coding_note" not in result
-
-    def test_a_mixture_model_is_quiet_and_auto_keeps_it_actual(self) -> None:
+    def test_a_mixture_model_keeps_actual(self) -> None:
         kwargs = {"response_column": "y", "model": "scheffe_quadratic", "analysis_type": "coefficients"}
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", FutureWarning)
-            default = analyze_experiment(TestMixtureAnalysis._yarn(), **kwargs)
-        auto = analyze_experiment(TestMixtureAnalysis._yarn(), coding="auto", **kwargs)
-        assert auto["coding"] == default["coding"] == "actual"
-        assert auto["coefficients"] == default["coefficients"]
+        default = analyze_experiment(TestMixtureAnalysis._yarn(), **kwargs)
+        actual = analyze_experiment(TestMixtureAnalysis._yarn(), coding="actual", **kwargs)
+        assert default["coding"] == actual["coding"] == "actual"
+        assert default["coefficients"] == actual["coefficients"]
 
     def test_auto_codes_and_keeps_the_actual_equation(self) -> None:
         auto = analyze_experiment(_reactor(), coding="auto", **_REACTOR_COEFFICIENTS)
@@ -1707,22 +1698,21 @@ class TestDefaultCoding:
 
     def test_coded_data_has_no_second_table(self) -> None:
         data = _reactor().assign(T=[-1, 1, -1, 1, 0, 0], P=[-1, -1, 1, 1, 0, 0])
-        assert "coefficients_actual" not in analyze_experiment(data, coding="auto", **_REACTOR_COEFFICIENTS)
+        assert "coefficients_actual" not in analyze_experiment(data, **_REACTOR_COEFFICIENTS)
 
-    def test_the_agent_tool_carries_the_note(self) -> None:
-        """A warning does not reach an agent, so the note is in the tool's output."""
+    @pytest.mark.parametrize("coding", [{}, {"coding": None}], ids=["omitted", "null"])
+    def test_the_agent_tool_defaults_to_auto(self, coding: dict) -> None:
         from process_improve.tool_spec import execute_tool_call
 
         rows = _reactor().to_dict("records")
         request = {"design_matrix": rows, "response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", FutureWarning)
-            default = execute_tool_call("analyze_experiment", request)
-        assert "coding='auto'" in default["coding_note"]
-        auto = execute_tool_call("analyze_experiment", {**request, "coding": "auto"})
-        assert "coding_note" not in auto
-        assert auto["coding"] == "coded"
-        assert "coefficients_actual" in auto
+        default = execute_tool_call("analyze_experiment", {**request, **coding})
+        assert default["coding"] == "coded"
+        assert "coefficients_actual" in default
+        assert "coding_note" not in default
+        actual = execute_tool_call("analyze_experiment", {**request, "coding": "actual"})
+        assert actual["coding"] == "actual"
+        assert "coefficients_actual" not in actual
 
 
 class TestStandardisedCoefficients:

@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
 from sklearn.decomposition import PCA as _SkPCA  # noqa: N811
-from sklearn.model_selection import BaseCrossValidator, cross_val_score
+from sklearn.model_selection import BaseCrossValidator
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted, validate_data
 
@@ -734,38 +734,6 @@ def _eastment_krzanowski_press(
     return press, per_column_press, float(np.sum(X**2)), np.sum(X**2, axis=0)
 
 
-def _resolve_ekf_aliases(
-    *, n_iter: int | None, tol: float | None, ekf_max_iter: int, ekf_tol: float
-) -> tuple[int, float]:
-    """Map ``select_n_components``' deprecated ``n_iter`` / ``tol`` onto the ekf names (#588).
-
-    ``n_iter`` and ``tol`` named the ekf EM loop's cap and tolerance. They are now
-    ``ekf_max_iter`` and ``ekf_tol``, so that ``tol`` and ``max_iter`` mean the
-    estimator's own per-component loop everywhere in the package. A ``None`` default
-    tells an explicit pass from an absent one, and an explicit one still wins so
-    existing calls keep their behaviour.
-
-    Returns
-    -------
-    tuple[int, float]
-        The ``(ekf_max_iter, ekf_tol)`` the fold loop should use.
-    """
-    for old_name, old_value, new_name in (("n_iter", n_iter, "ekf_max_iter"), ("tol", tol, "ekf_tol")):
-        if old_value is None:
-            continue
-        warnings.warn(
-            f"PCA.select_n_components({old_name}=...) is deprecated since 1.98.0 "
-            f"and will be removed in 2.0; use {new_name}={old_value!r} instead. "
-            f"It was renamed because PCA itself now has tol and max_iter for its "
-            f"per-component loop, which is a different loop from the ekf "
-            f"imputation EM this bounds.",
-            DeprecationWarning,
-            # 1 is this helper, 2 is select_n_components, 3 is the caller's own line.
-            stacklevel=3,
-        )
-    return (ekf_max_iter if n_iter is None else n_iter), (ekf_tol if tol is None else tol)
-
-
 class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     """Principal Component Analysis with support for missing data.
 
@@ -799,11 +767,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         same default as every other iterative estimator in the package (#588).
 
     missing_data_settings : dict or None, default=None
-        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
-        and ``max_iter`` for this fit and warn when used. They are removed in
-        2.0; set ``tol`` and ``max_iter`` instead. The dict itself stays: it is
-        where the imputation method is named on the estimators that offer a
-        choice.
+        PCA reads no keys from it; it is kept for the same signature as the
+        estimators that name their imputation method here. The keys
+        ``md_tol`` and ``md_max_iter`` were removed in 2.0 and raise a
+        :class:`ValueError`; set ``tol`` and ``max_iter`` instead.
 
     Attributes (after fitting)
     --------------------------
@@ -1014,8 +981,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError("SVD algorithm cannot handle missing data. Use 'nipals', 'tsr', or 'auto'.")
         self.algorithm_ = algo
 
-        # One resolver for every iterative estimator, so the precedence and the
-        # deprecation of the ``md_*`` keys are defined in a single place (#588). The
+        # One resolver for every iterative estimator, so the loop settings and the
+        # refusal of the removed ``md_*`` keys are defined in a single place (#588). The
         # bounds are checked only for the iterative algorithms: under ``"svd"`` the
         # tolerance governs nothing, and rejecting a value that cannot matter would
         # refuse a fit that is perfectly well posed.
@@ -1232,7 +1199,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                     stacklevel=2,
                 )
             logger.debug(
-                "PCA NIPALS: component %d converged in %d iterations (md_tol=%g)",
+                "PCA NIPALS: component %d converged in %d iterations (tol=%g)",
                 a + 1,
                 itern,
                 settings["md_tol"],
@@ -1402,11 +1369,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     def diagnose(self, X: DataMatrix) -> Bunch:
         """Project new data and compute diagnostics (scores, Hotelling's T², SPE).
 
-        The same logic that historically lived in :meth:`predict`. The rename
-        (since 1.38.1, #396) matches :meth:`PLS.diagnose` and clears the
-        ``predict`` name for a future return-type contract that does what its
-        sklearn-convention name implies (a regression-style prediction).
-        :meth:`predict` is kept as a deprecation shim for now.
+        This logic was called ``predict`` until 1.38.1 (#396). The rename
+        matches :meth:`PLS.diagnose`, and the deprecated ``predict`` was
+        removed in 2.0: PCA is not a regressor, so it has no ``predict``.
 
         Parameters
         ----------
@@ -1444,23 +1409,6 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         spe_values = pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=X.index, name="SPE")
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values)
-
-    def predict(self, X: DataMatrix) -> Bunch:
-        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
-
-        .. deprecated:: 1.38.1
-            Use :meth:`PCA.diagnose` instead. ``predict`` matches the
-            sklearn-convention name (a regression-style prediction), but PCA
-            isn't a regressor; the historical return is a diagnostics Bunch.
-            The rename aligns with :meth:`PLS.diagnose` and frees the name
-            for a future contract. Will be removed in 2.0.0.
-        """
-        warnings.warn(
-            "PCA.predict is deprecated and will be removed in 2.0.0; use PCA.diagnose instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.diagnose(X)
 
     def project(self, X: DataMatrix, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
         """Estimate scores and diagnostics for rows that may contain missing values.
@@ -1811,19 +1759,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         *,
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
-        cv_scheme: typing.Literal["ekf", "ckf", "ek", "sacv", "gcv", "row_wise"] = "ekf",
+        cv_scheme: typing.Literal["ekf", "ckf", "ek", "sacv", "gcv"] = "ekf",
         n_repeats: int = 1,
         selection_rule: SelectionRule = "min",
         min_q2_increase: float = Q2_MIN_INCREMENT,
         scale_inside_folds: bool = True,
         ekf_max_iter: int = 50,
         ekf_tol: float = 1e-6,
-        n_iter: int | None = None,
-        tol: float | None = None,
         random_state: int | None = None,
         return_consensus: bool = False,
-        threshold: float | None = None,
-        **pca_kwargs,
     ) -> Bunch:
         """Select the number of PCA components via cross-validation.
 
@@ -1832,10 +1776,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         ``cv_scheme="ekf"`` is the element-wise k-fold algorithm of Bro,
         Kjeldahl, Smilde & Kiers (2008, *Anal. Bioanal. Chem.* 390:1241-1251),
         which holds out individual cells of ``X`` and predicts them via
-        EM-style imputation from a model that never sees their true values.
-        This restores the prediction-independence requirement the legacy
-        row-wise scheme violates, fixing the trivial-fit pathology where
-        PRESS shrinks monotonically with components.
+        EM-style imputation from a model that never sees their true values,
+        so PRESS does not shrink monotonically with the component count the
+        way it does when a held-out row is scored through its own values.
 
         Parameters
         ----------
@@ -1850,13 +1793,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         cv : int or sklearn CV splitter, default 5
             For ``cv_scheme="ekf"``: the integer number of element-folds
             (splitter objects are ignored). For ``cv_scheme="ek"``: the number
-            of row groups, and of column groups. For ``cv_scheme="row_wise"``:
-            either an integer K (fed to ``KFold``) or any sklearn splitter.
-            Ignored by ``"sacv"`` and ``"gcv"``, which hold nothing out.
-        cv_scheme : {"ekf", "ckf", "ek", "sacv", "gcv", "row_wise"}, default "ekf"
-            How a held-out value is produced. Every one of these except
-            ``"row_wise"`` keeps the prediction independent of the value being
-            predicted; they differ in what they hold out and what they cost.
+            of row groups, and of column groups. Ignored by ``"sacv"`` and
+            ``"gcv"``, which hold nothing out.
+        cv_scheme : {"ekf", "ckf", "ek", "sacv", "gcv"}, default "ekf"
+            How a held-out value is produced. Every one of these keeps the
+            prediction independent of the value being predicted; they differ in
+            what they hold out and what they cost. ``"row_wise"`` was removed
+            in 2.0 and raises a :class:`ValueError`: it scored a held-out row
+            through its own values, so it measured compression rather than
+            prediction and could not pick a component count.
 
             - ``"ekf"``, the default: element-wise k-fold with EM imputation.
               Scattered cells are held out and each is imputed from a model
@@ -1888,8 +1833,6 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               of one per cell. Blunter, and it tends to keep more components.
               Cost: one decomposition. This and ``"sacv"`` are the defaults in
               ``FactoMineR`` and ``missMDA``.
-            - ``"row_wise"``: **deprecated, removed in 2.0.** See the warning
-              admonition below.
 
             ``"ek"``, ``"sacv"`` and ``"gcv"`` factorise the matrix directly,
             so they raise on a block with missing cells and they ignore
@@ -1903,14 +1846,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             many times. Each repeat covers every cell exactly once;
             ``n_repeats > 1`` narrows the per-component PRESS standard
             error (helpful when the 1-SE rule sits on a borderline) at
-            roughly linear extra runtime. Ignored under
-            ``cv_scheme="row_wise"``.
+            roughly linear extra runtime.
         selection_rule : {"min", "1se", "q2_increment"}, default "min"
             How the recommended component count is chosen. ``"min"`` is the
             GlobalMin criterion Bro 2008 pairs with ekf - the component
             count with the lowest pooled PRESS. ``"1se"`` is the one-
-            standard-error rule (needs ``per_fold_press``, available under
-            both schemes). ``"q2_increment"`` is the Wold's-R-style
+            standard-error rule (needs the per-fold spread that ``"ekf"`` and
+            ``"ckf"`` report). ``"q2_increment"`` is the Wold's-R-style
             cumulative-:math:`Q^2` threshold from PR #371; ``min_q2_increase``
             sets the threshold.
         min_q2_increase : float, default 0.01
@@ -1925,7 +1867,6 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             useful only when ``X`` is already pre-scaled, and a
             :class:`SpecificationWarning` is emitted because scaling
             constants fit on the full matrix leak into every element-fold.
-            Ignored under ``cv_scheme="row_wise"``.
 
             Pass the **raw, unscaled** X under the default. In-fold
             re-standardisation overwrites whatever scaling the caller
@@ -1940,18 +1881,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             Same contract as :meth:`PLS.select_n_components`.
         ekf_max_iter, ekf_tol : int and float, default 50 and 1e-6
             EM iteration cap and convergence tolerance for the ekf imputation
-            step. Ignored under ``cv_scheme="row_wise"``. Named for the loop
-            they bound: that EM loop is not the per-component NIPALS loop, which
-            ``PCA(tol=..., max_iter=...)`` governs (#588).
-        n_iter, tol : int and float, optional
-            Deprecated since 1.98.0 aliases for ``ekf_max_iter`` and ``ekf_tol``;
-            they still take effect and warn, and are removed in 2.0. ``tol`` was
-            renamed because ``PCA`` itself gained a ``tol``, and a parameter
-            captured here can never reach the ``PCA`` constructor through
-            ``**pca_kwargs``: one name meaning two loops, depending on which
-            function you call, is the inconsistency this closes. Once these are
-            removed, ``tol`` and ``max_iter`` will pass through to ``PCA`` like
-            any other keyword.
+            step. Named for the loop they bound: that EM loop is not the
+            per-component NIPALS loop, which ``PCA(tol=..., max_iter=...)``
+            governs (#588). Their old names ``n_iter`` and ``tol`` were removed
+            in 2.0.
         random_state : int, optional
             Seed for the ekf element-fold permutation.
         return_consensus : bool, default False
@@ -1961,16 +1894,6 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             (:meth:`parallel_analysis`). The result Bunch then gains the
             ``minka_n_components``, ``parallel_analysis_n_components``,
             ``consensus``, and ``consensus_counts`` keys (see Returns).
-        threshold : float, optional
-            Deprecated. The original Wold PRESS-ratio cutoff. Passing it
-            emits a :class:`DeprecationWarning`; the value is ignored. Use
-            ``selection_rule="q2_increment"`` (and tune ``min_q2_increase``)
-            for a comparable parsimony preference.
-        **pca_kwargs
-            Additional keyword arguments passed to the ``PCA()`` constructor
-            under ``cv_scheme="row_wise"`` (e.g. ``algorithm="nipals"``).
-            Ignored under ``cv_scheme="ekf"`` because ekf runs its own SVD
-            loop.
 
         Returns
         -------
@@ -1988,7 +1911,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               against instrument error (pd.Series, indexed ``1..A_max``).
             - ``per_fold_press`` - per-fold PRESS contributions
               (pd.DataFrame, ``A_max`` rows x ``n_folds * n_repeats`` columns
-              under ekf; a single ``fold_1`` column under row-wise).
+              under ekf).
             - ``se_press`` - standard error of the per-fold PRESS curve
               (pd.Series, indexed ``1..A_max``). Drives the 1-SE rule.
             - ``q2_se`` - the same standard error rescaled onto the Q2 scale
@@ -2004,16 +1927,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               ``r2_cumulative_`` and to PLS's ``r2y_validated``.
             - ``q2_per_variable`` - that same quantity split by variable
               (pd.DataFrame, ``A_max`` rows x ``K`` columns), which is what
-              shows whether one column is carrying the pooled figure. All
-              ``NaN`` under ``cv_scheme="row_wise"``, which has no per-cell
-              error to split.
-            - ``cv_scores`` - alias of ``per_fold_press`` under every
-              cell-based scheme (``"ekf"``, ``"ckf"``, ``"ek"``, ``"sacv"``,
-              ``"gcv"``), or per-fold negative MSE from ``cross_val_score``
-              under ``"row_wise"`` (preserved for back-compat).
+              shows whether one column is carrying the pooled figure.
+            - ``cv_scores`` - alias of ``per_fold_press``.
             - ``cv_scheme`` - the scheme used, echoed back (one of
-              ``"ekf"``, ``"ckf"``, ``"ek"``, ``"sacv"``, ``"gcv"`` or
-              ``"row_wise"``).
+              ``"ekf"``, ``"ckf"``, ``"ek"``, ``"sacv"`` or ``"gcv"``).
             - ``selection_rule`` - the rule used to pick ``n_components``.
 
             When ``return_consensus=True``, the Bunch additionally carries:
@@ -2044,32 +1961,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Josse, J., & Husson, F. (2012). Selecting the number of components in
         principal component analysis using cross-validation approximations.
         *Computational Statistics & Data Analysis*, 56(6), 1869-1879.
-
-        .. warning::
-
-           ``cv_scheme="row_wise"`` is **deprecated since 1.84 and will be
-           removed in 2.0**. It emits a :class:`DeprecationWarning` and a
-           :class:`SpecificationWarning`. It suffers from the *trivial-fit*
-           problem: holding out whole rows and projecting them back via
-           :meth:`transform` lets the held-out row's own values reach its
-           prediction, so PRESS shrinks monotonically with the component
-           count and reaches zero once the components equal the variables.
-           It measures compression, not prediction, and cannot select a
-           component count. Use ``"ekf"``, ``"ek"``, ``"sacv"`` or ``"gcv"``.
         """
-        if threshold is not None:
-            warnings.warn(
-                "The `threshold` (Wold PRESS-ratio) argument of "
-                "PCA.select_n_components is deprecated and ignored; the "
-                "recommendation now uses `selection_rule`. Pass "
-                "`selection_rule='q2_increment'` (and tune `min_q2_increase`) "
-                "for a comparable parsimony preference.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        ekf_max_iter, ekf_tol = _resolve_ekf_aliases(n_iter=n_iter, tol=tol, ekf_max_iter=ekf_max_iter, ekf_tol=ekf_tol)
-
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
 
@@ -2084,9 +1976,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         X_arr = np.asarray(X, dtype=float)
 
         # ``press`` under ekf is the TOTAL PRESS per repeat (n_folds times the
-        # mean per-fold PRESS), while row_wise's press is already a per-fold
-        # mean; the per-fold SE computed further below must be rescaled by
-        # this factor so the 1-SE rule compares like with like.
+        # mean per-fold PRESS); the per-fold SE computed further below must be
+        # rescaled by this factor so the 1-SE rule compares like with like.
         press_scale_multiplier = 1
         if cv_scheme == "ekf":
             n_folds = cv if isinstance(cv, int) else 5
@@ -2094,7 +1985,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             if n_repeats < 1:
                 raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
             # Same two traps as PLS.select_n_components, checked only here
-            # because row_wise ignores the flag.
+            # because the other schemes ignore the flag.
             _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="element-fold", metric="PRESS")
             ekf = _pca_ekf_press(
                 X_arr,
@@ -2167,56 +2058,21 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             q2_per_variable = pd.DataFrame(
                 1.0 - raw_per_column / safe_null, index=component_index, columns=list(X.columns)
             )
-        elif cv_scheme == "row_wise":
-            warnings.warn(
-                "cv_scheme='row_wise' is deprecated and will be removed in 2.0. It "
-                "measures how well a held-out row reproduces itself, which is a "
-                "compression error rather than a prediction error, so it cannot pick "
-                "a component count. Use the default cv_scheme='ekf', or 'ek', 'sacv' "
-                "or 'gcv'.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            warnings.warn(
-                "cv_scheme='row_wise' uses the legacy whole-row CV scheme that "
-                "Bro et al. 2008 flagged as invalid: held-out row values flow "
-                "back through transform() into their own prediction, so PRESS "
-                "shrinks monotonically and the recommendation tends to run to "
-                "the maximum component count. Prefer cv_scheme='ekf' (the new "
-                "default).",
-                SpecificationWarning,
-                stacklevel=2,
-            )
-            press_values = {}
-            all_cv_scores = {}
-            for a in range(1, max_components + 1):
-                scores_a = cross_val_score(cls(n_components=a, **pca_kwargs), X, cv=cv)
-                all_cv_scores[a] = scores_a
-                press_values[a] = -scores_a.mean()
-            press = pd.Series(press_values, name="PRESS", index=component_index)
-            cv_scores = pd.DataFrame(all_cv_scores).T
-            cv_scores.index = component_index
-            cv_scores.columns = [f"fold_{i + 1}" for i in range(cv_scores.shape[1])]
-            # The row_wise per-fold values are negative MSE means, not raw
-            # PRESS contributions, so don't pretend they are. Build a parallel
-            # per_fold_press by undoing the negation.
-            per_fold_press = -cv_scores
-            null_model_ss = float(np.nanmean((X_arr - np.nanmean(X_arr, axis=0)) ** 2))
-            q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
-            # row_wise scores whole rows through the estimator, so there is no
-            # per-cell error to split by variable and no in-fold scale to
-            # report against. Both fields exist so the Bunch has one shape.
-            press_input_units = press.rename("PRESS (input units)")
-            q2_per_variable = pd.DataFrame(np.nan, index=component_index, columns=list(X.columns))
         else:
+            removed = (
+                " 'row_wise' was removed in 2.0: it scored a held-out row through its own values, so it "
+                "could not pick a component count."
+                if cv_scheme == "row_wise"
+                else ""
+            )
             raise ValueError(
-                f"Unknown cv_scheme {cv_scheme!r}; expected one of 'ekf', 'ckf', 'ek', 'sacv', 'gcv' or 'row_wise'."
+                f"Unknown cv_scheme {cv_scheme!r}; expected one of 'ekf', 'ckf', 'ek', 'sacv' or 'gcv'.{removed}"
             )
 
         q2 = q2.rename("Q2")
         q2.index = component_index
 
-        # PRESS ratio: still computable under either scheme, kept for inspection.
+        # PRESS ratio: computable under every scheme, kept for inspection.
         # A block with no variation anywhere gives PRESS 0 at every component
         # count, and 0/0 should reach the caller as a NaN ratio rather than as a
         # numpy warning pointing into this function. The standard error below
@@ -2262,10 +2118,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # A criterion that never turns over has not found an optimum: it has run
         # out of components to evaluate. The count returned is then the largest
         # one tried rather than an answer, and saying so is the difference
-        # between a recommendation and a number. This is the failure mode that
-        # makes cv_scheme="row_wise" useless, and the leverage approximations
-        # can fall into it too on data whose R2 approaches one, where the
-        # residual they inflate has almost nothing left in it.
+        # between a recommendation and a number. The leverage approximations
+        # can fall into it on data whose R2 approaches one, where the residual
+        # they inflate has almost nothing left in it.
         evaluated = q2.to_numpy()[~np.isnan(q2.to_numpy())]
         if evaluated.size > 1 and np.all(np.diff(evaluated) > 0) and int(recommended) == max_components:
             # Name the schemes that hold data out, less whichever is running:

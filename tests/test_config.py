@@ -10,6 +10,7 @@ and surfaces to ``tool_safety`` / ``mcp_server`` at call time
 from __future__ import annotations
 
 import importlib
+import re
 
 import pytest
 
@@ -148,13 +149,14 @@ class TestCodeOverride:
         # The legacy ``DEFAULT_TIMEOUT_S`` name still resolves -- but it
         # now resolves to whatever ``settings.tool_timeout`` is right now,
         # not whatever it was at import time.
-        assert tool_safety.DEFAULT_TIMEOUT_S == 99.0
+        with pytest.warns(DeprecationWarning, match="DEFAULT_TIMEOUT_S"):
+            assert tool_safety.DEFAULT_TIMEOUT_S == 99.0
 
 
 class TestLegacyShim:
     """The five ``DEFAULT_*`` names that ``tool_safety`` used to export
     forward to the new settings, so existing imports keep working
-    (ENG-22 deprecation candidate for v2.0).
+    (ENG-22). Each read warns: deprecated since 2.0.0, removed in 3.0.
     """
 
     @pytest.mark.parametrize(
@@ -167,9 +169,23 @@ class TestLegacyShim:
             ("DEFAULT_MEMORY_MB", "max_memory_mb"),
         ],
     )
-    def test_legacy_name_forwards_to_settings(self, legacy: str, knob: str) -> None:
+    def test_legacy_name_warns_and_forwards_to_settings(self, legacy: str, knob: str) -> None:
         tool_safety = importlib.import_module("process_improve.tool_safety")
-        assert getattr(tool_safety, legacy) == getattr(settings, knob)
+        message = (
+            f"process_improve.tool_safety.{legacy} is deprecated since 2.0.0 and will be removed in 3.0; "
+            f"use process_improve.config.settings.{knob} instead."
+        )
+        with pytest.warns(DeprecationWarning, match=re.escape(message)) as record:
+            value = getattr(tool_safety, legacy)
+        assert value == getattr(settings, knob)
+        # stacklevel=2 points the warning at the caller, not at tool_safety itself.
+        assert record[0].filename == __file__
+
+    def test_from_import_of_a_legacy_name_warns(self) -> None:
+        settings.max_cells = 1234
+        with pytest.warns(DeprecationWarning, match=r"settings\.max_cells instead"):
+            from process_improve.tool_safety import DEFAULT_MAX_CELLS
+        assert DEFAULT_MAX_CELLS == 1234
 
     def test_unknown_attribute_still_raises(self) -> None:
         tool_safety = importlib.import_module("process_improve.tool_safety")

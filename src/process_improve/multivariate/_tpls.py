@@ -246,7 +246,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     Notes
     -----
-    The input ``X`` passed to :meth:`fit` and :meth:`predict` is a dictionary with 3 keys:
+    The input ``X`` passed to :meth:`fit` and :meth:`diagnose` is a dictionary with 3 keys:
 
     - ``F``: Formula matrices (rows = blends, columns = materials).
       ``F = {"Group A": df_formulas_a, "Group B": df_formulas_b, ...}``
@@ -414,24 +414,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         # "required_inputs" used in the sense of inputs to this class; not in the sense of a "model input"
         self.required_inputs_ = {"F", "Y", "Z"}
         self.plot = Plot(self)
-
-    @property
-    def tolerance_(self) -> float:
-        """Deprecated alias for :attr:`tol`, kept for one deprecation cycle.
-
-        It was assigned in ``__init__`` and read at two unrelated sites: the
-        convergence test, which ``tol`` now owns, and a zero-variance column
-        test, which has its own floor (``_ZERO_VARIANCE_FLOOR``).
-        """
-        warnings.warn(
-            "process_improve.multivariate.TPLS.tolerance_ is deprecated since 1.96.0 "
-            "and will be removed in 2.0; use TPLS.tol instead. Note that tolerance_ "
-            "also governed the zero-variance column test, which tol does not: that "
-            "threshold is now fixed and independent of convergence.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.tol
 
     # ENG-05: convenience methods forwarding to the standalone functions. These
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
@@ -656,26 +638,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         self._fit_iterative_regressions()
         self.is_fitted_ = True
         return self
-
-    def predict(self, X: DataFrameDict) -> Bunch:
-        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
-
-        .. deprecated:: 1.38.4
-            Use :meth:`TPLS.diagnose` instead. ``predict`` matches the
-            sklearn-convention name (regression-style ndarray return),
-            but TPLS's natural return is the rich per-group / per-block
-            diagnostics Bunch and TPLS cannot be placed in a standard
-            sklearn Pipeline anyway (its input is a nested
-            :class:`DataFrameDict`). The rename aligns with
-            :meth:`PLS.diagnose` and :meth:`PCA.diagnose`. Will be
-            removed in 2.0.0.
-        """
-        warnings.warn(
-            "TPLS.predict is deprecated and will be removed in 2.0.0; use TPLS.diagnose instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.diagnose(X)
 
     def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912, PLR0915
         """
@@ -996,8 +958,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         make_tpls_scorer : Build a ``scoring=`` callable that TPLS can honour.
         """
         _reject_separate_y(y, "TPLS.score")
-        # Use diagnose() directly to avoid emitting the predict()
-        # DeprecationWarning from inside the package's own score path.
         predictions = self.diagnose(X)
         y_pred = predictions.hat
         y_actual = X["Y"]
@@ -1920,8 +1880,6 @@ def make_tpls_scorer(
         if not y_actual:
             msg = 'X["Y"] must contain at least one block to score a TPLS model.'
             raise ValueError(msg)
-        # diagnose() rather than the deprecated predict(), to keep the package's own
-        # scoring path free of the predict() DeprecationWarning.
         y_pred = estimator.diagnose(X).hat
         per_block = [
             score_func(y_actual[key], y_pred[key], sample_weight=sample_weight, **metric_kwargs) for key in y_actual

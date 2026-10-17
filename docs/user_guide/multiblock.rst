@@ -146,18 +146,18 @@ algorithm computes each per-block score using only the observed
 entries of every row, and the super-score is built from those
 per-block scores in the usual way.
 
-Two arguments control this:
+Three arguments control this:
 
 - ``algorithm`` (``"auto"`` by default): selects between ``"dense"``
   (closed-form, NumPy SVD-style; complete data only) and ``"nipals"``
   (iterative, mask-aware). ``"auto"`` switches to ``"nipals"`` as soon
   as any X-block or Y has a NaN entry, and stays on the faster
   ``"dense"`` path otherwise.
-- ``missing_data_settings`` (``dict``, optional): convergence settings
-  for the NIPALS inner loop. The defaults are sane and rarely need
-  tuning; the available keys are ``md_tol`` (per-component convergence
-  tolerance; default ``sqrt(eps)`` ~ 1.5e-8) and ``md_max_iter``
-  (cap on inner-loop iterations per component; default 1000).
+- ``tol`` and ``max_iter``: convergence settings for the NIPALS inner
+  loop. The defaults are sane and rarely need tuning: ``tol`` is the
+  relative per-component convergence tolerance (default ``sqrt(eps)``
+  ~ 1.5e-8) and ``max_iter`` the cap on inner-loop iterations per
+  component (default 500).
 
 After fitting, two attributes record the choices the model made:
 

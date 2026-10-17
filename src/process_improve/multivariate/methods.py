@@ -58,8 +58,6 @@ from ._null import (
     check_predictive_signal,
     class_enrichment,
     count_discoveries_under_null,
-    permutation_q2,
-    pipeline_null,
 )
 from ._opls import OPLS
 from ._pca import PCA
@@ -140,8 +138,6 @@ __all__ = [
     "observation_contributions",
     "omeda",
     "omeda_plot",
-    "permutation_q2",
-    "pipeline_null",
     "predictions_vs_observed_plot",
     "project_variables",
     "pseudo_validation_set",

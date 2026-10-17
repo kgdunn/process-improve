@@ -53,7 +53,7 @@ Turn on debug logging for the whole package from your script or notebook:
    X = pd.DataFrame(np.random.default_rng(0).standard_normal((50, 8)))
    X.iloc[0, 0] = np.nan  # force the iterative NIPALS path
    PCA(n_components=3, algorithm="nipals").fit(MCUVScaler().fit_transform(X))
-   # DEBUG process_improve.multivariate._pca: PCA NIPALS: component 1 converged in 12 iterations (md_tol=1.49012e-08)
+   # DEBUG process_improve.multivariate._pca: PCA NIPALS: component 1 converged in 148 iterations (tol=1.49012e-08)
    # ...
 
 To keep third-party libraries quiet and only see this package's records, scope

@@ -115,29 +115,6 @@ _MIN_OBS_FOR_JACKKNIFE = 4
 _R_CLIP = 1.0 - 1e-12
 
 
-def _resolve_find_predictive(find_predictive: bool, discriminator: bool | None) -> bool:
-    """Accept the deprecated ``discriminator=`` spelling of ``find_predictive=``.
-
-    .. deprecated:: 1.77.0
-        ``discriminator`` will be removed in 2.0.0.
-    """
-    if discriminator is None:
-        return find_predictive
-    if not find_predictive:
-        msg = (
-            "Pass either 'find_predictive' or the deprecated 'discriminator', not both. "
-            "They set the same thing: whether to run the per-attribute predictive-descriptor search."
-        )
-        raise ValueError(msg)
-    warnings.warn(
-        "The 'discriminator' argument is deprecated since 1.77.0 and will be removed in 2.0.0; "
-        "use 'find_predictive' instead.",
-        category=DeprecationWarning,
-        stacklevel=3,
-    )
-    return discriminator
-
-
 def _attach_fdr(records: list[dict[str, Any]], alpha: float) -> list[dict[str, Any]]:
     """Attach Benjamini-Hochberg q-values (and reject flags) to ``records``."""
     pvals = [r["p_value"] for r in records]
@@ -508,14 +485,8 @@ def find_predictive_descriptors(  # noqa: PLR0913, PLR0915
                     "selectivity_ratio": float(sr_values[i]),
                     "p_value": float(p_raw[i]),
                     "p_value_fwer": float(p_maxt[i]),
-                    # Deprecated since 1.77.0, removed in 2.0.0: q_value is the
-                    # old name for p_value_fwer. It was always a family-wise
-                    # error rate, never an FDR q-value, which is why it moved.
-                    "q_value": float(p_maxt[i]),
                     "jackknife_significant": bool(desc_robust),
                     "is_predictive": bool(p_maxt[i] <= alpha and predictable and desc_robust),
-                    # Deprecated since 1.77.0, removed in 2.0.0.
-                    "discriminator_significant": bool(p_maxt[i] <= alpha and predictable and desc_robust),
                     "cluster_id": clusters[str(desc)],
                 }
             )
@@ -565,7 +536,6 @@ def relate_observational(  # noqa: PLR0913
     n_permutations: int = 199,
     random_state: int = 0,
     influence_deletions: int = 1,
-    discriminator: bool | None = None,
 ) -> dict[str, Any]:
     """Relate the attribute block to measured descriptors with PLS plus correlations.
 
@@ -577,7 +547,6 @@ def relate_observational(  # noqa: PLR0913
     sets how many observations are removed together: raise it to 2 to also demote a
     correlation carried by a single pair of observations.
     """
-    find_predictive = _resolve_find_predictive(find_predictive, discriminator)
     x_block = covariates.loc[agg.index].astype(float)
     y_block = agg.astype(float)
     max_comp = max(1, min(n_components, x_block.shape[1], x_block.shape[0] - 1))
@@ -625,9 +594,6 @@ def relate_observational(  # noqa: PLR0913
             n_permutations=n_permutations,
             random_state=random_state,
         )
-        # Deprecated since 1.77.0, removed in 2.0.0: the same object under its
-        # old key, so an existing caller reading result["discriminator"] works.
-        result["discriminator"] = result["predictive_descriptors"]
     return result
 
 
@@ -842,7 +808,6 @@ def analyze_descriptive(  # noqa: PLR0913
     n_permutations: int = 199,
     random_state: int = 0,
     influence_deletions: int = 1,
-    discriminator: bool | None = None,
 ) -> AnalysisResult:
     """Run the descriptive pipeline: panel check, correction, and relate.
 
@@ -883,11 +848,6 @@ def analyze_descriptive(  # noqa: PLR0913
         (default 1, ordinary leave-one-out). Raising it to 2 also demotes a
         correlation carried by a single pair of high-leverage observations, which
         leave-one-out cannot detect.
-    discriminator : bool or None
-        .. deprecated:: 1.77.0
-            Old spelling of ``find_predictive``. Kept for one release with the
-            same meaning; will be removed in 2.0.0. Passing both ``find_predictive``
-            and ``discriminator`` raises ``ValueError``.
 
     Returns
     -------
@@ -897,8 +857,7 @@ def analyze_descriptive(  # noqa: PLR0913
     Raises
     ------
     ValueError
-        If ``validated`` did not pass validation, or if both ``find_predictive``
-        and the deprecated ``discriminator`` are supplied together.
+        If ``validated`` did not pass validation.
     """
     if not validated.ok or validated.normalized_df is None or validated.covariates is None:
         raise ValueError(
@@ -919,7 +878,6 @@ def analyze_descriptive(  # noqa: PLR0913
         dropped = drop_panelists
     else:
         dropped = []
-    find_predictive = _resolve_find_predictive(find_predictive, discriminator)
     clean = apply_correction(working, dropped)
 
     agg = aggregate_to_product(clean)
@@ -954,51 +912,9 @@ def analyze_descriptive(  # noqa: PLR0913
             "conf_level": conf_level,
             "alpha": alpha,
             "find_predictive": find_predictive,
-            # Deprecated since 1.77.0, removed in 2.0.0.
-            "discriminator": find_predictive,
             "n_permutations": n_permutations,
             "random_state": random_state,
             "influence_deletions": influence_deletions,
             "content_hash": validated.content_hash,
         },
-    )
-
-
-# ---------------------------------------------------------------------------
-# Deprecated aliases - removal scheduled for 2.0.0
-# ---------------------------------------------------------------------------
-
-
-def discriminate_observational(  # noqa: PLR0913
-    agg: pd.DataFrame,
-    covariates: pd.DataFrame,
-    *,
-    n_components: int = 2,
-    alpha: float = 0.05,
-    n_permutations: int = 199,
-    random_state: int = 0,
-    cluster_threshold: float = 0.95,
-    max_components_cv: int = 4,
-) -> dict[str, Any]:
-    """Forward to :func:`find_predictive_descriptors`; emits a :class:`DeprecationWarning`.
-
-    .. deprecated:: 1.77.0
-        Use :func:`find_predictive_descriptors` instead. Will be removed in
-        2.0.0.
-    """
-    warnings.warn(
-        "process_improve.sensory.discriminate_observational is deprecated since 1.77.0 and will "
-        "be removed in 2.0.0; use find_predictive_descriptors instead.",
-        category=DeprecationWarning,
-        stacklevel=2,
-    )
-    return find_predictive_descriptors(
-        agg,
-        covariates,
-        n_components=n_components,
-        alpha=alpha,
-        n_permutations=n_permutations,
-        random_state=random_state,
-        cluster_threshold=cluster_threshold,
-        max_components_cv=max_components_cv,
     )

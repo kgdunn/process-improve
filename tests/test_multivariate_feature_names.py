@@ -54,7 +54,7 @@ class TestPCAFeatureNames:
         with pytest.raises(ValueError, match=r"Feature names .* do not match"):
             pca.transform(bad)
         with pytest.raises(ValueError, match=r"Feature names .* do not match"):
-            pca.predict(bad)
+            pca.diagnose(bad)
 
     def test_ndarray_input_still_works(self, xy: tuple[pd.DataFrame, pd.DataFrame]) -> None:
         X, _ = xy
