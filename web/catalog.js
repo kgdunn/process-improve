@@ -211,7 +211,7 @@ function buildFacets() {
       ? element(
           "details",
           { class: "facets__more", id: "topics-more" },
-          element("summary", { text: `${rest.length} more applications` }),
+          element("summary", { text: `${rest.length} more ${rest.length === 1 ? "application" : "applications"}` }),
           element("div", { class: "facets__list" }, ...rest),
         )
       : null,
