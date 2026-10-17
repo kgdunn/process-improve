@@ -37692,9 +37692,40 @@
     "details": "generate_omars(factors, n_runs=25, model='main_quadratic', selection_criterion='a_optimal'): a 25-run member selected for precision (A-optimality); twenty-four design runs folded around one centre run; the DSD is the minimal member of the same foldover family; is_omars confirms main effects orthogonal to every second-order term. Five-factor main-effects-and-quadratic model, 11 terms (intercept, five linear, five pure quadratic, no two-factor interactions), formula 'A + B + C + D + E + I(A**2) + ... + I(E**2)'; region [-1, 1] on each factor.",
     "n_runs": 25
    },
-   "runs": null,
+   "runs": {
+    "columns": ["Run", "A", "B", "C", "D", "E"],
+    "rows": [
+     [1, 0, -1, 0, 1, 0],
+     [2, -1, 1, 1, 1, -1],
+     [3, -1, 0, 0, 0, 1],
+     [4, -1, 0, -1, 1, 0],
+     [5, 1, 1, -1, 1, 1],
+     [6, 1, 0, 0, 0, -1],
+     [7, -1, 1, 1, -1, 1],
+     [8, 0, 0, 0, 0, 0],
+     [9, 1, -1, 1, 0, 0],
+     [10, 1, 1, 0, -1, -1],
+     [11, 0, 1, 0, -1, 0],
+     [12, 0, 0, 0, 0, 1],
+     [13, -1, -1, 1, -1, -1],
+     [14, -1, 1, -1, 0, 0],
+     [15, 0, 0, 0, 0, -1],
+     [16, 1, -1, -1, 1, -1],
+     [17, 1, 1, 1, 1, 1],
+     [18, 0, -1, 1, 0, 1],
+     [19, -1, -1, -1, -1, -1],
+     [20, 0, 1, -1, 0, -1],
+     [21, 1, -1, -1, -1, 1],
+     [22, -1, -1, 0, 1, 1],
+     [23, 0, 0, 1, 1, -1],
+     [24, 0, 0, -1, -1, 1],
+     [25, 1, 0, 1, -1, 0]
+    ],
+    "coded": true,
+    "notes": "Not printed: the runs generate_omars makes where the book is built (Linux), recorded so that the sampled prediction variance is worked on the design the book evaluated. On another platform the generate_omars can return the same design in another orientation, the factors permuted or their signs switched. Every quality measure is the same, but a maximum over one seeded sample is not: over 151 of the 3,840 orientations, the sample's maximum SPV rounds to 12.7 or 12.9, and its maximum prediction variance to 0.51 or 0.52. The other checks still use the design generate_omars makes."
+   },
    "data_source": null,
-   "notes": "Runs not printed; the book stresses (lines 88-90, 505-508) that this is the one member the generator's A-optimality search returns, among many 25-run OMARS designs. Third value in each row of the quality-metrics table. Small rounding note: 10.0 / 25 would read 40.0%, the table prints 40.1% (10.0 is itself rounded), so not an inconsistency. Power from evaluate_design(metric='power', effect_size=1.0, sigma=1.0), alpha = 0.05, reported for factor A ('A') and its quadratic ('I(A ** 2)') per the code at line 134. Average / maximum prediction variance (sigma^2 units) and G from evaluate_design(metric='fds', n_samples=120_000, random_state=1, fds_resolution=200), keys average_prediction_variance / max_prediction_variance (line 443-444); cube vertices included. Maximum |r| is among the fitted model terms (main effects and quadratics; caption line 382-384). Alias |A| from evaluate_design(metric='alias_matrix'), 11 fitted terms x 10 omitted 2FIs. D-optimal information is |X'X|^(1/p); D-efficiency per run is |X'X|^(1/p) / N as a percentage (line 242-244), p = 11. Recomputed outside the checks, evaluate_design with the book's model and settings reproduces every printed quality measure of this design to its printed digits. The printed maximum is the largest over evaluate_design's seeded uniform sample plus the cube vertices; the prediction variance is larger at a point with coordinates 0 and +/-1, which neither includes: 0.530 sigma^2 at (-1, -1, -1, 0, 0), an SPV of 13.2, against the printed 0.51 and 12.7.",
+   "notes": "Runs not printed (they are recorded as the book's build makes them: see runs.notes); the book stresses (lines 88-90, 505-508) that this is the one member the generator's A-optimality search returns, among many 25-run OMARS designs. Third value in each row of the quality-metrics table. Small rounding note: 10.0 / 25 would read 40.0%, the table prints 40.1% (10.0 is itself rounded), so not an inconsistency. Power from evaluate_design(metric='power', effect_size=1.0, sigma=1.0), alpha = 0.05, reported for factor A ('A') and its quadratic ('I(A ** 2)') per the code at line 134. Average / maximum prediction variance (sigma^2 units) and G from evaluate_design(metric='fds', n_samples=120_000, random_state=1, fds_resolution=200), keys average_prediction_variance / max_prediction_variance (line 443-444); cube vertices included. Maximum |r| is among the fitted model terms (main effects and quadratics; caption line 382-384). Alias |A| from evaluate_design(metric='alias_matrix'), 11 fitted terms x 10 omitted 2FIs. D-optimal information is |X'X|^(1/p); D-efficiency per run is |X'X|^(1/p) / N as a percentage (line 242-244), p = 11. Recomputed outside the checks, evaluate_design with the book's model and settings reproduces every printed quality measure of this design to its printed digits. The printed maximum is the largest over evaluate_design's seeded uniform sample plus the cube vertices; the prediction variance is larger at a point with coordinates 0 and +/-1, which neither includes: 0.530 sigma^2 at (-1, -1, -1, 0, 0), an SPV of 13.2, against the printed 0.51 and 12.7.",
    "expected": [
     {
      "what": "design_metric",
@@ -37895,15 +37926,6 @@
      },
      "check": {
       "kind": "design_metric",
-      "design": {
-       "design_type": "generate_omars",
-       "k": 5,
-       "options": {
-        "n_runs": 25,
-        "model": "main_quadratic",
-        "selection_criterion": "a_optimal"
-       }
-      },
       "metric": "fds",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
@@ -37912,7 +37934,7 @@
       },
       "key": "average_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the average prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: the average prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -37926,15 +37948,6 @@
      },
      "check": {
       "kind": "design_metric",
-      "design": {
-       "design_type": "generate_omars",
-       "k": 5,
-       "options": {
-        "n_runs": 25,
-        "model": "main_quadratic",
-        "selection_criterion": "a_optimal"
-       }
-      },
       "metric": "fds",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
@@ -37943,7 +37956,7 @@
       },
       "key": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -37957,15 +37970,6 @@
      },
      "check": {
       "kind": "design_metric",
-      "design": {
-       "design_type": "generate_omars",
-       "k": 5,
-       "options": {
-        "n_runs": 25,
-        "model": "main_quadratic",
-        "selection_criterion": "a_optimal"
-       }
-      },
       "metric": "fds",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
@@ -37974,7 +37978,7 @@
       },
       "key": "scaled_max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -38201,15 +38205,6 @@
      },
      "check": {
       "kind": "design_metric",
-      "design": {
-       "design_type": "generate_omars",
-       "k": 5,
-       "options": {
-        "n_runs": 25,
-        "model": "main_quadratic",
-        "selection_criterion": "a_optimal"
-       }
-      },
       "metric": "fds",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
@@ -38218,7 +38213,7 @@
       },
       "key": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "design_metric",
@@ -38232,15 +38227,6 @@
      },
      "check": {
       "kind": "design_metric",
-      "design": {
-       "design_type": "generate_omars",
-       "k": 5,
-       "options": {
-        "n_runs": 25,
-        "model": "main_quadratic",
-        "selection_criterion": "a_optimal"
-       }
-      },
       "metric": "fds",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
@@ -38249,7 +38235,7 @@
       },
       "key": "scaled_max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     },
     {
      "what": "aliases",
@@ -38426,15 +38412,6 @@
      },
      "check": {
       "kind": "design_metric",
-      "design": {
-       "design_type": "generate_omars",
-       "k": 5,
-       "options": {
-        "n_runs": 25,
-        "model": "main_quadratic",
-        "selection_criterion": "a_optimal"
-       }
-      },
       "metric": "fds",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
@@ -38443,7 +38420,7 @@
       },
       "key": "scaled_max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type generate_omars), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
     }
    ]
   },
