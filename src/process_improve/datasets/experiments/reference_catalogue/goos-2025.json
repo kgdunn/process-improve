@@ -186,7 +186,7 @@
      "what": "n_center_runs",
      "term": null,
      "value": "one",
-     "analysis": "the number of center runs of the Table 1 design",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the runs with every factor at 0",
      "where": {
       "page": 2,
       "pdf_page": 2,
@@ -194,14 +194,16 @@
       "quote": "involving 27 runs, eight factors, and one center run is shown in Table 1"
      },
      "check": {
-      "manual": "printed in words (one), which no check can compare as digits; no check kind counts center runs (run 27 is the only all-zero run of the transcription)"
+      "kind": "design_structure",
+      "key": "n_center_runs",
+      "printed": "1"
      }
     },
     {
      "what": "n_main_effects",
      "term": null,
      "value": "eight",
-     "analysis": "main effects the design allows to be investigated",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: one main effect per factor",
      "where": {
       "page": 2,
       "pdf_page": 2,
@@ -209,14 +211,16 @@
       "quote": "The design allows the investigation of eight main effects, eight quadratic effects, and 28 two-factor interaction effects"
      },
      "check": {
-      "manual": "printed in words (eight), which no check can compare as digits; it is the factor count, checked as 8 from the caption of Table 1"
+      "kind": "design_structure",
+      "key": "n_factors",
+      "printed": "8"
      }
     },
     {
      "what": "n_quadratic_effects",
      "term": null,
      "value": "eight",
-     "analysis": "quadratic effects the design allows to be investigated",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: one quadratic effect per three-level factor",
      "where": {
       "page": 2,
       "pdf_page": 2,
@@ -224,7 +228,9 @@
       "quote": "The design allows the investigation of eight main effects, eight quadratic effects, and 28 two-factor interaction effects"
      },
      "check": {
-      "manual": "printed in words (eight), which no check can compare as digits; one quadratic effect per three-level factor, so the factor count checked from the caption"
+      "kind": "design_structure",
+      "key": "n_three_level",
+      "printed": "8"
      }
     },
     {
@@ -249,31 +255,59 @@
      "what": "middle_level_count",
      "term": null,
      "value": "nine times",
-     "analysis": "how often each factor is at its middle level",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the fewest and the most 0s in a column",
      "where": {
       "page": 2,
       "pdf_page": 2,
       "source_kind": "text",
       "quote": "Each of the eight factors in the design is visited at its middle level nine times."
      },
-     "check": {
-      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (nine 0s in each of the eight columns, by a numpy count over the transcribed matrix)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.min",
+       "printed": "9"
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.max",
+       "printed": "9"
+      }
+     ]
     },
     {
      "what": "outer_level_count",
      "term": null,
      "value": "nine times each",
-     "analysis": "how often each factor is at its high and at its low level",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the fewest and the most -1s, and +1s, in a column",
      "where": {
       "page": 2,
       "pdf_page": 2,
       "source_kind": "text",
       "quote": "The high and low levels are also visited nine times each"
      },
-     "check": {
-      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (nine -1s and nine +1s in each of the eight columns, by a numpy count over the transcribed matrix)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "level_counts.-1.min",
+       "printed": "9"
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.-1.max",
+       "printed": "9"
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.1.min",
+       "printed": "9"
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.1.max",
+       "printed": "9"
+      }
+     ]
     }
    ]
   },
@@ -574,31 +608,49 @@
      "what": "middle_level_count",
      "term": "x1, x2",
      "value": "six times",
-     "analysis": "how often the first two factors are at their middle level",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the 0s in x1 and x2",
      "where": {
       "page": 4,
       "pdf_page": 4,
       "source_kind": "text",
       "quote": "the middle level is used six times for the first two factors and eight times for the last two factors"
      },
-     "check": {
-      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (six 0s in x1 and in x2, by a numpy count over the transcribed matrix)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.x1",
+       "printed": "6"
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.x2",
+       "printed": "6"
+      }
+     ]
     },
     {
      "what": "middle_level_count",
      "term": "x3, x4",
      "value": "eight times",
-     "analysis": "how often the last two factors are at their middle level",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the 0s in x3 and x4",
      "where": {
       "page": 4,
       "pdf_page": 4,
       "source_kind": "text",
       "quote": "the middle level is used six times for the first two factors and eight times for the last two factors"
      },
-     "check": {
-      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (eight 0s in x3 and in x4, by a numpy count over the transcribed matrix)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.x3",
+       "printed": "8"
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.x4",
+       "printed": "8"
+      }
+     ]
     }
    ]
   },
@@ -800,7 +852,7 @@
      "what": "n_three_level_factors",
      "term": null,
      "value": "six",
-     "analysis": "the number of three-level factors",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the columns at three levels",
      "where": {
       "page": 6,
       "pdf_page": 6,
@@ -808,14 +860,16 @@
       "quote": "The first six factors are studied at three levels, while the last four are studied at two levels only."
      },
      "check": {
-      "manual": "printed in words (six), which no check can compare as digits; no check kind counts the levels of a column (x1-x6 take -1, 0 and +1 in the transcription)"
+      "kind": "design_structure",
+      "key": "n_three_level",
+      "printed": "6"
      }
     },
     {
      "what": "n_two_level_factors",
      "term": null,
      "value": "four",
-     "analysis": "the number of two-level factors",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the columns at two levels",
      "where": {
       "page": 6,
       "pdf_page": 6,
@@ -823,7 +877,9 @@
       "quote": "The first six factors are studied at three levels, while the last four are studied at two levels only."
      },
      "check": {
-      "manual": "printed in words (four), which no check can compare as digits; no check kind counts the levels of a column (x7-x10 take only -1 and +1 in the transcription)"
+      "kind": "design_structure",
+      "key": "n_two_level",
+      "printed": "4"
      }
     },
     {
@@ -1017,7 +1073,7 @@
      "what": "n_factors",
      "term": null,
      "value": "four",
-     "analysis": "the number of factors of the orthogonal array",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the columns x7 to x10",
      "where": {
       "page": 6,
       "pdf_page": 6,
@@ -1025,7 +1081,9 @@
       "quote": "the best one available to study the main effects and the two-factor interaction effects of four factors in 40 experimental runs"
      },
      "check": {
-      "manual": "printed in words (four), which no check can compare as digits; the count of columns x7-x10; that it is the best array for these effects is a claim the paper does not quantify"
+      "kind": "design_structure",
+      "key": "n_factors",
+      "printed": "4"
      }
     }
    ]
@@ -1175,7 +1233,7 @@
      "what": "n_three_level_factors",
      "term": null,
      "value": "four",
-     "analysis": "the number of three-level factors",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the columns at three levels",
      "where": {
       "page": 8,
       "pdf_page": 8,
@@ -1183,14 +1241,16 @@
       "quote": "24-run mixed-level OMARS design with four three-level factors and four two-level factors"
      },
      "check": {
-      "manual": "printed in words (four), which no check can compare as digits; no check kind counts the levels of a column (x1-x4 take -1, 0 and +1 in the transcription)"
+      "kind": "design_structure",
+      "key": "n_three_level",
+      "printed": "4"
      }
     },
     {
      "what": "n_two_level_factors",
      "term": null,
      "value": "four",
-     "analysis": "the number of two-level factors",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the columns at two levels",
      "where": {
       "page": 8,
       "pdf_page": 8,
@@ -1198,7 +1258,9 @@
       "quote": "24-run mixed-level OMARS design with four three-level factors and four two-level factors"
      },
      "check": {
-      "manual": "printed in words (four), which no check can compare as digits; no check kind counts the levels of a column (x5-x8 take only -1 and +1 in the transcription)"
+      "kind": "design_structure",
+      "key": "n_two_level",
+      "printed": "4"
      }
     },
     {
@@ -1220,76 +1282,191 @@
      "what": "blocks",
      "term": "A",
      "value": "two blocks of 12 runs",
-     "analysis": "blocking arrangement A",
+     "analysis": "the library's design_structure with column A as the blocks: 2 blocks of 12 runs, every factor balanced across them (1 for true)",
      "where": {
       "page": 9,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "involve two blocks of 12 runs, three blocks of eight runs, four blocks of six runs"
      },
-     "check": {
-      "manual": "a count of runs per block label in the printed arrangement A; no check kind reads a blocking column (the transcription has blocks 1 and 2 with 12 runs each, and the levels of every factor sum to zero within every block)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.len",
+       "printed": "2",
+       "blocks": "A"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.min",
+       "printed": "12",
+       "blocks": "A"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.max",
+       "printed": "12",
+       "blocks": "A"
+      },
+      {
+       "kind": "design_structure",
+       "key": "blocks_balanced",
+       "printed": "1",
+       "blocks": "A"
+      }
+     ]
     },
     {
      "what": "blocks",
      "term": "B",
      "value": "three blocks of eight runs",
-     "analysis": "blocking arrangement B",
+     "analysis": "the library's design_structure with column B as the blocks: 3 blocks of 8 runs, every factor balanced across them (1 for true)",
      "where": {
       "page": 9,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "involve two blocks of 12 runs, three blocks of eight runs, four blocks of six runs"
      },
-     "check": {
-      "manual": "a count of runs per block label in the printed arrangement B; no check kind reads a blocking column (the transcription has blocks 1 to 3 with 8 runs each, and the levels of every factor sum to zero within every block)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.len",
+       "printed": "3",
+       "blocks": "B"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.min",
+       "printed": "8",
+       "blocks": "B"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.max",
+       "printed": "8",
+       "blocks": "B"
+      },
+      {
+       "kind": "design_structure",
+       "key": "blocks_balanced",
+       "printed": "1",
+       "blocks": "B"
+      }
+     ]
     },
     {
      "what": "blocks",
      "term": "C",
      "value": "four blocks of six runs",
-     "analysis": "blocking arrangement C",
+     "analysis": "the library's design_structure with column C as the blocks: 4 blocks of 6 runs, every factor balanced across them (1 for true)",
      "where": {
       "page": 9,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "three blocks of eight runs, four blocks of six runs, six blocks of four runs"
      },
-     "check": {
-      "manual": "a count of runs per block label in the printed arrangement C; no check kind reads a blocking column (the transcription has blocks 1 to 4 with 6 runs each, and the levels of every factor sum to zero within every block)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.len",
+       "printed": "4",
+       "blocks": "C"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.min",
+       "printed": "6",
+       "blocks": "C"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.max",
+       "printed": "6",
+       "blocks": "C"
+      },
+      {
+       "kind": "design_structure",
+       "key": "blocks_balanced",
+       "printed": "1",
+       "blocks": "C"
+      }
+     ]
     },
     {
      "what": "blocks",
      "term": "D",
      "value": "six blocks of four runs",
-     "analysis": "blocking arrangement D",
+     "analysis": "the library's design_structure with column D as the blocks: 6 blocks of 4 runs, every factor balanced across them (1 for true)",
      "where": {
       "page": 9,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "four blocks of six runs, six blocks of four runs, and twelve blocks of two runs, respectively"
      },
-     "check": {
-      "manual": "a count of runs per block label in the printed arrangement D; no check kind reads a blocking column (the transcription has blocks 1 to 6 with 4 runs each, and the levels of every factor sum to zero within every block)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.len",
+       "printed": "6",
+       "blocks": "D"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.min",
+       "printed": "4",
+       "blocks": "D"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.max",
+       "printed": "4",
+       "blocks": "D"
+      },
+      {
+       "kind": "design_structure",
+       "key": "blocks_balanced",
+       "printed": "1",
+       "blocks": "D"
+      }
+     ]
     },
     {
      "what": "blocks",
      "term": "E",
      "value": "twelve blocks of two runs",
-     "analysis": "blocking arrangement E",
+     "analysis": "the library's design_structure with column E as the blocks: 12 blocks of 2 runs, every factor balanced across them (1 for true)",
      "where": {
       "page": 9,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "six blocks of four runs, and twelve blocks of two runs, respectively"
      },
-     "check": {
-      "manual": "a count of runs per block label in the printed arrangement E; no check kind reads a blocking column (the transcription has blocks 1 to 12 with 2 runs each, and the levels of every factor sum to zero within every block)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.len",
+       "printed": "12",
+       "blocks": "E"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.min",
+       "printed": "2",
+       "blocks": "E"
+      },
+      {
+       "kind": "design_structure",
+       "key": "block_sizes.max",
+       "printed": "2",
+       "blocks": "E"
+      },
+      {
+       "kind": "design_structure",
+       "key": "blocks_balanced",
+       "printed": "1",
+       "blocks": "E"
+      }
+     ]
     }
    ]
   },
@@ -1473,16 +1650,25 @@
      "what": "middle_level_count",
      "term": null,
      "value": "six zeros per column",
-     "analysis": "how often each factor is at its middle level",
+     "analysis": "printed in words; the library's design_structure on the transcribed matrix: the fewest and the most 0s in a column",
      "where": {
       "page": 9,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "Folding over this weighing matrix produces a 7-factor OMARS design with 14 runs and six zeros per column."
      },
-     "check": {
-      "manual": "a count of the levels in the printed columns, given in words; no check kind counts how often a level occurs (six 0s in each of the seven columns, by a numpy count over the transcribed matrix)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.min",
+       "printed": "6"
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.max",
+       "printed": "6"
+      }
+     ]
     }
    ]
   },
@@ -1583,16 +1769,135 @@
      "what": "middle_level_count",
      "term": null,
      "value": "three times",
-     "analysis": "how often a definitive screening design with one center run visits each factor's middle level",
+     "analysis": "printed in words; the library's design_structure on its definitive screening designs with one centre run for 4 to 8 factors: three 0s in every column",
      "where": {
       "page": 2,
       "pdf_page": 2,
       "source_kind": "text",
       "quote": "definitive screening designs involving one center run visit every factor at its middle level only three times"
      },
-     "check": {
-      "manual": "printed in words, and no check kind counts how often a level occurs; generate_design(design_type='dsd') gives three 0s in every column for 4, 5, 6, 7 and 8 factors (confirmed): one from each half of the folded conference matrix and one from the center run"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.min",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.max",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.min",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 5,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.max",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 5,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.min",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.max",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.min",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 7,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.max",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 7,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.min",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 8,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      },
+      {
+       "kind": "design_structure",
+       "key": "level_counts.0.max",
+       "printed": "3",
+       "design": {
+        "design_type": "dsd",
+        "k": 8,
+        "options": {
+         "n_center_points": 1
+        }
+       }
+      }
+     ]
     }
    ]
   },

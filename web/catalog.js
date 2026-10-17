@@ -635,7 +635,35 @@ function drawMap(list) {
       writeForm();
       update();
     });
+    // A double click clears the box Plotly drew; the runs and factors it kept go with it.
+    div.on("plotly_deselect", () => {
+      if ([...state.factors, ...state.runs].every((v) => v === null)) return;
+      state.factors = [null, null];
+      state.runs = [null, null];
+      writeForm();
+      update();
+    });
   });
+}
+
+/**
+ * Put the map back as it opened: no box drawn, the whole range in view, and no filter on runs or factors.
+ * Plotly keeps a drawn box and a zoom across redraws, so the map is drawn again from nothing.
+ */
+function resetMap() {
+  clearMap();
+  state.factors = [null, null];
+  state.runs = [null, null];
+  writeForm();
+  update();
+}
+
+/** Drop the map's drawing, with any box and zoom on it, so the next render draws it afresh. */
+function clearMap() {
+  const div = $("#map");
+  if (!window.Plotly || !div.data) return;
+  window.Plotly.purge(div);
+  mapWired = false;
 }
 
 function startMap() {
@@ -710,7 +738,7 @@ function detailBody(design, detail) {
   const body = [element("p", { class: "detail__facts", text: factLine(design, catalog) })];
   if (family?.year) body.push(element("p", { class: "hint", text: `${family.label} designs were first published by ${family.reference}.` }));
   if (source) {
-    const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, rel: "noopener", text: source.cite }) : source.cite);
+    const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, target: "_blank", rel: "noopener", text: source.cite }) : source.cite);
     body.push(cite);
     const where = whereText(detail.where);
     if (where) body.push(element("p", { text: `Printed in ${where}.` }));
@@ -738,8 +766,8 @@ function detailBody(design, detail) {
   } else {
     body.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
   }
+  if (design.compared) actions.append(compareButton(design)); // append() writes a null out as the text "null"
   actions.append(
-    design.compared ? compareButton(design) : null,
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
   );
@@ -973,9 +1001,11 @@ function wire() {
   $("#reset").addEventListener("click", (event) => {
     event.preventDefault();
     state = { ...structuredClone({ ...DEFAULT_STATE }), collection: state.collection, sort: state.sort };
+    clearMap();
     writeForm();
     update();
   });
+  $("#map-reset").addEventListener("click", resetMap);
   $("#sort").addEventListener("change", () => {
     state.sort = $("#sort").value;
     update();

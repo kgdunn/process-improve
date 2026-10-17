@@ -185,7 +185,7 @@
      "what": "n_factors",
      "term": "m1",
      "value": "4",
-     "analysis": "Table 1, key features of Design 1: the number of three-level quantitative factors",
+     "analysis": "the library's design_structure on the captured runs: the columns at three levels",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -193,14 +193,17 @@
       "quote": "Table 1: m1 4 5 6"
      },
      "check": {
-      "manual": "the number of three-level columns of the printed matrix, which defines how the runs are captured (Q1-Q4 take -1, 0 and 1 in the captured runs); a count of the matrix's columns, which no check kind reports"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4"],
+      "key": "n_three_level",
+      "printed": "4"
      }
     },
     {
      "what": "n_factors",
      "term": "m2",
      "value": "4",
-     "analysis": "Table 1, key features of Design 1: the number of two-level categorical factors",
+     "analysis": "the library's design_structure on the captured runs: the columns at two levels",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -208,14 +211,17 @@
       "quote": "Table 1: m2 4 14 4"
      },
      "check": {
-      "manual": "the number of two-level columns of the printed matrix, which defines how the runs are captured (C1-C4 take only -1 and 1 in the captured runs); a count of columns, which no check kind reports"
+      "kind": "design_structure",
+      "factors": ["C1", "C2", "C3", "C4"],
+      "key": "n_two_level",
+      "printed": "4"
      }
     },
     {
      "what": "n_zeros",
      "term": "n0^ME",
      "value": "4",
-     "analysis": "Table 1, key features of Design 1: the number of zeros in each quantitative factor's main-effect column",
+     "analysis": "the library's design_structure on the captured runs: the zeros in each quantitative column, centre runs left out",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -223,14 +229,16 @@
       "quote": "Table 1: nME0 4 24 16"
      },
      "check": {
-      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 4 zeros in each of the 4 quantitative columns (counted in a script)"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4"],
+      "key": "zeros.n0ME"
      }
     },
     {
      "what": "n_zeros",
      "term": "n0^IE",
      "value": "8",
-     "analysis": "Table 1, key features of Design 1: the number of zeros in each interaction column of two quantitative factors",
+     "analysis": "the library's design_structure on the captured runs: the zeros in each product of two quantitative columns, centre runs left out",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -238,53 +246,108 @@
       "quote": "Table 1: nIE0 8 36 24"
      },
      "check": {
-      "manual": "a count of zero entries in the products of two quantitative columns, which no evaluate_design metric and no check kind reports; every one of the captured runs' 6 products has 8 zeros (counted in a script)"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4"],
+      "key": "zeros.n0IE"
      }
     },
     {
      "what": "structure",
      "term": null,
      "value": "two 12-run four-factor definitive screening designs",
-     "analysis": "the three-level part of Design 1",
+     "analysis": "the library's design_structure on the captured runs: runs 1 to 12 and 13 to 24 of the quantitative columns each fold over in mirror-image pairs (1 for true), with two zeros per column, as a 12-run definitive screening design has",
      "where": {
       "page": 18,
       "pdf_page": 18,
       "source_kind": "text",
       "quote": "its three-level part is composed of two 12-run four-factor definitive screening designs (without center runs)"
      },
-     "check": {
-      "manual": "a structural statement, which no check kind tests; in the captured runs, runs 1-12 and 13-24 (quantitative columns) each fold over in pairs, their half H satisfies H'H = 5I (four columns of a conference matrix of order 6), each has 2 zeros per column, and is_omars() is True for each"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "factors": ["Q1", "Q2", "Q3", "Q4"],
+       "runs": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+       "key": "foldover",
+       "printed": "1"
+      },
+      {
+       "kind": "design_structure",
+       "factors": ["Q1", "Q2", "Q3", "Q4"],
+       "runs": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "factors": ["Q1", "Q2", "Q3", "Q4"],
+       "runs": [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+       "key": "foldover",
+       "printed": "1"
+      },
+      {
+       "kind": "design_structure",
+       "factors": ["Q1", "Q2", "Q3", "Q4"],
+       "runs": [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+       "key": "zeros.n0ME",
+       "printed": "2"
+      }
+     ]
     },
     {
      "what": "structure",
      "term": null,
      "value": "A three-quarter fraction of the 2^4 factorial design",
-     "analysis": "the two-level part of each 12-run half of Design 1",
+     "analysis": "the library's design_structure on the captured runs: the two-level part of runs 1 to 12, and of runs 13 to 24, holds 12 distinct runs of the 16 of the 2^4, three quarters of them",
      "where": {
       "page": 18,
       "pdf_page": 18,
       "source_kind": "text",
       "quote": "A three-quarter fraction of the 2^4 factorial design is appended to each of the two definitive screening designs"
      },
-     "check": {
-      "manual": "a structural statement, which no check kind tests; in the captured runs the two-level part of runs 1-12, and of runs 13-24, has 12 distinct rows of the 16 in the 2^4 factorial"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "factors": ["C1", "C2", "C3", "C4"],
+       "runs": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+       "key": "n_distinct_runs",
+       "printed": "12"
+      },
+      {
+       "kind": "design_structure",
+       "factors": ["C1", "C2", "C3", "C4"],
+       "runs": [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+       "key": "n_distinct_runs",
+       "printed": "12"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any three quantitative factors and one categorical factor",
-     "analysis": "full second-order model (main effects, all two-factor interactions, quadratics of the quantitative factors) in a projection of Design 1",
+     "analysis": "the library's evaluate_projections, every projection onto 3 quantitative and 1 categorical factors under the full second-order model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 18,
       "pdf_page": 18,
       "source_kind": "text",
       "quote": "Design 1 allows the estimation of any full second-order model in any three quantitative factors and one categorical factor"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 16 subsets of three quantitative and one categorical factor give a full-rank 14-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 3,
+        "categorical": 1
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4"],
+        "categorical": ["C1", "C2", "C3", "C4"]
+       },
+       "model": "quadratic",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "max_abs_correlation",
@@ -603,7 +666,7 @@
      "what": "n_factors",
      "term": "m1",
      "value": "5",
-     "analysis": "Table 1, key features of Design 2: the number of three-level quantitative factors",
+     "analysis": "the library's design_structure on the captured runs: the columns at three levels",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -611,14 +674,17 @@
       "quote": "Table 1: m1 4 5 6"
      },
      "check": {
-      "manual": "the number of three-level columns of the printed matrix, which defines how the runs are captured (Q1-Q5 take -1, 0 and 1 in the captured runs); a count of the matrix's columns, which no check kind reports"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+      "key": "n_three_level",
+      "printed": "5"
      }
     },
     {
      "what": "n_factors",
      "term": "m2",
      "value": "14",
-     "analysis": "Table 1, key features of Design 2: the number of two-level categorical factors",
+     "analysis": "the library's design_structure on the captured runs: the columns at two levels",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -626,14 +692,17 @@
       "quote": "Table 1: m2 4 14 4"
      },
      "check": {
-      "manual": "the number of two-level columns of the printed matrix, which defines how the runs are captured (C1-C14 take only -1 and 1 in the captured runs); a count of columns, which no check kind reports"
+      "kind": "design_structure",
+      "factors": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"],
+      "key": "n_two_level",
+      "printed": "14"
      }
     },
     {
      "what": "n_zeros",
      "term": "n0^ME",
      "value": "24",
-     "analysis": "Table 1, key features of Design 2: the number of zeros in each quantitative factor's main-effect column",
+     "analysis": "the library's design_structure on the captured runs: the zeros in each quantitative column, centre runs left out",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -641,14 +710,16 @@
       "quote": "Table 1: nME0 4 24 16"
      },
      "check": {
-      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 24 zeros in each of the 5 quantitative columns (counted in a script)"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+      "key": "zeros.n0ME"
      }
     },
     {
      "what": "n_zeros",
      "term": "n0^IE",
      "value": "36",
-     "analysis": "Table 1, key features of Design 2: the number of zeros in each interaction column of two quantitative factors",
+     "analysis": "the library's design_structure on the captured runs: the zeros in each product of two quantitative columns, centre runs left out",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -656,14 +727,16 @@
       "quote": "Table 1: nIE0 8 36 24"
      },
      "check": {
-      "manual": "a count of zero entries in the products of two quantitative columns, which no evaluate_design metric and no check kind reports; every one of the captured runs' 10 products has 36 zeros (counted in a script)"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+      "key": "zeros.n0IE"
      }
     },
     {
      "what": "n_zeros",
      "term": "n0^ME",
      "value": "24",
-     "analysis": "the number of zeros in each quantitative factor's column, given as the reason for the large power to detect quadratic effects",
+     "analysis": "the library's design_structure on the captured runs: the zeros in each quantitative column",
      "where": {
       "page": 19,
       "pdf_page": 19,
@@ -671,7 +744,9 @@
       "quote": "nME0 = 24 in the design, indicating that, for each quantitative factor, the zero level is used 24 times"
      },
      "check": {
-      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 24 zeros in each of the 5 quantitative columns (counted in a script)"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+      "key": "zeros.n0ME"
      }
     },
     {
@@ -715,52 +790,91 @@
      "what": "projection_estimability",
      "term": null,
      "value": "any subset of four quantitative factors and two categorical factors",
-     "analysis": "full second-order model in a projection of Design 2",
+     "analysis": "the library's evaluate_projections, every projection onto 4 quantitative and 2 categorical factors under the full second-order model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 19,
       "pdf_page": 19,
       "source_kind": "text",
       "quote": "Design 2 allows the estimation of a full second-order model in any subset of four quantitative factors and two categorical factors"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 455 subsets give a full-rank 26-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 4,
+        "categorical": 2
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+        "categorical": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
+       },
+       "model": "quadratic",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any subset of five quantitative factors and any one categorical factor",
-     "analysis": "full second-order model in a projection of Design 2",
+     "analysis": "the library's evaluate_projections, every projection onto 5 quantitative and 1 categorical factors under the full second-order model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 19,
       "pdf_page": 19,
       "source_kind": "text",
       "quote": "in any subset of five quantitative factors and any one categorical factor"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 14 subsets give a full-rank 27-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 5,
+        "categorical": 1
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+        "categorical": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
+       },
+       "model": "quadratic",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any subset of three categorical factors and two quantitative factors",
-     "analysis": "full second-order model in a projection of Design 2",
+     "analysis": "the library's evaluate_projections, every projection onto 2 quantitative and 3 categorical factors under the full second-order model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 20,
       "pdf_page": 20,
       "source_kind": "text",
       "quote": "and in any subset of three categorical factors and two quantitative factors"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 3640 subsets give a full-rank 18-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 2,
+        "categorical": 3
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+        "categorical": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
+       },
+       "model": "quadratic",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "99%",
-     "analysis": "the share of subsets of two quantitative and four categorical factors in which a full second-order model is estimable",
+     "analysis": "the library's evaluate_projections, every projection onto 2 quantitative and 4 categorical factors under the full second-order model (squares of the three-level factors only): the fraction that estimate it, printed as a percentage",
      "where": {
       "page": 20,
       "pdf_page": 20,
@@ -768,14 +882,25 @@
       "quote": "allows the estimation of a full second-order model for 99% of all subsets containing two quantitative factors and four categorical factors"
      },
      "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: 9880 of the 10010 subsets give a full-rank 24-column model matrix, 98.70%, which rounds to 99%"
+      "kind": "projections",
+      "size": {
+       "quantitative": 2,
+       "categorical": 4
+      },
+      "groups": {
+       "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+       "categorical": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
+      },
+      "model": "quadratic",
+      "key": "fraction_estimable",
+      "printed": "0.99"
      }
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "97%",
-     "analysis": "the share of subsets of one quantitative and five categorical factors in which a full second-order model is estimable",
+     "analysis": "the library's evaluate_projections, every projection onto 1 quantitative and 5 categorical factors under the full second-order model (squares of the three-level factors only): the fraction that estimate it, printed as a percentage",
      "where": {
       "page": 20,
       "pdf_page": 20,
@@ -783,7 +908,18 @@
       "quote": "and for 97% of all subsets containing one quantitative factor and five categorical ones"
      },
      "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: 9707 of the 10010 subsets give a full-rank 23-column model matrix, 96.97%, which rounds to 97%"
+      "kind": "projections",
+      "size": {
+       "quantitative": 1,
+       "categorical": 5
+      },
+      "groups": {
+       "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5"],
+       "categorical": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
+      },
+      "model": "quadratic",
+      "key": "fraction_estimable",
+      "printed": "0.97"
      }
     }
    ]
@@ -1210,7 +1346,7 @@
      "what": "n_factors",
      "term": "m1",
      "value": "6",
-     "analysis": "Table 1, key features of Design 3: the number of three-level quantitative factors",
+     "analysis": "the library's design_structure on the captured runs: the columns at three levels",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -1218,14 +1354,17 @@
       "quote": "Table 1: m1 4 5 6"
      },
      "check": {
-      "manual": "the number of three-level columns of the printed matrix, which defines how the runs are captured (Q1-Q6 take -1, 0 and 1 in the captured runs); a count of the matrix's columns, which no check kind reports"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+      "key": "n_three_level",
+      "printed": "6"
      }
     },
     {
      "what": "n_factors",
      "term": "m2",
      "value": "4",
-     "analysis": "Table 1, key features of Design 3: the number of two-level categorical factors",
+     "analysis": "the library's design_structure on the captured runs: the columns at two levels",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -1233,14 +1372,17 @@
       "quote": "Table 1: m2 4 14 4"
      },
      "check": {
-      "manual": "the number of two-level columns of the printed matrix, which defines how the runs are captured (C1-C4 take only -1 and 1 in the captured runs); a count of columns, which no check kind reports"
+      "kind": "design_structure",
+      "factors": ["C1", "C2", "C3", "C4"],
+      "key": "n_two_level",
+      "printed": "4"
      }
     },
     {
      "what": "n_zeros",
      "term": "n0^ME",
      "value": "16",
-     "analysis": "Table 1, key features of Design 3: the number of zeros in each quantitative factor's main-effect column",
+     "analysis": "the library's design_structure on the captured runs: the zeros in each quantitative column, its six centre runs counted",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -1248,14 +1390,16 @@
       "quote": "Table 1: nME0 4 24 16"
      },
      "check": {
-      "manual": "a count of zero settings, which no evaluate_design metric and no check kind reports; the captured runs have 16 zeros in each of the 6 quantitative columns (counted in a script)"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+      "key": "zeros_with_center_runs.n0ME"
      }
     },
     {
      "what": "n_zeros",
      "term": "n0^IE",
      "value": "24",
-     "analysis": "Table 1, key features of Design 3: the number of zeros in each interaction column of two quantitative factors",
+     "analysis": "the library's design_structure on the captured runs: the zeros in each product of two quantitative columns, its six centre runs counted",
      "where": {
       "page": 17,
       "pdf_page": 17,
@@ -1263,7 +1407,9 @@
       "quote": "Table 1: nIE0 8 36 24"
      },
      "check": {
-      "manual": "a count of zero entries in the products of two quantitative columns, which no evaluate_design metric and no check kind reports; every one of the captured runs' 15 products has 24 zeros (counted in a script)"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+      "key": "zeros_with_center_runs.n0IE"
      }
     },
     {
@@ -1285,7 +1431,7 @@
      "what": "n_center_runs",
      "term": null,
      "value": "six center runs",
-     "analysis": "the centre runs added to the starting 34-run OMARS design",
+     "analysis": "the library's design_structure on the captured runs: the runs with every quantitative factor at 0",
      "where": {
       "page": 21,
       "pdf_page": 21,
@@ -1293,98 +1439,180 @@
       "quote": "involving six three-level quantitative factors and augmented with six center runs"
      },
      "check": {
-      "manual": "a count of runs with every quantitative factor at 0, which no check kind reports; in the captured runs exactly runs 35-40 have all six quantitative factors at 0"
+      "kind": "design_structure",
+      "factors": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+      "key": "n_center_runs",
+      "printed": "6"
      }
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any five quantitative factors",
-     "analysis": "full second-order model in a projection of Design 3",
+     "analysis": "the library's evaluate_projections, every projection onto 5 quantitative and 0 categorical factors under the full second-order model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 21,
       "pdf_page": 21,
       "source_kind": "text",
       "quote": "It can fit a full second-order model for any five quantitative factors"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 6 subsets give a full-rank 21-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 5,
+        "categorical": 0
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+        "categorical": ["C1", "C2", "C3", "C4"]
+       },
+       "model": "quadratic",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any subset of four quantitative factors and one categorical factor",
-     "analysis": "full second-order model in a projection of Design 3",
+     "analysis": "the library's evaluate_projections, every projection onto 4 quantitative and 1 categorical factors under the full second-order model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 21,
       "pdf_page": 21,
       "source_kind": "text",
       "quote": "for any subset of four quantitative factors and one categorical factor"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 60 subsets give a full-rank 20-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 4,
+        "categorical": 1
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+        "categorical": ["C1", "C2", "C3", "C4"]
+       },
+       "model": "quadratic",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any subset of three quantitative and two categorical factors",
-     "analysis": "full second-order model in a projection of Design 3",
+     "analysis": "the library's evaluate_projections, every projection onto 3 quantitative and 2 categorical factors under the full second-order model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 21,
       "pdf_page": 21,
       "source_kind": "text",
       "quote": "and for any subset of three quantitative and two categorical factors"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 120 subsets give a full-rank 19-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 3,
+        "categorical": 2
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+        "categorical": ["C1", "C2", "C3", "C4"]
+       },
+       "model": "quadratic",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any six quantitative factors",
-     "analysis": "interaction-effect model (main effects and two-factor interactions) in a projection of Design 3",
+     "analysis": "the library's evaluate_projections, every projection onto 6 quantitative and 0 categorical factors under the main-effect and two-factor interaction model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 21,
       "pdf_page": 21,
       "source_kind": "text",
       "quote": "It is also able to fit an interaction-effect model for any six quantitative factors"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: the one subset of all six quantitative factors gives a full-rank 22-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 6,
+        "categorical": 0
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+        "categorical": ["C1", "C2", "C3", "C4"]
+       },
+       "model": "interactions",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "projection_estimability",
      "term": null,
      "value": "any subset of five quantitative factors and one categorical factor",
-     "analysis": "interaction-effect model (main effects and two-factor interactions) in a projection of Design 3",
+     "analysis": "the library's evaluate_projections, every projection onto 5 quantitative and 1 categorical factors under the main-effect and two-factor interaction model (squares of the three-level factors only): every one estimates it (fraction 1)",
      "where": {
       "page": 21,
       "pdf_page": 21,
       "source_kind": "text",
       "quote": "and for any subset of five quantitative factors and one categorical factor"
      },
-     "check": {
-      "manual": "a statement over every subset of factors, and no check kind loops over subsets (a design_metric reads one model); a rank check of each subset's model matrix in the captured runs agrees: all 24 subsets give a full-rank 22-column model matrix"
-     }
+     "check": [
+      {
+       "kind": "projections",
+       "size": {
+        "quantitative": 5,
+        "categorical": 1
+       },
+       "groups": {
+        "quantitative": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+        "categorical": ["C1", "C2", "C3", "C4"]
+       },
+       "model": "interactions",
+       "key": "fraction_estimable",
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "replicates",
      "term": null,
      "value": "two triplicated factor level combinations",
-     "analysis": "replicated settings in Design 3, which give a model-independent estimate of the error variance",
+     "analysis": "the library's design_structure on the captured runs: the groups of runs with the same settings, two of them, each of three runs",
      "where": {
       "page": 22,
       "pdf_page": 22,
       "source_kind": "text",
       "quote": "A remarkable characteristic of Design 3 is that it involves two triplicated factor level combinations"
      },
-     "check": {
-      "manual": "a count of replicated settings, which no check kind reports (the printed text is a word); in the captured runs runs 35-37 and 38-40 are two triplicates, and evaluate_design's degrees_of_freedom gives pure_error 4 (40 runs, 36 distinct settings)"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "key": "replicated.len",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "key": "replicated.0.len",
+       "printed": "3"
+      },
+      {
+       "kind": "design_structure",
+       "key": "replicated.1.len",
+       "printed": "3"
+      }
+     ]
     }
    ]
   },
@@ -1404,37 +1632,179 @@
      "what": "n_zeros",
      "term": "(n0^ME, n0^IE)",
      "value": "(2, 4)",
-     "analysis": "zeros per main-effect column and per interaction column of a definitive screening design, centre runs ignored",
+     "analysis": "the library's design_structure on its definitive screening designs for 4, 6 and 8 factors, centre runs left out",
      "where": {
       "page": 7,
       "pdf_page": 7,
       "source_kind": "text",
       "quote": "For the definitive screening designs, for instance, (nME0, nIE0) = (2, 4) if we ignore the center run(s)."
      },
-     "check": {
-      "manual": "a count of zeros in a definitive screening design, which no check kind or evaluate_design metric reports; generate_design(design_type='dsd') for 4, 6, 8, 23 and 24 factors gives 3 zeros in every column and 5 in every product of two columns with its one centre run, so (2, 4) without it and (2 + k, 4 + k) with k = 1"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 1
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 1
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 1
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 1
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 8,
+        "options": {
+         "n_center_points": 1
+        }
+       },
+       "key": "zeros.n0ME",
+       "printed": "2"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 8,
+        "options": {
+         "n_center_points": 1
+        }
+       },
+       "key": "zeros.n0IE",
+       "printed": "4"
+      }
+     ]
     },
     {
      "what": "n_zeros",
      "term": "(n0^ME, n0^IE)",
      "value": "(2+k, 4+k)",
-     "analysis": "zeros per main-effect and interaction column of a definitive screening design with k centre runs; their difference, 2, is not a multiple of four, so Corollary 3 rules out several added two-level factors",
+     "analysis": "each column's zeros counting the k centre runs, 2 + k, in the library's definitive screening designs for 4, 6 and 8 factors with 3, 2 and 4 centre runs",
      "where": {
       "page": 11,
       "pdf_page": 11,
       "source_kind": "text",
       "quote": "for definitive screening designs involving k center runs, (nME0, nIE0) = (2+k, 4+k) and therefore nIE0 − nME0 is not a multiple of four"
      },
-     "check": {
-      "manual": "a count of zeros in a definitive screening design, which no check kind or evaluate_design metric reports; generate_design(design_type='dsd') for 4, 6, 8, 23 and 24 factors gives 3 zeros in every column and 5 in every product of two columns with its one centre run, so (2, 4) without it and (2 + k, 4 + k) with k = 1"
-     }
+     "check": [
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 3
+        }
+       },
+       "key": "level_counts.0.min",
+       "printed": "5"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 4,
+        "options": {
+         "n_center_points": 3
+        }
+       },
+       "key": "level_counts.0.max",
+       "printed": "5"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 2
+        }
+       },
+       "key": "level_counts.0.min",
+       "printed": "4"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 6,
+        "options": {
+         "n_center_points": 2
+        }
+       },
+       "key": "level_counts.0.max",
+       "printed": "4"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 8,
+        "options": {
+         "n_center_points": 4
+        }
+       },
+       "key": "level_counts.0.min",
+       "printed": "6"
+      },
+      {
+       "kind": "design_structure",
+       "design": {
+        "design_type": "dsd",
+        "k": 8,
+        "options": {
+         "n_center_points": 4
+        }
+       },
+       "key": "level_counts.0.max",
+       "printed": "6"
+      }
+     ]
     },
     {
      "what": "n_zeros",
      "term": "n0^ME",
      "value": "2",
-     "analysis": "zeros per column of a 48-run definitive screening design, centre run ignored, against 24 in Design 2",
+     "analysis": "the library's design_structure on its 49-run definitive screening design for 24 factors, centre run left out",
      "where": {
       "page": 19,
       "pdf_page": 19,
@@ -1442,7 +1812,15 @@
       "quote": "This is very different in a DSD of this run size, for which nME0 = 2 if we ignore the center run."
      },
      "check": {
-      "manual": "a count of zeros, which no check kind reports; generate_design(design_type='dsd') for 23 or 24 factors gives the 49-run DSD (48 runs and a centre run) with 3 zeros per column, 2 without the centre run"
+      "kind": "design_structure",
+      "design": {
+       "design_type": "dsd",
+       "k": 24,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "key": "zeros.n0ME"
      }
     }
    ]
