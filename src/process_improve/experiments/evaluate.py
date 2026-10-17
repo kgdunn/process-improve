@@ -76,6 +76,8 @@ class _EvalRequest:
     fds_resolution: int | None = None
     design_type: str | None = None
     categorical_coding: str = "effect"
+    integration: str = "sample"
+    max_search: str = "sample"
 
 
 @dataclass
@@ -107,6 +109,8 @@ class _EvalContext:
     design_type: str | None = None
     is_scheffe: bool = False  # a Scheffé mixture model (no intercept; linear blending terms)
     categorical_coding: str = "effect"
+    integration: str = "sample"  # the region average: "sample" or "exact" (quadrature over the cube)
+    max_search: str = "sample"  # the region maximum: "sample" or "optimize" (a local search from the best points)
 
     @property
     def patsy_data(self) -> dict[str, Any] | pd.DataFrame:
@@ -289,6 +293,8 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         design_type=req.design_type,
         is_scheffe=req.model in SCHEFFE_MODELS,
         categorical_coding=req.categorical_coding,
+        integration=req.integration,
+        max_search=req.max_search,
     )
 
 
@@ -356,6 +362,116 @@ def _region_points(
     else:
         raise ValueError(f"Unknown region={region!r}.  Choose 'cuboidal' or 'spherical'.")
     return pts
+
+
+#: The ways of working out the region average and the region maximum of the prediction variance.
+_INTEGRATIONS = ("sample", "exact")
+_MAX_SEARCHES = ("sample", "optimize")
+
+#: Gauss-Legendre points per factor for the exact region average: exact for a model of degree up to
+#: four in each factor, whose prediction variance is then a polynomial of degree up to eight.
+_QUADRATURE_NODES = 5
+#: The largest quadrature grid worked: five points per quantitative factor, times the categorical levels.
+_QUADRATURE_MOST_POINTS = 250_000
+#: Starting points of the compass search for the region maximum, and the step it stops at.
+_SEARCH_STARTS = 8
+_SEARCH_TOLERANCE = 1e-6
+
+
+def _categorical_levels(ctx: _EvalContext) -> dict[str, list[Any]]:
+    """Return each categorical (label) factor's levels in the design."""
+    return {
+        f: list(ctx.design_df[f].unique())
+        for f in ctx.factor_names
+        if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
+    }
+
+
+def _cube_moment_matrix(ctx: _EvalContext) -> np.ndarray | None:
+    """Return the cube's moment matrix ``W``, the average of ``f(x) f(x)'`` over ``[-1, 1]^k``.
+
+    Worked by Gauss-Legendre quadrature on the tensor grid of the quantitative factors, crossed
+    with every combination of categorical levels (each combination weighted equally). ``None``
+    when that grid has more than ``_QUADRATURE_MOST_POINTS`` points.
+    """
+    categorical = _categorical_levels(ctx)
+    continuous = [f for f in ctx.factor_names if f not in categorical]
+    n_points = _QUADRATURE_NODES ** len(continuous) * int(np.prod([len(v) for v in categorical.values()] or [1]))
+    if n_points > _QUADRATURE_MOST_POINTS:
+        return None
+    nodes, weights = np.polynomial.legendre.leggauss(_QUADRATURE_NODES)
+    weights = weights / 2.0  # average over [-1, 1] rather than integrate
+    axes = [nodes] * len(continuous) + [np.arange(len(v)) for v in categorical.values()]
+    grid = np.array(list(itertools.product(*axes)), dtype=float).reshape(-1, len(axes))
+    weight = np.prod([weights[np.searchsorted(nodes, grid[:, j])] for j in range(len(continuous))], axis=0)
+    weight = np.broadcast_to(weight, (len(grid),)) / np.prod([len(v) for v in categorical.values()] or [1])
+    frame = {f: grid[:, j] for j, f in enumerate(continuous)}
+    for j, (f, levels) in enumerate(categorical.items(), start=len(continuous)):
+        frame[f] = np.asarray(levels, dtype=object)[grid[:, j].astype(int)]
+    (expanded,) = build_design_matrices([ctx.design_info], pd.DataFrame(frame)[ctx.factor_names], return_type="matrix")
+    expanded = np.asarray(expanded, dtype=float)
+    return (expanded * weight[:, None]).T @ expanded
+
+
+def _region_average(ctx: _EvalContext) -> tuple[float, str | None]:
+    """Return the prediction variance averaged over the region (the I-criterion), and a note when exactness fell back.
+
+    With ``integration="exact"`` over the cuboidal region it is ``trace((X'X)^-1 W)``, ``W`` the
+    cube's moment matrix; otherwise, and when that is not possible, the mean over the sample.
+    """
+    assert ctx.XtX_inv is not None
+    note = None
+    if ctx.integration == "exact":
+        moments = _cube_moment_matrix(ctx) if ctx.region == "cuboidal" else None
+        if moments is not None:
+            return float(np.trace(ctx.XtX_inv @ moments)), None
+        note = "The exact average needs the cuboidal region and a quadrature grid of at most 250,000 points: sampled."
+    interior, _boundary = _region_prediction_variance(ctx)
+    return float(np.mean(interior)), note
+
+
+def _region_maximum(ctx: _EvalContext) -> float:
+    """Return the largest prediction variance over the region: over the sample and boundary points, then searched.
+
+    With ``max_search="optimize"`` over the cuboidal region, a compass search climbs from the
+    best ``_SEARCH_STARTS`` points (each keeping its categorical levels), stepping each
+    quantitative factor up and down inside ``[-1, 1]`` and halving the step when no move helps.
+    """
+    interior, boundary = _region_prediction_variance(ctx)
+    found = float(np.max(np.concatenate([interior, boundary])))
+    categorical = _categorical_levels(ctx)
+    continuous = [f for f in ctx.factor_names if f not in categorical]
+    if ctx.max_search != "optimize" or ctx.region != "cuboidal" or not continuous:
+        return found
+    interior_df, boundary_df = _points_in_box_region(ctx, "cuboidal")
+    points = pd.concat([interior_df, boundary_df], ignore_index=True)
+    values = np.concatenate([interior, boundary])
+    starts = points.iloc[np.argsort(values)[::-1][:_SEARCH_STARTS]].reset_index(drop=True)
+    return max(found, _compass_search(ctx, starts, continuous))
+
+
+def _compass_search(ctx: _EvalContext, starts: pd.DataFrame, continuous: list[str]) -> float:
+    """Climb the prediction variance from each starting point by a compass search inside the cube."""
+    current = starts.copy()
+    best = _prediction_variance_of_frame(ctx, current)
+    step = 0.5
+    k = len(continuous)
+    while step > _SEARCH_TOLERANCE:
+        # every point's 2k neighbours: one quantitative factor moved up or down by the step
+        moves = np.vstack([np.eye(k), -np.eye(k)]) * step
+        neighbours = current.loc[current.index.repeat(2 * k)].reset_index(drop=True)
+        shift = np.tile(moves, (len(current), 1))
+        neighbours[continuous] = np.clip(neighbours[continuous].to_numpy(dtype=float) + shift, -1.0, 1.0)
+        values = _prediction_variance_of_frame(ctx, neighbours).reshape(len(current), 2 * k)
+        choice = values.argmax(axis=1)
+        better = values[np.arange(len(current)), choice] > best + 1e-12
+        if not better.any():
+            step /= 2.0
+            continue
+        rows = np.flatnonzero(better)
+        current.loc[rows, continuous] = neighbours.loc[rows * 2 * k + choice[rows], continuous].to_numpy(dtype=float)
+        best[rows] = values[rows, choice[rows]]
+    return float(best.max())
 
 
 def _region_prediction_variance(ctx: _EvalContext) -> tuple[np.ndarray, np.ndarray]:
@@ -495,7 +611,7 @@ def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"g_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    max_pv = float(np.max(np.concatenate(_region_prediction_variance(ctx))))
+    max_pv = _region_maximum(ctx)
 
     g_eff = 100.0 * ctx.p / (ctx.N * max_pv) if max_pv > 0 else None
     return {
@@ -512,8 +628,8 @@ def _compute_average_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
     """
     if ctx.is_singular:
         return {"average_prediction_variance": None, "note": "Design is rank-deficient for the specified model."}
-    interior, _boundary = _region_prediction_variance(ctx)
-    return {"average_prediction_variance": float(np.mean(interior))}
+    average, note = _region_average(ctx)
+    return {"average_prediction_variance": average, **({"note": note} if note else {})}
 
 
 def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
@@ -521,8 +637,7 @@ def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"i_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    interior, _boundary = _region_prediction_variance(ctx)
-    avg_pv = float(np.mean(interior))
+    avg_pv, _note = _region_average(ctx)
 
     i_eff = 100.0 * ctx.p / (ctx.N * avg_pv) if avg_pv > 0 else None
     return {
@@ -579,6 +694,70 @@ def _compute_e_optimality(ctx: _EvalContext) -> dict[str, Any]:
         "e_optimality": min_eig,
         "e_efficiency": 100.0 * min_eig / ctx.N if ctx.N > 0 else None,
     }
+
+
+#: The largest natural log whose exponential is a finite float.
+_LARGEST_LOG = 709.0
+
+
+def _compute_information_matrix(ctx: _EvalContext) -> dict[str, Any]:
+    """Return the information matrix ``M = X'X``, and the criteria read from it.
+
+    Returns the model's ``terms``, ``xtx`` (rows and columns in the order of ``terms``),
+    its ``determinant`` and ``log_determinant`` (the determinant of a large design
+    overflows), the D-criterion ``d_criterion``, ``|X'X|^(1/p)``, the ``eigenvalues`` and
+    the E-criterion ``e_criterion`` (the smallest of them), the ``rank`` of ``X`` beside
+    ``n_parameters`` and ``n_runs``, the ``residual_df``, ``N - rank``, and ``is_diagonal``
+    (every term orthogonal to every other). For a model the design estimates it adds the
+    ``inverse``, whose entries are the coefficients' variances and covariances in units of
+    sigma^2, its trace, the A-criterion ``a_criterion``, that trace over ``p``
+    (``a_criterion_per_parameter``) and each term's ``coefficient_variances``.
+    """
+    sign, logdet = np.linalg.slogdet(ctx.XtX)
+    estimable = sign > 0 and not ctx.is_singular
+    eigenvalues = np.linalg.eigvalsh(ctx.XtX)
+    off_diagonal = ctx.XtX - np.diag(np.diag(ctx.XtX))
+    scale = max(float(np.abs(ctx.XtX).max()), 1.0)
+    result: dict[str, Any] = {
+        "terms": list(ctx.column_names),
+        "xtx": ctx.XtX.tolist(),
+        "determinant": float(np.exp(logdet)) if estimable and logdet < _LARGEST_LOG else (np.inf if estimable else 0.0),
+        "log_determinant": float(logdet) if estimable else None,
+        "d_criterion": float(np.exp(logdet / ctx.p)) if estimable else 0.0,
+        "eigenvalues": eigenvalues.tolist(),
+        "e_criterion": float(eigenvalues.min()),
+        "rank": ctx.rank,
+        "n_parameters": ctx.p,
+        "n_runs": ctx.N,
+        "residual_df": ctx.N - ctx.rank,
+        "is_diagonal": bool(np.all(np.abs(off_diagonal) <= 1e-9 * scale)),
+    }
+    if not ctx.is_singular:
+        assert ctx.XtX_inv is not None
+        trace = float(np.trace(ctx.XtX_inv))
+        result |= {
+            "inverse": ctx.XtX_inv.tolist(),
+            "a_criterion": trace,
+            "a_criterion_per_parameter": trace / ctx.p,
+            "coefficient_variances": dict(zip(ctx.column_names, map(float, np.diag(ctx.XtX_inv)), strict=True)),
+        }
+    return {"information_matrix": result}
+
+
+def _compute_estimable_interactions(ctx: _EvalContext) -> dict[str, Any]:
+    """How many two-factor interactions outside the model the design can estimate beside it.
+
+    The rank the omitted interaction columns add to the model matrix,
+    ``rank([X, X2]) - rank(X)``: so many of them can be estimated together with the
+    model, though not every choice of that many need be. Returns ``n_estimable``,
+    ``n_omitted`` and the omitted interactions' ``terms``.
+    """
+    X2, terms = _omitted_two_factor_interactions(ctx)
+    if not terms:
+        return {"estimable_interactions": {"n_estimable": 0, "n_omitted": 0, "terms": []}}
+    both, _ = _unit_length_columns(np.hstack([ctx.X, X2]))
+    added = int(np.linalg.matrix_rank(both)) - ctx.rank
+    return {"estimable_interactions": {"n_estimable": added, "n_omitted": len(terms), "terms": terms}}
 
 
 def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
@@ -1332,6 +1511,8 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "g_efficiency": _compute_g_efficiency,
     "a_optimality": _compute_a_optimality,
     "e_optimality": _compute_e_optimality,
+    "information_matrix": _compute_information_matrix,
+    "estimable_interactions": _compute_estimable_interactions,
     "correlation": _compute_correlation,
     "alias_matrix": _compute_alias_matrix,
     "fds": _compute_fds,
@@ -1485,6 +1666,8 @@ def evaluate_design(  # noqa: PLR0913
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
     categorical_coding: str = "effect",
+    integration: str = "sample",
+    max_search: str = "sample",
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1583,6 +1766,21 @@ def evaluate_design(  # noqa: PLR0913
         power and the alias matrix depend on the coding; the prediction-variance metrics,
         D rankings and the degrees of freedom do not. A ``Block`` column named in the
         formula is sum-coded under ``"effect"``, as ``analyze_experiment`` codes blocks.
+    integration : {"sample", "exact"}
+        How the region average of the prediction variance (the I-criterion, in
+        ``average_prediction_variance`` and ``i_efficiency``) is worked out. ``"sample"``
+        (default) averages it over the uniform sample. ``"exact"`` integrates it over the
+        cuboidal region by Gauss-Legendre quadrature, ``trace((X'X)^-1 W)`` with ``W`` the
+        region's moment matrix: exact for a model of degree up to four in each factor, a
+        categorical factor averaged over its levels. It falls back to the sample, with a
+        note, for another region or a quadrature grid of more than 250,000 points.
+    max_search : {"sample", "optimize"}
+        How the region maximum of the prediction variance (in ``g_efficiency``) is found.
+        ``"sample"`` (default) takes the largest value over the sample and the boundary
+        points. ``"optimize"`` then climbs from the best of those points by a compass
+        search inside the cube, so a maximum between the vertices is found rather than
+        missed: the variance of a design's projection often peaks inside a face or an
+        edge. Over a :class:`DesignRegion` it is the sample's maximum.
 
     Returns
     -------
@@ -1626,6 +1824,10 @@ def evaluate_design(  # noqa: PLR0913
 
     design_df, factor_names, block_note = _separate_run_columns(design_df, factor_names, model)
     _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
+    if integration not in _INTEGRATIONS:
+        raise ValueError(f"integration must be one of {_INTEGRATIONS}; got integration={integration!r}.")
+    if max_search not in _MAX_SEARCHES:
+        raise ValueError(f"max_search must be one of {_MAX_SEARCHES}; got max_search={max_search!r}.")
     metrics = _resolve_metrics(metric)
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
@@ -1653,6 +1855,8 @@ def evaluate_design(  # noqa: PLR0913
             fds_resolution=fds_resolution,
             design_type=design_type,
             categorical_coding=categorical_coding,
+            integration=integration,
+            max_search=max_search,
         )
     )
 
@@ -1686,6 +1890,8 @@ def evaluate_all(  # noqa: PLR0913
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
     categorical_coding: str = "effect",
+    integration: str = "sample",
+    max_search: str = "sample",
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1715,4 +1921,6 @@ def evaluate_all(  # noqa: PLR0913
         fds_resolution=fds_resolution,
         random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_all"),
         categorical_coding=categorical_coding,
+        integration=integration,
+        max_search=max_search,
     )
