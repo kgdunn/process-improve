@@ -183,6 +183,138 @@ export function responseName(label, factorNames = []) {
 /** What the reader can want of the response, as the response card words it; the keys are bootstrap.GOALS. */
 export const GOALS = { maximize: "Maximise", minimize: "Minimise", target: "Hit a target", learn: "Just learn" };
 
+// ---------------------------------------------------------------- several responses
+/** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES. */
+export const MAX_RESPONSES = 5;
+
+/**
+ * A study's responses, the first first, as bootstrap._responses reads a specification: each is its column's
+ * ``name`` and its description. A study made before the page measured several holds one, ``response``,
+ * described by ``response_info``; one with several lists them all in ``responses``.
+ */
+export function responsesOf(spec) {
+  if (Array.isArray(spec?.responses) && spec.responses.length) return spec.responses;
+  return [{ name: spec?.response ?? DEFAULT_RESPONSE, ...(spec?.response_info ?? {}) }];
+}
+
+/** A response's description without its column's name: what a specification's ``response_info`` holds. */
+export const infoOf = ({ name: _, ...info }) => info;
+
+/**
+ * What a specification keeps of its responses, as bootstrap._stored_responses writes it: the first one's name
+ * and description, as a study of one response has always kept them, and with several the whole list.
+ */
+export function storedResponses(responses) {
+  const [first] = responses;
+  const info = infoOf(first);
+  return {
+    response: first.name,
+    ...(Object.keys(info).length ? { response_info: info } : {}),
+    ...(responses.length > 1 ? { responses } : {}),
+  };
+}
+
+/** A specification with its responses replaced: the first one's name and description, and the list with several. */
+export function withResponses(spec, responses) {
+  const { response_info: _, responses: __, ...rest } = spec;
+  return { ...rest, ...storedResponses(responses) };
+}
+
+/** Each response's results, by its column: no result yet for any of ``n`` runs. */
+export const noResults = (names, n) => Object.fromEntries(names.map((name) => [name, Array(n).fill(null)]));
+
+/** Whether a value is a result: a number typed, simulated or read, not a blank. */
+const isResult = (v) => v !== null && v !== undefined;
+
+/**
+ * Whether each run is complete: it has a result for every response. ``results`` holds each response's results
+ * by its column, and ``names`` are the columns. A run with some of its results counts for those responses only.
+ */
+export function completeRuns(results, names) {
+  const n = Math.max(0, ...names.map((name) => results[name]?.length ?? 0));
+  return Array.from({ length: n }, (_, i) => names.every((name) => isResult(results[name]?.[i])));
+}
+
+/** Whether any response has a result yet. */
+export const anyResult = (results) => Object.values(results).some((values) => values.some(isResult));
+
+/**
+ * The runs that have some of their results and not all: their places on the run sheet. Each response is fitted
+ * to the runs that have its result, so these count for some responses and not for others.
+ */
+export function partialRuns(results, names) {
+  const complete = completeRuns(results, names);
+  return complete.flatMap((done, i) => (!done && names.some((name) => isResult(results[name]?.[i])) ? [i] : []));
+}
+
+/**
+ * The results as the page sends them to Python, and as a campaign keeps them: the first response's in
+ * ``responses``, as a study of one response always has, and each later one's in ``more_responses``, by its
+ * column, only when there are several. ``key`` names the pair: ``responses``, or ``sources`` for their sources.
+ */
+export function splitResults(names, byName, key = "responses") {
+  const [first, ...more] = names;
+  const out = { [key]: byName[first] ?? [] };
+  if (more.length) out[`more_${key}`] = Object.fromEntries(more.map((name) => [name, byName[name] ?? []]));
+  return out;
+}
+
+/** The reverse of splitResults: each response's results by its column, from the first's list and the others'. */
+export function joinResults(names, first, more = {}) {
+  const [head, ...rest] = names;
+  const n = first?.length ?? 0;
+  return { [head]: first ?? [], ...Object.fromEntries(rest.map((name) => [name, more?.[name] ?? Array(n).fill(null)])) };
+}
+
+/**
+ * What Learn says of the runs that have some of their results and not all, with several responses: ``runs`` are
+ * their numbers, as the run sheet's Run order gives them, and each response is fitted to the runs that have its
+ * result: the one analysed, named ``label``, to ``fitted`` runs.
+ */
+export function partialSentence(runs, label, fitted) {
+  const one = runs.length === 1;
+  const which = one ? `Run ${runs[0]} has some of its results` : `Runs ${listNames(runs.map(String))} have some of their results`;
+  return `${which}, not all. Each response is fitted to the runs that have its result: ${label} to ${fitted}.`;
+}
+
+/**
+ * The responses as a study's title names them: one as responseTitle does ("Yield (%), maximise"), several by
+ * their names ("Yield, Cost and Purity").
+ */
+export function responsesTitle(responses) {
+  if (responses.length === 1) return responseTitle(infoOf(responses[0]), responses[0].name);
+  return listNames(responses.map((r) => r.label || r.name));
+}
+
+/**
+ * What the brief's responses still need, a sentence each, as the reader types: the later responses must differ
+ * in name from the first and from each other. ``labels`` are the names typed, in order, blanks left out.
+ */
+export function responseLabelProblems(labels) {
+  const seen = new Set();
+  const said = [];
+  for (const label of labels.map((l) => String(l ?? "").trim()).filter(Boolean)) {
+    const key = label.toLowerCase();
+    if (seen.has(key)) said.push(`${label}: two responses cannot share a name.`);
+    seen.add(key);
+  }
+  return [...new Set(said)];
+}
+
+/**
+ * The run sheet's columns for the brief's responses: each named from its label as responseName names it, unlike
+ * every factor and every response before it. ``kept`` gives a column a response holds already, by its place.
+ */
+export function responseColumns(labels, factorNames = [], kept = []) {
+  const taken = [...factorNames, ...kept.filter(Boolean)];
+  return labels.map((label, i) => {
+    if (kept[i]) return kept[i];
+    const name = responseName(label, taken);
+    taken.push(name);
+    return name;
+  });
+}
+
 /** A quantity's name with its units, as a heading or an axis shows it: "T (degC)", or the name alone. */
 export const withUnits = (name, units) => (units ? `${name} (${units})` : name);
 

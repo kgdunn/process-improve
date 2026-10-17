@@ -262,10 +262,14 @@ export function withConfirmationRuns(design, at, count = CONFIRMATION_RUNS) {
   return { columns, rows };
 }
 
-/** Take a run sheet's confirmation runs away, with their results and sources, and its confirmation column with them. */
-export function withoutConfirmationRuns(design, responses, sources) {
+/**
+ * Take a run sheet's confirmation runs away, with their results and sources, and its confirmation column with them.
+ * ``results`` and ``marks`` hold each response's results and their sources, by its column.
+ */
+export function withoutConfirmationRuns(design, results, marks) {
   const { columns, rows, kept } = designRows(design);
-  return { columns, rows, responses: responses.filter((_, i) => kept[i]), sources: sources.filter((_, i) => kept[i]) };
+  const keep = (byName) => Object.fromEntries(Object.entries(byName).map(([name, values]) => [name, values.filter((_, i) => kept[i])]));
+  return { columns, rows, results: keep(results), marks: keep(marks) };
 }
 
 /** Whether a run sheet holds confirmation runs at these settings already, the settings ``at`` as the page adds them. */

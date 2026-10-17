@@ -420,3 +420,115 @@ def test_the_best_settings_code_leaves_the_confirmation_runs_out_of_the_fit(api,
     assert len(namespace["y"]) == 15, "the design's runs only"
     assert_same_fit(namespace, analysis)
     assert_same_best(namespace, again, held["spec"])
+
+
+# --------------------------------------------------------------------------- several responses
+#: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
+THREE = [
+    {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
+    {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
+    {"name": "Purity", "label": "Purity", "units": "%", "goal": "target", "target": 63.0},
+]
+
+
+def three_responses(api) -> tuple[dict, dict]:
+    """Make a Box-Behnken design of the three responses, and simulate their results; return it and the simulation."""
+    held = held_of(api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS, "responses": THREE}))
+    return held, api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+
+
+def by_name(simulation: dict) -> dict[str, list]:
+    """Return each response's results by its column, as the page holds them."""
+    return {"Yield": simulation["responses"], **{n: m["responses"] for n, m in simulation["more"].items()}}
+
+
+def sent_of(results: dict[str, list]) -> dict:
+    """Return the results as the page sends them: the first response's alone, the later ones' beside them."""
+    return {"responses": results["Yield"], "more_responses": {n: results[n] for n in ("Cost", "Purity")}}
+
+
+@pytest.mark.slow
+def test_the_code_simulates_each_response_from_its_own_process_as_the_page_does(api, node):
+    held, simulation = three_responses(api)
+    code = panel(node, ("designCode", [held["spec"]]), ("resultsCode", [held, by_name(simulation), simulation]))
+    namespace = run(code)
+    for name, values in by_name(simulation).items():
+        np.testing.assert_allclose(namespace["runs"][name], values, atol=1e-9, err_msg=name)
+    np.testing.assert_allclose(namespace["y"], simulation["responses"], atol=1e-9)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("response", ["Cost", "Purity"])
+def test_each_response_s_analysis_code_gives_the_page_s_analysis_of_it(api, node, response):
+    """A later response's results are typed in, one still to come: its code takes its own column and leaves it out."""
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    results[response] = [None, *results[response][1:]]
+    analysis = api.ok("api_analyze_runs", {**held, **sent_of(results), "response": response, "model": "interactions"})
+    spec = javascript(node, source("python.js"), [("forResponse", [held["spec"], response])])[0]
+    assert spec["response"] == response
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("analyseCode", [analysis["formula"], False, spec]),
+    )
+    namespace = run(code)
+    assert namespace["y"].name == response
+    assert_same_fit(namespace, analysis)
+
+
+@pytest.mark.slow
+def test_each_response_s_best_settings_code_finds_the_page_s(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    request = {**held, **sent_of(results), "response": "Cost", "model": "interactions"}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    spec = javascript(node, source("python.js"), [("forResponse", [held["spec"], "Cost"])])[0]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("analyseCode", [analysis["formula"], True, spec]),
+        ("bestCode", [best, spec, analysis["formula"], True]),
+    )
+    namespace = run(code)
+    found = namespace["best"]["optimal_coded"]
+    for name in ("T", "P", "F"):
+        assert found[name] == pytest.approx(best["coded"][name], abs=1e-6), name
+
+
+@pytest.mark.slow
+def test_the_notebook_of_three_responses_analyses_each_in_turn(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    analyses, fits = [], {}
+    for name in ("Yield", "Cost", "Purity"):
+        request = {**held, **sent_of(results), "response": name}
+        fits[name] = api.ok("api_analyze_runs", request)
+        best = api.ok("api_best_settings", request)
+        analyses.append({"response": name, "model": fits[name]["formula"], "best": best})
+    marks = {name: ["simulated"] * 15 for name in results}
+    book = notebook_of(
+        node, design=held, responses=results, sources=marks, simulation=simulation, model=None, analyses=analyses
+    )
+    nbformat = pytest.importorskip("nbformat", reason="the notebook is checked against Jupyter's own schema")
+    nbformat.validate(nbformat.reads(json.dumps(book), as_version=4))
+    headings = ["".join(c["source"]) for c in book["cells"] if c["cell_type"] == "markdown"][3:]
+    assert headings == [
+        "## 3. The analysis of Yield",
+        "## 4. The best settings for Yield",
+        "## 5. The analysis of Cost",
+        "## 6. The best settings for Cost",
+        "## 7. The analysis of Purity",
+        "## 8. The best settings for Purity",
+    ]
+    namespace: dict = {}
+    for cell in book["cells"][2:]:
+        if cell["cell_type"] != "code":
+            continue
+        text = "".join(cell["source"])
+        run(text, namespace)
+        if "analysis = analyze_experiment" in text:
+            assert_same_fit(namespace, fits[str(namespace["y"].name)])

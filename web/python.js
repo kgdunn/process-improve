@@ -128,36 +128,55 @@ function responseComment(spec) {
   return `  # ${name}${info.units ? `, in ${info.units}` : ""}`;
 }
 
+/** A specification's responses' columns, the first first, as logic.js responsesOf names them. */
+const responseNames = (spec) => (spec.responses?.length ? spec.responses.map((r) => r.name) : [spec.response || "y"]);
+
+/** A study's specification as one of its responses' code reads it: that response as its ``response``. */
+export function forResponse(spec, name) {
+  const found = (spec.responses ?? []).find((r) => r.name === name);
+  if (!found || name === spec.response) return spec;
+  const { name: _, ...info } = found;
+  return { ...spec, response: name, response_info: info };
+}
+
 /**
  * Step 2: the run sheet as the page lists it, its settings in coded units as ``X``, and the
  * results as ``y``: simulated from ``simulation``'s process when it is given, else the results
  * on the page, None for a run still to do. The runs are written out rather than taken from
  * step 1's ``result``, because the page may list them in another order: as the book's table
  * does, or as a workbook was sorted.
+ *
+ * ``results`` is the first response's results, one per run, or each response's by its column. With
+ * several responses the run sheet holds a column for each, and ``y`` is the first: each response's
+ * analysis takes its own column (analyseCode). Simulated, each has its process and its seed.
  */
-export function resultsCode(design, allResponses, simulation = null) {
+export function resultsCode(design, results, simulation = null) {
   const { spec, columns } = design;
+  const names = responseNames(spec);
+  const byName = Array.isArray(results) ? { [names[0]]: results } : results;
   const kept = fittedRuns(design);
   const rows = design.rows.filter((_, i) => kept[i]);
-  const responses = allResponses.filter((_, i) => kept[i]);
+  const values = Object.fromEntries(names.map((name) => [name, (byName[name] ?? []).filter((_, i) => kept[i])]));
   const left = kept.includes(false) ? ["# The confirmation runs are left out: they test the model, so they do not enter its fit."] : [];
   const at = (name) => columns.indexOf(name);
   const settings = (f) => rows.map((row) => (labelled(f) ? row[at(f.name)] : Number(row[at(f.name)])));
   const blocked = at("Block") >= 0 && (spec.options?.n_blocks ?? 1) > 1;
-  const response = spec.response || "y";
+  const response = names[0];
+  const several = names.length > 1;
   const runs = [
     ...spec.factors.flatMap((f) => columnLines(f.name, settings(f))),
     ...(blocked ? columnLines("Block", rows.map((row) => row[at("Block")])) : []),
-    ...(simulation ? [] : columnLines(response, responses)),
+    ...(simulation ? [] : names.flatMap((name) => columnLines(name, values[name]))),
   ];
+  const waiting = names.some((name) => values[name].includes(null));
   const lines = [
     "import pandas as pd",
     ...(simulation ? ["from process_improve.experiments import TrueProcess"] : []),
     "",
     simulation
       ? "# The run sheet, as the page lists it: each run's settings, in the factors' own units."
-      : `# The run sheet, as the page lists it: each run's settings and result${
-          responses.includes(null) ? "; None for a run still to do" : ""
+      : `# The run sheet, as the page lists it: each run's settings and ${several ? "results" : "result"}${
+          waiting ? "; None for a run still to do" : ""
         }.`,
     ...left,
     "runs = pd.DataFrame(",
@@ -174,30 +193,44 @@ export function resultsCode(design, allResponses, simulation = null) {
     ")",
   ];
   if (!simulation) return [...lines, `y = runs[${repr(response)}]${responseComment(spec)}`].join("\n");
-  const terms = simulation.truth.map((t) => `        ${repr(t.term)}: ${t.coefficient},`);
+  const process = (one) => ["TrueProcess(", "    {", ...one.truth.map((t) => `        ${repr(t.term)}: ${t.coefficient},`), "    },", `    sigma=${one.sigma},`, ")"];
+  if (!several) {
+    return [
+      ...lines,
+      "",
+      `process = ${process(simulation).join("\n")}`,
+      ...(responseComment(spec) ? [`#${responseComment(spec).slice(3)}, simulated from a known process`] : []),
+      `y = process.simulate(X, random_state=${simulation.seed}).round(${decimals(simulation.sigma)})  # as the page rounds them`,
+    ].join("\n");
+  }
+  const each = names.map((name, i) => [name, i === 0 ? simulation : simulation.more?.[name]]).filter(([, one]) => one);
   return [
     ...lines,
     "",
-    "process = TrueProcess(",
-    "    {",
-    ...terms,
-    "    },",
-    `    sigma=${simulation.sigma},`,
-    ")",
-    ...(responseComment(spec) ? [`#${responseComment(spec).slice(3)}, simulated from a known process`] : []),
-    `y = process.simulate(X, random_state=${simulation.seed}).round(${decimals(simulation.sigma)})  # as the page rounds them`,
+    "# Each response's process, simulated with a seed of its own and rounded as the page rounds it.",
+    "processes = {}",
+    ...each.map(([name, one]) => `processes[${repr(name)}] = ${process(one).join("\n")}`),
+    `seeds = ${repr(Object.fromEntries(each.map(([name, one]) => [name, one.seed])))}`,
+    `decimals = ${repr(Object.fromEntries(each.map(([name, one]) => [name, decimals(one.sigma)])))}`,
+    "for name, process in processes.items():",
+    "    runs[name] = process.simulate(X, random_state=seeds[name]).round(decimals[name])",
+    `y = runs[${repr(response)}]${responseComment(spec)}`,
   ].join("\n");
 }
 
 /**
  * Step 3: the analysis of step 2's ``X`` and ``y``, with the model the page fitted. ``complete``
  * says every run has its result; when one does not, the runs still to do are left out first.
+ * ``spec`` names a response other than the study's first when it is that response's analysis: ``y``
+ * is its column then.
  */
-export function analyseCode(model, complete = true) {
+export function analyseCode(model, complete = true, spec = null) {
   const fitted = complete ? "X, y" : "X[done], y[done]";
+  const own = spec && spec.response !== responseNames(spec)[0];
   return [
     "from process_improve.experiments import analyze_experiment",
     "",
+    ...(own ? [`y = runs[${repr(spec.response)}]${responseComment(spec)}`] : []),
     ...(complete ? [] : ["done = y.notna()  # leave out the runs still to do, as the page does"]),
     "analysis = analyze_experiment(",
     `    ${fitted}, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"]`,
@@ -364,8 +397,11 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * or read from a workbook are written out. ``model`` is the model the analysis fitted, or null
  * when there is no analysis yet; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, version, url, best = null }) {
-  const simulated = Boolean(simulation) && sources.every((s) => s === "simulated");
+export function notebook({ title, design, responses, sources, simulation, model, version, url, best = null, analyses = null }) {
+  const names = responseNames(design.spec);
+  const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
+  const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
+  const simulated = Boolean(simulation) && Object.values(marks).every((list) => list.every((s) => s === "simulated"));
   const cells = [
     markdownCell(
       "about",
@@ -376,17 +412,30 @@ export function notebook({ title, design, responses, sources, simulation, model,
     markdownCell("design-step", "## 1. The design"),
     codeCell("design", designCode(design.spec)),
     markdownCell("results-step", simulated ? "## 2. The results, simulated from a known process" : "## 2. The results"),
-    codeCell("results", resultsCode(design, responses, simulated ? simulation : null)),
+    codeCell("results", resultsCode(design, results, simulated ? simulation : null)),
   ];
-  if (model !== null && model !== undefined) {
-    const fitted = fittedRuns(design);
-    const complete = responses.every((v, i) => !fitted[i] || (v !== null && v !== undefined));
-    cells.push(markdownCell("analysis-step", "## 3. The analysis"), codeCell("analysis", analyseCode(model, complete)));
-    if (best?.settings) {
+  // Each response's analysis, and its best settings when it has a goal: the first's alone for a study of one response.
+  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best }] : []);
+  const fitted = fittedRuns(design);
+  let step = 3;
+  for (const { response, model: fittedModel, best: found } of each) {
+    if (fittedModel === null || fittedModel === undefined) continue;
+    const spec = forResponse(design.spec, response);
+    const values = results[response] ?? [];
+    const complete = values.every((v, i) => !fitted[i] || (v !== null && v !== undefined));
+    const words = spec.response_info?.label || response;
+    const id = names.length > 1 ? `-${names.indexOf(response) + 1}` : ""; // a cell's id is ASCII, as nbformat asks
+    cells.push(
+      markdownCell(`analysis-step${id}`, names.length > 1 ? `## ${step}. The analysis of ${words}` : `## ${step}. The analysis`),
+      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec)),
+    );
+    step += 1;
+    if (found?.settings) {
       cells.push(
-        markdownCell("best-step", "## 4. The best settings for the goal"),
-        codeCell("best", bestCode(best, design.spec, model, complete)),
+        markdownCell(`best-step${id}`, names.length > 1 ? `## ${step}. The best settings for ${words}` : `## ${step}. The best settings for the goal`),
+        codeCell(`best${id}`, bestCode(found, spec, fittedModel, complete)),
       );
+      step += 1;
     }
   }
   return {

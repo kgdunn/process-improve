@@ -8,6 +8,7 @@ import {
   BOOK_PARAM,
   CAMPAIGN_VERSION,
   bookName,
+  campaignDone,
   campaignTitle,
   checkBookExample,
   checkCampaign,
@@ -412,5 +413,137 @@ describe("one of the book's examples, named in a link", () => {
     assert.ok(!sameCampaign({ ...book, responses: [12.5, 9.75, 1, 14] }, book), "a result typed in");
     assert.ok(!sameCampaign({ ...book, model: "main_effects" }, book), "another model chosen");
     assert.ok(!sameCampaign({ ...book, title: "Renamed" }, book));
+  });
+});
+
+describe("a campaign of several responses", () => {
+  const COST = { name: "Cost", label: "Cost", units: "$/kg", goal: "minimize" };
+  const PURITY = { name: "Purity", label: "Purity", units: "%", goal: "target", target: 99 };
+
+  /** The 2^2 factorial measuring a yield, a cost and a purity: the first response is the study's own, y. */
+  function three() {
+    const c = campaign();
+    c.design.spec.response_info = { label: "Yield", units: "%", goal: "maximize" };
+    c.design.spec.responses = [{ name: "y", label: "Yield", units: "%", goal: "maximize" }, COST, PURITY];
+    c.design.columns = [...c.design.columns, "Cost", "Purity"];
+    c.design.rows = c.design.rows.map((row) => [...row, null, null]);
+    c.more_responses = { Cost: [9, null, 8.5, 7], Purity: [98.9, 99.1, null, null] };
+    c.more_sources = { Cost: ["entered", null, "entered", "entered"], Purity: ["entered", "entered", null, null] };
+    c.more_models = { Cost: "interactions", Purity: { terms: [["T"]] } };
+    return c;
+  }
+
+  test("a link carries every response's results and model, checked", async () => {
+    const back = await unpackCampaign(await packCampaign(three()));
+    assert.deepEqual(back.design.spec.responses, three().design.spec.responses);
+    assert.deepEqual(back.responses, campaign().responses, "the first response's results, where they always were");
+    assert.deepEqual(back.more_responses, three().more_responses);
+    assert.deepEqual(back.more_sources, three().more_sources);
+    assert.deepEqual(back.more_models, three().more_models);
+  });
+
+  test("a campaign of one response reads back as before, with nothing about other responses", () => {
+    const back = checkCampaign(campaign());
+    assert.deepEqual(Object.keys(back), ["v", "title", "design", "responses", "sources", "simulation", "simulate", "model"]);
+    assert.equal(back.design.spec.responses, undefined);
+  });
+
+  test("a later response without results yet has none, and is analysed as designed", () => {
+    const c = three();
+    delete c.more_responses;
+    delete c.more_sources;
+    delete c.more_models;
+    const back = checkCampaign(c);
+    assert.deepEqual(back.more_responses, { Cost: [null, null, null, null], Purity: [null, null, null, null] });
+    assert.deepEqual(back.more_models, { Cost: "", Purity: "" });
+  });
+
+  test("the list describes the first response, as response_info does", () => {
+    const c = three();
+    c.design.spec.response_info = { label: "Something else" };
+    assert.deepEqual(checkCampaign(c).design.spec.response_info, { label: "Yield", units: "%", goal: "maximize" });
+  });
+
+  test("a link without its results keeps each response's model, and no result", async () => {
+    const shared = shareable(three(), false);
+    assert.equal(shared.more_responses, undefined);
+    assert.deepEqual(shared.more_models, three().more_models);
+    const back = await unpackCampaign(await packCampaign(shared));
+    assert.deepEqual(back.more_responses.Cost, [null, null, null, null]);
+  });
+
+  test("a campaign whose responses do not hold together is refused, saying why", () => {
+    const refused = (change, why) => {
+      const c = three();
+      change(c);
+      assert.throws(() => checkCampaign(c), (err) => err.message.startsWith("This design could not be opened: ") && why.test(err.message));
+    };
+    refused((c) => (c.design.spec.responses = [COST, PURITY]), /its responses do not start with its response/);
+    refused((c) => (c.design.spec.responses = [c.design.spec.responses[0], COST, COST]), /two of its responses share a name/);
+    refused((c) => (c.design.spec.responses = [1, 2]), /response 1 is not a response/);
+    refused((c) => (c.design.spec.responses = Array(6).fill(COST)), /the responses is too long/);
+    refused((c) => (c.design.columns = c.design.columns.filter((name) => name !== "Purity")), /a run does not fill|no column "Purity"/);
+    refused((c) => (c.more_responses = { Colour: [1, 2, 3, 4] }), /its results name a response it does not measure/);
+    refused((c) => (c.more_responses.Cost = [1, 2]), /its results are not one number, or a blank, per run/);
+    refused((c) => (c.more_sources.Cost = ["typed", null, null, null]), /sources are not one per run/);
+    refused((c) => (c.simulation = { truth: [], sigma: 1, seed: 1, more: { Colour: { truth: [], sigma: 1, seed: 2 } } }), /simulation names a response/);
+  });
+
+  test("each response's simulated process travels with its noise and seed", () => {
+    const c = three();
+    const process = (seed) => ({ truth: [{ term: "Intercept", coefficient: 50 }], sigma: 1, seed, equation: "y = 50", inactive: ["T"] });
+    c.simulation = { scenario: "reactor", label: "Reactor yield", ...process(1), more: { Cost: process(1001) } };
+    const back = checkCampaign(c);
+    assert.equal(back.simulation.more.Cost.seed, 1001);
+    assert.deepEqual(back.simulation.more.Cost.inactive, ["T"]);
+  });
+
+  test("a run is done when every response has its result", () => {
+    assert.deepEqual(campaignDone(checkCampaign(three())), [true, false, false, false]);
+    assert.deepEqual(campaignDone(checkCampaign(campaign())), [true, true, false, true], "one response: its results");
+    assert.equal(progress(campaignDone(checkCampaign(three())).map((done) => (done ? true : null))), "4 runs, 1 results in");
+  });
+
+  test("the same design is recognised whatever its results, and a study of one response keys as before", () => {
+    const here = three();
+    const back = three();
+    back.more_responses = { Cost: [1, 2, 3, 4], Purity: [1, 2, 3, 4] };
+    assert.equal(designKey(here.design), designKey(back.design));
+    assert.notEqual(designKey(here.design), designKey(campaign().design), "another response is another study");
+    assert.equal(
+      designKey(campaign().design),
+      JSON.stringify([
+        "full_factorial",
+        [
+          [150, 200],
+          ["A", "B"],
+        ],
+        "y",
+        ["Std order", "Run order", 0, 1, "y"],
+        campaign().design.rows.map((row) => row.slice(0, 4)),
+      ]),
+    );
+  });
+
+  test("results that come back by link fill each response's runs without a result here", () => {
+    const here = checkCampaign(three());
+    const incoming = checkCampaign(three());
+    incoming.responses = [12.5, 9.75, 11, 14];
+    incoming.sources = ["entered", "entered", "entered", "entered"];
+    incoming.more_responses = { Cost: [9, 7.5, 8.5, 6], Purity: [98.9, 99.1, 99.2, null] };
+    incoming.more_sources = { Cost: ["entered", "entered", "entered", "entered"], Purity: ["entered", "entered", "entered", null] };
+    const merged = mergeResults(here, incoming);
+    assert.deepEqual(merged.responses, [12.5, 9.75, 11, 14]);
+    assert.deepEqual(merged.more_responses, { Cost: [9, 7.5, 8.5, 7], Purity: [98.9, 99.1, 99.2, null] });
+    assert.equal(merged.added, 3, "one yield, one cost, one purity");
+    assert.equal(merged.kept, 1, "the last run's cost here differs from the link's, and stays");
+  });
+
+  test("the book's example is the same campaign only with the same results for every response", () => {
+    const a = checkCampaign(three());
+    const b = checkCampaign(three());
+    assert.ok(sameCampaign(a, b));
+    b.more_responses.Cost[1] = 1;
+    assert.ok(!sameCampaign(a, b));
   });
 });

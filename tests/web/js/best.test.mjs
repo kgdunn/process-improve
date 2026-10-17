@@ -324,14 +324,19 @@ describe("confirmation runs on the run sheet", () => {
     assert.deepEqual(design.kept, [true, true, false, false, false]);
   });
 
-  test("taken off again, with their results and sources", () => {
+  test("taken off again, with every response's results and sources", () => {
     const added = withConfirmationRuns(SHEET, { T: 200, P: 1, F: 18.04 });
-    const off = withoutConfirmationRuns(added, [50, 51, 67, 68, null], ["entered", "entered", "simulated", "simulated", null]);
+    const results = { Yield: [50, 51, 67, 68, null], Cost: [9, null, 8, 7, 6] };
+    const marks = {
+      Yield: ["entered", "entered", "simulated", "simulated", null],
+      Cost: ["entered", null, "simulated", "simulated", "entered"],
+    };
+    const off = withoutConfirmationRuns(added, results, marks);
     assert.deepEqual(off, {
       columns: SHEET.columns,
       rows: SHEET.rows,
-      responses: [50, 51],
-      sources: ["entered", "entered"],
+      results: { Yield: [50, 51], Cost: [9, null] },
+      marks: { Yield: ["entered", "entered"], Cost: ["entered", null] },
     });
   });
 

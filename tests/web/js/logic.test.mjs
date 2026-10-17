@@ -68,6 +68,19 @@ import {
   sortNumber,
   termLabel,
   withUnits,
+  MAX_RESPONSES,
+  anyResult,
+  completeRuns,
+  joinResults,
+  partialRuns,
+  partialSentence,
+  responseColumns,
+  responseLabelProblems,
+  responsesOf,
+  responsesTitle,
+  splitResults,
+  storedResponses,
+  withResponses,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -737,5 +750,95 @@ describe("the table of corners", () => {
     );
     assert.equal(words([0, 3, 5, 6]), "the 4 corners (T 150 degC, P 1 bar, F 10; T 150 degC, P 3 bar, F 20; and 2 more)");
     assert.equal(words([0, 7]), "the 2 corners (T 150 degC, P 1 bar, F 10; T 200 degC, P 3 bar, F 20)");
+  });
+});
+
+describe("several responses", () => {
+  const YIELD = { name: "Yield", label: "Yield", units: "%", goal: "maximize", typical: 62 };
+  const COST = { name: "Cost", label: "Cost", units: "$/kg", goal: "minimize" };
+  const PURITY = { name: "Purity", label: "Purity", units: "%", goal: "target", target: 99 };
+
+  test("a study made before measures the one response it names, described as it was", () => {
+    const old = { response: "Yield", response_info: { label: "Yield", units: "%" } };
+    assert.deepEqual(responsesOf(old), [{ name: "Yield", label: "Yield", units: "%" }]);
+    assert.deepEqual(responsesOf({ response: "y" }), [{ name: "y" }]);
+    assert.deepEqual(responsesOf({ response: "Yield", responses: [YIELD, COST] }), [YIELD, COST]);
+  });
+
+  test("one response is stored as before, several as a list beside the first", () => {
+    const { name: _, ...info } = YIELD;
+    assert.deepEqual(storedResponses([YIELD]), { response: "Yield", response_info: info });
+    assert.deepEqual(storedResponses([{ name: "y" }]), { response: "y" }, "no description, none kept");
+    assert.deepEqual(storedResponses([YIELD, COST]), { response: "Yield", response_info: info, responses: [YIELD, COST] });
+  });
+
+  test("a specification takes new responses, and loses the list when one is left", () => {
+    const spec = { design_type: "ccd", response: "Yield", response_info: { label: "Yield" }, responses: [YIELD, COST], model: "quadratic" };
+    const one = withResponses(spec, [{ name: "Yield", label: "Yield", units: "%" }]);
+    assert.deepEqual(one, { design_type: "ccd", model: "quadratic", response: "Yield", response_info: { label: "Yield", units: "%" } });
+    assert.deepEqual(withResponses(one, [YIELD, COST, PURITY]).responses, [YIELD, COST, PURITY]);
+  });
+
+  test("the most responses a study measures", () => {
+    assert.equal(MAX_RESPONSES, 5);
+  });
+
+  test("a run is complete when every response has its result", () => {
+    const results = { Yield: [60, null, 61, 62], Cost: [9, 8, null, 7] };
+    assert.deepEqual(completeRuns(results, ["Yield", "Cost"]), [true, false, false, true]);
+    assert.deepEqual(completeRuns(results, ["Yield"]), [true, false, true, true]);
+    assert.deepEqual(partialRuns(results, ["Yield", "Cost"]), [1, 2], "runs with some of their results");
+    assert.deepEqual(partialRuns({ Yield: [null, 1], Cost: [null, 2] }, ["Yield", "Cost"]), [], "a run with none is to do");
+    assert.equal(anyResult({ Yield: [null], Cost: [null] }), false);
+    assert.equal(anyResult({ Yield: [null], Cost: [0] }), true, "a result of 0 is a result");
+  });
+
+  test("the results go to Python as a study of one response sends them, the others beside", () => {
+    const results = { Yield: [60, 61], Cost: [9, null] };
+    assert.deepEqual(splitResults(["Yield"], results), { responses: [60, 61] });
+    assert.deepEqual(splitResults(["Yield", "Cost"], results), { responses: [60, 61], more_responses: { Cost: [9, null] } });
+    const marks = { Yield: ["entered", "simulated"], Cost: ["entered", null] };
+    assert.deepEqual(splitResults(["Yield", "Cost"], marks, "sources"), {
+      sources: ["entered", "simulated"],
+      more_sources: { Cost: ["entered", null] },
+    });
+    assert.deepEqual(joinResults(["Yield", "Cost"], [60, 61], { Cost: [9, null] }), results);
+    assert.deepEqual(joinResults(["Yield", "Cost"], [60, 61]), { Yield: [60, 61], Cost: [null, null] }, "no results yet");
+  });
+
+  test("a study's title names its responses", () => {
+    assert.equal(responsesTitle([YIELD]), "Yield (%), maximise");
+    assert.equal(responsesTitle([YIELD, COST, PURITY]), "Yield, Cost and Purity");
+    assert.equal(responsesTitle([YIELD, { name: "Cost_2" }]), "Yield and Cost_2", "a response not described, by its column");
+  });
+
+  test("two responses cannot share a name, whatever its case", () => {
+    assert.deepEqual(responseLabelProblems(["Yield", "Cost", "Purity"]), []);
+    assert.deepEqual(responseLabelProblems(["Yield", "", "  "]), [], "blank rows are no responses yet");
+    assert.deepEqual(responseLabelProblems(["Yield", "Cost", "cost"]), ["cost: two responses cannot share a name."]);
+    assert.deepEqual(responseLabelProblems(["Cost", "Cost", "Cost"]), ["Cost: two responses cannot share a name."], "said once");
+  });
+
+  test("each response's column is named from its words, unlike the factors and the responses before it", () => {
+    assert.deepEqual(responseColumns(["Yield", "Cost ($/kg)", "Purity"], ["T", "P"]), ["Yield", "Cost_kg", "Purity"]);
+    assert.deepEqual(responseColumns(["Yield", "yield", "Yield"], ["T"]), ["Yield", "yield", "Yield_2"]);
+    assert.deepEqual(responseColumns(["", ""], ["T"]), ["y", "y_2"]);
+    assert.deepEqual(responseColumns(["T", "Block"], ["T"]), ["T_2", "Block_2"]);
+  });
+
+  test("a response on the run sheet keeps its column, which no new one takes", () => {
+    const kept = ["Yield", undefined, "Cost"];
+    assert.deepEqual(responseColumns(["Yield of A", "Cost", "Costs"], ["T"], kept), ["Yield", "Cost_2", "Cost"]);
+  });
+
+  test("Learn says how a run with some of its results is fitted", () => {
+    assert.equal(
+      partialSentence([3], "Cost", 14),
+      "Run 3 has some of its results, not all. Each response is fitted to the runs that have its result: Cost to 14.",
+    );
+    assert.equal(
+      partialSentence([3, 7, 9], "Yield", 12),
+      "Runs 3, 7 and 9 have some of their results, not all. Each response is fitted to the runs that have its result: Yield to 12.",
+    );
   });
 });

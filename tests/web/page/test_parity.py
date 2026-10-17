@@ -175,8 +175,32 @@ def test_an_optimal_design_is_built_for_the_aim_as_the_comparison_builds_it(boot
 
 
 def test_the_goals_are_bootstrap_s_and_a_new_study_just_learns(bootstrap):
-    assert [r["value"] for r in page().radios["goal"]] == list(bootstrap.GOALS)
-    assert page().checked("goal") == "learn"
+    assert page().values("response-goal") == list(bootstrap.GOALS)
+    assert page().selected("response-goal") == "learn"
+
+
+def test_the_most_responses_a_study_measures_is_bootstrap_s(bootstrap, node):
+    """The page, the campaigns it reads and its words all hold as many responses as bootstrap.py takes."""
+    (page_most,) = javascript(node, source("logic.js"), [("MAX_RESPONSES", [])])
+    (campaign_most,) = javascript(node, source("campaign.js"), [("RESPONSES_HELD", [])])
+    assert page_most == campaign_most == bootstrap.MAX_RESPONSES
+    assert page().ids["responses-full"]["tag"] == "span"
+    assert f"A study measures at most {bootstrap.MAX_RESPONSES} responses." in source("index.html")
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [["Yield", "Cost", "Purity"], ["Yield", "Yield", "yield"], ["", "Cost"], ["T", "Cost ($/kg)", "Cost"]],
+)
+def test_the_page_names_each_response_s_column_as_bootstrap_takes_them(api, node, labels):
+    """The columns the page derives for several responses are names bootstrap.py takes for them, all different."""
+    (names,) = javascript(node, source("logic.js"), [("responseColumns", [labels, ["T", "P"]])])
+    assert len(set(names)) == len(names)
+    made = api.ok(
+        "api_make_design",
+        {"design_type": "full_factorial", "factors": FACTORS[:2], "responses": [{"name": n} for n in names]},
+    )
+    assert made["columns"][-len(names) :] == names
 
 
 def test_the_form_opens_on_a_new_study_with_bootstrap_s_defaults(api, bootstrap):
