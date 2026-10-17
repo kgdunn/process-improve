@@ -13,6 +13,20 @@ those changes.
 
 ### Added
 
+- **Classical tests and percentage points** (`process_improve.univariate`). `f_value`,
+  `chi2_value`, `z_value`, `studentized_range_value` and `dunnett_value` give the percentage
+  points of the F, chi-squared, normal, studentized-range and Dunnett distributions, a cumulative
+  probability first as `t_value` takes it; Dunnett's two-sided and one-sided critical values are
+  worked by numerical integration and agree with SciPy's multivariate t. `ttest_one_sample` tests
+  a mean against a stated value, `ztest` a mean or a difference of means with the standard
+  deviation known, `rank_sum_test` two groups by Wilcoxon's rank sum (normal approximation and
+  exact level), `randomization_test` two groups or pairs against every arrangement of the labels
+  or signs (sampled, with a `random_state`, past `max_arrangements`, and with a mid-p value that
+  counts ties as half), and `autocorrelation` a record in time order. The reference catalogue
+  checks 76 printed numbers with them: the F, chi-squared and Dunnett points of Montgomery's and
+  Schmidt and Launsby's tables, and the tests of Box, Hunter and Hunter's chapters 2 and 3 and the
+  PID book's randomization test. Three disagree, each explained (the book's rounded standard
+  errors, and a table value printed 5.31 for 5.318).
 - **Random effects** (`process_improve.experiments`). `variance_components(runs, "y ~ operator",
   random=[...])` fits random intercepts (`"a"`, `"a:b"`, or `"b(a)"` for a factor nested in
   another) beside the formula's sum-coded fixed factors by REML, and reports the components with their share of the total, standard errors and

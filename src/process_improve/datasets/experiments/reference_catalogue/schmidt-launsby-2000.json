@@ -14724,8 +14724,15 @@
       "quote": "Fc = F(.95, 1, 6) = 5.99 (from Appendix F)"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       6
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 6 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "critical value",
@@ -14737,8 +14744,15 @@
       "quote": "F(.99, 1, 6) = 13.75 implies we could be as high as 99% confident"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.99,
+       1,
+       6
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.99 of the F distribution on 1 and 6 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "coefficient",
@@ -15094,8 +15108,15 @@
       "quote": "Fc = F(.95, 1, 15) = 4.54"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F (the book uses 15 for the 16 degrees of freedom it lacks)"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       15
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 15 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "t_value",
@@ -15124,8 +15145,14 @@
       "quote": "tc = t(.975, 16) = 2.120"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       16
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 16 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "coefficient",
@@ -15695,8 +15722,15 @@
       "quote": "Fc = F(.95, 1, Σ(nr - 1)) = F(.95, 1, 4) = 7.71"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       4
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 4 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "mean",
@@ -17064,8 +17098,15 @@
       "quote": "Fc = F(.95,1,16) = 4.49"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       16
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 16 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "coefficient",
@@ -17615,8 +17656,15 @@
       "quote": "From Appendix F, F(.999; 1, 10) = 21.0"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.999,
+       1,
+       10
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.999 of the F distribution on 1 and 10 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "free-hand fit",
@@ -17914,8 +17962,14 @@
       "quote": "Using xh = 80, t(.975, 10) = 2.228"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       10
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 10 degrees of freedom lies; the book reads it from a table"
     }
    ]
   },
@@ -18944,8 +18998,15 @@
       "quote": "F(1 - α, dfLF, dfpure) = F(.95, 7, 10) = 3.14"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       7,
+       10
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 7 and 10 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "coefficient",
@@ -23192,8 +23253,14 @@
       "quote": "1396.6 ± (2.179)(11.864)"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       12
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 12 degrees of freedom lies; the book reads it from a table"
     }
    ]
   },
@@ -23577,8 +23644,14 @@
       "quote": "tCRITICAL = t[1 - α/2, n1 + n2 - 2] = t(.975, 6) = 2.447"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       6
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 6 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "anova_sum_sq",
@@ -23676,8 +23749,15 @@
       "quote": "FCRITICAL = F(.95, 1, 6) = 5.99"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       6
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 6 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "coefficient",
@@ -23930,8 +24010,14 @@
       "quote": "tcritical = 2.306"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       8
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 8 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "critical value",
@@ -23943,8 +24029,15 @@
       "quote": "c) Fcrit(0.05, 1, 8) = 5.32"
      },
      "check": {
-      "manual": "a value of the F distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       8
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 8 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "anova_sum_sq",
@@ -24336,8 +24429,15 @@
       "quote": "Fcrit(0.01, 4, 30) = 4.02"
      },
      "check": {
-      "manual": "a value of the F distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.99,
+       4,
+       30
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.99 of the F distribution on 4 and 30 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "Tukey critical difference",
@@ -27805,8 +27905,15 @@
       "quote": "Fc = F(.95,1,8) = 5.32"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       8
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 8 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "anova_sum_sq",
@@ -31173,8 +31280,14 @@
       "quote": "tc = t(.975, 4) = 2.776"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       4
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 4 degrees of freedom lies; the book reads it from a table"
     }
    ]
   },
@@ -34644,8 +34757,15 @@
       "quote": "Table 5.12 Turbine Blade Casting Example ... F(.95, 1, 16) = 4.49"
      },
      "check": {
-      "manual": "a value of the F distribution read from Appendix F"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       16
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 16 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "critical value",
@@ -57334,8 +57454,15 @@
       "quote": "Fcrit(0.05, 1, 16) = 4.49 so D is the only significant factor."
      },
      "check": {
-      "manual": "a value of the F distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       16
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 16 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "mean",
@@ -70792,8 +70919,15 @@
       "quote": "FCRIT = F(0.05, 1, 8) = 5.32"
      },
      "check": {
-      "manual": "a value of the F distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       8
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 8 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "mean",
@@ -75326,8 +75460,15 @@
       "quote": "CV for Fα = 0.05, 3, 4 = 6.59"
      },
      "check": {
-      "manual": "a value of the F distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       3,
+       4
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 3 and 4 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "r_squared",
@@ -75361,8 +75502,14 @@
       "quote": "CV for t0.05/2,4 = 2.776"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       4
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 4 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "t_value",
@@ -98673,8 +98820,14 @@
       "quote": "t0.025(27) = 2.052"
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [
+       0.975,
+       27
+      ]
+     },
+     "analysis": "the library's t_value, the point below which 0.975 of the t distribution on 27 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "critical value",
@@ -101100,8 +101253,16 @@
       "quote": "Using a F.05 = 5.31"
      },
      "check": {
-      "manual": "a value of the F distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.95,
+       1,
+       8
+      ],
+      "disagreement": "the book prints 5.31 here and 5.32 for the same point elsewhere; F(.95; 1, 8) is 5.318"
+     },
+     "analysis": "the library's f_value, the point below which 0.95 of the F distribution on 1 and 8 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "critical value",
@@ -101113,8 +101274,15 @@
       "quote": "at the 90% confidence level, using a F.10 = 3.46"
      },
      "check": {
-      "manual": "a value of the F distribution read from a table, not a result of the data"
-     }
+      "kind": "library_value",
+      "function": "f_value",
+      "args": [
+       0.9,
+       1,
+       8
+      ]
+     },
+     "analysis": "the library's f_value, the point below which 0.9 of the F distribution on 1 and 8 degrees of freedom lies; the book reads it from a table"
     },
     {
      "what": "design matrix",

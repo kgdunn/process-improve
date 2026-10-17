@@ -89,6 +89,18 @@ from process_improve.experiments.run_order import run_order_trends
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 from process_improve.sensory.designed import tukey_hsd
+from process_improve.univariate.classical import (
+    autocorrelation,
+    chi2_value,
+    dunnett_value,
+    f_value,
+    randomization_test,
+    rank_sum_test,
+    studentized_range_value,
+    ttest_one_sample,
+    z_value,
+    ztest,
+)
 from process_improve.univariate.metrics import t_value, t_value_cdf, ttest_independent, ttest_paired
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
@@ -1913,6 +1925,11 @@ _LIBRARY: dict[str, Callable[..., Any]] = {
     "omars_minimum_runs": omars_minimum_runs,
     "optimize_responses": optimize_responses,
     "t_value": t_value,
+    "chi2_value": chi2_value,
+    "dunnett_value": dunnett_value,
+    "f_value": f_value,
+    "studentized_range_value": studentized_range_value,
+    "z_value": z_value,
     "t_value_cdf": t_value_cdf,
 }
 
@@ -2022,6 +2039,51 @@ def _t_test(experiment: dict, check: dict) -> float:
         "p": _p_value({"coefficient": found["t"], "p_value": test["p value"]}, check.get("alternative")),
     }
     return float(found[check["key"]])
+
+
+_CLASSICAL: dict[str, Callable[..., dict[str, Any]]] = {
+    "autocorrelation": autocorrelation,
+    "rank_sum_test": rank_sum_test,
+    "randomization_test": randomization_test,
+    "ttest_one_sample": ttest_one_sample,
+    "ztest": ztest,
+}
+
+
+def _group(experiment: dict, check: dict, which: str) -> list[float] | None:
+    """Return the responses of one group of runs: 1-based positions, or the runs matching ``{column: value}``."""
+    chosen = check.get(which)
+    if chosen is None:
+        return None
+    table = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])
+    if isinstance(chosen, dict):
+        mask = np.logical_and.reduce([table[column].astype(str) == str(value) for column, value in chosen.items()])
+        positions = [int(i) + 1 for i in np.flatnonzero(mask)]
+    else:
+        positions = list(chosen)
+    _, responses = _coded_runs(experiment, positions)
+    return responses[check.get("response") or responses.columns[0]].astype(float).tolist()
+
+
+def _classical_test(experiment: dict, check: dict) -> float:
+    """Return a number of one of the library's classical tests on the runs' responses.
+
+    ``check["function"]`` is ``"ttest_one_sample"``, ``"ztest"``, ``"rank_sum_test"``,
+    ``"randomization_test"`` or ``"autocorrelation"`` (from :mod:`process_improve.univariate.classical`).
+    ``check["x"]`` and ``check["y"]`` pick each group's runs, as a list of 1-based positions or a
+    ``{column: value}`` that the runs must match; ``check["x"]`` left out takes every run, in order.
+    ``check["kwargs"]`` go to the function as they are, and ``check["key"]`` reads its result.
+    """
+    first = _group(experiment, check, "x")
+    if first is None:
+        _, responses = _coded_runs(experiment, None)
+        first = responses[check.get("response") or responses.columns[0]].astype(float).tolist()
+    second = _group(experiment, check, "y")
+    args = [first] if second is None else [first, second]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = _CLASSICAL[check["function"]](*args, **check.get("kwargs", {}))
+    return _read(found, check["key"])
 
 
 def _tukey(experiment: dict, check: dict) -> float:
@@ -2759,6 +2821,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "run_count": _run_count,
     "run_radius": _run_radius,
     "run_order_trends": _run_order_trends,
+    "classical_test": _classical_test,
     "t_test": _t_test,
     "tukey": _tukey,
     "unit_std_error": _unit_std_error,
