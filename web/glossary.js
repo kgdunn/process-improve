@@ -84,6 +84,10 @@ export const GLOSSARY = {
   "true-value":
     "What the coefficient estimates for the process the results were simulated from: the estimate the same fit " +
     "gives without noise.",
+  vif:
+    "The variance inflation factor: how many times larger a coefficient's variance is because its term is " +
+    "correlated with the other terms in the runs fitted. 1 means uncorrelated; above 5, the standard error is more " +
+    "than doubled.",
   effect: "The change in the response from a factor's low setting to its high one: twice its coefficient.",
   pse: "The pseudo standard error: a robust estimate of the standard error of an effect, from the effects themselves.",
   me: "The margin of error, the individual 95% cutoff: an effect whose size exceeds it is significant on its own.",
@@ -142,6 +146,7 @@ export const MARKED = {
   "Residual degrees of freedom": "residual-df",
   "Lack of fit": "lack-of-fit",
   "pure error": "pure-error",
+  "variance inflation factor": "vif",
   PSE: "pse",
   ME: "me",
   SME: "sme",

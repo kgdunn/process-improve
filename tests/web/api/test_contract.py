@@ -97,6 +97,8 @@ READS: dict[str, list[str]] = {
         "coefficients[].ci_high: number?",
         "coefficients[].p_value: number?",
         "coefficients[].true_value: number?",
+        "coefficients[].block: bool",
+        "coefficients[].vif: number?",
         "anova[].source: str",
         "anova[].df: number",
         "anova[].sum_sq: number?",

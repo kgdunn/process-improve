@@ -178,17 +178,28 @@ export function resultsCode(design, responses, simulation = null) {
 /**
  * Step 3: the analysis of step 2's ``X`` and ``y``, with the model the page fitted. ``complete``
  * says every run has its result; when one does not, the runs still to do are left out first.
+ * ``vifModel``, the terms fitted as a formula, is given when the page shows their VIFs: the code
+ * then works them out from the same runs, as the page's VIF column has them.
  */
-export function analyseCode(model, complete = true) {
+export function analyseCode(model, complete = true, vifModel = null) {
   const fitted = complete ? "X, y" : "X[done], y[done]";
+  const vif = vifModel
+    ? [
+        "# Each term's variance inflation factor: how many times larger its coefficient's variance is",
+        "# because the term is correlated with the others in these runs (the page's VIF column).",
+        `vif = evaluate_design(${complete ? "X" : "X[done]"}, model=${repr(vifModel)}, metric="vif")["vif"]`,
+        "print(vif)",
+      ]
+    : [];
   return [
-    "from process_improve.experiments import analyze_experiment",
+    `from process_improve.experiments import analyze_experiment${vifModel ? ", evaluate_design" : ""}`,
     "",
     ...(complete ? [] : ["done = y.notna()  # leave out the runs still to do, as the page does"]),
     "analysis = analyze_experiment(",
     `    ${fitted}, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"]`,
     ")",
     'print(analysis["coefficients"])',
+    ...vif,
   ].join("\n");
 }
 
@@ -259,9 +270,10 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * order, so running it top to bottom gives the page's design, results and analysis. Results
  * simulated and left as they were come from the same process and seed; results typed in, edited
  * or read from a workbook are written out. ``model`` is the model the analysis fitted, or null
- * when there is no analysis yet; ``version`` pins the release the page ran, when known.
+ * when there is no analysis yet, and ``vifModel`` its terms when the page shows their VIFs (see
+ * analyseCode); ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, version, url }) {
+export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, version, url }) {
   const simulated = Boolean(simulation) && sources.every((s) => s === "simulated");
   const cells = [
     markdownCell(
@@ -277,7 +289,10 @@ export function notebook({ title, design, responses, sources, simulation, model,
   ];
   if (model !== null && model !== undefined) {
     const complete = responses.every((v) => v !== null && v !== undefined);
-    cells.push(markdownCell("analysis-step", "## 3. The analysis"), codeCell("analysis", analyseCode(model, complete)));
+    cells.push(
+      markdownCell("analysis-step", "## 3. The analysis"),
+      codeCell("analysis", analyseCode(model, complete, vifModel)),
+    );
   }
   return {
     cells,

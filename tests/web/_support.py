@@ -103,6 +103,16 @@ def factors_named(*names: str) -> list[dict]:
     return [{"name": n, "low": -1, "high": 1, "units": ""} for n in names]
 
 
+#: Runs as given in factors A, B and C, each from -1 to +1: A and B are equal in all but the first run, where B
+#: is at its center, so the main effects model fits A and B with variance inflation factors of 10.8 and 11.
+CORRELATED_RUNS = [[-1, 0, -1], [-1, -1, 1], [1, 1, -1], [1, 1, 1], [-1, -1, -1], [-1, -1, 1], [1, 1, -1], [1, 1, 1]]
+
+
+def correlated_study() -> dict:
+    """Return the request for :data:`CORRELATED_RUNS` as a design of runs as given."""
+    return {"design_type": "given", "factors": factors_named("A", "B", "C"), "runs": CORRELATED_RUNS}
+
+
 # --------------------------------------------------------------------------- loading the app's files
 @contextlib.contextmanager
 def no_bytecode() -> Iterator[None]:

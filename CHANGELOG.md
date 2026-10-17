@@ -630,6 +630,15 @@ those changes.
   a new study*, *Explore a worked example* and *Browse the design catalog*. Every link from the
   app, its About page and the design catalog to another site (a source, GitHub, Pyodide) opens in a
   new tab, and a link to the book in the book's tab, so the page and its study stay where they are.
+- **Factorial warns when the model's terms are correlated.** Runs as given, or runs left blank,
+  can leave the fitted terms correlated: their standard errors grow, and the model as a whole can
+  explain the response while no single term looks active. Each coefficient in Learn now carries its
+  variance inflation factor (VIF), from the runs fitted. When a term's VIF is above 5, a note names
+  each such term with its VIF, says that its standard error is about √VIF times what uncorrelated
+  runs would give, and suggests adding runs that separate the terms or dropping one; the
+  coefficients table then shows a VIF column, defined on request, and the Python shown and the
+  notebook work the VIFs out with `evaluate_design`. An orthogonal design, every VIF 1, shows
+  neither.
 
 ### Fixed
 
