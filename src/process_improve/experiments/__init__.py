@@ -32,6 +32,7 @@ from process_improve.experiments.omars_trade_off import (
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
 from process_improve.experiments.region import DesignRegion
+from process_improve.experiments.run_order import run_order_trends, time_trends, trend_robust_run_order
 from process_improve.experiments.separating import (
     NotSeparableError,
     constraint_through_cuts,
@@ -105,9 +106,12 @@ __all__ = [
     "predict",
     "recommend_strategy",
     "rename_factors",
+    "run_order_trends",
     "separating_constraint",
     "summary",
     "supplement",
+    "time_trends",
     "trade_off_table",
+    "trend_robust_run_order",
     "visualize_doe",
 ]
