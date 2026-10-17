@@ -485,7 +485,7 @@ def _canonical_analysis(
         "classification": shape.classification,
         "canonical_form_description": desc_parts,
         "factor_names": factor_names,
-        "b_canonical": _b_canonical(b0, b, B, eigenvalues, eigenvectors, factor_names),
+        "b_canonical": _b_canonical((b0, b, B), eigenvalues, eigenvectors, factor_names),
     }
     if not shape.drifts:  # a stationary point exists: the A canonical form's axes are centred on it
         curved = ~shape.flat
@@ -502,10 +502,8 @@ def _canonical_analysis(
     return result
 
 
-def _b_canonical(  # noqa: PLR0913 - the fitted surface, its eigen-decomposition and the names of its axes
-    b0: float,
-    b: np.ndarray,
-    B: np.ndarray,
+def _b_canonical(
+    surface: tuple[float, np.ndarray, np.ndarray],
     eigenvalues: np.ndarray,
     eigenvectors: np.ndarray,
     factor_names: list[str],
@@ -514,8 +512,9 @@ def _b_canonical(  # noqa: PLR0913 - the fitted surface, its eigen-decomposition
 
     The origin x0 = -1/2 sum over the other axes of (v_i'b / lambda_i) v_i is the point nearest the
     centre where the gradient has no component along them, so the form keeps one linear term, along
-    the ridge.
+    the ridge. *surface* is the fitted quadratic's intercept, linear vector b and matrix B.
     """
+    b0, b, B = surface
     others = eigenvectors[:, :-1]
     origin = others @ (-0.5 * (others.T @ b) / eigenvalues[:-1])
     return {
