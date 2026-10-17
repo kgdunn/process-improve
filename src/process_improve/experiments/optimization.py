@@ -1821,7 +1821,7 @@ def _desirability_result(  # noqa: PLR0913
     return desirability
 
 
-def optimize_responses(  # noqa: PLR0913, C901
+def optimize_responses(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]] | None = None,
     method: str = "desirability",
@@ -1832,7 +1832,6 @@ def optimize_responses(  # noqa: PLR0913, C901
     fitted_results: list[Any] | None = None,
     significance_level: float = 0.05,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
-    desirability_weights: list[float] | None = None,
     ridge_direction: str = "maximize",
     n_pareto_points: int = 21,
     region: DesignRegion | None = None,
@@ -1931,10 +1930,6 @@ def optimize_responses(  # noqa: PLR0913, C901
         central composite design, or a mapping such as
         ``{"T": (-1.41, 1.41)}`` to widen one factor only. Factors left out of
         a mapping keep the (-1, 1) default.
-    desirability_weights : list[float] or None
-        Deprecated alias for *response_importance*. The name was misleading:
-        these values are importances, not the ``weight`` that shapes an
-        individual ramp.
     ridge_direction : {"maximize", "minimize"}
         Which ridge ``method="ridge_analysis"`` traces.
     n_pareto_points : int
@@ -1970,9 +1965,8 @@ def optimize_responses(  # noqa: PLR0913, C901
         ``"coefficients"`` or ``"factor_names"``, if a single-response method
         (``"stationary_point"``, ``"canonical_analysis"``, ``"steepest_ascent"``,
         ``"steepest_descent"``, ``"ridge_analysis"``) gets more than one model, if
-        a method that needs goals is called without them, if both
-        *response_importance* and *desirability_weights* are given, or if a
-        model's coefficients are in actual units, two models code a factor from
+        a method that needs goals is called without them, or if a model's
+        coefficients are in actual units, two models code a factor from
         different ranges, or *factor_ranges* disagrees with a model's coding.
 
     Examples
@@ -2005,22 +1999,6 @@ def optimize_responses(  # noqa: PLR0913, C901
 
     _check_fitted_models(fitted_models, method)
     factor_ranges = _ranges_from_coding(fitted_models, factor_ranges)
-
-    if desirability_weights is not None:
-        if response_importance is not None:
-            msg = (
-                "Pass either 'response_importance' or the deprecated 'desirability_weights', not both. "
-                "They set the same thing: how much each response counts in the composite."
-            )
-            raise ValueError(msg)
-        warnings.warn(
-            "'desirability_weights' is deprecated; use 'response_importance'. The values are importances, "
-            "which set how much each response counts in the composite, not the per-goal 'weight' that shapes "
-            "an individual desirability ramp.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        response_importance = desirability_weights
 
     # Use factor_names from the first model as the canonical ordering
     factor_names = fitted_models[0]["factor_names"]

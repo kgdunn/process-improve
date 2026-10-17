@@ -506,6 +506,13 @@ class TestOptimizeResponses:
         result = self._rising_plane_call(search_bounds=[1.0, -1.0])
         assert "low < high" in result["error"]
 
+    def test_desirability_weights_is_an_unknown_key(self) -> None:
+        """Removed in 2.0.0: the schema refuses it as any key it does not know; response_importance remains."""
+        removed = {"desirability_weights": [1.0]}  # a key the schema no longer has, sent as an agent would
+        with pytest.raises(ToolInputInvalidError, match="desirability_weights"):
+            self._rising_plane_call(**removed)
+        assert "error" not in self._rising_plane_call(response_importance=[1.0])
+
     def test_analyze_experiment_result_feeds_optimize_responses(self) -> None:
         """The documented generate -> analyze -> optimize pipeline, with no hand-editing of the result."""
         design = execute_tool_call(

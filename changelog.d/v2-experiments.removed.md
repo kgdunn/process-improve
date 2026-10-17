@@ -10,3 +10,8 @@
   reports the I-criterion itself: the prediction variance averaged over the region, in units of
   the error variance, where lower is better. `"i_optimality"` and `"i_criterion"` remain aliases
   for it.
+- **`optimize_responses(..., desirability_weights=)` is removed; use `response_importance`.** It
+  was renamed in 1.62.0, since the values are importances, which set how much each response
+  counts in the overall desirability, and not the per-goal `weight` that shapes a response's
+  ramp. Passing it now raises `TypeError`, and the `optimize_responses` agent tool refuses it as
+  an unknown key. The parameters that followed it in the signature each move up one position.
