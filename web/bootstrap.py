@@ -260,6 +260,14 @@ MODELS = ("main_effects", "interactions", "quadratic")
 #: to see how the factors act on it, with no setting to aim for.
 GOALS = ("maximize", "minimize", "target", "learn")
 
+#: The most responses a study measures. Each has a column of its own on the run sheet, its own model and its own
+#: analysis; the first one sizes the design, as the brief's typical value, noise and smallest change are its own.
+MAX_RESPONSES = 5
+
+#: How far apart the seeds of two responses' simulated noise are: the response in place j (0 for the first) draws
+#: its noise with the seed plus j times this, so each response has noise of its own and the first keeps the seed's.
+SEED_STEP = 1000
+
 #: A model of terms the reader chose, each a list of factor names (see :func:`_chosen_terms`),
 #: is named this in a reply. It too is read as data and never as a formula.
 CHOSEN = "chosen"
@@ -751,8 +759,8 @@ def make_design(spec: dict) -> dict:
             f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
             "categorical: choose a full factorial, fractional factorial or Plackett-Burman design."
         )
-    response = _response_name(str(spec.get("response") or "y").strip(), factors)
-    described = _described(spec)
+    responses = _checked_responses(spec, factors, blank="y")
+    described = {**_stored_responses(responses), **_aimed(spec)}
 
     kwargs = _design_options(spec, design_type)
     # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
@@ -768,13 +776,14 @@ def make_design(spec: dict) -> dict:
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", result.run_order)
-    runs[response] = np.nan
+    for response in responses:  # a column for each response's results, in the brief's order
+        runs[response["name"]] = np.nan
 
     stored = {
         "version": SPEC_VERSION,
         "design_type": design_type,
         "factors": [_factor_spec(f) for f in factors],
-        "response": response,
+        "response": responses[0]["name"],
         "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
         "options": kwargs,
         **described,
@@ -830,15 +839,16 @@ def _given_design(spec: dict) -> dict:
         if None in values:
             raise ValueError(f"Factor {f.name}: each run's setting must be a number.")
         runs[f.name] = values
-    response = _response_name(str(spec.get("response") or "y").strip(), factors)
+    responses = _checked_responses(spec, factors, blank="y")
     limits = _checked_constraints(spec.get("constraints"), factors)
     stored: dict[str, Any] = {
         "version": SPEC_VERSION,
         "design_type": GIVEN,
         "factors": [_factor_spec(f) for f in factors],
-        "response": response,
+        "response": responses[0]["name"],
         "options": {},
-        **_described(spec),
+        **_stored_responses(responses),
+        **_aimed(spec),
         **({"constraints": limits} if limits else {}),
     }
     coded = _coded(runs, stored["factors"]).to_numpy(dtype=float)
@@ -847,7 +857,8 @@ def _given_design(spec: dict) -> dict:
     stored["model"] = next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", range(1, len(runs) + 1))
-    runs[response] = np.nan
+    for response in responses:
+        runs[response["name"]] = np.nan
     groups = _aliased_groups(coded, names)
     notes = [GIVEN_NOTE, _aliasing_sentence(groups)]
     if limits:
@@ -978,18 +989,83 @@ def _described_number(value: object, what: str, *, positive: bool) -> float | No
     return number
 
 
-def _described(spec: dict) -> dict[str, Any]:
-    """Return the specification's description of the response and the model it aims to learn, cleaned.
+def _aimed(spec: dict) -> dict[str, Any]:
+    """Return the model the study aims to learn, cleaned: one of the comparison's models, or nothing.
 
-    Both are optional: a design made before the page asked for them has neither, and keeps
-    working. ``aim`` is one of the comparison's models; one this page does not know is left out.
+    It is optional: a design made before the page asked for it has none, and keeps working. One
+    this page does not know is left out.
     """
-    out: dict[str, Any] = {}
-    if info := _response_info(spec.get("response_info")):
-        out["response_info"] = info
-    if spec.get("aim") in COMPARISON_MODELS:
-        out["aim"] = spec["aim"]
-    return out
+    return {"aim": spec["aim"]} if spec.get("aim") in COMPARISON_MODELS else {}
+
+
+def _described(spec: dict) -> dict[str, Any]:
+    """Return the specification's description of the first response and the model it aims to learn, cleaned."""
+    info = _response_info(spec.get("response_info"))
+    return {**({"response_info": info} if info else {}), **_aimed(spec)}
+
+
+def _checked_responses(spec: dict, factors: list[Factor], *, blank: str = "") -> list[dict[str, Any]]:
+    """Check the responses a specification names, and return each as its column's ``name`` and its description.
+
+    A study made before the page measured several responses names one, ``response``, described by
+    ``response_info``. One with several lists them all in ``responses``, up to :data:`MAX_RESPONSES`, each
+    ``{name, ...}`` with its description beside its name, and the first of them is ``response``. Each name
+    is a variable name unlike every factor's, the blocks column's and every other response's. ``blank`` is
+    the name a blank first response takes when a design is made, as it always has; elsewhere it is refused.
+    """
+    raw = spec.get("responses")
+    if raw is None:
+        name = _response_name(str(spec.get("response") or blank).strip(), factors)
+        info = _response_info(spec.get("response_info"))
+        return [{"name": name, **info}]
+    if not isinstance(raw, list) or not raw or not all(isinstance(r, dict) for r in raw):
+        raise ValueError("The page sent a list of responses this page did not write.")
+    if len(raw) > MAX_RESPONSES:
+        raise ValueError(f"A study measures at most {MAX_RESPONSES} responses; this one has {len(raw)}.")
+    responses: list[dict[str, Any]] = []
+    for r in raw:
+        name = _response_name(str(r.get("name") or "").strip(), factors)
+        if any(name == other["name"] for other in responses):
+            raise ValueError(f"Two responses cannot share the name {name}.")
+        responses.append({"name": name, **_response_info({key: v for key, v in r.items() if key != "name"})})
+    if spec.get("response") not in (None, "", responses[0]["name"]):
+        raise ValueError("The page sent a list of responses this page did not write.")
+    return responses
+
+
+def _stored_responses(responses: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return what a specification keeps of its responses, besides the first one's name (``response``).
+
+    The first response's description is its ``response_info``, as a study of one response has always
+    kept it, so a study of one response is stored as before. With several, ``responses`` lists them all.
+    """
+    info = {key: value for key, value in responses[0].items() if key != "name"}
+    return {**({"response_info": info} if info else {}), **({"responses": responses} if len(responses) > 1 else {})}
+
+
+def _responses(spec: dict) -> list[dict[str, Any]]:
+    """Return the responses of a checked specification, the first first, each its column's ``name`` and description."""
+    return spec.get("responses") or [{"name": spec["response"], **(spec.get("response_info") or {})}]
+
+
+def _for_response(spec: dict, name: object) -> dict[str, Any]:
+    """Return a checked specification as one response's analysis reads it: with that response as its ``response``.
+
+    The analysis, its charts and the best settings read the response from ``response`` and
+    ``response_info``. ``name`` is the column of the response the page asks about; None asks about the
+    first. A workbook keeps the model each response was last analysed with, the first's as
+    ``analysis_model`` and the others' in ``analysis_models``: the response's own is its ``analysis_model``.
+    """
+    if name is None or name == spec["response"]:
+        return spec
+    found = next((r for r in _responses(spec) if r["name"] == name), None)
+    if found is None:
+        raise ValueError(f"The study measures no response named {name!r}.")
+    info = {key: value for key, value in found.items() if key != "name"}
+    view = {key: value for key, value in spec.items() if key not in ("response_info", "analysis_model")}
+    if (model := (spec.get("analysis_models") or {}).get(name)) is not None:
+        view["analysis_model"] = model
+    return {**view, "response": name, **({"response_info": info} if info else {})}
 
 
 def _check_factor_count(design_type: str, n_factors: int) -> None:
@@ -1279,7 +1355,9 @@ def analyze(request: dict) -> dict:
     workbook can be analysed as the runs come in.
     """
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
-    spec = _checked_spec(stored)  # a workbook can arrive from anywhere: its specification is checked as data
+    # A workbook can arrive from anywhere: its specification is checked as data. ``response`` names the response to
+    # analyse, by its column; the first without it.
+    spec = _for_response(_checked_spec(stored), request.get("response"))
     return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
@@ -1697,25 +1775,34 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     if not isinstance(spec, dict) or spec.get("design_type") not in (*DESIGNS, GIVEN):
         raise ValueError("The page sent a design this page did not make.")
     factors = _factors(spec)
-    response = _response_name(str(spec.get("response") or ""), factors)
+    responses = _checked_responses(spec, factors)
     model = spec.get("model") or DESIGNS.get(spec["design_type"], {}).get("model", MODELS[0])
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     options = spec.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError("The page sent a design this page did not make.")  # noqa: TRY004 - a refusal, like the rest
+    names = [f.name for f in factors]
+    labelled = tuple(f.name for f in factors if f.type == "categorical")
     if "analysis_model" in spec:  # the model the reader last analysed with, which a workbook keeps
-        labelled = tuple(f.name for f in factors if f.type == "categorical")
-        _checked_model(spec["analysis_model"], [f.name for f in factors], labelled)
-    checked = {key: value for key, value in spec.items() if key not in ("response_info", "aim", "constraints")}
+        _checked_model(spec["analysis_model"], names, labelled)
+    if "analysis_models" in spec:  # and those of the other responses, by their columns
+        others = spec["analysis_models"]
+        if not isinstance(others, dict) or not set(others) <= {r["name"] for r in responses[1:]}:
+            raise ValueError("The page sent a design this page did not make.")
+        for chosen in others.values():
+            _checked_model(chosen, names, labelled)
+    dropped = ("response_info", "responses", "aim", "constraints")
+    checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     return {
         **checked,
         "factors": [_factor_spec(f) for f in factors],
-        "response": response,
+        "response": responses[0]["name"],
         "model": model,
         "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
-        **_described(spec),
+        **_stored_responses(responses),
+        **_aimed(spec),
         **({"constraints": limits} if limits else {}),
     }
 
@@ -1737,7 +1824,11 @@ def _blocked(spec: dict) -> bool:
 
 
 def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
-    """Rebuild the run sheet the page shows, with the responses it holds in the response column."""
+    """Rebuild the run sheet the page shows, with the results it holds in the responses' columns.
+
+    ``responses`` holds the first response's results, one per run, as the page has always sent them;
+    ``more_responses`` the others', a list per run for each of their columns.
+    """
     columns = [str(c) for c in request.get("columns") or []]
     rows = request.get("rows") or []
     names = [f["name"] for f in spec["factors"]]
@@ -1747,11 +1838,16 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
     runs = pd.DataFrame(rows, columns=columns)
     numeric = [f["name"] for f in spec["factors"] if not _categorical(f)]  # a category's labels stay text
     runs[numeric] = runs[numeric].apply(pd.to_numeric, errors="raise")
-    responses = request.get("responses")
-    if responses is not None:
-        if len(responses) != len(runs):
-            raise ValueError(f"{len(responses)} responses were sent for {len(runs)} runs.")
-        runs[spec["response"]] = pd.to_numeric(pd.Series(responses, dtype=object), errors="coerce").to_numpy()
+    first, *others = [r["name"] for r in _responses(spec)]
+    results = {first: request.get("responses")} if request.get("responses") is not None else {}
+    more = request.get("more_responses") or {}
+    if not isinstance(more, dict) or not set(more) <= set(others):
+        raise ValueError("The page sent results for a response the study does not measure.")
+    for name, values in {**results, **more}.items():
+        if not isinstance(values, list) or len(values) != len(runs):
+            sent = len(values) if isinstance(values, list) else 0
+            raise ValueError(f"{sent} responses were sent for {len(runs)} runs.")
+        runs[name] = pd.to_numeric(pd.Series(values, dtype=object), errors="coerce").to_numpy()
     return runs
 
 
@@ -1825,13 +1921,14 @@ def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], flo
     return terms
 
 
-def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request, and the reader's scale
+def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request, the reader's scale and the place
     key: str,
     names: list[str],
     request: dict,
     categorical: tuple[str, ...] = (),
     typical: float | None = None,
     noise: float | None = None,
+    place: int = 0,
 ) -> TrueProcess:
     """Return the scenario's process over the reader's factors, with the noise the reader chose.
 
@@ -1840,6 +1937,10 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
     noise standard deviations; given the response's ``typical`` value and run-to-run ``noise``,
     the process is centred on the one and its effects scaled by the other, so practice results
     look like the reader's own. Without them the scenario's own centre and a noise of 1 are kept.
+
+    ``place`` is the response's place in the brief, 0 for the first. The first response follows the
+    scenario, with the noise the reader chose (``sigma``); a later one follows it moved to other factors
+    (see :func:`_moved_terms`), with its own run-to-run noise, else the scenario's.
     """
     if key not in SCENARIOS:
         raise ValueError(f"Unknown process {key!r}.")
@@ -1847,7 +1948,7 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
     terms = scenario["terms"]
     if terms is None:
         terms = _random_terms(len(names), np.random.default_rng(int(request.get("seed", 1))))
-    kept = {t: c for t, c in terms.items() if all(i < len(names) for i in t)}
+    kept = _moved_terms({t: c for t, c in terms.items() if all(i < len(names) for i in t)}, place, len(names))
     squares = {t for t in kept if len(t) == 2 and t[0] == t[1] and names[t[0]] in categorical}
     scale = 1.0 if noise is None else noise
     coefficients = {
@@ -1855,11 +1956,29 @@ def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request
         for t, c in kept.items()
         if t not in squares
     }
+    if place:
+        return TrueProcess(coefficients, sigma=scenario["sigma"] if noise is None else noise)
     # A noise of 0 is refused, not read as "not given": the reader would see results with noise they did not ask for.
     sigma = scenario["sigma"] if request.get("sigma") is None else _number(request["sigma"])
     if sigma is None or sigma <= 0:
         raise ValueError("The noise standard deviation must be a number above 0.")
     return TrueProcess(coefficients, sigma=sigma)
+
+
+def _moved_terms(terms: dict[tuple[int, ...], float], place: int, k: int) -> dict[tuple[int, ...], float]:
+    """Move a scenario's terms to other factors, for the response in ``place`` (0 for the first) of ``k`` factors.
+
+    The first response follows the scenario as it is. A later one follows it moved, so its best settings lie
+    elsewhere and the responses have to be balanced: what the scenario puts on factor ``i`` acts on factor
+    ``(i + place) mod k``, and for an odd ``place`` every factor's setting is reflected, high for low, which
+    flips the sign of each term of odd order (a main effect, a three-factor interaction) and keeps the others
+    (the intercept, a two-factor interaction, a square). Moving the factors round is one to one, so no two
+    terms land on one.
+    """
+    if not place:
+        return terms
+    sign = -1.0 if place % 2 else 1.0
+    return {tuple(sorted((i + place) % k for i in t)): c * sign ** len(t) for t, c in terms.items()}
 
 
 def _truth(process: TrueProcess) -> list[dict[str, Any]]:
@@ -1872,39 +1991,61 @@ def simulate(request: dict) -> dict:
 
     The responses are rounded to the noise's precision, two significant decimals below
     its standard deviation, as a measurement would be.
+
+    Each response has a process of its own (see :func:`_scenario_process`), and its noise is drawn
+    with the seed plus :data:`SEED_STEP` times its place. The first response's results, process and
+    noise are the reply's own keys, as for a study of one response; with several, ``more`` holds
+    each later response's, by its column, with its ``seed``.
     """
     spec = _checked_spec(request.get("spec") or {})
     runs = _runs_frame(request, spec)
     names = [f["name"] for f in spec["factors"]]
     key = str(request.get("scenario") or "reactor")
-    info = spec.get("response_info") or {}
-    process = _scenario_process(
-        key, names, request, _categorical_names(spec), typical=info.get("typical"), noise=info.get("noise")
-    )
     seed = int(request.get("seed", 1))
-    values = process.simulate(_coded(runs, spec["factors"]), random_state=seed)
-    decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
-    truth = _truth(process)
-    return {
-        "scenario": key,
-        "label": SCENARIOS[key]["label"],
-        "sigma": process.sigma,
-        "seed": seed,
-        "responses": [round(float(v), decimals) for v in values],
-        "truth": truth,
-        "equation": _equation(_response_words(spec)[0], truth),
-        "inactive": [name for name in names if name not in process.factors],  # factors the process leaves out
-    }
+    coded = _coded(runs, spec["factors"])
+    simulated = []
+    for place, response in enumerate(_responses(spec)):
+        process = _scenario_process(
+            key,
+            names,
+            request,
+            _categorical_names(spec),
+            typical=response.get("typical"),
+            noise=response.get("noise"),
+            place=place,
+        )
+        values = process.simulate(coded, random_state=seed + SEED_STEP * place)
+        decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
+        truth = _truth(process)
+        simulated.append(
+            {
+                "sigma": process.sigma,
+                "seed": seed + SEED_STEP * place,
+                "responses": [round(float(v), decimals) for v in values],
+                "truth": truth,
+                "equation": _equation(response.get("label") or response["name"], truth),
+                "inactive": [name for name in names if name not in process.factors],  # factors the process leaves out
+            }
+        )
+    first, *more = simulated
+    reply = {"scenario": key, "label": SCENARIOS[key]["label"], **first, "seed": seed}
+    if more:
+        reply["more"] = {r["name"]: one for r, one in zip(_responses(spec)[1:], more, strict=True)}
+    return reply
 
 
 def analyze_runs(request: dict) -> dict:
     """Fit the model to the runs the page holds, with the responses typed or simulated there.
 
     ``truth``, the process the results were simulated from, adds each coefficient's true value.
+    ``response`` names the response to analyse, by its column; the first without it. Each response
+    is fitted to the runs that have its result, so a run with some of its results in counts for those.
     """
     spec = _checked_spec(request.get("spec") or {})
+    runs = _runs_frame(request, spec)
+    spec = _for_response(spec, request.get("response"))
     model = request.get("model") or spec["model"]
-    return _analysis(_runs_frame(request, spec), spec, model, request.get("truth"))
+    return _analysis(runs, spec, model, request.get("truth"))
 
 
 def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
@@ -1935,32 +2076,48 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
 
 
 def read_workbook(request: dict) -> dict:
-    """Read an uploaded workbook into the runs, responses and sources the page holds."""
+    """Read an uploaded workbook into the runs, responses and sources the page holds.
+
+    The first response's results and their sources are ``responses`` and ``sources``, as for a study of
+    one response; with several, ``more_responses`` and ``more_sources`` hold each later one's, by its column.
+    A run the workbook marks as simulated has every result it holds marked so.
+    """
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     spec = _checked_spec(stored)
-    response = spec["response"]
-    if response not in runs.columns:
-        raise ValueError(f"The Runs sheet has no {response!r} column for the results.")
-    values = pd.to_numeric(runs[response], errors="coerce")
+    names = [r["name"] for r in _responses(spec)]
+    if missing := next((name for name in names if name not in runs.columns), None):
+        raise ValueError(f"The Runs sheet has no {missing!r} column for the results.")
     column = _marks_column(runs, spec)
     marks = runs[column].fillna("").astype(str) if column else pd.Series("", index=runs.index)
     sheet = runs.drop(columns=[column] if column else [])
-    sheet[response] = np.nan
-    return {
+    results = {}
+    for name in names:
+        values = pd.to_numeric(runs[name], errors="coerce")
+        sheet[name] = np.nan
+        results[name] = (
+            [None if pd.isna(v) else float(v) for v in values],
+            [
+                None if pd.isna(v) else ("simulated" if mark == "simulated" else "entered")
+                for v, mark in zip(values, marks, strict=True)
+            ],
+        )
+    (responses, sources), *_ = results.values()
+    reply = {
         "spec": spec,
         "columns": list(sheet.columns),
         "rows": [list(row) for row in sheet.itertuples(index=False)],
-        "responses": [None if pd.isna(v) else float(v) for v in values],
-        "sources": [
-            None if pd.isna(v) else ("simulated" if mark == "simulated" else "entered")
-            for v, mark in zip(values, marks, strict=True)
-        ],
+        "responses": responses,
+        "sources": sources,
     }
+    if len(names) > 1:
+        reply["more_responses"] = {name: results[name][0] for name in names[1:]}
+        reply["more_sources"] = {name: results[name][1] for name in names[1:]}
+    return reply
 
 
 def _marks_column(runs: pd.DataFrame, spec: dict) -> str | None:
     """Name the run sheet's column of marks, if it has one: an older workbook's ``Source``, unless that is data."""
-    data = {spec["response"], *(f["name"] for f in spec["factors"])}
+    data = {*(r["name"] for r in _responses(spec)), *(f["name"] for f in spec["factors"])}
     return next((c for c in (MARKS, "Source") if c in runs.columns and c not in data), None)
 
 
@@ -1970,18 +2127,28 @@ def workbook(request: dict) -> dict:
     Simulated responses are marked, in the ``MARKS`` column and in the stored
     specification, so the workbook says which values were measured. The model the reader
     analyses with, ``model``, is kept as the specification's ``analysis_model``, so the
-    workbook is analysed the same way when it comes back.
+    workbook is analysed the same way when it comes back; with several responses, ``models``
+    holds each later response's, by its column, kept as ``analysis_models``.
+
+    A run is marked simulated when every result it holds is: ``sources`` holds the first
+    response's sources, and ``more_sources`` each later response's, by its column.
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
         _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
         spec = {**spec, "analysis_model": request["model"]}
+    if models := request.get("models"):
+        spec = _checked_spec({**spec, "analysis_models": models})
     runs = _runs_frame(request, spec)
-    sources = request.get("sources")
-    if sources and any(sources):
-        if len(sources) != len(runs):
-            raise ValueError(f"{len(sources)} sources were sent for {len(runs)} runs.")
-        runs[MARKS] = ["simulated" if s == "simulated" else "" for s in sources]
+    marks = [request.get("sources"), *(request.get("more_sources") or {}).values()]
+    marks = [m for m in marks if m and any(m)]
+    if marks:
+        if bad := next((m for m in marks if not isinstance(m, list) or len(m) != len(runs)), None):
+            raise ValueError(f"{len(bad)} sources were sent for {len(runs)} runs.")
+        runs[MARKS] = [
+            "simulated" if "simulated" in run and all(s in (None, "simulated") for s in run) else ""
+            for run in zip(*marks, strict=True)
+        ]
     simulated = request.get("simulated")
     if simulated:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
@@ -2013,10 +2180,12 @@ def plots(request: dict) -> dict:
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
+    every_run = _runs_frame(request, spec)
+    spec = _for_response(spec, request.get("response"))  # the response drawn: the first, or the one named
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
-    runs = _design_runs(_runs_frame(request, spec))
+    runs = _design_runs(every_run)
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
     done = y.notna().to_numpy()
@@ -2171,15 +2340,11 @@ def relabel(request: dict) -> dict:
     if [(f["low"], f["high"]) for f in after] != levels:
         raise ValueError("Only the factors' names and units can change without making the run sheet again.")
     columns = [str(c) for c in design.get("columns") or []]
-    for taken in (spec["response"], *([BLOCK] if BLOCK in columns else [])):
+    for taken in (*(r["name"] for r in _responses(spec)), *([BLOCK] if BLOCK in columns else [])):
         if taken in {f.name for f in renamed}:
             raise ValueError(f"A factor cannot be named {taken}: the run sheet has a {taken} column.")
     names = {old["name"]: new["name"] for old, new in zip(before, after, strict=True)}
-    spec = {**spec, "factors": after}
-    if limits := spec.get("constraints"):  # the limits on the settings, written with the new names, all at once
-        spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
-    if isinstance(chosen := spec.get("analysis_model"), dict):  # the terms a workbook was last analysed with
-        spec["analysis_model"] = {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
+    spec = _relabelled_spec(spec, after, names)
     reply: dict[str, Any] = {
         "spec": spec,
         "columns": [names.get(c, c) for c in columns],
@@ -2190,18 +2355,50 @@ def relabel(request: dict) -> dict:
         coded = _coded(runs, after).to_numpy(dtype=float)
         reply["facts"] = _relabelled_facts(design["facts"], coded, names)
     if simulation := request.get("simulation"):
-        truth = [
-            {"term": term, "label": _pretty(term), "coefficient": t["coefficient"]}
-            for t in simulation.get("truth") or []
-            for term in [_renamed_term(str(t["term"]), names)]
-        ]
-        reply["simulation"] = {
-            **simulation,
-            "truth": truth,
-            "equation": _equation(_response_words(spec)[0], truth),
-            "inactive": [names.get(n, n) for n in simulation.get("inactive") or []],
-        }
+        words = {r["name"]: r.get("label") or r["name"] for r in _responses(spec)}
+        reply["simulation"] = _relabelled_process(simulation, words[spec["response"]], names)
+        if isinstance(more := simulation.get("more"), dict):
+            reply["simulation"]["more"] = {
+                name: _relabelled_process(p, words.get(name, name), names) for name, p in more.items()
+            }
     return reply
+
+
+def _relabelled_spec(spec: dict, after: list[dict], names: dict[str, str]) -> dict[str, Any]:
+    """Write a specification again with its factors renamed: the factors, the limits, and the models a workbook keeps.
+
+    The limits on the settings are written with the new names all at once, so a swap works; so are the
+    terms a workbook was last analysed with, for the first response and each later one.
+    """
+
+    def terms_renamed(chosen: object) -> object:
+        if not isinstance(chosen, dict):
+            return chosen
+        return {"terms": [[names.get(n, n) for n in term] for term in chosen["terms"]]}
+
+    spec = {**spec, "factors": after}
+    if limits := spec.get("constraints"):
+        spec["constraints"] = [{**limit, "expression": rename_factors(limit["expression"], names)} for limit in limits]
+    if "analysis_model" in spec:
+        spec["analysis_model"] = terms_renamed(spec["analysis_model"])
+    if "analysis_models" in spec:
+        spec["analysis_models"] = {name: terms_renamed(m) for name, m in spec["analysis_models"].items()}
+    return spec
+
+
+def _relabelled_process(process: dict, label: str, names: dict[str, str]) -> dict[str, Any]:
+    """Write one response's simulated process again with its factors renamed: its terms, equation and quiet factors."""
+    truth = [
+        {"term": term, "label": _pretty(term), "coefficient": t["coefficient"]}
+        for t in process.get("truth") or []
+        for term in [_renamed_term(str(t["term"]), names)]
+    ]
+    return {
+        **process,
+        "truth": truth,
+        "equation": _equation(label, truth),
+        "inactive": [names.get(n, n) for n in process.get("inactive") or []],
+    }
 
 
 def _renamed_term(term: str, names: dict[str, str]) -> str:
@@ -3081,7 +3278,8 @@ def best_settings(request: dict) -> dict:
     against the prediction interval for the average of that many runs. ``search`` is what the code
     the page shows needs to make the same search.
     """
-    spec = _checked_spec(request.get("spec") or {})
+    whole = _checked_spec(request.get("spec") or {})
+    spec = _for_response(whole, request.get("response"))  # the response whose goal is met: the first, or the one named
     info = spec.get("response_info") or {}
     goal = info.get("goal", "learn")
     if goal not in AIMED:
@@ -3089,7 +3287,7 @@ def best_settings(request: dict) -> dict:
     target = info.get("target")
     if goal == "target" and target is None:
         return {"goal": goal, "target": None}
-    every_run = _runs_frame(request, spec)
+    every_run = _runs_frame(request, whole)
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)

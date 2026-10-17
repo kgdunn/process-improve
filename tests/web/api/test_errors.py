@@ -186,6 +186,60 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     # The design's settings.
     "unknown design": ("api_make_design", _make(design_type="rocket"), "Unknown design type 'rocket'."),
+    # Several responses, as the brief lists them.
+    "a list of responses that is not one": (
+        "api_make_design",
+        _make(responses="Yield, Cost"),
+        "The page sent a list of responses this page did not write.",
+    ),
+    "a first response that is not the study's": (
+        "api_make_design",
+        _make(response="Yield", responses=[{"name": "Cost"}, {"name": "Yield"}]),
+        "The page sent a list of responses this page did not write.",
+    ),
+    "six responses": (
+        "api_make_design",
+        _make(responses=[{"name": f"y{i}"} for i in range(1, 7)]),
+        "A study measures at most 5 responses; this one has 6.",
+    ),
+    "two responses of one name": (
+        "api_make_design",
+        _make(responses=[{"name": "Cost"}, {"name": "Cost"}]),
+        "Two responses cannot share the name Cost.",
+    ),
+    "a response named as a factor, after the first": (
+        "api_make_design",
+        _make(responses=[{"name": "Yield"}, {"name": "P"}]),
+        "The response name must be a variable name different from every factor.",
+    ),
+    "a response the study does not measure": (
+        "api_analyze_runs",
+        _runs(response="Colour"),
+        "The study measures no response named 'Colour'.",
+    ),
+    "results for a response the study does not measure": (
+        "api_analyze_runs",
+        _runs(more_responses={"Colour": [1.0] * 15}),
+        "The page sent results for a response the study does not measure.",
+    ),
+    "a later response's results, one short": (
+        "api_simulate",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "responses": [{"name": "Yield"}, {"name": "Cost"}]},
+            "more_responses": {"Cost": [1.0] * 14},
+        },
+        "14 responses were sent for 15 runs.",
+    ),
+    "a later response's model that is not one": (
+        "api_workbook",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "responses": [{"name": "Yield"}, {"name": "Cost"}]},
+            "models": {"Colour": "quadratic"},
+        },
+        "The page sent a design this page did not make.",
+    ),
     "response named as a factor": (
         "api_make_design",
         _make(response="T"),
