@@ -52,8 +52,8 @@ def stars(page) -> list[list[float]]:
 def set_goal(page, goal: str, target: object = None) -> None:
     """Choose the response's goal in the brief, as a reader would, and wait for the best settings it asks for."""
     before = page.evaluate("window.__pi.count('api_best_settings')")
-    reveal(page, "#goal")
-    page.check(f'input[name="goal"][value="{goal}"]')
+    reveal(page, "#response-goal")
+    page.select_option("#response-goal", goal)
     if target is not None:
         page.fill("#response-target", str(target))
     page.wait_for_function(f"window.__pi.count('api_best_settings') > {before}")

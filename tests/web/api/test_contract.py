@@ -187,6 +187,39 @@ READS: dict[str, list[str]] = {
     "best settings without a goal": [
         "goal: str",
     ],
+    "design of several responses": [
+        "columns[]: str",
+        "spec.response: str",
+        "spec.responses[].name: str",
+        "spec.responses[].label: str",
+        "spec.responses[].units: str",
+        "spec.responses[].goal: str",
+    ],
+    "simulation of several responses": [
+        "responses[]: number",
+        "truth[].term: str",
+        "more{}.responses[]: number",
+        "more{}.truth[].term: str",
+        "more{}.truth[].coefficient: number",
+        "more{}.equation: str",
+        "more{}.inactive: list",
+        "more{}.sigma: number",
+        "more{}.seed: int",
+    ],
+    "upload of several responses": [
+        "spec.responses[].name: str",
+        "spec.analysis_models: dict",
+        "responses[]: number?",
+        "sources[]: str?",
+        "more_responses{}.[]: number?",
+        "more_sources{}.[]: str?",
+    ],
+    "relabel of several responses": [
+        "simulation.more{}.truth[].term: str",
+        "simulation.more{}.truth[].coefficient: number",
+        "simulation.more{}.equation: str",
+        "simulation.more{}.inactive: list",
+    ],
     "workbook": [
         "xlsx_base64: str",
     ],
@@ -376,6 +409,10 @@ ENTRY_POINTS = {
     "best settings on a limit": "api_best_settings",
     "confirmation runs judged": "api_best_settings",
     "best settings without a goal": "api_best_settings",
+    "design of several responses": "api_make_design",
+    "simulation of several responses": "api_simulate",
+    "upload of several responses": "api_read_workbook",
+    "relabel of several responses": "api_relabel",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -396,6 +433,13 @@ ENTRY_POINTS = {
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
 NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
+
+#: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
+THREE = [
+    {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
+    {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
+    {"name": "Purity", "label": "Purity", "units": "%", "goal": "target", "target": 63.0},
+]
 
 #: Two straight limits, one with a note: between them they narrow both ranges, so ``bounds`` has entries to read.
 LIMITS = [{"expression": "T + 25*P <= 215", "note": "the product chars"}, {"expression": "400 <= 3*T + 5*P <= 600"}]
@@ -424,6 +468,36 @@ def values_at(result: dict, path: str) -> list[Any]:
             found = [x for item in found for x in (item if fan == "[]" else item.values())]
             assert found, f"{path}: nothing to check at {step!r}"
     return found
+
+
+#: A Box-Behnken design measuring the three responses, as the page asks for it.
+THREE_DESIGN = {"design_type": "box_behnken", "factors": FACTORS, "responses": THREE}
+
+
+def several_responses(api) -> dict[str, Callable[[], dict]]:
+    """Return the requests about a study of three responses: its design, its simulation, its workbook and a renaming."""
+
+    def simulated() -> tuple[dict, dict]:
+        design = held_of(api.ok("api_make_design", THREE_DESIGN))
+        return design, api.ok("api_simulate", {**design, "seed": 2})
+
+    def uploaded() -> dict:
+        design, sim = simulated()
+        results = {"responses": sim["responses"], "more_responses": {n: m["responses"] for n, m in sim["more"].items()}}
+        marks = {"sources": ["simulated"] * 15, "more_sources": {n: ["simulated"] * 15 for n in sim["more"]}}
+        sent = {**design, **results, **marks, "models": {"Cost": "interactions"}}
+        return {"xlsx_base64": api.ok("api_workbook", sent)["xlsx_base64"]}
+
+    def relabelled() -> dict:
+        design, sim = simulated()
+        return {"design": design, "factors": [{**f, "name": f"{f['name']}_new"} for f in FACTORS], "simulation": sim}
+
+    return {
+        "design of several responses": lambda: THREE_DESIGN,
+        "simulation of several responses": lambda: {**simulated()[0], "seed": 2},
+        "upload of several responses": uploaded,
+        "relabel of several responses": relabelled,
+    }
 
 
 @pytest.fixture(scope="module")
@@ -485,6 +559,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "best settings on a limit": on_a_limit,
         "confirmation runs judged": confirmed,
         "best settings without a goal": no_goal,
+        **several_responses(api),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,

@@ -56,6 +56,8 @@ import {
   CATEGORICAL_DESIGNS,
   CHOSEN_TERMS,
   GIVEN,
+  GOALS,
+  MAX_RESPONSES,
   MODES,
   NUMERIC,
   OPTIMAL_MODEL,
@@ -66,11 +68,13 @@ import {
   TITLES,
   aimTerms,
   analysisModel,
+  anyResult,
   axialDistance,
   candidateRows,
   candidateTerms,
   changeWords,
   compareCells,
+  completeRuns,
   defaultAim,
   defaultResolution,
   describeResponse,
@@ -78,6 +82,7 @@ import {
   factorType,
   fitStatistics,
   fmt,
+  infoOf,
   isBlank,
   isCategorical,
   levelProblem,
@@ -88,6 +93,9 @@ import {
   namedModelTerms,
   needsCentre,
   nextMode,
+  noResults,
+  partialRuns,
+  partialSentence,
   percent,
   pickCandidate,
   positional,
@@ -95,10 +103,18 @@ import {
   pval,
   renameTerms,
   renaming,
+  joinResults,
+  responseColumns,
+  responseLabelProblems,
   responseName,
   responseProblems,
   responseTitle,
+  responsesOf,
+  responsesTitle,
   runBadge,
+  splitResults,
+  storedResponses,
+  withResponses,
 } from "./logic.js";
 import {
   AIMS,
@@ -108,6 +124,7 @@ import {
   LINK_KEY,
   WORKED,
   bookName,
+  campaignDone,
   campaignTitle,
   checkBookExample,
   checkCampaign,
@@ -135,7 +152,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
-import { analyseCode, bestCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
+import { analyseCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -262,8 +279,10 @@ const state = {
   phase: "plan", // the phase on show: "plan", "run" or "learn"
   design: null, // what api_make_design returned, or the runs of an uploaded workbook
   planKey: null, // the plan (factors, design and settings) the run sheet on the page was made from
-  responses: [], // one per run, in the design's row order: a number, or null while still to run
-  sources: [], // one per run: "simulated", "entered" or null
+  results: {}, // each response's results, by its column: one per run, in the design's row order, a number or null
+  marks: {}, // where each result came from, as results holds them: "simulated", "entered" or null
+  shown: null, // the column of the response Learn analyses: the first, or the one its tabs show
+  models: {}, // the model each response is analysed with, by its column, as modelChoice gives one
   simulation: null, // what api_simulate returned: the true process, its noise and seed
   practising: false, // the reader chose to practise with simulated results
   analysis: null,
@@ -289,6 +308,43 @@ whenReady.catch(() => {}); // a failure is shown in the status line, whoever wai
 
 /** The runs as the Python side expects them back. */
 const held = () => ({ spec: state.design.spec, columns: state.design.columns, rows: state.design.rows });
+
+/** The run sheet's responses, the first first: each its column's name and its description. */
+const studyResponses = () => (state.design ? responsesOf(state.design.spec) : []);
+
+/** The run sheet's response columns, the first first. */
+const resultNames = () => studyResponses().map((r) => r.name);
+
+/** Whether the study measures several responses. */
+const several = () => studyResponses().length > 1;
+
+/** How many runs the run sheet holds, confirmation runs too. */
+const runCount = () => state.design?.rows.length ?? 0;
+
+/** The model a response is analysed with: Learn's form for the one it shows, else the one chosen for it before. */
+const modelOf = (name) => (name === state.shown ? modelChoice() : (state.models[name] ?? ""));
+
+/** Each response's model, by its column, as a study keeps them. */
+const modelsByName = () => Object.fromEntries(resultNames().map((name) => [name, modelOf(name)]));
+
+/** The results and their sources as Python takes them: the first response's alone, as always, and the others' beside. */
+const sentResults = () => ({ ...splitResults(resultNames(), state.results), ...splitResults(resultNames(), state.marks, "sources") });
+
+/** Whether any result is simulated, and whether every result is, so all came from the known process. */
+const someSimulated = () => Object.values(state.marks).some((marks) => marks.includes("simulated"));
+const allSimulated = () => Object.values(state.marks).every((marks) => marks.every((m) => m === "simulated"));
+
+/** The process a response's results were simulated from: the first's is the simulation's own, a later one's in more. */
+function processOf(name) {
+  if (!state.simulation) return null;
+  return name === resultNames()[0] ? state.simulation : (state.simulation.more?.[name] ?? null);
+}
+
+/** A response's name and units as the run sheet, the equations and the charts show them, by its column. */
+function wordsOf(name) {
+  const r = studyResponses().find((one) => one.name === name) ?? studyResponses()[0] ?? { name: "y" };
+  return { label: r.label || r.name, units: r.units ?? "" };
+}
 
 // ---------------------------------------------------------------- the phases
 const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
@@ -342,20 +398,28 @@ function renderBadges() {
   };
   const stale = planIsStale();
   badge("plan", stale ? "changed" : "", stale ? "stale" : "");
-  // The designed runs: confirmation runs are checked in Learn, beside the settings they test.
+  // The designed runs: confirmation runs are checked in Learn, beside the settings they test. A run is complete when
+  // every response has its result.
   const confirming = new Set(state.design ? confirmationRows(state.design) : []);
-  const designed = state.responses.filter((_, i) => !confirming.has(i));
-  const done = designed.length > 0 && designed.every((v) => v !== null);
-  badge("run", state.design ? runBadge(designed) : "", done ? "done" : "");
+  const complete = completeRuns(state.results, resultNames());
+  const designed = complete.filter((_, i) => !confirming.has(i));
+  const done = designed.length > 0 && designed.every(Boolean);
+  badge("run", state.design ? runBadge(designed.map((ok) => (ok ? true : null))) : "", done ? "done" : "");
   const r2 = state.analysis?.summary?.r_squared;
   badge("learn", r2 === null || r2 === undefined ? "" : `R² ${Number(r2).toFixed(2)}`);
 }
 
-/** Name the study in the bar: its response as the brief describes it, and the design or the factors. */
+/** Name the study in the bar: its responses as the brief describes them, and the design or the factors. */
 function renderStudyBar() {
   const info = readResponseInfo();
   const name = info.label ?? state.design?.spec.response ?? "";
-  $("#study-title").textContent = name ? responseTitle(info, name) : "A new study";
+  const described = describedResponses();
+  $("#study-title").textContent =
+    described.length > 1
+      ? responsesTitle(described.map(({ info: one }, i) => ({ name: i ? "" : name || "y", ...one })))
+      : name
+        ? responseTitle(info, name)
+        : "A new study";
   const k = readFactors().length;
   const about = state.design
     ? `${designLabel(state.design.spec.design_type)}, ${designRows(state.design).rows.length} runs`
@@ -366,31 +430,97 @@ function renderStudyBar() {
   renderBadges();
 }
 
-// ---------------------------------------------------------------- the response
-/** The response card's boxes as the reader left them, as text. */
-function responseFields() {
-  return {
-    label: $("#response").value,
-    units: $("#response-units").value,
-    goal: document.querySelector('input[name="goal"]:checked')?.value ?? "learn",
-    target: $("#response-target").value,
-    typical: $("#response-typical").value,
-    noise: $("#response-noise").value,
-    smallest_change: $("#response-change").value,
-  };
+// ---------------------------------------------------------------- the responses
+/** The brief's response rows: the first is the study's response, and is always there. */
+const responseRows = () => [...document.querySelectorAll("#responses tbody tr")];
+
+/** One response row's boxes as the reader left them, as text; the first's also what the reader knows of it. */
+function rowFields(tr, first = false) {
+  const fields = { label: box(tr, "label").value, units: box(tr, "units").value, goal: box(tr, "goal").value, target: box(tr, "target").value };
+  if (!first) return fields;
+  return { ...fields, typical: $("#response-typical").value, noise: $("#response-noise").value, smallest_change: $("#response-change").value };
 }
 
-/** The response as the reader describes it: what a design keeps as its ``response_info``. */
+/** The first response's boxes as the reader left them, as text. */
+const responseFields = () => rowFields(responseRows()[0], true);
+
+/** The first response as the reader describes it: what a design keeps as its ``response_info``. */
 const readResponseInfo = () => describeResponse(responseFields());
 
-/** Put a design's response into the card: the reader's description, else its column's name. */
-function setResponse(spec) {
-  const info = spec.response_info ?? {};
-  $("#response").value = info.label ?? spec.response ?? "";
-  $("#response-units").value = info.units ?? "";
-  const goal = document.querySelector(`input[name="goal"][value="${info.goal ?? "learn"}"]`);
-  if (goal) goal.checked = true;
-  $("#response-target").value = info.target ?? "";
+/**
+ * The brief's responses as the reader describes them: each row and its description. A later row with no name is
+ * no response yet, as a blank factor row is no factor, unless the run sheet holds a column for it already.
+ */
+function describedResponses() {
+  return responseRows().flatMap((tr, i) => {
+    const blank = i > 0 && box(tr, "label").value.trim() === "" && !tr.dataset.column;
+    return blank ? [] : [{ tr, info: describeResponse(rowFields(tr, i === 0)) }];
+  });
+}
+
+/**
+ * The brief's responses as a specification names them: each its column's name and its description. With a run
+ * sheet, the responses it holds, each keeping its column; ``fresh`` names every one from its words, as a new run
+ * sheet does.
+ */
+function readResponses({ fresh = false } = {}) {
+  const described = describedResponses().filter(({ tr }, i) => fresh || !state.design || i === 0 || tr.dataset.column);
+  const kept = fresh ? [] : described.map(({ tr }) => tr.dataset.column);
+  const names = responseColumns(
+    described.map(({ info }) => info.label),
+    readFactors().map((f) => f.name),
+    kept,
+  );
+  return described.map(({ info }, i) => ({ name: names[i], ...info }));
+}
+
+/** Tie each of the brief's responses to the run sheet's column for it, once the run sheet is made. */
+function tieResponses(spec) {
+  const names = responsesOf(spec).map((r) => r.name);
+  describedResponses().forEach(({ tr }, i) => {
+    if (names[i]) tr.dataset.column = names[i];
+  });
+}
+
+/**
+ * Add a response row to the brief, blank or holding a response: a copy of the first row, without its ids. A later
+ * row can be removed; the first holds the study's response, and has no remove button.
+ */
+function addResponse(r = {}, column = null) {
+  const tr = responseRows()[0].cloneNode(true);
+  for (const input of tr.querySelectorAll("[id]")) input.removeAttribute("id");
+  for (const input of tr.querySelectorAll("[aria-invalid]")) input.removeAttribute("aria-invalid");
+  const remove = el("button", "link", "✕");
+  remove.type = "button";
+  remove.setAttribute("aria-label", "Remove response");
+  remove.onclick = () => removeResponse(tr);
+  tr.lastElementChild.replaceChildren(remove);
+  $("#responses tbody").append(tr);
+  fillResponse(tr, r, column);
+  return tr;
+}
+
+/** Put a response into a row: its words, units, goal and target. ``column`` is the run sheet's column it fills. */
+function fillResponse(tr, r, column = null) {
+  box(tr, "label").value = r.label ?? column ?? "";
+  box(tr, "units").value = r.units ?? "";
+  box(tr, "goal").value = GOALS[r.goal] ? r.goal : "learn";
+  box(tr, "target").value = r.target ?? "";
+  if (column) tr.dataset.column = column;
+  else delete tr.dataset.column;
+}
+
+/**
+ * Put a design's responses into the brief: the reader's description of each, else its column's name, and what the
+ * reader knows of the first. ``columns`` ties each row to the run sheet's column for it, which keeps its name when
+ * its words change; a brief with no run sheet has none.
+ */
+function setResponse(spec, { columns = true } = {}) {
+  const [first, ...more] = responsesOf(spec);
+  for (const tr of responseRows().slice(1)) tr.remove();
+  fillResponse(responseRows()[0], { label: first.label ?? first.name ?? "", ...infoOf(first) }, columns ? first.name : null);
+  for (const r of more) addResponse(r, columns ? r.name : null);
+  const info = infoOf(first);
   $("#response-typical").value = info.typical ?? "";
   $("#response-noise").value = info.noise ?? "";
   $("#response-change").value = info.smallest_change ?? "";
@@ -399,45 +529,124 @@ function setResponse(spec) {
   showResponse();
 }
 
-/** Show what the response's boxes imply: the target's box for that goal, its units after each number, and problems. */
+/** Whether a response still needs something before the run sheet can be made: a name another one has already. */
+let responsesUnready = false;
+
+/**
+ * Show what the responses' boxes imply: each target box for a goal of hitting one, the first response's units after
+ * each number it knows, the line that says the first one sizes the design, the room left for more, and problems.
+ */
 function showResponse() {
+  const rows = responseRows();
+  for (const tr of rows) {
+    const aimed = box(tr, "goal").value === "target";
+    box(tr, "target").disabled = !aimed;
+    box(tr, "target").placeholder = aimed ? "" : "none";
+  }
   const fields = responseFields();
-  $("#target-box").hidden = fields.goal !== "target";
   for (const unit of document.querySelectorAll(".with-unit .unit")) unit.textContent = fields.units.trim();
-  const said = responseProblems(fields);
+  $("#first-sizes").hidden = rows.length < 2;
+  $("#known-name").textContent = rows.length < 2 ? "it" : fields.label.trim() || "the first response";
+  $("#add-response").disabled = rows.length >= MAX_RESPONSES;
+  $("#responses-full").hidden = rows.length < MAX_RESPONSES;
+  const named = responseLabelProblems(rows.map((tr) => box(tr, "label").value));
+  const said = [...responseProblems(fields), ...named];
   $("#response-problems").textContent = said.join(" ");
   $("#response-problems").hidden = said.length === 0;
   for (const [id, key] of [["#response-noise", "noise"], ["#response-change", "smallest_change"]]) {
     $(id).toggleAttribute("aria-invalid", said.some((s) => s.includes(key === "noise" ? "noise" : "smallest change")));
   }
+  const shared = new Set(named.map((sentence) => sentence.split(":")[0].toLowerCase()));
+  for (const tr of rows) box(tr, "label").toggleAttribute("aria-invalid", shared.has(box(tr, "label").value.trim().toLowerCase()));
+  responsesUnready = named.length > 0;
 }
 
 /**
- * The reader changed the response card. The description is the reader's, not the design's: a run
- * sheet already made keeps its column and runs, and takes the new words, units and numbers, so the
- * title, the run sheet, the charts and the saved study follow. Practice results follow a new typical
- * value or noise, and the designs are scored again for a new noise or smallest change.
+ * The reader changed a response's boxes. The descriptions are the reader's, not the design's: a run sheet already
+ * made keeps its columns and runs, and takes the new words, units, goals and numbers, so the title, the run sheet,
+ * the charts and the saved study follow. Practice results follow a new typical value or noise of the first response,
+ * the analysis a new goal or target, and the designs are scored again for a new noise or smallest change.
  */
 function responseChanged() {
   showResponse();
   const info = readResponseInfo();
   if (info.noise !== undefined) $("#sigma").value = info.noise;
   if (state.design) {
-    const before = state.design.spec.response_info ?? {};
+    const before = Object.fromEntries(studyResponses().map((r) => [r.name, r]));
     const titled = state.campaign && state.campaign.title === titleOf(state.design.spec);
-    state.design.spec = { ...state.design.spec, response_info: info };
+    state.design.spec = withResponses(state.design.spec, readResponses());
     if (titled) state.campaign.title = titleOf(state.design.spec);
     renderRuns();
     renderTruth();
+    renderPicker();
     showResultsCode();
-    const changed = (keys) => keys.some((key) => before[key] !== info[key]);
-    if (state.sources.includes("simulated") && changed(["typical", "noise"])) scheduleSimulation();
+    const after = studyResponses();
+    const changed = (keys, which = after) => which.some((r) => keys.some((key) => before[r.name]?.[key] !== r[key]));
+    if (someSimulated() && changed(["typical", "noise"], after.slice(0, 1))) scheduleSimulation();
     else if (state.analysis && changed(["label", "units", "goal", "target"])) scheduleAnalysis(); // the best settings follow the goal
     scheduleSave();
   }
   scheduleCandidates();
+  showMakeable(showFactorProblems());
   renderStudyBar();
   saveDraft();
+}
+
+/**
+ * The reader left a response's name box. A response added to a run sheet already made takes its column now, named
+ * from its words, after the other responses' columns. Its runs have no result yet; while every result is practice,
+ * the results are simulated again, the new response's with them.
+ */
+function responseNamed(tr) {
+  const d = state.design;
+  const label = box(tr, "label").value.trim();
+  if (!d || tr.dataset.column || !label || tr === responseRows()[0] || responsesUnready) return;
+  const name = responseName(label, [...d.spec.factors.map((f) => f.name), ...d.columns]);
+  tr.dataset.column = name;
+  const at = Math.max(...resultNames().map((n) => d.columns.indexOf(n))) + 1;
+  const insert = (list, value) => [...list.slice(0, at), value, ...list.slice(at)];
+  state.design = { ...d, columns: insert(d.columns, name), rows: d.rows.map((row) => insert(row, null)) };
+  state.results[name] = d.rows.map(() => null);
+  state.marks[name] = d.rows.map(() => null);
+  state.models[name] = modelOf(resultNames()[0]);
+  const practice = anyResult(state.results) && allSimulatedBut(name);
+  responseChanged();
+  renderBadges();
+  setStatus(`${label} is on the run sheet now, in a column of its own.`);
+  if (practice) simulateResults();
+}
+
+/** Whether every result but the response ``name``'s is simulated: practice results, which a new response joins. */
+const allSimulatedBut = (name) =>
+  Object.entries(state.marks).every(([other, marks]) => other === name || marks.every((m) => m === "simulated"));
+
+/**
+ * The reader removed a response. Its row leaves the brief and, when the run sheet holds it, its column leaves the run
+ * sheet with its results, and the status line says so. The first response stays: it is the study's own.
+ */
+function removeResponse(tr) {
+  const name = tr.dataset.column;
+  const label = box(tr, "label").value.trim() || name;
+  tr.remove();
+  const d = state.design;
+  if (d && name && resultNames().includes(name)) {
+    const at = d.columns.indexOf(name);
+    const had = (state.results[name] ?? []).filter((v) => v !== null).length;
+    state.design = { ...d, columns: d.columns.filter((_, j) => j !== at), rows: d.rows.map((row) => row.filter((_, j) => j !== at)) };
+    for (const byName of [state.results, state.marks, state.models]) delete byName[name];
+    if (state.simulation?.more) delete state.simulation.more[name];
+    if (state.shown === name) {
+      state.shown = state.design.spec.response;
+      setModel(state.models[state.shown] ?? "");
+    }
+    responseChanged();
+    renderBadges();
+    setStatus(had ? `${label} is off the run sheet, with its ${had} result${had === 1 ? "" : "s"}.` : `${label} is off the run sheet.`);
+    if (anyResult(state.results)) analyseRuns();
+    else clearAnalysis();
+    return;
+  }
+  responseChanged();
 }
 
 // ---------------------------------------------------------------- the factors
@@ -590,7 +799,7 @@ const factorCount = () => readFactors().length;
 function takenNames() {
   const d = state.design;
   if (!d || !renaming(d.spec.factors, readFactors())) return [];
-  return [d.spec.response, ...(d.columns.includes(BLOCK) ? [BLOCK] : [])];
+  return [...resultNames(), ...(d.columns.includes(BLOCK) ? [BLOCK] : [])];
 }
 
 /** The factor table changed: the design settings, the aim, the designs that can learn it and the draft follow. */
@@ -688,11 +897,15 @@ function showRenamed({ spec, simulation, ...design }, names) {
   const titled = state.campaign && state.campaign.title === titleOf(state.design.spec);
   // Python renames the factors, and the terms a workbook was analysed with; the rest of the spec stays the page's.
   const terms = spec.analysis_model ? { analysis_model: spec.analysis_model } : {};
+  const others = spec.analysis_models ? { analysis_models: spec.analysis_models } : {};
   const limits = spec.constraints ? { constraints: spec.constraints } : {};
-  state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...limits } };
+  state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...others, ...limits } };
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
   if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
+  for (const [name, model] of Object.entries(state.models)) {
+    if (model && typeof model === "object") state.models[name] = { terms: renameTerms(model.terms, names) }; // each response's terms
+  }
   renderDesign();
   renderRuns();
   renderTruth();
@@ -700,7 +913,7 @@ function showRenamed({ spec, simulation, ...design }, names) {
   showResultsCode();
   renderStudyBar();
   scheduleSave();
-  if (state.responses.some((v) => v !== null)) analyseRuns();
+  if (anyResult(state.results)) analyseRuns();
 }
 
 // ---------------------------------------------------------------- what to learn
@@ -854,7 +1067,7 @@ function refreshDesign() {
 /** Let the run sheet be made only once Python has started, the design takes these factors, and each is ready. */
 function showMakeable(unready) {
   const fits = !$("#design-type").selectedOptions[0].disabled; // the design takes this many factors, of these kinds
-  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 2 || limitsUnready();
+  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 2 || limitsUnready() || responsesUnready;
 }
 
 /**
@@ -903,16 +1116,18 @@ function picturedRuns() {
 async function generate() {
   cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
   let key = planKey();
-  const info = readResponseInfo();
   const factors = readFactors();
-  const response = responseName(info.label, factors.map((f) => f.name));
+  const responses = readResponses({ fresh: true });
   const picked = state.picked?.key === key ? state.picked : null;
   const design = picked && (await pickedDesign(picked, factors));
   if (design) {
-    // The design the Design tab made for this plan already: the same runs, with the brief's words on them.
-    const was = design.spec.response;
-    design.columns = design.columns.map((c) => (c === was ? response : c));
-    design.spec = { ...design.spec, factors, response, response_info: info, aim: currentAim() };
+    // The design the Design tab made for this plan already: the same runs, with the brief's words on them, and a
+    // column for each response where the design had its one response's, last.
+    const at = design.columns.indexOf(design.spec.response);
+    const without = (list) => list.filter((_, j) => j !== at);
+    design.columns = [...without(design.columns), ...responses.map((r) => r.name)];
+    design.rows = design.rows.map((row) => [...without(row), ...responses.map(() => null)]);
+    design.spec = { ...withResponses(design.spec, responses), factors, aim: currentAim() };
     adoptLimits(design.spec.constraints);
     setStatus(`${design.n_runs} runs generated.`);
     madeRunSheet(design, picked.warnings ?? [], planKey());
@@ -924,8 +1139,7 @@ async function generate() {
   const spec = {
     design_type: $("#design-type").value,
     factors,
-    response,
-    response_info: info,
+    ...storedResponses(responses),
     aim: currentAim(),
     n_center_points: Number($("#n_center_points").value),
     alpha: axialDistance($("#alpha").value, $("#alpha_value").value),
@@ -980,10 +1194,13 @@ function madeRunSheet(design, warnings, key) {
   $("#campaign-banner").hidden = true;
   if (new URLSearchParams(location.search).get(EXAMPLE_PARAM) === WORKED) history.replaceState(null, "", location.pathname);
   showDesign(design, warnings);
+  tieResponses(design.spec);
   state.planKey = key;
   const c = state.comparison;
   const row = c?.result && c.key === candidateKey() ? candidateRows(c.result, c.made).find((r) => r.design_type === design.spec.design_type) : null;
-  setModel(analysisModel(design.model, design.spec.aim, Boolean(row?.fits), design.spec.factors));
+  const model = analysisModel(design.model, design.spec.aim, Boolean(row?.fits), design.spec.factors);
+  setModel(model);
+  state.models = Object.fromEntries(resultNames().map((name) => [name, model])); // every response learns what the study aims to
   clearDraft();
   markStale();
   showPhase("run");
@@ -998,13 +1215,15 @@ function madeRunSheet(design, warnings, key) {
  */
 function showDesign(design, warnings = [], { save = true } = {}) {
   flushSave();
-  const replaces = state.campaign?.replaceable && !state.sources.includes("entered");
+  const replaces = state.campaign?.replaceable && !Object.values(state.marks).some((marks) => marks.includes("entered"));
   state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
   state.example = !save;
   state.design = design;
   $("#share-out").hidden = true;
-  state.responses = design.rows.map(() => null);
-  state.sources = design.rows.map(() => null);
+  state.results = noResults(resultNames(), design.rows.length);
+  state.marks = noResults(resultNames(), design.rows.length);
+  state.shown = resultNames()[0];
+  state.models = {};
   state.simulation = null;
   state.analysis = null;
   renderDesign(warnings);
@@ -1012,6 +1231,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   renderTruth(); // the process behind the old design's results goes with them
   if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
+  renderPicker();
   if (design.spec.options) showPython("design", designCode(design.spec));
   hidePython("run");
   renderStudyBar();
@@ -1403,44 +1623,47 @@ async function drawComparison(result, k) {
 }
 
 // ---------------------------------------------------------------- run step
-/** The response's name and units as the run sheet, the equations and the charts show them. */
+/** The first response's name and units as the run sheet, the equations and the charts show them. */
 function responseWords(spec = state.design.spec) {
   const info = spec.response_info ?? {};
   return { label: info.label || spec.response, units: info.units ?? "" };
 }
 
 /**
- * The run sheet, sortable by any column, with the response column as inputs: a reader
- * types each result as it comes in. Simulated values are marked until they are edited. Each
- * heading carries its units under it, and the response's is named as the reader names it.
+ * The run sheet, sortable by any column, with each response's column as inputs: a reader types
+ * each result as it comes in. Simulated values are marked until they are edited. Each heading
+ * carries its units under it, and each response's is named as the reader names it.
  */
 function renderRuns() {
   const d = state.design;
   $("#run-empty").hidden = true;
   $("#run-out").hidden = false;
   const t = $("#design-table");
-  const response = d.spec.response;
-  const { label, units } = responseWords();
-  const at = d.columns.indexOf(response);
+  const words = Object.fromEntries(resultNames().map((name) => [name, wordsOf(name)]));
+  const at = new Map(resultNames().map((name) => [d.columns.indexOf(name), name]));
   const rows = d.rows.map((row, i) => Object.assign([...row], { index: i }));
   t._cell = (row, col) => {
-    if (col !== at) return null;
+    const name = at.get(col);
+    if (name === undefined) return null;
     const i = row.index;
-    const value = state.responses[i];
-    const cls = state.sources[i] === "simulated" ? "sim" : "";
-    return `<input class="${cls}" type="number" step="any" inputmode="decimal" data-index="${i}" aria-label="${escape(label)}, run ${i + 1}" value="${value ?? ""}">`;
+    const value = state.results[name]?.[i];
+    const cls = state.marks[name]?.[i] === "simulated" ? "sim" : "";
+    const label = escape(words[name].label);
+    return `<input class="${cls}" type="number" step="any" inputmode="decimal" data-index="${i}" data-response="${escape(name)}" aria-label="${label}, run ${i + 1}" value="${value ?? ""}">`;
   };
+  t._key = (row, col) => (at.has(col) ? state.results[at.get(col)]?.[row.index] : row[col]); // a result sorts by its value
   const factorUnits = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  const headings = d.columns.map((c) => (c === response ? label : c));
-  const colUnits = d.columns.map((c) => (c === response ? units : (factorUnits[c] ?? "")));
+  const headings = d.columns.map((c) => words[c]?.label ?? c);
+  const colUnits = d.columns.map((c) => words[c]?.units ?? factorUnits[c] ?? "");
   const terms = { "Std order": "std-order", "Run order": "run-order", Block: "blocks", [CONFIRMATION]: "confirmation-run" };
   renderTable(t, headings, rows, "Run order", colUnits, terms);
   t.oninput = (e) => {
     const input = e.target.closest("input[data-index]");
     if (!input) return;
     const i = Number(input.dataset.index);
-    state.responses[i] = input.value === "" ? null : Number(input.value);
-    state.sources[i] = input.value === "" ? null : "entered";
+    const name = input.dataset.response;
+    state.results[name][i] = input.value === "" ? null : Number(input.value);
+    state.marks[name][i] = input.value === "" ? null : "entered";
     input.classList.remove("sim");
     describeSource();
     renderTruth();
@@ -1453,35 +1676,60 @@ function renderRuns() {
   renderBadges();
 }
 
-/** Say where the results in the run sheet came from. */
+/**
+ * Say where the results in the run sheet came from. With several responses a run counts once every response has its
+ * result, and is simulated once every result it holds is.
+ */
 function describeSource() {
-  const n = state.responses.length;
-  const done = state.responses.filter((v) => v !== null).length;
-  const simulated = state.sources.filter((s) => s === "simulated").length;
+  const names = resultNames();
+  const n = runCount();
   const sim = state.simulation;
-  const { label, units } = responseWords();
-  let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made.`;
+  if (names.length === 1) {
+    const [name] = names;
+    const done = state.results[name].filter((v) => v !== null).length;
+    const simulated = state.marks[name].filter((s) => s === "simulated").length;
+    const { label, units } = responseWords();
+    let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made.`;
+    if (simulated && sim) {
+      text =
+        `${simulated} of ${n} results simulated from "${sim.label}" (noise ${sim.sigma}${units ? ` ${units}` : ""}, ` +
+        `seed ${sim.seed}), in italics: type over any to enter your own.`;
+    }
+    $("#run-source").textContent = text;
+    return;
+  }
+  const labels = names.map((name) => wordsOf(name).label);
+  const done = completeRuns(state.results, names).filter(Boolean).length;
+  const simulated = Array.from({ length: n }, (_, i) => names.every((name) => state.marks[name][i] === "simulated")).filter(Boolean).length;
+  let text = done
+    ? `${done} of ${n} runs have every result in.`
+    : anyResult(state.results)
+      ? `No run has every result in yet: ${listNames(labels)} each have a column.`
+      : `No results yet: type them into the ${listNames(labels)} columns as the runs are made.`;
   if (simulated && sim) {
     text =
-      `${simulated} of ${n} results simulated from "${sim.label}" (noise ${sim.sigma}${units ? ` ${units}` : ""}, ` +
-      `seed ${sim.seed}), in italics: type over any to enter your own.`;
+      `${simulated} of ${n} runs' results simulated from "${sim.label}", each response from a process of its own ` +
+      `(seed ${sim.seed}), in italics: type over any to enter your own.`;
   }
   $("#run-source").textContent = text;
 }
 
-/** The true process behind the simulated results, behind a reveal. */
+/** The true process behind the simulated results, behind a reveal: each response's, while some of its results are. */
 function renderTruth() {
-  const sim = state.sources.includes("simulated") ? state.simulation : null; // gone with the last simulated result
-  $("#truth").hidden = !sim;
-  if (!sim) return;
-  $("#truth-equation").textContent = sim.equation;
+  const shown = resultNames().filter((name) => processOf(name) && state.marks[name]?.includes("simulated"));
+  $("#truth").hidden = !shown.length; // gone with the last simulated result
+  if (!shown.length) return;
+  const [first, ...more] = shown.map((name) => processOf(name));
+  $("#truth-equation").textContent = first.equation;
+  $("#truth-more").replaceChildren(...more.map((one) => el("p", "equation", one.equation)));
   // A factor the process leaves out is still a factor of the design: say so, so a new factor visibly counts.
-  const quiet = sim.inactive ?? [];
+  const quiet = shown.flatMap((name) => {
+    const left = processOf(name).inactive ?? [];
+    return left.length ? [`${listNames(left)} ${left.length === 1 ? "does" : "do"} not affect ${wordsOf(name).label} in this process.`] : [];
+  });
   const note = $("#truth-inactive");
   note.hidden = !quiet.length;
-  note.textContent = quiet.length
-    ? `${listNames(quiet)} ${quiet.length === 1 ? "does" : "do"} not affect ${responseWords().label} in this process.`
-    : "";
+  note.textContent = quiet.join(" ");
 }
 
 let simulationTimer = null;
@@ -1507,8 +1755,10 @@ async function simulateResults() {
     return;
   }
   state.simulation = reply.result;
-  state.responses = [...reply.result.responses];
-  state.sources = state.responses.map(() => "simulated");
+  const names = resultNames();
+  const more = Object.fromEntries(Object.entries(reply.result.more ?? {}).map(([name, one]) => [name, one.responses]));
+  state.results = joinResults(names, [...reply.result.responses], more);
+  state.marks = Object.fromEntries(names.map((name) => [name, state.results[name].map(() => "simulated")]));
   renderRuns();
   renderTruth();
   showResultsCode();
@@ -1528,12 +1778,16 @@ function selectTab(name) {
 
 async function downloadWorkbook() {
   if (!state.design) return;
+  const [first, ...more] = resultNames();
+  // Each response's model, unless it is the one the design was made for, is kept in the workbook, so the results are
+  // analysed the same way when it comes back.
+  const models = Object.fromEntries(more.map((name) => [name, modelOf(name)]).filter(([, model]) => model));
   const reply = await call("api_workbook", {
     ...held(),
-    responses: state.responses,
-    sources: state.sources,
-    simulated: state.sources.includes("simulated") ? state.simulation : null,
-    model: modelChoice(), // kept in the workbook, so it is analysed the same way when it comes back
+    ...sentResults(),
+    simulated: someSimulated() ? state.simulation : null,
+    model: modelOf(first),
+    ...(Object.keys(models).length ? { models } : {}),
   });
   if (!reply.ok) {
     setStatus(reply.error, "error");
@@ -1541,7 +1795,7 @@ async function downloadWorkbook() {
   }
   const bytes = Uint8Array.from(atob(reply.result.xlsx_base64), (c) => c.charCodeAt(0));
   const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  download(blob, `${state.design.spec.design_type}-${state.responses.length}-runs.xlsx`);
+  download(blob, `${state.design.spec.design_type}-${runCount()}-runs.xlsx`);
 }
 
 /** Hand the reader a file, as a download. */
@@ -1556,24 +1810,50 @@ function download(blob, name) {
 }
 
 /**
- * Download the study as a Jupyter notebook: each step's code, as its "Show the Python code"
- * panel shows it, a cell a step, so it runs to the page's design, results and analysis.
+ * Each response's analysis and best settings, as the notebook writes them: the one Learn shows as it is on the page,
+ * the others fitted now, each with its own model. A response without results has none. Null for a study of one
+ * response, whose notebook takes Learn's analysis as it is.
  */
-function downloadNotebook() {
+async function eachAnalysis() {
+  if (!several()) return null;
+  const out = [];
+  for (const name of resultNames()) {
+    if (!state.results[name].some((v) => v !== null)) continue;
+    if (name === state.shown && state.analysis) {
+      out.push({ response: name, model: state.analysis.formula ?? state.analysis.model, best: state.best });
+      continue;
+    }
+    const request = analysisRequest(name);
+    const analysis = await call("api_analyze_runs", request);
+    if (!analysis.ok) continue;
+    const best = await call("api_best_settings", request);
+    out.push({ response: name, model: analysis.result.formula ?? analysis.result.model, best: best.ok ? best.result : null });
+  }
+  return out;
+}
+
+/**
+ * Download the study as a Jupyter notebook: each step's code, as its "Show the Python code"
+ * panel shows it, a cell a step, so it runs to the page's design, results and analysis. With
+ * several responses, each response's analysis and best settings in turn.
+ */
+async function downloadNotebook() {
   if (!state.design) return;
+  const analyses = await eachAnalysis();
   const book = notebook({
     title: state.campaign?.title ?? titleOf(state.design.spec),
     design: state.design,
-    responses: state.responses,
-    sources: state.sources,
+    responses: state.results,
+    sources: state.marks,
     simulation: state.simulation,
     model: state.analysis ? (state.analysis.formula ?? state.analysis.model) : null,
     version: state.version,
     url: `${location.origin}${location.pathname}`,
     best: state.best,
+    analyses,
   });
   const blob = new Blob([`${JSON.stringify(book, null, 1)}\n`], { type: "application/x-ipynb+json" });
-  download(blob, `${state.design.spec.design_type}-${state.responses.length}-runs.ipynb`);
+  download(blob, `${state.design.spec.design_type}-${runCount()}-runs.ipynb`);
 }
 
 async function readUpload(file) {
@@ -1593,21 +1873,25 @@ async function readUpload(file) {
   setForm(r.spec);
   state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
   state.planKey = planKey();
-  state.responses = r.responses;
-  state.sources = r.sources;
+  const names = resultNames();
+  state.results = joinResults(names, r.responses, r.more_responses);
+  state.marks = joinResults(names, r.sources, r.more_sources);
+  state.shown = names[0];
   state.simulation = null;
   state.example = false;
   state.campaign = { ...newCampaign(false), title: `${titleOf(r.spec)}, from ${file.name}`.slice(0, 200) };
   clearDraft();
   setModel(r.spec.analysis_model ?? $("#model").value);
+  state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
+  renderPicker();
   showPython("design", designCode(r.spec));
   showResultsCode();
   renderStudyBar();
   scheduleSave();
-  if (state.responses.some((v) => v !== null)) showPhase("learn");
+  if (anyResult(state.results)) showPhase("learn");
   await analyseRuns();
 }
 
@@ -1621,6 +1905,9 @@ function scheduleAnalysis() {
   analysisTimer = setTimeout(analyseRuns, 700);
 }
 
+/** What Learn says while there is nothing to analyse. */
+const NOTHING_TO_LEARN = "No results yet: enter them in Run, or practise with simulated ones.";
+
 /** Take the analysis away: its runs or their results are gone. A reply still on its way is dropped. */
 function clearAnalysis() {
   ticket += 1;
@@ -1629,26 +1916,45 @@ function clearAnalysis() {
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
+  $("#analyse-empty").textContent = NOTHING_TO_LEARN;
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
   clearBest();
   renderBadges();
 }
 
+/**
+ * What Python is asked for one response's analysis, its charts and its best settings: the runs, every response's
+ * results, the response's own model, and the process it was simulated from while some of its results are. A study
+ * of one response asks as it always has; with several, ``response`` names the one analysed.
+ */
+function analysisRequest(name = state.shown) {
+  return {
+    ...held(),
+    ...splitResults(resultNames(), state.results),
+    model: modelOf(name),
+    truth: state.marks[name]?.includes("simulated") ? (processOf(name)?.truth ?? null) : null,
+    ...(several() ? { response: name } : {}),
+  };
+}
+
 async function analyseRuns() {
-  if (!state.design || !state.responses.some((v) => v !== null)) {
+  if (!state.design || !anyResult(state.results)) {
     clearAnalysis();
     setStatus("No results to analyse yet.");
     return;
   }
+  renderPicker();
+  if (!state.results[state.shown]?.some((v) => v !== null)) {
+    // Some other response has results: this one waits for its own.
+    clearAnalysis();
+    $("#analyse-empty").textContent = `No results for ${wordsOf(state.shown).label} yet: enter them in Run.`;
+    setStatus(`No results for ${wordsOf(state.shown).label} yet.`);
+    return;
+  }
   const mine = ++ticket;
   setStatus("Analysing...", "busy");
-  const request = {
-    ...held(),
-    responses: state.responses,
-    model: modelChoice(),
-    truth: state.sources.includes("simulated") ? state.simulation?.truth : null,
-  };
+  const request = analysisRequest();
   const reply = await call("api_analyze_runs", request);
   if (mine !== ticket) return;
   state.analysis = reply.ok ? reply.result : null;
@@ -1679,11 +1985,11 @@ function renderAnalysis(reply) {
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete()));
+  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec()));
   const parts = [
     el("p", "equation", r.equation),
     said("hint", "In coded units."),
-    ...noteList(fitStatistics(s, r.n_completed, r.pending_runs), "fit"),
+    ...noteList(fitLines(r), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
@@ -1742,6 +2048,79 @@ function renderAnalysis(reply) {
     );
   }
   out.replaceChildren(...parts);
+}
+
+/** The study's specification as the response Learn shows reads it: that response as its ``response``. */
+const shownSpec = () => forResponse(state.design.spec, state.shown);
+
+/**
+ * The fit at a glance, a line each. With several responses the completed runs are those with every result in, as the
+ * Run tab counts them, and a line says how a run with some of its results is fitted: for the responses it has.
+ */
+function fitLines(r) {
+  if (!several()) return fitStatistics(r.summary, r.n_completed, r.pending_runs);
+  const names = resultNames();
+  const confirming = new Set(confirmationRows(state.design));
+  const complete = completeRuns(state.results, names).filter((ok, i) => ok && !confirming.has(i)).length;
+  const order = state.design.columns.indexOf("Run order");
+  const runs = partialRuns(state.results, names)
+    .filter((i) => !confirming.has(i))
+    .map((i) => state.design.rows[i][order] ?? i + 1);
+  const lines = fitStatistics(r.summary, complete, r.pending_runs);
+  if (runs.length) lines.splice(1, 0, partialSentence(runs, wordsOf(state.shown).label, r.n_completed));
+  return lines;
+}
+
+/**
+ * Show a tab for each response above the analysis, with several responses: the one Learn shows is selected. A study
+ * of one response has none, and its analysis is no tab's panel.
+ */
+function renderPicker() {
+  const picker = $("#response-picker");
+  const panel = $("#response-panel");
+  const names = resultNames();
+  picker.hidden = names.length < 2;
+  if (names.length < 2) {
+    picker.replaceChildren();
+    for (const attribute of ["role", "aria-labelledby", "tabindex"]) panel.removeAttribute(attribute);
+    return;
+  }
+  if (!names.includes(state.shown)) state.shown = names[0];
+  // The tabs are made again only when the responses change, so a tab keeps the keyboard's focus as it is chosen.
+  const tabs = [...picker.children];
+  if (tabs.map((tab) => tab.dataset.response).join("\n") !== names.join("\n")) {
+    picker.replaceChildren(
+      ...names.map((name, i) => {
+        const tab = el("button", "", "");
+        tab.type = "button";
+        tab.id = `pick-${i}`;
+        tab.dataset.response = name;
+        tab.setAttribute("role", "tab");
+        tab.setAttribute("aria-controls", "response-panel");
+        tab.onclick = () => pickResponse(name);
+        return tab;
+      }),
+    );
+  }
+  for (const tab of picker.children) {
+    const on = tab.dataset.response === state.shown;
+    tab.textContent = wordsOf(tab.dataset.response).label;
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+  }
+  panel.setAttribute("role", "tabpanel");
+  panel.setAttribute("aria-labelledby", `pick-${names.indexOf(state.shown)}`);
+}
+
+/** Show a response's analysis in Learn: its own model, its fit, its charts and its best settings. */
+function pickResponse(name) {
+  if (name === state.shown || !resultNames().includes(name)) return;
+  state.models[state.shown] = modelChoice();
+  state.shown = name;
+  setModel(state.models[name] ?? "");
+  renderPicker();
+  analyseRuns();
+  scheduleSave();
 }
 
 // ---------------------------------------------------------------- the model's terms
@@ -1908,10 +2287,13 @@ async function libraryPlots(request, mine) {
 }
 
 // ---------------------------------------------------------------- the best settings for the response's goal
-/** Whether every run of the design has its result: the confirmation runs, which the model is not fitted to, aside. */
-function designComplete() {
+/**
+ * Whether every run of the design has its result for the response Learn shows (or ``name``): the confirmation runs,
+ * which the model is not fitted to, aside.
+ */
+function designComplete(name = state.shown) {
   const confirming = new Set(state.design ? confirmationRows(state.design) : []);
-  return state.responses.every((v, i) => confirming.has(i) || v !== null);
+  return (state.results[name] ?? []).every((v, i) => confirming.has(i) || v !== null);
 }
 
 /** Take the best settings away: the analysis they were found on is gone. */
@@ -1945,7 +2327,7 @@ function renderBest(reply) {
     return;
   }
   const best = reply.result;
-  const words = responseWords();
+  const words = wordsOf(state.shown);
   const factors = state.design.spec.factors;
   $("#best").hidden = false;
   $("#best-chart").hidden = true;
@@ -1972,7 +2354,7 @@ function renderBest(reply) {
   );
   renderConfirmation(best, words);
   const model = state.analysis?.formula ?? state.analysis?.model ?? "";
-  showPython("best", bestCode(best, state.design.spec, model, designComplete()));
+  showPython("best", bestCode(best, shownSpec(), model, designComplete()));
   drawBestChart();
 }
 
@@ -2021,7 +2403,7 @@ async function drawBestChart() {
   }
   const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const items = best.sensitivity.map((s) => ({ ...s, units: units[s.name] }));
-  const figure = () => sensitivityFigure(items, responseWords());
+  const figure = () => sensitivityFigure(items, wordsOf(state.shown));
   card.hidden = false;
   const caption = card.querySelector("figcaption");
   caption.textContent = sensitivityCaption(best);
@@ -2049,28 +2431,35 @@ function starBest(figures, pair) {
 }
 
 /**
- * Add confirmation runs at the best settings to the end of the run sheet. They never enter the fit: their average
- * is judged against what the model predicts there. While the results are practice ones, theirs are simulated from
- * the same process, noise and seed, which leaves every result before them as it was; else the reader makes them.
+ * Add confirmation runs at a setting to the end of the run sheet: the best settings for the response Learn shows, or
+ * the settings that balance the responses. They never enter the fit: their average is judged against what each
+ * model predicts there. While the results are practice ones, theirs are simulated from the same processes, noise and
+ * seeds, which leaves every result before them as it was; else the reader makes them. ``where`` names the setting.
  */
-async function addConfirmationRuns() {
-  const best = state.best;
-  if (!best?.confirm_at || !state.design) return;
+async function addConfirmationRuns(at = state.best?.confirm_at, where = "the best settings") {
+  if (!at || !state.design) return;
   const before = state.design.rows.length;
-  const { columns, rows } = withConfirmationRuns(state.design, best.confirm_at);
+  const { columns, rows } = withConfirmationRuns(state.design, at);
   state.design = { ...state.design, columns, rows };
   const added = rows.length - before;
-  state.responses = [...state.responses, ...Array(added).fill(null)];
-  state.sources = [...state.sources, ...Array(added).fill(null)];
+  for (const name of resultNames()) {
+    state.results[name] = [...state.results[name], ...Array(added).fill(null)];
+    state.marks[name] = [...state.marks[name], ...Array(added).fill(null)];
+  }
   renderRuns();
   renderStudyBar();
-  const practice = Boolean(state.simulation) && state.sources.includes("simulated");
+  const practice = Boolean(state.simulation) && someSimulated();
   if (practice) {
     const { scenario, sigma, seed: drawn } = state.simulation;
     const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
     if (reply.ok) {
-      state.responses = state.responses.map((v, i) => (i >= before ? reply.result.responses[i] : v));
-      state.sources = state.sources.map((s, i) => (i >= before ? "simulated" : s));
+      const [first] = resultNames();
+      for (const name of resultNames()) {
+        const simulated = name === first ? reply.result : reply.result.more?.[name];
+        if (!simulated || !processOf(name)) continue;
+        state.results[name] = state.results[name].map((v, i) => (i >= before ? simulated.responses[i] : v));
+        state.marks[name] = state.marks[name].map((s, i) => (i >= before ? "simulated" : s));
+      }
       renderRuns();
     }
   }
@@ -2079,7 +2468,7 @@ async function addConfirmationRuns() {
   await analyseRuns(); // the fit is the same; what is said of the confirmation runs follows them
   setStatus(
     practice
-      ? `${added} confirmation runs added at the best settings, their results simulated.`
+      ? `${added} confirmation runs added at ${where}, their results simulated.`
       : `${added} confirmation runs added at the end of the run sheet: enter their results in Run.`,
   );
 }
@@ -2087,10 +2476,10 @@ async function addConfirmationRuns() {
 /** Take the confirmation runs off the run sheet, with their results. */
 async function removeConfirmationRuns() {
   if (!state.design) return;
-  const { columns, rows, responses, sources } = withoutConfirmationRuns(state.design, state.responses, state.sources);
+  const { columns, rows, results, marks } = withoutConfirmationRuns(state.design, state.results, state.marks);
   state.design = { ...state.design, columns, rows };
-  state.responses = responses;
-  state.sources = sources;
+  state.results = results;
+  state.marks = marks;
   renderRuns();
   renderStudyBar();
   showResultsCode();
@@ -2135,8 +2524,9 @@ async function showBuiltExample() {
   state.planKey = planKey();
   selectTab("simulate");
   state.simulation = example.simulation;
-  state.responses = [...example.simulation.responses];
-  state.sources = state.responses.map(() => "simulated");
+  const [name] = resultNames(); // the worked example measures one response
+  state.results = { [name]: [...example.simulation.responses] };
+  state.marks = { [name]: example.simulation.responses.map(() => "simulated") };
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
@@ -2209,8 +2599,10 @@ function newStudy() {
   Object.assign(state, {
     design: null,
     planKey: null,
-    responses: [],
-    sources: [],
+    results: {},
+    marks: {},
+    shown: null,
+    models: {},
     simulation: null,
     analysis: null,
     comparison: null,
@@ -2219,7 +2611,7 @@ function newStudy() {
     example: false,
   });
   clearTimeout(analysisTimer);
-  setResponse({ response: "" });
+  setResponse({ response: "" }, { columns: false });
   $("#response-known").open = false;
   $("#factors tbody").replaceChildren();
   addFactor();
@@ -2234,6 +2626,7 @@ function newStudy() {
   for (const id of ["#demo-banner", "#campaign-banner", "#run-out", "#design-out", "#share-out"]) $(id).hidden = true;
   $("#run-empty").hidden = false;
   clearAnalysis();
+  renderPicker();
   setModel("");
   for (const key of ["design", "run", "analyse", "best", "compare"]) hidePython(key);
   delete $("#compare-dialog").dataset.key;
@@ -2256,6 +2649,9 @@ function saveDraft() {
   draftTimer = setTimeout(() => {
     const draft = {
       response: responseFields(),
+      responses: responseRows()
+        .slice(1)
+        .map((tr) => rowFields(tr)), // the later responses: each one's name, units, goal and target, as typed
       factors: factorRows().map((tr) => ({
         name: box(tr, "name").value,
         low: box(tr, "low").value,
@@ -2292,10 +2688,12 @@ function readDraft() {
   }
   if (!draft || typeof draft !== "object") return null;
   const text = (v, most = 64) => (typeof v === "string" ? v.slice(0, most) : "");
+  const fields = (r, keys) => Object.fromEntries(keys.map((k) => [k, text(r?.[k])]));
   const r = draft.response && typeof draft.response === "object" ? draft.response : {};
-  const response = Object.fromEntries(
-    ["label", "units", "goal", "target", "typical", "noise", "smallest_change"].map((k) => [k, text(r[k])]),
-  );
+  const response = fields(r, ["label", "units", "goal", "target", "typical", "noise", "smallest_change"]);
+  const responses = (Array.isArray(draft.responses) ? draft.responses.slice(0, MAX_RESPONSES - 1) : [])
+    .filter((one) => one && typeof one === "object")
+    .map((one) => fields(one, ["label", "units", "goal", "target"]));
   const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, 12) : [])
     .filter((f) => f && typeof f === "object")
     .map((f) => ({ name: text(f.name), low: text(f.low), high: text(f.high), units: text(f.units, 32) }));
@@ -2305,17 +2703,15 @@ function readDraft() {
   } catch {
     /* limits this page did not write: the brief comes back without them */
   }
-  return { response, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits };
+  return { response, responses, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits };
 }
 
 /** Put a draft brief back on the page, in Design. */
 function restoreDraft(draft) {
   const f = draft.response;
-  $("#response").value = f.label;
-  $("#response-units").value = f.units;
-  const goal = document.querySelector(`input[name="goal"][value="${f.goal}"]`);
-  if (goal) goal.checked = true;
-  $("#response-target").value = f.target;
+  for (const tr of responseRows().slice(1)) tr.remove();
+  fillResponse(responseRows()[0], f);
+  for (const r of draft.responses) addResponse(r);
   $("#response-typical").value = f.typical;
   $("#response-noise").value = f.noise;
   $("#response-change").value = f.smallest_change;
@@ -2343,22 +2739,27 @@ function newCampaign(replaceable = true) {
 /** A study's name in the list of saved studies: its response when the reader named one, its design and its factors. */
 function titleOf(spec) {
   const info = spec.response_info;
-  const response = info?.label ? responseTitle(info, spec.response) : "";
+  const responses = responsesOf(spec);
+  const response = responses.length > 1 ? responsesTitle(responses) : info?.label ? responseTitle(info, spec.response) : "";
   return campaignTitle(designLabel(spec.design_type), spec.factors.map((f) => f.name), response);
 }
 
-/** The study on the page, as campaign.js describes one. */
+/**
+ * The study on the page, as campaign.js describes one: the first response's results, sources and model as a study of
+ * one response has always kept them, and with several, each later response's beside them, by its column.
+ */
 function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
+  const [first, ...more] = resultNames();
   return {
     v: CAMPAIGN_VERSION,
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
-    responses: state.responses,
-    sources: state.sources,
+    ...sentResults(),
     simulation: state.simulation,
     simulate: { scenario: $("#scenario").value, sigma: Number($("#sigma").value), seed },
-    model: modelChoice(),
+    model: modelOf(first),
+    ...(more.length ? { more_models: Object.fromEntries(more.map((name) => [name, modelOf(name)])) } : {}),
   };
 }
 
@@ -2409,7 +2810,7 @@ function libraryItem(record) {
   open.type = "button";
   open.disabled = here;
   open.onclick = () => openSaved(record);
-  const about = el("span", "hint", `${progress(record.responses ?? [])}, saved ${timeAgo(record.updated)}`);
+  const about = el("span", "hint", `${progress(doneRuns(record))}, saved ${timeAgo(record.updated)}`);
   item.append(open, about);
   if (here) {
     item.append(el("span", "hint", "on the page now"));
@@ -2432,6 +2833,15 @@ function libraryItem(record) {
   };
   item.append(forget);
   return item;
+}
+
+/** A saved study's runs as its progress counts them: a run is done when every response has its result. */
+function doneRuns(record) {
+  try {
+    return campaignDone(checkCampaign(record)).map((done) => (done ? true : null));
+  } catch {
+    return record.responses ?? []; // a study this page cannot read: its first response's results, as kept
+  }
 }
 
 async function openSaved(record) {
@@ -2465,8 +2875,11 @@ async function openCampaign(c, record, message) {
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec) };
   state.design = { ...c.design };
   state.planKey = planKey();
-  state.responses = [...c.responses];
-  state.sources = [...c.sources];
+  const names = resultNames();
+  state.results = joinResults(names, [...c.responses], structuredClone(c.more_responses ?? {}));
+  state.marks = joinResults(names, [...c.sources], structuredClone(c.more_sources ?? {}));
+  state.shown = names[0];
+  state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.simulation = c.simulation;
   state.analysis = null;
   state.example = false;
@@ -2477,15 +2890,16 @@ async function openCampaign(c, record, message) {
   if (sigma) $("#sigma").value = sigma;
   if (kept !== null) seed = kept;
   showScenarioHint();
-  selectTab(state.sources.includes("simulated") ? "simulate" : "real");
+  selectTab(someSimulated() ? "simulate" : "real");
   setModel(c.model);
   renderDesign([]);
   renderRuns();
   renderTruth();
   clearAnalysis();
+  renderPicker();
   $("#share-out").hidden = true;
   if (c.design.spec.options) showPython("design", designCode(c.design.spec));
-  const done = state.responses.some((v) => v !== null);
+  const done = anyResult(state.results);
   if (done) showResultsCode();
   else hidePython("run");
   showBanner(message);
@@ -2601,7 +3015,7 @@ async function openBookExample(name) {
  * Resolves to whether the link was such a return.
  */
 async function resultsCameBack(c) {
-  if (!c.responses.some((v) => v !== null)) return false;
+  if (!anyResult({ first: c.responses, ...(c.more_responses ?? {}) })) return false;
   const key = designKey(c.design);
   const readable = (record) => {
     try {
@@ -2613,13 +3027,13 @@ async function resultsCameBack(c) {
   const match = (await savedSoon()).find((record) => readable(record) && designKey(readable(record).design) === key);
   if (!match) return false;
   const here = readable(match);
-  const { responses, sources, added, kept } = mergeResults(here, c);
+  const { added, kept, ...merged } = mergeResults(here, c);
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
   let message = added
     ? `Added ${plural(added, "result")} from a link to ${here.title}, kept in this browser.`
     : `The link's results are already in ${here.title}, kept in this browser.`;
   if (kept) message += ` ${plural(kept, "run")} already had a different result here, which ${kept === 1 ? "was" : "were"} kept.`;
-  await openCampaign({ ...here, responses, sources }, { id: match.id, created: match.created }, message);
+  await openCampaign({ ...here, ...merged }, { id: match.id, created: match.created }, message);
   return true;
 }
 
@@ -2678,8 +3092,8 @@ function hidePython(key) {
 
 /** Show the run's code: the simulation while every result is as simulated, else the results on the page. */
 function showResultsCode() {
-  const simulated = state.simulation && state.sources.every((source) => source === "simulated");
-  showPython("run", resultsCode(state.design, state.responses, simulated ? state.simulation : null));
+  const simulated = state.simulation && allSimulated();
+  showPython("run", resultsCode(state.design, state.results, simulated ? state.simulation : null));
 }
 
 /** The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one. */
@@ -2771,7 +3185,7 @@ function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) 
     th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
     const col = Number(button.dataset.col);
     const sign = ascending ? 1 : -1;
-    const key = (row) => (t._cell && t._cell(row, col) !== null ? state.responses[row.index] : row[col]);
+    const key = (row) => (t._key ? t._key(row, col) : row[col]);
     // A stable sort over a copy, so the order the rows arrived in breaks ties.
     fillBody(t, [...t._rows].sort((a, b) => isBlank(key(a)) - isBlank(key(b)) || sign * compareCells(key(a), key(b))));
   };
@@ -2849,10 +3263,18 @@ $("#show-example").onclick = () => {
   history.replaceState(null, "", `${location.pathname}?${EXAMPLE_PARAM}=${WORKED}`);
   showBuiltExample();
 };
-for (const id of ["#response", "#response-units", "#response-target", "#response-typical", "#response-noise", "#response-change"]) {
-  $(id).addEventListener("input", responseChanged);
-}
-$("#goal").addEventListener("change", responseChanged);
+// The responses' boxes take effect as they are typed; a response added to a run sheet takes its column when the reader
+// leaves its name box, so a name half typed names no column.
+$("#responses").addEventListener("input", responseChanged);
+$("#responses").addEventListener("change", (e) => {
+  if (e.target.name === "label") responseNamed(e.target.closest("tr"));
+});
+for (const id of ["#response-typical", "#response-noise", "#response-change"]) $(id).addEventListener("input", responseChanged);
+$("#add-response").onclick = () => {
+  box(addResponse(), "label").focus();
+  responseChanged();
+};
+arrowKeys($("#response-picker"), (tab) => pickResponse(tab.dataset.response));
 // A factor's name and units are labels, taken when the reader leaves the box (Tab, Enter or a click elsewhere), so a
 // name half typed reaches no run sheet, note or chart; what it still needs is said as it is typed. Its levels and type
 // take effect at once: a label typed for a level makes the factor categorical.
@@ -2928,15 +3350,15 @@ $("#reroll").onclick = () => {
 };
 $("#scenario").onchange = () => {
   showScenarioHint();
-  if (state.sources.includes("simulated")) simulateResults();
+  if (someSimulated()) simulateResults();
 };
 $("#sigma").onchange = () => {
-  if (state.sources.includes("simulated")) simulateResults();
+  if (someSimulated()) simulateResults();
 };
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
-$("#add-confirmation").onclick = addConfirmationRuns;
+$("#add-confirmation").onclick = () => addConfirmationRuns();
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
@@ -2945,10 +3367,12 @@ $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
   else modelBefore = $("#model").value;
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS || !state.design;
+  if (state.shown) state.models[state.shown] = modelChoice(); // the model of the response Learn shows
   analyseRuns();
   scheduleSave();
 };
 $("#term-list").onchange = () => {
+  if (state.shown) state.models[state.shown] = modelChoice();
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };

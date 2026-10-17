@@ -260,6 +260,28 @@ button:disabled { opacity: 0.5; cursor: progress; }
   }
   .factors input { padding: 6px; }
 }
+/* The responses: a row each, as the factors are listed, its goal a choice and its target a number only for a target.
+   The first row is the study's response, which no button removes. */
+.factors.responses th:nth-child(1) { width: 32%; }
+.factors.responses th:nth-child(2) { width: 16%; }
+.factors.responses th:nth-child(3) { width: 26%; }
+.factors.responses th:nth-child(4) { width: 18%; }
+.factors.responses th:nth-child(5) { width: 2rem; }
+.factors.responses select { width: 100%; min-width: 0; }
+@container brief (max-width: 560px) {
+  .responses tbody { counter-reset: response; }
+  .responses tbody tr {
+    counter-increment: response;
+    grid-template-areas: "title title title title title remove" "label label label label units units" "goal goal goal target target target";
+  }
+  .responses tr::before { content: "Response " counter(response); }
+  .responses td:nth-child(1) { grid-area: label; }
+  .responses td:nth-child(2) { grid-area: units; }
+  .responses td:nth-child(3) { grid-area: goal; }
+  .responses td:nth-child(4) { grid-area: target; }
+  .responses td:nth-child(5) { grid-area: remove; justify-self: end; }
+  .responses select { padding: 6px; }
+}
 @media (max-width: 480px) {
   section { padding: 16px 12px; }
 }
@@ -534,6 +556,15 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
   padding: 8px 14px; color: var(--muted);
 }
 .tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+/* The response Learn analyses, with several: a tab each, wrapping on a phone rather than pushing the page sideways. */
+.picker { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 8px 0 12px; }
+.picker [role="tab"] {
+  max-width: 100%; padding: 6px 12px; border-radius: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--muted); background: var(--bg);
+}
+.picker [role="tab"]:hover { color: var(--fg); }
+.picker [role="tab"][aria-selected="true"] { color: var(--accent-fg); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.picker [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 details { margin: 10px 0; }
 details summary { cursor: pointer; color: var(--accent); }

@@ -112,7 +112,7 @@ def test_the_brief_holds_the_worked_example_s_response_factors_and_aim(page, fir
     described = inputs["design"]["response_info"]
     assert page.input_value("#response") == described["label"]
     assert page.input_value("#response-units") == described["units"]
-    assert page.is_checked(f'input[name="goal"][value="{described["goal"]}"]')
+    assert page.input_value("#response-goal") == described["goal"]
     assert float(page.input_value("#response-typical")) == described["typical"]
     assert float(page.input_value("#response-noise")) == described["noise"]
     assert float(page.input_value("#response-change")) == described["smallest_change"]

@@ -103,26 +103,34 @@
     <div id="brief" class="brief" data-pane="plan">
       <section id="response-card" class="card" aria-labelledby="h-response">
         <h2 id="h-response">What will you measure?</h2>
-        <div class="row">
-          <label class="grow"><span class="term" data-term="response">Response</span>
-            <input id="response" maxlength="64" placeholder="Yield" autocomplete="off" spellcheck="false">
-          </label>
-          <label>Units
-            <input id="response-units" maxlength="32" size="6" placeholder="%" autocomplete="off" spellcheck="false">
-          </label>
-        </div>
-        <fieldset id="goal" class="goal">
-          <legend>Goal</legend>
-          <label><input type="radio" name="goal" value="maximize"> Maximise</label>
-          <label><input type="radio" name="goal" value="minimize"> Minimise</label>
-          <label><input type="radio" name="goal" value="target"> Hit a target</label>
-          <label><input type="radio" name="goal" value="learn" checked> Just learn</label>
-        </fieldset>
-        <label id="target-box" class="inline" hidden>Target
-          <span class="with-unit"><input id="response-target" type="number" step="any"><span class="unit"></span></span>
-        </label>
+        <!-- A row per response, up to five, as the factors are listed. The first row is the study's response and is
+             always there; app.js adds the others from it. Its goals mirror bootstrap.GOALS; tests/web/page/test_parity.py
+             keeps them in step. -->
+        <table class="factors responses" id="responses">
+          <thead><tr><th><button type="button" class="term" data-term="response">Response</button></th><th>Units</th><th>Goal</th><th>Target</th><th><span class="sr">Remove</span></th></tr></thead>
+          <tbody>
+            <tr>
+              <td data-label="Response"><input id="response" name="label" aria-label="Response" maxlength="64" placeholder="Yield" autocomplete="off" spellcheck="false"></td>
+              <td data-label="Units"><input id="response-units" name="units" aria-label="Units" maxlength="32" size="5" placeholder="%" autocomplete="off" spellcheck="false"></td>
+              <td data-label="Goal"><select id="response-goal" name="goal" aria-label="Goal" autocomplete="off">
+                <option value="maximize">Maximise</option>
+                <option value="minimize">Minimise</option>
+                <option value="target">Hit a target</option>
+                <option value="learn" selected>Just learn</option>
+              </select></td>
+              <td data-label="Target"><input id="response-target" name="target" type="number" step="any" aria-label="Target" placeholder="none" disabled></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="response-problems" class="hint error" role="status" hidden></p>
+        <p class="add-factors">
+          <button type="button" id="add-response" class="link">+ Add <span class="term" data-term="response">response</span></button>
+          <span id="responses-full" class="hint" hidden>A study measures at most 5 responses.</span>
+        </p>
+        <p id="first-sizes" class="hint" hidden>The first response sizes the design, so the page asks what you know of it.</p>
         <details id="response-known" class="known">
-          <summary>What you know of it already</summary>
+          <summary>What you know of <span id="known-name">it</span> already</summary>
           <div class="row">
             <label><span class="term" data-term="typical">Typical value</span>
               <span class="with-unit"><input id="response-typical" type="number" step="any"><span class="unit"></span></span>
@@ -366,6 +374,7 @@
             <details id="truth" hidden>
               <summary>Show the true process</summary>
               <p id="truth-equation" class="equation"></p>
+              <div id="truth-more"></div>
               <p id="truth-inactive" hidden></p>
               <p class="hint">In coded units. The analysis estimates these coefficients from the noisy results.</p>
             </details>
@@ -395,6 +404,9 @@
       <section id="step-analyse" class="pane" data-pane="learn" role="tabpanel" aria-labelledby="h-analyse" hidden>
         <h2 id="h-analyse">What the results say</h2>
         <p id="analyse-empty" class="hint">No results yet: enter them in Run, or practise with simulated ones.</p>
+        <!-- With several responses, a tab each: the analysis below is of the one chosen, with its own model. -->
+        <div id="response-picker" class="picker" role="tablist" aria-label="The response analysed" hidden></div>
+        <div id="response-panel">
         <div class="row">
           <label>Model
             <select id="model">
@@ -443,6 +455,7 @@
           <pre><code></code></pre>
           <button type="button" class="link copy">Copy the code</button>
         </details>
+        </div>
       </section>
     </div>
   </div>

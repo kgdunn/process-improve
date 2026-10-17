@@ -2137,8 +2137,9 @@ def workbook(request: dict) -> dict:
     if request.get("model"):
         _checked_model(request["model"], [f["name"] for f in spec["factors"]], _categorical_names(spec))
         spec = {**spec, "analysis_model": request["model"]}
-    if models := request.get("models"):
-        spec = _checked_spec({**spec, "analysis_models": models})
+    if models := request.get("models"):  # each later response's, but one analysed as designed, as for the first
+        chosen = {name: m for name, m in models.items() if m} if isinstance(models, dict) else models
+        spec = _checked_spec({**spec, "analysis_models": chosen})
     runs = _runs_frame(request, spec)
     marks = [request.get("sources"), *(request.get("more_sources") or {}).values()]
     marks = [m for m in marks if m and any(m)]
