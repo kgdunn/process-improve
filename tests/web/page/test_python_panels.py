@@ -20,6 +20,7 @@ from tests.web._support import (
     ALL_DESIGNS,
     FACTORS,
     coded,
+    correlated_study,
     generate_all,
     held_of,
     javascript,
@@ -279,6 +280,39 @@ def test_a_notebook_of_typed_results_writes_them_out_and_waits_for_an_analysis(a
     assert not any("analyze_experiment" in cell for cell in code)
     unpinned = notebook_of(node, design=held, responses=responses, sources=["entered"] * 8, model=None, version=None)
     assert "".join(unpinned["cells"][1]["source"]) == "%pip install process-improve"
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("spec", "blank"),
+    [
+        (correlated_study(), ()),
+        ({"design_type": "full_factorial", "factors": FACTORS, "n_blocks": 2, "n_center_points": 2}, (0, 3)),
+    ],
+    ids=["correlated runs as given", "blocks, with runs still to do"],
+)
+def test_the_code_gives_the_vifs_the_page_shows(api, node, spec, blank):
+    """When the coefficients table shows each term's VIF, the analysis panel's code works the same VIFs out."""
+    held = held_of(api.ok("api_make_design", spec))
+    responses = [None if i in blank else float(i % 3) + 0.5 * i for i in range(len(held["rows"]))]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses, "model": "main_effects"})
+    complete = not blank
+    (vif_model,) = javascript(node, source("logic.js"), [("fittedFormula", [analysis["coefficients"]])])
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], complete, vif_model]),
+    )
+    namespace = run(code)
+    assert_same_fit(namespace, analysis)
+    found = namespace["vif"]
+    blocks = [v for key, v in found.items() if key.startswith("Block[")]  # the library's names for the contrasts
+    terms = {key: v for key, v in found.items() if not key.startswith("Block[")}
+    shown = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]
+    assert {c["term"]: c["vif"] for c in shown if not c["block"]} == {k: pytest.approx(v) for k, v in terms.items()}
+    assert [c["vif"] for c in shown if c["block"]] == pytest.approx(blocks), "in the order of the blocks"
+    assert len(blocks) == spec.get("n_blocks", 1) - 1
 
 
 def test_the_code_for_runs_as_given_lists_the_runs_and_gives_the_page_s_analysis(api, node):

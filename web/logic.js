@@ -439,6 +439,26 @@ export const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrec
 /** A p-value to four decimals, or "< 0.0001". */
 export const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
 
+/** The variance inflation factor above which a term is correlated enough for a note; bootstrap.py's VIF_HIGH. */
+export const VIF_HIGH = 5;
+
+/**
+ * Whether the coefficients table shows each term's VIF: only when some term's is above VIF_HIGH, as the
+ * analysis's note says, so an orthogonal design (every VIF 1) gets no column of ones. A block's own VIF
+ * does not count, as the note leaves it out.
+ */
+export const showsVif = (coefficients) =>
+  coefficients.some((c) => !c.block && typeof c.vif === "number" && c.vif > VIF_HIGH);
+
+/**
+ * The terms an analysis fitted, as a formula ``evaluate_design`` reads to give their VIFs: the blocks
+ * first, as the fit has them, then each term of the model, less the intercept.
+ */
+export function fittedFormula(coefficients) {
+  const terms = coefficients.filter((c) => !c.block && c.term !== "Intercept").map((c) => c.term);
+  return [...(coefficients.some((c) => c.block) ? [BLOCK] : []), ...terms].join(" + ");
+}
+
 /**
  * The fit at a glance, a line each, as the page lists them: the runs fitted and any still to do,
  * then the fit statistics. One the fit cannot give is left out, and a missing predicted R² is explained.

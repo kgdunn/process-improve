@@ -191,7 +191,7 @@ def test_each_kind_of_check_reports_what_it_finds(monkeypatch, tmp_path):
         item("2", {"kind": "no_such_kind"}),
         item("2", {"kind": "library_value", "function": "no_such_function"}),
         item("2", {"kind": "coefficient", "term": "C", **fit}),
-        item("2 ** 3", {"kind": "coefficient", "term": "A", "expression": True, **fit}),
+        item("2 ^ 3", {"kind": "coefficient", "term": "A", "expression": True, **fit}),  # ^ is not arithmetic here
         item("about two", {"kind": "coefficient", "term": "A", **fit}),
     ]
     experiment = {
@@ -1062,6 +1062,95 @@ def test_a_path_into_a_library_result_may_hold_keys_with_a_dot():
     assert reference_catalogue._read({"q": [1.0, 3.0]}, "q.max") == pytest.approx(3.0)
 
 
+BBD3 = [
+    *[[a, b, 0] for b in (-1, 1) for a in (-1, 1)],
+    *[[a, 0, c] for c in (-1, 1) for a in (-1, 1)],
+    *[[0, b, c] for c in (-1, 1) for b in (-1, 1)],
+    *[[0, 0, 0]] * 3,
+]  # the Box-Behnken design in three factors, three centre runs
+
+
+def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arrays(monkeypatch, tmp_path):
+    """Each design check kind on the Box-Behnken design, and a printed array compared entry by entry."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    y = [1, 3, 2, 6, 2, 4, 3, 5, 1, 2, 3, 4, 3, 3, 3]
+    runs = {"columns": ["A", "B", "C", "y"], "rows": [[*r, v] for r, v in zip(BBD3, y, strict=True)], "coded": True}
+    info = {"kind": "design_metric", "metric": "information_matrix", "model": "A + B + C"}
+    cube = {"design_type": "full_factorial", "k": 3, "options": {"n_center_points": 0}}
+    expected = [
+        item("3", {"kind": "design_structure", "key": "n_center_runs"}),
+        item("7", {"kind": "design_structure", "key": "level_counts.0.min"}),  # four edge runs and three centres
+        item("6", {"kind": "design_structure", "key": "mirror_pairs"}),
+        item("1", {"kind": "projections", "size": 2, "key": "fraction_estimable"}),
+        item("3", {"kind": "projections", "size": 2, "key": "n_projections"}),
+        item("3", {"kind": "design_measure", "measure": "quadratic_projection"}),
+        item("3", {"kind": "design_measure", "measure": "projectivity", "design": cube}),
+        item([15, 8, 8, 8], {"kind": "normal_equations", "model": "A + B + C", "key": "xtx", "diagonal": True}),
+        item("0.125", info | {"key": "coefficient_variances", "terms": "[A-C]", "reduce": "max"}),
+        item("0.354", info | {"key": "coefficient_variances", "terms": "[A-C]", "reduce": "max", "root": True}),
+        item("0.442", info | {"metric": "g_efficiency", "result": "max_prediction_variance"}),
+        item("8", {"kind": "library_value", "function": "allocate_runs", "args": [1, 4], "key": "best.runs_b"}),
+        item("0.498", {"kind": "ci_half_width", "term": "A", "model": "A + B + C"}),
+        item([[8, 0], [0, 8]], info | {"key": "xtx"}),  # the wrong shape: X'X is 4 by 4
+        item("2", {"kind": "design_measure", "measure": "projectivity"}),  # not a two-level design: no projectivity
+        item("1", info | {"key": "n_runs", "terms": "A"}),  # a count, not a table of terms
+    ]
+    experiment = {
+        "name": "small",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in "ABC"],
+        "responses": [{"name": "y"}],
+        "runs": runs,
+        "expected": expected,
+    }
+    source = {"key": "small", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    (tmp_path / "small.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("small")
+    assert report["agrees"].tolist() == [True] * 13 + [False] * 3
+    assert "shape (4, 4), printed (2, 2)" in report["found"].iloc[13]
+    assert report["found"].iloc[14] == "nan"
+    assert report["reason"].iloc[15].startswith("ValueError")
+
+
+def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
+    from process_improve.experiments.reference_catalogue import _library_text
+
+    cell = {"function": "get_omars_trade_off_table_entry", "args": [17, 4]}
+    assert _library_text({}, cell | {"key": "label"}, "Quad df=8") == ("Quad df=8", True)
+    assert _library_text({}, cell | {"line": 0}, "OMARS:  17 runs, 4 factors")[1]  # runs of spaces count as one
+    assert not _library_text({}, cell | {"key": "tag"}, "Full")[1]
+
+
+def test_a_number_the_construction_records_is_a_design_property():
+    from process_improve.experiments.reference_catalogue import _design_property
+
+    screen = {"design_type": "dsd", "k": 6, "options": {"budget": 17, "random_state": 1}}
+    assert _design_property({"property": "metadata.conference_order", "design": screen}) == 8
+    assert _design_property({"property": "metadata.fake_factors", "design": screen}) == 2
+
+
+def test_the_setting_of_greatest_desirability_is_the_library_search_on_the_fitted_responses():
+    """The PID book's bioreactor: profit ramped 725 to 740, purity 90 to 96 (T 339.8 K, S 1.64 g/L, D 0.532)."""
+    from process_improve.experiments.reference_catalogue import _desirability_optimum
+
+    source = json.loads((reference_catalogue._CATALOGUE_DIR / "pid-book.json").read_text(encoding="utf-8"))
+    entry = next(e for e in source["experiments"] if e["name"] == "multi-response-desirability")
+    model = "T + S + T:S + I(T**2) + I(S**2)"
+    goals = [
+        {"response": "Profit", "goal": "maximize", "low": 725, "high": 740, "model": model},
+        {"response": "Purity", "goal": "maximize", "low": 90, "high": 96, "model": model},
+    ]
+    assert _desirability_optimum(entry, {"goals": goals, "key": "optimal_actual.T"}) == pytest.approx(339.8, abs=0.05)
+    assert _desirability_optimum(entry, {"goals": goals, "key": "composite_desirability"}) == pytest.approx(
+        0.532, abs=5e-4
+    )
+    low = _desirability_optimum(entry, {"goals": goals, "key": "response_intervals.Profit.prediction_interval.0"})
+    assert low == pytest.approx(727.1, abs=0.05)
+
+
 def test_a_fraction_s_word_lengths_and_clear_effects_are_read_from_its_defining_relation():
     """Montgomery's design C for seven factors has the word lengths {4, 5, 5}; in I = BCDF, BC is aliased with DF."""
     from process_improve.experiments.reference_catalogue import _design_check
@@ -1075,11 +1164,13 @@ def test_a_fraction_s_word_lengths_and_clear_effects_are_read_from_its_defining_
 
 
 def test_generators_are_compared_by_word_lengths_with_the_fraction_the_library_chooses():
-    """Nine factors in 32 runs: the library's resolution IV fraction has six four-letter words; F = ABC, ... has 14."""
+    """Nine factors in 32 runs: the source's fraction and the library's both have six four-letter words; F = ABC,
+    G = ABD, H = ACD, J = BCD has 14.
+    """
     from process_improve.experiments.reference_catalogue import _design_check
 
     table = {"kind": "minimum_aberration", "generators": ["F=BCDE", "G=ACDE", "H=ABDE", "J=ABCE"]}
-    assert _design_check(table, "", 9) == ("F=BCDE, G=ACDE, H=ABDE, J=ABCE", True)
+    assert _design_check(table, "", 9) == ("F=ABC, G=ABD, H=ABE, J=ACDE", True)  # the library's 32-run choice
     assert not _design_check({**table, "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD"]}, "", 9)[1]
 
 

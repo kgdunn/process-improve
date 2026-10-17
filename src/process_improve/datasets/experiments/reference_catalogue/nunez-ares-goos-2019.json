@@ -74,7 +74,7 @@
      "what": "dot product",
      "term": "X1 and the linear time trend",
      "value": "5",
-     "analysis": "the dot product of the main-effect contrast vector X1 with the linear time trend, standard order",
+     "analysis": "the library's run_order_trends on the printed runs: the dot product of X1's column with the time count t - 5",
      "where": {
       "page": 38,
       "pdf_page": 3,
@@ -82,14 +82,16 @@
       "quote": "(-1)·(-4) + (-1)·(-3) + 1·(-2) + 1·(-1) + (-1)·0 + 1·1 + 0·2 + 0·3 + 0·4 = 5"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed Table 1 gives 5"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2"],
+      "key": "time_count_dot.X1"
      }
     },
     {
      "what": "angle",
      "term": "X1 and the linear time trend",
      "value": "75°",
-     "analysis": "the angle between X1 and the linear time trend, from their dot product of 5",
+     "analysis": "the library's run_order_trends on the printed runs: the angle between X1's column and the linear time trend, in degrees",
      "where": {
       "page": 38,
       "pdf_page": 3,
@@ -97,7 +99,10 @@
       "quote": "the vector X1 and the linear time trend are far from being orthogonal, forming an angle of approximately 75°"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed Table 1 gives |cos| = 0.2635, an angle of 74.72°, which the paper rounds to approximately 75°"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2"],
+      "key": "terms.0.angle.linear",
+      "printed": "75"
      }
     }
    ]
@@ -157,16 +162,33 @@
      "what": "orthogonality",
      "term": "main effects and second-order effects against the linear time trend",
      "value": "orthogonal",
-     "analysis": "every main-effect, interaction and quadratic column of this run order is orthogonal to the linear time trend",
+     "analysis": "the library's run_order_trends on the printed runs: every main effect, interaction and quadratic column is orthogonal to the linear time trend (each largest cosine is 0)",
      "where": {
       "page": 38,
       "pdf_page": 3,
       "source_kind": "text",
       "quote": "the contrast vectors of all main effects and second-order effects are orthogonal to the linear time trend"
      },
-     "check": {
-      "manual": "a statement, not a number; process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed Table 2 gives a dot product of 0 for X1, X2, X1X2, X1^2 and X2^2 with Time"
-     }
+     "check": [
+      {
+       "kind": "run_order_trends",
+       "factors": ["X1", "X2"],
+       "key": "summary.linear.main_effects.max_cosine",
+       "printed": "0"
+      },
+      {
+       "kind": "run_order_trends",
+       "factors": ["X1", "X2"],
+       "key": "summary.linear.interactions.max_cosine",
+       "printed": "0"
+      },
+      {
+       "kind": "run_order_trends",
+       "factors": ["X1", "X2"],
+       "key": "summary.linear.quadratics.max_cosine",
+       "printed": "0"
+      }
+     ]
     }
    ]
   },
@@ -252,7 +274,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0.454",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -260,14 +282,16 @@
       "quote": "Table 6: L 0.454 0.943 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4543"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0.943",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -275,14 +299,16 @@
       "quote": "Table 6: L 0.454 0.943 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.9435"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -290,14 +316,16 @@
       "quote": "Table 6: L 0.454 0.943 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -305,14 +333,16 @@
       "quote": "Table 6: L 0.454 0.943 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -320,14 +350,16 @@
       "quote": "Table 6: L 0.454 0.943 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -335,14 +367,16 @@
       "quote": "Table 6: L 0.454 0.943 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -350,14 +384,16 @@
       "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -365,14 +401,16 @@
       "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.320",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -380,14 +418,16 @@
       "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3201"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.665",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -395,14 +435,16 @@
       "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.6648"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.152",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -410,14 +452,16 @@
       "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1525"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.407",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -425,14 +469,16 @@
       "quote": "Table 6: Q 0 0 0.320 0.665 0.152 0.407"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4071"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "0.248",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -440,14 +486,16 @@
       "quote": "Table 6: C 0.248 0.426 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2482"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "0.426",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -455,14 +503,16 @@
       "quote": "Table 6: C 0.248 0.426 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4255"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -470,14 +520,16 @@
       "quote": "Table 6: C 0.248 0.426 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -485,14 +537,16 @@
       "quote": "Table 6: C 0.248 0.426 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0",
-     "analysis": "Table 6: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -500,14 +554,16 @@
       "quote": "Table 6: C 0.248 0.426 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0",
-     "analysis": "Table 6: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, standard run order of the 3^3 design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -515,14 +571,16 @@
       "quote": "Table 6: C 0.248 0.426 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0.454",
-     "analysis": "the average absolute correlation between the main effects and the linear time trend, standard order, quoted in the text from Table 6",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -530,14 +588,16 @@
       "quote": "the pair of values in the upper left corner of the table, (0.454, 0.934), shows the average and maximum value"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives 0.4543"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0.934",
-     "analysis": "the maximum absolute correlation between the main effects and the linear time trend, standard order, quoted in the text from Table 6",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -545,7 +605,10 @@
       "quote": "the pair of values in the upper left corner of the table, (0.454, 0.934), shows the average and maximum value"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives 0.9435, which is Table 6's 0.943: the text's 0.934 transposes its last two digits"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine",
+      "disagreement": "the text restates the largest absolute cosine of a main effect with the linear trend as 0.934; the paper's own Table 6 prints 0.943, and the printed runs give 0.9435: the text transposes two digits"
      }
     }
    ]
@@ -632,7 +695,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -640,14 +703,16 @@
       "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -655,14 +720,16 @@
       "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0.307",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -670,14 +737,16 @@
       "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3067"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0.563",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -685,14 +754,16 @@
       "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5635"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0.105",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -700,14 +771,16 @@
       "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1048"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0.186",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -715,14 +788,16 @@
       "quote": "Table 7: L 0 0 0.307 0.563 0.105 0.186"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1864"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -730,14 +805,16 @@
       "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -745,14 +822,16 @@
       "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.219",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -760,14 +839,16 @@
       "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2192"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.527",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -775,14 +856,16 @@
       "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5273"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.100",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -790,14 +873,16 @@
       "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.09996"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.208",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -805,14 +890,16 @@
       "quote": "Table 7: Q 0 0 0.219 0.527 0.100 0.208"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2077"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "2.22 · 10^-3",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -820,14 +907,17 @@
       "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.002216"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine",
+      "printed": "2.22e-3"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "5.91 · 10^-3",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -835,14 +925,17 @@
       "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.00591"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine",
+      "printed": "5.91e-3"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0.213",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -850,14 +943,16 @@
       "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2129"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0.458",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -865,14 +960,16 @@
       "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4578"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0.091",
-     "analysis": "Table 7: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -880,14 +977,16 @@
       "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.09087"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0.112",
-     "analysis": "Table 7: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 3^3 design (found for a main-effects model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -895,14 +994,16 @@
       "quote": "Table 7: C 2.22 · 10^-3 5.91 · 10^-3 0.213 0.458 0.091 0.112"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1123"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     },
     {
      "what": "angle",
      "term": "ME, C, Ave: deviation from orthogonality",
      "value": "0.13°",
-     "analysis": "the angle by which an absolute correlation of 2.22·10^-3 (main effects against the cubic trend, run order 1) deviates from 90°",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the deviations from orthogonality, arcsin of the absolute cosines in degrees, between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -910,14 +1011,17 @@
       "quote": "The average absolute correlation of 2.22 · 10^-3 corresponds to an angle that deviates only 0.13° from orthogonality"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives |cos| = 0.002216, 90° - arccos of which is 0.127°"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_deviation",
+      "printed": "0.13"
      }
     },
     {
      "what": "angle",
      "term": "ME, C, Max: deviation from orthogonality",
      "value": "0.34°",
-     "analysis": "the angle by which the maximum absolute correlation, 5.91·10^-3 (main effects against the cubic trend, run order 1), deviates from 90°",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the deviations from orthogonality, arcsin of the absolute cosines in degrees, between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -925,7 +1029,10 @@
       "quote": "The maximum deviation is 0.34°."
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives |cos| = 0.00591, 90° - arccos of which is 0.339°"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_deviation",
+      "printed": "0.34"
      }
     }
    ]
@@ -1012,7 +1119,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1020,14 +1127,16 @@
       "quote": "Table 8: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1035,14 +1144,16 @@
       "quote": "Table 8: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1050,14 +1161,16 @@
       "quote": "Table 8: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1065,14 +1178,16 @@
       "quote": "Table 8: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1080,14 +1195,16 @@
       "quote": "Table 8: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1095,14 +1212,16 @@
       "quote": "Table 8: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1110,14 +1229,16 @@
       "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1125,14 +1246,16 @@
       "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.176",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1140,14 +1263,16 @@
       "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1765"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.283",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1155,14 +1280,16 @@
       "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2832"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.057",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1170,14 +1297,16 @@
       "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.05696"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.090",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1185,14 +1314,16 @@
       "quote": "Table 8: Q 0 0 0.176 0.283 0.057 0.090"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.09047"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "0.318",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1200,14 +1331,16 @@
       "quote": "Table 8: C 0.318 0.727 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3182"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "0.727",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1215,14 +1348,16 @@
       "quote": "Table 8: C 0.318 0.727 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.727"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1230,14 +1365,16 @@
       "quote": "Table 8: C 0.318 0.727 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1245,14 +1382,16 @@
       "quote": "Table 8: C 0.318 0.727 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0",
-     "analysis": "Table 8: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1260,14 +1399,16 @@
       "quote": "Table 8: C 0.318 0.727 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0",
-     "analysis": "Table 8: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 3^3 design (found for a full quadratic model)",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 44,
       "pdf_page": 9,
@@ -1275,7 +1416,9 @@
       "quote": "Table 8: C 0.318 0.727 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     }
    ]
@@ -1349,7 +1492,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1357,14 +1500,16 @@
       "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1372,14 +1517,16 @@
       "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0.324",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1387,14 +1534,16 @@
       "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.324"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0.380",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1402,14 +1551,16 @@
       "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3803"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0.126",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1417,14 +1568,16 @@
       "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.126"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0.189",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1432,14 +1585,16 @@
       "quote": "Table 12: L 0 0 0.324 0.380 0.126 0.189"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.189"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1447,14 +1602,16 @@
       "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1462,14 +1619,16 @@
       "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.297",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1477,14 +1636,16 @@
       "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2972"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.451",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1492,14 +1653,16 @@
       "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4514"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.046",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1507,14 +1670,16 @@
       "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.04595"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.062",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1522,14 +1687,16 @@
       "quote": "Table 12: Q 0 0 0.297 0.451 0.046 0.062"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.06236"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "0.333",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1537,14 +1704,16 @@
       "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.333"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "0.492",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1552,14 +1721,16 @@
       "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4915"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0.165",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1567,14 +1738,16 @@
       "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1654"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0.206",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1582,14 +1755,16 @@
       "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2056"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0.217",
-     "analysis": "Table 12: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1597,14 +1772,16 @@
       "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2167"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0.336",
-     "analysis": "Table 12: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1612,7 +1789,9 @@
       "quote": "Table 12: C 0.333 0.492 0.165 0.206 0.217 0.336"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3361"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     }
    ]
@@ -1686,7 +1865,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1694,14 +1873,16 @@
       "quote": "Table 13: L 0 0 0 0 0.025 0.038"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1709,14 +1890,16 @@
       "quote": "Table 13: L 0 0 0 0 0.025 0.038"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1724,14 +1907,16 @@
       "quote": "Table 13: L 0 0 0 0 0.025 0.038"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1739,14 +1924,16 @@
       "quote": "Table 13: L 0 0 0 0 0.025 0.038"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0.025",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1754,14 +1941,16 @@
       "quote": "Table 13: L 0 0 0 0 0.025 0.038"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.0252"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0.038",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1769,14 +1958,16 @@
       "quote": "Table 13: L 0 0 0 0 0.025 0.038"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.0378"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0.026",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1784,14 +1975,16 @@
       "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.02626"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0.059",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1799,14 +1992,16 @@
       "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.05908"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.268",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1814,14 +2009,16 @@
       "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2679"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.561",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1829,14 +2026,16 @@
       "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5615"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.195",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1844,14 +2043,16 @@
       "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1948"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.263",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1859,14 +2060,16 @@
       "quote": "Table 13: Q 0.026 0.059 0.268 0.561 0.195 0.263"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2626"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "0.159",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1874,14 +2077,16 @@
       "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1586"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "0.214",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1889,14 +2094,16 @@
       "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.214"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1904,14 +2111,16 @@
       "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1919,14 +2128,16 @@
       "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0.031",
-     "analysis": "Table 13: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1934,14 +2145,16 @@
       "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.03065"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0.078",
-     "analysis": "Table 13: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the three-factor face-centred CCD with one centre point",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 45,
       "pdf_page": 10,
@@ -1949,14 +2162,16 @@
       "quote": "Table 13: C 0.159 0.214 0 0 0.031 0.078"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.07769"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     },
     {
      "what": "angle",
      "term": "QE, L, Max: deviation from orthogonality",
      "value": "2.18°",
-     "analysis": "the largest deviation from orthogonality of a quadratic-effect column and the linear time trend, run order 2, from Table 13's 0.038",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the deviations from orthogonality, arcsin of the absolute cosines in degrees, between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -1964,7 +2179,11 @@
       "quote": "the maximum deviation from orthogonality equals 90° - cos^-1(0.038) = 2.18°"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order gives |cos| = 0.0378, and 90° - arccos(0.038) = 2.178°"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_deviation",
+      "printed": "2.18",
+      "disagreement": "the paper takes the angle of the rounded cosine 0.038, arcsin(0.038) = 2.18 degrees; the unrounded cosine 0.0378 gives 2.17 degrees"
      }
     }
    ]
@@ -2036,7 +2255,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2044,14 +2263,16 @@
       "quote": "Table 17: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2059,14 +2280,16 @@
       "quote": "Table 17: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2074,14 +2297,16 @@
       "quote": "Table 17: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2089,14 +2314,16 @@
       "quote": "Table 17: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2104,14 +2331,16 @@
       "quote": "Table 17: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2119,14 +2348,16 @@
       "quote": "Table 17: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2134,14 +2365,16 @@
       "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2149,14 +2382,16 @@
       "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.291",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2164,14 +2399,16 @@
       "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2905"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.603",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2179,14 +2416,16 @@
       "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.6034"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.242",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2194,14 +2433,16 @@
       "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2423"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.474",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2209,14 +2450,16 @@
       "quote": "Table 17: Q 0 0 0.291 0.603 0.242 0.474"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4741"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "0.473",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2224,14 +2467,16 @@
       "quote": "Table 17: C 0.473 0.887 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.473"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "0.887",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2239,14 +2484,16 @@
       "quote": "Table 17: C 0.473 0.887 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.887"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2254,14 +2501,16 @@
       "quote": "Table 17: C 0.473 0.887 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2269,14 +2518,16 @@
       "quote": "Table 17: C 0.473 0.887 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0",
-     "analysis": "Table 17: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2284,14 +2535,16 @@
       "quote": "Table 17: C 0.473 0.887 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0",
-     "analysis": "Table 17: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, the trend-robust run order of the three-factor Box-Behnken design",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 46,
       "pdf_page": 11,
@@ -2299,7 +2552,9 @@
       "quote": "Table 17: C 0.473 0.887 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     }
    ]
@@ -2375,7 +2630,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2383,14 +2638,16 @@
       "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2398,14 +2655,16 @@
       "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0.262",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2413,14 +2672,16 @@
       "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.262"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0.529",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2428,14 +2689,16 @@
       "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.5288"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0.132",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2443,14 +2706,16 @@
       "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1323"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0.132",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2458,14 +2723,16 @@
       "quote": "Table 20: L 0 0 0.262 0.529 0.132 0.132"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1323"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2473,14 +2740,16 @@
       "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2488,14 +2757,16 @@
       "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.403",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2503,14 +2774,16 @@
       "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4033"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.489",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2518,14 +2791,16 @@
       "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4885"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.107",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2533,14 +2808,16 @@
       "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1073"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.200",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2548,14 +2825,16 @@
       "quote": "Table 20: Q 0 0 0.403 0.489 0.107 0.200"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2003"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "0.053",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2563,14 +2842,16 @@
       "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.05294"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "0.086",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2578,14 +2859,16 @@
       "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.08586"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0.224",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2593,14 +2876,16 @@
       "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2241"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0.464",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2608,14 +2893,16 @@
       "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4637"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0.150",
-     "analysis": "Table 20: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2623,14 +2910,16 @@
       "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1502"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0.215",
-     "analysis": "Table 20: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 1 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2638,7 +2927,9 @@
       "quote": "Table 20: C 0.053 0.086 0.224 0.464 0.150 0.215"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2146"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     }
    ]
@@ -2714,7 +3005,7 @@
      "what": "absolute correlation",
      "term": "ME, L, Ave",
      "value": "0",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2722,14 +3013,16 @@
       "quote": "Table 21: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, L, Max",
      "value": "0",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2737,14 +3030,16 @@
       "quote": "Table 21: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Ave",
      "value": "0",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2752,14 +3047,16 @@
       "quote": "Table 21: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, L, Max",
      "value": "0",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2767,14 +3064,16 @@
       "quote": "Table 21: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Ave",
      "value": "0",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2782,14 +3081,16 @@
       "quote": "Table 21: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, L, Max",
      "value": "0",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the linear time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial linear time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2797,14 +3098,16 @@
       "quote": "Table 21: L 0 0 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.linear.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Ave",
      "value": "0",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2812,14 +3115,16 @@
       "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, Q, Max",
      "value": "0",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2827,14 +3132,16 @@
       "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Ave",
      "value": "0.201",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2842,14 +3149,16 @@
       "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.2011"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, Q, Max",
      "value": "0.407",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2857,14 +3166,16 @@
       "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.4066"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Ave",
      "value": "0.121",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2872,14 +3183,16 @@
       "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1214"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, Q, Max",
      "value": "0.194",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the quadratic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial quadratic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2887,14 +3200,16 @@
       "quote": "Table 21: Q 0 0 0.201 0.407 0.121 0.194"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.1943"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.quadratic.quadratics.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Ave",
      "value": "0.378",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2902,14 +3217,16 @@
       "quote": "Table 21: C 0.378 0.901 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.3778"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "ME, C, Max",
      "value": "0.901",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the main-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the main effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2917,14 +3234,16 @@
       "quote": "Table 21: C 0.378 0.901 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0.9015"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.main_effects.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Ave",
      "value": "0",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2932,14 +3251,16 @@
       "quote": "Table 21: C 0.378 0.901 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "IE, C, Max",
      "value": "0",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the interaction columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the two-factor interactions' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2947,14 +3268,16 @@
       "quote": "Table 21: C 0.378 0.901 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.interactions.max_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Ave",
      "value": "0",
-     "analysis": "Table 21: the average absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the mean of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2962,14 +3285,16 @@
       "quote": "Table 21: C 0.378 0.901 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.mean_cosine"
      }
     },
     {
      "what": "absolute correlation",
      "term": "QE, C, Max",
      "value": "0",
-     "analysis": "Table 21: the maximum absolute correlation |cos| (equation [5]) between the quadratic-effect columns and the cubic time-trend component, run order 2 of the 17-run three-factor design based on an eight-factor DSD",
+     "analysis": "the library's run_order_trends on the printed runs in their printed order, under the full second-order model: the largest of the absolute cosines between the quadratic effects' columns and the orthogonal polynomial cubic time trend",
      "where": {
       "page": 47,
       "pdf_page": 12,
@@ -2977,7 +3302,9 @@
       "quote": "Table 21: C 0.378 0.901 0 0 0 0"
      },
      "check": {
-      "manual": "process_improve has no run-order or time-trend function (searched experiments/ for run order, trend, time trend and level changes), and evaluate_design's correlation metric only correlates second-order terms with each other, so no check kind can recompute it; numpy on the printed run order and time trend gives 0"
+      "kind": "run_order_trends",
+      "factors": ["X1", "X2", "X3"],
+      "key": "summary.cubic.quadratics.max_cosine"
      }
     }
    ]

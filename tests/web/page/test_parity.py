@@ -12,7 +12,7 @@ import re
 
 import pytest
 
-from tests.web._support import ENTRY_POINT, FACTORS, factors_named, javascript, page, source
+from tests.web._support import ENTRY_POINT, FACTORS, correlated_study, factors_named, held_of, javascript, page, source
 
 
 # --------------------------------------------------------------------------- the form's choices
@@ -192,6 +192,19 @@ def test_the_form_opens_on_a_new_study_with_bootstrap_s_defaults(api, bootstrap)
 # --------------------------------------------------------------------------- rules web/logic.js repeats
 def test_the_page_gives_an_optimal_design_bootstrap_s_spare_runs(bootstrap, node):
     assert javascript(node, source("logic.js"), [("SPARE_RUNS", [])]) == [bootstrap.SPARE_RUNS]
+
+
+def test_the_page_shows_the_vif_column_where_bootstrap_writes_the_note(api, bootstrap, node):
+    """The coefficients table shows each term's VIF only when the analysis names a correlated term, and then always."""
+    assert javascript(node, source("logic.js"), [("VIF_HIGH", [])]) == [bootstrap.VIF_HIGH]
+    design = api.ok("api_make_design", correlated_study())
+    held = held_of(design)
+    responses = [float(i % 3) + 0.5 * i for i in range(design["n_runs"])]
+    for model in ("main_effects", {"terms": [["A"], ["C"]]}):
+        analysis = api.ok("api_analyze_runs", {**held, "responses": responses, "model": model})
+        (shown,) = javascript(node, source("logic.js"), [("showsVif", [analysis["coefficients"]])])
+        noted = any("variance inflation factor" in note for note in analysis["notes"])
+        assert shown is noted is (model == "main_effects"), model
 
 
 def test_a_blank_response_on_the_page_is_the_one_bootstrap_names(api, node):

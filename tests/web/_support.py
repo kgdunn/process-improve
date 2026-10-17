@@ -103,6 +103,16 @@ def factors_named(*names: str) -> list[dict]:
     return [{"name": n, "low": -1, "high": 1, "units": ""} for n in names]
 
 
+#: Runs as given in factors A, B and C, each from -1 to +1: A and B are equal in all but the first run, where B
+#: is at its center, so the main effects model fits A and B with variance inflation factors of 10.8 and 11.
+CORRELATED_RUNS = [[-1, 0, -1], [-1, -1, 1], [1, 1, -1], [1, 1, 1], [-1, -1, -1], [-1, -1, 1], [1, 1, -1], [1, 1, 1]]
+
+
+def correlated_study() -> dict:
+    """Return the request for :data:`CORRELATED_RUNS` as a design of runs as given."""
+    return {"design_type": "given", "factors": factors_named("A", "B", "C"), "runs": CORRELATED_RUNS}
+
+
 # --------------------------------------------------------------------------- loading the app's files
 @contextlib.contextmanager
 def no_bytecode() -> Iterator[None]:
@@ -352,27 +362,35 @@ CATALOG_SAMPLE = (
 )
 
 
-def catalog_sample() -> list[dict]:
-    """Describe the designs of :data:`CATALOG_SAMPLE` as ``catalog_records`` does."""
+#: A design printed in the book, whose page the catalog links to at its section: a case study of a fed-batch
+#: bioreactor, with figures whose notes name their files. It is not in :data:`CATALOG_SAMPLE`; the tests of
+#: a book design's place build a catalog of their own with it.
+BOOK_DESIGN = "omars-fed-batch-bioreactor"
+
+
+def catalog_sample(names: tuple[str, ...] = CATALOG_SAMPLE) -> list[dict]:
+    """Describe the designs named, those of :data:`CATALOG_SAMPLE` by default, as ``catalog_records`` does."""
     from process_improve.experiments import design_catalog
     from process_improve.experiments.reference_catalogue import (
+        reference_designs,
         reference_experiments,
         reference_sources,
     )
 
     sources = reference_sources()
+    listed = [*(("experiments", e) for e in reference_experiments()), *(("designs", d) for d in reference_designs())]
     published = [
         {
             **design_catalog._published_record(e, sources[e["source"]]),
             "checks": design_catalog.printed_checks(e),
-            "listed": "experiments",
+            "listed": where,
         }
-        for e in reference_experiments("box-hunter-hunter-1978")
-        if e["name"] in CATALOG_SAMPLE
+        for where, e in listed
+        if e["name"] in names
     ]
     generated = [
         {**design_catalog._generated_record(spec), "checks": None, "listed": None}
         for spec in design_catalog.GENERATED
-        if design_catalog._spec_id(spec) in CATALOG_SAMPLE
+        if design_catalog._spec_id(spec) in names
     ]
     return design_catalog._classified([*published, *generated])

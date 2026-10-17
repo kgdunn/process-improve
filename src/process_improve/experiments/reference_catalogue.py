@@ -36,7 +36,10 @@ True
 from __future__ import annotations
 
 import ast
+import contextlib
+import dataclasses
 import functools
+import io
 import itertools
 import json
 import math
@@ -55,24 +58,52 @@ import pandas as pd
 from patsy import build_design_matrices, dmatrix
 from scipy.stats import chi2 as chi2_distribution
 from scipy.stats import f as f_distribution
+from statsmodels.formula.api import ols
 
 from process_improve.experiments._analyses.box_cox import _scaled_power
 from process_improve.experiments._analyses.transforms import transform_response
 from process_improve.experiments._blocking import squares_orthogonal_to_blocks
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
+from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
-from process_improve.experiments.design_measures import relabelling, run_counts
+from process_improve.experiments.design_measures import (
+    design_structure,
+    projectivity,
+    quadratic_projection,
+    relabelling,
+    run_counts,
+)
 from process_improve.experiments.designs import generate_design
+from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
+from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
-from process_improve.experiments.omars_trade_off import omars_minimum_runs
+from process_improve.experiments.multistratum import multistratum_anova
+from process_improve.experiments.omars_trade_off import get_omars_trade_off_table_entry, omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.random_effects import expected_mean_squares
+from process_improve.experiments.random_effects import fixed_columns as _fixed_columns
+from process_improve.experiments.run_order import run_order_trends
+from process_improve.experiments.trade_off import minimum_aberration_generators
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 from process_improve.sensory.designed import tukey_hsd
+from process_improve.univariate.classical import (
+    autocorrelation,
+    chi2_value,
+    dunnett_value,
+    f_value,
+    randomization_test,
+    rank_sum_test,
+    studentized_range_value,
+    ttest_one_sample,
+    z_value,
+    ztest,
+)
 from process_improve.univariate.metrics import t_value, t_value_cdf, ttest_independent, ttest_paired
 
 _CATALOGUE_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments" / "reference_catalogue"
@@ -235,11 +266,12 @@ _ARITHMETIC: dict[type, Callable[[float, float], float]] = {
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
 }
 
 
 def _arithmetic(expression: str) -> float:
-    """Work out a sum the source prints, such as ``(57 + 82) / 2 - (62 + 74) / 2``: numbers and + - * / only."""
+    """Work out a sum the source prints, such as ``(57 + 82) / 2 - (62 + 74) / 2``: numbers and + - * / ** only."""
 
     def value(node: ast.expr) -> float:
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
@@ -581,6 +613,19 @@ def _f_regression(out: dict) -> tuple[float, float]:
     return ratio, float(f_distribution.sf(ratio, df_model, df_residual))
 
 
+def _f_uncorrected(out: dict) -> tuple[float, float]:
+    """Return the F ratio of a model against zero, on uncorrected sums of squares, and its p-value.
+
+    The fitted values' sum of squares about zero on the model's rank, over the residual mean square:
+    the F that R's summary prints for a model fitted without an intercept, whatever its columns span.
+    """
+    fitted, residuals, _ = _residuals(out)
+    df_residual = out["model_summary"]["df_residual"]
+    df_model = len(fitted) - df_residual
+    ratio = (float(fitted @ fitted) / df_model) / (float(residuals @ residuals) / df_residual)
+    return ratio, float(f_distribution.sf(ratio, df_model, df_residual))
+
+
 def _anova_row(out: dict, term: str) -> dict:
     wanted = _library_term(term)
     return next(
@@ -764,7 +809,9 @@ def _optimum(out: dict, check: dict, experiment: dict) -> float:
     ``check["method"]`` is ``"stationary_point"`` or ``"canonical_analysis"`` of
     :func:`optimize_responses`, and ``check["key"]`` reads into its result, as
     ``stationary_point.stationary_point_actual.T`` or ``canonical_analysis.eigenvectors.0.1``.
-    An eigenvector's sign is arbitrary, so ``"abs": true`` compares its size only.
+    An eigenvector's sign is arbitrary, so ``"abs": true`` compares its size only, and
+    ``check["sign_of"]`` names the element the source prints positive: the vector is turned to
+    match, so the other elements keep their signs relative to it.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -772,6 +819,8 @@ def _optimum(out: dict, check: dict, experiment: dict) -> float:
             [_response_model(out, experiment)], method=check["method"], factor_ranges=_factor_ranges(experiment)
         )
     value = _read(found, check["key"])
+    if check.get("sign_of"):
+        value *= math.copysign(1.0, _read(found, check["sign_of"]))
     return abs(value) if check.get("abs") else value
 
 
@@ -782,15 +831,20 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     of ``check["per"]``) and moves the others in proportion; the setting of ``check["key"]`` after
     ``check["steps"]`` such steps is returned, or its change from the centre with ``"from_centre": true``.
     ``"units": "coded"`` returns it in coded units, as a source that steps in coded units prints it.
+    A source that steps a distance rho in coded units along the gradient, to rho b / ||b||, gives
+    ``check["radius"]`` instead of ``change`` and ``per``.
     """
     model, ranges = _response_model(out, experiment), _factor_ranges(experiment)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        unit = optimize_responses([model], method="steepest_ascent", step_size=1.0, n_steps=1, factor_ranges=ranges)
-        start, one = (step["actual"] for step in unit["steepest_path"]["steps"])
-        size = check["change"] / (one[check["per"]] - start[check["per"]])  # the coded step making that change
+        if "radius" in check:
+            size = float(check["radius"])
+        else:
+            unit = optimize_responses([model], method="steepest_ascent", step_size=1.0, n_steps=1, factor_ranges=ranges)
+            start, one = (step["actual"] for step in unit["steepest_path"]["steps"])
+            size = check["change"] / (one[check["per"]] - start[check["per"]])  # the coded step making that change
         path = optimize_responses(
-            [model], method="steepest_ascent", step_size=size, n_steps=check["steps"], factor_ranges=ranges
+            [model], method="steepest_ascent", step_size=size, n_steps=check.get("steps", 1), factor_ranges=ranges
         )
     steps = path["steepest_path"]["steps"]
     units = check.get("units", "actual")
@@ -1038,6 +1092,11 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "ci_high": lambda out, c, _e: (
         _coefficient_row(out, c["term"])["ci_high"] * (2 if c.get("scale") == "effect" else 1)
     ),
+    "ci_half_width": lambda out, c, _e: (
+        (_coefficient_row(out, c["term"])["ci_high"] - _coefficient_row(out, c["term"])["ci_low"])
+        / 2
+        * (2 if c.get("scale") == "effect" else 1)
+    ),
     "fitted": lambda out, c, _e: float(_residuals(out)[0][_run(c)]),
     "residual": lambda out, c, _e: float(_residuals(out)[1][_run(c)]),
     "leverage": _diagnostic("leverage"),
@@ -1080,6 +1139,15 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "f_regression": lambda out, _c, _e: _f_regression(out)[0],
     "f_regression_p": lambda out, _c, _e: _f_regression(out)[1],
     "press": lambda out, _c, _e: float(np.sum((_residuals(out)[1] / (1 - _residuals(out)[2])) ** 2)),
+    "residual_quantile": lambda out, c, _e: float(np.quantile(_residuals(out)[1], c["q"])),
+    "f_statistic": lambda out, _c, _e: out["model_summary"]["f_statistic"],
+    "f_p_value": lambda out, _c, _e: out["model_summary"]["f_p_value"],
+    "f_uncorrected": lambda out, _c, _e: _f_uncorrected(out)[0],
+    "f_uncorrected_p": lambda out, _c, _e: _f_uncorrected(out)[1],
+    "log_likelihood": lambda out, _c, _e: out["model_summary"]["log_likelihood"],
+    "aic": lambda out, _c, _e: out["model_summary"]["aic"],
+    "aic_step": lambda out, _c, _e: out["model_summary"]["aic_step"],
+    "bic": lambda out, _c, _e: out["model_summary"]["bic"],
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
     "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
     "lenth_sme": lambda out, c, _e: _lenth(out, "SME", c),
@@ -1156,17 +1224,23 @@ def _multiply(*words: str) -> str:
 
 
 def _fraction(check: dict, k: int) -> Any:  # noqa: ANN401 - the library's DesignResult
-    """Return the library's fraction for a check: in k factors, by its resolution or by the source's generators.
+    """Return the library's fraction for a check: in k factors, by resolution, run count or the source's generators.
 
-    Its factors are lettered A, B, C, ..., or named as ``check["factors"]`` names them.
+    Its factors are lettered A, B, C, ..., or named as ``check["factors"]`` names them. With
+    ``check["n_runs"]`` it is the library's minimum-aberration fraction of that many runs.
     """
     names = check.get("factors") or list(_LETTERS[:k])  # the source's own letters, when it names its factors
     factors = [Factor(name=name, low=-1, high=1) for name in names]
+    generators = check.get("generators")
+    if generators is None and check.get("n_runs"):
+        named = dict(zip(_LETTERS, names, strict=False))
+        chosen = minimum_aberration_generators(int(check["n_runs"]), len(names))
+        generators = [named[g[0]] + "=" + "".join(named[c] for c in g[2:]) for g in chosen]
     return generate_design(
         factors,
         design_type="fractional_factorial",
         resolution=check.get("resolution"),
-        generators=check.get("generators"),
+        generators=generators,
         n_center_points=0,
     )
 
@@ -1179,8 +1253,8 @@ def _design_check(check: dict, printed: str, k: int) -> tuple[str, bool]:
     term, and need not be all of them. ``"word_lengths"`` compares the lengths of the relation's
     words, the word length pattern printed as {4, 5, 5}; ``"clear"`` holds when the term is aliased
     with no main effect or two-factor interaction; ``"minimum_aberration"`` compares the fraction
-    with the one the library chooses for its resolution: they agree when both have as many runs and
-    the same word lengths. With ``"up_to": n``, the aliases printed must be all of the term's aliases
+    with the minimum-aberration fraction the library chooses of as many runs: they agree when both
+    have the same word lengths. With ``"up_to": n``, the aliases printed must be all of the term's aliases
     of n factors or fewer, so a chain printed empty says the term has none. ``"block_effects"``
     holds when the effects printed are those confounded with the blocks that ``check["of"]``
     makes: each of the chosen effects and every product of them, any of which may be printed as
@@ -1215,8 +1289,8 @@ def _relation_check(made: Any, check: dict, printed: str, k: int) -> tuple[str, 
     lengths = sorted(len(w.lstrip("-")) for w in words)
     if kind == "word_lengths":  # the word length pattern, printed as the lengths of the words: {4, 5, 5}
         return ", ".join(map(str, lengths)), sorted(int(n) for n in re.findall(r"\d+", printed)) == lengths
-    if kind == "minimum_aberration":  # the fraction the library chooses for this resolution, of as many runs
-        chosen = _fraction({"resolution": made.resolution, "factors": check.get("factors")}, k)
+    if kind == "minimum_aberration":  # the fraction the library chooses of as many runs
+        chosen = _fraction({"n_runs": len(made.design), "factors": check.get("factors")}, k)
         chosen_lengths = sorted(len(w.lstrip("-")) for w in _relation_words(chosen))
         same = len(chosen.design) == len(made.design) and chosen_lengths == lengths
         return ", ".join(chosen.generators or []), same
@@ -1294,11 +1368,17 @@ def _design_property(check: dict) -> float:
     A resolution may be printed as a Roman numeral. ``"squared": true`` returns its square, as a
     source compares the square of a rotatable design's axial distance. The property ``"fraction"``
     is the share of the full factorial a fraction runs, printed as 1/4, and ``"blocks": b`` divides
-    the property among b blocks, as a source gives the runs in each block.
+    the property among b blocks, as a source gives the runs in each block. ``"metadata.<key>"`` reads a
+    number the construction records, such as a definitive screening design's ``conference_order``.
     """
     made = _made(json.dumps(check["design"], sort_keys=True))
     prop = check["property"]
-    value = made.n_runs / 2**made.n_factors if prop == "fraction" else float(getattr(made, prop))
+    if prop == "fraction":
+        value = made.n_runs / 2**made.n_factors
+    elif prop.startswith("metadata."):  # a number the construction records, such as a DSD's conference order
+        value = float(made.metadata[prop.removeprefix("metadata.")])
+    else:
+        value = float(getattr(made, prop))
     value = value / check.get("blocks", 1)
     return value**2 if check.get("squared") else value
 
@@ -1310,6 +1390,8 @@ def _made(spec_json: str) -> Any:  # noqa: ANN401 - the library's DesignResult
     ``spec["levels"]``, a number or one per factor, gives a factor more than two equally spaced
     levels, coded -1 to +1, as a three-level factor of a Taguchi array or full factorial has. Past
     the alphabet, factors are named X26, X27, and so on, as a screening design for many inputs has.
+    The design type ``"generate_omars"`` calls :func:`~process_improve.experiments.generate_omars`,
+    whose OMARS designs are chosen by run count, model and selection criterion.
     """
     spec = json.loads(spec_json)
     levels = spec.get("levels") or 2
@@ -1325,6 +1407,8 @@ def _made(spec_json: str) -> Any:  # noqa: ANN401 - the library's DesignResult
     ]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        if spec["design_type"] == "generate_omars":  # an OMARS design chosen by run count, model and criterion
+            return generate_omars(factors, **spec.get("options", {}))
         return generate_design(factors, design_type=spec["design_type"], **spec.get("options", {}))
 
 
@@ -1686,6 +1770,87 @@ _REDUCE: dict[str, Callable[[list[float]], float]] = {
 }
 
 
+def _design_runs(experiment: dict, check: dict) -> pd.DataFrame:
+    """Return a design's factor settings in coded units: a design the library makes, or the entry's runs."""
+    if check.get("design"):
+        made = _made(json.dumps(check["design"], sort_keys=True))
+        return pd.DataFrame(made.design)[list(made.factor_names)]
+    return _coded_runs(experiment, check.get("runs"))[0]
+
+
+_MEASURES: dict[str, Callable[[np.ndarray], int | None]] = {
+    "projectivity": projectivity,
+    "quadratic_projection": lambda runs: quadratic_projection(runs, ["numeric"] * runs.shape[1]),
+}
+
+
+def _design_measure(experiment: dict, check: dict) -> float:
+    """Return a measure of a design's runs from the library's design_measures (``check["measure"]``).
+
+    ``"projectivity"`` or ``"quadratic_projection"``.
+
+    The projectivity is the most factors whose every projection holds all their level combinations;
+    the quadratic projection, the most whose every projection fits the full quadratic in them.
+    """
+    settings = _design_runs(experiment, check)
+    names = check.get("factors") or list(settings.columns)
+    found = _MEASURES[check["measure"]](settings[names].to_numpy(dtype=float))
+    return float("nan") if found is None else float(found)
+
+
+def _design_structure(experiment: dict, check: dict) -> float:
+    """Return a count of what a design's runs are made of, as the library's ``design_structure`` gives it.
+
+    ``check["key"]`` reads into the result: ``"n_center_runs"``, ``"zeros.n0ME"``,
+    ``"level_counts.A.0.0"`` as a list of steps, ``"replicated.len"``, ``"foldover"`` (1 for
+    true). ``check["factors"]`` names the columns counted (all of the design's by default) and
+    ``check["blocks"]`` a column of the runs that holds each run's block.
+    """
+    settings = _design_runs(experiment, check)
+    names = check.get("factors") or list(settings.columns)
+    blocks = None
+    if check.get("blocks"):
+        table = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])
+        blocks = table[check["blocks"]].to_numpy()
+    return _read(design_structure(settings[names].to_numpy(dtype=float), names, blocks), check["key"])
+
+
+@functools.cache
+def _projected(source: str, asked: str) -> dict[str, Any]:
+    """Return the library's evaluation of a design's projections, worked once however many numbers are read."""
+    spec, wanted = json.loads(source), json.loads(asked)
+    design = pd.DataFrame({name: spec["runs"][name] for name in spec["columns"]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return evaluate_projections(
+            design,
+            wanted["size"],
+            model=wanted["model"],
+            metric=wanted["metric"],
+            groups=wanted["groups"],
+            **(wanted["options"] or {}),
+        )
+
+
+def _projections(experiment: dict, check: dict) -> float:
+    """Return a number of the library's evaluation of a design on its projections (``evaluate_projections``).
+
+    ``check["size"]`` factors in each projection (or a count per group of ``check["groups"]``),
+    under ``check["model"]`` (``"quadratic"`` by default), with the metrics ``check["metric"]``;
+    ``check["key"]`` reads ``"n_estimable"``, ``"n_projections"``, ``"fraction_estimable"`` or a
+    metric's average, ``"averages.d_efficiency"``. ``check["factors"]`` names the design's columns
+    projected (all of them by default).
+    """
+    settings = _design_runs(experiment, check)
+    settings = settings[check.get("factors") or list(settings.columns)]
+    source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
+    asked = json.dumps(
+        {k: check.get(k) for k in ("size", "metric", "groups", "options")} | {"model": check.get("model", "quadratic")},
+        sort_keys=True,
+    )
+    return _read(_projected(source, asked), check["key"])
+
+
 def _design_metric(experiment: dict, check: dict) -> float:
     """Return a quality metric of a design: the entry's runs in coded units, or a design the library makes.
 
@@ -1696,7 +1861,11 @@ def _design_metric(experiment: dict, check: dict) -> float:
     prints a term's tolerance, one over its variance inflation factor; ``"complement": true`` then
     returns one less it, as the squared multiple correlation of a term with the others, 1 - 1/VIF.
     ``"squared": true`` returns its square, as trace(AA') is the square of the alias matrix's
-    Frobenius norm.
+    Frobenius norm. ``check["terms"]``, a regular expression, picks the entries of a dict of
+    terms (``"coefficient_variances"``) whose names it matches; ``"root": true`` takes the square
+    root of each, a standard error from a variance, and ``check["reduce"]`` (``"mean"``, ``"min"``,
+    ``"max"``) reduces them to one number. ``check["result"]`` names another number the metric
+    returns beside its own, ``"max_prediction_variance"`` beside ``"g_efficiency"``.
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
@@ -1704,7 +1873,16 @@ def _design_metric(experiment: dict, check: dict) -> float:
         settings = _coded_runs(experiment, check.get("runs"))[0]
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
-    value = _read(_evaluated(source, asked)[check["metric"]], check.get("key"))
+    found = _evaluated(source, asked)[check.get("result", check["metric"])]
+    if check.get("terms"):  # the entries of a dict of terms whose names match, each as it is or its root
+        table = _walk(found, check.get("key"))
+        if not isinstance(table, dict):
+            raise ValueError(f"the library gives no table of terms for {check['metric']}, but {table!r}")
+        picked = [v for t, v in table.items() if re.fullmatch(check["terms"], t)]
+        value = _REDUCE[check.get("reduce", "mean")]([math.sqrt(v) if check.get("root") else v for v in picked])
+    else:
+        value = _read(found, check.get("key"))
+        value = math.sqrt(value) if check.get("root") else value
     value = value**2 if check.get("squared") else value
     value = 1 / value if check.get("reciprocal") else value
     return 1 - value if check.get("complement") else value
@@ -1733,20 +1911,34 @@ def _read(found: Any, key: str | list[str] | None) -> float:  # noqa: ANN401 - a
 
     A path whose keys hold a dot themselves, such as the quantile ``"0.5"``, is given as a list of its steps.
     """
+    return float(_walk(found, key))
+
+
+def _walk(found: Any, key: str | list[str] | None) -> Any:  # noqa: ANN401 - a library result, and what is read from it
+    """Follow a dot-separated path into a library result, as :func:`_read` does, and return what it reaches."""
     steps = key if isinstance(key, list) else str(key or "").split(".")
     for step in filter(None, steps):
         if step in _REDUCE:
             found = _REDUCE[step](list(found.values()) if isinstance(found, dict) else list(found))
         else:
             found = found[int(step)] if isinstance(found, list) else found[step]
-    return float(found)
+    return found
 
 
 _LIBRARY: dict[str, Callable[..., Any]] = {
+    "allocate_runs": allocate_runs,
     "blocking_alpha": blocking_alpha,
+    "composite_desirability": composite_desirability,
+    "get_omars_trade_off_table_entry": get_omars_trade_off_table_entry,
+    "individual_desirability": individual_desirability,
     "omars_minimum_runs": omars_minimum_runs,
     "optimize_responses": optimize_responses,
     "t_value": t_value,
+    "chi2_value": chi2_value,
+    "dunnett_value": dunnett_value,
+    "f_value": f_value,
+    "studentized_range_value": studentized_range_value,
+    "z_value": z_value,
     "t_value_cdf": t_value_cdf,
 }
 
@@ -1758,8 +1950,39 @@ def _library_value(check: dict) -> float:
     frontier, without building a design to read it from, or the canonical analysis of a fitted
     equation a source prints without its data. ``"squared": true`` returns the square of the number read.
     """
-    found = _read(_LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {})), check.get("key"))
+    found = _read(_library_result(check), check.get("key"))
     return found**2 if check.get("squared") else found
+
+
+def _library_call(check: dict) -> tuple[Any, str]:
+    """Call the library function ``check["function"]`` on its arguments; return its result and what it printed."""
+    shown = io.StringIO()
+    with contextlib.redirect_stdout(shown):  # a function that displays its result as well as returning it
+        result = _LIBRARY[check["function"]](*check.get("args", []), **check.get("kwargs", {}))
+    return result, shown.getvalue()
+
+
+def _library_result(check: dict) -> Any:  # noqa: ANN401 - whatever the named library function returns
+    """Return what the library function ``check["function"]`` gives; a dataclass comes back as a dict."""
+    result = _library_call(check)[0]
+    if dataclasses.is_dataclass(result) and not isinstance(result, type):  # a record, read by its fields' names
+        return dataclasses.asdict(result)
+    return result
+
+
+def _library_text(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Compare a label or a line of text a library function gives with the printed text, word for word.
+
+    ``check["key"]`` reads a field of the result, such as an OMARS trade-off cell's ``"label"``
+    (``"Quad df=8"``) or ``"tag"``; ``check["line"]`` (0-based) instead reads one line of what the
+    function displays, or of the result as text if it displays nothing. Runs of white space count as one space.
+    """
+    if "line" in check:
+        result, shown = _library_call(check)
+        text = (shown or str(result)).splitlines()[check["line"]]
+    else:
+        text = str(_walk(_library_result(check), check.get("key")))
+    return text, " ".join(text.split()) == " ".join(str(printed).split())
 
 
 def _active(out: dict, check: dict) -> tuple[str, bool]:
@@ -1825,6 +2048,51 @@ def _t_test(experiment: dict, check: dict) -> float:
         "p": _p_value({"coefficient": found["t"], "p_value": test["p value"]}, check.get("alternative")),
     }
     return float(found[check["key"]])
+
+
+_CLASSICAL: dict[str, Callable[..., dict[str, Any]]] = {
+    "autocorrelation": autocorrelation,
+    "rank_sum_test": rank_sum_test,
+    "randomization_test": randomization_test,
+    "ttest_one_sample": ttest_one_sample,
+    "ztest": ztest,
+}
+
+
+def _group(experiment: dict, check: dict, which: str) -> list[float] | None:
+    """Return the responses of one group of runs: 1-based positions, or the runs matching ``{column: value}``."""
+    chosen = check.get(which)
+    if chosen is None:
+        return None
+    table = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])
+    if isinstance(chosen, dict):
+        mask = np.logical_and.reduce([table[column].astype(str) == str(value) for column, value in chosen.items()])
+        positions = [int(i) + 1 for i in np.flatnonzero(mask)]
+    else:
+        positions = list(chosen)
+    _, responses = _coded_runs(experiment, positions)
+    return responses[check.get("response") or responses.columns[0]].astype(float).tolist()
+
+
+def _classical_test(experiment: dict, check: dict) -> float:
+    """Return a number of one of the library's classical tests on the runs' responses.
+
+    ``check["function"]`` is ``"ttest_one_sample"``, ``"ztest"``, ``"rank_sum_test"``,
+    ``"randomization_test"`` or ``"autocorrelation"`` (from :mod:`process_improve.univariate.classical`).
+    ``check["x"]`` and ``check["y"]`` pick each group's runs, as a list of 1-based positions or a
+    ``{column: value}`` that the runs must match; ``check["x"]`` left out takes every run, in order.
+    ``check["kwargs"]`` go to the function as they are, and ``check["key"]`` reads its result.
+    """
+    first = _group(experiment, check, "x")
+    if first is None:
+        _, responses = _coded_runs(experiment, None)
+        first = responses[check.get("response") or responses.columns[0]].astype(float).tolist()
+    second = _group(experiment, check, "y")
+    args = [first] if second is None else [first, second]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = _CLASSICAL[check["function"]](*args, **check.get("kwargs", {}))
+    return _read(found, check["key"])
 
 
 def _tukey(experiment: dict, check: dict) -> float:
@@ -2050,7 +2318,8 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     A design is compared on its inverse as a whole: ``"det_inverse"``, |(X'X)^-1|, the D criterion;
     ``"trace_inverse"``, the A criterion; ``"leverage"``, x0'(X'X)^-1 x0 at the coded point
     ``check["point"]``, the variance of the prediction there in units of σ² (JMP's prediction
-    variance profile); and ``"relative_d"``, the D-efficiency of these runs relative to the runs
+    variance profile), N times it with ``"scaled": true``; and ``"relative_d"``, the D-efficiency of these
+    runs relative to the runs
     ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
@@ -2064,7 +2333,8 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     if kind == "leverage":
         point = pd.DataFrame([dict.fromkeys(settings.columns, 0.0) | check["point"]])[list(settings.columns)]
         at = np.asarray(build_design_matrices([model.design_info], point)[0])[0]
-        return float(at @ np.linalg.inv(matrix.T @ matrix) @ at)
+        scale = len(matrix) if check.get("scaled") else 1  # N x0'(X'X)^-1 x0, the scaled prediction variance
+        return float(scale * at @ np.linalg.inv(matrix.T @ matrix) @ at)
     found = {
         "xtx": lambda: matrix.T @ matrix,
         "xty": lambda: matrix.T @ responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float),
@@ -2253,6 +2523,24 @@ def _run_radius(experiment: dict, check: dict) -> float:
     return float(_REDUCE[check.get("key", "max")](radii.tolist()))
 
 
+def _run_order_trends(experiment: dict, check: dict) -> float:
+    """Return a number of the library's measure of how far a run order's terms follow the time trends.
+
+    The runs are taken in the order the entry prints them (``check["runs"]`` picks some, in that
+    order), with the factors ``check["factors"]`` (all of the entry's by default), under
+    ``check["model"]`` (``"quadratic"`` by default) and trends up to ``check["degree"]`` (3).
+    ``check["key"]`` reads into :func:`~process_improve.experiments.run_order.run_order_trends`,
+    as ``"summary.linear.interactions.max_cosine"``, ``"time_count_dot.X1"`` or ``"terms.0.angle.linear"``.
+    """
+    settings = _coded_runs(experiment, check.get("runs"))[0]
+    found = run_order_trends(
+        settings[check["factors"]] if check.get("factors") else settings,
+        model=check.get("model", "quadratic"),
+        degree=check.get("degree", 3),
+    )
+    return _read(found, check["key"])
+
+
 def _blocks_orthogonal(experiment: dict, check: dict) -> float:
     """Return 1 when a second-order design's blocks are orthogonal to its model, 0 when they are not.
 
@@ -2291,26 +2579,33 @@ def _desirability(experiment: dict, check: dict) -> float:
     return float(composite_desirability(scores)) if kind == "composite" else float(scores[int(which)])
 
 
-def _sum_coded(column: pd.Series, name: str) -> pd.DataFrame:
-    """Return a factor's columns coded to sum to zero: one per level but the last, which takes -1 in each."""
-    values = column.astype(str)
-    levels = sorted(values.unique(), key=lambda v: (len(v), v))
-    last = (values == levels[-1]).astype(float)
-    return pd.DataFrame({f"{name}_{level}": (values == level).astype(float) - last for level in levels[:-1]})
+def _desirability_optimum(experiment: dict, check: dict) -> float:
+    """Return a number of the library's search for the setting of greatest overall desirability.
 
-
-def _fixed_columns(table: pd.DataFrame, name: str) -> pd.DataFrame:
-    """Return a fixed term's columns: a factor's sum-coded ones, or for ``a:b`` the products of a's and b's."""
-    if ":" not in name:
-        return _sum_coded(table[name], name)
-    first, second = (_sum_coded(table[part], part) for part in name.split(":"))
-    return pd.DataFrame(
-        {
-            f"{name}_{a.partition('_')[2]}.{b.partition('_')[2]}": first[a] * second[b]
-            for a in first.columns
-            for b in second.columns
-        }
-    )
+    ``check["goals"]`` are as for :func:`_desirability`, each with its response's ``model``; the
+    fitted models go to :func:`optimize_responses` with ``method="desirability"`` over the factors'
+    ranges, with ``check["importance"]`` as the responses' importances if given, and
+    ``check["key"]`` reads into its result: ``"optimal_actual.T"``, ``"predicted_responses.Profit"``,
+    ``"composite_desirability"`` or ``"response_intervals.Profit.prediction_interval.0"``.
+    """
+    fits = _Fits()
+    outs = [fits(experiment, goal) for goal in check["goals"]]
+    goals = [{k: v for k, v in goal.items() if k not in ("model", "settings")} for goal in check["goals"]]
+    results = [  # the least-squares fits themselves, which carry what the intervals at the optimum need
+        ols(f"y ~ {goal['model']}", data=out["settings"].assign(y=out["y"].to_numpy())).fit()
+        for goal, out in zip(check["goals"], outs, strict=True)
+    ]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = optimize_responses(
+            [_response_model(out, experiment) for out in outs],
+            goals=goals,
+            method="desirability",
+            factor_ranges=_factor_ranges(experiment),
+            fitted_results=results,
+            response_importance=check.get("importance"),
+        )["desirability"]
+    return _read(found, check["key"])
 
 
 _Z_975 = 1.959963984540054  # the standard normal's 97.5th percentile, for a 95% Wald interval
@@ -2345,6 +2640,40 @@ def _marginal_means(experiment: dict, check: dict) -> float:
     return difference if check["deviation"] == "difference" else 100 * difference / observed
 
 
+def _multistratum(experiment: dict, check: dict) -> float:
+    """Return a number of the library's multistratum analysis of variance, of ``check["model"]`` in ``check["strata"]``.
+
+    ``check["levels"]`` gives a layout a source prints without data: the runs are then every
+    combination of the named factors' levels, ``{"rep": 2, "S": 2}``. Otherwise they are the
+    experiment's, with ``check["response"]`` (the first response by default). ``check["key"]`` is
+    ``"df"``, ``"ss"``, ``"ms"``, ``"f"`` or ``"p_value"`` of ``check["term"]`` in ``check["stratum"]``
+    (``"Residual"`` for the stratum's residual; a term's factors may be written in any order);
+    ``"units"``, the units the stratum holds; or ``"n_terms"``, the count of treatment terms estimated
+    in the stratum, or in a list of strata.
+    """
+    if "levels" in check:
+        names = list(check["levels"])
+        table = pd.DataFrame(list(itertools.product(*(range(int(n)) for n in check["levels"].values()))), columns=names)
+        response = None
+    else:
+        settings, responses = _coded_runs(experiment, check.get("runs"))
+        response = check.get("response") or responses.columns[0]
+        table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    strata = {s["stratum"]: s for s in multistratum_anova(table, check["model"], check["strata"], response)["strata"]}
+    key, wanted = check["key"], check["stratum"]
+    if key == "n_terms":
+        return float(sum(len(strata[name]["terms"]) for name in (wanted if isinstance(wanted, list) else [wanted])))
+    if key == "units":
+        return float(strata[wanted]["units"])
+    if check["term"] == "Residual":
+        return float(strata[wanted]["residual"][key])
+    factors = frozenset(check["term"].split(":"))
+    row = next((r for r in strata[wanted]["terms"] if frozenset(r["term"].split(":")) == factors), None)
+    if row is None:
+        raise KeyError(f"No term {check['term']!r} in the stratum {wanted!r}.")
+    return float(row[key])
+
+
 def _variance_component(experiment: dict, check: dict) -> float:
     """Return a number of the library's REML fit with a random intercept for each of ``check["groups"]``.
 
@@ -2364,12 +2693,18 @@ def _variance_component(experiment: dict, check: dict) -> float:
       97.5th percentile, or ``check["z"]``, as some versions of JMP take 1.96 itself;
     - ``"rmse"``, the root of the residual variance, and ``"reml_criterion"``, minus twice the
       restricted log-likelihood, JMP's "-2 LogLikelihood";
+    - ``"r_squared"`` and ``"r_squared_adj"``, JMP's R-square of the fit, from the fitted values with
+      the random effects predicted (their best linear unbiased predictions), the adjusted one on the
+      count of fixed parameters;
     - ``"mean"``, ``"mean_std_error"``, ``"mean_t"`` and ``"mean_df"``, the overall mean of an
       intercept-only fit, its standard error, their ratio and its Satterthwaite degrees of freedom;
     - ``"f.<factor>"``, ``"f_df.<factor>"`` and ``"f_p.<factor>"``, the F test of a fixed factor, on
       Satterthwaite's denominator degrees of freedom;
     - ``"effect.<factor>.<level>"``, the generalised least-squares estimate of a level's effect, which
       with random blocks of an incomplete block design combines the intra- and interblock estimates.
+
+    ``"bounded": false`` lets a component go negative, as JMP's unbounded REML does (lme4's, and the
+    default, keeps each at or above zero).
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
@@ -2377,9 +2712,10 @@ def _variance_component(experiment: dict, check: dict) -> float:
     fixed = [_fixed_columns(table, name) for name in check.get("fixed", [])]
     design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
     groups = [pd.factorize(table[name.split(":")].astype(str).agg(":".join, axis=1))[0] for name in check["groups"]]
-    fit = fit_variance_components(y, design.to_numpy(), groups)
+    fit = fit_variance_components(y, design.to_numpy(), groups, bounded=check.get("bounded", True))
     parts = dict(zip(check["groups"], map(float, fit.variances), strict=True)) | {"residual": float(fit.sigma2)}
-    estimated = [name for name in parts if name == "residual" or parts[name] > 0]  # vc_cov's rows, in order
+    estimated = [name for name in parts if name == "residual" or parts[name] != 0]  # vc_cov's rows, in order
+    r_squared = 1 - float(np.sum((y - fit.fitted) ** 2)) / float(np.sum((y - y.mean()) ** 2))
     if check["key"] in parts:
         return parts[check["key"]]
     kind, _, name = check["key"].partition(".")
@@ -2415,6 +2751,8 @@ def _variance_component(experiment: dict, check: dict) -> float:
         "wald_low": lambda: parts[name] - z * math.sqrt(covariance(name, name)),
         "wald_high": lambda: parts[name] + z * math.sqrt(covariance(name, name)),
         "mean": lambda: float(fit.beta[0]),
+        "r_squared": lambda: r_squared,
+        "r_squared_adj": lambda: 1 - (1 - r_squared) * (len(y) - 1) / (len(y) - len(design.columns)),
         "mean_std_error": lambda: math.sqrt(fit.cov_beta[0, 0]),
         "mean_df": lambda: fit.satterthwaite_df(np.eye(len(fit.beta))[0]),
         "mean_t": lambda: float(fit.beta[0]) / math.sqrt(fit.cov_beta[0, 0]),
@@ -2428,10 +2766,124 @@ def _variance_component(experiment: dict, check: dict) -> float:
     return float(found[kind]())
 
 
+_GLM_FITS: dict[str, dict[str, Any]] = {}
+_GLM_OPTIONS = ("family", "link", "trials", "dispersion", "information")
+
+
+def _glm(experiment: dict, check: dict) -> float:
+    """Return a number of the library's generalized linear model of the runs (``analysis_type="glm"``).
+
+    ``check["model"]`` is the formula and ``check["family"]``, ``"link"``, ``"trials"``,
+    ``"dispersion"`` and ``"information"`` go to :func:`analyze_experiment` as they are.
+    ``check["term"]`` picks a coefficient and ``check["key"]`` one of its fields
+    (``"coefficient"``, ``"std_error"``, ``"z_value"``, ``"p_value"``, ``"exp_coefficient"``,
+    ``"exp_ci_low"``, ...); without a term, ``check["key"]`` reads into the whole result, as
+    ``"log_likelihood_trials"``, ``"goodness_of_fit.pearson.statistic"`` or ``"fitted.0.ci_low"``.
+    A fitted mean's ``"ci_length"`` is its interval's upper limit less its lower, and
+    ``"squared": true`` returns the square of the number read (e^(2b) from the odds ratio e^b).
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    y = responses[check.get("response") or responses.columns[0]]
+    options = {k: check[k] for k in _GLM_OPTIONS if k in check}
+    key = json.dumps([experiment["name"], check.get("runs"), y.name, check["model"], options], sort_keys=True)
+    if key not in _GLM_FITS:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _GLM_FITS[key] = analyze_experiment(settings, y, model=check["model"], analysis_type="glm", **options)[
+                "glm"
+            ]
+    found = _GLM_FITS[key]
+    if check.get("term"):
+        row = next(r for r in found["coefficients"] if r["term"] == _library_term(check["term"]))
+        value = float(row[check["key"]])
+    elif str(check["key"]).endswith(".ci_length"):
+        mean = check["key"].removesuffix(".ci_length")
+        value = _read(found, f"{mean}.ci_high") - _read(found, f"{mean}.ci_low")
+    else:
+        value = _read(found, check["key"])
+    return value**2 if check.get("squared") else value
+
+
+def _expected_mean_squares(_experiment: dict, check: dict) -> float:
+    """Return a coefficient of the library's expected mean squares of a balanced design, or a term's error term.
+
+    ``check["levels"]``, ``"random"``, ``"nested"``, ``"replicates"``, ``"restricted"`` and ``"terms"`` go
+    to :func:`~process_improve.experiments.random_effects.expected_mean_squares`. ``check["key"]`` is
+    ``"<term>.<component>"``, the coefficient of a component (0 if it is absent; the term's own name
+    for its fixed quadratic form, ``"Error"`` for the error variance); ``"per_df.<term>"``, a fixed
+    term's coefficient over its degrees of freedom, the multiple of the sum of squared effects that
+    Montgomery writes; ``"form.<term>.<other>"``, 1 if the fixed term's quadratic form takes in
+    ``other``'s, as Minitab's ``Q[1,4]``; or ``"error_term.<term>"``, the 1-based place, in the
+    terms' order with the error last, of the term that tests it, as Minitab numbers it.
+    """
+    nested = check.get("nested") or {}
+    found = expected_mean_squares(
+        {f"{name}({nested[name]})" if name in nested else name: n for name, n in check["levels"].items()},
+        random=check.get("random", ()),
+        replicates=check.get("replicates", 1),
+        restricted=check.get("restricted", True),
+        terms=check.get("terms"),
+    )
+    kind, _, rest = check["key"].partition(".")
+    if kind == "per_df":
+        return found["ems"][rest][rest] / found["df"][rest]
+    if kind == "form":
+        term, _, other = rest.partition(".")
+        return float(other in found["fixed_forms"].get(term, []))
+    if kind == "error_term":
+        denominator = found["error_term"][rest]
+        return float("nan") if denominator is None else float(found["terms"].index(denominator) + 1)
+    return float(found["ems"][kind].get(rest, 0))
+
+
+def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
+    """Return the library's least-squares means of ``check["factor"]`` under ``check["model"]``, as it returns them.
+
+    ``check["comparisons"]`` is ``"tukey"`` (the default), ``"dunnett"`` (against ``check["control"]``)
+    or ``"none"``; ``check["at"]`` holds other factors at one level and ``check["categorical"]`` names
+    the other numeric columns the model takes as levels.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    response = check.get("response") or responses.columns[0]
+    table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    model = check["model"]
+    for name in check.get("categorical") or []:  # numeric columns the model takes as levels
+        model = re.sub(rf"\b{re.escape(name)}\b", f"C({name})", model)
+    method = Comparisons(check.get("comparisons", "tukey"), check.get("control"), check.get("confidence", 0.95))
+    return least_squares_means(table, f"{response} ~ {model}", check["factor"], method, at=check.get("at"))
+
+
+def _least_squares_means(experiment: dict, check: dict) -> float:
+    """Return a number of the library's least-squares means (see ``_least_squares_result``).
+
+    ``check["key"]`` reads ``"by_level.<level>.mean"`` (or ``std_error``, ``ci_low``, ``ci_high``),
+    ``"pairs.<level> - <versus>.<field>"``, with ``difference``, ``std_error``, ``t``, ``p_value``,
+    ``ci_low``, ``ci_high`` or ``half_width``, or one number: ``"critical_value"``,
+    ``"studentized_range"``, ``"individual_confidence"`` or ``"family_confidence"``.
+    """
+    found = _least_squares_result(experiment, check)
+    head, _, rest = check["key"].partition(".")
+    if not rest:
+        return float(found[head])
+    item, _, field = rest.rpartition(".")  # not _read: its "mean" would reduce the row, not read its mean
+    return float(found[head][item][field])
+
+
+def _connecting_letters(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Compare the library's connecting letters with the printed ``"3 A, 2 B, 1 B"``: each level, then its letters."""
+    letters = _least_squares_result(experiment, check)["letters"]
+    wanted = dict(pair.split() for pair in printed.split(","))
+    found = ", ".join(f"{level} {letters.get(level, '?')}" for level in wanted)
+    return found, wanted == {level: letters[level] for level in wanted if level in letters} and len(wanted) == len(
+        letters
+    )
+
+
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "blocks_orthogonal": _blocks_orthogonal,
     "capability": _capability,
     "desirability": _desirability,
+    "desirability_optimum": _desirability_optimum,
     "column_correlation": _column_correlation,
     "component_ss": _component_ss,
     "difference_of_means": _difference_of_means,
@@ -2445,16 +2897,25 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "normal_equations": _normal_equations,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
+    "design_measure": _design_measure,
+    "design_structure": _design_structure,
+    "projections": _projections,
     "library_value": lambda _e, c: _library_value(c),
     "marginal_means": _marginal_means,
     "nested_test": _nested_test,
     "nonadditivity": _nonadditivity,
     "run_count": _run_count,
     "run_radius": _run_radius,
+    "run_order_trends": _run_order_trends,
+    "classical_test": _classical_test,
     "t_test": _t_test,
     "tukey": _tukey,
     "unit_std_error": _unit_std_error,
     "variance_component": _variance_component,
+    "glm": _glm,
+    "expected_mean_squares": _expected_mean_squares,
+    "least_squares_means": _least_squares_means,
+    "multistratum": _multistratum,
 }
 
 
@@ -2469,10 +2930,65 @@ _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "projection": _projection,
     "same_runs": _same_runs,
     "generator_holds": _generator_holds,
+    "library_text": _library_text,
     "generalized_interactions": _generalized_interactions,
     "product_column": _product_column,
     "same_projections": _same_projections,
+    "connecting_letters": _connecting_letters,
 }
+
+
+def _design_metric_array(experiment: dict, check: dict) -> np.ndarray:
+    """Return an array a design metric holds, such as the information matrix X'X (see :func:`_design_metric`)."""
+    if check.get("design"):
+        source = json.dumps({"design": check["design"]}, sort_keys=True)
+    else:
+        settings = _coded_runs(experiment, check.get("runs"))[0]
+        source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
+    asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
+    return np.asarray(_walk(_evaluated(source, asked)[check["metric"]], check.get("key")), dtype=float)
+
+
+def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
+    """Return a whole array of the normal equations: X'X, X'y, (X'X)^-1, or the model matrix X itself.
+
+    ``check["key"]`` is ``"xtx"``, ``"xty"``, ``"inverse"`` or ``"model_matrix"``; ``"rows"`` and
+    ``"columns"`` (0-based) pick part of it, ``"diagonal": true`` its diagonal, and ``"abs": true``
+    compares its entries' sizes, as a source prints them ±2.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    matrix = dmatrix(check["model"], settings, return_type="dataframe").to_numpy()
+    found = {
+        "model_matrix": lambda: matrix,
+        "xtx": lambda: matrix.T @ matrix,
+        "xty": lambda: matrix.T @ responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float),
+        "inverse": lambda: np.linalg.inv(matrix.T @ matrix),
+    }[check["key"]]()
+    if "rows" in check:
+        found = found[check["rows"]]
+    if "columns" in check:
+        found = found[:, check["columns"]]
+    found = np.diag(found) if check.get("diagonal") else found
+    return np.abs(np.asarray(found, dtype=float)) if check.get("abs") else np.asarray(found, dtype=float)
+
+
+_ARRAY_KINDS: dict[str, Callable[[dict, dict], np.ndarray]] = {
+    "design_metric": _design_metric_array,
+    "normal_equations": _normal_equations_array,
+}
+
+
+def _array_agreement(found: np.ndarray, printed: list, check: dict) -> tuple[str, bool]:
+    """Compare a printed vector or matrix with the one found, entry by entry, each to its own printed digits."""
+    wanted = np.asarray(printed, dtype=object)
+    shown = np.array2string(np.round(found, 6), separator=", ")
+    if found.shape != wanted.shape:
+        return f"{shown} (shape {found.shape}, printed {wanted.shape})", False
+    decimals = check.get("decimals")
+    agree = all(
+        _agrees(float(f), str(w), decimals=decimals) for f, w in zip(found.ravel(), wanted.ravel(), strict=True)
+    )
+    return shown, agree
 
 
 def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tuple[str, bool]:
@@ -2483,22 +2999,36 @@ def _reproduce(experiment: dict, expected: dict, check: dict, fits: _Fits) -> tu
         return _design_check(check, str(printed), len(experiment.get("factors") or []))
     if kind in _STRUCTURE_KINDS:
         return _STRUCTURE_KINDS[kind](experiment, check, str(printed))
+    if kind in _ARRAY_KINDS and isinstance(printed, list):  # a printed vector or matrix, compared entry by entry
+        return _array_agreement(_ARRAY_KINDS[kind](experiment, check), printed, check)
     if kind in _VALUE_KINDS:
-        found = _VALUE_KINDS[kind](experiment, check)
-        wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
-        of_rounded, decimals = check.get("of_rounded", 1), check.get("decimals")
-        nearest = found
-        if kind == "nested_test" and check.get("data_rounding"):  # the source's test of its unrounded data
-            target, slack = float(_number(wanted)[1]), _nested_test_rounding(experiment, check)
-            nearest = target if abs(found - target) <= slack else found - math.copysign(slack, found - target)
-        return f"{found:.6g}", _agrees(
-            nearest, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded, decimals=decimals
-        )
+        return _value_check(experiment, check, printed)
     if kind in _RUN_KINDS:
         found_runs = _RUN_KINDS[kind](experiment, check)
         listed = [int(n) for n in re.findall(r"\d+", str(printed))]
         same = set(listed) == set(found_runs) if kind == "fraction_runs" else listed == found_runs
         return ", ".join(map(str, found_runs)), same and len(listed) == len(found_runs)
+    return _fit_check(experiment, check, printed, fits)
+
+
+def _value_check(experiment: dict, check: dict, printed: Any) -> tuple[str, bool]:  # noqa: ANN401 - printed text or number
+    """Recompute a number read from the runs or a design, not from a fit, and compare it with the printed one."""
+    kind = check["kind"]
+    found = _VALUE_KINDS[kind](experiment, check)
+    wanted = str(_ROMAN.get(str(printed).strip(), printed))  # a resolution may be printed as a Roman numeral
+    of_rounded, decimals = check.get("of_rounded", 1), check.get("decimals")
+    nearest = found
+    if kind == "nested_test" and check.get("data_rounding"):  # the source's test of its unrounded data
+        target, slack = float(_number(wanted)[1]), _nested_test_rounding(experiment, check)
+        nearest = target if abs(found - target) <= slack else found - math.copysign(slack, found - target)
+    return f"{found:.6g}", _agrees(
+        nearest, wanted, expression=bool(check.get("expression")), of_rounded=of_rounded, decimals=decimals
+    )
+
+
+def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tuple[str, bool]:  # noqa: ANN401 - printed text or number
+    """Recompute a number from the library's fit of the experiment's runs, and compare it with the printed one."""
+    kind = check["kind"]
     out = fits(experiment, check)
     if kind == "active_effects":
         return _active(out, check)

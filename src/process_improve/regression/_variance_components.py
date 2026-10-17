@@ -25,7 +25,9 @@ This is the quantity lme4 reports as ``REMLcrit``, so differences of it are
 lme4's likelihood-ratio statistics. Its gradient and Hessian in :math:`\psi`
 have closed forms in :math:`Z^\top \tilde P Z` and :math:`Z^\top \tilde P y`. The fit
 is a projected Newton search over ``psi >= 0`` with that exact Hessian, which ends
-with the score zero to rounding.
+with the score zero to rounding. Unbounded, as JMP fits by default, a component may go
+below zero wherever :math:`\tilde V` stays positive definite; in a balanced design the
+estimates are then those of the analysis of variance, a negative one included.
 
 Satterthwaite's denominator degrees of freedom use the observed information of
 the variance parameters, as lmerTest does, and the exact derivatives of
@@ -37,7 +39,7 @@ derivatives with respect to it vanish on the boundary.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import linalg
@@ -78,6 +80,11 @@ class VarianceComponentFit:
         :math:`\sigma^2_k`, then :math:`\sigma^2`): the inverse of their observed information.
     dcov : np.ndarray of shape (m, p, p)
         Derivatives of ``cov_beta`` with respect to the same parameters.
+    blups : np.ndarray of shape (q,)
+        The best linear unbiased predictions of the random effects, group by group in the
+        order of ``groups``, each group's levels in the order of their codes.
+    fitted : np.ndarray of shape (n,)
+        :math:`X\hat\beta + Z\hat u`, the fitted values with the random effects predicted.
     """
 
     beta: np.ndarray
@@ -87,6 +94,8 @@ class VarianceComponentFit:
     reml_criterion: float
     vc_cov: np.ndarray
     dcov: np.ndarray
+    blups: np.ndarray = field(default_factory=lambda: np.empty(0))
+    fitted: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     def satterthwaite_df(self, contrast: np.ndarray) -> float:
         """Denominator degrees of freedom of the t-test of ``contrast @ beta`` (Satterthwaite, 1946).
@@ -197,8 +206,14 @@ class _Profile:
         )
 
     def criterion(self, psi: np.ndarray) -> float:
-        """Return the REML criterion alone, for a line search: no inverse of ``V~`` is formed."""
-        factor = self._factor(psi)
+        """Return the REML criterion alone, for a line search: no inverse of ``V~`` is formed.
+
+        Where ``V~`` is not positive definite, as an unbounded search can reach, it is infinite.
+        """
+        try:
+            factor = self._factor(psi)
+        except linalg.LinAlgError:
+            return np.inf
         solved = linalg.cho_solve(factor, np.column_stack([self.X, self.y]))
         xvx_factor = linalg.cho_factor(self.X.T @ solved[:, :-1])
         xvy = self.X.T @ solved[:, -1]
@@ -253,8 +268,11 @@ class _Profile:
         return hess
 
 
-def _minimise(profile: _Profile, psi: np.ndarray) -> np.ndarray:
+def _minimise(profile: _Profile, psi: np.ndarray, bounded: bool = True) -> np.ndarray:
     """Minimise the criterion over ``psi >= 0`` by projected Newton steps with the exact Hessian.
+
+    Unbounded, every component is free and a step stops short of where ``V~`` would cease to
+    be positive definite (the criterion is infinite there, so the line search halves the step).
 
     Components on the boundary with a positive score stay there (the criterion rises
     into the interior); the rest are free. Where the Hessian of the free components is
@@ -268,7 +286,7 @@ def _minimise(profile: _Profile, psi: np.ndarray) -> np.ndarray:
     state = profile.evaluate(psi)
     for _ in range(_MAX_ITERATIONS):
         score = profile.gradient(state)
-        free = (psi > 0) | (score < 0)
+        free = np.ones(len(psi), dtype=bool) if not bounded else (psi > 0) | (score < 0)
         if not free.any():
             break
         values, vectors = np.linalg.eigh(profile.hessian(state)[np.ix_(free, free)])
@@ -280,7 +298,8 @@ def _minimise(profile: _Profile, psi: np.ndarray) -> np.ndarray:
         length, unresolved = 1.0, decrement < _RESOLVABLE * (1.0 + abs(state.criterion))
         while length > _MIN_STEP:
             trial = psi.copy()
-            trial[free] = np.maximum(psi[free] + length * direction, 0.0)
+            stepped = psi[free] + length * direction
+            trial[free] = np.maximum(stepped, 0.0) if bounded else stepped
             if unresolved or profile.criterion(trial) <= state.criterion + 1e-4 * float(score @ (trial - psi)):
                 break
             length /= 2.0
@@ -319,7 +338,11 @@ def _information(profile: _Profile, state: _State, free: np.ndarray) -> tuple[np
 
 
 def fit_variance_components(
-    y: np.ndarray, X: np.ndarray, groups: Sequence[np.ndarray], start: np.ndarray | None = None
+    y: np.ndarray,
+    X: np.ndarray,
+    groups: Sequence[np.ndarray],
+    start: np.ndarray | None = None,
+    bounded: bool = True,
 ) -> VarianceComponentFit:
     r"""Fit the variance-component model by REML.
 
@@ -334,6 +357,10 @@ def fit_variance_components(
     start : np.ndarray of shape (K,), optional
         Starting variance ratios :math:`\psi`; ones (lme4's start) by default. A nearby
         fit, such as the model with one term more, shortens the search.
+    bounded : bool
+        Keep every variance component at or above zero, as lme4 does (the default). ``False``
+        lets a component go negative, as JMP's unbounded estimates do; in a balanced design
+        they are then the analysis-of-variance estimates.
 
     Returns
     -------
@@ -354,11 +381,13 @@ def fit_variance_components(
     profile = _Profile(y, X, [np.asarray(codes) for codes in groups])
     psi = np.ones(len(groups)) if start is None else np.asarray(start, dtype=float)
     if len(groups):
-        psi = _minimise(profile, psi)
+        psi = _minimise(profile, psi, bounded=bounded)
     state = profile.evaluate(psi)
     sigma2 = state.rss / (profile.n - profile.p)
     cov_scaled = linalg.inv(state.xvx)
-    observed, blocks, z_ext = _information(profile, state, psi > 0)
+    observed, blocks, z_ext = _information(profile, state, psi != 0)
+    # The random effects' predictions, psi_k Z_k' V~^-1 (y - X beta), with V~^-1 (y - X beta) = P~ y.
+    blups = np.repeat(psi, [b.stop - b.start for b in profile.blocks]) * state.u
     # d cov(beta) / d sigma2_k = C X' V^-1 V_k V^-1 X C, with V^-1 X = V~^-1 X / sigma2.
     pieces = z_ext.T @ state.v_inv_x
     dcov = np.array([cov_scaled @ pieces[b].T @ pieces[b] @ cov_scaled for b in blocks])
@@ -370,4 +399,6 @@ def fit_variance_components(
         reml_criterion=state.criterion,
         vc_cov=linalg.inv(observed),
         dcov=dcov,
+        blups=blups,
+        fitted=X @ state.beta + profile.Z @ blups,
     )

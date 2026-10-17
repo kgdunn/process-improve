@@ -7,8 +7,10 @@ give a lack-of-fit test; a model the design cannot fit is refused in a sentence.
 
 from __future__ import annotations
 
+import base64
 import re
 
+from tests.web._support import correlated_study, fill_workbook
 from tests.web.e2e._page import (
     calls,
     choose,
@@ -16,6 +18,7 @@ from tests.web.e2e._page import (
     generate,
     headers,
     practise,
+    reveal,
     settled,
     status,
     type_results,
@@ -70,6 +73,43 @@ def test_a_saturated_two_level_design_is_judged_with_lenth_s_method(blank_page):
     lenth = page.locator("#analysis table").nth(1)
     assert lenth.locator("thead th").all_text_contents() == ["Term", "Effect", "Beyond ME", "Beyond SME"]
     assert page.get_attribute("#analysis h3 a", "href").endswith("#doe-lenth-method")
+
+
+def test_an_orthogonal_design_shows_no_vif_column_and_no_note(page):
+    """The worked example's terms are close to uncorrelated: a column of VIFs near 1 would say nothing."""
+    assert "VIF" not in headers(page, "#analysis table")
+    assert "variance inflation factor" not in page.text_content("#analysis")
+    assert "evaluate_design" not in page.text_content("#py-analyse code")
+
+
+def test_correlated_terms_show_their_vifs_in_a_column_and_a_note(page, api, tmp_path):
+    """Runs as given in which A and B move together: the note names them, and the table shows each term's VIF."""
+    design = api.ok("api_make_design", correlated_study())
+    path = tmp_path / "correlated.xlsx"
+    filled = fill_workbook(design["xlsx_base64"], lambda runs: 10 + 2 * runs["A"] - runs["C"] + 0.1 * runs.index)
+    path.write_bytes(base64.b64decode(filled))
+    reveal(page, "#tab-real")
+    page.click("#tab-real")
+    page.set_input_files("#upload", path)
+    settled(page)
+    coefficients = page.locator("#analysis table").first.locator("thead th button.sort").all_text_contents()
+    assert coefficients == ["Term", "Coefficient", "Std. error", "95% interval", "p-value", "VIF"]
+    assert {row[0]: row[-1] for row in coefficient_rows(page)} == {
+        "Intercept": "",
+        "A": "10.80",
+        "B": "11.00",
+        "C": "1.200",
+    }
+    notes = page.locator("#analysis ul.facts li").all_text_contents()
+    (note,) = [n for n in notes if "VIF" in n]
+    assert note.startswith("A (VIF 11) and B (VIF 11) are correlated with other terms in these runs.")
+    # Once the results are read, the mouse that pressed "Enter results" can rest on a word of Learn's and open
+    # its definition: move it away, and let that close, before resting it on the heading.
+    page.mouse.move(0, 0)
+    page.locator(".term-tip").wait_for(state="hidden")
+    assert definition(page, '#analysis table th .term[data-term="vif"]').startswith("The variance inflation factor:")
+    assert page.locator('#analysis ul.facts .term[data-term="vif"]').text_content() == "variance inflation factor"
+    assert 'vif = evaluate_design(X, model="A + B + C", metric="vif")["vif"]' in page.text_content("#py-analyse code")
 
 
 def test_choosing_a_model_analyses_the_results_again(page):

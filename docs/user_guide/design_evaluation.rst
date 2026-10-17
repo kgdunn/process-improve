@@ -76,6 +76,16 @@ These summarise the information matrix :math:`X^\top X` for the fitted model.
 - ``condition_number`` - conditioning of the model matrix.
 - ``scaled_condition_number`` - the same with each column scaled to unit length, so
   the factors' units do not count: 1 for orthogonal columns.
+- ``information_matrix`` - :math:`X^\top X` itself, entry by entry, with what is
+  read from it: its determinant, the D-criterion :math:`\det(X^\top X)^{1/p}`, the
+  eigenvalues and the E-criterion, the rank of :math:`X` and the residual degrees of
+  freedom :math:`N - \operatorname{rank}(X)`, and for an estimable model the inverse,
+  whose entries are the coefficients' variances and covariances in units of
+  :math:`\sigma^2`, its trace (the A-criterion) and that trace over :math:`p`. It needs
+  no responses, so a design's residual degrees of freedom are known before it is run.
+- ``estimable_interactions`` - how many of the two-factor interactions left out of the
+  model the design can estimate beside it: the rank the omitted interaction columns add
+  to :math:`X`.
 
 Term correlation
 ~~~~~~~~~~~~~~~~~
@@ -121,6 +131,48 @@ same region sample it reports:
 
 ``i_efficiency`` and ``g_efficiency`` are derived from this same region
 machinery, so they are consistent with the ``fds`` payload.
+
+Two options make the region average and maximum exact rather than sampled:
+
+- ``integration="exact"`` works out the average prediction variance over the cube as
+  :math:`\operatorname{trace}((X^\top X)^{-1} W)`, with :math:`W` the cube's moment
+  matrix, by Gauss-Legendre quadrature. It is exact for a model of degree up to four in
+  each factor, and independent of the random sample.
+- ``max_search="optimize"`` climbs from the best sampled and corner points by a compass
+  search inside the cube. The largest prediction variance of a design's projection often
+  lies inside a face or an edge, where a sample can miss it and overstate the
+  G-efficiency.
+
+.. code-block:: python
+
+   exact = evaluate_design(
+       design,
+       model=model,
+       metric=["average_prediction_variance", "g_efficiency", "information_matrix"],
+       integration="exact",
+       max_search="optimize",
+   )
+
+Projections
+~~~~~~~~~~~
+
+A screening design is often judged by what it can do once most factors turn out not
+to matter: the runs already made are then a design in the few that do.
+:func:`~process_improve.experiments.evaluate_projections` evaluates a design on every
+projection onto a given number of its factors, or on a given number from each group
+of factors, and reports how many projections estimate the model (the projection
+estimation capacity) and each metric's average over them:
+
+.. code-block:: python
+
+   from process_improve.experiments import evaluate_projections
+
+   found = evaluate_projections(design, 3, model="quadratic", metric=["d_efficiency", "g_efficiency"])
+   found["n_estimable"], found["n_projections"], found["averages"]["d_efficiency"]
+
+Under ``model="quadratic"`` a projection's model squares only the factors it runs at
+three or more levels, so a mixed-level design's two-level factors enter by their main
+effects and interactions alone.
 
 Power
 ~~~~~
@@ -383,3 +435,27 @@ See Also
 - :func:`~process_improve.experiments.evaluate_all` - compute every metric in
   one call.
 - :doc:`doe_strategy` - choosing which design to generate in the first place.
+
+Run order and time trends
+-------------------------
+
+When the runs are made one after another, a slow drift in the process adds a smooth function of
+time to every response, and biases any effect whose column follows it.
+:func:`~process_improve.experiments.run_order_trends` measures that exposure. For each model
+term, it gives the cosine between the term's column and each orthogonal polynomial time trend:
+0 when the column is orthogonal to the trend, 1 when it follows the trend exactly.
+:func:`~process_improve.experiments.trend_robust_run_order` searches for an order that brings
+those cosines to zero, starting with the main effects against the linear trend.
+
+.. code-block:: python
+
+   import itertools
+   import numpy as np
+   from process_improve.experiments import run_order_trends, trend_robust_run_order
+
+   cube = np.array(list(itertools.product((-1, 1), repeat=3)))   # the 2^3 in standard order
+   run_order_trends(cube, model="main_effects", degree=1)["summary"]["linear"]["main_effects"]
+   found = trend_robust_run_order(cube, model="main_effects", degree=1, random_state=0)
+   found["order"], found["trends"]["total_level_changes"]
+
+The search is a heuristic: it does not prove that a better order does not exist.

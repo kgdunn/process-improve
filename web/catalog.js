@@ -13,6 +13,8 @@ import {
   MODELS,
   OTHER_COLOUR,
   SORTS,
+  applicationLine,
+  applications,
   checkIndex,
   checkLine,
   compareRefusal,
@@ -44,6 +46,10 @@ import {
   switchCount,
   toHash,
   toggled,
+  topicCounts,
+  topicOrder,
+  placesAfter,
+  whereParts,
   yearBins,
 } from "./catalog-logic.js";
 import { compareTable, drawTimeline, element, errataTable, projectionExplorer, table } from "./catalog-views.js";
@@ -64,6 +70,8 @@ const MAP_FACTORS = 16;
 const MAP_TERMS_FACTORS = 12;
 /** How many errata the table shows at first. */
 const ERRATA_SHOWN = 200;
+/** How many applications the filter lists at first, those of the most designs; the rest are a click away. */
+const TOPICS_SHOWN = 8;
 
 let catalog = null;
 let state = structuredClone({ ...DEFAULT_STATE });
@@ -126,6 +134,7 @@ const numberOrNull = (input) => (input.value.trim() === "" ? null : Math.round(N
 
 function readForm() {
   state.families = $$("#families input:checked").map((box) => box.value);
+  state.topics = $$("#topics input:checked").map((box) => box.value);
   state.runs = [numberOrNull($("#runs-min")), numberOrNull($("#runs-max"))];
   state.factors = [numberOrNull($("#factors-min")), numberOrNull($("#factors-max"))];
   state.years = [numberOrNull($("#year-min")), numberOrNull($("#year-max"))];
@@ -144,6 +153,8 @@ function writeForm() {
   $("#query").value = state.query;
   for (const button of $$("#collection [role=radio]")) button.setAttribute("aria-checked", String(button.dataset.value === state.collection));
   for (const box of $$("#families input")) box.checked = state.families.includes(box.value);
+  for (const box of $$("#topics input")) box.checked = state.topics.includes(box.value);
+  if ($$("#topics-more input:checked").length) $("#topics-more").open = true; // an application chosen is in view
   const put = (selector, value) => ($(selector).value = value ?? "");
   put("#runs-min", state.runs[0]);
   put("#runs-max", state.runs[1]);
@@ -184,6 +195,28 @@ function buildFacets() {
       return label;
     }),
   );
+  const topics = topicOrder(catalog).map((topic) => {
+    const info = catalog.topics[topic];
+    return element(
+      "label",
+      { class: "facets__family facets__topic", title: info.description || "" },
+      element("input", { type: "checkbox", value: topic }),
+      element("span", { text: info.label }),
+      element("span", { class: "count", "data-topic": topic }),
+    );
+  });
+  const rest = topics.slice(TOPICS_SHOWN);
+  $("#topics").replaceChildren(
+    ...topics.slice(0, TOPICS_SHOWN),
+    rest.length
+      ? element(
+          "details",
+          { class: "facets__more", id: "topics-more" },
+          element("summary", { text: `${rest.length} more ${rest.length === 1 ? "application" : "applications"}` }),
+          element("div", { class: "facets__list" }, ...rest),
+        )
+      : null,
+  );
   const added = [...new Set(catalog.designs.map((d) => d.added).filter(Boolean))].sort().reverse();
   $("#added").append(...added.map((date) => element("option", { value: date, text: date })));
   $("#sort").replaceChildren(...Object.entries(SORTS).map(([value, text]) => element("option", { value, text })));
@@ -195,6 +228,12 @@ function renderCounts() {
   const counts = familyCounts(catalog, state);
   for (const span of $$("#families .count")) {
     const n = counts[span.dataset.family] ?? 0;
+    span.textContent = String(n);
+    span.closest("label").classList.toggle("empty", n === 0);
+  }
+  const topics = topicCounts(catalog, state);
+  for (const span of $$("#topics .count")) {
+    const n = topics[span.dataset.topic] ?? 0;
     span.textContent = String(n);
     span.closest("label").classList.toggle("empty", n === 0);
   }
@@ -253,6 +292,7 @@ function card(design) {
         elsewhere,
         gap,
         limited,
+        ...applications(design, catalog).map((name) => element("span", { class: "badge badge--topic", text: name })),
       ),
       element("p", { class: "result__facts", text: factLine(design, catalog) }),
       element("p", { class: "result__source", text: [sourceLine(design, catalog), checks].filter(Boolean).join(" · ") }),
@@ -635,7 +675,35 @@ function drawMap(list) {
       writeForm();
       update();
     });
+    // A double click clears the box Plotly drew; the runs and factors it kept go with it.
+    div.on("plotly_deselect", () => {
+      if ([...state.factors, ...state.runs].every((v) => v === null)) return;
+      state.factors = [null, null];
+      state.runs = [null, null];
+      writeForm();
+      update();
+    });
   });
+}
+
+/**
+ * Put the map back as it opened: no box drawn, the whole range in view, and no filter on runs or factors.
+ * Plotly keeps a drawn box and a zoom across redraws, so the map is drawn again from nothing.
+ */
+function resetMap() {
+  clearMap();
+  state.factors = [null, null];
+  state.runs = [null, null];
+  writeForm();
+  update();
+}
+
+/** Drop the map's drawing, with any box and zoom on it, so the next render draws it afresh. */
+function clearMap() {
+  const div = $("#map");
+  if (!window.Plotly || !div.data) return;
+  window.Plotly.purge(div);
+  mapWired = false;
 }
 
 function startMap() {
@@ -694,14 +762,31 @@ function copy(text, what) {
 
 const fmt = (v) => (v === null || v === undefined ? "" : typeof v === "number" ? String(Math.round(v * 1000) / 1000) : String(v));
 
-function whereText(where) {
-  if (!where) return "";
-  if (typeof where === "string") return where;
-  const parts = [];
-  if (where.section) parts.push(`section ${where.section}`);
-  if (where.pages) parts.push(`${String(where.pages).match(/[-,]/) ? "pages" : "page"} ${where.pages}`);
-  for (const key of ["tables", "figures"]) if (where[key]?.length) parts.push(where[key].join(", "));
-  return parts.join("; ");
+/**
+ * "Printed in" and where: its section, pages, tables and figures. Where the catalog knows the place's address
+ * (a page of the book, at the section's anchor, or of the handbook), the first part links to it, so a reader
+ * lands on the section rather than on the source's home page.
+ */
+function printedIn(detail) {
+  const [first, ...rest] = whereParts(detail.where);
+  const url = detail.where_url;
+  if (!first && !url) return null;
+  const place = url ? element("a", { href: url, target: "_blank", rel: "noopener", text: first ?? "the source's page" }) : first;
+  return element("p", { class: "detail__where" }, "Printed in ", place, placesAfter(rest));
+}
+
+/** The longest an entry's notes may run and still be shown open; longer ones fold under a summary. */
+const NOTES_SHOWN = 240;
+
+/**
+ * An entry's notes: the source's words for its design, and how the catalogue checked it. Short notes are shown
+ * as they are; long ones, which name the lines of the source each number was read from, fold under a summary,
+ * so they are there for a reader who checks the entry and out of the way of one who reads it.
+ */
+function entryNotes(detail) {
+  const notes = [detail.details, detail.notes].filter(Boolean).map((text) => element("p", { class: "hint", text }));
+  if ([detail.details, detail.notes].join(" ").length <= NOTES_SHOWN) return notes;
+  return [element("details", { class: "detail__notes" }, element("summary", { text: "How the source describes the design, and how the catalogue checked it" }), ...notes)];
 }
 
 function detailBody(design, detail) {
@@ -710,10 +795,12 @@ function detailBody(design, detail) {
   const body = [element("p", { class: "detail__facts", text: factLine(design, catalog) })];
   if (family?.year) body.push(element("p", { class: "hint", text: `${family.label} designs were first published by ${family.reference}.` }));
   if (source) {
-    const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, rel: "noopener", text: source.cite }) : source.cite);
+    const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, target: "_blank", rel: "noopener", text: source.cite }) : source.cite);
     body.push(cite);
-    const where = whereText(detail.where);
-    if (where) body.push(element("p", { text: `Printed in ${where}.` }));
+    const where = printedIn(detail);
+    if (where) body.push(where);
+    const application = applicationLine(design, catalog);
+    if (application) body.push(element("p", { class: "detail__application", text: application }));
     const checks = checkLine(design.checks);
     if (checks) body.push(element("p", { text: `Printed numbers: ${checks}. The library recomputes them on every change to it.` }));
     if (design.regenerable === true) body.push(element("p", { class: "detail__ok", text: "The library makes this design: the page's runs are the source's runs, to within its rounding." }));
@@ -721,8 +808,7 @@ function detailBody(design, detail) {
   } else {
     body.push(element("p", { text: "Made by process-improve's generate_design, with the call below." }));
   }
-  if (detail.details) body.push(element("p", { class: "hint", text: detail.details }));
-  if (detail.notes) body.push(element("p", { class: "hint", text: detail.notes }));
+  body.push(...entryNotes(detail));
 
   const actions = element("div", { class: "actions" });
   const limit = parseLimit(state.limit);
@@ -738,8 +824,8 @@ function detailBody(design, detail) {
   } else {
     body.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
   }
+  if (design.compared) actions.append(compareButton(design)); // append() writes a null out as the text "null"
   actions.append(
-    design.compared ? compareButton(design) : null,
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
   );
@@ -973,9 +1059,11 @@ function wire() {
   $("#reset").addEventListener("click", (event) => {
     event.preventDefault();
     state = { ...structuredClone({ ...DEFAULT_STATE }), collection: state.collection, sort: state.sort };
+    clearMap();
     writeForm();
     update();
   });
+  $("#map-reset").addEventListener("click", resetMap);
   $("#sort").addEventListener("change", () => {
     state.sort = $("#sort").value;
     update();
@@ -1016,7 +1104,7 @@ function wire() {
   $("#errata-open").addEventListener("click", openErrata);
   wireTimeline();
   window.addEventListener("hashchange", () => {
-    state = fromHash(location.hash, catalog.families, catalog.sources);
+    state = fromHash(location.hash, catalog.families, catalog.sources, catalog.topics);
     writeForm();
     render();
     for (const dialog of $$("dialog[open]")) dialog.close();
@@ -1111,7 +1199,7 @@ async function start() {
   buildFacets();
   // A link from the book names its design in the query (?d=), which the book's theme leaves alone; the page keeps
   // what it shows in the fragment, which no server sees, so the address is rewritten that way at once.
-  state = fromHash(location.hash || location.search, catalog.families, catalog.sources);
+  state = fromHash(location.hash || location.search, catalog.families, catalog.sources, catalog.topics);
   if (!location.hash && location.search) history.replaceState(null, "", location.pathname + toHash(state));
   writeForm();
   wire();

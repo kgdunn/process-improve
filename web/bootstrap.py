@@ -45,6 +45,7 @@ from process_improve.experiments import (
     analyze_experiment,
     compare_designs,
     constraint_through_cuts,
+    evaluate_design,
     generate_design,
     rename_factors,
     separating_constraint,
@@ -229,6 +230,10 @@ ALIAS_TOLERANCE = 1e-9
 #: Below this many effects, Lenth's pseudo standard error rests on fewer than about two
 #: degrees of freedom (one per three effects), so its margins are very wide.
 LENTH_FEW_EFFECTS = 7
+
+#: Above this variance inflation factor, a term is correlated with the others enough for a note: its standard
+#: error is more than twice (the square root of 5) what runs that kept the terms uncorrelated would give.
+VIF_HIGH = 5.0
 
 #: How many alias groups a summary sentence names before saying how many more.
 ALIASES_SHOWN = 4
@@ -1315,6 +1320,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
             "label": fit["labels"].get(c["term"], _pretty(c["term"])),
             "aliases": fit["chains"].get(c["term"], []),
             "block": _block_contrast(c["term"], names),
+            "vif": fit["vifs"].get(c["term"]),  # none for the intercept
         }
         for c in out.get("coefficients", [])
     ]
@@ -1367,6 +1373,10 @@ def _fit_estimable(
     The runs of a blocked design carry their ``Block``, and the blocks are fitted as a
     fixed effect. A term the design confounds with them is left out, with a note: its
     effect cannot be told apart from the differences between blocks.
+
+    Each term fitted gets its variance inflation factor (see :func:`_vifs`), and a note
+    names the terms whose VIF is above :data:`VIF_HIGH`: runs as given, or runs left
+    blank, can leave the terms correlated, so that no single term looks active.
     """
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
     formula, early = _first_formula(coded, model, names, categorical, blocked=blocked)
@@ -1403,6 +1413,8 @@ def _fit_estimable(
             "average block."
         )
     labels.update(_block_labels(out, names))
+    vifs = _vifs(coded, out, names)
+    notes += _correlated_sentences(vifs, labels, names)
     lenth = None
     if summary["df_residual"] == 0:
         lenth, said = _saturated(coded, y, formula, _fitted_terms(out, names), labels, names)
@@ -1415,7 +1427,64 @@ def _fit_estimable(
         "not_estimable": not_estimable,
         "lenth": lenth,
         "notes": notes,
+        "vifs": vifs,
     }
+
+
+def _vifs(coded: pd.DataFrame, out: dict[str, Any], names: list[str]) -> dict[str, float]:
+    """Return the variance inflation factor (VIF) of each term a fit estimated, its block contrasts included.
+
+    A term's VIF is how many times larger the variance of its coefficient is than it would be
+    were the term's column uncorrelated with the others over the runs fitted: 1 for the terms of
+    an orthogonal design. It is ``evaluate_design``'s, on the same runs and the same terms: the
+    diagonal of (X'X)^-1 times each column's centred sum of squares, the intercept left out.
+    There a block contrast is named ``Block[S.1]``, ``Block[S.2]``, ..., where the fit names it
+    ``Block1``, ``Block2``, ...; both take the blocks in the same order. A model the runs cannot
+    fit by ``evaluate_design``'s reckoning of the rank has no VIF.
+    """
+    blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
+    formula = _formula(_fitted_terms(out, names), names, blocked=blocked)
+    with _listening():  # a given run far beyond its range is warned about as uncoded, which it is not
+        found: dict[str, float] = evaluate_design(coded, model=formula, metric="vif").get("vif") or {}
+    if not found:
+        return {}
+    contrasts = [c["term"] for c in out["coefficients"] if _block_contrast(c["term"], names)]
+    blocks = [value for key, value in found.items() if key.startswith(f"{BLOCK}[")]
+    terms = {key: value for key, value in found.items() if not key.startswith(f"{BLOCK}[")}
+    return {**terms, **dict(zip(contrasts, blocks, strict=True))}
+
+
+def _correlated_sentences(vifs: dict[str, float], labels: dict[str, str], names: list[str]) -> list[str]:
+    """Name the terms whose VIF is above :data:`VIF_HIGH`, say what that does to them, and what to do; or nothing.
+
+    A block contrast is left out: its VIF says how unevenly the runs fill the blocks, which
+    no term of the model can change.
+    """
+    high = [
+        f"{labels.get(term, _pretty(term))} (VIF {_two_figures(vif)})"
+        for term, vif in vifs.items()
+        if vif > VIF_HIGH and not _block_contrast(term, names)
+    ]
+    if not high:
+        return []
+    subject = f"{_listed(high)} {'is' if len(high) == 1 else 'are'}"
+    return [
+        (
+            f"{subject} correlated with other terms in these runs. A term's variance inflation factor, VIF, is how "
+            "many times larger the variance of its coefficient is than with uncorrelated runs, so its standard "
+            "error is about √VIF times as large. A term can then look inactive even while the model explains the "
+            "response. Add runs that separate the correlated terms, or drop one of them from the model."
+        )
+    ]
+
+
+def _two_figures(value: float) -> str:
+    """Write a positive number to two significant figures, with no exponent: ``5.0``, ``9.8``, ``12``, ``1200``."""
+    rounded = value
+    for _ in range(2):  # again from the rounded value, which may have reached the next power of ten
+        decimals = 1 - math.floor(math.log10(abs(rounded)))
+        rounded = round(value, decimals)
+    return f"{rounded:.{max(decimals, 0)}f}"
 
 
 def _first_formula(

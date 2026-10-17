@@ -311,7 +311,25 @@ footer { color: var(--muted); font-size: 0.88rem; }
 
 /* New study and the worked example: buttons in the header, and a banner while the worked example is
    the copy computed when the page was built. */
-.hero { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 4px 0 0; }
+.hero { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin: 8px 0 4px; }
+/* Each way in has a colour of its own; white text on the light theme's colours, dark on the dark theme's,
+   at least 5:1 in both. */
+.hero__action {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border: none; border-radius: 10px;
+  font-weight: 600; font-size: 1.05rem; color: var(--accent-fg); background: var(--hero);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--hero) 35%, transparent);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+.hero__action:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 4px 14px color-mix(in srgb, var(--hero) 45%, transparent); }
+.hero__action:focus-visible { outline: 3px solid var(--hero); outline-offset: 3px; }
+.hero__action svg { width: 20px; height: 20px; flex: none; fill: currentColor; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.hero__action--new { --hero: var(--accent); }
+.hero__action--new svg { fill: none; }
+.hero__action--example { --hero: var(--mark-centre); }
+.hero__action--catalog { --hero: var(--ok); }
+.hero__action--catalog svg { stroke-width: 0; }
+@media (max-width: 520px) { .hero__action { flex: 1 1 100%; } }
+@media (prefers-reduced-motion: reduce) { .hero__action, .hero__action:hover { transition: none; transform: none; } }
 .banner p { margin: 4px 0; }
 .banner {
   margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; font-size: 0.92rem;
@@ -720,6 +738,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .facets__family, .facets__switch { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer; }
 .facets .count { margin-left: auto; color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
 .facets__family.empty { color: var(--muted); }
+.facets__more > summary { margin: 2px 0; color: var(--accent); font-size: 0.88rem; cursor: pointer; }
 .facets input[type="checkbox"] { width: auto; margin: 0; }
 .swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
 .facets__range {
@@ -753,6 +772,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .glyph { display: block; max-width: 100%; border-radius: 3px; }
 .glyph--none { width: 132px; height: 18px; border: 1px dashed var(--line); }
 .badge--data { border-color: var(--ok); color: var(--ok); }
+.badge--topic { max-width: 100%; font-weight: 500; white-space: normal; }
 #more { display: block; margin: 12px auto 0; }
 #more[hidden] { display: none; }
 dialog.detail { width: min(980px, 100vw - 32px); }

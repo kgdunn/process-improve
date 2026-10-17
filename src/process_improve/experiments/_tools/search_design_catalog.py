@@ -39,6 +39,16 @@ class SearchDesignCatalogInput(BaseModel):
             "'latin_square', 'block_design', 'split_plot'."
         ),
     )
+    topics: list[str] | None = Field(
+        default=None,
+        description=(
+            "Applications (industry sectors) to keep: a design passes when it lists any of them. Such as "
+            "'food-beverages', 'semiconductors', 'chemical-processes', 'pharmaceuticals', 'bioprocessing', "
+            "'plastics-rubber', 'metals', 'machining', 'automotive', 'aerospace-defence', 'environment', "
+            "'measurement', 'business', or 'general' (no stated application); an unknown one is refused with "
+            "the full list. A generated design has no application, so any application keeps published designs only."
+        ),
+    )
     collection: Literal["both", "published", "generated"] = Field(
         default="both",
         description="Designs printed in a published source, designs the library makes, or both.",
@@ -67,7 +77,9 @@ class SearchDesignCatalogInput(BaseModel):
     text: str = Field(
         default="",
         max_length=200,
-        description="Words to find in the design's title, family or source, such as an author or 'pilot plant'.",
+        description=(
+            "Words to find in the design's title, family, source or applications, such as an author or 'pilot plant'."
+        ),
     )
     sort: Literal["runs", "factors", "newest"] = Field(
         default="runs", description="The order: fewest runs, fewest factors, or the most recent source first."
@@ -82,13 +94,14 @@ class SearchDesignCatalogInput(BaseModel):
         "(Box, Hunter and Hunter; the NIST e-Handbook; Jones and Nachtsheim; Nunez Ares and Goos; and others) "
         "and the designs process-improve makes, the same records the catalog at https://factori.al/catalog/ "
         "shows. Filter by factors, runs, the model a design estimates in full, categorical factors, family, "
-        "whether it survives losing a run, its projections, its source's year and words in its title. Each "
-        "design returned carries its source and page, what it estimates and withstands, how many other "
-        "entries are the same design, and the address of its page in the catalog, which opens it in the "
-        "browser app. Use this tool to find a published design or a published experiment to learn from, "
-        "or to compare the families that fit a user's factors and budget. To make a design, use "
-        "generate_design; to measure one, use evaluate_design. The first search builds the catalog, "
-        "which takes some seconds."
+        "application (industry sector), whether it survives losing a run, its projections, its source's year "
+        "and words in its title. Each design returned carries its source and page (with the address of the "
+        "section that prints it, for a source on the web), its applications, what it estimates and "
+        "withstands, how many other entries are the same design, and the address of its page in the "
+        "catalog, which opens it in the browser app. Use this tool to find a published design or a published "
+        "experiment to learn from, or to compare the families that fit a user's factors and budget. To make "
+        "a design, use generate_design; to measure one, use evaluate_design. The first search builds the "
+        "catalog, which takes some seconds."
     ),
     input_model=SearchDesignCatalogInput,
     examples="""
@@ -100,6 +113,9 @@ class SearchDesignCatalogInput(BaseModel):
 
     # "Which screening designs for 7 factors can lose a run and still estimate the main effects?"
         -> ``search_design_catalog(min_factors=7, max_factors=7, survives_run_loss=True, sort="runs")``
+
+    # "Has anyone published a designed experiment on food, with the data?"
+        -> ``search_design_catalog(topics=["food-beverages"], has_results=True)``
     """,
     category="experiments",
 )

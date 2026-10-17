@@ -60,6 +60,7 @@ import {
   escape,
   factorType,
   fitStatistics,
+  fittedFormula,
   fmt,
   fractionRuns,
   isBlank,
@@ -83,6 +84,7 @@ import {
   responseProblems,
   responseTitle,
   runBadge,
+  showsVif,
   tradeOffCell,
 } from "./logic.js";
 import {
@@ -1634,6 +1636,7 @@ function downloadNotebook() {
     sources: state.sources,
     simulation: state.simulation,
     model: state.analysis ? (state.analysis.formula ?? state.analysis.model) : null,
+    vifModel: state.analysis && showsVif(state.analysis.coefficients) ? fittedFormula(state.analysis.coefficients) : null,
     version: state.version,
     url: `${location.origin}${location.pathname}`,
   });
@@ -1736,9 +1739,11 @@ function renderAnalysis(reply) {
   const r = reply.result;
   const s = r.summary;
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
+  const vif = showsVif(r.coefficients); // a column only when some term is correlated enough for the note
   setStatus("Analysis complete.");
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  showPython("analyse", analyseCode(r.formula ?? r.model, state.responses.every((v) => v !== null)));
+  const complete = state.responses.every((v) => v !== null);
+  showPython("analyse", analyseCode(r.formula ?? r.model, complete, vif ? fittedFormula(r.coefficients) : null));
   const parts = [
     el("p", "equation", r.equation),
     said("hint", "In coded units."),
@@ -1747,13 +1752,22 @@ function renderAnalysis(reply) {
     ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
     table(
-      ["Term", "Coefficient", "Std. error", "95% interval", "p-value", ...(simulated ? ["True value"] : [])],
+      [
+        "Term",
+        "Coefficient",
+        "Std. error",
+        "95% interval",
+        "p-value",
+        ...(vif ? ["VIF"] : []),
+        ...(simulated ? ["True value"] : []),
+      ],
       r.coefficients.map((c) => [
         c.label,
         fmt(c.coefficient),
         fmt(c.std_error),
         c.std_error === null ? "" : `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`,
         pval(c.p_value),
+        ...(vif ? [fmt(c.vif)] : []),
         ...(simulated ? [fmt(c.true_value)] : []),
       ]),
       {
@@ -1761,6 +1775,7 @@ function renderAnalysis(reply) {
         "Std. error": "std-error",
         "95% interval": "interval",
         "p-value": "p-value",
+        VIF: "vif",
         "True value": "true-value",
       },
     ),

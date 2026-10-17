@@ -525,10 +525,12 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 def write_catalog(out_dir: Path) -> None:
     """Write the catalog: ``catalog/index.json``, a detail file for each source and the rest, the errata and a feed.
 
-    The index holds what the page searches, filters, maps and draws for every design at once; a detail
-    file holds what it shows on opening one: its factors, coded runs, results, notes, the measures it is
-    compared on and, where the page makes the design, the campaign that opens it. ``errata.json`` lists
-    every printed number the library does not reproduce, and ``feed.xml`` is an Atom feed of the sources.
+    The index holds what the page searches, filters, maps and draws for every design at once, with the
+    families, sources and applications it names; a detail file holds what it shows on opening one: its
+    factors, coded runs, results, notes, where its source prints it and that place's address, the
+    measures it is compared on and, where the page makes the design, the campaign that opens it.
+    ``errata.json`` lists every printed number the library does not reproduce, and ``feed.xml`` is an
+    Atom feed of the sources.
     """
     from process_improve.experiments.compare import MEASURES  # noqa: PLC0415 - the docs environment has it
     from process_improve.experiments.design_catalog import (  # noqa: PLC0415
@@ -539,6 +541,8 @@ def write_catalog(out_dir: Path) -> None:
         catalog_feed,
         catalog_records,
         catalog_sources,
+        catalog_topics,
+        shown_where,
     )
 
     records = catalog_records()
@@ -574,7 +578,8 @@ def write_catalog(out_dir: Path) -> None:
             "response_values": record["response_values"],
             "details": record["details"],
             "notes": record["notes"],
-            "where": record["where_full"],
+            "where": shown_where(record["where_full"]),
+            "where_url": record["where_url"],
             "spec": record.get("spec"),
             "listed": record.get("listed"),
             "run_loss_model": record["run_loss_model"],
@@ -591,6 +596,7 @@ def write_catalog(out_dir: Path) -> None:
         "fields": [*INDEX_FIELDS, *CATALOG_FIELDS],
         "families": catalog_families(),
         "sources": catalog_sources(),
+        "topics": catalog_topics(),
         "measures": [dataclasses.asdict(measure) for measure in MEASURES],
         "designs": designs,
     }
