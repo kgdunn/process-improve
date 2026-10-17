@@ -8194,7 +8194,7 @@
     "columns": ["hold_temp", "shift_day", "pH", "feed_rate", "parallel_run", "titer", "log_titer", "log_titer_adj"],
     "notes": "No data file: the responses are simulated by process_improve.simulation (BioreactorSimulator, BioreactorConfig) in the code blocks at lines 74-114, 224-246 and 272-283. within_batch_scale=0.7 x default; growth temperature 36.8 degC, 1.5-day ramp; batch seeds from np.random.default_rng(2026).integers(1 << 30, size=30); the second parallel run uses feed_substrate = 0.88 x default (12% less substrate, a new feed-medium lot). The 30-run plan and its titers are not printed; only the four centre runs' titers are (lines 287-292)."
    },
-   "notes": "All responses come from the package's simulator, so every printed number depends on the process_improve version (simulator kinetics, generate_omars). Text-block outputs (lines 285-292) are recorded as code-echo. The campaign table (lines 702-762) has no code in the RST (figure script doe/omars-worked-study-tradeoff.py only). Rounding stated or visible: centre-point p 0.1226 printed as 0.12 in prose (line 342); lack-of-fit p 0.07240 as 0.0724 (line 631); true optimum shift day 2.624 as 2.62 (lines 557, 613); 30.22 degC as 'near 30.2 °C' (line 614). The prose at lines 375-376 gives fifteen error df for the full model at thirty runs; the block shift was estimated from the same data before log_titer_adj was formed, and that degree of freedom is not deducted. The theory table header at line 850 refers to 'The property, from 5.16' (a section number). The 21- and 31-run designs in the variance-factor block (lines 783-791) use the study's factors with random_state=42; the 27-run value is the study design (without the three added centre runs). Line 139-140 says Quad 'from 10 runs' while the column figure alt text lists 'Quad from 11 to 19' (the figure shows odd run counts only).",
+   "notes": "All responses come from the package's simulator, so every printed number depends on the process_improve version (simulator kinetics, generate_omars). Text-block outputs (lines 285-292) are recorded as code-echo. The campaign table (lines 702-762) has no code in the RST (figure script doe/omars-worked-study-tradeoff.py only). Rounding stated or visible: centre-point p 0.1226 printed as 0.12 in prose (line 342); lack-of-fit p 0.07240 as 0.0724 (line 631); true optimum shift day 2.624 as 2.62 (lines 557, 613); 30.22 degC as 'near 30.2 °C' (line 614). The prose at lines 375-376 gives fifteen error df for the full model at thirty runs; the block shift was estimated from the same data before log_titer_adj was formed, and that degree of freedom is not deducted. The theory table header at line 850 refers to 'The property, from 5.16' (a section number). The 21- and 31-run designs in the variance-factor block (lines 783-793) use the study's factors with random_state=42; the 27-run value is the study design (without the three added centre runs). Line 139-140 says Quad 'from 10 runs' while the column figure alt text lists 'Quad from 11 to 19' (the figure shows odd run counts only).",
    "expected": [
     {
      "what": "other",
@@ -10879,6 +10879,21 @@
     {
      "what": "other",
      "term": "OMARS, 13 runs: Median gain, g/L",
+     "value": "0",
+     "analysis": "two hundred simulated campaigns: OMARS, 13 runs",
+     "where": {
+      "file": "design-analysis-experiments/omars-worked-study.rst",
+      "line": 715,
+      "source_kind": "table",
+      "quote": "- 0"
+     },
+     "check": {
+      "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
+     }
+    },
+    {
+     "what": "other",
+     "term": "OMARS, 13 runs: 10th percentile, g/L",
      "value": "-0.02071",
      "analysis": "two hundred simulated campaigns: OMARS, 13 runs",
      "where": {
@@ -10893,29 +10908,14 @@
     },
     {
      "what": "other",
-     "term": "OMARS, 13 runs: 10th percentile, g/L",
-     "value": "-0.8497",
+     "term": "OMARS, 13 runs: Worst, g/L",
+     "value": "-3.246",
      "analysis": "two hundred simulated campaigns: OMARS, 13 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 717,
       "source_kind": "table",
-      "quote": "- -0.8497"
-     },
-     "check": {
-      "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
-     }
-    },
-    {
-     "what": "other",
-     "term": "OMARS, 13 runs: Worst, g/L",
-     "value": "-1.201",
-     "analysis": "two hundred simulated campaigns: OMARS, 13 runs",
-     "where": {
-      "file": "design-analysis-experiments/omars-worked-study.rst",
-      "line": 718,
-      "source_kind": "table",
-      "quote": "- -1.201"
+      "quote": "- -3.246"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -10924,13 +10924,13 @@
     {
      "what": "other",
      "term": "OMARS, 13 runs: Feed rate, %",
-     "value": "14",
+     "value": "28",
      "analysis": "two hundred simulated campaigns: OMARS, 13 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
-      "line": 719,
+      "line": 718,
       "source_kind": "table",
-      "quote": "- 14"
+      "quote": "- 28"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -10939,13 +10939,13 @@
     {
      "what": "other",
      "term": "OMARS, 13 runs: Hold x downshift, %",
-     "value": "67",
+     "value": "41",
      "analysis": "two hundred simulated campaigns: OMARS, 13 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
-      "line": 720,
+      "line": 719,
       "source_kind": "table",
-      "quote": "- 67"
+      "quote": "- 41"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -10954,13 +10954,13 @@
     {
      "what": "other",
      "term": "OMARS, 13 runs: Hold curvature, %",
-     "value": "30",
+     "value": "2",
      "analysis": "two hundred simulated campaigns: OMARS, 13 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
-      "line": 56,
+      "line": 720,
       "source_kind": "table",
-      "quote": "- 30"
+      "quote": "- 2"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -10969,13 +10969,13 @@
     {
      "what": "other",
      "term": "OMARS, 17 runs: Median gain, g/L",
-     "value": "0.8323",
+     "value": "0.8321",
      "analysis": "two hundred simulated campaigns: OMARS, 17 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 722,
       "source_kind": "table",
-      "quote": "- 0.8323"
+      "quote": "- 0.8321"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -10984,13 +10984,13 @@
     {
      "what": "other",
      "term": "OMARS, 17 runs: 10th percentile, g/L",
-     "value": "-0.8834",
+     "value": "-0.8849",
      "analysis": "two hundred simulated campaigns: OMARS, 17 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 723,
       "source_kind": "table",
-      "quote": "- -0.8834"
+      "quote": "- -0.8849"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11014,13 +11014,13 @@
     {
      "what": "other",
      "term": "OMARS, 17 runs: Feed rate, %",
-     "value": "94",
+     "value": "98",
      "analysis": "two hundred simulated campaigns: OMARS, 17 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 725,
       "source_kind": "table",
-      "quote": "- 94"
+      "quote": "- 98"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11029,13 +11029,13 @@
     {
      "what": "other",
      "term": "OMARS, 17 runs: Hold x downshift, %",
-     "value": "35",
+     "value": "41",
      "analysis": "two hundred simulated campaigns: OMARS, 17 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 726,
       "source_kind": "table",
-      "quote": "- 35"
+      "quote": "- 41"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11104,13 +11104,13 @@
     {
      "what": "other",
      "term": "OMARS, 21 runs: Feed rate, %",
-     "value": "83",
+     "value": "89",
      "analysis": "two hundred simulated campaigns: OMARS, 21 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 732,
       "source_kind": "table",
-      "quote": "- 83"
+      "quote": "- 89"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11119,13 +11119,13 @@
     {
      "what": "other",
      "term": "OMARS, 21 runs: Hold x downshift, %",
-     "value": "78",
+     "value": "81",
      "analysis": "two hundred simulated campaigns: OMARS, 21 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 733,
       "source_kind": "table",
-      "quote": "- 78"
+      "quote": "- 81"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11134,13 +11134,13 @@
     {
      "what": "other",
      "term": "OMARS, 21 runs: Hold curvature, %",
-     "value": "13",
+     "value": "50",
      "analysis": "two hundred simulated campaigns: OMARS, 21 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 734,
       "source_kind": "table",
-      "quote": "- 13"
+      "quote": "- 50"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11529,7 +11529,7 @@
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 765,
       "source_kind": "prose",
-      "quote": "found, so the median campaign gains nothing. At 17 runs it is found, but a design that finds the"
+      "quote": "found, so the median campaign gains nothing, and a campaign that finds only interactions follows"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11568,13 +11568,13 @@
     {
      "what": "other",
      "term": "OMARS, 21 runs: campaigns finding the hold-temperature curvature",
-     "value": "13% of campaigns",
+     "value": "half of the campaigns",
      "analysis": "two hundred simulated campaigns: OMARS, 21 runs",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 769,
       "source_kind": "prose",
-      "quote": "13% of campaigns; its variance factor for that term is the largest of the three ``Full`` sizes."
+      "quote": "half of the campaigns; its variance factor for that term is the largest of the three ``Full``"
      },
      "check": {
       "manual": "from two hundred simulated campaigns per design, run by the figure's script (doe/omars-worked-study-tradeoff.py) rather than by a code block of the book, so the book's CI does not check it; the campaigns' runs and results are not printed"
@@ -11613,13 +11613,13 @@
     {
      "what": "design_metric",
      "term": "variance factor of hold_temp^2 (diag of (X'X)^-1), full second-order model, 21 runs",
-     "value": "0.5367",
+     "value": "0.6800",
      "analysis": "generate_omars(factors, n_runs=21, model='full_second_order', random_state=42)",
      "where": {
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 793,
       "source_kind": "code-echo",
-      "quote": "# ['0.5367', '0.4215', '0.2446']"
+      "quote": "# ['0.6800', '0.4215', '0.2446']"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve"
@@ -11634,7 +11634,7 @@
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 793,
       "source_kind": "code-echo",
-      "quote": "# ['0.5367', '0.4215', '0.2446']"
+      "quote": "# ['0.6800', '0.4215', '0.2446']"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve"
@@ -11649,7 +11649,7 @@
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 793,
       "source_kind": "code-echo",
-      "quote": "# ['0.5367', '0.4215', '0.2446']"
+      "quote": "# ['0.6800', '0.4215', '0.2446']"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve"
@@ -11663,7 +11663,7 @@
       "file": "design-analysis-experiments/omars-worked-study.rst",
       "line": 769,
       "source_kind": "prose",
-      "quote": "13% of campaigns; its variance factor for that term is the largest of the three ``Full`` sizes."
+      "quote": "its variance factor for that term is the largest of the three ``Full``\n  sizes."
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output"
@@ -34495,7 +34495,8 @@
     "figures": ["FDS plot for a nine-run definitive screening design and a thirteen-run OMARS design (fds-plot-dsd-vs-omars.png)"],
     "code_blocks": [
      [345, 373],
-     [435, 444]
+     [435, 444],
+     [481, 492]
     ],
     "commit": "28e5b8800b5eab9d5e4e1b70ac085d7c3bddb347"
    },
@@ -34598,7 +34599,7 @@
       "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
       "line": 472,
       "source_kind": "prose",
-      "quote": "Including them lifts the nine-run DSD's :math:`G` from :math:`8.98`"
+      "quote": "argument) cover it: they lift the nine-run DSD's :math:`G` from :math:`8.98` to :math:`9.00`."
      },
      "check": {
       "kind": "design_metric",
@@ -34623,9 +34624,9 @@
      "value": "9.00",
      "where": {
       "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
-      "line": 473,
+      "line": 472,
       "source_kind": "prose",
-      "quote": "to :math:`9.00`, a maximum that turns out to sit precisely at a corner"
+      "quote": "argument) cover it: they lift the nine-run DSD's :math:`G` from :math:`8.98` to :math:`9.00`."
      },
      "check": {
       "kind": "design_metric",
@@ -34643,6 +34644,35 @@
       "key": "scaled_max_prediction_variance"
      },
      "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
+    },
+    {
+     "what": "design_metric",
+     "term": "G, maximum SPV over the whole cube, searched for",
+     "value": "9.00",
+     "where": {
+      "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
+      "line": 492,
+      "source_kind": "code-echo",
+      "quote": "# 9.00 13.00"
+     },
+     "check": {
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 4,
+       "options": {}
+      },
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance",
+      "times_runs": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (80,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -34891,7 +34921,7 @@
       "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
       "line": 727,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow\\ G`, maximum SPV - 9.00 - 12.50"
+      "quote": "- :math:`\\downarrow\\ G`, maximum SPV - 9.00 - 13.00"
      },
      "check": {
       "kind": "design_metric",
@@ -34900,15 +34930,17 @@
        "k": 4,
        "options": {}
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
       "options": {
        "n_samples": 80000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (80,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -35109,7 +35141,8 @@
     "figures": ["FDS plot for a nine-run definitive screening design and a thirteen-run OMARS design (fds-plot-dsd-vs-omars.png)"],
     "code_blocks": [
      [345, 373],
-     [435, 444]
+     [435, 444],
+     [481, 492]
     ],
     "commit": "28e5b8800b5eab9d5e4e1b70ac085d7c3bddb347"
    },
@@ -35160,22 +35193,22 @@
    "runs": {
     "columns": ["Run", "A", "B", "C", "D"],
     "rows": [
-     [1, 0, 0, 0, 1],
-     [2, 0, 0, 0, 0],
-     [3, 0, 0, -1, 0],
-     [4, -1, 0, 1, -1],
-     [5, -1, 1, 0, 1],
-     [6, 1, -1, 0, -1],
-     [7, 0, 0, 0, -1],
-     [8, 1, 1, 1, 0],
-     [9, 0, 1, -1, -1],
-     [10, 1, 0, -1, 1],
-     [11, -1, -1, -1, 0],
-     [12, 0, 0, 1, 0],
-     [13, 0, -1, 1, 1]
+     [1, -1, -1, -1, 0],
+     [2, 1, 1, 1, 0],
+     [3, 0, 0, 0, 1],
+     [4, 1, -1, 0, -1],
+     [5, 0, 1, -1, -1],
+     [6, 0, -1, 1, 1],
+     [7, 0, 0, 0, 0],
+     [8, 0, 0, 0, -1],
+     [9, -1, 1, 0, 1],
+     [10, 0, 0, -1, 0],
+     [11, 1, 0, -1, 1],
+     [12, -1, 0, 1, -1],
+     [13, 0, 0, 1, 0]
     ],
     "coded": true,
-    "notes": "Not printed: the runs generate_omars makes where the book is built (Linux), recorded so that the sampled prediction variance is worked on the design the book evaluated. On another platform generate_omars can return the same design in another orientation, the factors permuted or their signs switched (on macOS the sample's maximum is 12.7023, that of one such orientation). Every quality measure is the same, but a maximum or average over one seeded sample is not: over the 384 orientations, the sample's maximum SPV ranges from 12.36 to 12.76 and its average rounds to 6.19 or 6.20. The other checks still use the design generate_omars makes."
+    "notes": "Not printed: the runs generate_omars makes for the book, recorded so that the sampled prediction variance is worked on the design the book evaluated. Since process-improve 2.0.0 generate_omars returns this exhaustively searched design in one orientation on every platform. A maximum or average over one seeded sample depends on the orientation: over the 384 orientations, the sample's maximum SPV ranges from 12.36 to 12.76 and its average rounds to 6.19 or 6.20, while the maximum over the whole cube, G = 13.00, does not. The other checks still use the design generate_omars makes."
    },
    "data_source": null,
    "notes": "Runs are generated by process_improve and not printed; they are recorded as the book's build makes them (see runs.notes). FDS / G / I from evaluate_design(metric='fds', n_samples=80_000, random_state=1, fds_resolution=200); the 2^k cube vertices are added to the sample by default (include_vertices). Power at delta = sigma, alpha = 0.05. Max/mean |r| here are over pairs of second-order effects (quadratics and two-factor interactions, line 516-518), while VIF is on the 9-term model. The main-effect power 0.46 is for the weakest main effect: line 667-668 says main effects are not all estimated with equal precision and the table reports the weakest. The FDS crossing with the DSD at 0.73 is recorded on dsd-four-factor-nine-run. Recomputed outside the checks, evaluate_design with the book's model and settings reproduces every printed quality measure of this design to its printed digits. The printed maximum is the largest over evaluate_design's seeded uniform sample plus the cube vertices; the prediction variance is larger at a point with coordinates 0 and +/-1, which neither includes: 1.000 sigma^2 at (-1, -1, 0, 0), an SPV of 13.0 against the printed 12.50 (compare_designs' 7-level grid finds the same 1.000).",
@@ -35280,13 +35313,13 @@
     },
     {
      "what": "design_metric",
-     "term": "G, maximum SPV, with and without the cube vertices",
+     "term": "largest SPV over the sample, with the cube vertices",
      "value": "12.50",
      "where": {
       "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
-      "line": 474,
+      "line": 476,
       "source_kind": "prose",
-      "quote": "OMARS value at :math:`12.50` because its worst case does not sit at a vertex."
+      "quote": "such a point, so the largest value the sample finds, :math:`12.50`, falls short of the design's"
      },
      "check": {
       "kind": "design_metric",
@@ -35298,7 +35331,77 @@
       },
       "key": "scaled_max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the book's sample (80,000 points, seed 1, with the cube's vertices)"
+    },
+    {
+     "what": "design_metric",
+     "term": "G, maximum SPV over the whole cube, searched for",
+     "value": "13.00",
+     "where": {
+      "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
+      "line": 477,
+      "source_kind": "prose",
+      "quote": ":math:`G` of :math:`13.00`. With ``max_search=\"optimize\"``, ``evaluate_design`` starts from the"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance",
+      "times_runs": true
+     },
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (80,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
+     "term": "largest SPV over the sample, with the cube vertices",
+     "value": "12.50",
+     "where": {
+      "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
+      "line": 491,
+      "source_kind": "code-echo",
+      "quote": "# 12.50"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "fds",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1
+      },
+      "key": "scaled_max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the book's sample (80,000 points, seed 1, with the cube's vertices)"
+    },
+    {
+     "what": "design_metric",
+     "term": "G, maximum SPV over the whole cube, searched for",
+     "value": "13.00",
+     "where": {
+      "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
+      "line": 492,
+      "source_kind": "code-echo",
+      "quote": "# 9.00 13.00"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
+      "options": {
+       "n_samples": 80000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance",
+      "times_runs": true
+     },
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (80,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -35631,24 +35734,26 @@
     {
      "what": "design_metric",
      "term": "G, maximum SPV",
-     "value": "12.50",
+     "value": "13.00",
      "where": {
       "file": "design-analysis-experiments/judging-and-comparing-designs.rst",
       "line": 728,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow\\ G`, maximum SPV - 9.00 - 12.50"
+      "quote": "- :math:`\\downarrow\\ G`, maximum SPV - 9.00 - 13.00"
      },
      "check": {
       "kind": "design_metric",
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + I(A**2) + I(B**2) + I(C**2) + I(D**2)",
       "options": {
        "n_samples": 80000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 80,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (80,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -36242,6 +36347,7 @@
     "figures": ["Power to detect a one-sigma main effect and a one-sigma quadratic effect (power-comparison-six-designs.png)", "Absolute alias matrix |A| for the four designs (alias-matrix-heatmaps-four-designs.png)", "Absolute correlation among the twenty model-effect columns (correlation-colormap-four-designs.png)", "FDS curves for the four response-surface designs, scaled (left) and unscaled (right) (fds-plot-six-designs.png)"],
     "code_blocks": [
      [106, 142],
+     [275, 289],
      [321, 346],
      [365, 393],
      [444, 474]
@@ -36478,12 +36584,12 @@
     {
      "what": "design_metric",
      "term": "Maximum prediction variance, sigma^2 units",
-     "value": "0.77",
+     "value": "0.80",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 198,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
+      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.80 - 0.53 - 1.07"
      },
      "check": {
       "kind": "design_metric",
@@ -36496,25 +36602,26 @@
         "n_center_points": 6
        }
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "max_prediction_variance"
+      "result": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
      "term": "Maximum scaled prediction variance G",
-     "value": "24.6",
+     "value": "25.5",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 203,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
+      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 25.5 - 13.2 - 13.9"
      },
      "check": {
       "kind": "design_metric",
@@ -36527,15 +36634,17 @@
         "n_center_points": 6
        }
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -36913,6 +37022,71 @@
      "check": {
       "manual": "a qualitative reading of the design or of a comparison, in words, not a number"
      }
+    },
+    {
+     "what": "design_metric",
+     "term": "maximum prediction variance over the whole cube, searched for",
+     "value": "0.80",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 287,
+      "source_kind": "code-echo",
+      "quote": "# CCD: 0.80, G = 25.5"
+     },
+     "check": {
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
+     "term": "G, maximum scaled prediction variance over the whole cube, searched for",
+     "value": "25.5",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 287,
+      "source_kind": "code-echo",
+      "quote": "# CCD: 0.80, G = 25.5"
+     },
+     "check": {
+      "kind": "design_metric",
+      "design": {
+       "design_type": "ccd",
+       "k": 5,
+       "options": {
+        "cube": "fractional",
+        "alpha": "face_centered",
+        "n_center_points": 6
+       }
+      },
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance",
+      "times_runs": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type ccd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     }
    ]
   },
@@ -36933,6 +37107,7 @@
     "figures": ["Power to detect a one-sigma main effect and a one-sigma quadratic effect (power-comparison-six-designs.png)", "Absolute alias matrix |A| for the four designs (alias-matrix-heatmaps-four-designs.png)", "Absolute correlation among the twenty model-effect columns (correlation-colormap-four-designs.png)", "FDS curves for the four response-surface designs, scaled (left) and unscaled (right) (fds-plot-six-designs.png)"],
     "code_blocks": [
      [106, 142],
+     [275, 289],
      [321, 346],
      [365, 393],
      [444, 474]
@@ -37192,7 +37367,7 @@
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 197,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
+      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.80 - 0.53 - 1.07"
      },
      "check": {
       "kind": "design_metric",
@@ -37203,15 +37378,16 @@
         "n_center_points": 6
        }
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "max_prediction_variance"
+      "result": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -37221,7 +37397,7 @@
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 202,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
+      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 25.5 - 13.2 - 13.9"
      },
      "check": {
       "kind": "design_metric",
@@ -37232,15 +37408,17 @@
         "n_center_points": 6
        }
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -37480,6 +37658,67 @@
     },
     {
      "what": "design_metric",
+     "term": "maximum prediction variance over the whole cube, searched for",
+     "value": "0.84",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 286,
+      "source_kind": "code-echo",
+      "quote": "# Box-Behnken: 0.84, G = 38.8"
+     },
+     "check": {
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
+     "term": "G, maximum scaled prediction variance over the whole cube, searched for",
+     "value": "38.8",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 286,
+      "source_kind": "code-echo",
+      "quote": "# Box-Behnken: 0.84, G = 38.8"
+     },
+     "check": {
+      "kind": "design_metric",
+      "design": {
+       "design_type": "box_behnken",
+       "k": 5,
+       "options": {
+        "n_center_points": 6
+       }
+      },
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance",
+      "times_runs": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
      "term": "unscaled maximum prediction variance",
      "value": "0.84",
      "where": {
@@ -37497,15 +37736,16 @@
         "n_center_points": 6
        }
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "max_prediction_variance"
+      "result": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -37526,15 +37766,17 @@
         "n_center_points": 6
        }
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type box_behnken), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "aliases",
@@ -37686,6 +37928,7 @@
     "figures": ["Power to detect a one-sigma main effect and a one-sigma quadratic effect (power-comparison-six-designs.png)", "Absolute alias matrix |A| for the four designs (alias-matrix-heatmaps-four-designs.png)", "Absolute correlation among the twenty model-effect columns (correlation-colormap-four-designs.png)", "FDS curves for the four response-surface designs, scaled (left) and unscaled (right) (fds-plot-six-designs.png)"],
     "code_blocks": [
      [106, 142],
+     [275, 289],
      [321, 346],
      [365, 393],
      [444, 474]
@@ -37775,7 +38018,7 @@
      [25, 1, 0, 1, -1, 0]
     ],
     "coded": true,
-    "notes": "Not printed: the runs generate_omars makes where the book is built (Linux), recorded so that the sampled prediction variance is worked on the design the book evaluated. On another platform the generate_omars can return the same design in another orientation, the factors permuted or their signs switched. Every quality measure is the same, but a maximum over one seeded sample is not: over 151 of the 3,840 orientations, the sample's maximum SPV rounds to 12.7 or 12.9, and its maximum prediction variance to 0.51 or 0.52. The other checks still use the design generate_omars makes."
+    "notes": "Not printed: the runs generate_omars makes where the book is built (Linux), recorded so that the sampled prediction variance is worked on the design the book evaluated. On another platform the generate_omars can return the same design in another orientation, the factors permuted or their signs switched. Every quality measure is the same, but a maximum over one seeded sample is not: over 151 of the 3,840 orientations, the sample's maximum SPV rounds to 12.7 or 12.9, and its maximum prediction variance to 0.51 or 0.52. The other checks still use the design generate_omars makes. The maximum over the whole cube that the book now reports, searched for (0.53, G = 13.2), does not depend on the orientation."
    },
    "data_source": null,
    "notes": "Runs not printed (they are recorded as the book's build makes them: see runs.notes); the book stresses (lines 88-90, 505-508) that this is the one member the generator's A-optimality search returns, among many 25-run OMARS designs. Third value in each row of the quality-metrics table. Small rounding note: 10.0 / 25 would read 40.0%, the table prints 40.1% (10.0 is itself rounded), so not an inconsistency. Power from evaluate_design(metric='power', effect_size=1.0, sigma=1.0), alpha = 0.05, reported for factor A ('A') and its quadratic ('I(A ** 2)') per the code at line 134. Average / maximum prediction variance (sigma^2 units) and G from evaluate_design(metric='fds', n_samples=120_000, random_state=1, fds_resolution=200), keys average_prediction_variance / max_prediction_variance (line 443-444); cube vertices included. Maximum |r| is among the fitted model terms (main effects and quadratics; caption line 382-384). Alias |A| from evaluate_design(metric='alias_matrix'), 11 fitted terms x 10 omitted 2FIs. D-optimal information is |X'X|^(1/p); D-efficiency per run is |X'X|^(1/p) / N as a percentage (line 242-244), p = 11. Recomputed outside the checks, evaluate_design with the book's model and settings reproduces every printed quality measure of this design to its printed digits. The printed maximum is the largest over evaluate_design's seeded uniform sample plus the cube vertices; the prediction variance is larger at a point with coordinates 0 and +/-1, which neither includes: 0.530 sigma^2 at (-1, -1, -1, 0, 0), an SPV of 13.2, against the printed 0.51 and 12.7.",
@@ -37992,46 +38235,49 @@
     {
      "what": "design_metric",
      "term": "Maximum prediction variance, sigma^2 units",
-     "value": "0.51",
+     "value": "0.53",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 199,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
+      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.80 - 0.53 - 1.07"
      },
      "check": {
       "kind": "design_metric",
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "max_prediction_variance"
+      "result": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
      "term": "Maximum scaled prediction variance G",
-     "value": "12.7",
+     "value": "13.2",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 204,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
+      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 25.5 - 13.2 - 13.9"
      },
      "check": {
       "kind": "design_metric",
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -38248,47 +38494,97 @@
     },
     {
      "what": "design_metric",
+     "term": "maximum prediction variance over the whole cube, searched for",
+     "value": "0.53",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 288,
+      "source_kind": "code-echo",
+      "quote": "# OMARS: 0.53, G = 13.2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
+     "term": "G, maximum scaled prediction variance over the whole cube, searched for",
+     "value": "13.2",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 288,
+      "source_kind": "code-echo",
+      "quote": "# OMARS: 0.53, G = 13.2"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance",
+      "times_runs": true
+     },
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
      "term": "maximum prediction variance, sigma^2 units (lowest)",
-     "value": "0.51",
+     "value": "0.53",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 294,
       "source_kind": "prose",
-      "quote": "design has the lowest (:math:`0.51`)."
+      "quote": "design has the lowest (:math:`0.53`)."
      },
      "check": {
       "kind": "design_metric",
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "max_prediction_variance"
+      "result": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
      "term": "G, maximum scaled prediction variance",
-     "value": "12.7",
+     "value": "13.2",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 296,
       "source_kind": "prose",
-      "quote": "just above the OMARS design's :math:`12.7`"
+      "quote": "just above the OMARS design's :math:`13.2`"
      },
      "check": {
       "kind": "design_metric",
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "aliases",
@@ -38455,25 +38751,27 @@
     },
     {
      "what": "design_metric",
-     "term": "G, lowest scaled right-tail value",
-     "value": "12.7",
+     "term": "G, maximum over the whole cube (lowest)",
+     "value": "13.2",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
-      "line": 491,
+      "line": 490,
       "source_kind": "prose",
-      "quote": "design at :math:`12.7`, with the DSD just behind at :math:`13.6`."
+      "quote": ":math:`G`, the maximum over the whole cube, puts it at :math:`13.2`, with the DSD just behind at"
      },
      "check": {
       "kind": "design_metric",
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the runs generate_omars makes where the book is built, under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the runs generate_omars makes for the book, under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     }
    ]
   },
@@ -38494,6 +38792,7 @@
     "figures": ["Power to detect a one-sigma main effect and a one-sigma quadratic effect (power-comparison-six-designs.png)", "Absolute alias matrix |A| for the four designs (alias-matrix-heatmaps-four-designs.png)", "Absolute correlation among the twenty model-effect columns (correlation-colormap-four-designs.png)", "FDS curves for the four response-surface designs, scaled (left) and unscaled (right) (fds-plot-six-designs.png)"],
     "code_blocks": [
      [106, 142],
+     [275, 289],
      [321, 346],
      [365, 393],
      [444, 474]
@@ -38762,12 +39061,12 @@
     {
      "what": "design_metric",
      "term": "Maximum prediction variance, sigma^2 units",
-     "value": "1.05",
+     "value": "1.07",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 200,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.77 - 0.51 - 1.05"
+      "quote": "- :math:`\\downarrow` Maximum prediction variance, :math:`\\sigma^2` units - 0.84 - 0.80 - 0.53 - 1.07"
      },
      "check": {
       "kind": "design_metric",
@@ -38776,25 +39075,26 @@
        "k": 5,
        "options": {}
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "max_prediction_variance"
+      "result": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
      "term": "Maximum scaled prediction variance G",
-     "value": "13.6",
+     "value": "13.9",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 205,
       "source_kind": "table",
-      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 24.6 - 12.7 - 13.6"
+      "quote": "- :math:`\\downarrow` Maximum scaled prediction variance :math:`G` - 38.8 - 25.5 - 13.2 - 13.9"
      },
      "check": {
       "kind": "design_metric",
@@ -38803,15 +39103,17 @@
        "k": 5,
        "options": {}
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
@@ -39019,13 +39321,70 @@
     },
     {
      "what": "design_metric",
+     "term": "maximum prediction variance over the whole cube, searched for",
+     "value": "1.07",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 289,
+      "source_kind": "code-echo",
+      "quote": "# DSD: 1.07, G = 13.9"
+     },
+     "check": {
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance"
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
+     "term": "G, maximum scaled prediction variance over the whole cube, searched for",
+     "value": "13.9",
+     "where": {
+      "file": "design-analysis-experiments/comparing-design-families.rst",
+      "line": 289,
+      "source_kind": "code-echo",
+      "quote": "# DSD: 1.07, G = 13.9"
+     },
+     "check": {
+      "kind": "design_metric",
+      "design": {
+       "design_type": "dsd",
+       "k": 5,
+       "options": {}
+      },
+      "metric": "g_efficiency",
+      "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
+      "options": {
+       "n_samples": 120000,
+       "random_state": 1,
+       "max_search": "optimize"
+      },
+      "result": "max_prediction_variance",
+      "times_runs": true
+     },
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
+    },
+    {
+     "what": "design_metric",
      "term": "maximum prediction variance, sigma^2 units (highest)",
-     "value": "1.05",
+     "value": "1.07",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 293,
       "source_kind": "prose",
-      "quote": "the highest maximum (:math:`1.05`), the worst single-point prediction at the bench"
+      "quote": "the highest maximum (:math:`1.07`), the worst single-point prediction at the bench, while the OMARS"
      },
      "check": {
       "kind": "design_metric",
@@ -39034,25 +39393,26 @@
        "k": 5,
        "options": {}
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "max_prediction_variance"
+      "result": "max_prediction_variance"
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "design_metric",
      "term": "G, maximum scaled prediction variance",
-     "value": "13.6",
+     "value": "13.9",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 295,
       "source_kind": "prose",
-      "quote": "moves the DSD from worst to nearly best: it sits at :math:`13.6`,"
+      "quote": "variance through by the run count, moves the DSD from worst to nearly best: it sits at :math:`13.9`,"
      },
      "check": {
       "kind": "design_metric",
@@ -39061,15 +39421,17 @@
        "k": 5,
        "options": {}
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "aliases",
@@ -39226,13 +39588,13 @@
     },
     {
      "what": "design_metric",
-     "term": "G, scaled right-tail value (just behind OMARS)",
-     "value": "13.6",
+     "term": "G, maximum over the whole cube (just behind OMARS)",
+     "value": "13.9",
      "where": {
       "file": "design-analysis-experiments/comparing-design-families.rst",
       "line": 491,
       "source_kind": "prose",
-      "quote": "design at :math:`12.7`, with the DSD just behind at :math:`13.6`."
+      "quote": ":math:`13.9`. The right panel is"
      },
      "check": {
       "kind": "design_metric",
@@ -39241,15 +39603,17 @@
        "k": 5,
        "options": {}
       },
-      "metric": "fds",
+      "metric": "g_efficiency",
       "model": "A + B + C + D + E + I(A**2) + I(B**2) + I(C**2) + I(D**2) + I(E**2)",
       "options": {
        "n_samples": 120000,
-       "random_state": 1
+       "random_state": 1,
+       "max_search": "optimize"
       },
-      "key": "scaled_max_prediction_variance"
+      "result": "max_prediction_variance",
+      "times_runs": true
      },
-     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the cube (the book's sample: 120,000 points, seed 1, with the cube's vertices)"
+     "analysis": "the library's evaluate_design on the design it makes (design_type dsd), under the main-effects-and-quadratics model: N times the largest prediction variance over the whole cube, searched for from the book's sample (120,000 points, seed 1) with max_search='optimize'"
     },
     {
      "what": "other",
