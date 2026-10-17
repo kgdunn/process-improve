@@ -59,6 +59,7 @@ APP_FILES = (
     "picture.js",
     "charts.js",
     "python.js",
+    "best.js",
     "campaign.js",
     "store.js",
     "glossary.js",
@@ -152,13 +153,16 @@ def worked_example() -> dict[str, Any]:
             "response_info": inputs["design"]["response_info"],
         },
     )
+    analysis = call("api_analyze_runs", request)
+    best = call("api_best_settings", request)  # the page finds the best settings for the goal once the model is fitted
     return {
         "version": version("process-improve"),
         "inputs": inputs,
         "design": design,
         "simulation": simulation,
-        "analysis": call("api_analyze_runs", request),
-        "plots": call("api_plots", request),
+        "analysis": analysis,
+        "best": best,
+        "plots": call("api_plots", {**request, **({"best": best["coded"]} if best.get("coded") else {})}),
         "comparison": comparison,
     }
 

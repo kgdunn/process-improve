@@ -17,12 +17,37 @@ import {
   correlationFigure,
   draw,
   fdsFigure,
+  markBest,
   paretoFigure,
   prettyTerm,
   redrawAll,
   resizeWithin,
+  sensitivityFigure,
   shareContourScale,
 } from "./charts.js";
+import {
+  CONFIRMATION,
+  CONFIRMATION_RUNS,
+  UNCLEAR,
+  bestContourCaption,
+  sensitivityCaption,
+  confirmationRows,
+  confirmationSentences,
+  confirmedAt,
+  designRows,
+  extrapolationSentence,
+  flatSentence,
+  intervalRows,
+  leadSentence,
+  noGoalSentence,
+  noIntervalSentence,
+  settingWords,
+  whereSentences,
+  whereWords,
+  withConfirmationRuns,
+  withUnit,
+  withoutConfirmationRuns,
+} from "./best.js";
 import {
   AXIAL_DISTANCE,
   BLOCK,
@@ -110,7 +135,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
-import { analyseCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
+import { analyseCode, bestCode, compareCode, cumulative, designCode, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -242,6 +267,7 @@ const state = {
   simulation: null, // what api_simulate returned: the true process, its noise and seed
   practising: false, // the reader chose to practise with simulated results
   analysis: null,
+  best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
   plotlyJs: null, // the Plotly.js version the Python plotly package names
@@ -329,7 +355,7 @@ function renderStudyBar() {
   $("#study-title").textContent = name ? responseTitle(info, name) : "A new study";
   const k = readFactors().length;
   const about = state.design
-    ? `${designLabel(state.design.spec.design_type)}, ${state.design.rows.length} runs`
+    ? `${designLabel(state.design.spec.design_type)}, ${designRows(state.design).rows.length} runs`
     : k
       ? `${k} factor${k === 1 ? "" : "s"}`
       : "";
@@ -403,7 +429,7 @@ function responseChanged() {
     showResultsCode();
     const changed = (keys) => keys.some((key) => before[key] !== info[key]);
     if (state.sources.includes("simulated") && changed(["typical", "noise"])) scheduleSimulation();
-    else if (state.analysis && changed(["label", "units"])) scheduleAnalysis();
+    else if (state.analysis && changed(["label", "units", "goal", "target"])) scheduleAnalysis(); // the best settings follow the goal
     scheduleSave();
   }
   scheduleCandidates();
@@ -865,8 +891,8 @@ function markStale() {
 
 /** The run sheet's runs as the picture of the limits draws them, each setting by its factor's name; none while it is from an earlier plan. */
 function picturedRuns() {
-  const d = state.design;
-  if (!d || planIsStale()) return [];
+  if (!state.design || planIsStale()) return [];
+  const d = designRows(state.design); // the design's runs: a confirmation run is no run of the design
   return d.rows.map((row) => Object.fromEntries(d.columns.map((name, j) => [name, Number(row[j])])));
 }
 
@@ -927,9 +953,9 @@ async function generate() {
 
 /** The runs a design of given runs is made again from: the run sheet's, a setting per factor in the design's order. */
 function givenRuns() {
-  const held = state.design;
-  if (!held) return null;
-  const at = held.spec.factors.map((f) => held.columns.indexOf(f.name));
+  if (!state.design) return null;
+  const held = designRows(state.design); // the confirmation runs are not made again with the design
+  const at = state.design.spec.factors.map((f) => held.columns.indexOf(f.name));
   return held.rows.map((row) => at.map((i) => row[i]));
 }
 
@@ -1404,7 +1430,8 @@ function renderRuns() {
   const factorUnits = Object.fromEntries(d.spec.factors.map((f) => [f.name, f.units ?? ""]));
   const headings = d.columns.map((c) => (c === response ? label : c));
   const colUnits = d.columns.map((c) => (c === response ? units : (factorUnits[c] ?? "")));
-  renderTable(t, headings, rows, "Run order", colUnits, { "Std order": "std-order", "Run order": "run-order", Block: "blocks" });
+  const terms = { "Std order": "std-order", "Run order": "run-order", Block: "blocks", [CONFIRMATION]: "confirmation-run" };
+  renderTable(t, headings, rows, "Run order", colUnits, terms);
   t.oninput = (e) => {
     const input = e.target.closest("input[data-index]");
     if (!input) return;
@@ -1540,6 +1567,7 @@ function downloadNotebook() {
     model: state.analysis ? (state.analysis.formula ?? state.analysis.model) : null,
     version: state.version,
     url: `${location.origin}${location.pathname}`,
+    best: state.best,
   });
   const blob = new Blob([`${JSON.stringify(book, null, 1)}\n`], { type: "application/x-ipynb+json" });
   download(blob, `${state.design.spec.design_type}-${state.responses.length}-runs.ipynb`);
@@ -1600,6 +1628,7 @@ function clearAnalysis() {
   $("#charts").replaceChildren();
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
+  clearBest();
   renderBadges();
 }
 
@@ -1621,7 +1650,11 @@ async function analyseRuns() {
   if (mine !== ticket) return;
   state.analysis = reply.ok ? reply.result : null;
   renderAnalysis(reply);
-  if (reply.ok) await drawCharts(request, mine);
+  if (!reply.ok) return;
+  const best = await findBest(request, mine);
+  if (mine !== ticket) return;
+  // The response surface is drawn through the best settings, so the star that marks them sits on the surface drawn.
+  await drawCharts(best?.coded ? { ...request, best: best.coded } : request, mine);
 }
 
 function renderAnalysis(reply) {
@@ -1635,6 +1668,7 @@ function renderAnalysis(reply) {
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
+    clearBest();
     return;
   }
   const r = reply.result;
@@ -1642,7 +1676,7 @@ function renderAnalysis(reply) {
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   setStatus("Analysis complete.");
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  showPython("analyse", analyseCode(r.formula ?? r.model, state.responses.every((v) => v !== null)));
+  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete()));
   const parts = [
     el("p", "equation", r.equation),
     said("hint", "In coded units."),
@@ -1845,13 +1879,16 @@ async function drawCharts(request, mine, given = null) {
   state.plotlyJs = version;
   try {
     await coefficients.show(coefficientView(), version);
+    await drawBestChart();
     if (!plots) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
+    const starred = plots.held_best && starBest(figures, plots.contour_factors);
     for (const key of ["contour", "true_contour", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
-      const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors };
-      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](plots.contour_factors, limits) : CAPTIONS[key];
+      const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
+      const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
+      const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
       const card = chartCard(key, caption);
       charts.append(card.card);
       await draw(card.plot, figures[key], version);
@@ -1865,6 +1902,198 @@ async function libraryPlots(request, mine) {
   const reply = await call("api_plots", request);
   if (mine === ticket) setStatus(reply.ok ? "Analysis complete." : `Charts: ${reply.error}`, reply.ok ? "ok" : "error");
   return reply.ok ? reply.result : null;
+}
+
+// ---------------------------------------------------------------- the best settings for the response's goal
+/** Whether every run of the design has its result: the confirmation runs, which the model is not fitted to, aside. */
+function designComplete() {
+  const confirming = new Set(state.design ? confirmationRows(state.design) : []);
+  return state.responses.every((v, i) => confirming.has(i) || v !== null);
+}
+
+/** Take the best settings away: the analysis they were found on is gone. */
+function clearBest() {
+  state.best = null;
+  $("#best").hidden = true;
+  hidePython("best");
+}
+
+/**
+ * Find the best settings for the response's goal on the model just fitted, and show them. Resolves to them, or to
+ * null when there are none; ``mine`` is the analysis they belong to, and a later analysis drops this reply.
+ */
+async function findBest(request, mine) {
+  const reply = await call("api_best_settings", request);
+  if (mine !== ticket) return null;
+  state.best = reply.ok ? reply.result : null;
+  renderBest(reply);
+  return state.best;
+}
+
+/**
+ * Show the best settings: what the model predicts there, the settings and where each lies, the two intervals,
+ * where the settings sit against the ranges and the limits, whether the runs support the prediction there, how
+ * tightly to hold each factor, and the confirmation runs. A goal of learning, or a target not yet typed, gets one line.
+ */
+function renderBest(reply) {
+  if (!reply?.ok || !state.design) {
+    clearBest();
+    if (reply && !reply.ok) setStatus(`The best settings: ${reply.error}`, "error");
+    return;
+  }
+  const best = reply.result;
+  const words = responseWords();
+  const factors = state.design.spec.factors;
+  $("#best").hidden = false;
+  $("#best-chart").hidden = true;
+  $("#confirm").hidden = true;
+  if (!best.settings) {
+    hidePython("best");
+    $("#best-out").replaceChildren(said("hint", best.flat ? flatSentence(words) : noGoalSentence(best, words)));
+    return;
+  }
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const rows = best.settings.map((s) => [
+    s.name,
+    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
+    whereWords(s, best, words),
+  ]);
+  const cautions = [extrapolationSentence(best), best.unclear ? UNCLEAR : ""].filter(Boolean);
+  $("#best-out").replaceChildren(
+    said("lead", leadSentence(best, words)),
+    table(["Factor", "Best setting", "Where it lies"], rows),
+    knownTable(intervalRows(best, words)),
+    ...[noIntervalSentence(best)].filter(Boolean).map((text) => said("hint", text)),
+    ...noteList(whereSentences(best, factors, words)),
+    ...noteList(cautions, "warnings"),
+  );
+  renderConfirmation(best, words);
+  const model = state.analysis?.formula ?? state.analysis?.model ?? "";
+  showPython("best", bestCode(best, state.design.spec, model, designComplete()));
+  drawBestChart();
+}
+
+/** A small table of what the model knows at the best settings: a row each, its label naming a glossary entry. */
+function knownTable(rows) {
+  const t = el("table", "data known-table", "");
+  const body = t.createTBody();
+  for (const { label, term: word, key, value } of rows) {
+    const tr = body.insertRow();
+    const th = el("th", "", "");
+    th.scope = "row";
+    th.append(...marked(label, { [word]: key }));
+    tr.append(th, el("td", "", value));
+  }
+  const wrap = el("div", "scroll", "");
+  wrap.append(t);
+  return wrap;
+}
+
+/** Say what the confirmation runs on the run sheet show, and offer to add them at the best settings. */
+function renderConfirmation(best, words) {
+  const groups = best.confirmation ?? [];
+  $("#confirm").hidden = false;
+  $("#confirm-out").replaceChildren(
+    ...groups.map((group) => {
+      const box = el("div", "verdict", "");
+      box.dataset.state = group.inside === null ? "waiting" : group.inside ? "inside" : "outside";
+      box.append(...confirmationSentences(group, state.design.spec.factors, words).map((text) => said("", text)));
+      return box;
+    }),
+  );
+  const add = $("#add-confirmation");
+  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`;
+  add.hidden = confirmedAt(state.design, best.confirm_at); // runs there already: their results are what is wanted
+  $("#remove-confirmation").hidden = groups.length === 0;
+}
+
+/** Draw how tightly to hold each factor, once the version of Plotly.js is known; nothing without a numeric factor. */
+async function drawBestChart() {
+  const best = state.best;
+  const card = $("#best-chart");
+  const sensitivity = best?.settings ? best.sensitivity.filter((s) => s.in_model) : [];
+  if (!sensitivity.length || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const items = best.sensitivity.map((s) => ({ ...s, units: units[s.name] }));
+  const figure = () => sensitivityFigure(items, responseWords());
+  card.hidden = false;
+  const caption = card.querySelector("figcaption");
+  caption.textContent = sensitivityCaption(best);
+  caption.hidden = !caption.textContent; // the legend, the axis and the heading's definition say the rest
+  try {
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
+  } catch {
+    card.hidden = true; // the table and the sentences above hold what it shows
+  }
+}
+
+/**
+ * Put a star on each response surface at the best settings, when both factors drawn are in the model, and say
+ * whether it did. The surface was drawn through the best settings (Python held the other factors there).
+ */
+function starBest(figures, pair) {
+  const best = state.best;
+  if (!best?.settings || !figures.contour) return false;
+  const shown = best.settings.filter((s) => pair.includes(s.name));
+  if (shown.length !== 2 || !shown.every((s) => s.in_model)) return false;
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const text = `Best settings: ${shown.map((s) => settingWords(s, units[s.name])).join(", ")}`;
+  for (const key of ["contour", "true_contour"]) if (figures[key]) markBest(figures[key], best.coded, pair, text);
+  return true;
+}
+
+/**
+ * Add confirmation runs at the best settings to the end of the run sheet. They never enter the fit: their average
+ * is judged against what the model predicts there. While the results are practice ones, theirs are simulated from
+ * the same process, noise and seed, which leaves every result before them as it was; else the reader makes them.
+ */
+async function addConfirmationRuns() {
+  const best = state.best;
+  if (!best?.confirm_at || !state.design) return;
+  const before = state.design.rows.length;
+  const { columns, rows } = withConfirmationRuns(state.design, best.confirm_at);
+  state.design = { ...state.design, columns, rows };
+  const added = rows.length - before;
+  state.responses = [...state.responses, ...Array(added).fill(null)];
+  state.sources = [...state.sources, ...Array(added).fill(null)];
+  renderRuns();
+  renderStudyBar();
+  const practice = Boolean(state.simulation) && state.sources.includes("simulated");
+  if (practice) {
+    const { scenario, sigma, seed: drawn } = state.simulation;
+    const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
+    if (reply.ok) {
+      state.responses = state.responses.map((v, i) => (i >= before ? reply.result.responses[i] : v));
+      state.sources = state.sources.map((s, i) => (i >= before ? "simulated" : s));
+      renderRuns();
+    }
+  }
+  showResultsCode();
+  scheduleSave();
+  await analyseRuns(); // the fit is the same; what is said of the confirmation runs follows them
+  setStatus(
+    practice
+      ? `${added} confirmation runs added at the best settings, their results simulated.`
+      : `${added} confirmation runs added at the end of the run sheet: enter their results in Run.`,
+  );
+}
+
+/** Take the confirmation runs off the run sheet, with their results. */
+async function removeConfirmationRuns() {
+  if (!state.design) return;
+  const { columns, rows, responses, sources } = withoutConfirmationRuns(state.design, state.responses, state.sources);
+  state.design = { ...state.design, columns, rows };
+  state.responses = responses;
+  state.sources = sources;
+  renderRuns();
+  renderStudyBar();
+  showResultsCode();
+  scheduleSave();
+  await analyseRuns();
+  setStatus("The confirmation runs are off the run sheet.");
 }
 
 // ---------------------------------------------------------------- the worked example
@@ -1911,6 +2140,10 @@ async function showBuiltExample() {
   showResultsCode();
   state.analysis = example.analysis;
   renderAnalysis({ ok: true, result: example.analysis, warnings: [] });
+  if (example.best) {
+    state.best = example.best;
+    renderBest({ ok: true, result: example.best });
+  }
   $("#demo-version").textContent = `process-improve ${example.version}`;
   $("#demo-when").textContent = "when this page was built";
   $("#demo-banner").hidden = false;
@@ -1999,7 +2232,7 @@ function newStudy() {
   $("#run-empty").hidden = false;
   clearAnalysis();
   setModel("");
-  for (const key of ["design", "run", "analyse", "compare"]) hidePython(key);
+  for (const key of ["design", "run", "analyse", "best", "compare"]) hidePython(key);
   delete $("#compare-dialog").dataset.key;
   selectTab("real");
   if (location.search) history.replaceState(null, "", location.pathname);
@@ -2417,7 +2650,7 @@ async function shareLink() {
 
 // ---------------------------------------------------------------- show the Python code
 /** The steps whose panels build on each other, in order, and the code each step last showed. */
-const STEPS = ["design", "run", "analyse"];
+const STEPS = ["design", "run", "analyse", "best"];
 const stepCode = {};
 
 /**
@@ -2700,6 +2933,8 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
+$("#add-confirmation").onclick = addConfirmationRuns;
+$("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
 $("#share").onclick = shareLink;

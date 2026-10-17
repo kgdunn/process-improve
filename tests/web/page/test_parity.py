@@ -312,6 +312,19 @@ def test_the_list_of_saved_designs_says_how_many_store_js_keeps():
     assert f"The {keep.group(1)} most recent are kept." in " ".join(source("index.html").split())
 
 
+def test_confirmation_runs_are_marked_and_counted_as_bootstrap_marks_and_counts_them(bootstrap, node):
+    """The run sheet's column, its mark, how many runs the page adds, and how far each factor moves for the chart."""
+    asked = ["CONFIRMATION", "CONFIRMS", "CONFIRMATION_RUNS", "NUDGE"]
+    assert javascript(node, source("best.js"), [(name, []) for name in asked]) == [
+        bootstrap.CONFIRMATION,
+        bootstrap.CONFIRMS,
+        bootstrap.CONFIRMATION_RUNS,
+        bootstrap.NUDGE,
+    ]
+    assert javascript(node, source("python.js"), [("CONFIRMATION", [])]) == [bootstrap.CONFIRMATION]
+    assert f"Add {bootstrap.CONFIRMATION_RUNS} confirmation runs" in source("index.html"), "before app.js writes it"
+
+
 def test_the_limits_on_the_settings_are_held_as_bootstrap_holds_them(bootstrap, node):
     """The most limits, the longest note and limit, the designs that keep to them, and the signs read as operators."""
     asked = ["MAX_CONSTRAINTS", "NOTE_LENGTH", "EXPRESSION_LENGTH", "REGION_DESIGNS", "LIMIT_SYMBOLS"]

@@ -34,7 +34,7 @@ export function loadPlotly(version) {
 export function palette() {
   const css = getComputedStyle(document.documentElement);
   const read = (name) => css.getPropertyValue(name).trim();
-  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent") };
+  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent"), warn: read("--warn") };
 }
 
 /**
@@ -396,5 +396,91 @@ export function correlationFigure(terms, matrix, k, colours = palette()) {
       shapes,
       showlegend: false,
     },
+  };
+}
+
+// ---------------------------------------------------------------- the best settings for the response's goal
+/**
+ * The best settings' marker on a response surface: a star with a white face and a dark edge, as the true values'
+ * diamond, so it reads on every colour of the surface, on a light page or a dark one.
+ */
+export const BEST_MARKER = { symbol: "star", size: 18, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
+
+/**
+ * Mark the best settings on a response surface drawn over the factors ``pair``: a star at their coded settings,
+ * which the surface's axes are in, drawn whole even at the edge of the plot. ``text`` is what hovering over it says.
+ * Returns the figure, the star its last trace.
+ */
+export function markBest(figure, coded, pair, text) {
+  figure.data.push({
+    type: "scatter",
+    mode: "markers",
+    name: "Best settings",
+    x: [coded[pair[0]]],
+    y: [coded[pair[1]]],
+    marker: BEST_MARKER,
+    cliponaxis: false,
+    showlegend: false,
+    hovertemplate: `${text}<extra></extra>`,
+  });
+  return figure;
+}
+
+/** How the chart of how tightly to hold each factor names its two moves, and what a pale bar is. */
+export const MOVES = { down: "Lowered 5% of its range", up: "Raised 5% of its range" };
+export const PALE = "Outside your ranges or limits";
+
+/** The height of the chart of how tightly to hold each factor: two bars a factor, and the legend and the axis. */
+export const sensitivityHeight = (n) => Math.max(200, 54 * n + 120);
+
+/**
+ * How tightly to hold each factor at the best settings: for each factor in the model, the change in the predicted
+ * response when it alone is lowered, and when it is raised, by 5% of its range, the others held at their best
+ * settings. The factor that moves the prediction most is at the top. A move that leaves the ranges or the limits is
+ * drawn pale: those settings cannot be run, and the model is extrapolating there. ``words`` are the response's
+ * {label, units}; each item of ``sensitivity`` is as bootstrap.best_settings gives it, with the factor's ``units``.
+ */
+export function sensitivityFigure(sensitivity, { label, units = "" }, colours = palette()) {
+  const size = (s) => Math.max(Math.abs(s.down), Math.abs(s.up));
+  const rows = sensitivity.filter((s) => s.in_model).sort((a, b) => size(b) - size(a));
+  const names = rows.map((s) => s.name);
+  const colour = { down: colours.warn, up: colours.accent };
+  const step = (s) => `${Number(s.step.toPrecision(4))}${s.units ? ` ${s.units}` : ""}`;
+  const bars = (side) => ({
+    type: "bar",
+    orientation: "h",
+    name: MOVES[side],
+    x: rows.map((s) => s[side]),
+    y: names,
+    marker: { color: colour[side], opacity: rows.map((s) => (s[`${side}_runnable`] ? 1 : 0.3)), line: { width: 0 } },
+    customdata: rows.map(
+      (s) => `${side === "down" ? "lowered" : "raised"} ${step(s)}${s[`${side}_runnable`] ? "" : `, ${PALE.toLowerCase()}`}`,
+    ),
+    hovertemplate: `%{y} %{customdata}: %{x:+.3g}${units ? ` ${units}` : ""}<extra></extra>`,
+  });
+  const data = [bars("down"), bars("up")];
+  if (rows.some((s) => !s.down_runnable || !s.up_runnable)) {
+    // A key, not data: a scatter takes no place among the grouped bars, as a third bar trace would.
+    data.push({
+      type: "scatter",
+      mode: "markers",
+      name: PALE,
+      x: [null],
+      y: [null],
+      marker: { symbol: "square", size: 12, color: colours.muted, opacity: 0.3 },
+      hoverinfo: "skip",
+    });
+  }
+  return {
+    data,
+    layout: {
+      barmode: "group",
+      bargap: 0.25,
+      xaxis: { title: { text: `Change in ${label}${units ? ` (${units})` : ""}` }, zeroline: true },
+      yaxis: termAxis(names),
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+    },
+    height: sensitivityHeight(rows.length),
   };
 }

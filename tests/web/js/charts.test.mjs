@@ -4,15 +4,21 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  BEST_MARKER,
+  MOVES,
+  PALE,
   SIGN_COLOURS,
   TRUE_MARKER,
   coefficientFigure,
   correlationFigure,
   fdsFigure,
+  markBest,
   niceStep,
   pageLayout,
   paretoFigure,
   prettyTerm,
+  sensitivityFigure,
+  sensitivityHeight,
   shareContourScale,
   termRowsHeight,
 } from "../../../web/charts.js";
@@ -171,6 +177,56 @@ describe("the comparison's charts", () => {
     const figure = correlationFigure(terms, matrix, 2, COLOURS);
     assert.deepEqual(figure.data[0].x, ["A", "B", "A²", "B²", "A·B"]);
     assert.equal(figure.layout.shapes.length, 4, "two lines at each of the two block edges");
+  });
+});
+
+describe("the best settings", () => {
+  const SENSITIVITY = [
+    { name: "F", step: 0.5, down: -0.018, up: -0.018, down_runnable: true, up_runnable: true, in_model: true, units: "L/min" },
+    { name: "T", step: 2.5, down: -0.247, up: 0.247, down_runnable: true, up_runnable: false, in_model: true, units: "degC" },
+    { name: "P", step: 0.1, down: 0.164, up: -0.167, down_runnable: false, up_runnable: true, in_model: true, units: "bar" },
+    { name: "Q", step: 1, down: 0, up: 0, down_runnable: true, up_runnable: true, in_model: false, units: "" },
+  ];
+  const WORDS = { label: "Yield", units: "%" };
+  const colours = { ...COLOURS, warn: "#a35f00" };
+
+  test("a bar each way for each factor in the model, the one that moves the prediction most at the top", () => {
+    const figure = sensitivityFigure(SENSITIVITY, WORDS, colours);
+    const [down, up] = figure.data;
+    assert.deepEqual([down.name, up.name], [MOVES.down, MOVES.up]);
+    assert.deepEqual(down.y, ["T", "P", "F"], "Q is not in the model");
+    assert.deepEqual(down.x, [-0.247, 0.164, -0.018]);
+    assert.deepEqual(up.x, [0.247, -0.167, -0.018]);
+    assert.deepEqual([down.marker.color, up.marker.color], [colours.warn, colours.accent]);
+    assert.equal(figure.layout.barmode, "group");
+    assert.deepEqual(figure.layout.yaxis.categoryarray, ["T", "P", "F"]);
+    assert.equal(figure.layout.yaxis.autorange, "reversed", "the first factor at the top");
+    assert.equal(figure.layout.xaxis.title.text, "Change in Yield (%)");
+    assert.equal(figure.height, sensitivityHeight(3));
+  });
+
+  test("a move outside the ranges or limits is pale, and the legend says what pale is", () => {
+    const figure = sensitivityFigure(SENSITIVITY, WORDS, colours);
+    const [down, up, key] = figure.data;
+    assert.deepEqual(down.marker.opacity, [1, 0.3, 1]);
+    assert.deepEqual(up.marker.opacity, [0.3, 1, 1]);
+    assert.match(up.customdata[0], /raised 2.5 degC, outside your ranges or limits/);
+    assert.equal(key.name, PALE);
+    assert.deepEqual([key.type, key.x], ["scatter", [null]], "a key, which takes no place among the bars");
+    const inside = sensitivityFigure([SENSITIVITY[0]], WORDS, colours);
+    assert.equal(inside.data.length, 2, "nothing pale, no key");
+  });
+
+  test("the star at the best settings, on the surface's coded axes, drawn whole at its edge", () => {
+    const figure = { data: [{ type: "contour", z: [[1]] }], layout: {} };
+    const marked = markBest(figure, { T: 1, P: -1, F: 0.6 }, ["T", "P"], "Best settings: T = 200 degC, P = 1 bar");
+    const star = marked.data.at(-1);
+    assert.deepEqual([star.x, star.y], [[1], [-1]]);
+    assert.deepEqual(star.marker, BEST_MARKER);
+    assert.equal(star.marker.symbol, "star");
+    assert.equal(star.cliponaxis, false);
+    assert.equal(star.showlegend, false, "the caption says what the star is");
+    assert.equal(star.hovertemplate, "Best settings: T = 200 degC, P = 1 bar<extra></extra>");
   });
 });
 

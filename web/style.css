@@ -590,6 +590,24 @@ details.python pre {
 }
 details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
 
+/* The best settings for the response's goal: the prediction first, then the settings, how well the model knows the
+   response there, how tightly to hold each factor, and the confirmation runs that test it. */
+.best { margin: 24px 0 0; padding: 14px 0 0; border-top: 2px solid var(--accent); }
+.best h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.best h4 { margin: 0 0 6px; font-size: 0.95rem; }
+.best .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
+.best table.data td:nth-child(2) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.best table.data td:nth-child(3), .best table.data th:nth-child(3) { text-align: left; }
+.best .scroll { margin: 8px 0; }
+.best table.data.known-table th { text-align: left; font-weight: 400; padding: 4px 12px 4px 0; }
+.best table.data.known-table td { white-space: normal; }
+.best .chart { margin: 12px 0 0; }
+.confirm { margin: 16px 0 0; }
+.verdict { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); font-size: 0.95rem; }
+.verdict p { margin: 2px 0; }
+.verdict[data-state="inside"] { border-left-color: var(--ok); }
+.verdict[data-state="outside"] { border-left-color: var(--error); }
+
 /* Your studies: what this browser keeps, each to open or delete. */
 .library { margin: 12px 0 0; font-size: 0.92rem; }
 .library ul { list-style: none; padding: 0; margin: 6px 0 0; }

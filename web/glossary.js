@@ -128,6 +128,27 @@ export const GLOSSARY = {
   "correlation-map":
     "The correlation |r| between each pair of terms over the design's runs: 0 means the two can be estimated " +
     "independently, 1 that they cannot be told apart at all.",
+
+  // The best settings
+  "confidence-interval":
+    "The range that holds the mean response at these settings, the average of many runs there, 95% of the time.",
+  "prediction-interval":
+    "The range that one new run at these settings falls in 95% of the time. It is wider than the confidence " +
+    "interval, since one run carries the run-to-run noise too.",
+  leverage:
+    "How far settings sit from the runs, as the model sees them: the variance of the prediction there, in units of " +
+    "the noise variance. Above every run's, the prediction leans on the model beyond the runs.",
+  "confirmation-run":
+    "A run made at the best settings after the analysis, to test the model there. It does not enter the fit: its " +
+    "result is compared with what the model predicts.",
+  "stationary-point":
+    "Settings where the fitted surface is flat in every direction: its top, its bottom, or a saddle between.",
+  "steepest-ascent":
+    "The direction in which the predicted response rises fastest, each factor changed in proportion to its slope; " +
+    "steepest descent is the opposite direction.",
+  "sensitivity":
+    "How much the predicted response changes when one factor alone moves a little from the best settings: a factor " +
+    "that moves it most must be held most tightly.",
 };
 
 /** Phrases marked wherever the page's sentences or the library's notes use them, and the entry each opens. */
@@ -145,4 +166,12 @@ export const MARKED = {
   PSE: "pse",
   ME: "me",
   SME: "sme",
+  "confidence interval": "confidence-interval",
+  "prediction interval": "prediction-interval",
+  leverage: "leverage",
+  "confirmation run": "confirmation-run",
+  "confirmation runs": "confirmation-run",
+  "stationary point": "stationary-point",
+  "steepest ascent": "steepest-ascent",
+  "steepest descent": "steepest-ascent",
 };

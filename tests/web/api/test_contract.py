@@ -120,6 +120,72 @@ READS: dict[str, list[str]] = {
         "plotly_js: str",
         "contour_factors[]: str",
         "figures{}: str",
+        "shaded: bool",
+        "held: list",
+        "held_best: bool",
+    ],
+    "charts through the best settings": [
+        "held[].name: str",
+        "held[].value: any",
+        "held_best: bool",
+    ],
+    "best settings": [
+        "goal: str",
+        "target: number?",
+        "flat: bool",
+        "predicted: number",
+        "reached: bool?",
+        "level: number",
+        "confidence[]: number",
+        "prediction[]: number",
+        "leverage: number",
+        "max_leverage: number",
+        "extrapolating: bool",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: any",
+        "settings[].coded: number",
+        "settings[].in_model: bool",
+        "settings[].end: str?",
+        "settings[].beyond: bool",
+        "coded{}: number",
+        "limits: list",
+        "stationary.factors[]: str",
+        "stationary.inside: bool",
+        "stationary.kind: str",
+        "ascent{}: number",
+        "unclear: bool",
+        "sensitivity[].name: str",
+        "sensitivity[].step: number",
+        "sensitivity[].down: number",
+        "sensitivity[].up: number",
+        "sensitivity[].down_runnable: bool",
+        "sensitivity[].up_runnable: bool",
+        "sensitivity[].in_model: bool",
+        "confirm_at{}: any",
+        "confirmation: list",
+        "search.held: dict",
+        "search.goal.goal: str",
+        "search.goal.low: number",
+        "search.goal.high: number",
+    ],
+    "best settings on a limit": [
+        "limits[].index: int",
+        "limits[].expression: str",
+        "limits[].beyond: bool",
+    ],
+    "confirmation runs judged": [
+        "confirmation[].rows[]: int",
+        "confirmation[].at{}: any",
+        "confirmation[].runs: int",
+        "confirmation[].done: int",
+        "confirmation[].mean: number?",
+        "confirmation[].predicted: number",
+        "confirmation[].interval[]: number",
+        "confirmation[].inside: bool?",
+    ],
+    "best settings without a goal": [
+        "goal: str",
     ],
     "workbook": [
         "xlsx_base64: str",
@@ -305,6 +371,11 @@ ENTRY_POINTS = {
     "analysis": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
+    "charts through the best settings": "api_plots",
+    "best settings": "api_best_settings",
+    "best settings on a limit": "api_best_settings",
+    "confirmation runs judged": "api_best_settings",
+    "best settings without a goal": "api_best_settings",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -324,7 +395,7 @@ ENTRY_POINTS = {
 #: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
-NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare", "api_best_settings"}
+NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
 
 #: Two straight limits, one with a note: between them they narrow both ranges, so ``bounds`` has entries to read.
 LIMITS = [{"expression": "T + 25*P <= 215", "note": "the product chars"}, {"expression": "400 <= 3*T + 5*P <= 600"}]
@@ -374,6 +445,28 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     def slow() -> dict:
         return {"factors": [{"name": n, "low": -1, "high": 1} for n in "ABCDE"], "model": "quadratic"}
 
+    def through_best() -> dict:
+        best = api.ok("api_best_settings", analysed)
+        return {**analysed, "best": best["coded"]}
+
+    def on_a_limit() -> dict:
+        spec = {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS}
+        design = held_of(api.ok("api_make_design", {**spec, "response_info": {"goal": "maximize"}}))
+        rows = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+        responses = [50 + 3 * (r["T"] - 175) / 25 + 2 * (r["P"] - 2) - ((r["F"] - 15) / 5) ** 2 for r in rows]
+        return {**design, "responses": responses}
+
+    def confirmed() -> dict:
+        at = api.ok("api_best_settings", analysed)["confirm_at"]
+        columns = [*held["columns"], "Confirmation run"]
+        extra = [[{"Run order": 16 + i, "Confirmation run": "yes", **at}.get(c) for c in columns] for i in range(3)]
+        rows = [*[[*row, None] for row in held["rows"]], *extra]
+        return {**held, "columns": columns, "rows": rows, "responses": [*simulated["responses"], 67.0, 68.0, None]}
+
+    def no_goal() -> dict:
+        spec = {**held["spec"], "response_info": {**held["spec"]["response_info"], "goal": "learn"}}
+        return {**analysed, "spec": spec}
+
     def relabel() -> dict:
         design = worked_example["design"]
         sent = {**held, "facts": design["facts"], "outside_range": design["outside_range"]}
@@ -387,6 +480,11 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "analysis": lambda: analysed,
         "saturated analysis": saturated,
         "charts": lambda: analysed,
+        "charts through the best settings": through_best,
+        "best settings": lambda: analysed,
+        "best settings on a limit": on_a_limit,
+        "confirmation runs judged": confirmed,
+        "best settings without a goal": no_goal,
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,
@@ -424,7 +522,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
 
 @pytest.mark.parametrize("kind", READS)
 def test_each_reply_holds_what_the_page_reads(reply, kind):
-    if kind == "charts":
+    if kind.startswith("charts"):
         pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
     for read in READS[kind]:
         path, expected = (part.strip() for part in read.split(":"))
