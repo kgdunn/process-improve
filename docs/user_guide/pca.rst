@@ -360,19 +360,21 @@ applications. The workflow:
 1. **Build a reference model** on data from normal, in-control operation.
 2. **Preprocess new observations** using the *same* centering and scaling
    learned from the training data (e.g., the same ``MCUVScaler`` instance).
-3. **Project new observations** into the model with ``model.predict(X_new)``.
+3. **Project new observations** into the model with ``model.diagnose(X_new)``.
+   It returns a ``Bunch`` with the ``scores``, the cumulative ``hotellings_t2``
+   (one column per component) and the ``spe`` of each new observation.
 4. **Monitor SPE and T²** - compare each new observation's SPE and T² against
    the control limits:
 
    .. code-block:: python
 
-      result = model.predict(X_new)
+      result = model.diagnose(X_new)
 
       spe_lim = model.spe_limit(conf_level=0.95)
       t2_lim = model.hotellings_t2_limit(conf_level=0.95)
 
-      spe_violations = result.spe_ > spe_lim
-      t2_violations = result.hotellings_t2_ > t2_lim
+      spe_violations = result.spe > spe_lim
+      t2_violations = result.hotellings_t2.iloc[:, -1] > t2_lim
 
 5. **Investigate violations** using score contributions to identify which
    original variables are responsible.
@@ -430,7 +432,7 @@ Troubleshooting
      - Increase ``md_max_iter`` or relax ``md_tol``. If the fraction of
        missing data is very large (>40 %), the algorithm may struggle - try
        removing rows or columns with excessive missingness first.
-   * - Shape mismatch in ``predict()``
+   * - Shape mismatch in ``diagnose()`` or ``transform()``
      - The new data must have the same columns (K) as the training data, in
        the same order. If you used ``MCUVScaler``, call
        ``scaler.transform(X_new)`` to apply the training centering/scaling.

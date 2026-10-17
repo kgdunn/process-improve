@@ -4751,22 +4751,6 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     }
 
 
-def test_tpls_predict_is_deprecated_alias_for_diagnose(fixture_tpls_example: dict) -> None:
-    """#395: TPLS.predict warns and forwards to TPLS.diagnose (same Bunch contents)."""
-    fixture = dict(fixture_tpls_example)  # don't mutate the shared fixture
-    d_matrix = fixture.pop("D")
-    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(fixture))
-    # Use the same data for inference; we only care that the two methods agree.
-    canonical = model.diagnose(DataFrameDict(fixture))
-    with pytest.warns(DeprecationWarning, match=r"TPLS\.predict.*deprecated.*diagnose"):
-        deprecated = model.predict(DataFrameDict(fixture))
-    assert set(deprecated.keys()) == set(canonical.keys())
-    np.testing.assert_allclose(
-        deprecated.t_scores_super.values.astype(float),
-        canonical.t_scores_super.values.astype(float),
-    )
-
-
 def test_tpls_pickle_round_trips(fixture_tpls_example: dict) -> None:
     """ENG-05 (#287): a fitted TPLS model pickles and its hotellings_t2_limit method survives."""
     import pickle
@@ -4981,7 +4965,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     }
 
     # OK, now use these to make predictions
-    predictions = tpls_test.predict(DataFrameDict(new_observation_raw))
+    predictions = tpls_test.diagnose(DataFrameDict(new_observation_raw))
     expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
     assert set(expected_keys) == set(predictions.keys())
 
@@ -5097,7 +5081,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     )
 
     # OK, now use these to make predictions
-    predictions = tpls_test_no_z.predict(new_observation_raw_no_z)
+    predictions = tpls_test_no_z.diagnose(new_observation_raw_no_z)
     expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe"]["Z"] == {}
@@ -5335,7 +5319,7 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
         # Fit and predict
         tpls_model.fit(training_datadict)
         tpls_model.display_results()
-        inference = tpls_model.predict(testing_datadict)
+        inference = tpls_model.diagnose(testing_datadict)
 
         # Calculate score
         if scoring == "r2":
@@ -5408,21 +5392,13 @@ def test_pca_diagnose_numpy_input() -> None:
     assert result.scores.shape == (5, 2)
 
 
-def test_pca_predict_is_deprecated_alias_for_diagnose() -> None:
-    """PCA.predict still works but emits a DeprecationWarning and returns the same Bunch."""
-    rng = np.random.default_rng(42)
-    X = pd.DataFrame(rng.standard_normal((50, 4)), columns=list("ABCD"))
-    X_scaled = MCUVScaler().fit_transform(X)
-    model = PCA(n_components=2).fit(X_scaled)
-
-    with pytest.warns(DeprecationWarning, match=r"PCA\.predict.*deprecated.*diagnose"):
-        deprecated = model.predict(X_scaled.iloc[:5])
-    canonical = model.diagnose(X_scaled.iloc[:5])
-
-    # Identical Bunch contents.
-    np.testing.assert_allclose(deprecated.scores.values, canonical.scores.values)
-    np.testing.assert_allclose(deprecated.hotellings_t2.values, canonical.hotellings_t2.values)
-    np.testing.assert_allclose(deprecated.spe.values, canonical.spe.values)
+@pytest.mark.parametrize("estimator", [PCA, MBPCA, MBPLS, TPLS])
+def test_the_predict_alias_of_diagnose_is_gone(estimator: type) -> None:
+    """The deprecated ``predict`` forwarders to ``diagnose`` were removed in 2.0 (#395, #396)."""
+    assert hasattr(estimator, "diagnose")
+    assert not hasattr(estimator, "predict")
+    # PLS.predict is the sklearn regressor contract, not the alias, and it stays.
+    assert hasattr(PLS, "predict")
 
 
 def test_pca_score_method() -> None:

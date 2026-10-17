@@ -660,27 +660,11 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """Project new data; return super_scores, block_scores, block_spe, hotellings_t2.
 
         The rename (since 1.38.4, #395) matches :meth:`PCA.diagnose` and
-        :meth:`PLS.diagnose`; :meth:`predict` is kept as a deprecation
-        shim.
+        :meth:`PLS.diagnose`. The deprecated ``predict`` alias was removed in
+        2.0.
         """
         check_is_fitted(self, "super_loadings_")
         return self._project(X)
-
-    def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
-        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
-
-        .. deprecated:: 1.38.4
-            Use :meth:`MBPCA.diagnose` instead. ``predict`` matches the
-            sklearn-convention name but MBPCA isn't a regressor; the
-            historical return is a diagnostics Bunch. The rename aligns
-            with :meth:`PCA.diagnose`. Will be removed in 2.0.0.
-        """
-        warnings.warn(
-            "MBPCA.predict is deprecated and will be removed in 2.0.0; use MBPCA.diagnose instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.diagnose(X)
 
     def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
         if not isinstance(X, dict):

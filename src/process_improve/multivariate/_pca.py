@@ -1402,11 +1402,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     def diagnose(self, X: DataMatrix) -> Bunch:
         """Project new data and compute diagnostics (scores, Hotelling's T², SPE).
 
-        The same logic that historically lived in :meth:`predict`. The rename
-        (since 1.38.1, #396) matches :meth:`PLS.diagnose` and clears the
-        ``predict`` name for a future return-type contract that does what its
-        sklearn-convention name implies (a regression-style prediction).
-        :meth:`predict` is kept as a deprecation shim for now.
+        This logic was called ``predict`` until 1.38.1 (#396). The rename
+        matches :meth:`PLS.diagnose`, and the deprecated ``predict`` was
+        removed in 2.0: PCA is not a regressor, so it has no ``predict``.
 
         Parameters
         ----------
@@ -1444,23 +1442,6 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         spe_values = pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=X.index, name="SPE")
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values)
-
-    def predict(self, X: DataMatrix) -> Bunch:
-        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
-
-        .. deprecated:: 1.38.1
-            Use :meth:`PCA.diagnose` instead. ``predict`` matches the
-            sklearn-convention name (a regression-style prediction), but PCA
-            isn't a regressor; the historical return is a diagnostics Bunch.
-            The rename aligns with :meth:`PLS.diagnose` and frees the name
-            for a future contract. Will be removed in 2.0.0.
-        """
-        warnings.warn(
-            "PCA.predict is deprecated and will be removed in 2.0.0; use PCA.diagnose instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.diagnose(X)
 
     def project(self, X: DataMatrix, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
         """Estimate scores and diagnostics for rows that may contain missing values.
