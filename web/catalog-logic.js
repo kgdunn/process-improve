@@ -5,7 +5,7 @@
 
 /** The fields of each design in catalog/index.json, in order: the library's facets, then the build's. */
 export const INDEX_FIELDS = [
-  "id", "title", "collection", "kind", "family", "design_type", "source", "year", "added", "where",
+  "id", "title", "collection", "kind", "family", "design_type", "source", "year", "added", "where", "topics",
   "n_runs", "n_factors", "n_numeric", "n_categorical", "n_mixture", "levels", "n_centre", "runs_per_parameter",
   "models", "blocked", "n_blocks", "split_plot", "has_responses", "n_responses", "checks", "glyph",
   "survives_run_loss", "critical_runs", "worst_d_ratio", "quadratic_projection", "projectivity", "design_class",
