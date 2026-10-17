@@ -996,7 +996,7 @@ class TestNoConvergedStart:
 
 
 class TestResponseImportanceNaming:
-    """The old kwarg name said 'weights' but carried importances."""
+    """The importances are ``response_importance``; the old name, which said 'weights', is gone."""
 
     @staticmethod
     def _model() -> dict:
@@ -1006,24 +1006,13 @@ class TestResponseImportanceNaming:
             "factor_names": ["A", "B"],
         }
 
-    def test_deprecated_alias_still_works(self) -> None:
-        """desirability_weights keeps working, with a warning."""
+    def test_desirability_weights_is_an_unexpected_keyword(self) -> None:
+        """Removed in 2.0.0, after its deprecation in 1.62.0."""
         goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
-        with pytest.warns(DeprecationWarning, match="response_importance"):
-            out = optimize_responses([self._model()], goals=goals, method="desirability", desirability_weights=[1.0])
-        assert out["desirability"]["composite_desirability"] > 0.0
-
-    def test_both_names_together_is_an_error(self) -> None:
-        """Passing both leaves the intent ambiguous."""
-        goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
-        with pytest.raises(ValueError, match="not both"):
-            optimize_responses(
-                [self._model()],
-                goals=goals,
-                method="desirability",
-                response_importance=[1.0],
-                desirability_weights=[2.0],
-            )
+        # Passed through a dict: a literal keyword the signature lacks fails static analysis (CodeQL).
+        removed = {"desirability_weights": [1.0]}
+        with pytest.raises(TypeError, match="unexpected keyword argument 'desirability_weights'"):
+            optimize_responses([self._model()], goals=goals, method="desirability", **removed)
 
     def test_result_carries_responses_for_the_overlay_plot(self) -> None:
         """The desirability result is directly consumable by the overlay plot."""

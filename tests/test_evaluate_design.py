@@ -165,12 +165,12 @@ class TestGEfficiency:
 
 
 # ---------------------------------------------------------------------------
-# I-efficiency
+# I-criterion
 # ---------------------------------------------------------------------------
 
 
 class TestAveragePredictionVariance:
-    """The I-criterion, and the deprecated I-efficiency percentage."""
+    """The I-criterion: the prediction variance averaged over the region."""
 
     def test_two_by_two_factorial(self) -> None:
         """For a 2^2 main-effects design, f(x)'(X'X)^-1 f(x) = (1 + x1^2 + x2^2) / 4; its cube mean is 5/12."""
@@ -182,18 +182,15 @@ class TestAveragePredictionVariance:
         df = _full_factorial_df(2)
         assert "average_prediction_variance" in evaluate_design(df, model="main_effects", metric="i_optimality")
 
-    def test_i_efficiency_still_works_with_a_warning(self) -> None:
-        """Deprecated: the percentage p / (N * APV) is not bounded by 100."""
+    def test_i_efficiency_is_an_unknown_metric(self) -> None:
+        """Removed in 2.0.0: the error names it and lists the metrics there are, the I-criterion among them."""
         df = _full_factorial_df(2)
-        with pytest.warns(DeprecationWarning, match="i_efficiency"):
-            result = evaluate_design(df, model="main_effects", metric="i_efficiency")
-        assert result["i_efficiency"] == pytest.approx(100 * 3 / (4 * result["average_prediction_variance"]))
+        with pytest.raises(ValueError, match=r"Unknown metric\(s\): \['i_efficiency'\].*'average_prediction_variance'"):
+            evaluate_design(df, model="main_effects", metric="i_efficiency")
 
-    def test_all_metrics_leave_out_the_deprecated_one(self) -> None:
+    def test_all_metrics_include_the_i_criterion(self) -> None:
         df = _full_factorial_df(3)
-        result = evaluate_design(df, model="main_effects", metric="all", n_samples=1000)
-        assert "i_efficiency" not in result
-        assert "average_prediction_variance" in result
+        assert "average_prediction_variance" in evaluate_design(df, model="main_effects", metric="all", n_samples=1000)
 
 
 # ---------------------------------------------------------------------------
@@ -1202,14 +1199,6 @@ class TestRegionAndMetricEdgeCases:
         formula = evaluate_design(mixture, model="A + B + C - 1", metric="d_efficiency")
         named = evaluate_design(mixture, model="scheffe_linear", metric="d_efficiency")
         assert formula["d_efficiency"] == pytest.approx(named["d_efficiency"])
-
-    def test_i_efficiency_of_a_rank_deficient_design_is_none(self) -> None:
-        """The deprecated percentage still says why it is missing, as every other metric does."""
-        aliased = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, 1, -1, 1]})
-        with pytest.warns(DeprecationWarning, match="metric 'i_efficiency' is deprecated"):
-            out = evaluate_design(aliased, model="interactions", metric="i_efficiency")
-        assert out["i_efficiency"] is None
-        assert out["notes"]["i_efficiency"] == "Design is rank-deficient for the specified model."
 
     def test_an_all_categorical_design(self, recwarn: pytest.WarningsRecorder) -> None:
         """Label columns are compared as-is for replicates and are never checked for coded units."""

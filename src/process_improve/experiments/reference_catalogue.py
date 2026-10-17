@@ -494,7 +494,8 @@ class _Fits:
             warnings.simplefilter("ignore")
             for wanted in (_ANALYSES, ["coefficients", "anova", "residual_diagnostics"], ["coefficients"]):
                 try:
-                    out |= analyze_experiment(settings, y, model=model, analysis_type=wanted)
+                    # The coefficients as the source prints them: fitted to the settings as given.
+                    out |= analyze_experiment(settings, y, model=model, analysis_type=wanted, coding="actual")
                     break
                 except (ValueError, np.linalg.LinAlgError, KeyError, ZeroDivisionError):
                     continue

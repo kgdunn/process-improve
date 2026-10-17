@@ -38,6 +38,8 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 35: 2.0.0 removed `optimize_responses`' deprecated `desirability_weights` branch,
+    # taking it under C901.
     # 36: #680 replaced the chain of variant branches in `ControlChart.calculate_limits`
     # with a dispatch to each variant's fit, and its C901 suppression went with it.
     # 37: #678 removed the unreachable `raise` after `check_valid_batch_dict` in
@@ -53,7 +55,7 @@ BUDGET: dict[str, int] = {
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 36,
+    "C901": 35,
     # 21: #678's Plotly change took `_add_annotation` under PLR0912. 22: #513 took
     # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
     # `PCA.fit`'s settings resolution and tolerance checks into the shared

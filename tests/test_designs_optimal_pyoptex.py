@@ -321,19 +321,19 @@ class TestFixedRuns:
 
 
 # ---------------------------------------------------------------------------
-# random_seed reaches pyoptex (#640)
+# random_state reaches pyoptex (#640)
 # ---------------------------------------------------------------------------
 
 
-class TestPyoptexHonoursRandomSeed:
-    """pyoptex draws restarts from numpy's global RNG; the design must depend on random_seed only."""
+class TestPyoptexHonoursRandomState:
+    """pyoptex draws restarts from numpy's global RNG; the design must depend on random_state only."""
 
     FACTORS = (Factor(name="A", low=-1, high=1), Factor(name="B", low=-1, high=1), Factor(name="C", low=-1, high=1))
 
-    def _design(self, global_seed: int, random_seed: int) -> pd.DataFrame:
+    def _design(self, global_seed: int, random_state: int) -> pd.DataFrame:
         np.random.seed(global_seed)  # noqa: NPY002 - the caller's global state, which must not matter
         return generate_design(
-            list(self.FACTORS), design_type="d_optimal", budget=10, random_state=random_seed
+            list(self.FACTORS), design_type="d_optimal", budget=10, random_state=random_state
         ).design_actual
 
     def test_same_seed_same_design_whatever_the_global_state(self) -> None:
