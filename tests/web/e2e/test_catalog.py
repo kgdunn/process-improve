@@ -2,14 +2,15 @@
 
 The catalog served here is the build's, for the few designs of ``CATALOG_SAMPLE``: a published
 experiment the page regenerates, with its results; a comparison; a generated design the page makes;
-and one it does not.
+and one it does not. The tests of a book design's place, and of the applications, use ``book_context``,
+whose catalog also holds ``BOOK_DESIGN``, a case study the book prints.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from tests.web._support import CATALOG_SAMPLE
+from tests.web._support import BOOK_DESIGN, CATALOG_SAMPLE
 from tests.web.e2e._page import run_sheet, settled
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
@@ -93,6 +94,65 @@ def test_a_design_s_detail_shows_its_source_and_its_checks(context, site):
     page.keyboard.press("Escape")
     page.wait_for_selector("#detail:not([open])", state="attached")
     assert "d=" not in page.url
+
+
+def test_a_book_design_s_detail_links_to_its_section_and_names_its_figures(book_context, site):
+    """The place links to the book's section, at its anchor; the figures are named, without their files."""
+    page = open_catalog(book_context, site, f"#d={BOOK_DESIGN}")
+    page.wait_for_selector("#detail[open] .detail__where a")
+    place = page.locator("#detail-body .detail__where a")
+    assert place.get_attribute("href") == (
+        "https://learnche.org/pid/design-analysis-experiments/omars-worked-study#doe-omars-worked-study"
+    )
+    assert (place.get_attribute("target"), place.get_attribute("rel")) == ("_blank", "noopener")
+    assert place.text_content() == "section A worked OMARS study: four factors on a fed-batch bioreactor"
+    assert page.get_attribute("#detail-body .detail__cite a", "href") == "https://learnche.org/pid", (
+        "the citation still links to the book"
+    )
+    where = " ".join(page.text_content("#detail-body .detail__where").split())
+    assert where.startswith("Printed in section A worked OMARS study")
+    assert "; The thirty batches in run order;" in where
+    text = page.text_content("#detail-body") + page.text_content("#results")
+    assert ".png" not in text, "no file path is shown"
+    assert "../" not in text
+    assert "Application: Bioprocessing and fermentation." in page.text_content("#detail-body .detail__application")
+
+
+def test_a_design_printed_in_a_book_names_its_place_without_a_link(context, site):
+    page = open_catalog(context, site, f"#d={PILOT}")
+    page.wait_for_selector("#detail[open] .detail__where")
+    assert page.locator("#detail-body .detail__where a").count() == 0, "a printed book has no address for its pages"
+    assert page.text_content("#detail-body .detail__where").startswith("Printed in section 10.2 to 10.7")
+    assert page.text_content("#detail-body .detail__application") == "Application: Chemical reactions and processes."
+
+
+def test_an_application_narrows_the_list_and_the_address_keeps_it(book_context, site):
+    page = open_catalog(book_context, site)
+    listed = page.eval_on_selector_all("#topics input", "boxes => boxes.map((b) => b.value)")
+    assert listed == ["chemical-processes", "bioprocessing"], "the most designs first"
+    chemical = page.locator("#topics label", has=page.locator("input[value='chemical-processes']"))
+    assert chemical.locator(".count").text_content() == "2"
+    chemical.locator("input").check()
+    counted(page, "2 of 6")
+    assert set(shown(page)) == {PILOT, COMPARISON}, "a generated design has no application"
+    assert "app=chemical-processes" in page.url
+    badges = page.locator(".result", has=page.locator(f".result__title[data-id='{PILOT}']")).locator(".badge--topic")
+    assert badges.all_text_contents() == ["Chemical reactions and processes"]
+    assert "keeps the published designs only" in " ".join(page.text_content("#topics-hint").split())
+    page.locator("#topics input[value='bioprocessing']").check()
+    counted(page, "3 of 6")
+    assert "app=chemical-processes%2Cbioprocessing" in page.url
+    again = open_catalog(book_context, site, "#app=bioprocessing")
+    counted(again, "1 of 6")
+    assert shown(again) == [BOOK_DESIGN]
+    assert again.is_checked("#topics input[value='bioprocessing']")
+
+
+def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
+    page = open_catalog(book_context, site)
+    page.fill("#query", "fermentation")
+    counted(page, "1 of 6")
+    assert shown(page) == [BOOK_DESIGN]
 
 
 def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context, site):
