@@ -1164,11 +1164,13 @@ def test_a_fraction_s_word_lengths_and_clear_effects_are_read_from_its_defining_
 
 
 def test_generators_are_compared_by_word_lengths_with_the_fraction_the_library_chooses():
-    """Nine factors in 32 runs: the library's resolution IV fraction has six four-letter words; F = ABC, ... has 14."""
+    """Nine factors in 32 runs: the source's fraction and the library's both have six four-letter words; F = ABC,
+    G = ABD, H = ACD, J = BCD has 14.
+    """
     from process_improve.experiments.reference_catalogue import _design_check
 
     table = {"kind": "minimum_aberration", "generators": ["F=BCDE", "G=ACDE", "H=ABDE", "J=ABCE"]}
-    assert _design_check(table, "", 9) == ("F=BCDE, G=ACDE, H=ABDE, J=ABCE", True)
+    assert _design_check(table, "", 9) == ("F=ABC, G=ABD, H=ABE, J=ACDE", True)  # the library's 32-run choice
     assert not _design_check({**table, "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD"]}, "", 9)[1]
 
 

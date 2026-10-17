@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -309,6 +311,24 @@ class TestPlackettBurman:
             vals = result.design[col].unique()
             assert set(vals) <= {-1.0, 1.0}
 
+    @pytest.mark.parametrize(
+        ("k", "construction", "sizes"), [(23, "I+C(paley_q=23)", {0, 8}), (35, "cyclic_row_36", {4, 12})]
+    )
+    def test_24_and_36_runs_are_the_cyclic_designs_plackett_and_burman_printed(
+        self, k: int, construction: str, sizes: set[int]
+    ) -> None:
+        """Not the 12-run design doubled, nor Paley's second construction: no product of three columns is aliased.
+
+        |J|, the absolute sum of a product of three columns, takes only the sizes of the designs written
+        from Plackett and Burman's rows (Montgomery's Table 8.23); the doubled 24-run design has |J| = 24.
+        """
+        result = generate_design(_continuous_factors(k), design_type="plackett_burman", n_center_points=0)
+        assert result.metadata["construction"] == construction
+        x = result.design[result.factor_names].to_numpy(dtype=float)
+        j_sizes = {abs(round(np.prod(x[:, list(c)], axis=1).sum())) for c in itertools.combinations(range(k), 3)}
+        assert j_sizes == sizes
+        assert np.allclose(x.T @ x, len(x) * np.eye(k))
+
 
 # ---------------------------------------------------------------------------
 # Box-Behnken
@@ -486,11 +506,37 @@ class TestCCD:
         result = generate_design(factors, design_type="ccd", cube="fractional", alpha="rotatable", n_center_points=6)
         assert result.alpha == pytest.approx(16**0.25)  # 16-run cube -> alpha = 2.0
 
-    def test_fractional_cube_rejects_low_resolution(self) -> None:
-        """A sub-resolution-V cube is rejected: the quadratic model would be inestimable."""
+    def test_fractional_cube_that_aliases_interactions_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """E = ABC aliases AB with CE and so on: the full quadratic model is not estimable, a reduced one is."""
         factors = _continuous_factors(5, "ABCDE")
-        with pytest.raises(ValueError, match="resolution V"):
-            generate_design(factors, design_type="ccd", cube="fractional", generators=["E=ABC"])
+        with caplog.at_level("WARNING"):
+            result = generate_design(factors, design_type="ccd", cube="fractional", generators=["E=ABC"])
+        assert "not estimable" in caplog.text
+        assert result.metadata["full_quadratic_estimable"] is False
+        assert "A:B = C:E" in result.metadata["aliased_interactions"]
+        assert len(result.metadata["aliased_interactions"]) == 3
+
+    def test_default_half_fraction_that_aliases_interactions_raises(self) -> None:
+        """Four factors: the half fraction I = ABCD aliases AB with CD, so the default cube is refused."""
+        with pytest.raises(ValueError, match="aliases two-factor interactions in pairs"):
+            generate_design(_continuous_factors(4, "ABCD"), design_type="ccd", cube="fractional")
+
+    @pytest.mark.parametrize(("k", "generators", "n_cube"), [(3, None, 4), (4, ["D=AB"], 8)])
+    def test_small_composite_design(self, k: int, generators: list[str] | None, n_cube: int) -> None:
+        """Hartley's small composite designs: cube runs aliasing interactions only with main effects.
+
+        Three factors in 4 + 6 runs and four in 8 + 8 (Nunez Ares and Goos 2020, Table 1), centre runs aside.
+        """
+        factors = _continuous_factors(k, "ABCD"[:k])
+        result = generate_design(
+            factors, design_type="ccd", cube="fractional", generators=generators, n_center_points=0
+        )
+        assert result.n_runs == n_cube + 2 * k
+        assert result.metadata["full_quadratic_estimable"] is True
+        x = result.design[result.factor_names].to_numpy(dtype=float)
+        pairs = [x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]
+        quadratic = np.column_stack([np.ones(len(x)), x, x**2, *pairs])
+        assert np.linalg.matrix_rank(quadratic) == quadratic.shape[1]  # the full quadratic model is estimable
 
     def test_full_cube_default_unchanged(self) -> None:
         """The default full cube is unchanged: 32 cube + 10 axial + 6 centre = 48 runs."""

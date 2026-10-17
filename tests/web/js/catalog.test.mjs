@@ -7,6 +7,12 @@ import { describe, test } from "node:test";
 import {
   COMPARE_MOST,
   DEFAULT_STATE,
+  applicationLine,
+  applications,
+  topicCounts,
+  topicOrder,
+  placesAfter,
+  whereParts,
   LETTERS,
   limitInUnits,
   limitLine,
@@ -91,6 +97,7 @@ const design = (changes) => ({
   quadratic_projection: 0,
   projectivity: 3,
   design_class: "cube",
+  topics: [],
   ...changes,
 });
 
@@ -104,11 +111,24 @@ const CATALOG = {
     dsd: { label: "Definitive screening" },
     ccd: { label: "Central composite" },
   },
+  topics: {
+    "food-beverages": { label: "Food and beverages", description: "Cooking, baking, fermentation of food." },
+    "chemical-processes": { label: "Chemical reactions and processes", description: "Reactors, yield, conversion." },
+    general: { label: "General (no stated application)", description: "Abstract factors (A, B, x1, ...)." },
+  },
   designs: [
-    design({ id: "pilot-plant", title: "Pilot plant", has_responses: true, n_responses: 1, n_categorical: 1 }),
+    design({
+      id: "pilot-plant",
+      title: "Pilot plant",
+      has_responses: true,
+      n_responses: 1,
+      n_categorical: 1,
+      topics: ["chemical-processes"],
+    }),
     design({
       id: "dsd-categorical",
       title: "DSD with a categorical factor",
+      topics: ["general"],
       family: "dsd",
       source: "jn",
       year: 2013,
@@ -273,6 +293,69 @@ describe("the filters", () => {
   });
 });
 
+describe("the applications", () => {
+  test("an application keeps the designs that list it, and none that the library generates", () => {
+    assert.deepEqual(ids(results(CATALOG, state({ topics: ["chemical-processes"] }))), ["pilot-plant"]);
+    assert.deepEqual(ids(results(CATALOG, state({ topics: ["chemical-processes", "general"] }))), ["pilot-plant", "dsd-categorical"]);
+    assert.deepEqual(ids(results(CATALOG, state({ topics: ["general"], collection: "generated" }))), []);
+    assert.deepEqual(ids(results(CATALOG, state({ topics: [] }))), ["pilot-plant", "dsd-categorical", "lib-ccd-k3"]);
+  });
+
+  test("an application's count leaves out the application filter and keeps the others", () => {
+    assert.deepEqual(topicCounts(CATALOG, state({ topics: ["general"] })), { "chemical-processes": 1, general: 1 });
+    assert.deepEqual(topicCounts(CATALOG, state({ hasData: true })), { "chemical-processes": 1 });
+    assert.deepEqual(topicCounts(CATALOG, state({ collection: "generated" })), {});
+  });
+
+  test("the filter lists the applications some design has, the most designs first, and general last", () => {
+    const catalog = {
+      ...CATALOG,
+      designs: [
+        design({ id: "a", topics: ["general"] }),
+        design({ id: "b", topics: ["general"] }),
+        design({ id: "c", topics: ["food-beverages"] }),
+        design({ id: "d", topics: ["chemical-processes", "food-beverages"] }),
+      ],
+    };
+    assert.deepEqual(topicOrder(catalog), ["food-beverages", "chemical-processes", "general"]);
+    assert.deepEqual(topicOrder({ ...catalog, designs: [design({ topics: [] })] }), []);
+  });
+
+  test("a word of an application's name finds its designs; general is no word to find", () => {
+    assert.deepEqual(ids(results(CATALOG, state({ query: "chemical" }))), ["pilot-plant"]);
+    assert.deepEqual(ids(results(CATALOG, state({ query: "chemical reactions" }))), ["pilot-plant"]);
+    assert.deepEqual(ids(results(CATALOG, state({ query: "food" }))), []);
+    assert.deepEqual(ids(results(CATALOG, state({ query: "stated application" }))), []);
+  });
+
+  test("a design's applications in words, without general", () => {
+    assert.deepEqual(applications(CATALOG.designs[0], CATALOG), ["Chemical reactions and processes"]);
+    assert.equal(applicationLine(CATALOG.designs[0], CATALOG), "Application: Chemical reactions and processes.");
+    const two = design({ topics: ["food-beverages", "chemical-processes"] });
+    assert.equal(applicationLine(two, CATALOG), "Applications: Food and beverages; Chemical reactions and processes.");
+    assert.equal(applicationLine(CATALOG.designs[1], CATALOG), "", "a source that states no application");
+    assert.equal(applicationLine(CATALOG.designs[2], CATALOG), "", "a generated design");
+  });
+});
+
+describe("where a design is printed", () => {
+  test("its section, pages, tables and figures, each a part of its own", () => {
+    const where = { section: "10.2", pages: "307-324", tables: ["Table 10.1"], figures: ["Cube plot", "Pareto plot, sorted"] };
+    assert.deepEqual(whereParts(where), ["section 10.2", "pages 307-324", "Table 10.1", "Cube plot", "Pareto plot, sorted"]);
+    assert.deepEqual(whereParts({ pages: 73 }), ["page 73"]);
+    assert.deepEqual(whereParts("Table 4"), ["Table 4"]);
+    assert.deepEqual(whereParts(null), []);
+  });
+
+  test("after its first part, the line names four places and counts the rest", () => {
+    const rest = ["T1", "T2", "F1", "F2", "F3", "F4"];
+    assert.equal(placesAfter(rest), "; T1; T2; F1; F2; and 2 more tables and figures.");
+    assert.equal(placesAfter(rest.slice(0, 5)), "; T1; T2; F1; F2; and 1 more table or figure.");
+    assert.equal(placesAfter(rest.slice(0, 2)), "; T1; T2.");
+    assert.equal(placesAfter([]), ".");
+  });
+});
+
 describe("the address", () => {
   test("the default filters write nothing", () => {
     assert.equal(toHash(state()), "");
@@ -297,8 +380,16 @@ describe("the address", () => {
       view: "compare",
       limit: "A + B <= 1",
       limitAll: true,
+      topics: ["food-beverages", "general"],
     });
-    assert.deepEqual(fromHash(toHash(chosen), CATALOG.families, CATALOG.sources), chosen);
+    assert.deepEqual(fromHash(toHash(chosen), CATALOG.families, CATALOG.sources, CATALOG.topics), chosen);
+  });
+
+  test("the applications chosen are kept under app, and one the catalog does not have is ignored", () => {
+    assert.equal(toHash(state({ topics: ["food-beverages", "general"] })), "#app=food-beverages%2Cgeneral");
+    const read = fromHash("#app=food-beverages,cooking,general,food-beverages", CATALOG.families, CATALOG.sources, CATALOG.topics);
+    assert.deepEqual(read.topics, ["food-beverages", "general"]);
+    assert.deepEqual(fromHash("#app=food-beverages").topics, [], "no application without the catalog's list");
   });
 
   test("anything the page did not write is ignored", () => {

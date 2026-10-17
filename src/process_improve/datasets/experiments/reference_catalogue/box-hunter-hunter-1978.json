@@ -475,8 +475,18 @@
       "quote": "t value when η0 = 84.12 t0 = (85.54 - 84.12)/1.16 = 1.22"
      },
      "check": {
-      "manual": "a t statistic against a stated mean, which no check computes (it is 1.230 from the B runs; the book's 1.22 uses the rounded 1.16)"
-     }
+      "kind": "classical_test",
+      "function": "ttest_one_sample",
+      "kwargs": {
+       "mu": 84.12
+      },
+      "x": {
+       "method": "B"
+      },
+      "key": "t_value",
+      "disagreement": "the book divides by the standard error rounded to 1.16, (85.54 - 84.12)/1.16 = 1.22; the unrounded 1.154 gives 1.23"
+     },
+     "analysis": "the library's ttest_one_sample of method B's ten yields against 84.12"
     },
     {
      "what": "p_value",
@@ -488,8 +498,18 @@
       "quote": "significance level for ν = 9 Pr(t ≥ t0) = 0.13"
      },
      "check": {
-      "manual": "a one-sample test against a stated mean, which no check computes (it is 0.125)"
-     }
+      "kind": "classical_test",
+      "function": "ttest_one_sample",
+      "kwargs": {
+       "mu": 84.12
+      },
+      "x": {
+       "method": "B"
+      },
+      "key": "p_value_greater",
+      "disagreement": "the book's level is that of its t = 1.22, from the rounded standard error, 0.127; the unrounded t = 1.23 gives 0.125, printed 0.12"
+     },
+     "analysis": "the library's ttest_one_sample of method B's ten yields against 84.12: the one-sided level Pr(t >= t0) on 9 degrees of freedom"
     },
     {
      "what": "p_value",
@@ -501,8 +521,17 @@
       "quote": "compute the significance level for the 10 observations for method A ... η0 = 84.12 ... Answer: 0.45"
      },
      "check": {
-      "manual": "Exercise 3.5: a one-sample test against a stated mean, which no check computes (it is 0.449)"
-     }
+      "kind": "classical_test",
+      "function": "ttest_one_sample",
+      "kwargs": {
+       "mu": 84.12
+      },
+      "x": {
+       "method": "A"
+      },
+      "key": "p_value_greater"
+     },
+     "analysis": "the library's ttest_one_sample of method A's ten yields against 84.12: the one-sided level Pr(t >= t0) on 9 degrees of freedom"
     },
     {
      "what": "std_error",
@@ -514,8 +543,20 @@
       "quote": "the standard error of the difference yB - yA = 1.30 is ... = 1.29"
      },
      "check": {
-      "manual": "a standard error from the standard deviation of the 210 past yields, σ = 2.88, not from these runs"
-     }
+      "kind": "classical_test",
+      "function": "ztest",
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "kwargs": {
+       "sigma": 2.88
+      },
+      "key": "std_error"
+     },
+     "analysis": "the library's ztest of B against A with sigma = 2.88, the standard deviation of the 210 past yields: the standard error of the difference"
     },
     {
      "what": "z_value",
@@ -527,8 +568,20 @@
       "quote": "z0 = 1.30/1.29 = 1.01, and Pr(z > 1.01) = 0.156"
      },
      "check": {
-      "manual": "a normal deviate with σ taken from past records, which no check computes"
-     }
+      "kind": "classical_test",
+      "function": "ztest",
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "kwargs": {
+       "sigma": 2.88
+      },
+      "key": "z_value"
+     },
+     "analysis": "the library's ztest of B against A with sigma = 2.88: the normal deviate of the difference"
     },
     {
      "what": "p_value",
@@ -540,8 +593,20 @@
       "quote": "z0 = 1.30/1.29 = 1.01, and Pr(z > 1.01) = 0.156"
      },
      "check": {
-      "manual": "a normal significance level with σ taken from past records, which no check computes"
-     }
+      "kind": "classical_test",
+      "function": "ztest",
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "kwargs": {
+       "sigma": 2.88
+      },
+      "key": "p_value_greater"
+     },
+     "analysis": "the library's ztest of B against A with sigma = 2.88: the one-sided level Pr(z > z0)"
     },
     {
      "what": "ms_residual",
@@ -657,8 +722,20 @@
       "quote": "For A 2 + 3 + 4 + 7½ + 9½ + 9½ + ... + 19 = 95.5"
      },
      "check": {
-      "manual": "a Wilcoxon rank sum, which no check computes (it reproduces: 95.5)"
-     }
+      "kind": "classical_test",
+      "function": "rank_sum_test",
+      "kwargs": {
+       "tie_correction": false
+      },
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "key": "rank_sum_x"
+     },
+     "analysis": "the library's rank_sum_test: method A's rank sum, ties taking the average of their ranks"
     },
     {
      "what": "rank_sum",
@@ -670,8 +747,20 @@
       "quote": "For B 1 + 5 + 6 + 7½ + 9½ + 11 + ... + 20 = 114.5"
      },
      "check": {
-      "manual": "a Wilcoxon rank sum, which no check computes (it reproduces: 114.5)"
-     }
+      "kind": "classical_test",
+      "function": "rank_sum_test",
+      "kwargs": {
+       "tie_correction": false
+      },
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "key": "rank_sum_y"
+     },
+     "analysis": "the library's rank_sum_test: method B's rank sum, ties taking the average of their ranks"
     },
     {
      "what": "z_value",
@@ -683,8 +772,20 @@
       "quote": "For this example z0 = 0.718 and Pr(z > 0.718) = 0.236"
      },
      "check": {
-      "manual": "the normal approximation to Wilcoxon's test, which no check computes (it reproduces: 0.718)"
-     }
+      "kind": "classical_test",
+      "function": "rank_sum_test",
+      "kwargs": {
+       "tie_correction": false
+      },
+      "x": {
+       "method": "B"
+      },
+      "y": {
+       "method": "A"
+      },
+      "key": "z_value"
+     },
+     "analysis": "the library's rank_sum_test of B against A: the normal deviate of B's rank sum, without a correction for ties, as the book works it"
     },
     {
      "what": "p_value",
@@ -696,8 +797,20 @@
       "quote": "For this example z0 = 0.718 and Pr(z > 0.718) = 0.236"
      },
      "check": {
-      "manual": "the normal approximation to Wilcoxon's test, which no check computes (it reproduces: 0.236)"
-     }
+      "kind": "classical_test",
+      "function": "rank_sum_test",
+      "kwargs": {
+       "tie_correction": false
+      },
+      "x": {
+       "method": "B"
+      },
+      "y": {
+       "method": "A"
+      },
+      "key": "p_value_greater"
+     },
+     "analysis": "the library's rank_sum_test of B against A: the one-sided normal level"
     },
     {
      "what": "p_value",
@@ -6969,8 +7082,14 @@
       "quote": "For the production data the sample autocorrelation coefficient is r1 = -0.29"
      },
      "check": {
-      "manual": "a lag-1 autocorrelation, which no check computes (it reproduces: -0.289)"
-     }
+      "kind": "classical_test",
+      "function": "autocorrelation",
+      "kwargs": {
+       "lags": 1
+      },
+      "key": "autocorrelation.0"
+     },
+     "analysis": "the library's autocorrelation of the 210 yields at lag 1"
     },
     {
      "what": "autocorrelation",
@@ -6981,9 +7100,90 @@
       "source_kind": "exercise",
       "quote": "Compute r1, r2, and r3 for the first 12 observations listed in Table 2.2. Answer: -0.34, -0.16, -0.05"
      },
-     "check": {
-      "manual": "Exercise 3.3: autocorrelations, which no check computes (they reproduce: -0.337, -0.158, -0.046)"
-     }
+     "check": [
+      {
+       "kind": "classical_test",
+       "function": "autocorrelation",
+       "x": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+       ],
+       "kwargs": {
+        "lags": [
+         1,
+         2,
+         3
+        ]
+       },
+       "key": "autocorrelation.0",
+       "printed": "-0.34"
+      },
+      {
+       "kind": "classical_test",
+       "function": "autocorrelation",
+       "x": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+       ],
+       "kwargs": {
+        "lags": [
+         1,
+         2,
+         3
+        ]
+       },
+       "key": "autocorrelation.1",
+       "printed": "-0.16"
+      },
+      {
+       "kind": "classical_test",
+       "function": "autocorrelation",
+       "x": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+       ],
+       "kwargs": {
+        "lags": [
+         1,
+         2,
+         3
+        ]
+       },
+       "key": "autocorrelation.2",
+       "printed": "-0.05"
+      }
+     ],
+     "analysis": "the library's autocorrelation of the first 12 yields at lags 1, 2 and 3"
     },
     {
      "what": "difference_of_means",
@@ -15260,8 +15460,14 @@
       "quote": "For the industrial example 1/√210 = 0.07"
      },
      "check": {
-      "manual": "the approximate standard error of an autocorrelation, 1/√n"
-     }
+      "kind": "classical_test",
+      "function": "autocorrelation",
+      "kwargs": {
+       "lags": 1
+      },
+      "key": "std_error"
+     },
+     "analysis": "the library's autocorrelation of the 210 yields: the approximate standard error 1/sqrt(210)"
     },
     {
      "what": "variance",
@@ -15954,8 +16160,17 @@
       "quote": "Answer: 0.00, 0.05, 0.12, 0.05, 0.17."
      },
      "check": {
-      "manual": "Wilcoxon's test, which no check computes (the exact level reproduces: 0.167)"
-     }
+      "kind": "classical_test",
+      "function": "rank_sum_test",
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "key": "exact_p_value_less"
+     },
+     "analysis": "the library's rank_sum_test: the exact level of Wilcoxon's test, the share of all splits of the ranks whose sum for A is at most the observed one"
     }
    ],
    "notes": "Four trials on successive days in the order A, A, B, B. Past preparations by method A, the external reference: 25, 23, 27, 31, 32, 35, 40, 38, 38, 33, 27, 21, 19, 24, 17, 15, 14, 19, 23, 22."
@@ -16108,8 +16323,17 @@
       "quote": "Answer: 0.10, 0.10, 0.12, 0.15, 0.10."
      },
      "check": {
-      "manual": "Wilcoxon's test, which no check computes (the exact level reproduces: 2/20 = 0.10)"
-     }
+      "kind": "classical_test",
+      "function": "rank_sum_test",
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "key": "exact_p_value_less"
+     },
+     "analysis": "the library's rank_sum_test: the exact level of Wilcoxon's test, the share of all splits of the ranks whose sum for A is at most the observed one"
     }
    ],
    "notes": "Readings at 5-minute intervals. The same patient off the drug, the external reference: 5, 5, 9, 7, 3, 4, 5, 8, 9, 12, 14, 8, 9, 11, 14, 9, 10, 10, 6, 5, 4, 2, 3, 3, 3, 8, 2, 3, 4, 6, 5, 3, 2, 4, 6, 4."
@@ -16337,8 +16561,20 @@
       "quote": "Given the following data and σ = 4, compute the significance level ... Answer: 0.186."
      },
      "check": {
-      "manual": "a normal significance level with σ = 4 given, which no check computes (it reproduces: 0.186)"
-     }
+      "kind": "classical_test",
+      "function": "ztest",
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "kwargs": {
+       "sigma": 4
+      },
+      "key": "p_value_greater"
+     },
+     "analysis": "the library's ztest of B against A with sigma = 4 given: the one-sided level Pr(z > z0)"
     },
     {
      "what": "p_value",
@@ -16460,8 +16696,20 @@
       "quote": "Given the following data and σ = 4, compute the significance level ... Answer: 0.043."
      },
      "check": {
-      "manual": "a normal significance level with σ = 4 given, which no check computes (it reproduces: 0.043)"
-     }
+      "kind": "classical_test",
+      "function": "ztest",
+      "x": {
+       "method": "A"
+      },
+      "y": {
+       "method": "B"
+      },
+      "kwargs": {
+       "sigma": 4
+      },
+      "key": "p_value_greater"
+     },
+     "analysis": "the library's ztest of B against A with sigma = 4 given: the one-sided level Pr(z > z0)"
     },
     {
      "what": "p_value",
@@ -16949,8 +17197,17 @@
       "quote": "154 of the possible 462 arrangements yield differences greater than 1.69 ... 154/462 = 0.33"
      },
      "check": {
-      "manual": "a randomization test over the 462 ways to label 5 plants A and 6 B, which no check computes (it reproduces: 154 arrangements reach 1.69, the observed one included)"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "fertilizer": "A"
+      },
+      "y": {
+       "fertilizer": "B"
+      },
+      "key": "p_value"
+     },
+     "analysis": "the library's randomization_test of the 11 plants: of the 462 ways to label 5 A and 6 B, the share whose difference of averages is at least the observed 1.69, itself included (154)"
     },
     {
      "what": "ci_low",
@@ -17364,8 +17621,20 @@
       "quote": "If we include half these ties, we obtain a significance level of 5/1024 = 0.005"
      },
      "check": {
-      "manual": "a randomization test over the 1024 sign patterns, which no check computes (it reproduces: 3 averages above 0.41 and 4 equal)"
-     }
+      "kind": "classical_test",
+      "function": "randomization_test",
+      "x": {
+       "material": "A"
+      },
+      "y": {
+       "material": "B"
+      },
+      "kwargs": {
+       "paired": true
+      },
+      "key": "p_value_mid"
+     },
+     "analysis": "the library's randomization_test of the ten boys' differences B - A over the 1024 patterns of signs: 3 averages above the observed 0.41 and 4 equal, the ties counted as half, (3 + 2)/1024"
     },
     {
      "what": "t_value",
@@ -17436,9 +17705,73 @@
       "source_kind": "table",
       "quote": "0.999 -0.16 0.98"
      },
-     "check": {
-      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is -0.175 to 0.995)"
-     }
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.999,
+       "key": "ci_low",
+       "printed": "-0.16",
+       "disagreement": "the book takes the standard error rounded to 0.12 (0.1225 unrounded), so its limits are 0.41 -/+ t times 0.12"
+      },
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.999,
+       "key": "ci_high",
+       "printed": "0.98",
+       "disagreement": "the book takes the standard error rounded to 0.12 (0.1225 unrounded), so its limits are 0.41 -/+ t times 0.12"
+      }
+     ],
+     "analysis": "the library's paired t-test of B against A: the 0.999 confidence interval for the mean difference"
     },
     {
      "what": "confidence_interval",
@@ -17449,9 +17782,71 @@
       "source_kind": "table",
       "quote": "0.99 0.01 0.81"
      },
-     "check": {
-      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is 0.012 to 0.808)"
-     }
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.99,
+       "key": "ci_low",
+       "printed": "0.01"
+      },
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.99,
+       "key": "ci_high",
+       "printed": "0.81"
+      }
+     ],
+     "analysis": "the library's paired t-test of B against A: the 0.99 confidence interval for the mean difference"
     },
     {
      "what": "confidence_interval",
@@ -17462,9 +17857,71 @@
       "source_kind": "table",
       "quote": "0.90 0.19 0.63"
      },
-     "check": {
-      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is 0.186 to 0.634)"
-     }
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.9,
+       "key": "ci_low",
+       "printed": "0.19"
+      },
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.9,
+       "key": "ci_high",
+       "printed": "0.63"
+      }
+     ],
+     "analysis": "the library's paired t-test of B against A: the 0.9 confidence interval for the mean difference"
     },
     {
      "what": "confidence_interval",
@@ -17475,9 +17932,71 @@
       "source_kind": "table",
       "quote": "0.80 0.24 0.58"
      },
-     "check": {
-      "manual": "a confidence interval at a level other than 95%, which no check reads (from the unrounded standard error it is 0.241 to 0.579)"
-     }
+     "check": [
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.8,
+       "key": "ci_low",
+       "printed": "0.24"
+      },
+      {
+       "kind": "t_test",
+       "test": "paired",
+       "runs": [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20
+       ],
+       "minus": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17,
+        19
+       ],
+       "confidence": 0.8,
+       "key": "ci_high",
+       "printed": "0.58"
+      }
+     ],
+     "analysis": "the library's paired t-test of B against A: the 0.8 confidence interval for the mean difference"
     },
     {
      "what": "p_value",
@@ -18182,9 +18701,25 @@
       "source_kind": "table",
       "quote": "the 95% confidence limits for the mean difference ηB - ηA are 5 ± 2.09√2.33, that is, 5 ± 3.2"
      },
-     "check": {
-      "manual": "an interval for one difference between two treatment means, which no check computes (pairwise comparisons)"
-     }
+     "check": [
+      {
+       "kind": "least_squares_means",
+       "model": "diet",
+       "factor": "diet",
+       "comparisons": "none",
+       "key": "pairs.B - A.difference",
+       "printed": "5"
+      },
+      {
+       "kind": "least_squares_means",
+       "model": "diet",
+       "factor": "diet",
+       "comparisons": "none",
+       "key": "pairs.B - A.half_width",
+       "printed": "3.2"
+      }
+     ],
+     "analysis": "the library's least_squares_means, unadjusted comparisons: the difference of two diets' means and its 95% interval's half-width, t0.025,20 √(s²(1/4 + 1/6))"
     },
     {
      "what": "coefficient",
@@ -26852,8 +27387,12 @@
       "quote": "A 1446 5481 303 21.64 367.43"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.A.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -26894,8 +27433,12 @@
       "quote": "B 2286 6162 2982 213.00 558.79"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.B.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -26936,8 +27479,12 @@
       "quote": "C 1002 5267 -1259 -89.93 255.86"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.C.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -26978,8 +27525,12 @@
       "quote": "D 928 5476 -1764 -126.00 219.79"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.D.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -27020,8 +27571,12 @@
       "quote": "E 739 5236 -2280 -162.86 182.93"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.E.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -27062,8 +27617,12 @@
       "quote": "F 2206 5883 2941 210.07 555.86"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.F.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -27104,8 +27663,12 @@
       "quote": "G 1075 5223 -923 -65.93 279.86"
      },
      "check": {
-      "manual": "an adjusted treatment average, the grand average plus the adjusted effect, both checked (least-squares means are not yet a library output)"
-     }
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "by_level.G.mean"
+     },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the adjusted average, the model's prediction averaged over the blocks"
     },
     {
      "what": "totals",
@@ -56457,9 +57020,26 @@
       "source_kind": "prose",
       "quote": "ŷ - 88.2 = -5.12X1² + 2.4X2 - 0.15X2² (15.30)"
      },
-     "check": {
-      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge; the library places the stationary point at (-3.47, 2.78) coded, ŷ = 90.3, far outside the region, and calls the surface a maximum"
-     }
+     "check": [
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "key": "canonical_analysis.b_canonical.origin_response",
+       "printed": "88.2",
+       "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 88.2 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+      },
+      {
+       "kind": "optimum",
+       "method": "canonical_analysis",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "key": "canonical_analysis.b_canonical.linear",
+       "abs": true,
+       "printed": "2.4",
+       "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 2.4 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+      }
+     ],
+     "analysis": "the library's B canonical form (Box and Draper): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge"
     },
     {
      "what": "canonical",
@@ -56500,8 +57080,15 @@
       "quote": "0.63x1 + 0.77x2 + 0.33 = 0"
      },
      "check": {
-      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge"
-     }
+      "kind": "optimum",
+      "method": "canonical_analysis",
+      "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+      "key": "canonical_analysis.b_canonical.offsets.0",
+      "sign_of": "canonical_analysis.eigenvectors.0.0",
+      "printed": "0.33",
+      "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 0.33 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+     },
+     "analysis": "the library's B canonical form (Box and Draper): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge: the constant of the ridge X1 = 0"
     }
    ]
   },
