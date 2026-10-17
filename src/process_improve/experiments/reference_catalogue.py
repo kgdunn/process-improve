@@ -79,6 +79,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
+from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.omars_trade_off import get_omars_trade_off_table_entry, omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
@@ -2793,6 +2794,49 @@ def _expected_mean_squares(_experiment: dict, check: dict) -> float:
     return float(found["ems"][kind].get(rest, 0))
 
 
+def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
+    """Return the library's least-squares means of ``check["factor"]`` under ``check["model"]``, as it returns them.
+
+    ``check["comparisons"]`` is ``"tukey"`` (the default), ``"dunnett"`` (against ``check["control"]``)
+    or ``"none"``; ``check["at"]`` holds other factors at one level and ``check["categorical"]`` names
+    the other numeric columns the model takes as levels.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    response = check.get("response") or responses.columns[0]
+    table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    model = check["model"]
+    for name in check.get("categorical") or []:  # numeric columns the model takes as levels
+        model = re.sub(rf"\b{re.escape(name)}\b", f"C({name})", model)
+    method = Comparisons(check.get("comparisons", "tukey"), check.get("control"), check.get("confidence", 0.95))
+    return least_squares_means(table, f"{response} ~ {model}", check["factor"], method, at=check.get("at"))
+
+
+def _least_squares_means(experiment: dict, check: dict) -> float:
+    """Return a number of the library's least-squares means (see ``_least_squares_result``).
+
+    ``check["key"]`` reads ``"by_level.<level>.mean"`` (or ``std_error``, ``ci_low``, ``ci_high``),
+    ``"pairs.<level> - <versus>.<field>"``, with ``difference``, ``std_error``, ``t``, ``p_value``,
+    ``ci_low``, ``ci_high`` or ``half_width``, or one number: ``"critical_value"``,
+    ``"studentized_range"``, ``"individual_confidence"`` or ``"family_confidence"``.
+    """
+    found = _least_squares_result(experiment, check)
+    head, _, rest = check["key"].partition(".")
+    if not rest:
+        return float(found[head])
+    item, _, field = rest.rpartition(".")  # not _read: its "mean" would reduce the row, not read its mean
+    return float(found[head][item][field])
+
+
+def _connecting_letters(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Compare the library's connecting letters with the printed ``"3 A, 2 B, 1 B"``: each level, then its letters."""
+    letters = _least_squares_result(experiment, check)["letters"]
+    wanted = dict(pair.split() for pair in printed.split(","))
+    found = ", ".join(f"{level} {letters.get(level, '?')}" for level in wanted)
+    return found, wanted == {level: letters[level] for level in wanted if level in letters} and len(wanted) == len(
+        letters
+    )
+
+
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "blocks_orthogonal": _blocks_orthogonal,
     "capability": _capability,
@@ -2828,6 +2872,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "variance_component": _variance_component,
     "glm": _glm,
     "expected_mean_squares": _expected_mean_squares,
+    "least_squares_means": _least_squares_means,
 }
 
 
@@ -2846,6 +2891,7 @@ _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "generalized_interactions": _generalized_interactions,
     "product_column": _product_column,
     "same_projections": _same_projections,
+    "connecting_letters": _connecting_letters,
 }
 
 

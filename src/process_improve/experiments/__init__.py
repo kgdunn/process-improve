@@ -17,6 +17,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
+from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.omars import OmarsResult, analyze_omars
@@ -59,6 +60,7 @@ from process_improve.experiments.visualization import main_effects_plot, visuali
 
 __all__ = [
     "Column",
+    "Comparisons",
     "Constraint",
     "DesignComparison",
     "DesignRegion",
@@ -99,6 +101,7 @@ __all__ = [
     "grocery",
     "intraclass_correlation_interval",
     "is_omars",
+    "least_squares_means",
     "lm",
     "main_effects_plot",
     "manufacture",
