@@ -44,10 +44,12 @@ def test_a_link_to_the_book_opens_in_the_book_s_tab():
 
 @pytest.mark.parametrize("script", ["catalog.js", "catalog-views.js"])
 def test_every_link_out_the_catalog_writes_opens_in_a_new_tab(script):
-    """A link the catalog writes to an address it is given (a source's, an erratum's) carries a target too."""
+    """A link the catalog writes to an address it is given (a source's, an erratum's, a place's) has a target too."""
     written = re.findall(r'element\("a", \{[^}]*\}', source(script))
-    out = [a for a in written if re.search(r"href: \w+\.url\b", a)]
+    out = [a for a in written if re.search(r"href: (?:\w+\.)?\w*url\b", a)]
     assert out, "the catalog links to sources"
+    if script == "catalog.js":
+        assert any("href: url" in a for a in out), "the place a source prints a design is a link out"
     for a in out:
         assert 'target: "_blank"' in a, a
         assert 'rel: "noopener"' in a, a

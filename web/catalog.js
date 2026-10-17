@@ -13,6 +13,8 @@ import {
   MODELS,
   OTHER_COLOUR,
   SORTS,
+  applicationLine,
+  applications,
   checkIndex,
   checkLine,
   compareRefusal,
@@ -44,6 +46,9 @@ import {
   switchCount,
   toHash,
   toggled,
+  topicCounts,
+  topicOrder,
+  whereParts,
   yearBins,
 } from "./catalog-logic.js";
 import { compareTable, drawTimeline, element, errataTable, projectionExplorer, table } from "./catalog-views.js";
@@ -126,6 +131,7 @@ const numberOrNull = (input) => (input.value.trim() === "" ? null : Math.round(N
 
 function readForm() {
   state.families = $$("#families input:checked").map((box) => box.value);
+  state.topics = $$("#topics input:checked").map((box) => box.value);
   state.runs = [numberOrNull($("#runs-min")), numberOrNull($("#runs-max"))];
   state.factors = [numberOrNull($("#factors-min")), numberOrNull($("#factors-max"))];
   state.years = [numberOrNull($("#year-min")), numberOrNull($("#year-max"))];
@@ -144,6 +150,7 @@ function writeForm() {
   $("#query").value = state.query;
   for (const button of $$("#collection [role=radio]")) button.setAttribute("aria-checked", String(button.dataset.value === state.collection));
   for (const box of $$("#families input")) box.checked = state.families.includes(box.value);
+  for (const box of $$("#topics input")) box.checked = state.topics.includes(box.value);
   const put = (selector, value) => ($(selector).value = value ?? "");
   put("#runs-min", state.runs[0]);
   put("#runs-max", state.runs[1]);
@@ -184,6 +191,18 @@ function buildFacets() {
       return label;
     }),
   );
+  $("#topics").replaceChildren(
+    ...topicOrder(catalog).map((topic) => {
+      const info = catalog.topics[topic];
+      return element(
+        "label",
+        { class: "facets__family facets__topic", title: info.description || "" },
+        element("input", { type: "checkbox", value: topic }),
+        element("span", { text: info.label }),
+        element("span", { class: "count", "data-topic": topic }),
+      );
+    }),
+  );
   const added = [...new Set(catalog.designs.map((d) => d.added).filter(Boolean))].sort().reverse();
   $("#added").append(...added.map((date) => element("option", { value: date, text: date })));
   $("#sort").replaceChildren(...Object.entries(SORTS).map(([value, text]) => element("option", { value, text })));
@@ -195,6 +214,12 @@ function renderCounts() {
   const counts = familyCounts(catalog, state);
   for (const span of $$("#families .count")) {
     const n = counts[span.dataset.family] ?? 0;
+    span.textContent = String(n);
+    span.closest("label").classList.toggle("empty", n === 0);
+  }
+  const topics = topicCounts(catalog, state);
+  for (const span of $$("#topics .count")) {
+    const n = topics[span.dataset.topic] ?? 0;
     span.textContent = String(n);
     span.closest("label").classList.toggle("empty", n === 0);
   }
@@ -253,6 +278,7 @@ function card(design) {
         elsewhere,
         gap,
         limited,
+        ...applications(design, catalog).map((name) => element("span", { class: "badge badge--topic", text: name })),
       ),
       element("p", { class: "result__facts", text: factLine(design, catalog) }),
       element("p", { class: "result__source", text: [sourceLine(design, catalog), checks].filter(Boolean).join(" · ") }),
@@ -722,14 +748,17 @@ function copy(text, what) {
 
 const fmt = (v) => (v === null || v === undefined ? "" : typeof v === "number" ? String(Math.round(v * 1000) / 1000) : String(v));
 
-function whereText(where) {
-  if (!where) return "";
-  if (typeof where === "string") return where;
-  const parts = [];
-  if (where.section) parts.push(`section ${where.section}`);
-  if (where.pages) parts.push(`${String(where.pages).match(/[-,]/) ? "pages" : "page"} ${where.pages}`);
-  for (const key of ["tables", "figures"]) if (where[key]?.length) parts.push(where[key].join(", "));
-  return parts.join("; ");
+/**
+ * "Printed in" and where: its section, pages, tables and figures. Where the catalog knows the place's address
+ * (a page of the book, at the section's anchor, or of the handbook), the first part links to it, so a reader
+ * lands on the section rather than on the source's home page.
+ */
+function printedIn(detail) {
+  const [first, ...rest] = whereParts(detail.where);
+  const url = detail.where_url;
+  if (!first && !url) return null;
+  const place = url ? element("a", { href: url, target: "_blank", rel: "noopener", text: first ?? "the source's page" }) : first;
+  return element("p", { class: "detail__where" }, "Printed in ", place, rest.length ? `; ${rest.join("; ")}.` : ".");
 }
 
 function detailBody(design, detail) {
@@ -740,8 +769,10 @@ function detailBody(design, detail) {
   if (source) {
     const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, target: "_blank", rel: "noopener", text: source.cite }) : source.cite);
     body.push(cite);
-    const where = whereText(detail.where);
-    if (where) body.push(element("p", { text: `Printed in ${where}.` }));
+    const where = printedIn(detail);
+    if (where) body.push(where);
+    const application = applicationLine(design, catalog);
+    if (application) body.push(element("p", { class: "detail__application", text: application }));
     const checks = checkLine(design.checks);
     if (checks) body.push(element("p", { text: `Printed numbers: ${checks}. The library recomputes them on every change to it.` }));
     if (design.regenerable === true) body.push(element("p", { class: "detail__ok", text: "The library makes this design: the page's runs are the source's runs, to within its rounding." }));
@@ -1046,7 +1077,7 @@ function wire() {
   $("#errata-open").addEventListener("click", openErrata);
   wireTimeline();
   window.addEventListener("hashchange", () => {
-    state = fromHash(location.hash, catalog.families, catalog.sources);
+    state = fromHash(location.hash, catalog.families, catalog.sources, catalog.topics);
     writeForm();
     render();
     for (const dialog of $$("dialog[open]")) dialog.close();
@@ -1141,7 +1172,7 @@ async function start() {
   buildFacets();
   // A link from the book names its design in the query (?d=), which the book's theme leaves alone; the page keeps
   // what it shows in the fragment, which no server sees, so the address is rewritten that way at once.
-  state = fromHash(location.hash || location.search, catalog.families, catalog.sources);
+  state = fromHash(location.hash || location.search, catalog.families, catalog.sources, catalog.topics);
   if (!location.hash && location.search) history.replaceState(null, "", location.pathname + toHash(state));
   writeForm();
   wire();
