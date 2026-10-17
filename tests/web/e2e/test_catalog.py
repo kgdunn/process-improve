@@ -8,6 +8,8 @@ whose catalog also holds ``BOOK_DESIGN``, a case study the book prints.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tests.web._support import BOOK_DESIGN, CATALOG_SAMPLE
@@ -146,6 +148,25 @@ def test_an_application_narrows_the_list_and_the_address_keeps_it(book_context, 
     counted(again, "1 of 6")
     assert shown(again) == [BOOK_DESIGN]
     assert again.is_checked("#topics input[value='bioprocessing']")
+
+
+def test_the_applications_of_the_fewest_designs_are_a_click_away(context, site, catalog_files):
+    """With ten applications, the filter lists eight; the rest open on a click, or when the address chose one."""
+    index = json.loads((catalog_files / "index.json").read_text())
+    ten = [topic for topic in index["topics"] if topic != "general"][:10]
+    for design in index["designs"]:
+        design["topics"] = {PILOT: ten, COMPARISON: ten[:3]}.get(design["id"], [])
+    context.route(f"{site}catalog/index.json", lambda route: route.fulfill(json=index))
+    page = open_catalog(context, site)
+    assert page.locator("#topics > label").count() == 8
+    assert page.text_content("#topics-more summary") == "2 more applications"
+    assert not page.is_visible(f"#topics-more input[value='{ten[-1]}']")
+    page.click("#topics-more summary")
+    page.locator(f"#topics-more input[value='{ten[-1]}']").check()
+    counted(page, "1 of 5")
+    chosen = open_catalog(context, site, f"#app={ten[-1]}")
+    assert chosen.is_visible(f"#topics-more input[value='{ten[-1]}']"), "the application chosen is in view"
+    assert chosen.is_checked(f"#topics-more input[value='{ten[-1]}']")
 
 
 def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):

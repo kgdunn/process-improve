@@ -69,6 +69,8 @@ const MAP_FACTORS = 16;
 const MAP_TERMS_FACTORS = 12;
 /** How many errata the table shows at first. */
 const ERRATA_SHOWN = 200;
+/** How many applications the filter lists at first, those of the most designs; the rest are a click away. */
+const TOPICS_SHOWN = 8;
 
 let catalog = null;
 let state = structuredClone({ ...DEFAULT_STATE });
@@ -151,6 +153,7 @@ function writeForm() {
   for (const button of $$("#collection [role=radio]")) button.setAttribute("aria-checked", String(button.dataset.value === state.collection));
   for (const box of $$("#families input")) box.checked = state.families.includes(box.value);
   for (const box of $$("#topics input")) box.checked = state.topics.includes(box.value);
+  if ($$("#topics-more input:checked").length) $("#topics-more").open = true; // an application chosen is in view
   const put = (selector, value) => ($(selector).value = value ?? "");
   put("#runs-min", state.runs[0]);
   put("#runs-max", state.runs[1]);
@@ -191,17 +194,27 @@ function buildFacets() {
       return label;
     }),
   );
+  const topics = topicOrder(catalog).map((topic) => {
+    const info = catalog.topics[topic];
+    return element(
+      "label",
+      { class: "facets__family facets__topic", title: info.description || "" },
+      element("input", { type: "checkbox", value: topic }),
+      element("span", { text: info.label }),
+      element("span", { class: "count", "data-topic": topic }),
+    );
+  });
+  const rest = topics.slice(TOPICS_SHOWN);
   $("#topics").replaceChildren(
-    ...topicOrder(catalog).map((topic) => {
-      const info = catalog.topics[topic];
-      return element(
-        "label",
-        { class: "facets__family facets__topic", title: info.description || "" },
-        element("input", { type: "checkbox", value: topic }),
-        element("span", { text: info.label }),
-        element("span", { class: "count", "data-topic": topic }),
-      );
-    }),
+    ...topics.slice(0, TOPICS_SHOWN),
+    rest.length
+      ? element(
+          "details",
+          { class: "facets__more", id: "topics-more" },
+          element("summary", { text: `${rest.length} more applications` }),
+          element("div", { class: "facets__list" }, ...rest),
+        )
+      : null,
   );
   const added = [...new Set(catalog.designs.map((d) => d.added).filter(Boolean))].sort().reverse();
   $("#added").append(...added.map((date) => element("option", { value: date, text: date })));

@@ -687,7 +687,7 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 .facets__family, .facets__switch { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer; }
 .facets .count { margin-left: auto; color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
 .facets__family.empty { color: var(--muted); }
-.facets__list--long { max-height: 17em; overflow-y: auto; padding-right: 4px; }
+.facets__more > summary { margin: 2px 0; color: var(--accent); font-size: 0.88rem; cursor: pointer; }
 .facets input[type="checkbox"] { width: auto; margin: 0; }
 .swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
 .facets__range {
