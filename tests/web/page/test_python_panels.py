@@ -242,6 +242,61 @@ def test_the_comparison_code_compares_over_the_settings_the_limits_leave(api, no
         assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
 
 
+#: Each mixture design, in three components with blank bounds, or with bounds for extreme vertices.
+MIXTURES = [
+    {"design_type": "simplex_lattice", "lattice_degree": 1},
+    {"design_type": "simplex_lattice", "lattice_degree": 2, "n_replicates": 2},
+    {"design_type": "simplex_centroid"},
+    {"design_type": "extreme_vertices", "mixture_model": "scheffe_linear"},
+    {"design_type": "extreme_vertices", "mixture_model": "scheffe_quadratic"},
+]
+
+
+def components(design_type: str) -> list[dict]:
+    """Return three components, each from 0 to 1, or with the bounds extreme vertices need."""
+    if design_type == "extreme_vertices":
+        bounds = [(0.2, 0.7), (0.1, 0.6), (0.0, 0.5)]
+        return [{"name": n, "low": lo, "high": hi, "units": "%"} for n, (lo, hi) in zip("ABC", bounds, strict=True)]
+    return [{"name": n, "low": None, "high": None, "units": ""} for n in ("Water", "Oil", "Wax")]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("request_", MIXTURES, ids=lambda r: "-".join(str(v) for v in r.values()))
+def test_the_design_code_reproduces_each_mixture_the_page_makes(api, node, request_):
+    """A mixture's code makes its components, each a proportion, and the library's mixture design for its model."""
+    factors = components(request_["design_type"])
+    design = api.ok("api_make_design", {**request_, "factors": factors})
+    code = page_code(node, "designCode", design["spec"])
+    assert 'design_type="mixture"' in code
+    names = [f["name"] for f in factors]
+    namespace = run(code)
+    assert [f.type for f in namespace["factors"]] == ["mixture"] * 3
+    made = namespace["result"].design_actual[names].to_numpy(dtype=float)
+    np.testing.assert_allclose(made, run_sheet(design)[names], atol=1e-11)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("request_", MIXTURES[1:3], ids=["lattice", "centroid"])
+def test_the_python_shown_reproduces_a_mixture_s_simulation_and_its_scheffe_fit(api, node, request_):
+    """The proportions are fitted as they are, not coded, with the Scheffé model the page fitted."""
+    held = held_of(api.ok("api_make_design", {**request_, "factors": components(request_["design_type"])}))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+    assert analysis["formula"] == "scheffe_quadratic"
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, simulation["responses"], simulation]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    namespace = run(code)
+    names = [f["name"] for f in held["spec"]["factors"]]
+    np.testing.assert_allclose(namespace["X"][names], run_sheet(held)[names].astype(float), atol=1e-12)
+    np.testing.assert_allclose(namespace["y"], simulation["responses"], atol=1e-9)
+    assert_same_fit(namespace, analysis)
+    assert "Intercept" not in coefficients_of(namespace)
+
+
 def notebook_of(node: str, **campaign: object) -> dict:
     """Return the notebook ``web/python.js`` writes for a campaign, as the page downloads it."""
     defaults = {"title": "A design", "version": "1.2.3", "url": "https://example.org/app/", "simulation": None}

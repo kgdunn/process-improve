@@ -688,6 +688,19 @@ those changes.
   coefficients table then shows a VIF column, defined on request, and the Python shown and the
   notebook work the VIFs out with `evaluate_design`. An orthogonal design, every VIF 1, shows
   neither.
+- **Factorial makes and analyses mixture designs.** For a blend of 3 to 6 components, the design
+  list offers a simplex lattice of degree 1 or 2, the simplex centroid (3 or 4 components), and
+  extreme vertices for a mixture with bounds; under a mixture, each factor's low and high are its
+  lower and upper proportions, 0 and 1 when left blank, and every run's proportions sum to 1. The
+  page refuses bounds no blend can meet, a categorical factor or a process variable, and limits on
+  the settings, each with the reason. Learn fits the Scheffé model the design supports (linear,
+  quadratic or special cubic where the runs estimate it), with no intercept: the mixture ANOVA,
+  each component's effect along its Cox direction, and the fitted response drawn over the triangle
+  of blends for 3 components, or along each Cox direction for more. Lenth's method and the Pareto
+  plot are left out, saying why. A process with one synergistic and one antagonistic blend
+  simulates practice results, and the Python shown, the notebook, the workbook, renaming, saved
+  studies and links all keep a mixture a mixture. The comparison of designs is for factors with
+  ranges, and says so for a mixture.
 
 ### Fixed
 

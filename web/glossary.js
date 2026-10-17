@@ -55,6 +55,9 @@ export const GLOSSARY = {
   aliasing:
     "Two terms are aliased, or confounded, when the design changes them together, so their effects cannot be " +
     "told apart: what is estimated is their sum.",
+  "lattice-degree":
+    "A simplex lattice of degree m gives each component a proportion of 0, 1/m, 2/m and so on up to 1: degree 1 " +
+    "is the pure components, and degree 2 adds every 50:50 blend of two.",
 
   // The runs
   "std-order":
@@ -89,6 +92,9 @@ export const GLOSSARY = {
     "correlated with the other terms in the runs fitted. 1 means uncorrelated; above 5, the standard error is more " +
     "than doubled.",
   effect: "The change in the response from a factor's low setting to its high one: twice its coefficient.",
+  "cox-direction":
+    "The line on which one component's share of a blend changes while the others keep their proportions to each " +
+    "other. The component's effect is the change in the fitted response along it.",
   pse: "The pseudo standard error: a robust estimate of the standard error of an effect, from the effects themselves.",
   me: "The margin of error, the individual 95% cutoff: an effect whose size exceeds it is significant on its own.",
   sme: "The simultaneous margin of error: the stricter cutoff, for scanning all the effects at once.",

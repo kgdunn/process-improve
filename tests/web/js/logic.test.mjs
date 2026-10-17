@@ -95,6 +95,12 @@ import {
   splitResults,
   storedResponses,
   withResponses,
+  MIXTURES,
+  boundedComponents,
+  componentProblem,
+  isMixture,
+  mixtureProblem,
+  proportionValue,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -946,5 +952,43 @@ describe("several responses", () => {
       partialSentence([3, 7, 9], "Yield", 12),
       "Runs 3, 7 and 9 have some of their results, not all. Each response is fitted to the runs that have its result: Yield to 12.",
     );
+  });
+});
+
+describe("a mixture's components", () => {
+  test("the mixture designs, and no other, read the factors as a blend's components", () => {
+    assert.deepEqual(MIXTURES.filter(isMixture), MIXTURES);
+    assert.equal(isMixture("box_behnken"), false);
+    assert.equal(isMixture(undefined), false);
+  });
+
+  test("a blank bound is 0 for the lower proportion and 1 for the upper; anything else is read as a level", () => {
+    assert.equal(proportionValue("", 0), 0);
+    assert.equal(proportionValue("  ", 1), 1);
+    assert.equal(proportionValue("0.25", 0), 0.25);
+    assert.equal(proportionValue("most", 1), "most");
+  });
+
+  test("each component's bounds are proportions, the lower below the upper", () => {
+    assert.equal(componentProblem({ name: "A", low: "", high: "" }), "");
+    assert.equal(componentProblem({ name: "A", low: "0.1", high: "0.6" }), "");
+    assert.match(componentProblem({ name: "A", low: "", high: "most" }), /^A: enter its lower and upper proportions as numbers/);
+    assert.match(componentProblem({ name: "T", low: "150", high: "200" }), /^T runs from 150 to 200, which is no proportion/);
+    assert.equal(componentProblem({ name: "A", low: "0.6", high: "0.4" }), "A: its lower proportion must be below its upper proportion.");
+    assert.match(componentProblem({ name: "", low: "inf", high: "" }), /^A component without a name:/);
+  });
+
+  test("together, the bounds leave more than one blend, and suit the design type", () => {
+    const blank = ["A", "B", "C"].map((name) => ({ name, low: 0, high: 1 }));
+    const bounded = [{ ...blank[0], low: 0.2 }, blank[1], { ...blank[2], high: 0.5 }];
+    assert.deepEqual(boundedComponents(bounded), ["A", "C"]);
+    assert.equal(mixtureProblem(blank, "simplex_lattice", "Simplex lattice (mixture)"), "");
+    assert.equal(mixtureProblem(bounded, "extreme_vertices", "Extreme vertices"), "");
+    assert.match(mixtureProblem(bounded, "simplex_lattice", "Simplex lattice (mixture)"), /A and C have bounds: choose extreme vertices/);
+    assert.match(mixtureProblem(blank, "extreme_vertices", "Extreme vertices"), /^Extreme vertices are for a mixture with bounds/);
+    const heavy = blank.map((f) => ({ ...f, low: 0.4 }));
+    assert.match(mixtureProblem(heavy, "extreme_vertices", ""), /^The lower proportions sum to 1.2, and must sum to less than 1/);
+    const light = blank.map((f) => ({ ...f, high: 1 / 3 }));
+    assert.match(mixtureProblem(light, "extreme_vertices", ""), /^The upper proportions sum to 1, and must sum to more than 1/);
   });
 });

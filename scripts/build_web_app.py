@@ -519,7 +519,7 @@ def _not_given(record: dict[str, Any]) -> str:
     reasons = (
         (lambda: record["blocked"] or record["split_plot"], "the page opens designs without blocks or whole plots"),
         (lambda: not complete, "the source prints no complete table of runs"),
-        (lambda: record["n_mixture"], "the page has no model for a mixture's proportions"),
+        (lambda: record["n_mixture"], "the page makes mixtures of its own, but takes no mixture's runs as given"),
         (lambda: not low <= len(factors) <= high, f"the page opens designs of {low} to {high} factors"),
         (lambda: len(runs) > most, f"the page holds at most {most} runs"),
         (lambda: any(map(_blank_label, factors)), "a spreadsheet reads a label such as None as a blank cell"),

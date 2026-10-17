@@ -28,16 +28,26 @@ const kwargs = (options) =>
 const labelled = (f) => typeof f.low === "string";
 
 /**
+ * The page's mixture designs, as bootstrap.MIXTURES names them; each is the library's design type "mixture",
+ * built for the Scheffé model its options name, and its factors are the components of a blend.
+ */
+export const MIXTURES = ["simplex_lattice", "simplex_centroid", "extreme_vertices"];
+
+const isMixture = (spec) => MIXTURES.includes(spec.design_type);
+
+/**
  * The factors as Python makes them, as the list ``name``. With ``threeLevels``, each numeric factor is
  * given its low, center and high values as its levels, which generate_design reads as a three-level
  * factor: the page's option n_levels=3 for a Taguchi array, which is no argument of generate_design.
+ * With ``mixture``, each is a component of a blend.
  */
-function factorList(factors, threeLevels = false, name = "factors") {
+function factorList(factors, threeLevels = false, name = "factors", mixture = false) {
   const levels = (f) => (threeLevels ? `, levels=[${f.low}, ${(f.low + f.high) / 2}, ${f.high}]` : "");
+  const units = (f) => (f.units ? `, units=${repr(f.units)}` : "");
   const rows = factors.map((f) =>
     labelled(f)
       ? `    Factor(name=${repr(f.name)}, type="categorical", levels=[${repr(f.low)}, ${repr(f.high)}]),`
-      : `    Factor(name=${repr(f.name)}, low=${f.low}, high=${f.high}${levels(f)}${f.units ? `, units=${repr(f.units)}` : ""}),`,
+      : `    Factor(name=${repr(f.name)}${mixture ? ', type="mixture"' : ""}, low=${f.low}, high=${f.high}${levels(f)}${units(f)}),`,
   );
   const said = threeLevels ? "  # each numeric factor at its low, center and high values" : "";
   return [`${name} = [${said}`, ...rows, "]"].join("\n");
@@ -70,6 +80,17 @@ export function designCode(spec) {
       factorList(spec.factors),
       ...constraintLines(limits),
       "# The runs are taken as they were given: step 2 lists them, in the order given.",
+    ].join("\n");
+  }
+  if (isMixture(spec)) {
+    // Each component a proportion between its bounds; the library's mixture design, for the model its options name.
+    return [
+      "from process_improve.experiments import Factor, generate_design",
+      "",
+      "# The components of the blend, each a proportion between its lower and upper bounds.",
+      factorList(spec.factors, false, "factors", true),
+      `result = generate_design(factors, design_type="mixture", ${kwargs(options)})`,
+      "print(result.design_actual)  # the blends, in randomised order: each run's proportions sum to 1",
     ].join("\n");
   }
   return [
@@ -174,6 +195,7 @@ export function resultsCode(design, results, simulation = null) {
   const at = (name) => columns.indexOf(name);
   const settings = (f) => rows.map((row) => (labelled(f) ? row[at(f.name)] : Number(row[at(f.name)])));
   const blocked = at("Block") >= 0 && (spec.options?.n_blocks ?? 1) > 1;
+  const mixture = isMixture(spec);
   const response = names[0];
   const several = names.length > 1;
   const runs = [
@@ -197,10 +219,12 @@ export function resultsCode(design, results, simulation = null) {
     ...runs,
     "    }",
     ")",
-    "# The settings in coded units, as the model is fitted: -1 at a factor's low level, +1 at its high.",
+    mixture
+      ? "# The proportions, as the Scheffé model is fitted: a mixture's components are not coded."
+      : "# The settings in coded units, as the model is fitted: -1 at a factor's low level, +1 at its high.",
     "X = pd.DataFrame(",
     "    {",
-    ...spec.factors.map(codedLine),
+    ...spec.factors.map((f) => (mixture ? `        ${repr(f.name)}: runs[${repr(f.name)}],` : codedLine(f))),
     ...(blocked ? ['        "Block": runs["Block"],'] : []),
     "    }",
     ")",

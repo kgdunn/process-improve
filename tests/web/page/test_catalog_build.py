@@ -181,7 +181,7 @@ def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_scri
     [
         ({"blocked": True}, "the page opens designs without blocks or whole plots"),
         ({"coded_runs": None}, "the source prints no complete table of runs"),
-        ({"n_mixture": 3}, "the page has no model for a mixture's proportions"),
+        ({"n_mixture": 3}, "the page makes mixtures of its own, but takes no mixture's runs as given"),
         ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a categorical factor has more than the two levels the page takes"),
     ],
     ids=["blocked", "no-runs", "mixture", "a-third-level"],

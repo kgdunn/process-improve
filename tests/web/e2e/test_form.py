@@ -45,7 +45,8 @@ def runs(page) -> tuple[str, str]:
 @pytest.mark.parametrize("k", [2, 7, 12])
 def test_designs_the_factor_count_rules_out_cannot_be_chosen(page, bootstrap, k):
     set_factors(page, factors_named(*NAMES[:k]))
-    expected = [d for d, info in bootstrap.DESIGNS.items() if not info["min_factors"] <= k <= info["max_factors"]]
+    designs = [*bootstrap.DESIGNS.items(), *bootstrap.MIXTURES.items()]
+    expected = [d for d, info in designs if not info["min_factors"] <= k <= info["max_factors"]]
     assert disabled_designs(page) == expected
 
 
@@ -229,7 +230,8 @@ def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_load
 
 def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(page):
     set_factors(page, [*factors_named("A", "B"), {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
-    assert disabled_designs(page) == ["dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"]
+    numeric = ["dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"]
+    assert disabled_designs(page) == [*numeric, "simplex_lattice", "simplex_centroid", "extreme_vertices"]
     assert page.text_content("#design-hint") == (
         "Box-Behnken needs numeric factors, and Supplier is categorical: choose a full factorial, fractional "
         "factorial, Plackett-Burman or Taguchi design."

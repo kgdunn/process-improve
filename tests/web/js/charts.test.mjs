@@ -17,8 +17,10 @@ import {
   PALE,
   SIGN_COLOURS,
   TRUE_MARKER,
+  SURFACE,
   coefficientFigure,
   correlationFigure,
+  coxFigure,
   fdsFigure,
   markBest,
   niceStep,
@@ -28,6 +30,8 @@ import {
   sensitivityFigure,
   sensitivityHeight,
   shareContourScale,
+  ternaryFigure,
+  ternaryRange,
   termRowsHeight,
 } from "../../../web/charts.js";
 
@@ -342,5 +346,50 @@ describe("the overlay of the acceptable ranges", () => {
     const lines = overlayFigure({ ...OVERLAY, responses: five }, words, AXES, PAGE).data.filter((t) => t.type === "contour" && t.contours.coloring === "none");
     assert.equal(new Set(lines.map((t) => t.line.color)).size, 5);
     assert.equal(new Set(lines.map((t) => t.line.dash)).size, 5);
+  });
+});
+
+describe("a mixture's pictures", () => {
+  const ternary = {
+    components: ["Water", "Oil", "Wax"],
+    grid: { a: [1, 0, 0, 0.5], b: [0, 1, 0, 0.5], c: [0, 0, 1, 0], fitted: [30, 25, 20, 31], true: [30, 25, 20, 33] },
+    runs: { a: [1, 0.5], b: [0, 0.5], c: [0, 0], y: [30.2, 31.4] },
+  };
+
+  test("a triangle of blends, coloured by the response on one scale for the fitted and the true surface", () => {
+    assert.deepEqual(ternaryRange(ternary), [20, 33]);
+    assert.deepEqual(ternaryRange({ ...ternary, grid: { ...ternary.grid, true: null } }), [20, 31]);
+    const { data, layout } = ternaryFigure(ternary, { response: "Hardness", units: "HV" }, COLOURS);
+    const [surface, runs] = data;
+    assert.equal(surface.type, "scatterternary");
+    assert.deepEqual(surface.marker.color, ternary.grid.fitted);
+    assert.deepEqual([surface.marker.cmin, surface.marker.cmax], [20, 33]);
+    assert.equal(surface.marker.colorscale, SURFACE);
+    assert.equal(surface.marker.colorbar.title.text, "Hardness (HV)");
+    assert.deepEqual(runs.customdata, ternary.runs.y);
+    assert.equal(runs.marker.color, "#ffffff", "a white face, which reads on every blue");
+    assert.deepEqual([layout.ternary.aaxis.title.text, layout.ternary.baxis.title.text, layout.ternary.caxis.title.text], ternary.components);
+    const truth = ternaryFigure(ternary, { response: "Hardness", values: "true", range: [0, 40] }, COLOURS).data[0];
+    assert.deepEqual(truth.marker.color, ternary.grid.true);
+    assert.deepEqual([truth.marker.cmin, truth.marker.cmax], [0, 40]);
+  });
+
+  test("a line per component along its Cox direction, the true process dotted in the same colour", () => {
+    const traces = ["A", "B", "C", "D"].map((component, i) => ({ component, change: [-0.25, 0, 0.75], fitted: [1, 2, 3 + i], true: null }));
+    const plain = coxFigure({ components: ["A", "B", "C", "D"], traces }, { response: "y" }, COLOURS);
+    assert.deepEqual(plain.data.map((t) => t.name), ["A", "B", "C", "D"]);
+    assert.equal(plain.layout.yaxis.title.text, "Fitted y");
+    const simulated = traces.map((t) => ({ ...t, true: [1, 2, 3] }));
+    const { data } = coxFigure({ components: ["A", "B", "C", "D"], traces: simulated }, { response: "y", units: "%" }, COLOURS);
+    assert.equal(data.length, 9, "each component's two lines, and a key for the dotted ones");
+    assert.equal(data[1].line.dash, "dot");
+    assert.equal(data[1].line.color, data[0].line.color);
+    assert.equal(data.at(-1).name, "True process");
+  });
+
+  test("a mixture's coefficients are in the response's units, not coded ones", () => {
+    const coefficients = [{ term: "A", label: "A", coefficient: 30, ci_low: 29, ci_high: 31 }];
+    assert.equal(coefficientFigure(coefficients, false, COLOURS, { mixture: true }).layout.xaxis.title.text, "Coefficient");
+    assert.equal(coefficientFigure(coefficients, false, COLOURS).layout.xaxis.title.text, "Coefficient, coded units");
   });
 });

@@ -15,7 +15,18 @@ from collections.abc import Callable
 from typing import Any
 
 #: The <select>s of the form; every other setting is an <input>.
-SELECTS = {"design-type", "alpha", "resolution", "n_levels", "model_type", "scenario", "model", "response-goal"}
+SELECTS = {
+    "design-type",
+    "alpha",
+    "resolution",
+    "n_levels",
+    "model_type",
+    "lattice_degree",
+    "mixture_model",
+    "scenario",
+    "model",
+    "response-goal",
+}
 
 #: The studies kept in this browser, the one saved most recently first, as the page's store reads them.
 SAVED = "async () => (await import('./store.js')).savedCampaigns()"

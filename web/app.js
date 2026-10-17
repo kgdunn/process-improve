@@ -15,6 +15,7 @@
 import {
   coefficientFigure,
   correlationFigure,
+  coxFigure,
   draw,
   fdsFigure,
   markBest,
@@ -25,6 +26,8 @@ import {
   resizeWithin,
   sensitivityFigure,
   shareContourScale,
+  ternaryFigure,
+  ternaryRange,
 } from "./charts.js";
 import {
   CONFIRMATION,
@@ -97,6 +100,7 @@ import {
   changeWords,
   compareCells,
   completeRuns,
+  componentProblem,
   defaultAim,
   defaultResolution,
   describeResponse,
@@ -109,9 +113,11 @@ import {
   infoOf,
   isBlank,
   isCategorical,
+  isMixture,
   levelProblem,
   levelValue,
   listNames,
+  mixtureProblem,
   nTerms,
   nameProblem,
   namedModelTerms,
@@ -125,6 +131,7 @@ import {
   pickCandidate,
   positional,
   powerScale,
+  proportionValue,
   pval,
   renameTerms,
   renaming,
@@ -196,6 +203,9 @@ const BOOK_PAGES = {
   ccd: `${BOOK}/response-surface-methods#doe-central-composite-designs`,
   d_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
   i_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
+  simplex_lattice: `${BOOK}/mixture-experiments#doe-mixture-designs`,
+  simplex_centroid: `${BOOK}/mixture-experiments#doe-mixture-designs`,
+  extreme_vertices: `${BOOK}/mixture-experiments#doe-mixture-designs`,
   lenth: `${BOOK}/full-factorial-designs/assessing-significance-of-main-effects-and-interactions#doe-lenth-method`,
   measures: `${BOOK}/omars-designs#doe-omars-metric-choice`,
   fds: `${BOOK}/judging-and-comparing-designs#doe-fds-plot`,
@@ -375,6 +385,8 @@ function wordsOf(name) {
   const r = studyResponses().find((one) => one.name === name) ?? studyResponses()[0] ?? { name: "y" };
   return { label: r.label || r.name, units: r.units ?? "" };
 }
+/** Whether the plan is a mixture's: the factors are then the components of a blend, each a proportion. */
+const mixturePlanned = () => isMixture($("#design-type").value);
 
 // ---------------------------------------------------------------- the phases
 const PANES = { plan: "#step-plan", run: "#step-run", learn: "#step-analyse" };
@@ -451,10 +463,11 @@ function renderStudyBar() {
         ? responseTitle(info, name)
         : "A new study";
   const k = readFactors().length;
+  const noun = mixturePlanned() ? "component" : "factor";
   const about = state.design
     ? `${designLabel(state.design.spec.design_type)}, ${designRows(state.design).rows.length} runs`
     : k
-      ? `${k} factor${k === 1 ? "" : "s"}`
+      ? `${k} ${noun}${k === 1 ? "" : "s"}`
       : "";
   $("#study-about").textContent = about ? `· ${about}` : "";
   renderBadges();
@@ -747,12 +760,23 @@ function showType(tr, type) {
   }
   units.disabled = categorical;
   units.placeholder = categorical ? "none" : "";
-  const [first, second] = categorical ? ["First label", "Second label"] : ["Low", "High"];
-  for (const [name, label] of [["low", first], ["high", second]]) {
-    box(tr, name).setAttribute("aria-label", label);
-    box(tr, name).placeholder = label.toLowerCase();
+  // A mixture's component has a lower and an upper proportion, 0 and 1 when its boxes are left blank.
+  const component = !categorical && mixturePlanned();
+  const [first, second] = categorical ? ["First label", "Second label"] : component ? ["Lower", "Upper"] : ["Low", "High"];
+  for (const [name, label, blank] of [["low", first, "0"], ["high", second, "1"]]) {
+    box(tr, name).setAttribute("aria-label", component ? `${label} proportion` : label);
+    box(tr, name).placeholder = component ? blank : label.toLowerCase();
     box(tr, name).parentElement.dataset.label = label;
   }
+}
+
+/** Head the factor table, and show each row, as the plan reads them: a mixture's components, or factors with ranges. */
+function showComponents() {
+  const mixture = mixturePlanned();
+  $("#h-low").textContent = mixture ? "Lower" : "Low";
+  $("#h-high").textContent = mixture ? "Upper" : "High";
+  for (const tr of factorRows()) showType(tr, typeOf(tr));
+  $("#limits-mixture").hidden = !mixture;
 }
 
 /**
@@ -784,11 +808,13 @@ function showFactorProblems() {
   const rows = all.filter((tr) => !blankRow(tr));
   const names = rows.map((tr) => box(tr, "name").value.trim());
   const taken = takenNames();
+  const mixture = mixturePlanned();
   let unready = false;
   const problems = rows.map((tr, i) => {
     const others = names.filter((_, j) => j !== i); // both factors that share a name are marked
     const named = nameProblem(names[i], others, all.indexOf(tr) + 1, taken);
-    const levels = levelProblem({ name: names[i], low: box(tr, "low").value, high: box(tr, "high").value }, typeOf(tr));
+    const typed = { name: names[i], low: box(tr, "low").value, high: box(tr, "high").value };
+    const levels = mixture && typeOf(tr) !== CATEGORICAL ? componentProblem(typed) : levelProblem(typed, typeOf(tr));
     unready ||= Boolean(named || levels);
     const untouched = !tr.dataset.visited && !box(tr, "low").value.trim() && !box(tr, "high").value.trim();
     const said = [named, untouched ? "" : levels].filter(Boolean);
@@ -799,6 +825,13 @@ function showFactorProblems() {
   for (const tr of all.filter(blankRow)) {
     for (const name of ["name", "low", "high"]) box(tr, name).removeAttribute("aria-invalid");
   }
+  // A mixture's components, each ready, must still sum as a blend can, with bounds the design type takes.
+  if (mixture && !unready && rows.length && !rows.some((tr) => typeOf(tr) === CATEGORICAL)) {
+    const option = $("#design-type").selectedOptions[0];
+    const together = mixtureProblem(readFactors(), option.value, option.textContent.trim());
+    problems.push(together);
+    unready = Boolean(together);
+  }
   const said = [...new Set(problems.filter(Boolean))];
   $("#factor-problems").textContent = said.join(" ");
   $("#factor-problems").hidden = said.length === 0;
@@ -808,13 +841,16 @@ function showFactorProblems() {
 
 function readFactors() {
   // A blank box is sent as null, which Python reports, rather than as Number("") = 0; a label, as text.
-  // A factor's type is not sent: two labels make it categorical, as bootstrap.py reads it.
+  // A factor's type is not sent: two labels make it categorical, as bootstrap.py reads it. For a mixture, a
+  // blank box is the component's bound: 0 for the lower proportion, 1 for the upper.
+  const mixture = mixturePlanned();
+  const level = (tr, name, blank) => (mixture ? proportionValue : levelValue)(box(tr, name).value, blank);
   return factorRows()
     .filter((tr) => !blankRow(tr))
     .map((tr) => ({
       name: box(tr, "name").value.trim(),
-      low: levelValue(box(tr, "low").value),
-      high: levelValue(box(tr, "high").value),
+      low: level(tr, "low", 0),
+      high: level(tr, "high", 1),
       units: box(tr, "units").value.trim(),
     }));
 }
@@ -966,6 +1002,15 @@ function showAim() {
   const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM;
   const box = $("#aim-terms");
   box.replaceChildren();
+  // A mixture's model is a Scheffé model of its blends, which its design sets: the aims are for factors with ranges.
+  const mixture = mixturePlanned();
+  for (const radio of document.querySelectorAll('input[name="aim"]')) radio.disabled = mixture;
+  if (mixture) {
+    box.append(
+      "A mixture is analysed with a Scheffé model of its blends, which its design sets: these aims are for factors with ranges.",
+    );
+    return;
+  }
   if (!factors.length) return;
   box.append(`${p} `, term("coefficients", { key: "coefficient", alone: true }), ", the intercept included.");
   if (screening) box.append(` With ${SCREEN_FROM} factors or more, a study starts by finding which matter.`);
@@ -1021,7 +1066,15 @@ function setDesignForm(spec) {
   $("#n_replicates").value = options.n_replicates ?? 1;
   $("#n_blocks").value = options.n_blocks ?? 1;
   $("#n_levels").value = String(options.n_levels ?? 2); // a Taguchi array at two levels stores none
-  if (options.model_type) $("#model_type").value = options.model_type;
+  if (isMixture(spec.design_type)) {
+    // A mixture design stores the Scheffé model it is built for: a lattice's degree, or what extreme vertices are for.
+    if (options.model_type === "scheffe_linear" || options.model_type === "scheffe_quadratic") {
+      $("#lattice_degree").value = options.model_type === "scheffe_linear" ? "1" : "2";
+      $("#mixture_model").value = options.model_type;
+    }
+  } else if (options.model_type) {
+    $("#model_type").value = options.model_type;
+  }
   // A resolution or a number of runs other than the page's own pick is kept, as if the reader had chosen it.
   const k = factorCount();
   resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
@@ -1045,6 +1098,7 @@ function refreshDesign() {
   const numericOnly = (option) => labelled.length > 0 && !CATEGORICAL_DESIGNS.includes(option.value) && option.value !== GIVEN;
   const limited = hasLimits();
   const outsideLimits = (option) => limited && !REGION_DESIGNS.includes(option.value) && option.value !== GIVEN;
+  showComponents();
   for (const option of select.options) {
     option.disabled =
       k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors) || numericOnly(option) || outsideLimits(option);
@@ -1072,7 +1126,18 @@ function refreshDesign() {
 
   const hint = $("#design-hint");
   const one = labelled.length === 1;
-  if (option.disabled && limited && labelled.length) {
+  const mixture = isMixture(option.value);
+  if (option.disabled && mixture && labelled.length) {
+    hint.textContent =
+      `A mixture's factors are its components, each a proportion, and ${listNames(labelled)} ${one ? "is" : "are"} ` +
+      `categorical: remove ${one ? "it" : "them"}, or choose a design for factors with ranges.`;
+  } else if (option.disabled && mixture && limited) {
+    hint.textContent =
+      "A mixture takes no limits on the settings on this page: give each component its lower and upper proportions " +
+      "instead, or remove the limits.";
+  } else if (option.disabled && mixture) {
+    hint.textContent = `${option.textContent} takes ${option.dataset.minFactors} to ${option.dataset.maxFactors} components on this page; you have ${k}.`;
+  } else if (option.disabled && limited && labelled.length) {
     hint.textContent =
       `Limits on the settings work with numeric factors only on this page, and ${listNames(labelled)} ${one ? "is" : "are"} ` +
       `categorical: remove the limits, or ${one ? "that factor" : "those factors"}.`;
@@ -1206,6 +1271,8 @@ function planKey() {
     n_replicates: $("#n_replicates").value,
     n_blocks: $("#n_blocks").value,
     model_type: $("#model_type").value,
+    lattice_degree: $("#lattice_degree").value,
+    mixture_model: $("#mixture_model").value,
   };
   const taken = option.dataset.options.split(" ").map((key) => [key, values[key]]);
   const factors = readFactors();
@@ -1269,6 +1336,8 @@ async function generate() {
     n_levels: Number($("#n_levels").value),
     budget: Number($("#budget").value),
     model_type: $("#model_type").value,
+    lattice_degree: Number($("#lattice_degree").value),
+    mixture_model: $("#mixture_model").value,
     constraints: currentLimits(),
     runs: $("#design-type").value === GIVEN ? givenRuns() : undefined,
   };
@@ -1416,7 +1485,8 @@ const briefReady = () => factorCount() >= 2 && !factorsUnready && !limitsUnready
 function scheduleCandidates() {
   clearTimeout(candidateTimer);
   candidateTimer = null;
-  const due = state.phase === "plan" && pythonReady && briefReady() && state.comparison?.key !== candidateKey();
+  const due =
+    state.phase === "plan" && pythonReady && briefReady() && !mixturePlanned() && state.comparison?.key !== candidateKey();
   if (due && !candidatesRunning) {
     $("#candidates").setAttribute("aria-busy", "true");
     candidateTimer = setTimeout(() => findCandidates(), CANDIDATE_WAIT);
@@ -1462,13 +1532,21 @@ async function findCandidates({ search = false } = {}) {
 function renderCandidates(busy = null) {
   const box = $("#candidates");
   const c = state.comparison;
-  const current = Boolean(c) && c.key === candidateKey() && !busy;
+  // The designs compared are for factors with ranges: a mixture's own design is made below, with no comparison.
+  const mixture = mixturePlanned() && factorCount() >= 2;
+  const current = Boolean(c) && c.key === candidateKey() && !busy && !mixture;
   $("#compare").disabled = !current || !c.result;
-  $("#compare").hidden = !c?.result; // nothing to compare in detail before the brief's first designs
+  $("#compare").hidden = !c?.result || mixture; // nothing to compare in detail before the brief's first designs
   $("#search").hidden = !current || !c.waiting?.length;
   let note = null;
   const holding = limitsHold();
-  if (holding) note = ["hint error", holding];
+  if (mixture) {
+    note = [
+      "hint",
+      "The designs compared here are for factors with ranges, which a mixture's components are not: make the " +
+        "mixture's run sheet below.",
+    ];
+  } else if (holding) note = ["hint error", holding];
   else if (limitsUnready() && factorCount() >= 2 && !factorsUnready) note = ["hint busy", "Reading the limits on the settings..."];
   else if (current && c.error) note = ["hint error", c.error];
   else if (current) note = null;
@@ -1476,10 +1554,10 @@ function renderCandidates(busy = null) {
   else if (briefReady() && !pythonReady) note = ["hint", "The designs that can learn this are listed once Python has started."];
   else if (busy || briefReady()) note = ["hint busy", busy ?? "Making and scoring the designs that can learn this..."];
   const waiting = current && !c.result && c.waiting?.length ? [waitingNote(c), ...noteList(c.notes.map(prettyTerm))] : [];
-  const listed = !briefReady() ? [] : c?.result ? candidateList(c, current) : waiting;
+  const listed = !briefReady() || mixture ? [] : c?.result ? candidateList(c, current) : waiting;
   $("#plan-empty").hidden = Boolean(note) || listed.length > 0;
   box.hidden = !note && !listed.length;
-  box.dataset.stale = String(!current);
+  box.dataset.stale = String(!current && !mixture);
   box.replaceChildren(...(note ? [el("p", note[0], note[1])] : []), ...listed);
   if (current) markPicked();
 }
@@ -1759,6 +1837,7 @@ function responseWords(spec = state.design.spec) {
  */
 function renderRuns() {
   const d = state.design;
+  showChoicesFor(d);
   $("#run-empty").hidden = true;
   $("#run-out").hidden = false;
   const t = $("#design-table");
@@ -1797,6 +1876,23 @@ function renderRuns() {
   };
   describeSource();
   renderBadges();
+}
+
+/**
+ * Offer the processes to simulate from, and the models to analyse with, that the run sheet takes: a mixture's
+ * (its blends, and the Scheffé models), or those for factors with ranges. A choice the run sheet does not take
+ * gives way to the first that it does; the model the design was made for is every run sheet's.
+ */
+function showChoicesFor(design) {
+  const mixture = isMixture(design.spec.design_type);
+  for (const [id, fallback] of [["#scenario", mixture ? "blend" : "reactor"], ["#model", ""]]) {
+    const select = $(id);
+    for (const option of select.options) option.hidden = option.value !== "" && mixture !== ("mixture" in option.dataset);
+    if (select.selectedOptions[0]?.hidden) select.value = fallback;
+  }
+  $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
+  $("#truth-units").textContent = `In ${mixture ? "proportions" : "coded units"}. The analysis estimates these coefficients from the noisy results.`;
+  showScenarioHint();
 }
 
 /**
@@ -2131,9 +2227,10 @@ function renderAnalysis(reply) {
   setStatus("Analysis complete.");
   // The terms fitted, which the design can estimate, from the runs that have a result.
   showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null));
+  const mixture = isMixture(r.spec?.design_type);
   const parts = [
     el("p", "equation", r.equation),
-    said("hint", "In coded units."),
+    said("hint", mixture ? "In proportions: each component's share of the blend." : "In coded units."),
     ...noteList(fitLines(r), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
@@ -2178,6 +2275,19 @@ function renderAnalysis(reply) {
         r.lenth.effects.map((e) => [e.label, fmt(e.effect), e.active_ME ? "yes" : "no", e.active_SME ? "yes" : "no"]),
         { Effect: "effect", "Beyond ME": "me", "Beyond SME": "sme" },
       ),
+    );
+  }
+  if (mixture && r.effects?.length) {
+    // A component's effect: the change in the fitted response as its share moves along its Cox direction.
+    const heading = el("h3", "", "");
+    heading.append("Effects along each ", term("Cox direction", { key: "cox-direction", alone: true }));
+    parts.push(
+      heading,
+      table(
+        ["Component", "Effect", "From", "To"],
+        r.effects.map((e) => [e.component, fmt(e.effect), fmt(e.low), fmt(e.high)]),
+      ),
+      said("hint", "From and To are the component's proportion at each end of the span the effect is taken over."),
     );
   }
   if (r.anova.length) {
@@ -2363,10 +2473,15 @@ function coefficientCard(analysis, simulated) {
   const views = el("div", "views", "");
   views.setAttribute("role", "group");
   views.setAttribute("aria-label", "Show the coefficients as");
-  const buttons = [
-    ["estimates", "Estimates"],
-    ["pareto", "Pareto plot"],
-  ].map(([view, text]) => {
+  // A mixture's coefficients are the responses of its components and blends, which no Pareto plot of effects ranks.
+  const mixture = isMixture(analysis.spec?.design_type);
+  const offered = mixture
+    ? [["estimates", "Estimates"]]
+    : [
+        ["estimates", "Estimates"],
+        ["pareto", "Pareto plot"],
+      ];
+  const buttons = offered.map(([view, text]) => {
     const button = el("button", "", "");
     button.append(view === "pareto" ? term(text, { key: "pareto" }) : text);
     button.type = "button";
@@ -2376,11 +2491,17 @@ function coefficientCard(analysis, simulated) {
   views.append(...buttons);
   head.append(card.querySelector("h3"), views);
   card.prepend(head);
+  if (mixture) {
+    card.append(
+      el("p", "hint", "No Pareto plot: it ranks the effects of factors with ranges, and a mixture's components move together."),
+    );
+  }
   const figure = (view) => () =>
-    view === "pareto"
+    view === "pareto" && !mixture
       ? paretoFigure(analysis.coefficients, simulated, analysis.lenth)
-      : coefficientFigure(analysis.coefficients, simulated);
-  const show = async (view, version) => {
+      : coefficientFigure(analysis.coefficients, simulated, undefined, { mixture });
+  const show = async (asked, version) => {
+    const view = mixture ? "estimates" : asked;
     for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
     if (version) await draw(plot, figure(view), version, figure(view)().height);
   };
@@ -2421,7 +2542,17 @@ async function drawCharts(request, mine, given = null) {
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
     const starred = plots.held_best && starBest(figures, plots.contour_factors);
-    for (const key of ["contour", "true_contour", "residuals", "half_normal"]) {
+    // A mixture's response over its blends is drawn here, in the page's colours: a triangle for three components,
+    // else the trace along each component's Cox direction.
+    const words = { response: responseWords().label, units: responseWords().units };
+    const { ternary, cox } = plots;
+    if (ternary) {
+      const range = ternaryRange(ternary);
+      figures.ternary = () => ternaryFigure(ternary, { ...words, range });
+      if (ternary.grid.true) figures.true_ternary = () => ternaryFigure(ternary, { ...words, range, values: "true" });
+    }
+    if (cox) figures.cox = () => coxFigure(cox, words);
+    for (const key of ["contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
       const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
       const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
@@ -3038,6 +3169,8 @@ function saveDraft() {
       })),
       aim: aimChosen ? currentAim() : null,
       limits: currentLimits(),
+      // A mixture's factor table reads as components, blank bounds and all, so the draft keeps the design with it.
+      design: mixturePlanned() ? $("#design-type").value : null,
     };
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -3081,7 +3214,8 @@ function readDraft() {
   } catch {
     /* limits this page did not write: the brief comes back without them */
   }
-  return { response, responses, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits };
+  const design = isMixture(draft.design) ? draft.design : null;
+  return { response, responses, factors, aim: AIMS.includes(draft.aim) ? draft.aim : null, limits, design };
 }
 
 /** Put a draft brief back on the page, in Design. */
@@ -3095,6 +3229,10 @@ function restoreDraft(draft) {
   $("#response-change").value = f.smallest_change;
   $("#response-known").open = Boolean(f.typical || f.noise || f.smallest_change);
   showResponse();
+  if (draft.design) {
+    $("#design-type").value = draft.design;
+    designChosen = true;
+  }
   $("#factors tbody").replaceChildren();
   (draft.factors.length ? draft.factors : [{}, {}]).forEach((factor) => addFactor(factor));
   setLimits(draft.limits);
@@ -3696,8 +3834,12 @@ for (const radio of document.querySelectorAll('input[name="aim"]')) {
 $("#design-type").onchange = () => {
   designChosen = true;
   refreshDesign();
+  // A mixture reads the factor table as components, which the designs compared for factors with ranges are not for.
+  scheduleCandidates();
+  renderStudyBar();
+  saveDraft();
 };
-for (const id of ["#alpha", "#model_type"]) $(id).onchange = refreshDesign;
+for (const id of ["#alpha", "#model_type", "#lattice_degree", "#mixture_model"]) $(id).onchange = refreshDesign;
 $("#alpha_value").oninput = refreshDesign; // a typed distance can put every run but the center runs on one sphere
 $("#budget").oninput = () => {
   budgetEdited = $("#budget").value !== "";

@@ -240,3 +240,31 @@ describe("the best settings", () => {
     assert.match(code, /at = pd\.DataFrame\(\[\{"S": 1\}\]\)/);
   });
 });
+
+describe("a mixture", () => {
+  const spec = {
+    design_type: "simplex_lattice",
+    factors: [
+      { name: "A", low: 0, high: 1, units: "" },
+      { name: "B", low: 0.1, high: 0.9, units: "%" },
+      { name: "C", low: 0, high: 1, units: "" },
+    ],
+    response: "y",
+    options: { random_state: 42, model_type: "scheffe_quadratic" },
+  };
+
+  test("its components, each a proportion, and the library's mixture design for its model", () => {
+    const code = designCode(spec);
+    assert.match(code, /Factor\(name="A", type="mixture", low=0, high=1\),/);
+    assert.match(code, /Factor\(name="B", type="mixture", low=0.1, high=0.9, units="%"\),/);
+    assert.match(code, /generate_design\(factors, design_type="mixture", random_state=42, model_type="scheffe_quadratic"\)/);
+  });
+
+  test("its proportions are fitted as they are, not coded", () => {
+    const design = { spec, columns: ["Std order", "Run order", "A", "B", "C", "y"], rows: [[1, 1, 0.5, 0.5, 0, null]] };
+    const code = resultsCode(design, [31.5]);
+    assert.match(code, /# The proportions, as the Scheffé model is fitted: a mixture's components are not coded\./);
+    assert.match(code, / {8}"A": runs\["A"\],/);
+    assert.doesNotMatch(code, /- 0.5/);
+  });
+});

@@ -15,8 +15,8 @@ export const LINK_KEY = "#c=";
 /** The most a link may unpack to: a campaign of the largest designs the page makes is far smaller. */
 const MAX_BYTES = 2 ** 20;
 
-/** The named models the analysis offers; "" is the model the design was made for. */
-const MODELS = ["", "main_effects", "interactions", "quadratic"];
+/** The named models the analysis offers, a mixture's Scheffé models last; "" is the model the design was made for. */
+export const MODELS = ["", "main_effects", "interactions", "quadratic", "scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic"];
 
 /** What a study may aim to learn: the models designs are compared on; mirrors process_improve.experiments.compare.MODELS. */
 export const AIMS = ["main_effects", "interactions", "main_quadratic", "quadratic"];
