@@ -343,7 +343,6 @@ def best_panel(node: str, held: dict, responses: list, replies: tuple[dict, dict
     )
 
 
-@pytest.mark.slow
 @pytest.mark.parametrize(("goal", "target"), [("maximize", None), ("minimize", None), ("target", 60.0)])
 def test_the_best_settings_code_finds_the_page_s_best_settings(api, node, worked_example, goal, target):
     held = aimed(worked_example["held"], goal, target)
@@ -356,7 +355,6 @@ def test_the_best_settings_code_finds_the_page_s_best_settings(api, node, worked
     assert_same_best(namespace, best, held["spec"])
 
 
-@pytest.mark.slow
 def test_the_notebook_ends_with_the_best_settings_when_the_page_has_them(api, node, worked_example):
     held = aimed(worked_example["held"], "maximize")
     simulation = worked_example["simulated"]
@@ -379,7 +377,6 @@ def test_the_notebook_ends_with_the_best_settings_when_the_page_has_them(api, no
     assert not any("optimize_responses" in "".join(cell["source"]) for cell in plain["cells"]), "no goal, no step 4"
 
 
-@pytest.mark.slow
 def test_the_best_settings_code_holds_a_categorical_factor_and_the_blocks_as_the_page_does(api, node):
     factors = [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
     spec = {"design_type": "full_factorial", "factors": factors, "n_center_points": 2, "n_blocks": 2}
@@ -394,7 +391,6 @@ def test_the_best_settings_code_holds_a_categorical_factor_and_the_blocks_as_the
     assert_same_best(run(code), best, held["spec"])
 
 
-@pytest.mark.slow
 def test_the_best_settings_code_keeps_to_the_limits_on_the_settings(api, node):
     spec = {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS[:1]}
     held = aimed(held_of(api.ok("api_make_design", spec)), "maximize")
@@ -409,7 +405,6 @@ def test_the_best_settings_code_keeps_to_the_limits_on_the_settings(api, node):
     assert_same_best(run(code), best, held["spec"])
 
 
-@pytest.mark.slow
 def test_the_best_settings_code_leaves_the_confirmation_runs_out_of_the_fit(api, node, worked_example):
     held = aimed(worked_example["held"], "maximize")
     simulation = worked_example["simulated"]

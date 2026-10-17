@@ -599,7 +599,7 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .best table.data td:nth-child(2) { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .best table.data td:nth-child(3), .best table.data th:nth-child(3) { text-align: left; }
 .best .scroll { margin: 8px 0; }
-.best table.data.known-table th { text-align: left; font-weight: 400; padding: 4px 12px 4px 0; }
+.best table.data.known-table th { min-width: 11em; text-align: left; font-weight: 400; padding: 4px 12px 4px 0; }
 .best table.data.known-table td { white-space: normal; }
 .best .chart { margin: 12px 0 0; }
 .confirm { margin: 16px 0 0; }
