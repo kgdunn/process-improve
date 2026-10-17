@@ -1039,20 +1039,49 @@ def _canonical_key(coded: np.ndarray) -> bytes:
     """Return a key shared by designs that differ only in run order, factor order and factor signs.
 
     Such designs score identically on every criterion, so the search treats
-    them as one design.  The columns are first put in order by a signature
-    that no run reordering, column permutation or sign flip changes (the
-    column's count of nonzero entries, its co-support with the other columns,
-    and the absolute values of the fourth-order moments
-    ``sum_r x_ri x_rj x_ra^2`` that involve it).  The key is then the
+    them as one design.  The key is the bytes of :func:`_canonical_codes`.
+    """
+    return _canonical_codes(coded).tobytes()
+
+
+def _canonical_form(coded: np.ndarray) -> np.ndarray:
+    """Return the design in its canonical orientation: the transformed copy :func:`_canonical_codes` picks.
+
+    Every design equivalent to *coded* (the same runs up to run order, factor
+    order and factor signs) gives the same array, with the runs sorted by code.
+    The exhaustive search returns its winner in this form, because equivalent
+    designs tie exactly on every criterion and the floating-point scores would
+    otherwise let rounding pick the orientation, which can differ between
+    platforms.  The exhaustive search runs for three and four factors only,
+    where :func:`_canonical_codes` always takes its exact branch.
+    """
+    codes = _canonical_codes(coded)
+    columns = []
+    for _ in range(coded.shape[1]):  # last column first: each code is a balanced-ternary number
+        digit = (codes + 1) % 3 - 1
+        columns.append(digit)
+        codes = (codes - digit) // 3
+    return np.column_stack(columns[::-1]).astype(float)
+
+
+def _canonical_codes(coded: np.ndarray) -> np.ndarray:
+    """Return the sorted run codes of the canonical orientation of *coded*.
+
+    A run's code is the balanced-ternary number its levels spell, the first
+    factor the most significant digit.  The columns are first put in order by
+    a signature that no run reordering, column permutation or sign flip
+    changes (the column's count of nonzero entries, its co-support with the
+    other columns, and the absolute values of the fourth-order moments
+    ``sum_r x_ri x_rj x_ra^2`` that involve it).  The codes are then the
     lexicographically smallest sorted list of run codes over every
     reordering of columns with equal signatures and every choice of column
-    signs, which makes it exact: two designs share a key exactly when they
-    are equivalent.  When that set of transforms exceeds
+    signs, which makes them exact: two designs give the same codes exactly
+    when they are equivalent.  When that set of transforms exceeds
     :data:`_CANONICAL_MAX_TRANSFORMS`, the signs are instead fixed one column
-    at a time in signature order, which keeps the key a transformed copy of
-    the design (equal keys still mean equivalent designs) but can, rarely,
-    give two equivalent designs different keys; that costs only a repeated
-    scoring, never a lost design.
+    at a time in signature order, which keeps the codes those of a
+    transformed copy of the design (equal codes still mean equivalent
+    designs) but can, rarely, give two equivalent designs different codes;
+    for the search that costs only a repeated scoring, never a lost design.
     """
     x = np.rint(coded).astype(np.int64)
     n_cols = x.shape[1]
@@ -1067,7 +1096,7 @@ def _canonical_key(coded: np.ndarray) -> bytes:
         signs = np.array([(1, *rest) for rest in itertools.product((1, -1), repeat=n_cols - 1)], dtype=np.int64)
         codes = np.einsum("pnj,sj->psn", x[:, orders].transpose(1, 0, 2), signs * weights).reshape(-1, x.shape[0])
         codes.sort(axis=1)
-        return codes[np.lexsort(codes.T[::-1])[0]].tobytes()
+        return codes[np.lexsort(codes.T[::-1])[0]]
     ordered = x[:, [j for group in groups for j in group]]
     for j in range(1, n_cols):
         codes = ordered[:, : j + 1] @ weights[n_cols - j - 1 :]
@@ -1075,7 +1104,7 @@ def _canonical_key(coded: np.ndarray) -> bytes:
         flipped[:, j] *= -1
         if tuple(np.sort(flipped @ weights[n_cols - j - 1 :])) < tuple(np.sort(codes)):
             ordered[:, j] *= -1
-    return np.sort(ordered @ weights).tobytes()
+    return np.sort(ordered @ weights)
 
 
 def _column_signatures(x: np.ndarray) -> list[tuple]:
@@ -1982,7 +2011,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "omars_verified": is_omars(received, tol=tol),
         "omars_search": report,
     }
-    return winner.coded, metadata
+    return (_canonical_form(winner.coded) if exhausted else winner.coded), metadata
 
 
 def _no_design_advice(status: str) -> str:
