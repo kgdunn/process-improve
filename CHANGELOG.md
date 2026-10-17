@@ -13,6 +13,16 @@ those changes.
 
 ### Added
 
+- **Multistratum analysis of variance.** `multistratum_anova(runs, model, strata, response=None)`
+  analyses a split-plot, strip-plot or other design with several sizes of unit, as R's
+  `aov(y ~ model + Error(strata))` does. The block structure is given as error terms (`"rep/plot"`,
+  `"S:T"`, `"row + column"`). Each treatment term is estimated in the stratum its contrasts fall in
+  and tested on that stratum's residual. A term of a design that is not orthogonal, such as the
+  treatments of an incomplete block design, gets a row in each stratum it falls in. Without a
+  response it gives the skeleton analysis of variance, the sources and degrees of freedom a layout
+  will have. The reference catalogue checks 41 more items with it: NIST's three electroplating
+  split-plot layouts and the implant-anneal strip plot, their degrees of freedom, terms per stratum
+  and whole-plot units.
 - **Least-squares means and their multiple comparisons.** `least_squares_means(runs,
   "y ~ treatment + block", factor)` gives each level's adjusted mean: the model's prediction averaged with equal
   weight over the other factors' levels, as an incomplete block design or a Youden square needs.

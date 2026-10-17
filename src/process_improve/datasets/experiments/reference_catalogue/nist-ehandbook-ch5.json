@@ -40376,8 +40376,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep",
+      "stratum": "rep"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40390,8 +40402,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "S",
+      "stratum": "rep:S"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40404,8 +40428,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep:S",
+      "stratum": "rep:S"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40418,8 +40454,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "T",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40432,8 +40480,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep:T",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40446,8 +40506,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40460,8 +40532,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40474,8 +40558,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "T:S",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40488,8 +40584,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep:T:S",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40502,8 +40610,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "T:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40516,8 +40636,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep:T:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40530,8 +40662,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "A:S",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40544,8 +40688,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep:A:S",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40558,8 +40714,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "T:A:S",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "degrees of freedom",
@@ -40572,8 +40740,20 @@
       "quote": "Source DF Replication 1 Concentration 1 Error (Whole plot) = Rep*Conc 1 ... Error (Subplot) =Rep*Temp*Current*Conc 1"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "df",
+      "term": "rep:T:A:S",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it"
     },
     {
      "what": "sources at the whole-plot level",
@@ -40586,8 +40766,20 @@
       "quote": "The first three sources are from the whole-plot level, while the next 12 are from the subplot portion."
      },
      "check": {
-      "manual": "a count of the ANOVA's rows, in words"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "n_terms",
+      "stratum": ["rep", "rep:S"],
+      "printed": "3"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it: the terms estimated in the replicate and whole-plot strata"
     },
     {
      "what": "sources at the subplot level",
@@ -40600,8 +40792,20 @@
       "quote": "The first three sources are from the whole-plot level, while the next 12 are from the subplot portion."
      },
      "check": {
-      "manual": "a count of the ANOVA's rows, which no check computes"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "n_terms",
+      "stratum": "Within",
+      "printed": "12"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it: the terms estimated within the whole plots"
     },
     {
      "what": "subplot estimates for the normal plot",
@@ -40614,8 +40818,20 @@
       "quote": "A normal probability plot of the 12 subplot term estimates could be used"
      },
      "check": {
-      "manual": "a count of the ANOVA's rows, which no check computes"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "rep": 2,
+       "S": 2,
+       "T": 2,
+       "A": 2
+      },
+      "model": "rep * S * T * A",
+      "strata": "rep/S",
+      "key": "n_terms",
+      "stratum": "Within",
+      "printed": "12"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, the 16 strips in two replicates, concentration set once per replicate (strata rep/S), every term of the replicated 2^3 listed as the page lists it: the terms estimated within the whole plots"
     },
     {
      "what": "degrees of freedom",
@@ -40628,8 +40844,20 @@
       "quote": "Concentration 1 Temperature 1 Error (Whole plot) = Conc*Temp 1 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 8"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "df",
+      "term": "S",
+      "stratum": "S:T"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40642,8 +40870,20 @@
       "quote": "Concentration 1 Temperature 1 Error (Whole plot) = Conc*Temp 1 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 8"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "df",
+      "term": "T",
+      "stratum": "S:T"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40656,8 +40896,20 @@
       "quote": "Concentration 1 Temperature 1 Error (Whole plot) = Conc*Temp 1 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 8"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "df",
+      "term": "S:T",
+      "stratum": "S:T"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip; the whole-plot error is the S:T interaction"
     },
     {
      "what": "degrees of freedom",
@@ -40670,8 +40922,20 @@
       "quote": "Concentration 1 Temperature 1 Error (Whole plot) = Conc*Temp 1 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 8"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "df",
+      "term": "A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40684,8 +40948,20 @@
       "quote": "Concentration 1 Temperature 1 Error (Whole plot) = Conc*Temp 1 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 8"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "df",
+      "term": "S:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40698,8 +40974,20 @@
       "quote": "Concentration 1 Temperature 1 Error (Whole plot) = Conc*Temp 1 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 8"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "df",
+      "term": "T:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40712,8 +41000,20 @@
       "quote": "Concentration 1 Temperature 1 Error (Whole plot) = Conc*Temp 1 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 8"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "df",
+      "term": "S:T:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40778,8 +41078,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "S",
+      "stratum": "S:T:rep"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40792,8 +41104,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "T",
+      "stratum": "S:T:rep"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40806,8 +41130,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "S:T",
+      "stratum": "S:T:rep"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40820,8 +41156,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "Residual",
+      "stratum": "S:T:rep"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40834,8 +41182,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40848,8 +41208,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "S:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40862,8 +41234,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "T:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40876,8 +41260,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "S:T:A",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "degrees of freedom",
@@ -40890,8 +41286,20 @@
       "quote": "Concentration 1 Temperature 1 Conc*Temp 1 Error (Whole plot) 4 Current 1 Conc*Current 1 Temp*Current 1 Conc*Temp*Current 1 Error (Subplot) 4"
      },
      "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "df",
+      "term": "Residual",
+      "stratum": "Within"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip"
     },
     {
      "what": "error degrees of freedom",
@@ -40903,9 +41311,39 @@
       "source_kind": "text",
       "quote": "we have separate error terms for both the whole plot and the subplot effects, each based on 4 degrees of freedom"
      },
-     "check": {
-      "manual": "the degrees of freedom of a split-plot ANOVA layout the page gives without data; no check computes a stratum's degrees of freedom"
-     }
+     "check": [
+      {
+       "kind": "multistratum",
+       "levels": {
+        "S": 2,
+        "T": 2,
+        "rep": 2,
+        "A": 2
+       },
+       "model": "S * T * A",
+       "strata": "S:T:rep",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "S:T:rep",
+       "printed": "4"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "S": 2,
+        "T": 2,
+        "rep": 2,
+        "A": 2
+       },
+       "model": "S * T * A",
+       "strata": "S:T:rep",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "Within",
+       "printed": "4"
+      }
+     ],
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip: the residual of the whole-plot stratum and of the subplots"
     },
     {
      "what": "subplot experimental units",
@@ -40918,8 +41356,20 @@
       "quote": "There are 16 subplot experimental units for this experiment."
      },
      "check": {
-      "manual": "a count of experimental units, which no check computes"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "units",
+      "stratum": "Within",
+      "printed": "16"
+     },
+     "analysis": "the library's multistratum analysis of variance: the subplot units, one per strip"
     },
     {
      "what": "whole-plot experimental units",
@@ -40932,8 +41382,20 @@
       "quote": "There are four whole-plot experimental units in this experiment."
      },
      "check": {
-      "manual": "a count of experimental units in words"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "A": 2,
+       "strip": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T",
+      "key": "units",
+      "stratum": "S:T",
+      "printed": "4"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, one batch of four strips per temperature and concentration (stratum S:T), current set per strip: its whole-plot units"
     },
     {
      "what": "whole-plot experimental units",
@@ -40946,8 +41408,20 @@
       "quote": "There are eight whole-plot experimental units in this experiment."
      },
      "check": {
-      "manual": "a count of experimental units in words (the third scenario)"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "S": 2,
+       "T": 2,
+       "rep": 2,
+       "A": 2
+      },
+      "model": "S * T * A",
+      "strata": "S:T:rep",
+      "key": "units",
+      "stratum": "S:T:rep",
+      "printed": "8"
+     },
+     "analysis": "the library's multistratum analysis of variance of the layout without data, two batches of two strips per temperature and concentration (stratum S:T:rep), current set per strip: its whole-plot units"
     }
    ]
   },
@@ -41059,8 +41533,23 @@
       "quote": "the three-factor interaction term A*B*C (1 degree of freedom) provides the error term"
      },
      "check": {
-      "manual": "the degree of freedom of an unreplicated 2^3's three-factor interaction, used as error; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "A": 2,
+       "B": 2,
+       "C": 2,
+       "D": 2,
+       "E": 2,
+       "F": 2
+      },
+      "model": "A * B * C * D * E * F",
+      "strata": "A:B:C + D:E:F",
+      "key": "df",
+      "term": "A:B:C",
+      "stratum": "A:B:C",
+      "printed": "1"
+     },
+     "analysis": "the library's multistratum analysis of variance of the strip plot (strata A:B:C, the implant batches, and D:E:F, the anneal batches): the three-factor interaction in its process step's stratum, used as its error"
     },
     {
      "what": "anneal error degrees of freedom",
@@ -41073,8 +41562,23 @@
       "quote": "produces the three-factor interaction term D*E*F for the error term (1 degree of freedom)"
      },
      "check": {
-      "manual": "the degree of freedom of an unreplicated 2^3's three-factor interaction, used as error; no check computes a stratum's degrees of freedom"
-     }
+      "kind": "multistratum",
+      "levels": {
+       "A": 2,
+       "B": 2,
+       "C": 2,
+       "D": 2,
+       "E": 2,
+       "F": 2
+      },
+      "model": "A * B * C * D * E * F",
+      "strata": "A:B:C + D:E:F",
+      "key": "df",
+      "term": "D:E:F",
+      "stratum": "D:E:F",
+      "printed": "1"
+     },
+     "analysis": "the library's multistratum analysis of variance of the strip plot (strata A:B:C, the implant batches, and D:E:F, the anneal batches): the three-factor interaction in its process step's stratum, used as its error"
     }
    ]
   },

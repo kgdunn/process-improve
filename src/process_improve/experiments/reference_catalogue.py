@@ -81,6 +81,7 @@ from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
+from process_improve.experiments.multistratum import multistratum_anova
 from process_improve.experiments.omars_trade_off import get_omars_trade_off_table_entry, omars_minimum_runs
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
@@ -2632,6 +2633,40 @@ def _marginal_means(experiment: dict, check: dict) -> float:
     return difference if check["deviation"] == "difference" else 100 * difference / observed
 
 
+def _multistratum(experiment: dict, check: dict) -> float:
+    """Return a number of the library's multistratum analysis of variance, of ``check["model"]`` in ``check["strata"]``.
+
+    ``check["levels"]`` gives a layout a source prints without data: the runs are then every
+    combination of the named factors' levels, ``{"rep": 2, "S": 2}``. Otherwise they are the
+    experiment's, with ``check["response"]`` (the first response by default). ``check["key"]`` is
+    ``"df"``, ``"ss"``, ``"ms"``, ``"f"`` or ``"p_value"`` of ``check["term"]`` in ``check["stratum"]``
+    (``"Residual"`` for the stratum's residual; a term's factors may be written in any order);
+    ``"units"``, the units the stratum holds; or ``"n_terms"``, the count of treatment terms estimated
+    in the stratum, or in a list of strata.
+    """
+    if "levels" in check:
+        names = list(check["levels"])
+        table = pd.DataFrame(list(itertools.product(*(range(int(n)) for n in check["levels"].values()))), columns=names)
+        response = None
+    else:
+        settings, responses = _coded_runs(experiment, check.get("runs"))
+        response = check.get("response") or responses.columns[0]
+        table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    strata = {s["stratum"]: s for s in multistratum_anova(table, check["model"], check["strata"], response)["strata"]}
+    key, wanted = check["key"], check["stratum"]
+    if key == "n_terms":
+        return float(sum(len(strata[name]["terms"]) for name in (wanted if isinstance(wanted, list) else [wanted])))
+    if key == "units":
+        return float(strata[wanted]["units"])
+    if check["term"] == "Residual":
+        return float(strata[wanted]["residual"][key])
+    factors = frozenset(check["term"].split(":"))
+    row = next((r for r in strata[wanted]["terms"] if frozenset(r["term"].split(":")) == factors), None)
+    if row is None:
+        raise KeyError(f"No term {check['term']!r} in the stratum {wanted!r}.")
+    return float(row[key])
+
+
 def _variance_component(experiment: dict, check: dict) -> float:
     """Return a number of the library's REML fit with a random intercept for each of ``check["groups"]``.
 
@@ -2873,6 +2908,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "glm": _glm,
     "expected_mean_squares": _expected_mean_squares,
     "least_squares_means": _least_squares_means,
+    "multistratum": _multistratum,
 }
 
 
