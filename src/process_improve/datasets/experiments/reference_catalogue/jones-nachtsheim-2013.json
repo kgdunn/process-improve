@@ -208,22 +208,37 @@
      "what": "correlation",
      "term": "quadratic main effects",
      "value": "1/2 − 2/(n − 4)",
-     "analysis": "correlation between the quadratic main effects columns of a DSD-augmented design, as a function of its run size n",
+     "analysis": "the correlation of two continuous factors' squares over the runs, from the library's correlation metric (the squares alone, so only their means are taken out), the same for every pair; the printed formula at n = 14",
      "where": {
       "page": 129,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "the correlation between quadratic main effects columns is 1/2 − 2/(n − 4)"
      },
-     "check": {
-      "manual": "a formula in n, not a number. It holds for every Figure 1a design: the Pearson correlation of two squared continuous columns is 0.3000 for n = 14 (c = 1, 2) and 0.3571 for n = 18 (c = 3, 4), and evaluate_design's correlation metric, for the main effects plus the four continuous squares, gives the same max_abs_r"
-     }
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "correlation",
+       "model": "I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+       "key": "max_abs_r",
+       "printed": "1/2 - 2/(14 - 4)",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "correlation",
+       "model": "I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+       "key": "mean_abs_r",
+       "printed": "1/2 - 2/(14 - 4)",
+       "expression": true
+      }
+     ]
     },
     {
      "what": "inner product",
      "term": "linear main effects with quadratic main effects",
      "value": "zero",
-     "analysis": "inner product of the linear main effects columns with the quadratic main effects columns, DSD-augment procedure",
+     "analysis": "an entry block of the information matrix X'X of the printed runs, from the library's normal equations: every main effect's column against every continuous factor's square",
      "where": {
       "page": 128,
       "pdf_page": 8,
@@ -231,7 +246,18 @@
       "quote": "For the DSD-augment procedure, this inner product is zero."
      },
      "check": {
-      "manual": "a cross product of two design columns, which no check kind reports; every categorical column of each Figure 1a design sums to 0 over the runs where a continuous factor is non-zero, so the product is 0"
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "xtx",
+      "rows": [1, 2, 3, 4, 5],
+      "columns": [6, 7, 8, 9],
+      "printed": [
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"]
+      ]
      }
     }
    ]
@@ -415,7 +441,7 @@
      "what": "information matrix",
      "term": "X'X row 1 (intercept)",
      "value": "14 0 0 0 0 0 0",
-     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "analysis": "a row of X'X of the printed runs in the main-effects model, from the library's normal equations",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -423,14 +449,18 @@
       "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
      },
      "check": {
-      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives this row exactly."
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": 0,
+      "printed": ["14", "0", "0", "0", "0", "0", "0"]
      }
     },
     {
      "what": "information matrix",
      "term": "X'X row 2 (x1)",
      "value": "0 10 0 0 0 2 −2",
-     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "analysis": "a row of X'X of the printed runs in the main-effects model, from the library's normal equations",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -438,14 +468,19 @@
       "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
      },
      "check": {
-      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 10 0 0 0 2 2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": 1,
+      "printed": ["0", "10", "0", "0", "0", "2", "-2"],
+      "disagreement": "the printed Figure 1a design gives the row 0 10 0 0 0 2 2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
      }
     },
     {
      "what": "information matrix",
      "term": "X'X row 3 (x2)",
      "value": "0 0 10 0 0 −2 −2",
-     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "analysis": "a row of X'X of the printed runs in the main-effects model, from the library's normal equations",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -453,14 +488,19 @@
       "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
      },
      "check": {
-      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 0 10 0 0 −2 2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": 2,
+      "printed": ["0", "0", "10", "0", "0", "-2", "-2"],
+      "disagreement": "the printed Figure 1a design gives the row 0 0 10 0 0 −2 2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
      }
     },
     {
      "what": "information matrix",
      "term": "X'X row 4 (x3)",
      "value": "0 0 0 10 0 −2 2",
-     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "analysis": "a row of X'X of the printed runs in the main-effects model, from the library's normal equations",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -468,14 +508,19 @@
       "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
      },
      "check": {
-      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 0 0 10 0 −2 −2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": 3,
+      "printed": ["0", "0", "0", "10", "0", "-2", "2"],
+      "disagreement": "the printed Figure 1a design gives the row 0 0 0 10 0 −2 −2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
      }
     },
     {
      "what": "information matrix",
      "term": "X'X row 5 (x4)",
      "value": "0 0 0 0 10 2 2",
-     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "analysis": "a row of X'X of the printed runs in the main-effects model, from the library's normal equations",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -483,14 +528,19 @@
       "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
      },
      "check": {
-      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 0 0 0 10 2 −2; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": 4,
+      "printed": ["0", "0", "0", "0", "10", "2", "2"],
+      "disagreement": "the printed Figure 1a design gives the row 0 0 0 0 10 2 −2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
      }
     },
     {
      "what": "information matrix",
      "term": "X'X row 6 (x5)",
      "value": "0 2 −2 −2 2 14 2",
-     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "analysis": "a row of X'X of the printed runs in the main-effects model, from the library's normal equations",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -498,14 +548,19 @@
       "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
      },
      "check": {
-      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 2 −2 −2 2 14 6; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": 5,
+      "printed": ["0", "2", "-2", "-2", "2", "14", "2"],
+      "disagreement": "the printed Figure 1a design gives the row 0 2 −2 −2 2 14 6: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
      }
     },
     {
      "what": "information matrix",
      "term": "X'X row 7 (x6)",
      "value": "0 −2 −2 2 2 2 14",
-     "analysis": "information matrix X'X of the first-order model, DSD-augmented design with m = 4 and c = 2",
+     "analysis": "a row of X'X of the printed runs in the main-effects model, from the library's normal equations",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -513,14 +568,19 @@
       "quote": "For example, the information matrix for the design having four continuous factors and two categorical factors is given by"
      },
      "check": {
-      "manual": "an entry of the information matrix X'X, which no evaluate_design metric reports (each off-diagonal entry is 14 times the matching intercept-row entry of the alias matrix, checked from Table 3). The Figure 1a design gives 0 2 2 −2 −2 6 14; reversing z2 (rows 11 and 12 of x6) gives the printed row."
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": 6,
+      "printed": ["0", "-2", "-2", "2", "2", "2", "14"],
+      "disagreement": "the printed Figure 1a design gives the row 0 2 2 −2 −2 6 14: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
      }
     },
     {
      "what": "inner product",
      "term": "d_i'a_j",
      "value": "±2",
-     "analysis": "cross product of a continuous column with a categorical column, DSD-augment procedure",
+     "analysis": "an entry block of the information matrix X'X of the printed runs, from the library's normal equations: each continuous-by-categorical entry is +2 or -2",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -528,7 +588,18 @@
       "quote": "With zi,1 = ±1 and zi,2 = ∓1, d+'i a+j = ±2."
      },
      "check": {
-      "manual": "a cross product of two design columns, which no check kind reports; in every Figure 1a design each continuous-by-categorical entry of X'X is +2 or -2"
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": [1, 2, 3, 4],
+      "columns": [5, 6],
+      "abs": true,
+      "printed": [
+       ["2", "2"],
+       ["2", "2"],
+       ["2", "2"],
+       ["2", "2"]
+      ]
      }
     },
     {
@@ -550,7 +621,7 @@
      "what": "inner product",
      "term": "a_i'a_j",
      "value": "±2",
-     "analysis": "cross product of two categorical columns after the DSD-augment procedure, which 'usually eliminates' 6",
+     "analysis": "an entry block of the information matrix X'X of the printed runs, from the library's normal equations: the cross product of the two categorical columns",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -558,7 +629,16 @@
       "quote": "the DSD-augment procedure usually eliminates the a+'i a+j = 6 case, so that a+'i a+j = ±2"
      },
      "check": {
-      "manual": "a cross product of two design columns, which no check kind reports; as printed this design has x5'x6 = 6, the case the paper says is usually eliminated, while equation (2) has 2"
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "key": "xtx",
+      "rows": [5],
+      "columns": [6],
+      "abs": true,
+      "printed": [
+       ["2"]
+      ],
+      "disagreement": "as printed, x5'x6 = 6, the case the paper says is usually eliminated; equation (2) has +2 or -2"
      }
     },
     {
@@ -1026,7 +1106,7 @@
      "what": "alias",
      "term": "linear main effects with quadratic main effects",
      "value": "zero",
-     "analysis": "aliasing of the linear main effects with the quadratic main effects, left out of Table 3",
+     "analysis": "an entry block of the information matrix X'X of the printed runs, from the library's normal equations: every main effect's column against every continuous factor's square",
      "where": {
       "page": 123,
       "pdf_page": 3,
@@ -1034,7 +1114,19 @@
       "quote": "the zero aliasing between the linear main effects terms and the quadratic main effects terms has been omitted"
      },
      "check": {
-      "manual": "evaluate_design's alias_matrix aliases the model against two-factor interactions only, not squares; every main-effect column of this design has a zero cross product with every squared continuous column, and the intercept is orthogonal to the main effects, so these rows are exactly 0"
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "xtx",
+      "rows": [1, 2, 3, 4, 5, 6],
+      "columns": [7, 8, 9, 10],
+      "printed": [
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"],
+       ["0", "0", "0", "0"]
+      ]
      }
     }
    ]
@@ -1527,7 +1619,7 @@
      "what": "centre runs",
      "term": "c = 1",
      "value": "two",
-     "analysis": "centre points of the orthogonal augmentation for one categorical factor",
+     "analysis": "printed in words; the runs with every continuous factor at 0, from the library's design_structure",
      "where": {
       "page": 127,
       "pdf_page": 7,
@@ -1535,7 +1627,10 @@
       "quote": "if c = 1, then an orthogonal augmentation exists that employs only two center points"
      },
      "check": {
-      "manual": "a count of centre runs, which no check kind reads; runs 13 and 14 of this design are its two centre runs, and its X'X is diagonal"
+      "kind": "design_structure",
+      "factors": ["x1", "x2", "x3", "x4"],
+      "key": "n_center_runs",
+      "printed": "2"
      }
     }
    ]
@@ -3362,52 +3457,115 @@
      "what": "information matrix",
      "term": "X'X diagonal, intercept and categorical",
      "value": "n",
-     "analysis": "diagonal of the first-order model's X'X for an ORTH-augmented design, i = 1 and i = m + 2, ..., m + c + 1",
+     "analysis": "the diagonal of X'X for the intercept and the categorical factors, n = 16 runs",
      "where": {
       "page": 127,
       "pdf_page": 7,
       "source_kind": "equation",
       "quote": "X'X_i,i = n for i = 1 and i = m + 2, ..., m + c + 1"
      },
-     "check": {
-      "manual": "a formula, and no check kind reports X'X; for this design (n = 16) those diagonal entries are 16, and X'X is diagonal"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x1 + x2 + x3 + x4 + x5 + x6",
+       "key": "xtx.0.0",
+       "printed": "16"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x1 + x2 + x3 + x4 + x5 + x6",
+       "key": "xtx.5.5",
+       "printed": "16"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x1 + x2 + x3 + x4 + x5 + x6",
+       "key": "xtx.6.6",
+       "printed": "16"
+      }
+     ]
     },
     {
      "what": "information matrix",
      "term": "X'X diagonal, continuous",
      "value": "n1 = n − 4",
-     "analysis": "diagonal of the first-order model's X'X for an ORTH-augmented design, i = 2, ..., m + 1",
+     "analysis": "the diagonal of X'X for the continuous factors, n - 4 = 12 for these n = 16 runs",
      "where": {
       "page": 127,
       "pdf_page": 7,
       "source_kind": "equation",
       "quote": "n1 = n − 4 for i = 2, ..., m + 1"
      },
-     "check": {
-      "manual": "a formula, and no check kind reports X'X. It does not hold for the printed designs with c = 2 to 4: a continuous column is 0 in one fold-over pair as well as in the centre runs, so its diagonal entry is n1 - 2 = n - 6, which is 10 for this design (n = 16, n1 = 12) and 14 for c = 3 and 4 (n = 20, n1 = 16), not 12 and 16; equation (2) likewise has 10 for n1 = 12"
-     }
+     "check": [
+      {
+       "kind": "normal_equations",
+       "model": "x1 + x2 + x3 + x4 + x5 + x6",
+       "key": "xtx.1.1",
+       "printed": "16 - 4",
+       "expression": true,
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x1 + x2 + x3 + x4 + x5 + x6",
+       "key": "xtx.2.2",
+       "printed": "16 - 4",
+       "expression": true,
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x1 + x2 + x3 + x4 + x5 + x6",
+       "key": "xtx.3.3",
+       "printed": "16 - 4",
+       "expression": true,
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+      },
+      {
+       "kind": "normal_equations",
+       "model": "x1 + x2 + x3 + x4 + x5 + x6",
+       "key": "xtx.4.4",
+       "printed": "16 - 4",
+       "expression": true,
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+      }
+     ]
     },
     {
      "what": "correlation",
      "term": "quadratic main effects",
      "value": "2/3 − 2/(n − 6)",
-     "analysis": "correlation between the quadratic main effects columns of an ORTH-augmented design, as a function of n",
+     "analysis": "the correlation of two continuous factors' squares over the runs, from the library's correlation metric (the squares alone, so only their means are taken out), the same for every pair; the printed formula at n = 16",
      "where": {
       "page": 129,
       "pdf_page": 9,
       "source_kind": "text",
       "quote": "For the ORTH-augment designs, this correlation is 2/3 − 2/(n − 6)"
      },
-     "check": {
-      "manual": "a formula in n, not a number. The Pearson correlation of two squared continuous columns is 0.4667 here (n = 16) and 0.5238 for c = 3 and 4 (n = 20), as the formula gives; it assumes four centre runs, and the c = 1 design (two centre runs, n = 14) has 0.3000. evaluate_design's correlation metric residualises the squares on the main effects first, so it gives 0.3846, not 0.4667, here"
-     }
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "correlation",
+       "model": "I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+       "key": "max_abs_r",
+       "printed": "2/3 - 2/(16 - 6)",
+       "expression": true
+      },
+      {
+       "kind": "design_metric",
+       "metric": "correlation",
+       "model": "I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+       "key": "mean_abs_r",
+       "printed": "2/3 - 2/(16 - 6)",
+       "expression": true
+      }
+     ]
     },
     {
      "what": "inner product",
      "term": "linear main effects with quadratic main effects",
      "value": "+2",
-     "analysis": "inner product of the linear main effects columns with the quadratic main effects columns, ORTH-augment designs",
+     "analysis": "an entry block of the information matrix X'X of the printed runs, from the library's normal equations: each categorical column against each continuous factor's square",
      "where": {
       "page": 128,
       "pdf_page": 8,
@@ -3415,7 +3573,15 @@
       "quote": "the inner product between the linear main effects columns and the quadratic main effects columns is equal to +2"
      },
      "check": {
-      "manual": "a cross product of two design columns, which no check kind reports; in every Figure 1b design each categorical column has cross product +2 with each squared continuous column; the continuous columns' cross products with the squares are 0"
+      "kind": "normal_equations",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "key": "xtx",
+      "rows": [5, 6],
+      "columns": [7, 8, 9, 10],
+      "printed": [
+       ["2", "2", "2", "2"],
+       ["2", "2", "2", "2"]
+      ]
      }
     }
    ]
@@ -3678,7 +3844,7 @@
      "what": "count",
      "term": "nonzero off-diagonal entries of X'X",
      "value": "0",
-     "analysis": "number of nonzero entries in the information matrix of the ORTH-augmented design, m = 4, c = 4",
+     "analysis": "the library's information_matrix says X'X is diagonal (1 for true): none of its off-diagonal entries is nonzero",
      "where": {
       "page": 128,
       "pdf_page": 8,
@@ -3686,14 +3852,18 @@
       "quote": "4 4 0 0.0000"
      },
      "check": {
-      "manual": "a count of X'X entries, which no check kind reports; this design's X'X is diagonal, so 0"
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "main_effects",
+      "key": "is_diagonal",
+      "printed": "1"
      }
     },
     {
      "what": "fraction",
      "term": "nonzero off-diagonal entries of X'X",
      "value": "0.0000",
-     "analysis": "fraction of nonzero entries among the off-diagonal elements of the information matrix, m = 4, c = 4",
+     "analysis": "the library's information_matrix says X'X is diagonal (1 for true): none of its off-diagonal entries is nonzero",
      "where": {
       "page": 128,
       "pdf_page": 8,
@@ -3701,7 +3871,11 @@
       "quote": "4 4 0 0.0000"
      },
      "check": {
-      "manual": "a fraction of X'X entries, which no check kind reports; this design's X'X is diagonal, so 0"
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "main_effects",
+      "key": "is_diagonal",
+      "printed": "1"
      }
     }
    ]

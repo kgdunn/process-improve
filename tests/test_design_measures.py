@@ -251,3 +251,32 @@ def test_designs_are_grouped_into_classes_of_one_design(monkeypatch):
         "c": "same-2",
         "b": "same",
     }
+
+
+# --------------------------------------------------------------------------- what the runs are made of
+def test_a_definitive_screening_design_s_zeros_centre_run_and_mirror_pairs() -> None:
+    """The six-factor DSD with three centre runs: two zeros per column, four per interaction, centre runs left out."""
+    runs = coded("dsd", 6, n_center_points=3)
+    found = design_measures.design_structure(runs, list("ABCDEF"))
+    assert (found["n_center_runs"], found["zeros"]["n0ME"], found["zeros"]["n0IE"]) == (3, 2, 4)
+    assert (found["mirror_pairs"], found["foldover"], found["n_three_level"]) == (6, True, 6)
+    assert {level: counts["A"] for level, counts in found["level_counts"].items()} == {"-1": 5, "0": 5, "1": 5}
+    assert [len(group) for group in found["replicated"]] == [3]  # the centre runs
+
+
+def test_mixed_levels_replicates_and_blocks() -> None:
+    runs = np.array([[0, -1], [0, 1], [1, -1], [-1, 1], [0, -1], [0, -1]], dtype=float)
+    found = design_measures.design_structure(runs, ["Q", "C"], blocks=np.array([1, 1, 1, 2, 2, 2]))
+    assert (found["n_two_level"], found["n_three_level"], found["n_center_runs"]) == (1, 1, 4)
+    assert found["replicated"] == [[0, 4, 5]]
+    assert found["block_sizes"] == {1: 3, 2: 3}
+    assert not found["blocks_balanced"]
+    assert found["zeros"]["n0IE"] is None  # no pair of three-level factors
+
+
+def test_unequal_zero_counts_have_no_common_value() -> None:
+    runs = np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0], [-1, 0, -1], [0, -1, -1], [-1, -1, 1], [1, -1, -1]], dtype=float)
+    found = design_measures.design_structure(runs)
+    assert found["zeros"]["main_effects"] == {"x1": 2, "x2": 2, "x3": 1}
+    assert found["zeros"]["n0ME"] is None
+    assert not found["foldover"]
