@@ -358,6 +358,26 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "2 sources were sent for 15 runs.",
     ),
     "unknown process": ("api_simulate", _runs(scenario="rocket"), "Unknown process 'rocket'."),
+    # The best settings, and the confirmation runs made at them.
+    "every run a confirmation run": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_runs()(ex),
+            "columns": [*ex["held"]["columns"], "Confirmation run"],
+            "rows": [[*row, "yes"] for row in ex["held"]["rows"]],
+        },
+        "Every run on the run sheet is marked as a confirmation run, and the model is fitted to the design's runs.",
+    ),
+    "best settings before any result": (
+        "api_best_settings",
+        _runs(responses=[None] * 15),
+        "Enter results first: the best settings are found on the model fitted to them.",
+    ),
+    "a surface held at best settings the page did not write": (
+        "api_plots",
+        _runs(best={"T": 1.0, "P": -1.0, "F": 3.0}),
+        "The page sent best settings this page did not write.",
+    ),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
     "no design for these factors": (
         "api_candidates",

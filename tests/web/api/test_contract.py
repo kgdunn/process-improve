@@ -324,7 +324,7 @@ ENTRY_POINTS = {
 #: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
-NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
+NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare", "api_best_settings"}
 
 #: Two straight limits, one with a note: between them they narrow both ranges, so ``bounds`` has entries to read.
 LIMITS = [{"expression": "T + 25*P <= 215", "note": "the product chars"}, {"expression": "400 <= 3*T + 5*P <= 600"}]

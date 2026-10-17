@@ -64,6 +64,14 @@ SPEC_VERSION = 1
 #: and response, which must be variable names; workbooks written before used ``Source``.
 MARKS = "Result source"
 
+#: The run sheet's column marking a confirmation run: a run made at the best settings, to test the model
+#: there. Its space keeps it apart from every factor and response, as for :data:`MARKS`. A run sheet has it
+#: once the reader adds confirmation runs, and the model is never fitted to the runs it marks.
+CONFIRMATION = "Confirmation run"
+
+#: What that column holds for a confirmation run; a run of the design leaves it blank.
+CONFIRMS = "yes"
+
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
 #: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
 #: scipy >= 1.15, newer than Pyodide's, and takes too long for a page).
@@ -1281,6 +1289,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     With the true process the results were simulated from, each coefficient also
     carries the true value of what it estimates (see :func:`_add_true_values`).
     """
+    runs = _design_runs(runs)
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
@@ -1746,6 +1755,28 @@ def _runs_frame(request: dict, spec: dict) -> pd.DataFrame:
     return runs
 
 
+def _confirming(runs: pd.DataFrame) -> pd.Series:
+    """Say which runs of a run sheet are confirmation runs: those its :data:`CONFIRMATION` column marks."""
+    if CONFIRMATION not in runs.columns:
+        return pd.Series(False, index=runs.index)
+    return runs[CONFIRMATION].map(lambda mark: isinstance(mark, str) and mark.strip().lower() == CONFIRMS)
+
+
+def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
+    """Return the runs the model is fitted to: the run sheet less its confirmation runs, which test the model.
+
+    A confirmation run is made at the settings the model recommends, to see whether the process
+    gives what the model predicts there. Fitted to it, the model would be judged on a run it was
+    made to fit, so every fit leaves the confirmation runs out, as if they were not on the sheet.
+    """
+    confirming = _confirming(runs)
+    if confirming.all():
+        raise ValueError(
+            "Every run on the run sheet is marked as a confirmation run, and the model is fitted to the design's runs."
+        )
+    return runs.loc[~confirming].drop(columns=[CONFIRMATION], errors="ignore").reset_index(drop=True)
+
+
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
     """Code each factor's settings to -1 at its low value and +1 at its high value, a category's labels too."""
     return pd.DataFrame({f["name"]: _coded_column(runs[f["name"]], f) for f in factors})
@@ -1985,7 +2016,7 @@ def plots(request: dict) -> dict:
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
-    runs = _runs_frame(request, spec)
+    runs = _design_runs(_runs_frame(request, spec))
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
     done = y.notna().to_numpy()
@@ -1997,6 +2028,8 @@ def plots(request: dict) -> dict:
     rows = coded.assign(**{response: y}).to_dict("records")
     pair = _contour_pair(out["coefficients"], names)
     shading, held = _shading(spec, pair)
+    if best := _held_at_best(request.get("best"), spec, pair):
+        shading, held = {**shading, "hold_values": best[0]}, best[1]
 
     def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
@@ -2018,10 +2051,44 @@ def plots(request: dict) -> dict:
     return {
         "figures": figures,
         "contour_factors": pair,
-        "shaded": bool(shading),
+        "shaded": "region" in shading,
         "held": held,
+        "held_best": best is not None,
         "plotly_js": get_plotlyjs_version(),
     }
+
+
+def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, float], list[dict[str, Any]]] | None:
+    """Return where the response surface holds the factors it does not draw when the page has the best settings.
+
+    ``raw`` is the best settings as :func:`best_settings` gives them, every factor coded, or None.
+    The surface is then a slice through the best settings, so the star the page puts on it sits on
+    the surface it marks. Returns the coded values to hold, and each held factor in its own units,
+    or its level, for the caption to say; None without best settings.
+    """
+    if raw is None:
+        return None
+    factors = spec["factors"]
+    if not (
+        isinstance(raw, dict)
+        and set(raw) == {f["name"] for f in factors}
+        and all(_number(v) is not None and -1 - AT_EDGE <= _number(v) <= 1 + AT_EDGE for v in raw.values())  # type: ignore[operator]
+    ):
+        raise ValueError("The page sent best settings this page did not write.")
+    hold: dict[str, float] = {}
+    held = []
+    for f in factors:
+        if f["name"] in pair:
+            continue
+        coded = float(raw[f["name"]])
+        hold[f["name"]] = coded
+        value = (
+            (f["low"] if coded < 0 else f["high"])
+            if _categorical(f)
+            else (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+        )
+        held.append({"name": f["name"], "value": value})
+    return hold, held
 
 
 def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -2119,7 +2186,8 @@ def relabel(request: dict) -> dict:
         "outside_range": [names.get(n, n) for n in design.get("outside_range") or []],
     }
     if design.get("facts"):
-        coded = _coded(_runs_frame({**design, "columns": reply["columns"]}, spec), after).to_numpy(dtype=float)
+        runs = _design_runs(_runs_frame({**design, "columns": reply["columns"]}, spec))
+        coded = _coded(runs, after).to_numpy(dtype=float)
         reply["facts"] = _relabelled_facts(design["facts"], coded, names)
     if simulation := request.get("simulation"):
         truth = [
@@ -2946,6 +3014,704 @@ def _coded_value(factor: Factor, value: float) -> float:
     return (value - (factor.low + factor.high) / 2) / ((factor.high - factor.low) / 2)
 
 
+# --------------------------------------------------------------------------- the best settings for the response's goal
+#: The goals the page finds the best settings for: what the reader wants of the response, less ``learn``.
+AIMED = ("maximize", "minimize", "target")
+
+#: The confidence level of the intervals at the best settings.
+LEVEL = 0.95
+
+#: How far each numeric factor moves from the best settings, either way, to show how tightly it must be held: this
+#: share of its range, 0.1 in coded units.
+NUDGE = 0.05
+
+#: How many confirmation runs the page adds at the best settings: enough for their average to vary less than one run.
+CONFIRMATION_RUNS = 3
+
+#: Within this, in coded units, of an end of its range a factor is at that end, and of a limit's boundary the best
+#: settings are on that limit. The optimiser stops on a bound or a limit to far better than this.
+AT_EDGE = 1e-5
+
+#: How many combinations of the categorical factors' levels the optimiser searches in full: the best of them, judged
+#: first at :data:`LEVEL_SAMPLE` settings of the numeric factors and every corner of their ranges. One search takes
+#: about a tenth of a second in the browser, so a study with many categorical factors still answers at once.
+SEARCHED_LEVELS = 3
+LEVEL_SAMPLE = 64
+
+#: The most corners of the numeric factors' ranges each combination of levels is judged at: all of them up to 8 factors.
+LEVEL_CORNERS = 256
+
+#: The significance level below which a term is clearly larger than the noise.
+CLEAR = 0.05
+
+#: The best settings are a stationary point when no slope there is above this share of the model's spread: the
+#: optimiser stops far closer to a flat point than this.
+STATIONARY = 1e-4
+
+#: A factor whose slope is below this share of the largest is left out of the way the prediction improves fastest.
+SHARE = 0.01
+
+
+def best_settings(request: dict) -> dict:
+    """Find the settings that best meet the response's goal on the fitted model, and say how well they are known.
+
+    The goal is the brief's (``response_info.goal``): ``maximize``, ``minimize``, or ``target`` with its
+    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else.
+
+    The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
+    and one response, over the numeric factors' ranges and inside the limits on the settings. Its
+    limits are set beyond anything the model predicts in the ranges (see :func:`_goal`), so the
+    desirability is a straight line in the prediction, or in its distance from the target, and its
+    best is the goal's best. Each categorical factor is held at each of its levels in turn (see
+    :func:`_held_at`): every combination of levels is judged at a sample of settings, and the
+    :data:`SEARCHED_LEVELS` best are searched in full.
+
+    At the best settings the reply gives the prediction with its 95% confidence interval for the
+    mean and prediction interval for one new run, from the fit's covariance and residual variance;
+    the leverage there against the largest leverage of the runs fitted; each factor at an end of its
+    range and each limit the settings are on, with whether the goal improves beyond it, or the kind
+    of stationary point when the settings are inside; and the change in the prediction when each
+    numeric factor alone moves by :data:`NUDGE` of its range either way. ``confirm_at`` is where
+    confirmation runs go, each setting rounded for the plant (see :func:`_practical`), and
+    ``confirmation`` judges the confirmation runs on the sheet: the average of each group's results
+    against the prediction interval for the average of that many runs. ``search`` is what the code
+    the page shows needs to make the same search.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    info = spec.get("response_info") or {}
+    goal = info.get("goal", "learn")
+    if goal not in AIMED:
+        return {"goal": "learn"}
+    target = info.get("target")
+    if goal == "target" and target is None:
+        return {"goal": goal, "target": None}
+    every_run = _runs_frame(request, spec)
+    names = [f["name"] for f in spec["factors"]]
+    categorical = _categorical_names(spec)
+    model = _checked_model(request.get("model") or spec["model"], names, categorical)
+    design = _design_runs(every_run)
+    fitted = _fitted(design, spec, model)
+    zero = ROUND_OFF * float(pd.to_numeric(design[spec["response"]], errors="coerce").abs().max())
+    coefficients = [  # as the analysis shows them: a coefficient within the fit's round-off of 0 is 0
+        {"term": c["term"], "coefficient": _snapped(c["coefficient"], zero)} for c in fitted.out["coefficients"]
+    ]
+    region = _spec_region(spec)
+    found = _search(coefficients, spec, region, goal, target)
+    reply: dict[str, Any] = {"goal": goal, "target": target, "flat": found is None, "confirmation": []}
+    if found is None:
+        return reply
+    x, levels, reduced = found["x"], found["levels"], found["model"]
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    point = _full_point(spec, x, levels)
+    predicted, confidence, prediction, leverage = fitted.at(point)
+    reached = None if goal != "target" else abs(predicted - target) <= 1e-4 * max(found["spread"], 1e-12)
+    sense = _sense(goal, target, predicted, reached=bool(reached))
+    gradient = _gradient(reduced, [f["name"] for f in numeric], x)
+    tiny = 1e-9 * max(found["spread"], 1.0)
+    in_model = _factors_in(coefficients, names)
+    reply |= {
+        "predicted": predicted,
+        "reached": reached,
+        "level": LEVEL,
+        "confidence": confidence,
+        "prediction": prediction,
+        "leverage": leverage,
+        "max_leverage": fitted.max_leverage,
+        "extrapolating": leverage > fitted.max_leverage * (1 + 1e-9) + 1e-12,
+        "settings": _settings_reply(spec, point, in_model, sense * gradient, tiny),
+        "coded": point,
+        "limits": _limits_on(spec, region, x, sense * gradient, tiny) if not reached else [],
+        "stationary": _stationary(reduced, numeric, x, sense * gradient, region, in_model, found["spread"])
+        if sense
+        else None,
+        "ascent": _ascent(numeric, sense * gradient, tiny) if sense else None,
+        "unclear": _unclear(fitted.out["coefficients"], names),
+        "sensitivity": _sensitivity(reduced, numeric, x, region, in_model),
+        "confirm_at": _practical(spec, point, region),
+        "confirmation": _confirmation(every_run, spec, fitted),
+        "search": {"held": found["held"], "goal": found["goal"]},
+    }
+    return reply
+
+
+class _FittedModel:
+    """A least-squares fit as the page made it, with what a prediction at new settings needs.
+
+    The model matrix is built from the fitted terms over the coded runs, so the covariance of the
+    coefficients is the fit's own: ``mse_residual`` times the inverse of ``X'X``. A new point's
+    row holds its coded settings in the same terms, and zero in each block contrast, which is the
+    average block, as the equation is written.
+    """
+
+    def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str]) -> None:
+        from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+        self.out = fit["out"]
+        self.names = names
+        self.terms = [c["term"] for c in self.out["coefficients"]]
+        self.beta = np.array([c["coefficient"] for c in self.out["coefficients"]], dtype=float)
+        x = _model_matrix(coded, self.terms, names)
+        self.inverse = np.linalg.pinv(x.T @ x)
+        summary = self.out["model_summary"]
+        self.df = int(summary["df_residual"])
+        self.mse = float(summary["mse_residual"]) if self.df > 0 else None
+        self.t = float(stats.t.ppf(1 - (1 - LEVEL) / 2, self.df)) if self.df > 0 else None
+        leverages = np.einsum("ij,jk,ik->i", x, self.inverse, x)
+        self.max_leverage = float(leverages.max())
+
+    def row(self, point: dict[str, float]) -> np.ndarray:
+        """Return a point's row of the model matrix, its settings coded, in the average block."""
+        frame = pd.DataFrame([{name: point[name] for name in self.names}])
+        return _model_matrix(frame, self.terms, self.names)[0]
+
+    def at(self, point: dict[str, float]) -> tuple[float, list[float] | None, list[float] | None, float]:
+        """Return the prediction at a point, its confidence and prediction intervals, and its leverage.
+
+        Without residual degrees of freedom there is no estimate of the error, and both intervals are None.
+        """
+        row = self.row(point)
+        predicted = float(row @ self.beta)
+        leverage = float(row @ self.inverse @ row)
+        if self.mse is None or self.t is None:
+            return predicted, None, None, leverage
+        mean = self.t * math.sqrt(self.mse * leverage)
+        single = self.t * math.sqrt(self.mse * (1 + leverage))
+        return predicted, [predicted - mean, predicted + mean], [predicted - single, predicted + single], leverage
+
+    def average_of(self, point: dict[str, float], runs: int) -> list[float] | None:
+        """Return the prediction interval for the average of ``runs`` new runs at a point; None without error left."""
+        if self.mse is None or self.t is None:
+            return None
+        row = self.row(point)
+        predicted = float(row @ self.beta)
+        half = self.t * math.sqrt(self.mse * (1 / runs + float(row @ self.inverse @ row)))
+        return [predicted - half, predicted + half]
+
+
+def _fitted(runs: pd.DataFrame, spec: dict, model: str | list[str]) -> _FittedModel:
+    """Fit the model to the runs with results, as the analysis fits it, and return the fit with its covariance."""
+    names = [f["name"] for f in spec["factors"]]
+    y = pd.to_numeric(runs[spec["response"]], errors="coerce")
+    done = y.notna().to_numpy()
+    if not done.any():
+        raise ValueError("Enter results first: the best settings are found on the model fitted to them.")
+    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
+    with _listening():
+        fit = _fit_estimable(
+            coded, y[done].reset_index(drop=True).rename(spec["response"]), model, names, _categorical_names(spec)
+        )
+    return _FittedModel(fit, coded, names)
+
+
+def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np.ndarray:
+    """Return the model matrix of the fitted terms over coded settings: a column per term, as the fit made it.
+
+    A block contrast (``Block1``, ...) is coded as the library codes it, against the blocks in sorted
+    order, the last one -1 in every contrast; settings without a ``Block`` are the average block, 0.
+    """
+    blocks = sorted(coded[BLOCK].unique(), key=str) if BLOCK in coded.columns else []
+    columns = []
+    for term in terms:
+        if term == "Intercept":
+            columns.append(np.ones(len(coded)))
+        elif _block_contrast(term, names):
+            if not blocks:
+                columns.append(np.zeros(len(coded)))
+                continue
+            level = blocks[int(re.fullmatch(rf"{BLOCK}(\d+)_*", term)[1]) - 1]  # type: ignore[index]
+            block = coded[BLOCK].to_numpy()
+            columns.append(np.where(block == level, 1.0, np.where(block == blocks[-1], -1.0, 0.0)))
+        else:
+            columns.append(np.prod([coded[p].to_numpy(dtype=float) for p in _parts(term)], axis=0))
+    return np.column_stack(columns)
+
+
+def _parts(term: str) -> tuple[str, ...]:
+    """Return the factors a model term multiplies: none for the intercept, ``(T, T)`` for ``I(T ** 2)``."""
+    if term == "Intercept":
+        return ()
+    if square := re.fullmatch(r"I\((\w+) \*\* 2\)", term):
+        return (square[1], square[1])
+    return tuple(term.split(":"))
+
+
+def _factors_in(coefficients: list[dict], names: list[str]) -> set[str]:
+    """Return the factors some term of the fitted model names, block contrasts aside."""
+    return {p for c in coefficients if not _block_contrast(c["term"], names) for p in _parts(c["term"])}
+
+
+def _spec_region(spec: dict) -> DesignRegion | None:
+    """Return the region the limits on the settings leave, or None for a study without limits."""
+    limits = spec.get("constraints") or []
+    return _region(_factors(spec), [limit["expression"] for limit in limits]) if limits else None
+
+
+def _held_at(coefficients: list[dict], held: dict[str, float]) -> list[dict]:
+    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at -1 or +1.
+
+    Each term loses the columns held, its coefficient multiplied by their values, and the terms that
+    are then the same are added together, in the order each first appears. The code the page shows
+    (``web/python.js``) holds them in the same way, so both hand the optimiser the same model.
+    """
+    model: dict[str, float] = {}
+    for c in coefficients:
+        parts = c["term"].split(":")
+        term = ":".join(p for p in parts if p not in held) or "Intercept"
+        model[term] = model.get(term, 0.0) + c["coefficient"] * math.prod(held.get(p, 1.0) for p in parts)
+    return [{"term": term, "coefficient": value} for term, value in model.items()]
+
+
+def _predict(model: list[dict], names: list[str], points: np.ndarray) -> np.ndarray:
+    """Return a model's predictions at coded settings of ``names``, one row each."""
+    values = np.zeros(len(points))
+    for c in model:
+        column = np.ones(len(points))
+        for p in _parts(c["term"]):
+            column = column * points[:, names.index(p)]
+        values += c["coefficient"] * column
+    return values
+
+
+def _gradient(model: list[dict], names: list[str], x: np.ndarray) -> np.ndarray:
+    """Return a model's gradient at coded settings ``x``: the change in the prediction per coded unit of each factor."""
+    gradient = np.zeros(len(names))
+    for c in model:
+        parts = _parts(c["term"])
+        for i, p in enumerate(parts):
+            rest = math.prod(x[names.index(q)] for j, q in enumerate(parts) if j != i)
+            gradient[names.index(p)] += c["coefficient"] * rest
+    return gradient
+
+
+def _hessian(model: list[dict], names: list[str], x: np.ndarray) -> np.ndarray:
+    """Return a model's matrix of second derivatives at coded settings ``x``."""
+    hessian = np.zeros((len(names), len(names)))
+    for c in model:
+        parts = _parts(c["term"])
+        for i, j in itertools.permutations(range(len(parts)), 2):
+            rest = math.prod(x[names.index(q)] for m, q in enumerate(parts) if m not in (i, j))
+            hessian[names.index(parts[i]), names.index(parts[j])] += c["coefficient"] * rest
+    return hessian
+
+
+def _objective(goal: str, value: float, target: float | None) -> float:
+    """Score a prediction for the goal: larger is better."""
+    if goal == "maximize":
+        return value
+    if goal == "minimize":
+        return -value
+    return -abs(value - float(target))  # type: ignore[arg-type]
+
+
+def _goal(goal: str, target: float | None, model: list[dict], response: str) -> dict[str, Any]:
+    """Return the desirability goal whose best is the goal's best, for one response on this model.
+
+    In the ranges, every term of a coded model is between -1 and +1, so no prediction is further
+    from the intercept than the sum of the other coefficients' sizes, the model's ``spread``.
+    Limits twice that far out leave every prediction strictly inside them, where the desirability
+    is a straight line: rising with the prediction to maximise it, falling to minimise it, and for
+    a target, with limits as far out on each side, falling with the distance from the target.
+    """
+    intercept = next((c["coefficient"] for c in model if c["term"] == "Intercept"), 0.0)
+    spread = sum(abs(c["coefficient"]) for c in model if c["term"] != "Intercept")
+    if goal == "target":
+        reach = abs(intercept - float(target)) + 2 * spread  # type: ignore[arg-type]
+        return {"response": response, "goal": goal, "target": target, "low": target - reach, "high": target + reach}  # type: ignore[operator]
+    return {"response": response, "goal": goal, "low": intercept - 2 * spread, "high": intercept + 2 * spread}
+
+
+def _search(
+    coefficients: list[dict], spec: dict, region: DesignRegion | None, goal: str, target: float | None
+) -> dict[str, Any] | None:
+    """Find the best settings on the fitted model: the numeric factors coded, and each categorical factor's level.
+
+    Returns ``x``, the numeric factors' coded settings; ``levels``, each categorical factor's coded
+    level; ``model``, the model with those levels held; ``held``, what is held (the block contrasts
+    at 0 too); ``goal``, the desirability goal searched with, or None when no numeric factor is in the
+    model; and ``spread``, the most the prediction moves from its intercept in the ranges. None when
+    no factor is in the model, so no setting is better than another.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a goal asks for it
+
+    names = [f["name"] for f in spec["factors"]]
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    numeric_names = [f["name"] for f in numeric]
+    in_model = _factors_in(coefficients, names)
+    if not in_model or all(c["coefficient"] == 0 for c in coefficients if _parts(c["term"])):
+        return None
+    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
+    blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], names)}
+    combinations = [
+        dict(zip(labelled, levels, strict=True)) for levels in itertools.product((-1.0, 1.0), repeat=len(labelled))
+    ]
+    if len(combinations) > SEARCHED_LEVELS:
+        points = _sample(len(numeric), region)
+        scores = [
+            max(
+                _objective(goal, v, target)
+                for v in _predict(_held_at(coefficients, {**blocks, **levels}), numeric_names, points)
+            )
+            for levels in combinations
+        ]
+        combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
+    best: dict[str, Any] | None = None
+    for levels in combinations:
+        held = {**blocks, **levels}
+        model = _held_at(coefficients, held)
+        sought = _goal(goal, target, model, spec["response"])
+        spread = sum(abs(c["coefficient"]) for c in model if c["term"] != "Intercept")
+        if spread > 0 and numeric:
+            with _listening() as heard:
+                result = optimize_responses(
+                    [{"response_name": spec["response"], "coefficients": model, "factor_names": numeric_names}],
+                    goals=[sought],
+                    factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
+                    region=region,
+                )["desirability"]
+            _relay(heard)
+            x = np.array([result["optimal_coded"][n] for n in numeric_names])
+            at_end = np.abs(np.abs(x) - 1) <= 1e-9  # stopped on an end of the range, to rounding: put it there
+            x[at_end] = np.sign(x[at_end])
+        else:
+            x, sought = _centre(numeric, region), None
+        x = _unmodelled_at_centre(x, numeric_names, in_model, region)
+        value = float(_predict(model, numeric_names, x[None, :])[0])
+        found = {
+            "x": x,
+            "levels": levels,
+            "model": model,
+            "held": held,
+            "goal": sought,
+            "spread": spread,
+            "value": value,
+        }
+        if best is None or _objective(goal, value, target) > _objective(goal, best["value"], target) + 1e-12:
+            best = found
+    return best
+
+
+def _sample(k: int, region: DesignRegion | None) -> np.ndarray:
+    """Return settings of ``k`` numeric factors, coded, to judge each combination of levels at: corners, centre, random.
+
+    Every corner of the ranges up to 8 factors (a model without squares is best at one of them), the
+    centre, and :data:`LEVEL_SAMPLE` settings drawn at random, from a fixed seed, so a study is judged
+    the same way each time. Settings outside the limits are left out.
+    """
+    if k == 0:
+        return np.zeros((1, 0))
+    rng = np.random.default_rng(1)
+    if 2**k <= LEVEL_CORNERS:
+        corners = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))
+    else:
+        corners = rng.choice([-1.0, 1.0], size=(LEVEL_CORNERS, k))
+    points = np.vstack([corners, np.zeros((1, k)), rng.uniform(-1.0, 1.0, size=(LEVEL_SAMPLE, k))])
+    if region is not None:
+        points = points[region.feasible(points)]
+    return points if len(points) else np.zeros((1, k))
+
+
+def _centre(numeric: list[dict], region: DesignRegion | None) -> np.ndarray:
+    """Return the centre of the ranges, coded, or a central setting the limits allow when they rule the centre out."""
+    x = np.zeros(len(numeric))
+    if region is None or region.feasible(x[None, :])[0]:
+        return x
+    centroid = region.centroid() or {}
+    return np.array(
+        [(centroid[f["name"]] - (f["low"] + f["high"]) / 2) / ((f["high"] - f["low"]) / 2) for f in numeric]
+    )
+
+
+def _unmodelled_at_centre(
+    x: np.ndarray, names: list[str], in_model: set[str], region: DesignRegion | None
+) -> np.ndarray:
+    """Hold each numeric factor the model leaves out at the centre of its range, where the limits allow it.
+
+    The prediction does not depend on such a factor, so the optimiser may stop anywhere along it.
+    """
+    x = x.copy()
+    for i, name in enumerate(names):
+        if name in in_model:
+            continue
+        moved = x.copy()
+        moved[i] = 0.0
+        if region is None or region.feasible(moved[None, :])[0]:
+            x = moved
+    return x
+
+
+def _full_point(spec: dict, x: np.ndarray, levels: dict[str, float]) -> dict[str, float]:
+    """Return the best settings of every factor, coded: a categorical factor the model leaves out at its first level."""
+    numeric = iter(x.tolist())
+    return {
+        f["name"]: levels.get(f["name"], -1.0) if _categorical(f) else float(next(numeric)) for f in spec["factors"]
+    }
+
+
+def _sense(goal: str, target: float | None, predicted: float, *, reached: bool) -> float:
+    """Return which way the prediction should move: +1 up, -1 down, 0 for a target reached."""
+    if goal == "maximize":
+        return 1.0
+    if goal == "minimize":
+        return -1.0
+    return 0.0 if reached else float(np.sign(float(target) - predicted))  # type: ignore[arg-type]
+
+
+def _settings_reply(
+    spec: dict, point: dict[str, float], in_model: set[str], ascent: np.ndarray, tiny: float
+) -> list[dict[str, Any]]:
+    """Describe each factor's best setting: its value in its own units or its level, and where it lies in its range.
+
+    ``end`` is ``low`` or ``high`` for a numeric factor at that end of its range, and ``beyond`` says
+    whether the goal improves past that end, by the gradient's sign there (``ascent``, which points
+    the way the prediction should move, coded, for the numeric factors in order).
+    """
+    numeric = iter(ascent.tolist())
+    settings = []
+    for f in spec["factors"]:
+        coded = point[f["name"]]
+        if _categorical(f):
+            level = f["low"] if coded < 0 else f["high"]
+            settings.append(
+                {
+                    "name": f["name"],
+                    "kind": "categorical",
+                    "value": level,
+                    "coded": coded,
+                    "in_model": f["name"] in in_model,
+                    "end": None,
+                    "beyond": False,
+                }
+            )
+            continue
+        slope = next(numeric)
+        end = "low" if coded <= -1 + AT_EDGE else "high" if coded >= 1 - AT_EDGE else None
+        beyond = (end == "high" and slope > tiny) or (end == "low" and slope < -tiny)
+        value = (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+        settings.append(
+            {
+                "name": f["name"],
+                "kind": "numeric",
+                "value": value,
+                "coded": coded,
+                "units": f["units"],
+                "in_model": f["name"] in in_model,
+                "end": end,
+                "beyond": beyond,
+            }
+        )
+    return settings
+
+
+def _limits_on(
+    spec: dict, region: DesignRegion | None, x: np.ndarray, ascent: np.ndarray, tiny: float
+) -> list[dict[str, Any]]:
+    """List the limits the best settings are on, numbered by their place, and whether the goal improves beyond each.
+
+    A limit is on the boundary of the settings it allows when the best settings are within
+    :data:`AT_EDGE` of it, in coded units: its value over the length of its gradient there. The goal
+    improves beyond it when the way the prediction should move (``ascent``) leaves the limit's side.
+    """
+    if region is None:
+        return []
+    factors = _factors(spec)
+    on = []
+    for i, limit in enumerate(spec["constraints"]):
+        alone = _region(factors, [limit["expression"]])
+        for g in alone.inequalities:
+            value, normal = _value_and_normal(g, x)
+            length = float(np.linalg.norm(normal))
+            if length > 0 and value / length >= -AT_EDGE:
+                on.append({"index": i, "expression": limit["expression"], "beyond": bool(normal @ ascent > tiny)})
+                break
+    return on
+
+
+def _value_and_normal(
+    g: Callable[[np.ndarray], np.ndarray], x: np.ndarray, step: float = 1e-6
+) -> tuple[float, np.ndarray]:
+    """Return a limit's value at coded settings ``x`` and its gradient there, by central differences."""
+    value = float(g(x[None, :])[0])
+    eye = np.eye(len(x)) * step
+    normal = (g(x + eye) - g(x - eye)) / (2 * step)
+    return value, np.asarray(normal, dtype=float)
+
+
+def _stationary(  # noqa: PLR0913 - the model, the factors, the point, the way to move, the region and the terms
+    model: list[dict],
+    numeric: list[dict],
+    x: np.ndarray,
+    ascent: np.ndarray,
+    region: DesignRegion | None,
+    in_model: set[str],
+    spread: float,
+) -> dict[str, Any] | None:
+    """Say where the surface is flat at the best settings: along the factors inside their ranges, or everywhere.
+
+    ``factors`` are the numeric factors the model holds that are inside their ranges at the best
+    settings, and ``inside`` says they are all of them, so the best settings are a stationary point
+    inside the region. Along those factors the surface is flat there, and its curvature over them
+    names the ``kind``: ``maximum``, ``minimum``, ``saddle``, or ``ridge`` when it is flat along some
+    direction too, so settings along it predict alike. None when no such factor is left, when the
+    best settings are on a limit (the surface is then flat along the limit, not along the factors),
+    or when a slope along them is not flat.
+    """
+    names = [f["name"] for f in numeric]
+    held = [i for i, name in enumerate(names) if name in in_model]
+    free = [i for i in held if abs(x[i]) < 1 - AT_EDGE]
+    if not free:
+        return None
+    if region is not None:
+        for g in region.inequalities:
+            value, normal = _value_and_normal(g, x)
+            length = float(np.linalg.norm(normal))
+            if length > 0 and value / length >= -AT_EDGE:
+                return None
+    if np.abs(ascent[free]).max() > STATIONARY * spread:
+        return None
+    eigenvalues = np.linalg.eigvalsh(_hessian(model, names, x)[np.ix_(free, free)])
+    scale = float(np.abs(eigenvalues).max())
+    if scale == 0:
+        kind = "ridge"
+    else:
+        curved = eigenvalues[np.abs(eigenvalues) > 1e-8 * scale]
+        if len(curved) < len(eigenvalues):
+            kind = "ridge"
+        else:
+            kind = "maximum" if np.all(curved < 0) else "minimum" if np.all(curved > 0) else "saddle"
+    return {"factors": [names[i] for i in free], "inside": len(free) == len(held), "kind": kind}
+
+
+def _ascent(numeric: list[dict], ascent: np.ndarray, tiny: float) -> dict[str, float] | None:
+    """Return the way the prediction improves fastest from the best settings, a share per factor; None when flat.
+
+    Each factor's share is its slope over the largest slope, in coded units: a factor with share 1
+    moves half its range while another with share -0.5 moves a quarter of its range down.
+    """
+    if not len(ascent) or np.abs(ascent).max() <= tiny:
+        return None
+    largest = float(np.abs(ascent).max())
+    return {f["name"]: float(s / largest) for f, s in zip(numeric, ascent, strict=True) if abs(s) >= SHARE * largest}
+
+
+def _unclear(coefficients: list[dict], names: list[str]) -> bool:
+    """Say whether no term of the model is clearly larger than the noise: every p-value at or above :data:`CLEAR`."""
+    p_values = [
+        c.get("p_value") for c in coefficients if c["term"] != "Intercept" and not _block_contrast(c["term"], names)
+    ]
+    known = [p for p in p_values if p is not None and math.isfinite(p)]
+    return bool(known) and all(p >= CLEAR for p in known)
+
+
+def _sensitivity(
+    model: list[dict], numeric: list[dict], x: np.ndarray, region: DesignRegion | None, in_model: set[str]
+) -> list[dict[str, Any]]:
+    """Return how much the prediction changes when each numeric factor alone moves :data:`NUDGE` of its range.
+
+    ``down`` and ``up`` are the changes from the prediction at the best settings; ``step`` is the
+    move in the factor's own units; ``down_runnable`` and ``up_runnable`` say whether the setting
+    moved to is still inside the ranges and the limits.
+    """
+    names = [f["name"] for f in numeric]
+    at = float(_predict(model, names, x[None, :])[0])
+    out = []
+    for i, f in enumerate(numeric):
+        moved = np.vstack([x, x])
+        moved[0, i] -= 2 * NUDGE
+        moved[1, i] += 2 * NUDGE
+        down, up = (_predict(model, names, moved) - at).tolist()
+        inside = np.all(np.abs(moved) <= 1 + 1e-9, axis=1)
+        if region is not None:
+            inside &= region.feasible(moved)
+        out.append(
+            {
+                "name": f["name"],
+                "step": NUDGE * (f["high"] - f["low"]),
+                "down": down,
+                "up": up,
+                "down_runnable": bool(inside[0]),
+                "up_runnable": bool(inside[1]),
+                "in_model": f["name"] in in_model,
+            }
+        )
+    return out
+
+
+def _practical(spec: dict, point: dict[str, float], region: DesignRegion | None) -> dict[str, Any]:
+    """Return the best settings as a confirmation run is made at them: each in its own units, rounded for the plant.
+
+    A numeric setting is rounded to a thousandth of its range's order of magnitude (0.01 degC for a
+    range of 50 degC), and kept inside its range; when the rounding takes the settings outside the
+    limits, it is done again a digit finer, up to 12 digits. A categorical factor's setting is its level.
+    """
+    factors = spec["factors"]
+    numeric = [f for f in factors if not _categorical(f)]
+    for extra in range(10):
+        values: dict[str, Any] = {}
+        for f in factors:
+            coded = point[f["name"]]
+            if _categorical(f):
+                values[f["name"]] = f["low"] if coded < 0 else f["high"]
+                continue
+            decimals = 3 - math.floor(math.log10(f["high"] - f["low"])) + extra
+            exact = (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+            values[f["name"]] = min(max(round(exact, decimals), f["low"]), f["high"]) + 0.0
+        coded_values = np.array([[_coded_value(_factor_of(f), values[f["name"]]) for f in numeric]])
+        if region is None or region.feasible(coded_values)[0]:
+            return values
+    return {
+        f["name"]: (f["low"] + f["high"]) / 2 + point[f["name"]] * (f["high"] - f["low"]) / 2
+        if not _categorical(f)
+        else values[f["name"]]
+        for f in factors
+    }
+
+
+def _factor_of(factor: dict) -> Factor:
+    """Return a numeric factor the page holds as the library's ``Factor``."""
+    return Factor(name=factor["name"], low=factor["low"], high=factor["high"], units=factor.get("units", ""))
+
+
+def _confirmation(runs: pd.DataFrame, spec: dict, fitted: _FittedModel) -> list[dict[str, Any]]:
+    """Judge the confirmation runs on the run sheet against the model fitted to the design's runs.
+
+    The confirmation runs are grouped by their settings, in the order each group first appears.
+    Each group's ``rows`` are its places on the run sheet; ``runs`` how many it has and ``done``
+    how many have a result; ``mean`` their average; ``predicted`` the model's prediction there; and
+    ``interval`` the prediction interval for the average of ``done`` new runs there (of ``runs``
+    while none has a result), which the average falls ``inside`` when the model holds there.
+    """
+    confirming = _confirming(runs).to_numpy()
+    if not confirming.any():
+        return []
+    names = [f["name"] for f in spec["factors"]]
+    values = pd.to_numeric(runs[spec["response"]], errors="coerce")
+    coded = _coded(runs, spec["factors"])
+    groups: dict[tuple, list[int]] = {}
+    for i in np.flatnonzero(confirming).tolist():
+        groups.setdefault(tuple(runs.loc[i, names].tolist()), []).append(i)
+    out = []
+    for rows in groups.values():
+        point = {name: float(coded.loc[rows[0], name]) for name in names}
+        results = values.iloc[rows].dropna()
+        done = len(results)
+        predicted = float(fitted.row(point) @ fitted.beta)
+        interval = fitted.average_of(point, done or len(rows))
+        mean = float(results.mean()) if done else None
+        out.append(
+            {
+                "rows": rows,
+                "at": {name: runs.loc[rows[0], name] for name in names},
+                "runs": len(rows),
+                "done": done,
+                "mean": mean,
+                "predicted": predicted,
+                "interval": interval,
+                "inside": None if mean is None or interval is None else bool(interval[0] <= mean <= interval[1]),
+            }
+        )
+    return out
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -3010,3 +3776,8 @@ def api_relabel(payload: str) -> str:
 def api_limits(payload: str) -> str:
     """JSON wrapper around :func:`limits`."""
     return _reply(limits, payload)
+
+
+def api_best_settings(payload: str) -> str:
+    """JSON wrapper around :func:`best_settings`."""
+    return _reply(best_settings, payload)
