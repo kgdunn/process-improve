@@ -415,24 +415,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.required_inputs_ = {"F", "Y", "Z"}
         self.plot = Plot(self)
 
-    @property
-    def tolerance_(self) -> float:
-        """Deprecated alias for :attr:`tol`, kept for one deprecation cycle.
-
-        It was assigned in ``__init__`` and read at two unrelated sites: the
-        convergence test, which ``tol`` now owns, and a zero-variance column
-        test, which has its own floor (``_ZERO_VARIANCE_FLOOR``).
-        """
-        warnings.warn(
-            "process_improve.multivariate.TPLS.tolerance_ is deprecated since 1.96.0 "
-            "and will be removed in 2.0; use TPLS.tol instead. Note that tolerance_ "
-            "also governed the zero-variance column test, which tol does not: that "
-            "threshold is now fixed and independent of convergence.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.tol
-
     # ENG-05: convenience methods forwarding to the standalone functions. These
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
     # as real methods keeps ``help`` / ``inspect.signature`` accurate and the

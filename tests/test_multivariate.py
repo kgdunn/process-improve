@@ -6923,12 +6923,11 @@ class TestTplsToleranceParameter:
         with pytest.raises(ValueError, match="tol must be positive"):
             self._fit(copy.deepcopy(fixture_tpls_example), tol=bad)
 
-    def test_the_old_attribute_still_works_and_warns(self, fixture_tpls_example: dict) -> None:
-        """``tolerance_`` is deprecated, not deleted: one cycle of warning before removal."""
-        model = self._fit(copy.deepcopy(fixture_tpls_example), tol=1e-5)
-        with pytest.warns(DeprecationWarning, match=r"TPLS.tolerance_ is deprecated since 1\.96\.0"):
-            value = model.tolerance_
-        assert value == model.tol == 1e-5
+    def test_the_old_attribute_is_gone(self) -> None:
+        """``tolerance_``, deprecated since 1.96.0, was removed in 2.0: ``tol`` is the only name."""
+        model = TPLS(n_components=1, d_matrix={"g": pd.DataFrame({"p": [1.0]})}, tol=1e-5)
+        # Checked by name, not read, so a static analyser sees no use of a removed attribute.
+        assert not hasattr(model, "tolerance_")
 
     def test_a_loose_tolerance_does_not_start_discarding_columns(self) -> None:
         """The separation, stated as a test.
