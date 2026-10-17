@@ -43,6 +43,9 @@ export const GLOSSARY = {
   axial:
     "Runs that move one factor at a time away from the center along its own axis, the others at their middles: " +
     "they let a central composite design estimate the squares.",
+  foldover:
+    "A second set of runs, each a run of the first with every setting switched to its other end. With the first " +
+    "set, it keeps every main effect clear of the two-factor interactions.",
   resolution:
     "How clearly a fractional factorial separates its effects. At III, main effects are aliased with two-factor " +
     "interactions; at IV, two-factor interactions with each other; at V, only with three-factor ones.",
@@ -182,6 +185,9 @@ export const MARKED = {
   "coded units": "coded",
   "random run order": "run-order",
   "center of the ranges": "center-points",
+  "folded over": "foldover",
+  "fold-over": "foldover",
+  "axial runs": "axial",
   "R²": "r2",
   "Adjusted R²": "r2-adjusted",
   "Predicted R²": "r2-predicted",

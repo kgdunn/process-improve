@@ -707,6 +707,10 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .verdict p { margin: 2px 0; }
 .verdict[data-state="inside"] { border-left-color: var(--ok); }
 .verdict[data-state="outside"] { border-left-color: var(--error); }
+/* The next step: a new study with moved ranges, and the ways to add runs to this one, each a short case and a button. */
+.next .step { margin: 14px 0 0; }
+.next .offer { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
+.next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
    best settings show theirs, and the overlay of the acceptable ranges. */

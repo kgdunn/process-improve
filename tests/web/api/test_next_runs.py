@@ -157,7 +157,7 @@ def test_the_fold_over_clears_every_main_effect_and_blocks_its_runs(api):
     before = {tuple(-v for v in run) for run in sheet[names][:8].to_numpy().tolist()}
     assert {tuple(run) for run in sheet[names][8:].to_numpy().tolist()} == before
     assert folded["spec"]["design_type"] == "given"
-    assert folded["spec"]["options"] == {"n_blocks": 2}
+    assert folded["spec"]["options"] == {"grown": True, "n_blocks": 2}
     notes = folded["facts"]["notes"]
     assert notes[0] == "Runs 9 to 16 fold the design over: each is a run made before, every setting switched."
     assert notes[1].startswith("Main effects are clear of two-factor interactions")
@@ -209,7 +209,7 @@ def test_center_runs_are_no_block_of_their_own(api):
     cube = make(api, design_type="full_factorial", factors=FACTORS, n_center_points=0)
     grown = added(api, cube, "center")
     assert "Block" not in grown["columns"]
-    assert grown["spec"]["options"] == {}
+    assert grown["spec"]["options"] == {"grown": True}
     sheet = run_sheet(grown)
     assert sheet[["T", "P", "F"]][8:].to_numpy().tolist() == [[175.0, 2.0, 15.0]] * 3
     assert grown["facts"]["notes"][0] == "Runs 9 to 11 are at the center of the ranges, to test for curvature."

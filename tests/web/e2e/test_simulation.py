@@ -80,7 +80,15 @@ def test_a_new_design_is_simulated_from_the_same_process(page):
     first.locator("[name=high]").fill("210")
     generate(page)
     fns = [c["fn"] for c in calls(page)]
-    assert fns[-5:] == ["api_make_design", "api_simulate", "api_analyze_runs", "api_best_settings", "api_plots"]
+    # The next step is asked for once the best settings are known, before the charts are drawn.
+    assert fns[-6:] == [
+        "api_make_design",
+        "api_simulate",
+        "api_analyze_runs",
+        "api_best_settings",
+        "api_next_runs",
+        "api_plots",
+    ]
     assert page.text_content("#truth-equation").startswith("Yield = 62 + 4·Temp")
     assert page.is_hidden("#design-stale")
 

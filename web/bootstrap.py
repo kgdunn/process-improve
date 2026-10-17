@@ -5208,6 +5208,10 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
 #: How many center runs Learn adds to a design that has none: the library's own number.
 EXTRA_CENTER_RUNS = 3
 
+#: The option that marks a study Learn added runs to: runs as given, made by the page in random order within each set,
+#: rather than handed over in an order of their own.
+GROWN = "grown"
+
 #: The fewest runs a model should leave to estimate the noise, as Design marks a design's spare runs (logic.js's
 #: SPARE_FOR_NOISE). With fewer, Learn offers to make every run again.
 SPARE_FOR_NOISE = 3
@@ -5300,7 +5304,7 @@ def add_runs(request: dict) -> dict:
         **{key: value for key, value in spec.items() if key not in ("design_type", "options", "model")},
         "design_type": GIVEN,
         "model": made["model"],
-        "options": {"n_blocks": n_blocks} if n_blocks > 1 else {},
+        "options": {GROWN: True, **({"n_blocks": n_blocks} if n_blocks > 1 else {})},
     }
     extended = _design_runs(sheet)
     coded = _coded(extended, spec["factors"])

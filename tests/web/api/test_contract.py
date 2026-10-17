@@ -421,6 +421,30 @@ READS: dict[str, list[str]] = {
         "spec.constraints[].type: str",
         "facts.notes[]: str",
     ],
+    "next runs": [
+        "offers[].kind: str",
+        "offers[].label: str",
+        "offers[].why: str",
+        "offers[].blocked: bool",
+        "notes: list",
+    ],
+    "next runs outside the limits": [
+        "notes[]: str",
+    ],
+    "runs added": [
+        "added: int",
+        "n_runs: int",
+        "columns[]: str",
+        "rows[]: list",
+        "model: str",
+        "outside_range: list",
+        "facts.center_runs: int",
+        "facts.notes[]: str",
+        "spec.design_type: str",
+        "spec.model: str",
+        "spec.options.n_blocks: int",
+        "spec.factors[].name: str",
+    ],
     "limits": [
         "constraints[].expression: str",
         "constraints[].note: str",
@@ -545,6 +569,9 @@ ENTRY_POINTS = {
     "candidates": "api_candidates",
     "slow candidates": "api_candidates",
     "design with limits": "api_make_design",
+    "next runs": "api_next_runs",
+    "next runs outside the limits": "api_next_runs",
+    "runs added": "api_add_runs",
     "limits": "api_limits",
     "limits with a problem": "api_limits",
     "limits proposed": "api_limits",
@@ -654,6 +681,28 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
     }
 
 
+def next_steps(api) -> dict[str, Callable[[], dict]]:
+    """Return the requests about runs added to a study: the ways offered, with and without limits, and one added."""
+
+    def fraction() -> dict:
+        factors = [{"name": n, "low": -1, "high": 1} for n in "ABCDEFG"]
+        spec = {"design_type": "fractional_factorial", "factors": factors, "resolution": 3, "n_center_points": 0}
+        return held_of(api.ok("api_make_design", spec))
+
+    def half_fraction() -> dict:
+        factors = [{"name": n, "low": -1, "high": 1} for n in "ABC"]
+        runs = [[-1, -1, 1], [1, -1, -1], [-1, 1, -1], [1, 1, 1]]
+        limits = [{"expression": "A + B + C >= -2"}]
+        spec = {"design_type": "given", "factors": factors, "runs": runs, "constraints": limits}
+        return held_of(api.ok("api_make_design", spec))
+
+    return {
+        "next runs": fraction,
+        "next runs outside the limits": half_fraction,
+        "runs added": lambda: {**fraction(), "kind": "foldover"},
+    }
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -735,6 +784,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
         "slow candidates": slow,
         "design with limits": lambda: {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS},
+        **next_steps(api),
         "limits": lambda: {"factors": FACTORS, "constraints": LIMITS},
         "limits with a problem": lambda: {"factors": FACTORS, "constraints": [{"expression": "T + Z <= 3"}]},
         "limits proposed": lambda: {

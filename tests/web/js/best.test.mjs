@@ -34,6 +34,8 @@ import {
   flatSentence,
   intervalRows,
   leadSentence,
+  movesOn,
+  nextRanges,
   noGoalSentence,
   noIntervalSentence,
   num,
@@ -215,6 +217,28 @@ describe("where the best settings lie", () => {
     ]);
     const atEnd = { ...limited, settings: WORKED.settings };
     assert.equal(whereSentences(atEnd, FACTORS, WORDS).length, 1, "a range moved would cross the limit");
+  });
+
+  test("a next study is pointed to past an end, not past a limit nor at a target reached", () => {
+    assert.equal(movesOn(WORKED), true);
+    assert.equal(movesOn({ ...WORKED, settings: WORKED.settings.map((s) => ({ ...s, beyond: false })) }), false);
+    assert.equal(movesOn({ ...WORKED, limits: [{ index: 0, expression: "T <= 190", beyond: true }] }), false);
+    assert.equal(movesOn({ ...WORKED, goal: "target", target: 60, reached: true }), false);
+    assert.equal(movesOn({ ...WORKED, ascent: null }), false);
+    const outOfModel = { ...WORKED, settings: WORKED.settings.map((s) => ({ ...s, in_model: false })) };
+    assert.equal(movesOn(outOfModel), false, "a factor the model leaves out points nowhere");
+  });
+
+  test("the next study's ranges move as the steepest ascent says, the others and a category kept", () => {
+    const supplier = { name: "S", low: "A", high: "B", units: "" };
+    const moved = nextRanges({ ...WORKED, ascent: { T: 1, P: -0.6712, S: 1 } }, [...FACTORS, supplier]);
+    assert.deepEqual(moved, [
+      { name: "T", low: 175, high: 225, units: "degC" }, // half the range up, as ascentSentence's "T up 25 degC"
+      { name: "P", low: 0.33, high: 2.33, units: "bar" }, // "P down 0.67 bar"
+      { name: "F", low: 10, high: 20, units: "L/min" },
+      supplier,
+    ]);
+    assert.notEqual(moved[2], FACTORS[2], "a copy, so the study's own factors stay as they are");
   });
 
   test("a target reached: other settings reach it too", () => {

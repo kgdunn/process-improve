@@ -53,7 +53,10 @@ import {
   intervalRows,
   leadSentence,
   limitingSentence,
+  climb,
   mixtureSentence,
+  movesOn,
+  nextRanges,
   noGoalSentence,
   noIntervalSentence,
   num,
@@ -327,6 +330,7 @@ const state = {
   analysis: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
+  next: null, // the ways to add runs to the run sheet, {design, offers, notes}: what api_next_runs returned for it
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
@@ -1341,6 +1345,7 @@ async function generate() {
     mixture_model: $("#mixture_model").value,
     constraints: currentLimits(),
     runs: $("#design-type").value === GIVEN ? givenRuns() : undefined,
+    blocks: $("#design-type").value === GIVEN ? givenBlocks() : undefined,
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
@@ -1365,6 +1370,14 @@ function givenRuns() {
   const held = designRows(state.design); // the confirmation runs are not made again with the design
   const at = state.design.spec.factors.map((f) => held.columns.indexOf(f.name));
   return held.rows.map((row) => at.map((i) => row[i]));
+}
+
+/** The block of each run a design of given runs is made again with, as givenRuns lists them; undefined for no blocks. */
+function givenBlocks() {
+  if (!state.design) return undefined;
+  const held = designRows(state.design);
+  const at = held.columns.indexOf(BLOCK);
+  return at < 0 ? undefined : held.rows.map((row) => row[at]);
 }
 
 /**
@@ -1442,7 +1455,8 @@ function renderDesign(warnings = state.designWarnings ?? []) {
     const outside = r.outside_range?.length
       ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
       : "";
-    const order = r.spec?.design_type === GIVEN ? "in the order given" : "in random run order";
+    // Runs as given keep the order they came in; a study Learn added runs to holds runs the page put in random order.
+    const order = r.spec?.design_type === GIVEN && !r.spec.options?.grown ? "in the order given" : "in random run order";
     parts.push(said("", `${r.n_runs} runs${centre}, ${order}.${outside}`), ...noteList(r.facts.notes));
   } else {
     parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));
@@ -2200,6 +2214,8 @@ async function analyseRuns() {
   if (reply.ok) {
     const best = await findBest(request, mine);
     if (mine !== ticket) return;
+    await findNext(); // the next step follows the best settings, and is on the page before the charts are drawn
+    if (mine !== ticket) return;
     // The response surface is drawn through the best settings, so the star that marks them sits on the surface drawn.
     await drawCharts(best?.coded ? { ...request, best: best.coded } : request, mine);
     if (mine !== ticket) return;
@@ -2587,6 +2603,7 @@ function designComplete(name = state.shown) {
 function clearBest() {
   state.best = null;
   $("#best").hidden = true;
+  $("#next").hidden = true; // the next step follows the analysis; findNext shows it again with the next one
   hidePython("best");
 }
 
@@ -2737,20 +2754,7 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
   renderRuns();
   renderStudyBar();
   const practice = Boolean(state.simulation) && someSimulated();
-  if (practice) {
-    const { scenario, sigma, seed: drawn } = state.simulation;
-    const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
-    if (reply.ok) {
-      const [first] = resultNames();
-      for (const name of resultNames()) {
-        const simulated = name === first ? reply.result : reply.result.more?.[name];
-        if (!simulated || !processOf(name)) continue;
-        state.results[name] = state.results[name].map((v, i) => (i >= before ? simulated.responses[i] : v));
-        state.marks[name] = state.marks[name].map((s, i) => (i >= before ? "simulated" : s));
-      }
-      renderRuns();
-    }
-  }
+  if (practice) await simulateFrom(before);
   showResultsCode();
   scheduleSave();
   await analyseRuns(); // the fit is the same; what is said of the confirmation runs follows them
@@ -2997,6 +3001,156 @@ async function drawBalanceChart() {
   }
 }
 
+// ---------------------------------------------------------------- the next step
+// What the analysis points to next: a new study whose ranges move the way the best settings point (best.js), and the
+// ways to add runs to this study (bootstrap.next_runs), each for what its design cannot say yet. Adding runs keeps the
+// runs made so far and their results, so the study grows in place, as it does with confirmation runs.
+
+/**
+ * Ask Python which ways of adding runs suit the run sheet, once for each run sheet (they follow its runs and its aim,
+ * not its results), and show the next step. A mixture's blends take none of them, so it is not asked.
+ */
+async function findNext() {
+  const design = state.design;
+  if (design && !isMixture(design.spec.design_type) && state.next?.design !== design) {
+    const reply = await call("api_next_runs", held());
+    if (state.design !== design) return; // another run sheet took its place meanwhile
+    state.next = { design, offers: reply.ok ? reply.result.offers : [], notes: reply.ok ? reply.result.notes : [] };
+  }
+  renderNext();
+}
+
+/** Show the next step once there is an analysis: the moved ranges when the best settings point past them, and the runs to add. */
+function renderNext() {
+  const design = state.design;
+  const next = design && state.next?.design === design ? state.next : { offers: [], notes: [] };
+  const best = state.best?.settings && !isMixture(design?.spec.design_type) ? state.best : null;
+  const move = Boolean(best) && movesOn(best);
+  $("#next").hidden = !design || !state.analysis || (!move && !next.offers.length && !next.notes.length);
+  if ($("#next").hidden) return;
+  $("#next-out").replaceChildren(...(move ? movedStudy(best) : []), ...(next.offers.length || next.notes.length ? addedRuns(next) : []));
+}
+
+/** A factor's range as the next step's table writes it: "150 to 200 degC", or a categorical factor's two levels. */
+const rangeWords = (f) => (typeof f.low === "string" ? `${f.low} or ${f.high}` : `${num(f.low)} to ${withUnit(f.high, f.units ?? "")}`);
+
+/** The new study the best settings point to: each factor's range now and moved, and the button that starts it in Design. */
+function movedStudy(best) {
+  const factors = state.design.spec.factors;
+  const moved = nextRanges(best, factors);
+  const start = el("button", "button", "Start a new study with these ranges");
+  start.type = "button";
+  start.id = "next-study";
+  start.onclick = () => startMovedStudy(moved);
+  const step = el("div", "step", "");
+  step.append(
+    el("h4", "", "A new study further along"),
+    said("", `The ranges moved along the ${climb(best)}:`),
+    table(["Factor", "Range now", "Next study"], factors.map((f, i) => [f.name, rangeWords(f), rangeWords(moved[i])])),
+    el("p", "actions", ""),
+  );
+  step.lastChild.append(start);
+  return [step];
+}
+
+/** The ways to add runs to this study, each what it is for and a button, and why any way is not offered. */
+function addedRuns(next) {
+  const step = el("div", "step", "");
+  step.append(el("h4", "", "Add runs to this study"));
+  if (next.offers.length) {
+    step.append(said("hint", "The runs made so far stay as they are, with their results; the runs added go at the end of the run sheet."));
+  }
+  for (const offer of next.offers) {
+    const box = el("div", "offer", "");
+    box.dataset.kind = offer.kind;
+    const blocked = offer.blocked ? " They go in a block of their own, so a shift in the process since the runs before stays out of the effects." : "";
+    const add = el("button", "button", offer.label);
+    add.type = "button";
+    add.onclick = () => addRuns(offer.kind);
+    box.append(said("", `${offer.why}${blocked}`), add);
+    step.append(box);
+  }
+  step.append(...noteList(next.notes));
+  return [step];
+}
+
+/**
+ * Add one way's runs to the end of the run sheet: the runs before keep their results, the runs added have none, and the
+ * plan becomes the runs as given, in their blocks, so the run sheet is not out of date. While the results are practice
+ * ones, the runs added are simulated from the same processes, noise and seeds, and analysed with the rest; else the
+ * reader makes them, in Run.
+ */
+async function addRuns(kind) {
+  if (!state.design) return;
+  setStatus("Adding the runs...", "busy");
+  const reply = await call("api_add_runs", { ...held(), kind });
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  const { added, ...grown } = reply.result;
+  const before = state.design.rows.length;
+  state.design = { ...state.design, ...grown };
+  for (const name of resultNames()) {
+    state.results[name] = [...state.results[name], ...Array(added).fill(null)];
+    state.marks[name] = [...state.marks[name], ...Array(added).fill(null)];
+  }
+  setDesignForm(grown.spec);
+  state.planKey = planKey();
+  state.picked = null;
+  setModel(""); // the analysis follows the grown design's model
+  state.models = Object.fromEntries(resultNames().map((name) => [name, ""]));
+  renderDesign(reply.warnings);
+  renderRuns();
+  renderStudyBar();
+  showPython("design", designCode(grown.spec));
+  const practice = Boolean(state.simulation) && someSimulated() && (await simulateFrom(before));
+  showResultsCode();
+  scheduleSave();
+  await analyseRuns();
+  if (practice) {
+    setStatus(`${added} runs added at the end of the run sheet, their results simulated.`);
+    return;
+  }
+  showPhase("run");
+  setStatus(`${added} runs added at the end of the run sheet: enter their results in Run.`);
+}
+
+/**
+ * Simulate the results of the runs from place ``before`` on, from the same processes, noise and seeds, which leaves every
+ * result before them as it was. Resolves to whether they were simulated.
+ */
+async function simulateFrom(before) {
+  const { scenario, sigma, seed: drawn } = state.simulation;
+  const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
+  if (!reply.ok) return false;
+  const [first] = resultNames();
+  for (const name of resultNames()) {
+    const simulated = name === first ? reply.result : reply.result.more?.[name];
+    if (!simulated || !processOf(name)) continue;
+    state.results[name] = state.results[name].map((v, i) => (i >= before ? simulated.responses[i] : v));
+    state.marks[name] = state.marks[name].map((s, i) => (i >= before ? "simulated" : s));
+  }
+  renderRuns();
+  return true;
+}
+
+/**
+ * Start the new study the best settings point to, in Design: this study's brief and design with the moved ranges, its
+ * runs not yet made. This study stays in Your studies. Runs as given are made for one study only, so the new one has
+ * its design picked for it.
+ */
+function startMovedStudy(factors) {
+  const spec = state.design.spec;
+  const given = spec.design_type === GIVEN;
+  newStudy();
+  setForm({ ...spec, factors, ...(given ? { design_type: "box_behnken", options: { n_center_points: 3 } } : {}) });
+  if (given) designChosen = false;
+  showPhase("plan");
+  saveDraft();
+  setStatus("A new study, its ranges moved: check they are safe to run, then make its run sheet.");
+}
+
 // ---------------------------------------------------------------- the worked example
 /** The worked example the build computed into demo.json, fetched once; null in a plain preview of web/. */
 let builtExample;
@@ -3046,6 +3200,7 @@ async function showBuiltExample() {
     state.best = example.best;
     renderBest({ ok: true, result: example.best });
   }
+  renderNext(); // the moved ranges, which the best settings give; its Box-Behnken design takes no runs added
   $("#demo-version").textContent = `process-improve ${example.version}`;
   $("#demo-when").textContent = "when this page was built";
   $("#demo-banner").hidden = false;
@@ -3115,6 +3270,7 @@ function newStudy() {
     goals: {},
     simulation: null,
     analysis: null,
+    next: null,
     comparison: null,
     picked: null,
     campaign: null,

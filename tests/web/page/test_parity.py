@@ -312,6 +312,11 @@ def test_the_page_gives_an_optimal_design_bootstrap_s_spare_runs(bootstrap, node
     assert javascript(node, source("logic.js"), [("SPARE_RUNS", [])]) == [bootstrap.SPARE_RUNS]
 
 
+def test_design_marks_too_few_spare_runs_where_learn_offers_to_make_them_again(bootstrap, node):
+    """Design marks a design that leaves fewer runs for the noise; Learn offers such a study its runs again."""
+    assert javascript(node, source("logic.js"), [("SPARE_FOR_NOISE", [])]) == [bootstrap.SPARE_FOR_NOISE]
+
+
 def test_the_page_shows_the_vif_column_where_bootstrap_writes_the_note(api, bootstrap, node):
     """The coefficients table shows each term's VIF only when the analysis names a correlated term, and then always."""
     assert javascript(node, source("logic.js"), [("VIF_HIGH", [])]) == [bootstrap.VIF_HIGH]
