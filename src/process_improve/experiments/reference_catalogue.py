@@ -595,6 +595,19 @@ def _f_regression(out: dict) -> tuple[float, float]:
     return ratio, float(f_distribution.sf(ratio, df_model, df_residual))
 
 
+def _f_uncorrected(out: dict) -> tuple[float, float]:
+    """Return the F ratio of a model against zero, on uncorrected sums of squares, and its p-value.
+
+    The fitted values' sum of squares about zero on the model's rank, over the residual mean square:
+    the F that R's summary prints for a model fitted without an intercept, whatever its columns span.
+    """
+    fitted, residuals, _ = _residuals(out)
+    df_residual = out["model_summary"]["df_residual"]
+    df_model = len(fitted) - df_residual
+    ratio = (float(fitted @ fitted) / df_model) / (float(residuals @ residuals) / df_residual)
+    return ratio, float(f_distribution.sf(ratio, df_model, df_residual))
+
+
 def _anova_row(out: dict, term: str) -> dict:
     wanted = _library_term(term)
     return next(
@@ -1099,6 +1112,15 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "f_regression": lambda out, _c, _e: _f_regression(out)[0],
     "f_regression_p": lambda out, _c, _e: _f_regression(out)[1],
     "press": lambda out, _c, _e: float(np.sum((_residuals(out)[1] / (1 - _residuals(out)[2])) ** 2)),
+    "residual_quantile": lambda out, c, _e: float(np.quantile(_residuals(out)[1], c["q"])),
+    "f_statistic": lambda out, _c, _e: out["model_summary"]["f_statistic"],
+    "f_p_value": lambda out, _c, _e: out["model_summary"]["f_p_value"],
+    "f_uncorrected": lambda out, _c, _e: _f_uncorrected(out)[0],
+    "f_uncorrected_p": lambda out, _c, _e: _f_uncorrected(out)[1],
+    "log_likelihood": lambda out, _c, _e: out["model_summary"]["log_likelihood"],
+    "aic": lambda out, _c, _e: out["model_summary"]["aic"],
+    "aic_step": lambda out, _c, _e: out["model_summary"]["aic_step"],
+    "bic": lambda out, _c, _e: out["model_summary"]["bic"],
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
     "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
     "lenth_sme": lambda out, c, _e: _lenth(out, "SME", c),
