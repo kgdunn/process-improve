@@ -13,6 +13,22 @@ those changes.
 
 ### Added
 
+- **Factorial measures up to five responses, and finds the settings that balance them.** The
+  brief lists each response in a row of its own, with its units and its goal: maximise, minimise,
+  hit a target, or learn. The first response sizes the design, so the brief asks its typical value,
+  noise and smallest change worth finding for it alone. The run sheet and the workbook have a
+  column per response; a run is complete once every response has its result, and each response is
+  fitted to the runs that have its result. Practice results come from one process per response,
+  each derived from the scenario with its own coefficients and noise. Learn has a tab per response,
+  each with its own model, analysis and best settings. With two or more responses aimed at a goal,
+  Learn balances them with the library's desirability (`optimize_responses(method="desirability")`):
+  a table of each response's acceptable range, importance and shape to edit, the settings with the
+  best overall desirability, each response's prediction, 95% prediction interval and desirability
+  there, the response that holds the overall desirability down most, the leverage there, and an
+  overlay of where every response is acceptable over the two factors that move them most.
+  Confirmation runs at the balanced settings are judged response by response. The Python panels
+  and the notebook reproduce each response's analysis and the balance (`api_balance`). Studies
+  saved before, workbooks, links and catalog campaigns open unchanged, as studies of one response.
 - **Factorial finds the best settings for the response's goal.** Once the model is fitted, Learn
   says where to run the process to maximise, minimise or hit the target the brief names: the
   settings in the factors' own units, each categorical factor at its better level, found on the
