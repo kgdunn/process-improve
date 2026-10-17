@@ -13,6 +13,13 @@ those changes.
 
 ### Added
 
+- **Small composite designs.** A CCD with `cube="fractional"` may now sit on a cube below
+  resolution V. The default half fraction must still leave the full quadratic model estimable,
+  which it does for three factors (Hartley's small composite design, 4 + 6 runs). A cube given by
+  `generators` or `resolution` that aliases two-factor interactions in pairs is built with a
+  warning, for a model with one interaction of each pair. `metadata["full_quadratic_estimable"]`
+  and `metadata["aliased_interactions"]` say which. The reference catalogue checks Schmidt and
+  Launsby's composite-design run counts and Núñez Ares and Goos's small composite designs with it.
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
@@ -481,6 +488,21 @@ those changes.
   compared over the settings that can be run, Learn greys the response surface outside them, and
   the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
   factor renames it inside the limits, and the run sheet keeps its runs.
+
+### Changed
+
+- **Plackett-Burman designs of 24 and 36 runs are the cyclic designs Plackett and Burman
+  printed.** The 24-run design was the 12-run design doubled, which aliases 11 products of three
+  columns completely with the intercept; it is now Paley's cyclic design mod 23, as in Montgomery's
+  Table 8.23, whose products of three columns have |J| of 0 or 8 only. The 36-run design comes from
+  Plackett and Burman's generating row instead of Paley's second construction. The same rule makes
+  48 and 80 runs Paley's cyclic designs. Other run counts are unchanged.
+- **Fractional factorials of more than 11 factors have minimum aberration where it is quick to
+  find.** At the fewest runs that reach the resolution asked for, every generator set is scored
+  when there are few enough (12 to 15 factors in 16 runs): 12 factors at resolution III now have
+  16 words of length three, as in Montgomery's Table X, not 17. Otherwise the fraction is the one
+  of highest resolution the search reaches at that size: 16 factors asked at resolution III are
+  resolution IV in 32 runs.
 
 ### Fixed
 
