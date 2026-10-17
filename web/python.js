@@ -108,6 +108,15 @@ function codedLine(f) {
   return `        ${repr(f.name)}: ${scaled},`;
 }
 
+/** The run sheet's column marking a confirmation run; mirrors best.js, which this module does not import. */
+export const CONFIRMATION = "Confirmation run";
+
+/** Whether each run of a run sheet is fitted: every run but a confirmation run, which tests the model. */
+export function fittedRuns(design) {
+  const at = design.columns.indexOf(CONFIRMATION);
+  return design.rows.map((row) => at < 0 || String(row[at] ?? "").trim().toLowerCase() !== "yes");
+}
+
 /** The decimals the page rounds simulated results to: two significant decimals below the noise's size. */
 const decimals = (sigma) => Math.max(0, 2 - Math.floor(Math.log10(sigma)));
 
@@ -126,8 +135,12 @@ function responseComment(spec) {
  * step 1's ``result``, because the page may list them in another order: as the book's table
  * does, or as a workbook was sorted.
  */
-export function resultsCode(design, responses, simulation = null) {
-  const { spec, columns, rows } = design;
+export function resultsCode(design, allResponses, simulation = null) {
+  const { spec, columns } = design;
+  const kept = fittedRuns(design);
+  const rows = design.rows.filter((_, i) => kept[i]);
+  const responses = allResponses.filter((_, i) => kept[i]);
+  const left = kept.includes(false) ? ["# The confirmation runs are left out: they test the model, so they do not enter its fit."] : [];
   const at = (name) => columns.indexOf(name);
   const settings = (f) => rows.map((row) => (labelled(f) ? row[at(f.name)] : Number(row[at(f.name)])));
   const blocked = at("Block") >= 0 && (spec.options?.n_blocks ?? 1) > 1;
@@ -146,6 +159,7 @@ export function resultsCode(design, responses, simulation = null) {
       : `# The run sheet, as the page lists it: each run's settings and result${
           responses.includes(null) ? "; None for a run still to do" : ""
         }.`,
+    ...left,
     "runs = pd.DataFrame(",
     "    {",
     ...runs,
@@ -189,6 +203,95 @@ export function analyseCode(model, complete = true) {
     `    ${fitted}, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"]`,
     ")",
     'print(analysis["coefficients"])',
+  ].join("\n");
+}
+
+/** How the code shown holds some columns of the model at a value: as bootstrap._held_at does, line for line. */
+const HELD_AT = [
+  "def held_at(coefficients, held):",
+  '    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at -1 or +1."""',
+  "    model = {}",
+  "    for c in coefficients:",
+  '        parts = c["term"].split(":")',
+  '        term = ":".join(p for p in parts if p not in held) or "Intercept"',
+  '        model[term] = model.get(term, 0.0) + c["coefficient"] * math.prod(held.get(p, 1.0) for p in parts)',
+  '    return [{"term": term, "coefficient": value} for term, value in model.items()]',
+  "",
+  "",
+];
+
+/** What the code shown says of the held columns: each categorical factor at the level found best, the blocks at their average. */
+function heldComment(held, factors) {
+  const levels = factors
+    .filter((f) => labelled(f) && f.name in held)
+    .map((f) => `${f.name} at ${held[f.name] < 0 ? f.low : f.high}`);
+  const blocks = Object.keys(held).some((name) => !factors.some((f) => f.name === name));
+  const said = [];
+  if (levels.length) said.push(`The page tried each level and found ${levels.join(" and ")} best: the model is held there.`);
+  if (blocks) said.push("The blocks are held at the average block, as the equation is.");
+  return said.map((line) => `# ${line}`).join("\n");
+}
+
+/**
+ * Step 4: the best settings for the response's goal, found on step 3's model with the library's optimiser, and the
+ * prediction there with its intervals. ``best`` is what bootstrap.best_settings answered: its ``search`` holds what
+ * the page held each categorical factor and block at, and the desirability goal it searched with. ``model`` is the
+ * model step 3 fitted, and ``complete`` says every run of the design has its result, as for step 3.
+ */
+export function bestCode(best, spec, model, complete = true) {
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const held = best.search?.held ?? {};
+  const holds = Object.keys(held).length > 0;
+  const limits = spec.constraints ?? [];
+  const response = spec.response || "y";
+  const searched = Boolean(best.search?.goal);
+  const fitted = complete ? "X, y" : "X[done], y[done]";
+  const levels = Object.fromEntries(spec.factors.filter(labelled).map((f) => [f.name, best.coded[f.name]]));
+  const imports = [
+    ...(holds && searched ? ["import math"] : []),
+    "import pandas as pd",
+    `from process_improve.experiments import ${limits.length && searched ? "DesignRegion, " : ""}analyze_experiment${searched ? ", optimize_responses" : ""}`,
+    "",
+  ];
+  const at = searched
+    ? `at = pd.DataFrame([{**best["optimal_coded"]${Object.keys(levels).length ? `, **${repr(levels)}` : ""}}])`
+    : `at = pd.DataFrame([${repr(best.coded)}])`;
+  const prediction = [
+    "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
+    at,
+    `prediction = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=at)`,
+    'print(prediction["predictions"][0])',
+  ];
+  if (!searched) {
+    return [
+      ...imports,
+      "# Every factor the model holds is categorical: the page compared each combination of their levels, and these",
+      "# are best, in coded units.",
+      ...prediction,
+    ].join("\n");
+  }
+  const ranges = numeric.map((f) => `${repr(f.name)}: {"low": ${f.low}, "high": ${f.high}}`).join(", ");
+  return [
+    ...imports,
+    ...(holds ? [heldComment(held, spec.factors), ...HELD_AT, `coefficients = held_at(analysis["coefficients"], ${repr(held)})`] : []),
+    "# The goal as a desirability, its limits beyond every prediction in the ranges: a straight line in the prediction.",
+    `goal = ${repr(best.search.goal)}`,
+    "best = optimize_responses(",
+    "    [",
+    "        {",
+    `            "response_name": ${repr(response)},`,
+    `            "coefficients": ${holds ? "coefficients" : 'analysis["coefficients"]'},`,
+    `            "factor_names": ${repr(numeric.map((f) => f.name))},`,
+    "        }",
+    "    ],",
+    "    goals=[goal],",
+    `    factor_ranges={${ranges}},`,
+    ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+    ')["desirability"]',
+    'print(best["optimal_actual"])  # the best settings, in the factors\' own units',
+    `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
+    "",
+    ...prediction,
   ].join("\n");
 }
 
@@ -261,7 +364,7 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * or read from a workbook are written out. ``model`` is the model the analysis fitted, or null
  * when there is no analysis yet; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, version, url }) {
+export function notebook({ title, design, responses, sources, simulation, model, version, url, best = null }) {
   const simulated = Boolean(simulation) && sources.every((s) => s === "simulated");
   const cells = [
     markdownCell(
@@ -276,8 +379,15 @@ export function notebook({ title, design, responses, sources, simulation, model,
     codeCell("results", resultsCode(design, responses, simulated ? simulation : null)),
   ];
   if (model !== null && model !== undefined) {
-    const complete = responses.every((v) => v !== null && v !== undefined);
+    const fitted = fittedRuns(design);
+    const complete = responses.every((v, i) => !fitted[i] || (v !== null && v !== undefined));
     cells.push(markdownCell("analysis-step", "## 3. The analysis"), codeCell("analysis", analyseCode(model, complete)));
+    if (best?.settings) {
+      cells.push(
+        markdownCell("best-step", "## 4. The best settings for the goal"),
+        codeCell("best", bestCode(best, design.spec, model, complete)),
+      );
+    }
   }
   return {
     cells,

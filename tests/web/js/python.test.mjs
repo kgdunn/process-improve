@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { analyseCode, compareCode, cumulative, designCode, resultsCode } from "../../../web/python.js";
+import { analyseCode, bestCode, compareCode, cumulative, designCode, resultsCode } from "../../../web/python.js";
 
 const FACTORS = [
   { name: "T", low: 150, high: 200, units: "degC" },
@@ -124,6 +124,23 @@ describe("the analysis and the comparison", () => {
     assert.match(code, /Factor\(name="S", type="categorical", levels=\["A", "B"\]\),/);
   });
 
+  test("the confirmation runs are left out of the runs the model is fitted to, and the code says so", () => {
+    const sheet = {
+      spec: { factors: FACTORS, response: "y", options: {} },
+      columns: ["Std order", "Run order", "T", "P", "y", "Confirmation run"],
+      rows: [
+        [1, 1, 150, 1, null, null],
+        [2, 2, 200, 3, null, null],
+        [null, 3, 200, 1, null, "yes"],
+      ],
+    };
+    const code = resultsCode(sheet, [10, 20, 30]);
+    assert.match(code, /"T": \[150, 200\],/);
+    assert.match(code, /"y": \[10, 20\],/);
+    assert.match(code, /# The confirmation runs are left out: they test the model, so they do not enter its fit\./);
+    assert.doesNotMatch(resultsCode({ ...sheet, rows: sheet.rows.slice(0, 2) }, [10, 20]), /confirmation/);
+  });
+
   test("the comparison generates each design with its own options", () => {
     const designs = [
       { label: "Full factorial", design_type: "full_factorial", options: { n_center_points: 3 } },
@@ -133,5 +150,52 @@ describe("the analysis and the comparison", () => {
     assert.match(code, /"Full factorial": generate_design\(factors, design_type="full_factorial", n_center_points=3\),/);
     assert.match(code, /"D-optimal": generate_design\(factors, design_type="d_optimal"\),/);
     assert.match(code, /compare_designs\(designs, model="main_quadratic"\)/);
+  });
+});
+
+describe("the best settings", () => {
+  const spec = { factors: [...FACTORS, { name: "S", low: "A", high: "B" }], response: "Yield", options: {} };
+  const goal = { response: "Yield", goal: "maximize", low: 35.925, high: 87.975 };
+  const best = { coded: { T: 1, P: -1, S: 1 }, search: { held: {}, goal } };
+
+  test("the optimiser on step 3's model, with the goal's limits as the page set them", () => {
+    const code = bestCode({ ...best, spec: undefined }, { ...spec, factors: FACTORS }, "quadratic");
+    assert.match(code, /^import pandas as pd\nfrom process_improve\.experiments import analyze_experiment, optimize_responses\n/);
+    assert.match(code, /goal = \{"response": "Yield", "goal": "maximize", "low": 35\.925, "high": 87\.975\}/);
+    assert.match(code, /"coefficients": analysis\["coefficients"\],/);
+    assert.match(code, /"factor_names": \["T", "P"\],/);
+    assert.match(code, /factor_ranges=\{"T": \{"low": 150, "high": 200\}, "P": \{"low": 1, "high": 3\}\},/);
+    assert.match(code, /print\(best\["predicted_responses"\]\["Yield"\]\)/);
+    assert.match(code, /analyze_experiment\(X, y, model="quadratic", analysis_type="prediction", new_points=at\)/);
+    assert.doesNotMatch(code, /math|held_at|DesignRegion/);
+  });
+
+  test("a categorical factor held at the level the page found best, as the page holds it", () => {
+    const code = bestCode({ ...best, search: { held: { S: 1 }, goal } }, spec, "interactions", false);
+    assert.match(code, /^import math\n/);
+    assert.match(code, /# The page tried each level and found S at B best: the model is held there\./);
+    assert.match(code, /def held_at\(coefficients, held\):/);
+    assert.match(code, /coefficients = held_at\(analysis\["coefficients"\], \{"S": 1\}\)/);
+    assert.match(code, /"coefficients": coefficients,/);
+    assert.match(code, /at = pd\.DataFrame\(\[\{\*\*best\["optimal_coded"\], \*\*\{"S": 1\}\}\]\)/);
+    assert.match(code, /analyze_experiment\(X\[done\], y\[done\]/, "the runs still to do left out, as in step 3");
+  });
+
+  test("the blocks held at the average block", () => {
+    const code = bestCode({ ...best, search: { held: { Block1: 0 }, goal } }, { ...spec, factors: FACTORS }, "Block + T");
+    assert.match(code, /# The blocks are held at the average block, as the equation is\./);
+  });
+
+  test("inside the limits on the settings", () => {
+    const limited = { ...spec, factors: FACTORS, constraints: [{ expression: "T + 25 * P <= 215" }] };
+    const code = bestCode(best, limited, "quadratic");
+    assert.match(code, /from process_improve\.experiments import DesignRegion, analyze_experiment, optimize_responses/);
+    assert.match(code, /region=DesignRegion\(factors, constraints\),/);
+  });
+
+  test("every factor in the model categorical: the prediction at the levels the page compared", () => {
+    const code = bestCode({ coded: { S: 1 }, search: { held: { S: 1 }, goal: null } }, { ...spec, factors: [spec.factors[2]] }, "main_effects");
+    assert.doesNotMatch(code, /optimize_responses/);
+    assert.match(code, /at = pd\.DataFrame\(\[\{"S": 1\}\]\)/);
   });
 });
