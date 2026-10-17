@@ -32,7 +32,6 @@ from typing import Any, NamedTuple
 import numpy as np
 import pandas as pd
 
-from process_improve._random import resolve_deprecated_seed
 from process_improve.experiments._classical import ff2n
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType, as_constraints
@@ -629,7 +628,6 @@ def generate_design(  # noqa: PLR0913
     hard_to_change: list[str] | None = None,
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
-    random_seed: int | None = None,
     candidates: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = 42,
     backend: str = "auto",
@@ -759,8 +757,6 @@ def generate_design(  # noqa: PLR0913
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
         ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises
         ``ValueError`` if given for a non-optimal ``design_type``.
-    random_seed : int or None
-        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     candidates : pandas.DataFrame or None
         The settings the runs must be chosen from, for the optimal families only: for
         example historical operating points, the discrete settings a piece of
@@ -807,7 +803,6 @@ def generate_design(  # noqa: PLR0913
     >>> result.design_actual
     """
     # --- Validate ----------------------------------------------------------
-    random_state = resolve_deprecated_seed(random_state, random_seed, "generate_design")
     if not factors:
         raise ValueError("At least one factor must be provided.")
     constraints = _as_constraints(constraints)

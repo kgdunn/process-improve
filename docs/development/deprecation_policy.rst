@@ -110,13 +110,16 @@ So:
   change leaves alone stays quiet.
 - Where the result is a dict that an agent or a tool reads, it also
   carries the warning's text (as ``analyze_experiment``'s
-  ``coding_note`` does), since a warning does not reach them.
+  ``coding_note`` did), since a warning does not reach them.
 - Where possible, the new behaviour keeps what the old one gave, under
   an unmistakable name (``coefficients_actual``), so that nobody loses a
   result they relied on.
+- At ``(X+1).0`` the default becomes the new value, and the warning and
+  the note are removed. ``None`` stays accepted, as the new value, where
+  a caller or a tool schema can still pass it.
 
-``analyze_experiment``'s ``coding`` (``"actual"`` until 2.0, then
-``"auto"``) is the first example.
+``analyze_experiment``'s ``coding`` was the first example: announced in
+1.98.0, its default changed from ``"actual"`` to ``"auto"`` in 2.0.0.
 
 When a deprecation is unavoidable mid-cycle
 -------------------------------------------

@@ -89,7 +89,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, OptimizeResult, milp
 
-from process_improve._random import resolve_deprecated_seed
 from process_improve.experiments.designs_omars import _second_order_terms, is_omars
 
 logger = logging.getLogger(__name__)
@@ -1503,7 +1502,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     solver_options: dict[str, Any] | None,
     tol: float,
     verify: bool,
-    random_seed: int | np.random.Generator | None,
+    random_state: int | np.random.Generator | None,
     center_runs: int = 1,
     plateau: int | None = None,
 ) -> tuple[np.ndarray, dict]:
@@ -1922,7 +1921,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if coded is not None:
             _record(coded, indices, status)
         if status != _STATUS_INFEASIBLE:
-            _multistart(half, np.random.default_rng(random_seed))
+            _multistart(half, np.random.default_rng(random_state))
         if polish:
             _polish()
         if candidates:
@@ -2046,7 +2045,6 @@ def generate_omars(  # noqa: PLR0913
     model: str = "full_second_order",
     solver_options: dict[str, Any] | None = None,
     tol: float = 1e-9,
-    random_seed: int | None = None,
     verify: bool = True,
     random_state: int | np.random.Generator | None = 42,
 ) -> DesignResult:
@@ -2151,8 +2149,6 @@ def generate_omars(  # noqa: PLR0913
         ``ValueError``.  See :func:`solve_omars_ilp`.
     tol : float, optional
         Tolerance for the floating-point :func:`is_omars` re-check.
-    random_seed : int or None
-        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     verify : bool, optional
         When ``True`` (default) every selected design is re-checked with
         :func:`is_omars` before it is accepted.
@@ -2195,7 +2191,6 @@ def generate_omars(  # noqa: PLR0913
     from process_improve.experiments.designs_utils import build_design_result  # noqa: PLC0415
     from process_improve.experiments.factor import FactorType  # noqa: PLC0415
 
-    random_state = resolve_deprecated_seed(random_state, random_seed, "generate_omars")
     categorical = [f.name for f in factors if f.type == FactorType.categorical]
     if categorical:
         raise ValueError(
@@ -2221,7 +2216,7 @@ def generate_omars(  # noqa: PLR0913
         solver_options=solver_options,
         tol=tol,
         verify=verify,
-        random_seed=random_state,
+        random_state=random_state,
         center_runs=center_runs,
     )
     return build_design_result(
@@ -2274,7 +2269,7 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
             solver_options=None,
             tol=1e-9,
             verify=True,
-            random_seed=kwargs.get("random_state", 42),
+            random_state=kwargs.get("random_state", 42),
             center_runs=center_runs,
             plateau=_PLATEAU,
         )

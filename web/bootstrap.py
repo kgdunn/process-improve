@@ -1957,7 +1957,7 @@ def _mixture_analysis(runs: pd.DataFrame, spec: dict, model: object, truth: list
 def _mixture_fit(blends: pd.DataFrame, y: pd.Series, model: str, analyses: list[str] | None = None) -> dict:
     """Fit a Scheffé model to blends, refusing one the runs cannot estimate in full."""
     with _listening() as heard:
-        out = analyze_experiment(blends, y, model=model, analysis_type=analyses or MIXTURE_ANALYSES)
+        out = analyze_experiment(blends, y, model=model, analysis_type=analyses or MIXTURE_ANALYSES, coding="actual")
     summary = out["model_summary"]
     if summary["rank_deficient"]:
         raise ValueError(
@@ -2023,7 +2023,7 @@ def _fit_estimable(
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
     formula, early = _first_formula(coded, model, names, categorical, blocked=blocked)
     with _listening() as heard:
-        out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES)
+        out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
     chains: dict[str, list[str]] = {}
     labels: dict[str, str] = {}
     not_estimable: list[str] = []
@@ -2037,7 +2037,7 @@ def _fit_estimable(
         kept = [term for term in _fitted_terms(out, names) if term not in dropped]
         if dropped and kept:
             formula = _formula(kept, names, blocked=blocked)
-            out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES)
+            out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
     else:
         _relay(heard)
     summary = out["model_summary"]
@@ -2765,7 +2765,9 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
     """
     mean = TrueProcess(truth, sigma=1.0).mean(coded)
     with _listening():
-        noiseless = analyze_experiment(coded, pd.Series(mean, name="y"), model=formula, analysis_type="coefficients")
+        noiseless = analyze_experiment(
+            coded, pd.Series(mean, name="y"), model=formula, analysis_type="coefficients", coding="actual"
+        )
     # Rounded to drop the rounding error of a fit with no noise (a true zero reads 1e-14).
     expected = {c["term"]: round(c["coefficient"], 9) + 0.0 for c in noiseless["coefficients"]}
     for c in coefficients:
@@ -2896,7 +2898,9 @@ def plots(request: dict) -> dict:
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
         fit = _fit_estimable(coded, y, model, names, categorical)
-        out = analyze_experiment(coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"])
+        out = analyze_experiment(
+            coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"], coding="actual"
+        )
     rows = coded.assign(**{response: y}).to_dict("records")
     pair = _contour_pair(out["coefficients"], names)
     shading, held = _shading(spec, pair)

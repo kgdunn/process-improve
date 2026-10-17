@@ -332,7 +332,7 @@ class TestAnalyzeExperiment:
         assert result["split_plot"]["significant_terms"] == ["Coating", "Temperature:Coating"]
 
     def test_coded_coefficients_hand_off_to_optimize_responses(self) -> None:
-        """An agent analysing actual units passes coding='coded', and the optimum comes back in actual units."""
+        """Coefficients on actual units are refused; coded ones, the default, give the optimum in actual units."""
         rows = [
             {"T": t, "P": p, "y": y}
             for t, p, y in [
@@ -346,12 +346,13 @@ class TestAnalyzeExperiment:
         ]
         request = {"design_matrix": rows, "response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
         goal = [{"goal": "maximize", "low": 10, "high": 25}]
-        actual = execute_tool_call("analyze_experiment", request)
+        actual = execute_tool_call("analyze_experiment", {**request, "coding": "actual"})
         refused = execute_tool_call("optimize_responses", {"fitted_models": [actual], "goals": goal})
         assert "coding='coded'" in refused["error"]
-        coded = execute_tool_call("analyze_experiment", {**request, "coding": "coded"})
-        best = execute_tool_call("optimize_responses", {"fitted_models": [coded], "goals": goal})
-        assert best["desirability"]["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
+        for coding in ({}, {"coding": "coded"}):  # the default, "auto", is "coded" here
+            coded = execute_tool_call("analyze_experiment", {**request, **coding})
+            best = execute_tool_call("optimize_responses", {"fitted_models": [coded], "goals": goal})
+            assert best["desirability"]["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
 
     def test_invalid_response_column_returns_error(self) -> None:
         """Referencing a missing response column should return an error dict."""
@@ -408,7 +409,6 @@ class TestAnalyzeExperiment:
 @pytest.mark.parametrize(
     ("tool", "args"),
     [
-        ("generate_design", {"random_seed": -1}),
         ("generate_design", {"random_state": -1}),
         ("augment_design", {"random_state": -1}),
         ("evaluate_design", {"random_state": -1}),
@@ -506,6 +506,13 @@ class TestOptimizeResponses:
         """A reversed pair is reported, not silently accepted."""
         result = self._rising_plane_call(search_bounds=[1.0, -1.0])
         assert "low < high" in result["error"]
+
+    def test_desirability_weights_is_an_unknown_key(self) -> None:
+        """Removed in 2.0.0: the schema refuses it as any key it does not know; response_importance remains."""
+        removed = {"desirability_weights": [1.0]}  # a key the schema no longer has, sent as an agent would
+        with pytest.raises(ToolInputInvalidError, match="desirability_weights"):
+            self._rising_plane_call(**removed)
+        assert "error" not in self._rising_plane_call(response_importance=[1.0])
 
     def test_analyze_experiment_result_feeds_optimize_responses(self) -> None:
         """The documented generate -> analyze -> optimize pipeline, with no hand-editing of the result."""

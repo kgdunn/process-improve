@@ -129,8 +129,8 @@ same region sample it reports:
 - the run-count-scaled SPV variants (each multiplied by ``N``), and
 - a coarse 11-point ``quantiles`` summary.
 
-``i_efficiency`` and ``g_efficiency`` are derived from this same region
-machinery, so they are consistent with the ``fds`` payload.
+The ``average_prediction_variance`` and ``g_efficiency`` metrics are derived from
+this same region machinery, so they are consistent with the ``fds`` payload.
 
 Two options make the region average and maximum exact rather than sampled:
 
@@ -207,17 +207,18 @@ variance (``average_prediction_variance``, ``g_efficiency``, ``fds``), the
 ranking of designs by D-efficiency and the degrees of freedom do not. Pass
 ``categorical_coding="treatment"`` for 0/1 dummy coding against the first
 level (terms ``C[T.mid]``), which earlier releases used.
-:func:`~process_improve.experiments.analyze_experiment` is not affected: its
-coefficients keep treatment coding, and its effects already run from the low
-level to the high level.
+:func:`~process_improve.experiments.analyze_experiment` codes its coefficients'
+categorical factors much the same way by default (``coding="auto"``): a two-level
+factor at -1 and +1 and, in a named model, a factor with more levels in sum-to-zero
+contrasts. With ``coding="actual"`` they keep treatment coding. Its effects already
+run from the low level to the high level.
 
 Region Sampling and Reproducibility
 -----------------------------------
 
-The region-integrated metrics (``i_efficiency``, ``g_efficiency``,
-``average_prediction_variance``, ``max_prediction_variance``, and ``fds``) are
-computed by Monte-Carlo sampling the design region.  The sampling is fully
-controllable and seeded:
+The region-integrated metrics (``average_prediction_variance``, ``g_efficiency``,
+``max_prediction_variance`` and ``fds``) are computed by Monte-Carlo sampling the
+design region.  The sampling is fully controllable and seeded:
 
 .. list-table::
    :header-rows: 1

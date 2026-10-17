@@ -235,13 +235,6 @@ class _AnalyzeInput(BaseModel):
             "Set false to skip it (faster)."
         ),
     )
-    discriminator: bool | None = Field(
-        None,
-        description=(
-            "Deprecated since 1.77.0, removed in 2.0.0: the old name for find_predictive. "
-            "Leave unset and use find_predictive."
-        ),
-    )
     n_permutations: int = Field(199, ge=1, description="Permutations for the selectivity-ratio null.")
     random_state: int = Field(0, description="Seed for the permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
@@ -257,7 +250,8 @@ class _AnalyzeInput(BaseModel):
         "PLS and correlations (association). Returns the panel scorecard flags, dropped panelists, the "
         "MAM scaling coefficients and product F-tests, the relate results with Benjamini-Hochberg "
         "q-values, and (unless disabled) the predictive descriptors: a per-attribute Q-squared "
-        "gate, a selectivity ratio per descriptor with a permutation q-value, and collinear-cluster ids "
+        "gate, a selectivity ratio per descriptor with a family-wise-error-adjusted permutation p-value, "
+        "and collinear-cluster ids "
         "that mark proxies which cannot be separated from a genuine driver. Also returns product means "
         "with CIs and a PCA map. Refuses to run if validation fails. "
         "(Designed/DoE mode is planned for a later release.) "
@@ -301,7 +295,6 @@ def sensory_analyze_descriptive(spec: _AnalyzeInput) -> dict:
         conf_level=spec.conf_level,
         alpha=spec.alpha,
         find_predictive=spec.find_predictive,
-        discriminator=spec.discriminator,
         n_permutations=spec.n_permutations,
         random_state=spec.random_state,
     )

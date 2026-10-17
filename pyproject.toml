@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.99.0"
+version = "2.0.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -79,12 +79,6 @@ mcp = ["mcp>=2.0"]
 # Without numba the module still imports and runs; the ``@jit`` decorator
 # falls back to a no-op so the function executes as plain Python.
 fast = ["numba>=0.63.1"]
-
-# Deprecated since 1.97.0 and empty; will be removed in 2.0.0. generate_omars
-# used to need pulp's CBC solver from this extra. It now solves its ILP with
-# SciPy's HiGHS, a core dependency, so there is nothing to install. The empty
-# extra keeps existing ``pip install 'process-improve[ilp]'`` commands working.
-ilp = []
 
 # Mid-course correction QP solver (batch.control). osqp ships prebuilt wheels
 # for every platform CI tests, so no system package is required.

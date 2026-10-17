@@ -32,6 +32,7 @@ import contextlib
 import multiprocessing
 import sys
 import threading
+import warnings
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
@@ -65,32 +66,47 @@ def _default_mp_context(platform: str = sys.platform) -> multiprocessing.context
 _DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = _default_mp_context()
 
 # ---------------------------------------------------------------------------
-# Legacy default-name compatibility shims (ENG-22: deprecate, remove in v2.0).
+# Legacy default-name compatibility shims (ENG-22: deprecated since 2.0.0,
+# remove in 3.0).
 # ---------------------------------------------------------------------------
 # Some callers imported these by name (``from process_improve.tool_safety
 # import DEFAULT_TIMEOUT_S``). The new home for the actual values is
-# ``process_improve.config.settings``; the shims below stay so existing
-# imports keep resolving, but resolve to whatever the settings object
-# currently reports rather than freezing the value at import time.
+# ``process_improve.config.settings``. The shims below keep existing imports
+# resolving, to whatever the settings object currently reports rather than
+# the value at import time. Until 2.0.0 they forwarded silently, so the
+# deprecation policy's announce and warn cycle starts with that release.
+
+#: Each legacy module-level name and the :data:`settings` attribute it forwards to.
+_LEGACY_TO_SETTINGS: dict[str, str] = {
+    "DEFAULT_TIMEOUT_S": "tool_timeout",
+    "DEFAULT_MAX_CELLS": "max_cells",
+    "DEFAULT_MAX_STRING": "max_string",
+    "DEFAULT_MAX_DEPTH": "max_depth",
+    "DEFAULT_MEMORY_MB": "max_memory_mb",
+}
 
 
 def __getattr__(name: str) -> Any:  # noqa: ANN401
-    """Forward legacy ``DEFAULT_*`` reads to :data:`settings`.
+    """Forward legacy ``DEFAULT_*`` reads to :data:`settings`, with a deprecation warning.
 
     Lets ``from process_improve.tool_safety import DEFAULT_TIMEOUT_S``
-    keep working, but the value is no longer frozen at module import:
-    a test that overrides ``settings.tool_timeout`` will see the new
-    value through both the new and the legacy name.
+    keep working, but the value is not frozen at module import: a test
+    that overrides ``settings.tool_timeout`` sees the new value through
+    both the new and the legacy name.
+
+    .. deprecated:: 2.0.0
+        The ``DEFAULT_*`` names will be removed in 3.0. Read the
+        attribute of :data:`process_improve.config.settings` instead.
     """
-    legacy_to_settings = {
-        "DEFAULT_TIMEOUT_S": "tool_timeout",
-        "DEFAULT_MAX_CELLS": "max_cells",
-        "DEFAULT_MAX_STRING": "max_string",
-        "DEFAULT_MAX_DEPTH": "max_depth",
-        "DEFAULT_MEMORY_MB": "max_memory_mb",
-    }
-    if name in legacy_to_settings:
-        return getattr(settings, legacy_to_settings[name])
+    if name in _LEGACY_TO_SETTINGS:
+        attr = _LEGACY_TO_SETTINGS[name]
+        warnings.warn(
+            f"process_improve.tool_safety.{name} is deprecated since 2.0.0 and will be removed in 3.0; "
+            f"use process_improve.config.settings.{attr} instead.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(settings, attr)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
