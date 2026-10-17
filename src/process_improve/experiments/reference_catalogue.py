@@ -2265,10 +2265,9 @@ def _run_order_trends(experiment: dict, check: dict) -> float:
     """
     settings = _coded_runs(experiment, check.get("runs"))[0]
     found = run_order_trends(
-        settings,
+        settings[check["factors"]] if check.get("factors") else settings,
         model=check.get("model", "quadratic"),
         degree=check.get("degree", 3),
-        factors=check.get("factors"),
     )
     return _read(found, check["key"])
 

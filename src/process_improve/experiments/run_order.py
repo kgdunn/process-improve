@@ -77,13 +77,12 @@ def time_trends(n_runs: int, degree: int = 3) -> np.ndarray:
     return trends * np.sign(trends[-1])
 
 
-def _frame(design: pd.DataFrame | np.ndarray, factors: list[str] | None) -> pd.DataFrame:
+def _frame(design: pd.DataFrame | np.ndarray) -> pd.DataFrame:
     """Return the factor columns as a frame of floats, named ``x1``, ``x2``, ... for an array."""
     frame = design if isinstance(design, pd.DataFrame) else pd.DataFrame(np.asarray(design, dtype=float))
     if not isinstance(design, pd.DataFrame):
         frame.columns = [f"x{j + 1}" for j in range(frame.shape[1])]
-    names = factors or [str(c) for c in frame.columns]
-    return frame[names].astype(float)
+    return frame.astype(float)
 
 
 def model_columns(frame: pd.DataFrame, model: str = "quadratic") -> tuple[list[str], list[str], np.ndarray]:
@@ -123,7 +122,6 @@ def run_order_trends(
     design: pd.DataFrame | np.ndarray,
     model: str = "quadratic",
     degree: int = 3,
-    factors: list[str] | None = None,
     order: list[int] | None = None,
 ) -> dict[str, Any]:
     r"""Measure how far each term of a model is confounded with the time trends of a run order.
@@ -131,13 +129,12 @@ def run_order_trends(
     Parameters
     ----------
     design : DataFrame or numpy.ndarray
-        The runs in coded units, one row per run, in the order they are made.
+        The runs in coded units, one row per run, in the order they are made: one column per
+        factor (pass ``runs[["A", "B"]]`` for some columns of a larger frame).
     model : {"main_effects", "interactions", "quadratic"}
         The model whose terms are measured. Default ``"quadratic"``, the full second-order model.
     degree : int
         The highest degree of time trend: 1 (linear) to 4. Default 3, as Núñez Ares and Goos (2019).
-    factors : list[str] or None
-        The factor columns of a frame; all of them by default.
     order : list[int] or None
         The order to make the runs in, as 0-based row positions of *design*; the rows' own order
         by default.
@@ -158,7 +155,7 @@ def run_order_trends(
         - ``level_changes``: how often each factor changes level from one run to the next, and
           ``total_level_changes``, their sum: what the order costs to run.
     """
-    frame = _frame(design, factors)
+    frame = _frame(design)
     if order is not None:
         if sorted(order) != list(range(len(frame))):
             raise ValueError(f"order must hold each of the {len(frame)} row positions 0 to {len(frame) - 1} once.")
@@ -256,13 +253,11 @@ def _descend(columns: np.ndarray, trends: np.ndarray, start: np.ndarray, masks: 
         dots, score = best_dots, best
 
 
-def trend_robust_run_order(  # noqa: PLR0913
+def trend_robust_run_order(
     design: pd.DataFrame | np.ndarray,
     model: str = "quadratic",
     degree: int = 3,
-    factors: list[str] | None = None,
-    n_starts: int = 5,
-    n_kicks: int = 50,
+    search: tuple[int, int] = (5, 50),
     random_state: int | np.random.Generator | None = None,
 ) -> dict[str, Any]:
     """Search for an order of a design's runs that keeps the model's terms orthogonal to the time trends.
@@ -273,9 +268,9 @@ def trend_robust_run_order(  # noqa: PLR0913
     order is better than another when its sum of squared cosines is smaller at the first priority
     where the two differ.
 
-    The search is an iterated local search. From each of ``n_starts`` random orders, two runs at a
+    The search is an iterated local search. From each of several random orders, two runs at a
     time are exchanged, the best exchange first, until no exchange helps. The order found is then
-    disturbed ``n_kicks`` times by a few random exchanges and improved again, and a disturbed order
+    disturbed many times by a few random exchanges and improved again, and a disturbed order
     is kept when it is no worse. The best order found is returned. The search is a heuristic: it
     does not prove that a better order does not exist, as the integer program of Núñez Ares and
     Goos (2019) does, and it may stop short of an order that is orthogonal where one exists.
@@ -283,17 +278,14 @@ def trend_robust_run_order(  # noqa: PLR0913
     Parameters
     ----------
     design : DataFrame or numpy.ndarray
-        The runs in coded units, one row per run, in any order.
+        The runs in coded units, one row per run, in any order: one column per factor.
     model : {"main_effects", "interactions", "quadratic"}
         The model whose terms should be orthogonal to the trends.
     degree : int
         The highest degree of time trend to guard against, 1 (linear) to 4.
-    factors : list[str] or None
-        The factor columns of a frame; all of them by default.
-    n_starts : int
-        The number of random starting orders. Default 5.
-    n_kicks : int
-        How many times each local optimum is disturbed and improved again. Default 50.
+    search : tuple[int, int]
+        The effort of the search: the number of random starting orders (default 5), and how many
+        times each local optimum is disturbed and improved again (default 50).
     random_state : int, numpy.random.Generator or None
         Seeds the starting orders; see :doc:`/development/reproducibility`.
 
@@ -304,9 +296,10 @@ def trend_robust_run_order(  # noqa: PLR0913
         runs in that order (a frame); and ``trends``, :func:`run_order_trends` of that order.
     """
     rng = check_random_state(random_state)
+    n_starts, n_kicks = search
     if n_starts < 1 or n_kicks < 0:
-        raise ValueError(f"n_starts must be at least 1 and n_kicks at least 0; got {n_starts} and {n_kicks}.")
-    frame = _frame(design, factors)
+        raise ValueError(f"search needs at least 1 start and 0 or more kicks; got {search}.")
+    frame = _frame(design)
     _, kinds, columns = model_columns(frame, model)
     trends = time_trends(len(frame), degree)
     masks = _priorities(kinds, degree)

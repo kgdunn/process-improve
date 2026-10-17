@@ -27,7 +27,7 @@ def test_the_trends_are_orthonormal_and_orthogonal_to_the_intercept():
 
 def test_the_paper_s_run_orders_reproduce_its_table_of_cosines():
     """The 3^3 factorial in run order 2 (Table 9): every second-order term orthogonal to the linear trend."""
-    found = run_order_trends(_runs("nunez-ares-goos-3-3-run-order-2"), factors=["X1", "X2", "X3"])["summary"]
+    found = run_order_trends(_runs("nunez-ares-goos-3-3-run-order-2")[["X1", "X2", "X3"]])["summary"]
     assert found["linear"]["interactions"]["max_cosine"] == pytest.approx(0, abs=1e-12)
     assert found["quadratic"]["interactions"]["max_cosine"] == pytest.approx(0.283, abs=5e-4)
     assert found["quadratic"]["quadratics"]["mean_cosine"] == pytest.approx(0.057, abs=5e-4)
@@ -37,7 +37,7 @@ def test_the_paper_s_run_orders_reproduce_its_table_of_cosines():
 def test_a_quadratic_column_is_measured_by_its_cosine_not_its_correlation():
     """A column that does not average zero has a cosine smaller than its correlation, by sqrt(1/3) here."""
     runs = _runs("nunez-ares-goos-3-3-run-order-1")
-    found = run_order_trends(runs, factors=["X1", "X2", "X3"], degree=1)
+    found = run_order_trends(runs[["X1", "X2", "X3"]], degree=1)
     square = next(t for t in found["terms"] if t["term"] == "I(X1**2)")
     correlation = abs(np.corrcoef(runs["X1"] ** 2, np.arange(27))[0, 1])
     assert abs(square["cosine"]["linear"]) == pytest.approx(correlation * np.sqrt(1 / 3))
@@ -45,7 +45,7 @@ def test_a_quadratic_column_is_measured_by_its_cosine_not_its_correlation():
 
 def test_the_standard_order_of_a_small_ccd_tilts_x1_by_75_degrees():
     """Table 1: X1 against the time count gives a dot product of 5 and an angle of about 75 degrees."""
-    found = run_order_trends(_runs("nunez-ares-goos-fccd-2-factors-standard-order"), factors=["X1", "X2"])
+    found = run_order_trends(_runs("nunez-ares-goos-fccd-2-factors-standard-order")[["X1", "X2"]])
     assert found["time_count_dot"]["X1"] == pytest.approx(5)
     x1 = next(t for t in found["terms"] if t["term"] == "X1")
     assert x1["angle"]["linear"] == pytest.approx(74.72, abs=0.005)
@@ -77,8 +77,8 @@ def test_the_search_finds_a_main_effect_order_orthogonal_to_the_linear_trend():
 def test_the_search_improves_on_the_standard_order_and_is_reproducible():
     runs = _runs("nunez-ares-goos-3-3-standard-order")[["X1", "X2", "X3"]]
     before = run_order_trends(runs, degree=1)["summary"]["linear"]
-    first = trend_robust_run_order(runs, degree=1, n_starts=2, n_kicks=5, random_state=7)
-    again = trend_robust_run_order(runs, degree=1, n_starts=2, n_kicks=5, random_state=7)
+    first = trend_robust_run_order(runs, degree=1, search=(2, 5), random_state=7)
+    again = trend_robust_run_order(runs, degree=1, search=(2, 5), random_state=7)
     after = first["trends"]["summary"]["linear"]
     assert first["order"] == again["order"]
     assert before["main_effects"]["max_cosine"] > 0.9
@@ -91,7 +91,7 @@ def test_the_search_improves_on_the_standard_order_and_is_reproducible():
         (lambda d: run_order_trends(d, model="cubic"), "model must be one of"),
         (lambda d: run_order_trends(d, degree=5), "degree must be"),
         (lambda d: run_order_trends(d, order=[0, 0, 1, 2]), "each of the 4 row positions"),
-        (lambda d: trend_robust_run_order(d, n_starts=0), "n_starts must be at least 1"),
+        (lambda d: trend_robust_run_order(d, search=(0, 5)), "at least 1 start"),
     ],
 )
 def test_a_request_that_cannot_be_met_is_refused(call, message):
