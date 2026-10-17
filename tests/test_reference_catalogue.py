@@ -1092,6 +1092,7 @@ def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arr
         item("0.125", info | {"key": "coefficient_variances", "terms": "[A-C]", "reduce": "max"}),
         item("0.354", info | {"key": "coefficient_variances", "terms": "[A-C]", "reduce": "max", "root": True}),
         item("0.442", info | {"metric": "g_efficiency", "result": "max_prediction_variance"}),
+        item("6.625", info | {"metric": "g_efficiency", "result": "max_prediction_variance", "times_runs": True}),
         item("8", {"kind": "library_value", "function": "allocate_runs", "args": [1, 4], "key": "best.runs_b"}),
         item("0.498", {"kind": "ci_half_width", "term": "A", "model": "A + B + C"}),
         item([[8, 0], [0, 8]], info | {"key": "xtx"}),  # the wrong shape: X'X is 4 by 4
@@ -1109,10 +1110,10 @@ def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arr
     (tmp_path / "small.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
     monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
     report = reproduce_reference_catalogue("small")
-    assert report["agrees"].tolist() == [True] * 13 + [False] * 3
-    assert "shape (4, 4), printed (2, 2)" in report["found"].iloc[13]
-    assert report["found"].iloc[14] == "nan"
-    assert report["reason"].iloc[15].startswith("ValueError")
+    assert report["agrees"].tolist() == [True] * 14 + [False] * 3
+    assert "shape (4, 4), printed (2, 2)" in report["found"].iloc[14]
+    assert report["found"].iloc[15] == "nan"
+    assert report["reason"].iloc[16].startswith("ValueError")
 
 
 def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
