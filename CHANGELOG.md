@@ -13,6 +13,20 @@ those changes.
 
 ### Added
 
+- **Factorial finds the best settings for the response's goal.** Once the model is fitted, Learn
+  says where to run the process to maximise, minimise or hit the target the brief names: the
+  settings in the factors' own units, each categorical factor at its better level, found on the
+  fitted model inside the ranges and the limits on the settings with `optimize_responses`. Beside
+  them are the predicted response with its 95% confidence interval for the mean and its 95%
+  prediction interval for one new run, the leverage there against the runs' (a warning when the
+  prediction leans on the model beyond the runs), which factors are at an end of their range and
+  the way a next study could move it along the steepest ascent, the limits the settings are on,
+  and bars that show how much each factor moves the prediction, so the reader sees which to hold
+  tightly. The response surface is drawn through the best settings, with a star on them. A button
+  adds three confirmation runs at the best settings to the run sheet, marked in a column of their
+  own and never fitted; once their results are in, Learn says whether their average falls inside
+  the prediction interval for an average of three runs. The "Show the Python code" panel and the
+  notebook reproduce the search with the library (`api_best_settings`).
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
