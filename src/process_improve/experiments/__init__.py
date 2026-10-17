@@ -18,6 +18,7 @@ from process_improve.experiments.factor import Constraint, DesignResult, Factor,
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
+from process_improve.experiments.multistratum import multistratum_anova
 from process_improve.experiments.omars import OmarsResult, analyze_omars
 from process_improve.experiments.omars_trade_off import (
     OmarsTradeOffTableEntry,
@@ -92,6 +93,7 @@ __all__ = [
     "manufacture",
     "marginal_means_prediction",
     "moment_aberration",
+    "multistratum_anova",
     "omars_anchor_entry",
     "omars_minimum_runs",
     "omars_properties",
