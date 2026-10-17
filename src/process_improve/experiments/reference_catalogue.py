@@ -2622,6 +2622,44 @@ def _variance_component(experiment: dict, check: dict) -> float:
     return float(found[kind]())
 
 
+_GLM_FITS: dict[str, dict[str, Any]] = {}
+_GLM_OPTIONS = ("family", "link", "trials", "dispersion", "information")
+
+
+def _glm(experiment: dict, check: dict) -> float:
+    """Return a number of the library's generalized linear model of the runs (``analysis_type="glm"``).
+
+    ``check["model"]`` is the formula and ``check["family"]``, ``"link"``, ``"trials"``,
+    ``"dispersion"`` and ``"information"`` go to :func:`analyze_experiment` as they are.
+    ``check["term"]`` picks a coefficient and ``check["key"]`` one of its fields
+    (``"coefficient"``, ``"std_error"``, ``"z_value"``, ``"p_value"``, ``"exp_coefficient"``,
+    ``"exp_ci_low"``, ...); without a term, ``check["key"]`` reads into the whole result, as
+    ``"log_likelihood_trials"``, ``"goodness_of_fit.pearson.statistic"`` or ``"fitted.0.ci_low"``.
+    A fitted mean's ``"ci_length"`` is its interval's upper limit less its lower, and
+    ``"squared": true`` returns the square of the number read (e^(2b) from the odds ratio e^b).
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    y = responses[check.get("response") or responses.columns[0]]
+    options = {k: check[k] for k in _GLM_OPTIONS if k in check}
+    key = json.dumps([experiment["name"], check.get("runs"), y.name, check["model"], options], sort_keys=True)
+    if key not in _GLM_FITS:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _GLM_FITS[key] = analyze_experiment(settings, y, model=check["model"], analysis_type="glm", **options)[
+                "glm"
+            ]
+    found = _GLM_FITS[key]
+    if check.get("term"):
+        row = next(r for r in found["coefficients"] if r["term"] == _library_term(check["term"]))
+        value = float(row[check["key"]])
+    elif str(check["key"]).endswith(".ci_length"):
+        mean = check["key"].removesuffix(".ci_length")
+        value = _read(found, f"{mean}.ci_high") - _read(found, f"{mean}.ci_low")
+    else:
+        value = _read(found, check["key"])
+    return value**2 if check.get("squared") else value
+
+
 _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "blocks_orthogonal": _blocks_orthogonal,
     "capability": _capability,
@@ -2653,6 +2691,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "tukey": _tukey,
     "unit_std_error": _unit_std_error,
     "variance_component": _variance_component,
+    "glm": _glm,
 }
 
 

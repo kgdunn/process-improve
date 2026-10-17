@@ -16,6 +16,7 @@ User Guide
    region_limits
    screening_and_space_filling
    split_plot_analysis
+   glm_analysis
    sensory_panel
    sensory_diagnostics
    chemistry
