@@ -17,7 +17,6 @@ from process_improve.sensory import (
     DESCRIPTIVE_LONG_COLUMNS,
     align_scores,
     analyze_descriptive,
-    discriminate_observational,
     mixed_assessor_model,
     panel_scorecard,
     validate_descriptive,
@@ -1459,7 +1458,7 @@ def test_tool_analyze_exposes_correction_and_mam():
     assert ftest["f_product_mam"] > ftest["f_product_classical"]
 
 
-def _discriminator_case():
+def _predictive_case():
     """Build a small predictable case: one real driver, one noise descriptor."""
     rng = np.random.default_rng(0)
     n = 12
@@ -1470,37 +1469,44 @@ def _discriminator_case():
     return agg, cov
 
 
-def test_discriminate_observational_warns_and_forwards():
-    """1.77.0 renamed it; the old spelling still works and warns until 2.0.0."""
-    agg, cov = _discriminator_case()
-    with pytest.warns(DeprecationWarning, match="find_predictive_descriptors"):
-        old = discriminate_observational(agg, cov, n_components=1, n_permutations=19, random_state=0)
-    new = find_predictive_descriptors(agg, cov, n_components=1, n_permutations=19, random_state=0)
-    assert pd.DataFrame(old["descriptors"]).equals(pd.DataFrame(new["descriptors"]))
+def test_discriminate_observational_is_removed():
+    """2.0.0 removed the alias; find_predictive_descriptors is the only name."""
+    assert "discriminate_observational" not in sensory.__all__
+    with pytest.raises(AttributeError):
+        _ = sensory.discriminate_observational
 
 
-def test_deprecated_descriptor_fields_mirror_their_replacements():
-    """The old field names are still emitted, carrying identical values."""
-    agg, cov = _discriminator_case()
-    desc = pd.DataFrame(
-        find_predictive_descriptors(agg, cov, n_components=1, n_permutations=19, random_state=0)["descriptors"]
-    )
-    assert desc["q_value"].equals(desc["p_value_fwer"])
-    assert desc["discriminator_significant"].equals(desc["is_predictive"])
+def test_removed_descriptor_fields_are_absent():
+    """2.0.0 removed q_value and discriminator_significant; p_value_fwer and is_predictive remain."""
+    agg, cov = _predictive_case()
+    record = find_predictive_descriptors(agg, cov, n_components=1, n_permutations=19, random_state=0)["descriptors"][0]
+    assert {"p_value_fwer", "is_predictive"} <= set(record)
+    assert {"q_value", "discriminator_significant"}.isdisjoint(record)
 
 
-def test_discriminator_keyword_still_works_and_warns():
-    agg, cov = _discriminator_case()
-    with pytest.warns(DeprecationWarning, match="find_predictive"):
-        result = relate_observational(agg, cov, n_components=1, discriminator=True, n_permutations=19)
-    # Both result keys reference the same object, so an existing reader is fine.
-    assert result["discriminator"] is result["predictive_descriptors"]
+def test_discriminator_keyword_is_removed():
+    """2.0.0 removed the discriminator= keyword and the relate["discriminator"] key."""
+    agg, cov = _predictive_case()
+    with pytest.raises(TypeError, match="discriminator"):
+        relate_observational(agg, cov, n_components=1, discriminator=True)
+    result = relate_observational(agg, cov, n_components=1, n_permutations=19)
+    assert "predictive_descriptors" in result
+    assert "discriminator" not in result
 
 
-def test_passing_both_spellings_of_the_keyword_is_an_error():
-    agg, cov = _discriminator_case()
-    with pytest.raises(ValueError, match="not both"):
-        relate_observational(agg, cov, find_predictive=False, discriminator=True)
+def test_tool_rejects_the_removed_discriminator_field():
+    """The tool schema forbids unknown keys, so the old field name now fails validation."""
+    from process_improve.tool_safety import ToolInputInvalidError
+    from process_improve.tool_spec import execute_tool_call
+
+    payload = {
+        "panel": _panel().to_dict(orient="records"),
+        "covariates": _obs().to_dict(orient="records"),
+        "mode": "observational",
+        "discriminator": False,
+    }
+    with pytest.raises(ToolInputInvalidError, match="extra_forbidden"):
+        execute_tool_call("sensory_analyze_descriptive", payload)
 
 
 def test_permutation_column_null_is_still_exported():
