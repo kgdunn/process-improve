@@ -162,17 +162,45 @@ def _minimum_aberration_generators(k: int, resolution: int) -> list[_Generator]:
 
     Up to 11 factors the fraction comes from the minimum-aberration table, and the half
     fraction is the answer whenever no smaller tabulated fraction reaches *resolution*.
-    Beyond 11 factors :func:`_search_fraction` looks for the smallest fraction that
-    reaches it; that fraction is not necessarily of minimum aberration.
+    Beyond 11 factors :func:`_search_fraction` finds the fewest runs that reach it, and
+    :func:`_strongest_at_size` then takes the best fraction of that size.
     """
     half_fraction = [(k - 1, list(range(k - 1)))]
     if k > _MAX_TABULATED_FACTORS:
-        return _search_fraction(k, resolution)
+        return _strongest_at_size(k, _search_fraction(k, resolution))
     for _n_runs, entry in sorted(_MIN_ABERRATION.get(k, {}).items()):
         candidate = [(_TABLE_LETTERS.index(g[0]), [_TABLE_LETTERS.index(c) for c in g[2:]]) for g in entry]
         if min(len(word) for word in _defining_words(candidate)) >= resolution:
             return candidate
     return half_fraction
+
+
+def _strongest_at_size(k: int, found: list[_Generator]) -> list[_Generator]:
+    """Return the best fraction with as many runs as *found*.
+
+    It is the minimum-aberration fraction where scoring every generator set is quick
+    (:func:`~process_improve.experiments.trade_off.minimum_aberration_generators`), as it is
+    for 12 to 15 factors in 16 runs. Otherwise it is the fraction of the highest resolution
+    the generator search reaches at that size: 16 factors in 32 runs are resolution IV,
+    though resolution III was asked for.
+    """
+    from process_improve.experiments.trade_off import (  # noqa: PLC0415 - trade_off imports this module
+        _FACTOR_NAMES,
+        SearchLimitError,
+        minimum_aberration_generators,
+    )
+
+    n_base = k - len(found)
+    if k <= len(_FACTOR_NAMES):
+        with contextlib.suppress(SearchLimitError):
+            chosen = minimum_aberration_generators(2**n_base, k)
+            return [(_FACTOR_NAMES.index(g[0]), [_FACTOR_NAMES.index(c) for c in g[2:]]) for g in chosen]
+    reached = min(mask.bit_count() for mask, _ in _defining_word_masks(found))
+    for stronger in range(n_base + 1, reached, -1):  # a generator's word has at most n_base + 1 letters
+        better = _search_at_size(k, n_base, stronger)
+        if better is not None:
+            return better
+    return found
 
 
 #: Branches the generator search for more than 11 factors may try at one run size
@@ -183,25 +211,33 @@ _SEARCH_NODE_LIMIT = 200_000
 def _search_fraction(k: int, resolution: int) -> list[_Generator]:
     """Find a 2^(k-p) fraction of resolution at least *resolution*, trying the fewest runs first.
 
-    At each run size ``2^(k-p)`` a depth-first search picks the ``p`` generator words
-    one at a time, keeping only choices that leave every word of the defining relation
-    at least *resolution* letters long. The search at a size gives up after
-    :data:`_SEARCH_NODE_LIMIT` branches, so a smaller fraction may exist when the
-    returned one is larger; the half fraction, of resolution ``k``, always qualifies.
+    At each run size ``2^(k-p)`` :func:`_search_at_size` looks for one; the half fraction,
+    of resolution ``k``, always qualifies.
     """
     for n_base in range(max(2, k.bit_length()), k - 1):
-        n_extra = k - n_base
-        # A generator word is the derived factor times at least resolution - 1 base factors.
-        sizes = range(max(2, resolution - 1), n_base + 1)
-        if sum(math.comb(n_base, size) for size in sizes) > _SEARCH_NODE_LIMIT:
-            continue  # too many candidate words to search at this size
-        candidates = [
-            sum(1 << i for i in combo) for size in sizes for combo in itertools.combinations(range(n_base), size)
-        ]
-        found = _search_generator_words(candidates, n_base, n_extra, resolution)
+        found = _search_at_size(k, n_base, resolution)
         if found is not None:
-            return [(n_base + j, [i for i in range(n_base) if mask >> i & 1]) for j, mask in enumerate(found)]
+            return found
     return [(k - 1, list(range(k - 1)))]  # the half fraction, of resolution k
+
+
+def _search_at_size(k: int, n_base: int, resolution: int) -> list[_Generator] | None:
+    """Find generators for k factors on *n_base* base factors that reach *resolution*, or None.
+
+    A depth-first search picks the ``k - n_base`` generator words one at a time, keeping
+    only choices that leave every word of the defining relation at least *resolution*
+    letters long. It gives up after :data:`_SEARCH_NODE_LIMIT` branches (or when there are
+    too many candidate words to start), so None does not prove that no such fraction exists.
+    """
+    # A generator word is the derived factor times at least resolution - 1 base factors.
+    sizes = range(max(2, resolution - 1), n_base + 1)
+    if sum(math.comb(n_base, size) for size in sizes) > _SEARCH_NODE_LIMIT:
+        return None  # too many candidate words to search at this size
+    candidates = [sum(1 << i for i in combo) for size in sizes for combo in itertools.combinations(range(n_base), size)]
+    found = _search_generator_words(candidates, n_base, k - n_base, resolution)
+    if found is None:
+        return None
+    return [(n_base + j, [i for i in range(n_base) if mask >> i & 1]) for j, mask in enumerate(found)]
 
 
 def _search_generator_words(candidates: list[int], n_base: int, n_extra: int, resolution: int) -> list[int] | None:
@@ -344,6 +380,20 @@ def _fracfact_from_indices(k: int, derived_idx: list[int], rhs_indices: list[tup
     return reordered
 
 
+#: Plackett and Burman's (1946) generating row for 36 runs, as Montgomery's Table 8.23 prints it: the first
+#: column of the design, each next column the one before moved down one run, then a run of minus signs.
+#: Orders whose run count less one is a prime 3 mod 4 (12, 20, 24, 44, ...) are Paley's cyclic designs,
+#: which the finite-field module builds; 36 is not one, so its row is kept here.
+_PB_CYCLIC_ROWS = {36: "-+-+++---+++++-+++--+----+-+-++--+-"}
+
+
+def _cyclic_design(row: str) -> np.ndarray:
+    """Return the design a generating row of signs gives: its cyclic shifts as columns, then a run of minus signs."""
+    first = np.array([1.0 if sign == "+" else -1.0 for sign in row])
+    columns = np.column_stack([np.roll(first, shift) for shift in range(len(first))])
+    return np.vstack([columns, -np.ones((1, len(first)))])
+
+
 def plackett_burman_runs(n_factors: int) -> int:
     """Return the number of runs in the Plackett-Burman design for ``n_factors`` factors.
 
@@ -362,11 +412,14 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
 
     The ``N``-run design is ``k`` columns of a normalised Hadamard matrix of order
     ``N``, the smallest multiple of 4 above ``k`` that can be built (see
-    :func:`plackett_burman_runs`). For powers of 2 and 12 or 20 times a power of 2, the
-    classical construction (the 12- or 20-run cyclic core, doubled) is used, which for 12, 20 and 24 runs are the
-    cyclic designs Plackett and Burman (1946) published. The other orders (28, 36, 44,
-    52, ...) come from the finite-field constructions in
-    :mod:`process_improve.experiments._finite_fields`, checked against ``H'H = N I``.
+    :func:`plackett_burman_runs`). Where ``N - 1`` is a prime 3 mod 4 (12, 20, 24, 44,
+    48, ... runs) the design is Paley's cyclic one, which is what Plackett and Burman
+    (1946) printed for 12, 20, 24 and 44 runs; for 36 runs it is their own generating
+    row. Powers of 2 are the classical construction (Sylvester's doubling), and the other
+    orders (28, 40, 52, ...) come from the finite-field constructions in
+    :mod:`process_improve.experiments._finite_fields`, checked against ``H'H = N I``. A
+    doubled design is used only where no cyclic one is built: it aliases some products of
+    three columns completely with the intercept.
 
     Parameters
     ----------
@@ -380,13 +433,22 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """
     k = len(factors)
     n = plackett_burman_runs(k)
+    if n in _PB_CYCLIC_ROWS:
+        return _cyclic_design(_PB_CYCLIC_ROWS[n])[:, :k], {
+            "construction": f"cyclic_row_{n}",
+            "note": f"Plackett-Burman design for {k} factors in {n} runs",
+        }
+    hadamard, construction = hadamard_matrix(n)  # type: ignore[misc]  # not None: n was chosen so
     coded_matrix = None
-    with contextlib.suppress(ValueError):  # no 1-, 12- or 20-run core for this order
-        coded_matrix = pbdesign(k)
+    # Paley's cyclic design (I+C(paley_q=n-1)) is Plackett and Burman's own; a doubled 12- or 20-run core
+    # is not, and aliases some products of three columns completely with the intercept.
+    doubled = n & (n - 1) != 0 and n not in (12, 20)
+    if not (doubled and construction.startswith("I+C(paley_q=")):
+        with contextlib.suppress(ValueError):  # no 1-, 12- or 20-run core for this order
+            coded_matrix = pbdesign(k)
     if coded_matrix is not None and coded_matrix.shape[0] == n:
         construction = "classical"  # the 1-, 12- or 20-run core, doubled (Plackett and Burman, 1946)
     else:
-        hadamard, construction = hadamard_matrix(n)  # type: ignore[misc]  # not None: n was chosen so
         coded_matrix = hadamard[:, 1 : k + 1].astype(float)
     return coded_matrix, {
         "construction": construction,

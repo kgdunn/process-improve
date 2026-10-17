@@ -43,6 +43,96 @@ those changes.
   own and never fitted; once their results are in, Learn says whether their average falls inside
   the prediction interval for an average of three runs. The "Show the Python code" panel and the
   notebook reproduce the search with the library (`api_best_settings`).
+- **Small composite designs.** A CCD with `cube="fractional"` may now sit on a cube below
+  resolution V. The default half fraction must still leave the full quadratic model estimable,
+  which it does for three factors (Hartley's small composite design, 4 + 6 runs). A cube given by
+  `generators` or `resolution` that aliases two-factor interactions in pairs is built with a
+  warning, for a model with one interaction of each pair. `metadata["full_quadratic_estimable"]`
+  and `metadata["aliased_interactions"]` say which. The reference catalogue checks Schmidt and
+  Launsby's composite-design run counts and Núñez Ares and Goos's small composite designs with it.
+- **Multistratum analysis of variance.** `multistratum_anova(runs, model, strata, response=None)`
+  analyses a split-plot, strip-plot or other design with several sizes of unit, as R's
+  `aov(y ~ model + Error(strata))` does. The block structure is given as error terms (`"rep/plot"`,
+  `"S:T"`, `"row + column"`). Each treatment term is estimated in the stratum its contrasts fall in
+  and tested on that stratum's residual. A term of a design that is not orthogonal, such as the
+  treatments of an incomplete block design, gets a row in each stratum it falls in. Without a
+  response it gives the skeleton analysis of variance, the sources and degrees of freedom a layout
+  will have. The reference catalogue checks 41 more items with it: NIST's three electroplating
+  split-plot layouts and the implant-anneal strip plot, their degrees of freedom, terms per stratum
+  and whole-plot units.
+- **Least-squares means and their multiple comparisons.** `least_squares_means(runs,
+  "y ~ treatment + block", factor)` gives each level's adjusted mean: the model's prediction averaged with equal
+  weight over the other factors' levels, as an incomplete block design or a Youden square needs.
+  Pairs are compared by Tukey's studentized range (Tukey-Kramer), by Dunnett's multivariate t
+  against a control (`Comparisons("dunnett", control=...)`), or unadjusted (Fisher's LSD), with adjusted p-values, simultaneous
+  intervals, connecting letters, and the confidence each interval has alone and the family has
+  together. `at=` compares the levels within one level of another factor, on the error of the
+  whole model, and `C(x)` in the formula takes a numeric column as levels. The reference catalogue checks 33 more printed numbers with it: Minitab's Tukey
+  comparisons of Montgomery's catalyst design (its p-values agree; its intervals use a
+  studentized range point 0.0014 larger than the exact one), Box, Hunter and Hunter's Youden-square
+  adjusted averages, Dunnett's d0.05(3,16), Fisher's family confidence and JMP's connecting letters.
+- **Classical tests and percentage points** (`process_improve.univariate`). `f_value`,
+  `chi2_value`, `z_value`, `studentized_range_value` and `dunnett_value` give the percentage
+  points of the F, chi-squared, normal, studentized-range and Dunnett distributions, a cumulative
+  probability first as `t_value` takes it; Dunnett's two-sided and one-sided critical values are
+  worked by numerical integration and agree with SciPy's multivariate t. `ttest_one_sample` tests
+  a mean against a stated value, `ztest` a mean or a difference of means with the standard
+  deviation known, `rank_sum_test` two groups by Wilcoxon's rank sum (normal approximation and
+  exact level), `randomization_test` two groups or pairs against every arrangement of the labels
+  or signs (sampled, with a `random_state`, past `max_arrangements`, and with a mid-p value that
+  counts ties as half), and `autocorrelation` a record in time order. The reference catalogue
+  checks 76 printed numbers with them: the F, chi-squared and Dunnett points of Montgomery's and
+  Schmidt and Launsby's tables, and the tests of Box, Hunter and Hunter's chapters 2 and 3 and the
+  PID book's randomization test. Three disagree, each explained (the book's rounded standard
+  errors, and a table value printed 5.31 for 5.318).
+- **Random effects** (`process_improve.experiments`). `variance_components(runs, "y ~ operator",
+  random=[...])` fits random intercepts (`"a"`, `"a:b"`, or `"b(a)"` for a factor nested in
+  another) beside the formula's sum-coded fixed factors by REML, and reports the components with their share of the total, standard errors and
+  intervals (chi-squared for the error variance), the restricted log-likelihood, the fixed
+  effects with their Satterthwaite F tests, the best linear unbiased predictions of the random
+  effects, and the R-square JMP reports for a REML fit. `bounded=False` lets a component go below
+  zero, as JMP's unbounded REML does; in a balanced design that gives the analysis-of-variance
+  estimates. `expected_mean_squares` derives the expected mean squares of a balanced crossed or
+  nested design (a nested factor named as `"batch(supplier)"`) under the restricted or the
+  unrestricted mixed model, a reduced model's too, with
+  each term's degrees of freedom and the term that tests it, and `intraclass_correlation_interval`
+  gives the exact interval of a one-way random model. The reference catalogue checks 98 more of
+  Montgomery's numbers with them: JMP's unbounded gauge study (resolving 10 recorded
+  disagreements), JMP's REML R-squares of seven studies, and Minitab's and Montgomery's
+  expected-mean-square tables and error terms of the gauge study, the purity and the assembly
+  experiments.
+- **Run orders robust to a time trend.** `run_order_trends` measures how far each term of a
+  model is confounded with the linear, quadratic and cubic time trends of a run order: the cosine
+  and angle of each term's column with each trend, their mean and largest by class of term (main
+  effects, interactions, quadratic effects), the time-count dot products and the number of level
+  changes. `trend_robust_run_order` searches, by an iterated local search with a `random_state`,
+  for an order whose main effects, and then second-order terms, are orthogonal to the trends of
+  lowest degree first; `time_trends` gives the orthogonal polynomial trends. The reference
+  catalogue checks 154 printed numbers of Núñez Ares and Goos (2019) with it, every table of
+  cosines of their run orders; two disagree, each explained (a transposed digit in the text, and
+  an angle taken from a rounded cosine).
+- **The canonical forms of a fitted quadratic.** `optimize_responses(..., method="canonical_analysis")`
+  now also returns the surface in Box and Draper's B canonical form (`b_canonical`), the form a ridge is
+  read in. It is rotated to the eigenvectors, with its origin where the response stops changing across
+  the ridge and one linear term along it. Where a stationary point exists, it also returns each
+  canonical variable W = v'(x - x*) (`canonical_axes`). The reference catalogue checks 26 more items
+  with these and the existing stationary point and steepest-ascent path: NIST's chemical CCD
+  (stationary point, eigenvalues, eigenvectors with their signs, canonical axes) and its first-order
+  steepest-ascent step, an EFI wind-turbine optimum, Montgomery's tool-life maximum and Box, Hunter and
+  Hunter's ridge. Several printed values carry recorded disagreements: NIST's stationary point from
+  rounded coefficients, two NIST canonical-axis constants that do not follow from the page's own sums,
+  and BHH's B canonical numbers, which do not follow from their equation 15.19.
+- **The overall F test and likelihood criteria in `analyze_experiment`'s model summary.**
+  `model_summary` now carries `f_statistic` and `f_p_value` (the model against the intercept
+  alone; against zero, on uncorrected sums of squares, for a model without an intercept whose
+  columns do not span one, as R's summary does), `log_likelihood`, `aic` and `bic` (counting the
+  error variance as a parameter, as R's `AIC` and the library's model selection do) and
+  `aic_step`, n ln(RSS/n) + 2p, as R's `step` prints it. The reference catalogue reads them,
+  with new fit kinds for residual quartiles and the uncorrected F, and checks 94 more of the NIST
+  e-Handbook's printed numbers: overall F tests and their p-values, lack-of-fit and pure-error
+  sums of squares, residual quartiles, R's stepwise AICs, Dataplot's model F tests and the
+  sequential sums of squares of a central composite design. Four disagree, each explained
+  (Dataplot truncates two F values, and a p-value no pair of degrees of freedom gives).
 - **The information matrix and exact region values in `evaluate_design`.** The new metric
   `information_matrix` gives X'X, its determinant, the D-, A- and E-criteria, the rank, the residual
   degrees of freedom, the inverse and each coefficient's variance; `estimable_interactions` counts
@@ -66,6 +156,17 @@ those changes.
   word; and `desirability_optimum` runs the library's desirability search on the fitted responses.
   With these, 565 printed numbers that were set aside by hand in Núñez Ares and Goos (2020), Núñez
   Ares et al. (2023), Goos (2025), Jones and Nachtsheim (2013) and the PID book are now checked.
+- **Generalized linear models in `analyze_experiment`.** `analysis_type="glm"` fits a response that
+  is a count (`family="poisson"`), a number of successes out of `trials` (`"binomial"`) or a
+  positive amount whose spread grows with its size (`"gamma"`), as well as `"gaussian"` and
+  `"inverse_gaussian"`, with the family's canonical link or another (`link=`). It reports Wald
+  tests and intervals for the coefficients, odds or rate ratios under a logit or log link, the
+  log-likelihood, deviance and Pearson statistic, goodness-of-fit tests (Hosmer and Lemeshow's for
+  a binomial response), and each run's fitted mean with an interval carried through the link.
+  `dispersion=` and `information=` choose between R's conventions (the default) and SAS GENMOD's.
+  The reference catalogue checks 111 printed numbers of Montgomery's section 15.1 with it: the
+  coupon logistic regression as Minitab prints it, and the grill-defect Poisson and worsted-yarn
+  gamma models as GENMOD does; all agree.
 
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
@@ -340,18 +441,22 @@ those changes.
   Schmidt and Launsby print (eight plating models and the ball weld D-optimal design) agree.
 - **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 1039 published
   experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
-  factors, <=30 runs, quadratic, since 1990"); filters them by family, runs, factors, the model they
-  estimate in full, categorical factors, blocks, split plot, mixture, printed results, recomputed
-  numbers, and the year the source appeared or the date the entry was added; and sees each one on a
-  map of runs against factors, beside the fewest runs each model needs. A design opens in Factorial
-  with one click: 256 published designs, which the library regenerates run for run, and every
-  generated design of the eight types the app makes. The filters are kept in the address, so a
-  filtered view can be shared. `process_improve.experiments.design_catalog` makes the records:
-  `catalog_records`, `normalise_family` (a source's free-text design type, read into a family),
-  `design_facets`, `glyph`, `printed_checks`, `short_citation`, `catalog_sources`,
-  `catalog_families`, and `search_catalog`, which filters them as the page does. The tool
-  `search_design_catalog` searches the same records for an agent or the MCP server, and returns each
-  design with its page in the catalog. The user guide's new page, *The Design Catalog*, lists what a
+  factors, <=30 runs, quadratic, since 1990"); filters them by family, application (the industry
+  sector of the reference catalogue's topics, such as food and beverages or semiconductors), runs,
+  factors, the model they estimate in full, categorical factors, blocks, split plot, mixture, printed
+  results, recomputed numbers, and the year the source appeared or the date the entry was added; and
+  sees each one on a map of runs against factors, beside the fewest runs each model needs. A design's
+  page links to the place its source prints it (for the book and the NIST e-Handbook, the section
+  itself), and names the book's tables and figures by their captions. A design opens in Factorial
+  with one click: 256 published designs, which the library regenerates run for run, and every generated
+  design of the eight types the app makes. The filters are kept in the address, so a filtered view
+  can be shared. `process_improve.experiments.design_catalog` makes the records: `catalog_records`,
+  `normalise_family` (a source's free-text design type, read into a family), `design_facets`,
+  `glyph`, `printed_checks`, `short_citation`, `catalog_sources`, `catalog_families`,
+  `catalog_topics`, `figure_name`, `table_name`, `where_url`, and `search_catalog`, which filters
+  them as the page does. The tool `search_design_catalog` searches the same records for an agent or
+  the MCP server, and returns each design with its page in the catalog. The user guide's new page,
+  *The Design Catalog*, lists what a
   record holds.
 - **What a design withstands, read off its runs: `process_improve.experiments.design_measures`.**
   `run_loss` says whether a design still estimates its model if any one run is lost, and the
@@ -538,6 +643,18 @@ those changes.
 
 ### Changed
 
+- **Plackett-Burman designs of 24 and 36 runs are the cyclic designs Plackett and Burman
+  printed.** The 24-run design was the 12-run design doubled, which aliases 11 products of three
+  columns completely with the intercept; it is now Paley's cyclic design mod 23, as in Montgomery's
+  Table 8.23, whose products of three columns have |J| of 0 or 8 only. The 36-run design comes from
+  Plackett and Burman's generating row instead of Paley's second construction. The same rule makes
+  48 and 80 runs Paley's cyclic designs. Other run counts are unchanged.
+- **Fractional factorials of more than 11 factors have minimum aberration where it is quick to
+  find.** At the fewest runs that reach the resolution asked for, every generator set is scored
+  when there are few enough (12 to 15 factors in 16 runs): 12 factors at resolution III now have
+  16 words of length three, as in Montgomery's Table X, not 17. Otherwise the fraction is the one
+  of highest resolution the search reaches at that size: 16 factors asked at resolution III are
+  resolution IV in 32 runs.
 - **Factorial's three ways in stand out, and links out open in a tab of their own.** The header's
   buttons are larger, each in a colour of its own with an icon, and each begins with a verb: *Start
   a new study*, *Explore a worked example* and *Browse the design catalog*. Every link from the

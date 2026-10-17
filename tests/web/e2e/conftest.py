@@ -20,7 +20,15 @@ import pytest
 
 from process_improve.experiments import design_catalog
 from tests.web._browser import Console, keep_artifacts, serve
-from tests.web._support import ENTRY_POINT, FACTORS, WEB, catalog_sample, no_bytecode
+from tests.web._support import (
+    BOOK_DESIGN,
+    CATALOG_SAMPLE,
+    ENTRY_POINT,
+    FACTORS,
+    WEB,
+    catalog_sample,
+    no_bytecode,
+)
 from tests.web.e2e._page import candidates_done, first_paint_done, set_factors
 
 if TYPE_CHECKING:
@@ -83,6 +91,17 @@ def catalog_files(build_script: ModuleType, tmp_path_factory: pytest.TempPathFac
     """Write the catalog as the build does, for a few designs (``CATALOG_SAMPLE``), and return its folder."""
     out = tmp_path_factory.mktemp("catalog")
     sample = catalog_sample()
+    with pytest.MonkeyPatch.context() as patch, no_bytecode():
+        patch.setattr(design_catalog, "catalog_records", lambda: sample)
+        build_script.write_catalog(out)
+    return out / "catalog"
+
+
+@pytest.fixture(scope="session")
+def book_catalog_files(build_script: ModuleType, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Write the catalog of ``CATALOG_SAMPLE`` and ``BOOK_DESIGN``, a design the book prints; return its folder."""
+    out = tmp_path_factory.mktemp("book-catalog")
+    sample = catalog_sample((*CATALOG_SAMPLE, BOOK_DESIGN))
     with pytest.MonkeyPatch.context() as patch, no_bytecode():
         patch.setattr(design_catalog, "catalog_records", lambda: sample)
         build_script.write_catalog(out)
@@ -185,6 +204,15 @@ def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it n
 def context(open_context: Callable[[], Any]) -> Any:  # noqa: ANN401 - a Playwright BrowserContext
     """Open a browser context whose pages are answered natively; fail the test on any console error."""
     return open_context()
+
+
+@pytest.fixture
+def book_context(context: Any, site: str, book_catalog_files: Path) -> Any:  # noqa: ANN401 - a Playwright BrowserContext
+    """Return a browser context whose catalog also holds ``BOOK_DESIGN``: this route is tried before the sample's."""
+    context.route(
+        re.compile(re.escape(f"{site}catalog/") + r".+\.json$"), lambda route: _catalog(route, book_catalog_files)
+    )
+    return context
 
 
 @pytest.fixture

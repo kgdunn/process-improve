@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 import warnings
 import xml.etree.ElementTree as ET
 
@@ -24,6 +25,7 @@ from process_improve.experiments.design_catalog import (
     catalog_feed,
     catalog_records,
     catalog_sources,
+    catalog_topics,
     design_facets,
     glyph,
     normalise_family,
@@ -36,6 +38,8 @@ from process_improve.experiments.factor import Factor
 from process_improve.experiments.reference_catalogue import (
     reference_designs,
     reference_experiments,
+    reference_sources,
+    reference_topics,
     reproduce_reference_catalogue,
 )
 
@@ -181,6 +185,210 @@ def test_where_a_source_prints_an_entry_is_said_in_a_few_words():
     )
     assert design_catalog._where({"pages": "12-14"}) == "pp. 12-14"
     assert design_catalog._where({"section": "4.1"}) == "section 4.1"
+    assert design_catalog._where({"section": "4.1", "figures": ["DOE-fig-Cube-plot (cube.png)"]}) == "Cube plot"
+
+
+def test_the_few_words_name_three_tables_and_figures_and_count_the_rest():
+    where = {"pages": "12-30", "tables": ["Table 1", "Table 2"], "figures": ["Figure 1", "Figure 2", "Figure 3"]}
+    assert design_catalog._where(where) == "pp. 12-30; Table 1; Table 2; Figure 1; and 2 more tables and figures"
+    assert design_catalog._where({**where, "figures": ["Figure 1", "Figure 2"]}).endswith("and 1 more table or figure")
+
+
+@pytest.mark.parametrize(
+    ("note", "name"),
+    [
+        ("Factor ranges (list-table at line 46, no caption): Factor / Low / Centre / High", "Factor ranges"),
+        ("Coded runs in standard order (lines 29-39)", "Coded runs in standard order"),
+        ("Grid table, lines 1075-1093 (Experiment, D, R, P, Taste)", "Table of Experiment, D, R, P and Taste"),
+        (
+            "Solution part 5: csv-table of the four no-profile days, lines 107-114",
+            "Solution part 5: table of the four no-profile days",
+        ),
+        (
+            "Recipe / True titer, g/L / Gain over current (list-table at line 538, no caption)",
+            "A table: Recipe / True titer, g/L / Gain over current",
+        ),
+        ("untitled table (Lot of material, D, E), lines 139-151", "Table of Lot of material, D and E"),
+        (":math:`R^2_Y` by component", "R^2_Y by component"),
+        ("the same table, highly-fractionated-designs.rst lines 41-61 (Example 1)", "The same table of Example 1"),
+        ("No table printed; the solution names experiments 5, 2, 3 and 8 of the table at lines 1075-1093", ""),
+        ("Table 10.1", "Table 10.1"),
+    ],
+    ids=[
+        "caption-then-headings",
+        "caption-with-lines",
+        "kind-and-columns",
+        "csv-table",
+        "headings-only",
+        "untitled",
+        "math-role",
+        "a-source-file",
+        "no-table",
+        "a-printed-book-s-table",
+    ],
+)
+def test_a_table_is_named_by_its_caption_or_its_columns(note, name):
+    assert design_catalog.table_name(note) == name
+
+
+@pytest.mark.dataset
+def test_no_table_is_named_by_a_line_note_a_file_or_markup_and_other_sources_keep_theirs():
+    """The book's tables lose their maintainers' notes; a printed book's "Table 10.1" is kept as printed."""
+    entries = [*reference_experiments(), *reference_designs()]
+    for entry in entries:
+        for note in (entry.get("where") or {}).get("tables", []):
+            name = design_catalog.table_name(note)
+            if entry["source"] != "pid-book":
+                assert name == note.strip().removesuffix("."), note
+                continue
+            assert not re.search(r"list-table|csv-table|grid table|\blines? \d|:math:|no caption|\.rst\b", name), note
+            assert name or note.lower().startswith("no table printed"), note
+
+
+def _entry(name: str) -> dict:
+    """Return one entry of the reference catalogue, an experiment or a design, by its name."""
+    return next(e for e in [*reference_experiments(), *reference_designs()] if e["name"] == name)
+
+
+def _book_figures() -> list[str]:
+    """Return every figure the book's entries record, as their notes for the catalogue's maintainers hold it."""
+    return [f for e in reference_experiments("pid-book") + reference_designs("pid-book") for f in e["where"]["figures"]]
+
+
+#: The estimability frontier's caption, as the book prints it.
+FRONTIER = (
+    "The estimability frontier N = k^2 + k + 1 for a foldover, against the parameter count of the full "
+    "second-order model and the size of a definitive screening design"
+)
+#: The alt text of two of the book's figures that have no caption.
+HISTOGRAM = "Histogram of the average B-minus-A difference over all randomization permutations"
+CONTOURS = "Contour plot illustrating the one-factor-at-a-time search path"
+
+
+@pytest.mark.parametrize(
+    ("note", "name"),
+    [
+        (f"{FRONTIER} (../figures/doe/omars-estimability-frontier.png)", FRONTIER),
+        (
+            f"../figures/doe/single-experiment-randomization.png (no caption; alt '{HISTOGRAM}'), lines 244-248",
+            HISTOGRAM,
+        ),
+        (f"DOE-fig-COST: ../figures/doe/COST-contours.png (no caption; alt '{CONTOURS}'), lines 31-36", CONTOURS),
+        ("DOE-fig-Cube-plot (factorial-two-levels-two-variables-no-analysis.png)", "Cube plot"),
+        ("factorial-two-level-surface-example-cropped.png (true response surface)", "True response surface"),
+        ("../figures/doe/pareto-plot-pid.png (Pareto plot, lines 152-156)", "Pareto plot"),
+        ("../figures/doe/central-composite-question.png (line 395): diagram of the design", "Diagram of the design"),
+        (
+            "Individual desirability for purity. ... (multi-response-desirability-functions.png, lines 283-290)",
+            ("Individual desirability for purity"),
+        ),
+        ("../figures/doe/colour-pls-inversion.png", "Colour pls inversion"),
+        ("Figure 1(a)", "Figure 1(a)"),
+        ("Fig. 11-9", "Fig. 11-9"),
+    ],
+    ids=[
+        "caption-then-path",
+        "path-then-alt",
+        "label-path-alt",
+        "label-then-file",
+        "file-then-description",
+        "description-with-lines",
+        "caption-after-colon",
+        "caption-with-ellipsis",
+        "bare-path",
+        "a-book-s-figure-number",
+        "an-abbreviated-figure-number",
+    ],
+)
+def test_a_figure_is_named_by_its_caption_alt_text_description_or_label(note, name):
+    assert design_catalog.figure_name(note) == name
+
+
+@pytest.mark.dataset
+def test_no_figure_of_the_book_is_named_by_a_path_a_line_note_or_a_label():
+    """A note's provenance (its file, the lines that print it, its label's prefix) stays in the catalogue's data."""
+    notes = _book_figures()
+    assert sum(".png" in note for note in notes) >= 98
+    for note in notes:
+        name = design_catalog.figure_name(note)
+        assert name, note
+        assert ".png" not in name, note
+        assert "../" not in name, note
+        assert not re.search(r"\blines? \d", name), note
+        assert not name.startswith(("DOE-", "DOE_")), note
+
+
+@pytest.mark.dataset
+def test_a_book_entry_s_place_names_its_figures_and_keeps_its_section():
+    where = _entry("omars-fed-batch-bioreactor")["where"]
+    shown = design_catalog.shown_where(where)
+    assert set(shown) == {"section", "tables", "figures"}, "the source file, its lines and commit stay out"
+    assert shown["section"] == where["section"]
+    assert shown["figures"][2] == "The thirty batches in run order"
+    assert shown["tables"][0] == "Factor ranges", "the caption, without the note of its lines or its headings"
+    assert "../" not in design_catalog._where(where)
+    assert "list-table" not in design_catalog._where(where)
+    assert design_catalog.shown_where("Table 4") == "Table 4"
+
+
+@pytest.mark.dataset
+@pytest.mark.parametrize(
+    ("name", "url"),
+    [
+        (
+            "omars-fed-batch-bioreactor",
+            "https://learnche.org/pid/design-analysis-experiments/omars-worked-study#doe-omars-worked-study",
+        ),
+        (
+            "rsm-central-composite",
+            "https://learnche.org/pid/design-analysis-experiments/response-surface-methods#doe-central-composite-designs",
+        ),
+        ("bhh-pilot-plant-2-3", None),
+    ],
+    ids=["a-book-section", "a-label-with-underscores", "a-printed-book"],
+)
+def test_the_place_a_web_source_prints_an_entry_has_an_address(name, url):
+    assert design_catalog.where_url(_entry(name)["where"]) == url
+
+
+@pytest.mark.dataset
+def test_a_handbook_entry_s_address_is_its_page():
+    nist = reference_experiments("nist-ehandbook-ch5")[0]
+    assert design_catalog.where_url(nist["where"]) == nist["where"]["url"]
+    assert nist["where"]["url"].startswith("https://www.itl.nist.gov/")
+
+
+@pytest.mark.parametrize(
+    ("label", "anchor"),
+    [
+        ("DOE-omars-estimability-frontier", "doe-omars-estimability-frontier"),
+        ("APPS_mixed_level_profile_case_study", "apps-mixed-level-profile-case-study"),
+        ("DOE-fig--Odd  label__", "doe-fig-odd-label"),
+    ],
+)
+def test_a_section_s_anchor_is_its_label_as_sphinx_writes_an_id(label, anchor):
+    assert design_catalog._anchor(label) == anchor
+
+
+@pytest.mark.dataset
+def test_a_record_carries_its_applications_and_the_address_of_its_place():
+    sources = reference_sources()
+    book = design_catalog._published_record(_entry("biologic-drug-yield"), sources["pid-book"])
+    assert book["topics"] == ["bioprocessing", "pharmaceuticals"]
+    assert book["where_url"].startswith("https://learnche.org/pid/")
+    pilot = design_catalog._published_record(_entry("bhh-pilot-plant-2-3"), sources["box-hunter-hunter-1978"])
+    assert (pilot["topics"], pilot["where_url"]) == (["chemical-processes"], None)
+    generated = _generated("lib-full-factorial-k3")[0]
+    assert (generated["topics"], generated["where_url"]) == ([], None)
+    assert "topics" in INDEX_FIELDS
+
+
+def test_every_application_has_a_name_and_says_what_it_covers():
+    topics = catalog_topics()
+    assert set(topics) == set(reference_topics())
+    assert all(t["label"] and t["description"] for t in topics.values())
+    assert topics["general"]["label"] == design_catalog.GENERAL_LABEL
+    assert topics["semiconductors"]["label"] == "Semiconductors and electronic assembly"
 
 
 def test_an_entry_without_runs_or_factors_has_no_coded_runs():
@@ -328,11 +536,36 @@ def test_a_year_keeps_published_designs_and_the_newest_come_first():
     assert [d["year"] for d in found] == sorted((d["year"] for d in found), reverse=True)
 
 
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_an_application_keeps_the_published_designs_that_list_it():
+    food = search_catalog(topics=["food-beverages"])
+    assert food
+    assert all("food-beverages" in d["topics"] and d["collection"] == "published" for d in food)
+    either = {d["id"] for d in search_catalog(topics=("food-beverages", "semiconductors"))}
+    assert either == {d["id"] for d in food} | {d["id"] for d in search_catalog(topics=["semiconductors"])}
+    assert "biologic-drug-yield" in {d["id"] for d in search_catalog(topics=["pharmaceuticals"])}, "its second topic"
+    general = search_catalog(topics=["general"], collection="generated")
+    assert general == [], "a generated design has no application"
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_a_word_of_an_application_s_name_finds_its_designs_and_each_carries_its_place():
+    listed = {d["id"] for d in search_catalog(topics=["semiconductors"])}
+    assert listed <= {d["id"] for d in search_catalog(text="semiconductors")}
+    book = next(d for d in search_catalog(text="omars-fed-batch-bioreactor"))
+    assert book["where_url"].endswith("#doe-omars-worked-study")
+    assert "../" not in book["where"]
+
+
 def test_a_search_refuses_a_family_or_model_the_catalog_does_not_have():
     with pytest.raises(ValueError, match=r"Unknown families \['nope'\]"):
         search_catalog(families=["nope"])
     with pytest.raises(ValueError, match="Unknown model 'cubic'"):
         search_catalog(model="cubic")
+    with pytest.raises(ValueError, match=r"Unknown applications \['cooking'\]: choose from agriculture"):
+        search_catalog(topics=["cooking"])
 
 
 def test_a_search_takes_a_query_whose_fields_named_ones_replace_and_refuses_a_misspelt_one():
@@ -350,6 +583,9 @@ def test_the_search_tool_is_registered_with_a_strict_schema():
     assert spec["category"] == "experiments"
     assert spec["input_schema"]["additionalProperties"] is False
     assert "https://factori.al/catalog/" in spec["description"]
+    named = re.findall(r"'([a-z-]+)'", spec["input_schema"]["properties"]["topics"]["description"])
+    assert named, "the schema names applications an agent can choose"
+    assert set(named) <= set(catalog_topics()), "each one the catalog has"
 
 
 @pytest.mark.slow
@@ -361,6 +597,9 @@ def test_the_search_tool_returns_designs_with_their_pages():
     assert found["count"] >= found["shown"] == len(found["designs"]) == 2
     assert all(d["family"] == "box_behnken" and d["url"].startswith(CATALOG_URL) for d in found["designs"])
     assert execute_tool_call("search_design_catalog", {"families": ["nope"]})["error"].startswith("Unknown families")
+    food = execute_tool_call("search_design_catalog", {"topics": ["food-beverages"], "limit": 50})
+    assert food["count"] == len(search_catalog(topics=["food-beverages"])) > 0, "the tool filters as search_catalog"
+    assert all("food-beverages" in d["topics"] for d in food["designs"])
 
 
 # --------------------------------------------------------------------------- comparing designs

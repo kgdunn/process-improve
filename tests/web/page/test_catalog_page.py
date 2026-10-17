@@ -100,10 +100,18 @@ def test_the_python_copied_for_a_published_design_reads_its_catalogue_entry(node
     assert entry["runs"]["rows"][0][-1] == 60
 
 
+#: Applications chosen in the page's filter, each compared with what ``search_catalog`` keeps for them.
+CHOSEN_TOPICS = (["food-beverages"], ["semiconductors", "chemical-processes"], ["general"], ["pharmaceuticals"])
+
+
 @pytest.mark.slow
 @pytest.mark.dataset
-def test_every_search_the_page_suggests_finds_designs(node, build_script):
-    """The searches beside the box, run over the whole catalog as the page runs them, each find some designs."""
+def test_every_search_the_page_suggests_finds_designs_and_its_filters_agree_with_python(node, monkeypatch):
+    """The searches beside the box, run over the whole catalog as the page runs them, each find some designs.
+
+    The page's application filter keeps the designs ``search_catalog`` keeps, and a word of an
+    application's name finds its designs on the page and in Python alike.
+    """
     tries = re.findall(r'<button type="button" class="link try">([^<]+)</button>', source(PAGE))
     placeholder = re.search(r'placeholder="([^"]+)"', source(PAGE)).group(1).replace("&lt;", "<")
     assert len(tries) >= 3
@@ -115,15 +123,35 @@ def test_every_search_the_page_suggests_finds_designs(node, build_script):
         "designs": designs,
         "families": design_catalog.catalog_families(),
         "sources": design_catalog.catalog_sources(),
+        "topics": design_catalog.catalog_topics(),
     }
     base = javascript(node, source(LOGIC), [("DEFAULT_STATE", [])])[0]
-    found = javascript(
-        node,
-        source(LOGIC),
-        [("results", [json.loads(json.dumps(catalog)), {**base, "query": query}]) for query in [*tries, placeholder]],
-    )
-    for query, designs_found in zip([*tries, placeholder], found, strict=True):
+    read = json.loads(json.dumps(catalog))
+    words = {"semiconductors": "semiconductors", "food": "food-beverages"}
+    asked = [
+        *({**base, "query": query} for query in [*tries, placeholder]),
+        *({**base, "topics": topics} for topics in CHOSEN_TOPICS),
+        *({**base, "query": word} for word in words),
+    ]
+    found = [
+        {d["id"] for d in result} for result in javascript(node, source(LOGIC), [("results", [read, a]) for a in asked])
+    ]
+    searched, filtered, by_word = found[: len(tries) + 1], found[len(tries) + 1 : -len(words)], found[-len(words) :]
+    for query, designs_found in zip([*tries, placeholder], searched, strict=True):
         assert designs_found, f"the search {query!r} finds nothing"
+
+    monkeypatch.setattr(design_catalog, "catalog_records", lambda: records)  # search_catalog reads the same records
+    design_catalog._searchable.cache_clear()
+    try:
+        for topics, on_page in zip(CHOSEN_TOPICS, filtered, strict=True):
+            assert on_page, f"the application {topics} keeps nothing"
+            assert on_page == {d["id"] for d in design_catalog.search_catalog(topics=topics)}, topics
+        for (word, topic), on_page in zip(words.items(), by_word, strict=True):
+            listed = {d["id"] for d in design_catalog.search_catalog(topics=[topic])}
+            assert listed <= on_page, f"the word {word!r} misses designs of {topic} on the page"
+            assert listed <= {d["id"] for d in design_catalog.search_catalog(text=word)}, word
+    finally:
+        design_catalog._searchable.cache_clear()
 
 
 @pytest.mark.parametrize(

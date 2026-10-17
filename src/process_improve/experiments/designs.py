@@ -720,10 +720,13 @@ def generate_design(  # noqa: PLR0913
     cube : str
         For CCD designs, how to build the cube (factorial) portion:
         ``"full"`` (default) uses the complete 2^k factorial; ``"fractional"``
-        uses a resolution-V (or higher) fractional factorial, keeping the run
-        count practical for k >= 5.  When ``"fractional"`` and *generators* is
-        given, those generators define the cube; otherwise a minimum-aberration
-        half-fraction is chosen automatically.
+        uses a fractional factorial, keeping the run count practical for k >= 5.
+        When ``"fractional"`` and *generators* or *resolution* is given, they
+        define the cube; otherwise it is the minimum-aberration half-fraction,
+        which must leave the full quadratic model estimable (resolution V, or for
+        three factors Hartley's small composite design). A cube given that aliases
+        two-factor interactions in pairs is built with a warning, for a model with
+        one interaction of each pair; ``metadata["aliased_interactions"]`` lists the pairs.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
         ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
