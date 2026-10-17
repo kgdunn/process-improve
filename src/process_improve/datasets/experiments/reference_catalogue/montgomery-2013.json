@@ -230515,8 +230515,14 @@
       "quote": "Thus, design C minimizes the number of words in the defining relation that are of minimum length. We call such a design a minimum aberration design"
      },
      "check": {
-      "manual": "the library's fractions are chosen by resolution and so make the 16-run 2^(7−3) for resolution IV, not a 32-run fraction to compare with; design C's word lengths, checked, have the fewest four-letter words of the three, and it is the 2^(7−2)_IV of Table 8.14"
-     }
+      "kind": "minimum_aberration",
+      "k": 7,
+      "generators": [
+       "F=ABCD",
+       "G=ABDE"
+      ]
+     },
+     "analysis": "design C against the library's minimum-aberration 32-run fraction in seven factors, every generator set scored: the same word lengths, so design C has minimum aberration"
     }
    ]
   },
@@ -231097,8 +231103,14 @@
       "quote": "Table 8.14 Selected 2^(k−p) Fractional Factorial Designs ... Number of Factors, k 7 Fraction 2^(7−2)_IV Number of Runs 32 Design Generators F = ±ABCD, G = ±ABDE"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 7 factors makes a smaller one, of 16 runs, so there is no fraction of 32 runs to compare with; its resolution is checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 7,
+      "generators": [
+       "F=ABCD",
+       "G=ABDE"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "n_runs",
@@ -231357,8 +231369,15 @@
       "quote": "Table 8.14 Selected 2^(k−p) Fractional Factorial Designs ... Number of Factors, k 8 Fraction 2^(8−3)_IV Number of Runs 32 Design Generators F = ±ABC, G = ±ABD, H = ±BCDE"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 8 factors makes a smaller one, of 16 runs, so there is no fraction of 32 runs to compare with; its resolution is checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 8,
+      "generators": [
+       "F=ABC",
+       "G=ABD",
+       "H=BCDE"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "n_runs",
@@ -231550,8 +231569,15 @@
       "quote": "Table 8.14 Selected 2^(k−p) Fractional Factorial Designs ... Number of Factors, k 9 Fraction 2^(9−3)_IV Number of Runs 64 Design Generators G = ±ABCD, H = ±ACEF, J = ±CDEF"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 9 factors makes a smaller one, of 32 runs, so there is no fraction of 64 runs to compare with; its resolution is checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 9,
+      "generators": [
+       "G=ABCD",
+       "H=ACEF",
+       "J=CDEF"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "n_runs",
@@ -231821,8 +231847,16 @@
       "quote": "Table 8.14 Selected 2^(k−p) Fractional Factorial Designs ... Number of Factors, k 10 Fraction 2^(10−4)_IV Number of Runs 64 Design Generators G = ±BCDF, H = ±ACDF, J = ±ABDE, K = ±ABCE"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 10 factors makes a smaller one, of 32 runs, so there is no fraction of 64 runs to compare with; its resolution is checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 10,
+      "generators": [
+       "G=BCDF",
+       "H=ACDF",
+       "J=ABDE",
+       "K=ABCE"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "n_runs",
@@ -232033,8 +232067,17 @@
       "quote": "Table 8.14 Selected 2^(k−p) Fractional Factorial Designs ... Number of Factors, k 11 Fraction 2^(11−5)_IV Number of Runs 64 Design Generators G = ±CDE, H = ±ABCD, J = ±ABF, K = ±BDEF, L = ±ADEF"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 11 factors makes a smaller one, of 32 runs, so there is no fraction of 64 runs to compare with; its resolution is checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 11,
+      "generators": [
+       "G=CDE",
+       "H=ABCD",
+       "J=ABF",
+       "K=BDEF",
+       "L=ADEF"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "n_runs",
@@ -232270,8 +232313,7 @@
        "M=AD"
       ],
       "printed": "E = ±ABC, F = ±ABD, G = ±ACD, H = ±BCD, J = ±ABCD, K = ±AB, L = ±AC, M = ±AD",
-      "analysis": "the word length pattern of the library's fraction for resolution III in 12 factors, against these generators'",
-      "disagreement": "the library tabulates minimum aberration fractions up to 11 factors and searches beyond; for 12 factors in 16 runs its search finds E = AB, F = AC, G = AD, H = BC, J = BD, K = CD, L = ABC, M = ABD, whose defining relation has 17 words of length three, where these generators give 16: the book's fraction has less aberration than the library's"
+      "analysis": "the word length pattern of the library's minimum-aberration fraction of 16 runs in 12 factors, every generator set scored, against these generators': 16 words of length three in both"
      }
     },
     {
@@ -237228,7 +237270,7 @@
      "what": "generating row",
      "term": "N = 24",
      "value": "+ + + + + − + − + + − − + + − − + − + − − − −",
-     "analysis": "the design written from it, against the library's Plackett-Burman design for as many factors, by their projections onto one, two and three columns",
+     "analysis": "the library's Plackett-Burman design is the cyclic one Plackett and Burman printed: as many three-column products of each |J| size as the design written from this row",
      "where": {
       "page": 357,
       "source_kind": "table",
@@ -237242,8 +237284,7 @@
        "options": {
         "n_center_points": 0
        }
-      },
-      "disagreement": "the library's 24-run design is its 12-run design doubled, a Hadamard matrix of order 2 times one of order 12: 11 of its three-column products are completely aliased with the intercept (|J| = 24), where the design written from this row has none (the sizes are 0 and 8 only), so the two are not the same design under any reordering or change of signs"
+      }
      }
     },
     {
@@ -239091,7 +239132,7 @@
      "what": "generating row",
      "term": "N = 36",
      "value": "− + − + + + − − − + + + + + − + + + − − + − − − − + − + − + + − − + −",
-     "analysis": "the design written from it, against the library's Plackett-Burman design for as many factors, by their projections onto one, two and three columns",
+     "analysis": "the library's Plackett-Burman design is the cyclic one Plackett and Burman printed: as many three-column products of each |J| size as the design written from this row",
      "where": {
       "page": 357,
       "source_kind": "table",
@@ -239105,8 +239146,7 @@
        "options": {
         "n_center_points": 0
        }
-      },
-      "disagreement": "the library makes its 36-run design by a finite-field construction, not from this row: 17 of its three-column products have |J| = 28, where the design written from this row has sizes 4 and 12 only, so the two are different orthogonal designs, not one design with its columns reordered or their signs changed"
+      }
      }
     },
     {
@@ -278178,8 +278218,14 @@
       "quote": "(j) 2^(7−2) ... Design Generators F = ABCD G = ABDE"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 7 factors makes a smaller one, of 16 runs, so there is no fraction of 32 runs to compare with; its resolution and aliases are checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 7,
+      "generators": [
+       "F=ABCD",
+       "G=ABDE"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "defining_relation",
@@ -280037,8 +280083,15 @@
       "quote": "(m) 2^(8−3) ... Design Generators F = ABC G = ABD H = BCDE"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 8 factors makes a smaller one, of 16 runs, so there is no fraction of 32 runs to compare with; its resolution and aliases are checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 8,
+      "generators": [
+       "F=ABC",
+       "G=ABD",
+       "H=BCDE"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "defining_relation",
@@ -284169,8 +284222,15 @@
       "quote": "(q) 2^(9−3) ... Design Generators G = ABCD H = ACEF J = CDEF"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 9 factors makes a smaller one, of 32 runs, so there is no fraction of 64 runs to compare with; its resolution and aliases are checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 9,
+      "generators": [
+       "G=ABCD",
+       "H=ACEF",
+       "J=CDEF"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "defining_relation",
@@ -287553,8 +287613,16 @@
       "quote": "(t) 2^(10−4) ... Design Generators G = BCDF H = ACDF J = ABDE K = ABCE"
      },
      "check": {
-      "manual": "the library chooses a fraction by its resolution, and for resolution IV in 10 factors makes a smaller one, of 32 runs, so there is no fraction of 64 runs to compare with; its resolution and aliases are checked"
-     }
+      "kind": "minimum_aberration",
+      "k": 10,
+      "generators": [
+       "G=BCDF",
+       "H=ACDF",
+       "J=ABDE",
+       "K=ABCE"
+      ]
+     },
+     "analysis": "the library's minimum-aberration fraction of as many runs, every generator set scored on its word-length pattern: its word lengths are those of the generators printed"
     },
     {
      "what": "defining_relation",
@@ -291152,8 +291220,7 @@
        "M=AD"
       ],
       "printed": "E = ABC F = ABD G = ACD H = BCD J = ABCD K = AB L = AC M = AD",
-      "analysis": "the word length pattern of the library's fraction for resolution III in 12 factors, against these generators'",
-      "disagreement": "the library tabulates minimum aberration fractions up to 11 factors and searches beyond; for 12 factors in 16 runs its search finds E = AB, F = AC, G = AD, H = BC, J = BD, K = CD, L = ABC, M = ABD, whose defining relation has 17 words of length three, where these generators give 16: the book's fraction has less aberration than the library's"
+      "analysis": "the word length pattern of the library's minimum-aberration fraction of 16 runs in 12 factors, every generator set scored, against these generators': 16 words of length three in both"
      }
     },
     {

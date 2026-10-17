@@ -255,7 +255,7 @@
      "what": "n_runs",
      "term": "3 factors",
      "value": "10",
-     "analysis": "Small central composite designs (SCCD) without centre runs: number of runs without centre runs",
+     "analysis": "Small central composite designs (SCCD) without centre runs: the library's CCD on the half-fraction cube",
      "where": {
       "page": 22,
       "pdf_page": 3,
@@ -263,7 +263,17 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 3 14, (4,6) 10, (4,6) 12, (4,8) 8, (2,4)"
      },
      "check": {
-      "manual": "generate_design refuses a CCD whose cube has resolution below V, so it makes no 3-factor small composite design; the count is 4 half-fraction cube runs plus 6 axial runs"
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 0,
+        "cube": "fractional"
+       }
+      }
      }
     },
     {
@@ -285,7 +295,7 @@
      "what": "n_runs",
      "term": "4 factors",
      "value": "16",
-     "analysis": "Small central composite designs (SCCD) without centre runs: number of runs without centre runs",
+     "analysis": "Small central composite designs (SCCD) without centre runs: the library's CCD on the half-fraction cube, which for four factors aliases two-factor interactions in pairs",
      "where": {
       "page": 22,
       "pdf_page": 3,
@@ -293,7 +303,18 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 4 24, (6,8) 16, (6,8) 24, (12,20) 8, (2,4)"
      },
      "check": {
-      "manual": "generate_design refuses a CCD whose cube has resolution below V, so it makes no 4-factor small composite design; the count is 8 half-fraction cube runs plus 8 axial runs"
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 0,
+        "cube": "fractional",
+        "generators": ["D=ABC"]
+       }
+      }
      }
     },
     {

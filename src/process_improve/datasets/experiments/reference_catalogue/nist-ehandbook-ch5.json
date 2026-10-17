@@ -61852,8 +61852,18 @@
       "quote": "With a 20-run design you can run a screening experiment for up to 19 factors, up to 23 factors in a 24-run design, and up to 27 factors in a 28-run design."
      },
      "check": {
-      "manual": "the 28-run design is not printed, and the library's Plackett-Burman design in 27 factors (28 runs) cannot be named by design_property, which letters factors A to Z without I, 25 at most"
-     }
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 27,
+       "options": {
+        "n_center_points": 0
+       }
+      },
+      "printed": "28"
+     },
+     "analysis": "the library's Plackett-Burman design for 27 factors"
     },
     {
      "what": "correlation of interactions with main effects",
