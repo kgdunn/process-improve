@@ -45,6 +45,9 @@ import {
   nameProblem,
   percent,
   pickCandidate,
+  pickSentence,
+  leftOutSentences,
+  standouts,
   responseProblems,
   runBadge,
   isBlank,
@@ -651,6 +654,102 @@ describe("the designs that can learn the brief", () => {
     assert.deepEqual([0.4626, 1, null].map(percent), ["46%", "100%", ""]);
     assert.equal(changeWords({ units: "%", noise: 1, smallest_change: 2 }), "a change of 2 %");
     assert.equal(changeWords({ noise: 1 }), "a change of two noise standard deviations");
+  });
+
+  test("the pick says why: the fewest runs that fit and leave three for the noise", () => {
+    const rows = candidateRows(result, made);
+    assert.equal(
+      pickSentence(rows, "dsd"),
+      "Picked for you: DSD, the fewest runs with 3 or more spare.",
+    );
+    const tight = { ...result, values: { ...result.values, "DSD [n=11]": value(11, true, 2, 0.4), "Box-Behnken [n=15]": value(15, true, 2, 0.5) } };
+    assert.equal(
+      pickSentence(candidateRows(tight, made), "d_optimal"),
+      "Picked for you: D-optimal, the fewest runs, as none here has 3 spare.",
+    );
+    assert.equal(pickSentence(rows, "d_optimal"), "", "a design the rule would not pick has no reason to give");
+    assert.equal(pickSentence(rows, "full_factorial"), "", "nor one that cannot fit");
+    assert.equal(pickSentence([], null), "");
+  });
+
+  describe("what each design does best of those that fit", () => {
+    const measures = [
+      { key: "a", direction: "lower" },
+      { key: "d", direction: "higher" },
+      { key: "max_r", direction: "lower" },
+      { key: "power_main", direction: "higher" },
+      { key: "power_quadratic", direction: "higher" },
+    ];
+    const scored = (runs, fits, extra) => ({ ...value(runs, fits, 4, null), ...extra });
+    const compared = {
+      measures,
+      designs: ["Full factorial [n=11]", "DSD [n=11]", "Box-Behnken [n=15]", "D-optimal [n=8]"],
+      values: {
+        "Full factorial [n=11]": scored(11, false, { a: 0.01, d: 9, power_main: 1 }),
+        "DSD [n=11]": scored(11, true, { a: 0.2, d: 0.5, max_r: 0.5, power_main: 0.46, power_quadratic: 0.23 }),
+        "Box-Behnken [n=15]": scored(15, true, { a: 0.1, d: 0.6, max_r: 0.0, power_main: 0.7, power_quadratic: 0.39 }),
+        "D-optimal [n=8]": scored(8, true, { a: 0.3, d: 0.604, max_r: 0.0, power_main: 0.3, power_quadratic: 0.1 }),
+      },
+    };
+    const words = (out) => Object.fromEntries(Object.entries(out).map(([type, best]) => [type, best.map((b) => b.words)]));
+
+    test("names the measures it leads, lower or higher as each measure reads, ties within 1% shared", () => {
+      assert.deepEqual(words(standouts(compared, made)), {
+        dsd: [],
+        box_behnken: [
+          "precise coefficients",
+          "joint precision",
+          "least correlated terms",
+          "power for main effects",
+          "power for curvature",
+        ],
+        d_optimal: ["fewest runs", "joint precision", "least correlated terms"],
+      });
+    });
+
+    test("a design that cannot fit stands out on nothing, nor does it set the best", () => {
+      assert.equal(standouts(compared, made).full_factorial, undefined);
+    });
+
+    test("a measure every design shares, or one only a design knows, is not a lead", () => {
+      const even = { ...compared, values: { ...compared.values } };
+      for (const key of ["DSD [n=11]", "Box-Behnken [n=15]", "D-optimal [n=8]"]) {
+        even.values[key] = { ...even.values[key], max_r: 0.25 };
+      }
+      even.values["DSD [n=11]"] = { ...even.values["DSD [n=11]"], power_interaction: 0.9 };
+      const leads = Object.values(words(standouts(even, made))).flat();
+      assert.ok(!leads.includes("least correlated terms"));
+      assert.ok(!leads.includes("power for interactions"));
+    });
+
+    test("with one design that fits, none stands out", () => {
+      const alone = { ...compared, values: { ...compared.values, "DSD [n=11]": value(11, false, 4, null) } };
+      alone.values["Box-Behnken [n=15]"] = value(15, false, 8, null);
+      assert.deepEqual(standouts(alone, made), { d_optimal: [] });
+    });
+  });
+
+  test("the designs left out say why: the factor count they take, or numeric factors", () => {
+    const leftOut = [
+      { design_type: "box_behnken", label: "Box-Behnken", reason: "factors", low: 3, high: 7 },
+      { design_type: "dsd", label: "DSD", reason: "factors", low: 3, high: 12 },
+      { design_type: "taguchi", label: "Taguchi", reason: "factors", low: 4, high: 12 },
+      { design_type: "ccd", label: "Central composite", reason: "categorical" },
+      { design_type: "d_optimal", label: "D-optimal", reason: "limits" },
+    ];
+    assert.deepEqual(leftOutSentences(leftOut, 2, ["Catalyst"]), [
+      "Box-Behnken and DSD are not listed: they take 3 factors or more, and the brief has 2.",
+      "Taguchi is not listed: it takes 4 factors or more, and the brief has 2.",
+      "Central composite is not listed: it needs numeric factors, and Catalyst is categorical.",
+    ]);
+    assert.deepEqual(leftOutSentences(leftOut.slice(0, 1), 9), [
+      "Box-Behnken is not listed: it takes at most 7 factors, and the brief has 9.",
+    ]);
+    assert.deepEqual(leftOutSentences(leftOut.slice(3), 2, ["Catalyst", "Mill"]), [
+      "Central composite is not listed: it needs numeric factors, and Catalyst and Mill are categorical.",
+    ]);
+    assert.deepEqual(leftOutSentences(leftOut.slice(3), 2), [], "no sentence on numeric factors for a brief without");
+    assert.deepEqual(leftOutSentences([], 4), []);
   });
 
   test("the Run tab counts the runs, then the results in", () => {

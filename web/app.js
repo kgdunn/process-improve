@@ -132,7 +132,9 @@ import {
   partialRuns,
   partialSentence,
   percent,
+  leftOutSentences,
   pickCandidate,
+  pickSentence,
   positional,
   powerScale,
   proportionValue,
@@ -150,6 +152,8 @@ import {
   runBadge,
   showsVif,
   splitResults,
+  standouts,
+  STANDOUT_TIE,
   storedResponses,
   tradeOffCell,
   withResponses,
@@ -1579,11 +1583,14 @@ function renderCandidates(busy = null) {
 
 /**
  * The comparison's designs as a list to pick from: those that fit the model in a table, sorted by
- * their runs, and which do not. The table's headings say what its numbers are; what spare runs
- * and power mean is a "?" away.
+ * their runs, with what each does best of them; which do not; and why the designs not listed are
+ * not. The table's headings say what its numbers are; what spare runs and power mean is a "?" away.
+ * Until the reader chooses a design, a sentence says why Design picked the one it holds.
  */
 function candidateList(c, current) {
   const rows = candidateRows(c.result, c.made);
+  const best = standouts(c.result, c.made);
+  const leads = rows.some((r) => best[r.design_type]?.length);
   const kinds = [
     ["main", "Main effect"],
     ["interaction", "Interaction"],
@@ -1613,6 +1620,13 @@ function candidateList(c, current) {
         `the ${Math.round(100 * c.result.significance_level)}% level.` +
         (powerScale(info) ? "" : " To set your own, give the noise and the change under What you know of it already."),
     });
+    const stands = term("Stands out for", {
+      alone: true,
+      definition:
+        `What a design does best of those listed, or within ${Math.round(100 * STANDOUT_TIE)}% of the best: its ` +
+        "runs, the precision of its coefficients and predictions, how little its terms correlate, and its power. " +
+        "Compare them in detail shows each measure.",
+    });
     const head = el("tr", "", "");
     head.append(heading("Design", { rowSpan: 2 }), heading("Runs", { rowSpan: 2 }), heading(spare, { rowSpan: 2 }));
     const sub = el("tr", "", "");
@@ -1620,6 +1634,7 @@ function candidateList(c, current) {
       head.append(heading(power, { colSpan: kinds.length }));
       for (const [kind, words] of kinds) sub.append(heading(term(words, { key: KIND_TERMS[kind], alone: true })));
     }
+    if (leads) head.append(heading(stands, { rowSpan: 2, className: "stands" }));
     const thead = el("thead", "", "");
     thead.append(head, ...(kinds.length ? [sub] : []));
     const tbody = el("tbody", "", "");
@@ -1637,6 +1652,7 @@ function candidateList(c, current) {
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
       for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
+      if (leads) tr.append(el("td", "stands", (best[r.design_type] ?? []).map((b) => b.words).join(", ")));
       if (current) tr.onclick = () => pickDesign(r.design_type);
       tbody.append(tr);
     }
@@ -1645,8 +1661,12 @@ function candidateList(c, current) {
     wrap.append(t);
     parts.push(wrap);
   }
+  const picked = designChosen ? "" : pickSentence(rows, $("#design-type").value);
+  if (picked) parts.push(el("p", "hint picked", picked));
   const unfit = rows.filter((r) => !r.fits);
   if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
+  const categorical = readFactors().filter(isCategorical).map((f) => f.name);
+  for (const why of leftOutSentences(c.left_out ?? [], factorCount(), categorical)) parts.push(el("p", "hint left-out", why));
   if (c.waiting?.length) parts.push(waitingNote(c));
   parts.push(...noteList(c.notes.map(prettyTerm)));
   return parts;
@@ -1663,9 +1683,14 @@ function waitingNote(c) {
   );
 }
 
-/** Mark the design the plan holds in the list of designs that can learn the brief. */
+/**
+ * Mark the design the plan holds in the list of designs that can learn the brief. Once the reader
+ * chooses one, the sentence on why Design picked its own goes.
+ */
 function markPicked() {
   const chosen = $("#design-type").value;
+  const note = $("#candidates .picked");
+  if (note) note.hidden = designChosen;
   for (const tr of document.querySelectorAll("#candidates tbody tr")) {
     const on = tr.dataset.design === chosen;
     tr.setAttribute("aria-selected", String(on));

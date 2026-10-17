@@ -3408,7 +3408,9 @@ def compare_plan(request: dict) -> dict:
     The response is the reader's, so a design taken into the plan keeps it. A comparison has
     no results, so when that name is blank or a factor's, the first of y, y1, y2, ... that
     no factor takes stands in. With limits on the settings (``constraints``), only the designs
-    that keep their runs inside them are listed, each made with the limits.
+    that keep their runs inside them are listed, each made with the limits. ``left_out`` lists
+    each design the page offers that the comparison leaves out, with why (see :func:`_left_out`),
+    so Design can say why a design is not listed.
     """
     model = request.get("model") or "main_quadratic"
     if model not in COMPARISON_MODELS:
@@ -3421,15 +3423,15 @@ def compare_plan(request: dict) -> dict:
     names = {f.name for f in factors}
     candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
     response = next(name for name in candidates if name.isidentifier() and name not in names)
-    plan = []
+    plan, left_out = [], []
     labelled = any(f.type == "categorical" for f in factors)
     # A design taken from the comparison keeps the reader's description of the response, and aims to learn the
     # model it was compared on.
     described = _described({"response_info": request.get("response_info"), "aim": model})
     for design_type, info in DESIGNS.items():
-        if not info["min_factors"] <= k <= info["max_factors"] or (labelled and design_type not in CATEGORICAL_DESIGNS):
-            continue
-        if limits and design_type not in REGION_DESIGNS:
+        why = _left_out(design_type, k, labelled=labelled, limited=bool(limits))
+        if why:
+            left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})
             continue
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:
@@ -3446,7 +3448,24 @@ def compare_plan(request: dict) -> dict:
             f"The D- and I-optimal designs are built for the {OPTIMAL_MODEL[model]} model, the smallest model "
             f"they can be built for that contains this one."
         )
-    return {"model": model, "designs": plan, "notes": notes}
+    return {"model": model, "designs": plan, "notes": notes, "left_out": left_out}
+
+
+def _left_out(design_type: str, k: int, *, labelled: bool, limited: bool) -> dict[str, Any] | None:
+    """Say why the comparison leaves a design out for this brief, or None when it is in.
+
+    ``reason`` is ``factors`` for a factor count outside the design's (with its ``low`` and ``high``),
+    ``categorical`` for a design of numeric factors with a categorical one in the brief, and
+    ``limits`` for a design that cannot keep its runs inside limits on the settings, in that order.
+    """
+    info = DESIGNS[design_type]
+    if not info["min_factors"] <= k <= info["max_factors"]:
+        return {"reason": "factors", "low": info["min_factors"], "high": info["max_factors"]}
+    if labelled and design_type not in CATEGORICAL_DESIGNS:
+        return {"reason": "categorical"}
+    if limited and design_type not in REGION_DESIGNS:
+        return {"reason": "limits"}
+    return None
 
 
 def _effect_size(request: dict) -> float:
@@ -3555,7 +3574,14 @@ def candidates(request: dict) -> dict:
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
     asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
     result = compare(asked) if made else None
-    return {"model": plan["model"], "made": made, "waiting": waiting, "notes": notes, "result": result}
+    return {
+        "model": plan["model"],
+        "made": made,
+        "waiting": waiting,
+        "notes": notes,
+        "result": result,
+        "left_out": plan["left_out"],
+    }
 
 
 # --------------------------------------------------------------------------- limits, as the reader types them

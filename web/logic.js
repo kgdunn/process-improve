@@ -615,6 +615,92 @@ export function pickCandidate(rows) {
   return (spare[0] ?? fitting[0] ?? null)?.design_type ?? null;
 }
 
+/**
+ * What Design says of the design it picked for a reader who has not chosen one: why that one, by pickCandidate's rule.
+ * ``rows`` are candidateRows', ``picked`` the design type the plan holds; "" when the rule would not pick it.
+ */
+export function pickSentence(rows, picked) {
+  if (!picked || pickCandidate(rows) !== picked) return "";
+  const row = rows.find((r) => r.design_type === picked);
+  const spare = row.spare >= SPARE_FOR_NOISE;
+  const why = spare
+    ? `the fewest runs with ${SPARE_FOR_NOISE} or more spare`
+    : `the fewest runs, as none here has ${SPARE_FOR_NOISE} spare`;
+  return `Picked for you: ${row.label}, ${why}.`;
+}
+
+/**
+ * The comparison's measures a design can stand out on among the designs listed, each with the words the list names it
+ * with: the fewest runs, the precision of the coefficients and of the predictions, the correlation between the
+ * second-order terms, and the power for each kind of term. Each is a key of the comparison's values.
+ */
+export const STANDOUTS = [
+  ["runs", "fewest runs"],
+  ["a", "precise coefficients"],
+  ["d", "joint precision"],
+  ["i", "precise predictions"],
+  ["g", "precise worst-case prediction"],
+  ["max_r", "least correlated terms"],
+  ["power_main", "power for main effects"],
+  ["power_interaction", "power for interactions"],
+  ["power_quadratic", "power for curvature"],
+];
+
+/** How close to the best value a design's must be, as a share of the best, to share the lead on a measure. */
+export const STANDOUT_TIE = 0.01;
+
+/**
+ * What each design that fits the model does best of those that fit, by its design type: each measure of STANDOUTS on
+ * which it is best, or within STANDOUT_TIE of the best, while some other design that fits is not. A measure no design
+ * leads alone, as when every design has the same, is left out; with fewer than two designs that fit, none stands out.
+ * Each is {key, words}. ``result`` is the comparison's, ``made`` its designs in the order scored.
+ */
+export function standouts(result, made) {
+  const lower = new Set(result.measures.filter((m) => m.direction === "lower").map((m) => m.key).concat("runs"));
+  const fitting = result.designs
+    .map((sized, i) => ({ type: made[i].design_type, values: result.values[sized] }))
+    .filter((d) => d.values.fits);
+  const out = Object.fromEntries(fitting.map((d) => [d.type, []]));
+  if (fitting.length < 2) return out;
+  for (const [key, words] of STANDOUTS) {
+    const known = fitting.filter((d) => typeof d.values[key] === "number" && Number.isFinite(d.values[key]));
+    if (known.length < 2) continue;
+    const values = known.map((d) => d.values[key]);
+    const best = lower.has(key) ? Math.min(...values) : Math.max(...values);
+    const near = (x) => Math.abs(x - best) <= STANDOUT_TIE * Math.abs(best);
+    const leaders = known.filter((d) => near(d.values[key]));
+    if (leaders.length === known.length) continue;
+    for (const d of leaders) out[d.type].push({ key, words });
+  }
+  return out;
+}
+
+/**
+ * Why Design lists none of some designs the page offers, a sentence for each reason: the factor count a design takes,
+ * by the bound the brief's count breaks, and the designs of numeric factors when the brief has a categorical one.
+ * ``leftOut`` is api_candidates', ``k`` the brief's factor count and ``categorical`` the names of its categorical
+ * factors. Limits on the settings leave designs out too, and the comparison's own note says so, so they get no
+ * sentence here.
+ */
+export function leftOutSentences(leftOut, k, categorical = []) {
+  const said = [];
+  const bounds = new Map();
+  for (const d of leftOut.filter((one) => one.reason === "factors")) {
+    const bound = k < d.low ? `${d.low} factors or more` : `at most ${d.high} factors`;
+    bounds.set(bound, [...(bounds.get(bound) ?? []), d.label]);
+  }
+  const verb = (labels, singular, plural) => (labels.length === 1 ? `is not listed: it ${singular}` : `are not listed: they ${plural}`);
+  for (const [bound, labels] of bounds) {
+    said.push(`${listNames(labels)} ${verb(labels, "takes", "take")} ${bound}, and the brief has ${k}.`);
+  }
+  const numeric = leftOut.filter((one) => one.reason === "categorical").map((d) => d.label);
+  if (numeric.length && categorical.length) {
+    const are = categorical.length === 1 ? "is" : "are";
+    said.push(`${listNames(numeric)} ${verb(numeric, "needs", "need")} numeric factors, and ${listNames(categorical)} ${are} categorical.`);
+  }
+  return said;
+}
+
 /** A power as the page prints it: a whole percentage. */
 export const percent = (p) => (p === null || p === undefined ? "" : `${Math.round(100 * p)}%`);
 

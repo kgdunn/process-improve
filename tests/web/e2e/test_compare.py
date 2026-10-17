@@ -16,6 +16,7 @@ from tests.web._support import FACTORS, factors_named
 from tests.web.e2e._page import (
     calls,
     candidates_done,
+    definition,
     generate,
     last_reply,
     name_response,
@@ -76,7 +77,58 @@ def test_another_aim_lists_the_designs_that_can_learn_it(blank_page):
     assert picked(page) == "fractional_factorial"
     headings = page.locator("#candidates thead th").all_text_contents()
     power = "Power to find a change of two noise standard deviations"  # no smallest change given
-    assert headings == ["Design", "Runs", "Spare runs", power, "Main effect"]
+    assert headings == ["Design", "Runs", "Spare runs", power, "Stands out for", "Main effect"]
+
+
+def stands_out(page) -> dict[str, str]:
+    """Return what each listed design does best of those listed, by its design type."""
+    return page.locator("#candidates tbody tr").evaluate_all(
+        "rows => Object.fromEntries(rows.map((tr) => [tr.dataset.design, tr.querySelector('td.stands').textContent]))"
+    )
+
+
+def test_each_design_says_what_it_does_best_of_those_listed(blank_page):
+    page = blank_page
+    assert "Stands out for" in page.locator("#candidates thead th").all_text_contents()
+    best = stands_out(page)
+    assert best[listed(page)[0]].startswith("fewest runs"), "the first design listed has the fewest runs"
+    assert sum("fewest runs" in words for words in best.values()) == 1
+    reply = last_reply(page, "api_candidates")["result"]
+    values = {
+        m["design_type"]: reply["result"]["values"][sized]
+        for m, sized in zip(reply["made"], reply["result"]["designs"], strict=True)
+    }
+    curvature = {t: v["power_quadratic"] for t, v in values.items() if v["fits"]}
+    most = max(curvature.values())
+    assert {t for t, words in best.items() if "power for curvature" in words} == {
+        t for t, power in curvature.items() if power >= 0.99 * most
+    }, "the designs with the most power for curvature, or within 1% of it"
+    assert "within 1% of the best" in definition(page, "#candidates thead tr:first-child th:last-child .term")
+
+
+def test_design_says_why_it_picked_its_design_until_the_reader_chooses(blank_page):
+    page = blank_page
+    assert page.text_content("#candidates .picked") == "Picked for you: DSD, the fewest runs with 3 or more spare."
+    page.click('#candidates tbody tr[data-design="box_behnken"]')
+    assert page.locator("#candidates .picked").is_hidden(), "the reader's choice needs no reason from Design"
+    set_aim(page, "quadratic")
+    candidates_done(page)
+    assert page.locator("#candidates .picked").count() == 0
+
+
+def test_the_designs_not_listed_say_why(blank_page):
+    page = blank_page
+    assert page.locator("#candidates .left-out").count() == 0, "three numeric factors: every design is offered"
+    set_factors(page, FACTORS[:2])
+    candidates_done(page)
+    left_out = page.locator("#candidates .left-out").all_text_contents()
+    assert left_out[0].endswith("are not listed: they take 3 factors or more, and the brief has 2.")
+    assert "Box-Behnken" in left_out[0]
+    set_factors(page, [{"name": "Catalyst", "low": "Pd", "high": "Pt"}, *FACTORS[1:]])
+    candidates_done(page)
+    left_out = page.locator("#candidates .left-out").all_text_contents()
+    assert any(s.endswith("not listed: they need numeric factors, and Catalyst is categorical.") for s in left_out)
+    assert "box_behnken" not in listed(page)
 
 
 def test_power_is_for_the_smallest_change_worth_finding(blank_page):
