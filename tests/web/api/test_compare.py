@@ -18,13 +18,14 @@ from tests.web._support import FACTORS, coded, factors_named, generate_all, held
 @pytest.mark.parametrize(
     ("n_factors", "expected"),
     [
-        (2, ["full_factorial", "plackett_burman", "ccd", "d_optimal", "i_optimal"]),
+        (2, ["full_factorial", "plackett_burman", "taguchi", "ccd", "d_optimal", "i_optimal"]),
         (
             3,
             [
                 "full_factorial",
                 "fractional_factorial",
                 "plackett_burman",
+                "taguchi",
                 "dsd",
                 "box_behnken",
                 "ccd",
@@ -32,7 +33,7 @@ from tests.web._support import FACTORS, coded, factors_named, generate_all, held
                 "i_optimal",
             ],
         ),
-        (8, ["fractional_factorial", "plackett_burman", "dsd", "d_optimal"]),
+        (8, ["fractional_factorial", "plackett_burman", "taguchi", "dsd", "d_optimal"]),
     ],
 )
 def test_the_comparison_includes_every_design_the_factor_count_allows(api, n_factors, expected):
@@ -144,7 +145,12 @@ def test_each_design_is_coded_from_its_own_ranges(api):
 def test_a_comparison_with_a_categorical_factor_offers_the_two_level_designs(api):
     factors = [*FACTORS, {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
     plan = api.ok("api_compare_plan", {"factors": factors, "model": "main_effects"})
-    assert [d["design_type"] for d in plan["designs"]] == ["full_factorial", "fractional_factorial", "plackett_burman"]
+    assert [d["design_type"] for d in plan["designs"]] == [
+        "full_factorial",
+        "fractional_factorial",
+        "plackett_burman",
+        "taguchi",
+    ]
 
 
 # --------------------------------------------------------------------------- limits on the settings

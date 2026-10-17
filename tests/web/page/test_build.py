@@ -55,6 +55,7 @@ def test_the_built_worked_example_includes_the_comparison(built_example):
         "full_factorial",
         "fractional_factorial",
         "plackett_burman",
+        "taguchi",
         "dsd",
         "box_behnken",
         "ccd",

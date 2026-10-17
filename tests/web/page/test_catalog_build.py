@@ -244,12 +244,67 @@ def test_the_whole_catalog_opens_every_generated_design_the_page_makes(build_scr
     with no_bytecode():
         build_script.write_catalog(tmp_path)
     designs = json.loads((tmp_path / "catalog" / "index.json").read_text())["designs"]
-    makes = set(build_script.load_bootstrap().DESIGNS)
+    bootstrap = build_script.load_bootstrap()
+    makes = set(bootstrap.DESIGNS)
     generated = [d for d in designs if d["collection"] == "generated"]
-    assert all(d["open"] for d in generated if d["design_type"] in makes)
+    # An orthogonal array is made whole, a factor to each column: the page takes the arrays of up to 12 columns.
+    most = bootstrap.GIVEN_INFO["max_factors"]
+    assert all(d["open"] for d in generated if d["design_type"] in makes and d["n_factors"] <= most)
+    detail = json.loads((tmp_path / "catalog" / "detail" / "generated.json").read_text())["designs"]
+    made = {name for name, d in detail.items() if name.startswith("lib-taguchi-") and d["opens_as"] == "made"}
+    assert made == {"lib-taguchi-l4-2-3", "lib-taguchi-l8-2-7", "lib-taguchi-l9-3-4", "lib-taguchi-l12-2-11"}
     published = [d for d in designs if d["collection"] == "published"]
     assert sum(d["open"] for d in published) >= 300, "a published design with a complete table of runs opens"
     assert all(d["open"] for d in published if d["regenerable"])
+
+
+def _taguchi_record(array: str) -> dict:
+    """Describe the library's orthogonal array ``array``, whole, as ``catalog_records`` does."""
+    spec = next(s for s in design_catalog.GENERATED if s.get("array") == array)
+    return {**design_catalog._generated_record(spec), "checks": None, "listed": None}
+
+
+@pytest.mark.parametrize(
+    ("array", "options"), [("L8(2^7)", {}), ("L9(3^4)", {"n_levels": 3})], ids=["two levels", "three levels"]
+)
+def test_an_orthogonal_array_the_page_makes_opens_as_made(build_script, array, options):
+    """The page makes the array for as many factors as it has columns, at the levels its columns have."""
+    record = _taguchi_record(array)
+    with no_bytecode():
+        campaign, reason = build_script.generated_campaign(record)
+    assert reason == ""
+    spec = campaign["design"]["spec"]
+    assert (spec["design_type"], spec["options"]) == ("taguchi", {"random_state": 42, **options})
+    runs = coded(run_sheet(campaign["design"]), spec["factors"]).round(6).to_numpy().tolist()
+    assert sorted(runs) == sorted(record["coded_runs"]), "the array drawn is the array opened"
+
+
+@pytest.mark.parametrize(
+    ("array", "reason"),
+    [
+        ("L16(4^5)", "the page runs every numeric factor of a Taguchi array at 2 levels, or every one at 3"),
+        ("L16(2^15)", "the page makes this design for 2 to 12 factors"),
+    ],
+    ids=["four levels", "fifteen columns"],
+)
+def test_an_orthogonal_array_the_page_does_not_make_says_why(build_script, array, reason):
+    with no_bytecode():
+        assert build_script.generated_campaign(_taguchi_record(array)) == (None, reason)
+
+
+def test_a_published_taguchi_array_at_three_levels_opens_as_made(build_script):
+    """Schmidt and Launsby's L9 is the library's: the page makes it with its numeric factors at three levels."""
+    from process_improve.experiments.reference_catalogue import reference_designs, reference_sources
+
+    source = reference_sources()["schmidt-launsby-2000"]
+    entry = next(e for e in reference_designs("schmidt-launsby-2000") if e["name"] == "schmidt-taguchi-l9")
+    record = {**design_catalog._published_record(entry, source), "checks": None, "listed": "designs"}
+    with no_bytecode():
+        campaign, reason, tried = build_script.published_campaign(record)
+    assert (reason, tried) == ("", True)
+    assert campaign["design"]["spec"]["options"]["n_levels"] == 3
+    runs = coded(run_sheet(campaign["design"]), campaign["design"]["spec"]["factors"])
+    assert runs.round(6).to_numpy().tolist() == record["coded_runs"], "the source's runs, in its order"
 
 
 def test_the_index_names_the_measures_designs_are_compared_on(index):

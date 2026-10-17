@@ -163,12 +163,20 @@ def test_results_typed_in_are_listed_in_run_order_with_none_for_runs_to_do(api, 
             "n_center_points": 2,
             "n_blocks": 2,
         },
+        {"design_type": "taguchi", "factors": FACTORS, "n_replicates": 2},
+        {
+            "design_type": "taguchi",
+            "factors": [*FACTORS, {"name": "Supplier", "low": "A", "high": "B", "units": ""}],
+            "n_levels": 3,
+        },
     ],
     ids=[
         "blocks confounding an interaction",
         "typed axial distance, replicated",
         "blocks by exchange",
         "a categorical factor, in blocks",
+        "a Taguchi L4, replicated",
+        "a Taguchi L18 at three levels, with a categorical factor",
     ],
 )
 def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distance(api, node, spec):
@@ -176,13 +184,17 @@ def test_the_python_shown_reproduces_blocks_replicates_and_a_typed_axial_distanc
     held = held_of(api.ok("api_make_design", spec))
     simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 3})
     analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+    design = ("designCode", [held["spec"]])
     code = panel(
         node,
-        ("designCode", [held["spec"]]),
+        design,
         ("resultsCode", [held, simulation["responses"], simulation]),
         ("analyseCode", [analysis["formula"], True]),
     )
     assert_same_fit(run(code), analysis)
+    names = [f["name"] for f in held["spec"]["factors"]]
+    made = run(panel(node, design))["result"].design_actual[names]
+    assert made.to_numpy().tolist() == run_sheet(held)[names].to_numpy().tolist(), "the page's runs, in its order"
 
 
 @pytest.mark.slow

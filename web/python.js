@@ -27,13 +27,26 @@ const kwargs = (options) =>
 /** Whether a factor is categorical: its levels are labels, which the page holds as its low and high. */
 const labelled = (f) => typeof f.low === "string";
 
-function factorList(factors) {
+/**
+ * The factors as Python makes them, as the list ``name``. With ``threeLevels``, each numeric factor is
+ * given its low, center and high values as its levels, which generate_design reads as a three-level
+ * factor: the page's option n_levels=3 for a Taguchi array, which is no argument of generate_design.
+ */
+function factorList(factors, threeLevels = false, name = "factors") {
+  const levels = (f) => (threeLevels ? `, levels=[${f.low}, ${(f.low + f.high) / 2}, ${f.high}]` : "");
   const rows = factors.map((f) =>
     labelled(f)
       ? `    Factor(name=${repr(f.name)}, type="categorical", levels=[${repr(f.low)}, ${repr(f.high)}]),`
-      : `    Factor(name=${repr(f.name)}, low=${f.low}, high=${f.high}${f.units ? `, units=${repr(f.units)}` : ""}),`,
+      : `    Factor(name=${repr(f.name)}, low=${f.low}, high=${f.high}${levels(f)}${f.units ? `, units=${repr(f.units)}` : ""}),`,
   );
-  return ["factors = [", ...rows, "]"].join("\n");
+  const said = threeLevels ? "  # each numeric factor at its low, center and high values" : "";
+  return [`${name} = [${said}`, ...rows, "]"].join("\n");
+}
+
+/** A design's options as generate_design takes them, and whether its numeric factors are at three levels. */
+function libraryOptions(options) {
+  const { n_levels: levels, ...rest } = options || {};
+  return { options: rest, threeLevels: levels === 3 };
 }
 
 /**
@@ -47,7 +60,7 @@ function constraintLines(limits) {
 
 /** Step 1: the design, as generate_design makes it, inside the limits on the settings when there are some. */
 export function designCode(spec) {
-  const options = { ...(spec.options || {}) };
+  const { options, threeLevels } = libraryOptions(spec.options);
   const limits = spec.constraints ?? [];
   if (spec.design_type === "given") {
     // Runs as given: the page made none of them, so step 1 holds the factors and step 2 the runs themselves.
@@ -62,7 +75,7 @@ export function designCode(spec) {
   return [
     "from process_improve.experiments import Factor, generate_design",
     "",
-    factorList(spec.factors),
+    factorList(spec.factors, threeLevels),
     ...constraintLines(limits),
     `result = generate_design(factors, design_type=${repr(spec.design_type)}, ${limits.length ? "constraints=constraints, " : ""}${kwargs(options)})`,
     "print(result.design_actual)  # the runs, in randomised order, in the factors' own units",
@@ -242,14 +255,17 @@ export function cumulative(...steps) {
  */
 export function compareCode(factors, designs, model, limits = []) {
   const kept = limits.length ? ", constraints=constraints" : "";
-  const lines = designs.map((d) => {
-    const extra = kwargs(d.options || {});
-    return `    ${repr(d.label)}: generate_design(factors, design_type=${repr(d.design_type)}${kept}${extra ? `, ${extra}` : ""}),`;
+  const asked = designs.map((d) => libraryOptions(d.options));
+  const lines = designs.map((d, i) => {
+    const extra = kwargs(asked[i].options);
+    const made = asked[i].threeLevels ? "three_levels" : "factors";
+    return `    ${repr(d.label)}: generate_design(${made}, design_type=${repr(d.design_type)}${kept}${extra ? `, ${extra}` : ""}),`;
   });
   return [
     `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}Factor, compare_designs, generate_design`,
     "",
     factorList(factors),
+    ...(asked.some((a) => a.threeLevels) ? [factorList(factors, true, "three_levels")] : []),
     ...constraintLines(limits),
     "designs = {",
     ...lines,

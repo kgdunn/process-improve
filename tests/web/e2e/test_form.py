@@ -12,7 +12,7 @@ from itertools import pairwise
 
 import pytest
 
-from tests.web._support import ALL_DESIGNS, factors_named
+from tests.web._support import ALL_DESIGNS, NO_BOOK_PAGE, factors_named
 from tests.web.e2e._page import choose, factor_table, generate, reveal, run_sheet, set_factors, settled
 
 NAMES = "ABCDEFGHJKLM"
@@ -61,6 +61,10 @@ def test_each_design_shows_its_settings_and_where_the_book_explains_it(page, boo
     choose(page, design_type=design_type)
     info = bootstrap.DESIGNS[design_type]
     assert sorted(shown_settings(page)) == sorted(info["options"])
+    if design_type in NO_BOOK_PAGE:
+        assert page.text_content("#design-hint") == info["hint"], "the hint alone, with no link"
+        assert page.locator("#design-hint a").count() == 0
+        return
     assert page.text_content("#design-hint") == f"{info['hint']} More in the book"
     assert page.get_attribute("#design-hint a", "href").startswith("https://learnche.org/pid/")
 
@@ -228,7 +232,7 @@ def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(pa
     assert disabled_designs(page) == ["dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"]
     assert page.text_content("#design-hint") == (
         "Box-Behnken needs numeric factors, and Supplier is categorical: choose a full factorial, fractional "
-        "factorial or Plackett-Burman design."
+        "factorial, Plackett-Burman or Taguchi design."
     )
     assert page.is_disabled("#generate")
     choose(page, design_type="full_factorial")

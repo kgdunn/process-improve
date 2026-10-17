@@ -40,6 +40,17 @@ describe("the design", () => {
     assert.match(code, /note="said \\"null\\""\)/);
   });
 
+  test("a Taguchi array at three levels gives each numeric factor its low, center and high values as its levels", () => {
+    const factors = [...FACTORS, { name: "S", low: "A", high: "B", units: "" }];
+    const code = designCode({ design_type: "taguchi", factors, options: { random_state: 42, n_levels: 3 } });
+    assert.match(code, /factors = \[ {2}# each numeric factor at its low, center and high values\n/);
+    assert.match(code, /Factor\(name="T", low=150, high=200, levels=\[150, 175, 200\], units="degC"\),/);
+    assert.match(code, /Factor\(name="S", type="categorical", levels=\["A", "B"\]\),/);
+    assert.match(code, /generate_design\(factors, design_type="taguchi", random_state=42\)/, "n_levels is the page's, not the library's");
+    const two = designCode({ design_type: "taguchi", factors: FACTORS, options: { random_state: 42 } });
+    assert.doesNotMatch(two, /levels=/);
+  });
+
   test("lists and dicts written item by item, as Python writes them", () => {
     const options = { a: [1, 2.5, null, true], b: { x: [false], y: "null", z: undefined }, c: [[]] };
     const code = designCode({ design_type: "d_optimal", factors: FACTORS, options });
@@ -150,5 +161,18 @@ describe("the analysis and the comparison", () => {
     assert.match(code, /"Full factorial": generate_design\(factors, design_type="full_factorial", n_center_points=3\),/);
     assert.match(code, /"D-optimal": generate_design\(factors, design_type="d_optimal"\),/);
     assert.match(code, /compare_designs\(designs, model="main_quadratic"\)/);
+    assert.doesNotMatch(code, /three_levels/, "the factors at three levels only when a design takes them");
+  });
+
+  test("a Taguchi array at three levels is made from the factors at their low, center and high values", () => {
+    const designs = [
+      { label: "Full factorial", design_type: "full_factorial", options: { n_center_points: 3 } },
+      { label: "Taguchi", design_type: "taguchi", options: { random_state: 42, n_levels: 3 } },
+    ];
+    const code = compareCode(FACTORS, designs, "main_quadratic");
+    assert.match(code, /three_levels = \[ {2}# each numeric factor at its low, center and high values\n/);
+    assert.match(code, /Factor\(name="P", low=1, high=3, levels=\[1, 2, 3\]\),/);
+    assert.match(code, /"Full factorial": generate_design\(factors, design_type="full_factorial", n_center_points=3\),/);
+    assert.match(code, /"Taguchi": generate_design\(three_levels, design_type="taguchi", random_state=42\),/);
   });
 });

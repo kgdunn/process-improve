@@ -311,8 +311,9 @@ def test_a_blocked_design_lists_each_run_s_block_one_block_after_another(api):
 
 @pytest.mark.parametrize("design_type", ALL_DESIGNS)
 def test_every_design_can_be_made_in_blocks(api, design_type):
-    # A fraction in three factors has four runs, and any split of four runs in two confounds a main effect.
-    factors = SIX[:4] if design_type == "fractional_factorial" else FACTORS
+    # A fraction or a Taguchi array in three factors has four runs, and any split of four runs in two confounds a
+    # main effect.
+    factors = SIX[:4] if design_type in ("fractional_factorial", "taguchi") else FACTORS
     result = api.ok("api_make_design", {"design_type": design_type, "factors": factors, "budget": 14, "n_blocks": 2})
     assert sorted(set(run_sheet(result)["Block"])) == [1, 2]
 

@@ -168,7 +168,7 @@ export function analysisModel(designModel, aim, fits, factors) {
 }
 
 /** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
-export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman"];
+export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman", "taguchi"];
 
 /**
  * The design the page holds but does not make, as bootstrap.GIVEN names it: runs taken as they are

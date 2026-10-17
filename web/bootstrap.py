@@ -50,6 +50,7 @@ from process_improve.experiments import (
     rename_factors,
     separating_constraint,
 )
+from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
@@ -101,6 +102,17 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 2,
         "max_factors": 11,
+    },
+    "taguchi": {
+        "label": "Taguchi orthogonal array",
+        "hint": (
+            "Main effects in a standard array of 4 to 36 runs, and at three levels each numeric factor's square; "
+            "interactions are aliased with them. A categorical factor stays at its two levels."
+        ),
+        "model": "main_effects",
+        "options": ["n_levels", "n_replicates", "n_blocks"],
+        "min_factors": 2,
+        "max_factors": 12,
     },
     "dsd": {
         "label": "Definitive screening (DSD)",
@@ -184,8 +196,25 @@ MAX_REPLICATES = 10
 MAX_BLOCKS = 8
 
 #: The designs that take a categorical factor, one whose two levels are labels (supplier A and B):
-#: the two-level designs, which need only the two levels of each factor.
-CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman")
+#: the two-level designs, which need only the two levels of each factor, and the Taguchi arrays,
+#: which give a categorical factor a two-level column beside the numeric factors' columns.
+CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman", "taguchi")
+
+#: The levels a Taguchi array can run each numeric factor at: low and high, or low, centre and high.
+#: The array is the smallest standard one with a column for every factor (``dispatch_taguchi``).
+TAGUCHI_LEVELS = (2, 3)
+
+#: The model a Taguchi array at three levels is made for: the main effects and each numeric factor's
+#: square, Taguchi's additive model at three levels. The comparison names it so too; the page fits it as
+#: the list of its terms, and the reader does not choose it by name.
+MAIN_QUADRATIC = "main_quadratic"
+
+#: What the analysis of a Taguchi array says once, unless the model fitted holds interactions: what the array
+#: estimates, the main effects or the main effects and squares, and that the interactions are aliased with them.
+TAGUCHI_NOTE = (
+    "An orthogonal array estimates the {estimates}; the interactions are aliased with them, in full or in part, "
+    "so a large effect may belong to an interaction."
+)
 
 #: The most limits a study can have on its settings. The optimal designs take the corners of the region the
 #: limits leave as candidate runs, and with 8 limits in 8 factors those are still quick to find in the browser.
@@ -746,16 +775,15 @@ def make_design(spec: dict) -> dict:
         verb = "is" if len(labelled) == 1 else "are"
         raise ValueError(
             f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
-            "categorical: choose a full factorial, fractional factorial or Plackett-Burman design."
+            "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design."
         )
     response = _response_name(str(spec.get("response") or "y").strip(), factors)
     described = _described(spec)
 
     kwargs = _design_options(spec, design_type)
+    made, asked = _library_arguments(factors, kwargs)
     # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
-    result = generate_design(
-        factors, design_type=design_type, **kwargs, **({"constraints": expressions} if limits else {})
-    )
+    result = generate_design(made, design_type=design_type, **asked, **({"constraints": expressions} if limits else {}))
 
     # The library returns the runs already randomised, and ``run_order[i]`` is the
     # standard-order position of its i-th run: the sheet keeps the rows as they come.
@@ -772,13 +800,15 @@ def make_design(spec: dict) -> dict:
         "design_type": design_type,
         "factors": [_factor_spec(f) for f in factors],
         "response": response,
-        "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution),
+        "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution, made),
         "options": kwargs,
         **described,
         **({"constraints": limits} if limits else {}),
     }
     coded = _coded(runs, stored["factors"])
     facts = _design_facts(result, coded.to_numpy(dtype=float), names, kwargs)
+    if array := (result.metadata or {}).get("orthogonal_array"):
+        facts["notes"].insert(0, _array_sentence(array, stored["model"]))
     if region is not None:
         if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
             raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
@@ -999,15 +1029,58 @@ def _check_factor_count(design_type: str, n_factors: int) -> None:
         )
 
 
-def _designed_model(design_type: str, resolution: int | None) -> str:
+def _designed_model(design_type: str, resolution: int | None, factors: list[Factor]) -> str:
     """Name the model a design is analysed with when the reader does not choose one.
 
     A fraction keeps two-factor interactions clear of main effects and of each other
-    only from resolution V, so below that it is analysed for its main effects.
+    only from resolution V, so below that it is analysed for its main effects. A Taguchi
+    array estimates the main effects, and with a numeric factor at three levels (``factors``
+    as the library made the design) each numeric factor's square too.
     """
     if design_type == "fractional_factorial" and (resolution or 0) >= INTERACTIONS_CLEAR_FROM:
         return "interactions"
+    if design_type == "taguchi" and any(f.type != "categorical" and f.levels for f in factors):
+        return MAIN_QUADRATIC
     return DESIGNS[design_type]["model"]
+
+
+def _library_arguments(factors: list[Factor], kwargs: dict[str, Any]) -> tuple[list[Factor], dict[str, Any]]:
+    """Return the factors and keyword arguments ``generate_design`` takes for a design's page options.
+
+    The options are what the specification stores. Each one is a keyword argument of the
+    library but ``n_levels``, a Taguchi array's levels: at three, each numeric factor is given
+    its low, centre and high values as its ``levels``, which the library reads as a
+    three-level factor, and a categorical factor keeps its two labels.
+    """
+    asked = {key: value for key, value in kwargs.items() if key != "n_levels"}
+    if kwargs.get("n_levels", TAGUCHI_LEVELS[0]) == TAGUCHI_LEVELS[0]:  # the low and the high, as every design here
+        return factors, asked
+    made = []
+    for f in factors:
+        if f.type == "categorical":
+            made.append(f)
+            continue
+        low, high = float(f.low), float(f.high)  # type: ignore[arg-type]
+        made.append(Factor(name=f.name, low=low, high=high, units=f.units, levels=[low, (low + high) / 2, high]))
+    return made, asked
+
+
+def _array_sentence(name: str, model: str) -> str:
+    """Say which orthogonal array a Taguchi design is, its runs, and what it estimates: ``Taguchi L12 (2^11): ...``.
+
+    The array is written from its columns' level counts, as Taguchi writes it: the library keeps
+    names that do not always describe the array (its L27 is all three-level), and its six-level
+    column holds a two-level and a three-level column, as Taguchi writes the L18 as ``2^1 3^7``.
+    """
+    array = orthogonal_array(name)
+    counts: dict[int, int] = {}
+    for column in range(array.shape[1]):
+        n = int(array[:, column].max()) + 1
+        for part in (2, 3) if n == 6 else (n,):  # a six-level column is a 2-level and a 3-level one
+            counts[part] = counts.get(part, 0) + 1
+    columns = " ".join(f"{n}^{c}" for n, c in sorted(counts.items()))
+    estimates = "main effects and squares" if model == MAIN_QUADRATIC else "main effects"
+    return f"Taguchi L{len(array)} ({columns}): {len(array)} runs, {estimates}."
 
 
 def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
@@ -1024,6 +1097,8 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
         kwargs["cube"] = "fractional"
     if "resolution" in allowed:
         kwargs["resolution"] = _resolution(spec, n_factors)
+    if "n_levels" in allowed and (levels := _levels(spec)) != TAGUCHI_LEVELS[0]:
+        kwargs["n_levels"] = levels
     if "model_type" in allowed:
         model_type = spec.get("model_type", "quadratic")
         if model_type not in MODELS:
@@ -1059,6 +1134,14 @@ def _replicates(spec: dict) -> int:
     if replicates is None or replicates != int(replicates) or not 1 <= replicates <= MAX_REPLICATES:
         raise ValueError(f"Replicates must be a whole number from 1 to {MAX_REPLICATES}.")
     return int(replicates)
+
+
+def _levels(spec: dict) -> int:
+    """Read the levels a Taguchi array runs each numeric factor at: one of :data:`TAGUCHI_LEVELS`."""
+    levels = _number(spec.get("n_levels", TAGUCHI_LEVELS[0]))
+    if levels not in TAGUCHI_LEVELS:
+        raise ValueError("A Taguchi array runs each numeric factor at 2 levels or at 3 on this page.")
+    return int(levels)  # type: ignore[arg-type]
 
 
 def _blocks(spec: dict) -> int:
@@ -1290,6 +1373,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     factors = spec["factors"]
     names = [f["name"] for f in factors]
     categorical = _categorical_names(spec)
+    name = _model_name(model)
     model = _checked_model(model, names, categorical)
     blocked = _blocked(spec)
     missing_cols = [c for c in [*names, *([BLOCK] if blocked else []), response] if c not in runs.columns]
@@ -1305,7 +1389,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     if pending and done.sum() < n_terms:
         complete = int(done.sum())
         raise ValueError(
-            f"The {_model_name(model)} model has {n_terms} coefficients, so it needs at least {n_terms} "
+            f"The {name} model has {n_terms} coefficients, so it needs at least {n_terms} "
             f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
             f"Still to run: {', '.join(map(str, pending))}."
         )
@@ -1330,6 +1414,12 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     if truth:
         _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, names))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
+    notes = fit["notes"]
+    terms = _model_terms(model, names, categorical)
+    if spec["design_type"] == "taguchi" and not any(":" in term for term in terms):
+        # A model with interactions has the alias chains' note instead.
+        estimates = "main effects and squares" if any(term.startswith("I(") for term in terms) else "main effects"
+        notes = [TAGUCHI_NOTE.format(estimates=estimates), *notes]
     return {
         "spec": spec,
         "model": model if isinstance(model, str) else CHOSEN,
@@ -1342,7 +1432,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         "lack_of_fit": out.get("lack_of_fit"),
         "lenth": lenth,
         "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
-        "notes": fit["notes"],
+        "notes": notes,
         "equation": _equation(_response_words(spec)[0], [c for c in coefficients if not c["block"]]),
     }
 
@@ -1542,9 +1632,15 @@ def _saturated(  # noqa: PLR0913 - the fit, and how the page names its terms
 
 
 def _checked_model(model: object, names: list[str], categorical: tuple[str, ...] = ()) -> str | list[str]:
-    """Read the model to fit: the name of one in :data:`MODELS`, or ``{"terms": [...]}``, the terms a reader chose."""
+    """Read the model to fit: the name of one in :data:`MODELS`, or ``{"terms": [...]}``, the terms a reader chose.
+
+    A design can also be made for :data:`MAIN_QUADRATIC`, which the reader does not choose by name: it
+    is fitted as the list of its terms, the main effects and each numeric factor's square.
+    """
     if isinstance(model, dict) and set(model) == {"terms"}:
         return _chosen_terms(model["terms"], names, categorical)
+    if model == MAIN_QUADRATIC:
+        return _model_terms(MAIN_QUADRATIC, names, categorical)
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     return str(model)
@@ -1577,8 +1673,10 @@ def _chosen_terms(chosen: object, names: list[str], categorical: tuple[str, ...]
     return list(dict.fromkeys(terms))
 
 
-def _model_name(model: str | list[str]) -> str:
+def _model_name(model: object) -> str:
     """Name a model in a sentence: ``main effects``, ``quadratic``, or ``chosen`` for terms a reader chose."""
+    if model == MAIN_QUADRATIC:
+        return "main effects and squares"
     return model.replace("_", " ") if isinstance(model, str) else CHOSEN
 
 
@@ -1592,7 +1690,7 @@ def _model_terms(model: str | list[str], names: list[str], categorical: tuple[st
     terms = list(names)
     if model in ("interactions", "quadratic"):
         terms += [":".join(pair) for pair in itertools.combinations(names, 2)]
-    if model == "quadratic":
+    if model in ("quadratic", MAIN_QUADRATIC):
         terms += [f"I({name} ** 2)" for name in names if name not in categorical]
     return terms
 
@@ -1759,7 +1857,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     factors = _factors(spec)
     response = _response_name(str(spec.get("response") or ""), factors)
     model = spec.get("model") or DESIGNS.get(spec["design_type"], {}).get("model", MODELS[0])
-    if model not in MODELS:
+    if model not in (*MODELS, MAIN_QUADRATIC):  # the second, a model a design is made for: see _checked_model
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
     options = spec.get("options") or {}
     if not isinstance(options, dict):
@@ -2271,6 +2369,7 @@ COMPARE_OPTIONS: dict[str, dict[str, Any]] = {
     "full_factorial": {"n_center_points": 3},
     "fractional_factorial": {"n_center_points": 3},
     "plackett_burman": {"n_center_points": 3},
+    "taguchi": {},
     "dsd": {"n_center_points": 3},
     "box_behnken": {"n_center_points": 3},
     "ccd": {"n_center_points": 3, "alpha": "face_centered"},
@@ -2287,11 +2386,16 @@ OPTIMAL_MODEL = {
     "quadratic": "quadratic",
 }
 
+#: The models a Taguchi array is compared at three levels for: those with squares, which two levels cannot estimate.
+#: A model without squares is compared on the array at two levels, the page's default.
+TAGUCHI_THREE_LEVELS = ("main_quadratic", "quadratic")
+
 #: Each design's name as a comparison's column heading, short as the book writes them.
 COMPARE_LABELS = {
     "full_factorial": "Full factorial",
     "fractional_factorial": "Fractional factorial",
     "plackett_burman": "Plackett-Burman",
+    "taguchi": "Taguchi",
     "dsd": "DSD",
     "box_behnken": "Box-Behnken",
     "ccd": "CCD",
@@ -2311,7 +2415,8 @@ def compare_plan(request: dict) -> dict:
     """List the designs a comparison for these factors includes, each as ``make_design`` takes it.
 
     Every design the factor count allows is included, with the page's default options;
-    the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`).
+    the optimal designs are built for the comparison's model (see :data:`OPTIMAL_MODEL`), and
+    a Taguchi array runs its numeric factors at three levels for a model with squares.
     The response is the reader's, so a design taken into the plan keeps it. A comparison has
     no results, so when that name is blank or a factor's, the first of y, y1, y2, ... that
     no factor takes stands in. With limits on the settings (``constraints``), only the designs
@@ -2341,6 +2446,8 @@ def compare_plan(request: dict) -> dict:
         options = dict(COMPARE_OPTIONS[design_type])
         if "model_type" in info["options"]:
             options["model_type"] = OPTIMAL_MODEL[model]
+        if "n_levels" in info["options"] and model in TAGUCHI_THREE_LEVELS:
+            options["n_levels"] = TAGUCHI_LEVELS[-1]
         spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
         if limits:
             spec["constraints"] = limits
