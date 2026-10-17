@@ -1310,6 +1310,51 @@ def test_canonical_key_fallback_is_run_order_invariant_and_scores_the_same(monke
         )
 
 
+def test_canonical_form_is_one_array_for_every_equivalent_design() -> None:
+    """Equivalent designs give the same array, which is a transformed copy of the design and spells its key."""
+    rng = np.random.default_rng(5)
+    pool = omars_ilp._half_pool(4)
+    weights = 3 ** np.arange(3, -1, -1)
+    for _ in range(10):
+        design = omars_ilp._foldover(pool[rng.choice(len(pool), size=8, replace=False)])
+        form = omars_ilp._canonical_form(design)
+        assert all(np.array_equal(omars_ilp._canonical_form(other), form) for other in _equivalent_forms(design, rng))
+        assert omars_ilp._canonical_key(form) == omars_ilp._canonical_key(design)
+        assert np.all(np.diff(form @ weights) >= 0)  # the runs are sorted by code
+        assert omars_ilp._a_optimality(form, "main_quadratic") == pytest.approx(
+            omars_ilp._a_optimality(design, "main_quadratic")
+        )
+
+
+def test_exhaustive_winner_is_returned_in_canonical_form() -> None:
+    """Equivalent designs tie exactly, so rounding must not pick the orientation, which is the same on every platform.
+
+    Only the run order is randomised: sorted by run code, the design is its canonical form.
+    """
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(4), n_runs=13, model="main_quadratic", selection_criterion="a_optimal")
+    assert result.metadata["search_mode"] == "exhaustive"
+    coded = _coded(result)
+    in_code_order = coded[np.argsort(coded @ 3 ** np.arange(3, -1, -1))]
+    assert in_code_order.tolist() == [
+        [-1, -1, -1, 0],
+        [-1, 0, 1, -1],
+        [-1, 1, 0, 1],
+        [0, -1, 1, 1],
+        [0, 0, -1, 0],
+        [0, 0, 0, -1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+        [0, 1, -1, -1],
+        [1, -1, 0, -1],
+        [1, 0, -1, 1],
+        [1, 1, 1, 0],
+    ]
+    assert np.array_equal(in_code_order, omars_ilp._canonical_form(coded))
+
+
 def _candidate(d: float, corr: float, a: float = 1.0) -> omars_ilp._Candidate:
     return omars_ilp._Candidate(np.zeros((1, 3)), 17, [], d, a, corr, "Optimal")
 
