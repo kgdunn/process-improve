@@ -139,6 +139,8 @@ import {
   leftOutSentences,
   pickCandidate,
   pickSentence,
+  pastedCells,
+  placePasted,
   positional,
   powerScale,
   proportionValue,
@@ -1917,15 +1919,60 @@ function renderRuns() {
     state.results[name][i] = input.value === "" ? null : Number(input.value);
     state.marks[name][i] = input.value === "" ? null : "entered";
     input.classList.remove("sim");
-    describeSource();
-    renderTruth();
-    showResultsCode();
-    renderBadges();
-    scheduleAnalysis();
-    scheduleSave();
+    resultsChanged();
   };
+  t.onpaste = pasteResults;
   describeSource();
   renderBadges();
+}
+
+/** Follow results typed or pasted into the run sheet: where they came from, the code, the badges, the analysis. */
+function resultsChanged() {
+  describeSource();
+  renderTruth();
+  showResultsCode();
+  renderBadges();
+  scheduleAnalysis();
+  scheduleSave();
+}
+
+/** The run sheet as a pasted block is placed on it (logic.js placePasted): its run numbers, rows as shown, responses. */
+function pasteSheet() {
+  const d = state.design;
+  const runAt = d.columns.indexOf("Run order");
+  const shown = [...$("#design-table").querySelectorAll("tbody tr")].map((tr) => tr.querySelector("input[data-index]"));
+  return {
+    runs: d.rows.map((row, i) => (runAt >= 0 ? row[runAt] : i + 1)),
+    order: shown.filter(Boolean).map((input) => Number(input.dataset.index)),
+    names: resultNames(),
+    labels: Object.fromEntries(resultNames().map((name) => [name, wordsOf(name).label])),
+  };
+}
+
+/**
+ * Take a block of results pasted into a box of the run sheet, as a spreadsheet copies it (logic.js placePasted): in
+ * place, down from the box and across the responses, or matched to the runs by their run numbers or a Run order
+ * heading. A block that does not fit is not pasted at all, and the status line says why.
+ */
+function pasteResults(e) {
+  const input = e.target.closest("input[data-index]");
+  if (!input) return;
+  e.preventDefault(); // a number box would drop a block, or a value written 2,5
+  const at = { index: Number(input.dataset.index), name: input.dataset.response };
+  const placed = placePasted(pastedCells(e.clipboardData?.getData("text/plain") ?? ""), pasteSheet(), at);
+  if (placed.problem) {
+    setStatus(placed.problem, "error");
+    return;
+  }
+  for (const { index, name, value } of placed.values) {
+    state.results[name][index] = value;
+    state.marks[name][index] = "entered";
+    const box = $("#design-table").querySelector(`input[data-index="${index}"][data-response="${CSS.escape(name)}"]`);
+    box.value = String(value);
+    box.classList.remove("sim");
+  }
+  if (placed.values.length) resultsChanged();
+  if (placed.values.length !== 1) setStatus(placed.said); // one value is a box's own paste, and says nothing
 }
 
 /**
@@ -1958,7 +2005,7 @@ function describeSource() {
     const done = state.results[name].filter((v) => v !== null).length;
     const simulated = state.marks[name].filter((s) => s === "simulated").length;
     const { label, units } = responseWords();
-    let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made.`;
+    let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made, or paste them from a spreadsheet.`;
     if (simulated && sim) {
       text =
         `${simulated} of ${n} results simulated from "${sim.label}" (noise ${sim.sigma}${units ? ` ${units}` : ""}, ` +
@@ -1974,7 +2021,7 @@ function describeSource() {
     ? `${done} of ${n} runs have every result in.`
     : anyResult(state.results)
       ? `No run has every result in yet: ${listNames(labels)} each have a column.`
-      : `No results yet: type them into the ${listNames(labels)} columns as the runs are made.`;
+      : `No results yet: type them into the ${listNames(labels)} columns as the runs are made, or paste them from a spreadsheet.`;
   if (simulated && sim) {
     text =
       `${simulated} of ${n} runs' results simulated from "${sim.label}", each response from a process of its own ` +

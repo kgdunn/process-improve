@@ -48,6 +48,9 @@ import {
   percent,
   pickCandidate,
   pickSentence,
+  pastedCells,
+  pastedNumber,
+  placePasted,
   leftOutSentences,
   standouts,
   responseProblems,
@@ -1097,5 +1100,82 @@ describe("a mixture's components", () => {
     assert.match(mixtureProblem(heavy, "extreme_vertices", ""), /^The lower proportions sum to 1.2, and must sum to less than 1/);
     const light = blank.map((f) => ({ ...f, high: 1 / 3 }));
     assert.match(mixtureProblem(light, "extreme_vertices", ""), /^The upper proportions sum to 1, and must sum to more than 1/);
+  });
+});
+
+describe("results pasted from a spreadsheet", () => {
+  // Five runs, listed as made but sorted on the sheet by their Std order: row 0 is run 3, row 1 run 1, and so on.
+  const sheet = {
+    runs: [3, 1, 5, 2, 4],
+    order: [1, 3, 0, 4, 2],
+    names: ["y", "cost"],
+    labels: { y: "Yield", cost: "Cost" },
+  };
+  const paste = (text, at = { index: 1, name: "y" }) => placePasted(pastedCells(text), sheet, at);
+  const of = (placed) => placed.values.map(({ index, name, value }) => `${name}[${index}]=${value}`);
+
+  test("a block is a line a row and a tab between cells, as a spreadsheet copies it", () => {
+    assert.deepEqual(pastedCells("1\t2\r\n3\t 4 \n\n"), [["1", "2"], ["3", "4"]]);
+  });
+
+  test("a cell reads as a number however a spreadsheet writes it, a blank as none", () => {
+    assert.deepEqual(["2.5", "2,5", " 1 234,5 ", "\u22121.5", "1e3", "", "n/a", "1,234.5", "1,2,3"].map(pastedNumber), [
+      2.5, 2.5, 1234.5, -1.5, 1000, null, undefined, undefined, undefined,
+    ]);
+  });
+
+  test("a column goes in place, down the sheet as it is shown, from the box pasted into", () => {
+    const placed = paste("61.2\n62,5\n63");
+    assert.deepEqual(of(placed), ["y[1]=61.2", "y[3]=62.5", "y[0]=63"]);
+    assert.equal(placed.said, "Pasted 3 results of Yield, down the run sheet from run 1.");
+  });
+
+  test("two columns go across the responses from the one pasted into, and a blank cell leaves a result as it is", () => {
+    assert.deepEqual(of(paste("61\t9\n\t8")), ["y[1]=61", "cost[1]=9", "cost[3]=8"]);
+  });
+
+  test("a first column of run numbers matches each line to its run, whatever the order", () => {
+    const placed = paste("5\t70\n2\t71");
+    assert.deepEqual(of(placed), ["y[2]=70", "y[3]=71"]);
+    assert.equal(placed.said, "Pasted 2 results of Yield, matched to the runs by the run numbers in the first column.");
+  });
+
+  test("headings name the columns: Run order matches the runs, a response's name or column its results", () => {
+    const placed = paste("Std order\tRun order\tT\tCost ($/kg)\tYield [%]\n1\t4\t150\t9.5\t60\n2\t1\t200\t8.5\t65");
+    assert.deepEqual(of(placed), ["cost[4]=9.5", "y[4]=60", "cost[1]=8.5", "y[1]=65"]);
+    assert.equal(placed.said, "Pasted 4 results of Yield and Cost, matched to the runs by the Run order column.");
+    assert.deepEqual(of(paste("y\n50\n51", { index: 0, name: "cost" })), ["y[0]=50", "y[4]=51"], "no Run order: in place");
+  });
+
+  test("a block that does not fit is refused whole, saying where", () => {
+    assert.equal(
+      paste("1\n2\n3\n4\n5\n6").problem,
+      "You pasted 6 lines, and the run sheet shows 5 runs from the one pasted into down. Nothing was pasted.",
+    );
+    assert.equal(
+      paste("61\t2\t3").problem,
+      "You pasted 3 columns of results, and the run sheet has 2 from Yield on. Nothing was pasted.",
+    );
+    assert.equal(
+      paste("1\t60\t9\t2").problem,
+      "You pasted 3 columns of results, and the run sheet has 2 from Yield on. Nothing was pasted.",
+      "after a first column of run numbers",
+    );
+    assert.equal(paste("Run\tYield\n9\t60").problem, "Line 2 of what you pasted is for run 9, which the run sheet does not have. Nothing was pasted.");
+    assert.equal(paste("Run\tYield\n2\t60\n2\t61").problem, "Line 3 of what you pasted is for run 2 again. Nothing was pasted.");
+    assert.equal(paste("60\nabout 61").problem, 'Line 2 of what you pasted holds "about 61", which is not a number. Nothing was pasted.');
+    assert.equal(
+      paste("Temperature\tPressure\n1\t2").problem,
+      "No heading of what you pasted names a response of the run sheet: Yield and Cost. Nothing was pasted.",
+    );
+  });
+
+  test("run numbers that are not all on the sheet read as results instead", () => {
+    assert.deepEqual(of(paste("7\t1\n8\t2")), ["y[1]=7", "cost[1]=1", "y[3]=8", "cost[3]=2"]);
+  });
+
+  test("a block of blanks pastes nothing, and says so", () => {
+    assert.deepEqual(paste("\t\n\t"), { values: [], said: "Nothing to paste: every cell was blank." });
+    assert.deepEqual(paste(""), { values: [], said: "Nothing to paste: every cell was blank." });
   });
 });
