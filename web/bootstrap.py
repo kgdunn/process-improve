@@ -49,6 +49,7 @@ from process_improve.experiments import (
     rename_factors,
     separating_constraint,
 )
+from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
@@ -3350,6 +3351,7 @@ class _FittedModel:
         from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
         self.out = fit["out"]
+        self.formula = fit["formula"]
         self.names = names
         self.terms = [c["term"] for c in self.out["coefficients"]]
         self.beta = np.array([c["coefficient"] for c in self.out["coefficients"]], dtype=float)
@@ -3917,6 +3919,364 @@ def _confirmation(runs: pd.DataFrame, spec: dict, fitted: _FittedModel) -> list[
     return out
 
 
+# --------------------------------------------------------------------------- the settings that balance the responses
+#: The importance a response has in the overall desirability unless the reader sets it: the middle of 1 to 5, so a
+#: response can count more, or less, than the others.
+IMPORTANCE = 3
+
+#: The importances the reader can give a response, from least to most.
+IMPORTANCES = (1, 2, 3, 4, 5)
+
+#: How strongly the good end of a response's acceptable range counts: the exponent of its desirability's ramp. At 1,
+#: the desirability rises in a straight line across the range; above 1, a result counts well only near the good
+#: end; below 1, most of the range counts nearly as well as the good end. The page offers these, by its words.
+SHAPES = {"less": 0.5, "even": 1.0, "more": 2.0, "much_more": 4.0}
+
+#: The shape a response's desirability has unless the reader chooses another.
+SHAPE = "even"
+
+#: How many points each axis of the overlay of the acceptable ranges has.
+OVERLAY_POINTS = 51
+
+#: The share of a response's results' size a range takes when every result is the same, so it is still a range.
+FLAT_RANGE = 0.1
+
+#: What the library's desirability takes of a goal.
+DESIRABILITY_KEYS = ("response", "goal", "target", "low", "high", "weight", "importance")
+
+
+def balance(request: dict) -> dict:
+    """Find the settings that balance the responses with a goal, by their overall desirability, on the fitted models.
+
+    Each response with a goal (maximise, minimise, or a target typed) is fitted with its own model
+    (``models``, by its column; the design's without one) to the runs that have its result. Its goal
+    becomes a Derringer-Suich desirability d, from 0 (not acceptable) to 1 (as good as it gets), over
+    an acceptable range (``low`` to ``high``), with an ``importance`` from 1 to 5 and a ``shape``, how
+    strongly the good end counts (see :data:`SHAPES`). ``goals`` holds the reader's, by its column; a
+    part left out takes its default (see :func:`_balance_goal`). The overall desirability D is the
+    geometric mean of the d's, each weighted by its importance.
+
+    The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
+    and every model, over the numeric factors' ranges and inside the limits on the settings, each
+    categorical factor held at each of its levels as for the best settings (see :func:`_balance_search`).
+
+    The reply lists each response's goal, as used and as the defaults would have it; the settings,
+    coded and in their own units, with ``confirm_at`` rounded for the plant; at them, each response's
+    prediction with its 95% confidence and prediction intervals, its d, and D; the response that holds D
+    down most (``limiting``); the leverage there against the runs' for the model that leans furthest;
+    the limits the settings are on; the confirmation runs judged response by response; the
+    ``overlay`` of the acceptable ranges over two factors (see :func:`_overlay`); and ``search``, what
+    the code the page shows needs. With fewer than two responses with a goal, it says so and holds no more.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    every_run = _runs_frame(request, whole)
+    design = _design_runs(every_run)
+    aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
+    if len(aimed) < 2:  # two responses or more are balanced
+        return {"balanced": False, "aimed": [r["name"] for r in aimed]}
+    names = [f["name"] for f in whole["factors"]]
+    categorical = _categorical_names(whole)
+    raw_goals = request.get("goals") or {}
+    raw_models = request.get("models") or {}
+    if not isinstance(raw_goals, dict) or not isinstance(raw_models, dict):
+        raise ValueError("The page sent goals for the responses this page did not write.")  # noqa: TRY004
+    fits: dict[str, _FittedModel] = {}
+    goals: list[dict[str, Any]] = []
+    for r in aimed:
+        spec = _for_response(whole, r["name"])
+        model = _checked_model(raw_models.get(r["name"]) or spec["model"], names, categorical)
+        results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
+        if results.empty:
+            raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
+        fits[r["name"]] = _fitted(design, spec, model)
+        goals.append(_balance_goal(r, results, raw_goals.get(r["name"])))
+    region = _spec_region(whole)
+    found = _balance_search(fits, goals, whole, region)
+    point = _full_point(whole, found["x"], found["levels"])
+    responses = _balanced_responses(aimed, goals, fits, point)
+    weights = [g["importance"] for g in goals]
+    composite = float(composite_desirability([r["d"] for r in responses], weights))
+    share = [r["d"] ** (w / sum(weights)) for r, w in zip(responses, weights, strict=True)]
+    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], names) for fit in fits.values()))
+    numeric = [f for f in whole["factors"] if not _categorical(f)]
+    still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
+    return {
+        "balanced": True,
+        "aimed": [r["name"] for r in aimed],
+        "responses": responses,
+        "composite": composite,
+        "limiting": responses[int(np.argmin(share))]["name"],
+        "coded": point,
+        "settings": _settings_reply(whole, point, in_model, still, 1.0),
+        "leverage": leaning["leverage"],
+        "max_leverage": leaning["max_leverage"],
+        "leverage_of": leaning["name"],
+        "extrapolating": any(r["extrapolating"] for r in responses),
+        "limits": _limits_on(whole, region, found["x"], still, 1.0),
+        "confirm_at": _practical(whole, point, region),
+        "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
+        "overlay": _overlay(whole, found, goals, region),
+        "search": {"held": found["held"], "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+    }
+
+
+def _words(response: dict) -> str:
+    """Name a response as the reader does: its label, else its column."""
+    return response.get("label") or response["name"]
+
+
+def _balance_goal(response: dict, results: pd.Series, raw: object) -> dict[str, Any]:
+    """Return a response's desirability goal: the reader's acceptable range, importance and shape, else the defaults.
+
+    The default range is the results' own, the least to the greatest: for a response to maximise, the
+    worst result scores 0 and the best 1, and for one to minimise the other way round. For a target it
+    is centred on the target and reaches the result farthest from it, so every result is inside it. A
+    range the results cannot span, all of them alike, is widened by :data:`FLAT_RANGE` of their size.
+    ``default_low`` and ``default_high`` keep the defaults beside the range used.
+    """
+    least, most = float(results.min()), float(results.max())
+    if most - least <= ROUND_OFF * max(abs(least), abs(most), 1.0):
+        spread = FLAT_RANGE * max(abs(least), 1.0)
+        least, most = least - spread, most + spread
+    goal = response["goal"]
+    if goal == "target":
+        target = float(response["target"])
+        half = max(target - least, most - target, (most - least) / 2)
+        least, most = target - half, target + half
+    if raw is not None and not isinstance(raw, dict):
+        raise ValueError("The page sent goals for the responses this page did not write.")
+    raw = raw or {}
+    words = _words(response)
+    low = least if raw.get("low") is None else _number(raw["low"])
+    high = most if raw.get("high") is None else _number(raw["high"])
+    if low is None or high is None or not low < high:
+        raise ValueError(f"The acceptable range of {words} must run from a lower value to a higher one.")
+    if goal == "target" and not low < response["target"] < high:
+        raise ValueError(f"The target of {words}, {response['target']:g}, must lie inside its acceptable range.")
+    importance = raw.get("importance", IMPORTANCE)
+    if isinstance(importance, bool) or importance not in IMPORTANCES:
+        raise ValueError(f"The importance of {words} must be a whole number from 1 to 5.")
+    shape = raw.get("shape", SHAPE)
+    if shape not in SHAPES:
+        raise ValueError(f"The shape of {words}'s desirability must be one the page offers.")
+    return {
+        "response": response["name"],
+        "goal": goal,
+        **({"target": float(response["target"])} if goal == "target" else {}),
+        "low": float(low),
+        "high": float(high),
+        "weight": SHAPES[shape],
+        "importance": int(importance),
+        "shape": shape,
+        "default_low": least,
+        "default_high": most,
+    }
+
+
+def _desirability_of(goal: dict) -> dict[str, Any]:
+    """Return a goal as the library's desirability takes it, without the page's own keys."""
+    return {key: goal[key] for key in DESIRABILITY_KEYS if key in goal}
+
+
+def _balance_search(
+    fits: dict[str, _FittedModel], goals: list[dict], spec: dict, region: DesignRegion | None
+) -> dict[str, Any]:
+    """Find the settings with the best overall desirability: the numeric factors coded, each categorical one's level.
+
+    Each categorical factor some model holds is held at each of its levels, and the block contrasts at 0,
+    the average block, as for the best settings (see :func:`_search`): every combination of levels is
+    judged at a sample of settings, and the :data:`SEARCHED_LEVELS` best are searched in full with the
+    library's optimiser. Returns ``x``, ``levels``, ``held``, each response's ``models`` with the levels
+    held, and ``D``.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
+
+    names = [f["name"] for f in spec["factors"]]
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    numeric_names = [f["name"] for f in numeric]
+    coefficients = {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+    in_model = set().union(*(_factors_in(c, names) for c in coefficients.values()))
+    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
+    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], names)}
+    combinations = [dict(zip(labelled, v, strict=True)) for v in itertools.product((-1.0, 1.0), repeat=len(labelled))]
+    desirable = [_desirability_of(g) for g in goals]
+    weights = [g["importance"] for g in goals]
+
+    def held_models(levels: dict[str, float]) -> dict[str, list[dict]]:
+        return {name: _held_at(c, {**blocks, **levels}) for name, c in coefficients.items()}
+
+    def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
+        predicted = [_predict(models[g["response"]], numeric_names, points) for g in goals]
+        each = [[individual_desirability(float(v), g) for v in p] for p, g in zip(predicted, desirable, strict=True)]
+        return np.array([composite_desirability(list(d), weights) for d in zip(*each, strict=True)])
+
+    if len(combinations) > SEARCHED_LEVELS:
+        points = _sample(len(numeric), region)
+        scores = [float(overall(held_models(levels), points).max()) for levels in combinations]
+        combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
+    best: dict[str, Any] | None = None
+    for levels in combinations:
+        models = held_models(levels)
+        heard: list[str] = []
+        x = np.zeros(0)
+        if numeric:
+            with _listening() as heard:
+                result = optimize_responses(
+                    [{"response_name": n, "coefficients": m, "factor_names": numeric_names} for n, m in models.items()],
+                    goals=desirable,
+                    factor_ranges={f["name"]: {"low": f["low"], "high": f["high"]} for f in numeric},
+                    region=region,
+                )["desirability"]
+            x = np.array([result["optimal_coded"][n] for n in numeric_names])
+            at_end = np.abs(np.abs(x) - 1) <= 1e-9  # stopped on an end of the range, to rounding: put it there
+            x[at_end] = np.sign(x[at_end])
+        x = _unmodelled_at_centre(x, numeric_names, in_model, region)
+        value = float(overall(models, x[None, :])[0])
+        if best is None or value > best["D"] + 1e-12:
+            best = {
+                "x": x,
+                "levels": levels,
+                "held": {**blocks, **levels},
+                "models": models,
+                "D": value,
+                "heard": heard,
+            }
+    assert best is not None  # there is always one combination of levels, the empty one
+    _relay(best.pop("heard"))
+    return best
+
+
+def _balanced_responses(
+    aimed: list[dict], goals: list[dict], fits: dict[str, _FittedModel], point: dict[str, float]
+) -> list[dict[str, Any]]:
+    """Describe each response at the balanced settings: its goal, its prediction and intervals, its d and leverage."""
+    out = []
+    for r, goal in zip(aimed, goals, strict=True):
+        fit = fits[r["name"]]
+        predicted, confidence, prediction, leverage = fit.at(point)
+        out.append(
+            {
+                "name": r["name"],
+                "label": _words(r),
+                "units": r.get("units", ""),
+                **{key: value for key, value in goal.items() if key != "response"},
+                "predicted": predicted,
+                "confidence": confidence,
+                "prediction": prediction,
+                "d": float(individual_desirability(predicted, _desirability_of(goal))),
+                "leverage": leverage,
+                "max_leverage": fit.max_leverage,
+                "extrapolating": leverage > fit.max_leverage * (1 + 1e-9) + 1e-12,
+            }
+        )
+    return out
+
+
+def _balanced_confirmation(
+    runs: pd.DataFrame, spec: dict, aimed: list[dict], fits: dict[str, _FittedModel]
+) -> list[dict[str, Any]]:
+    """Judge the confirmation runs on the run sheet response by response, each against its own model.
+
+    The groups are those of :func:`_confirmation`, by their settings; each lists every balanced
+    response's verdict in ``responses``: its results' average against the prediction interval for the
+    average of that many runs.
+    """
+    judged = {r["name"]: _confirmation(runs, _for_response(spec, r["name"]), fits[r["name"]]) for r in aimed}
+    first = judged[aimed[0]["name"]]
+    keep = ("done", "mean", "predicted", "interval", "inside")
+    return [
+        {
+            "rows": group["rows"],
+            "at": group["at"],
+            "runs": group["runs"],
+            "responses": [{"name": r["name"], **{k: judged[r["name"]][i][k] for k in keep}} for r in aimed],
+        }
+        for i, group in enumerate(first)
+    ]
+
+
+def _overlay(spec: dict, found: dict, goals: list[dict], region: DesignRegion | None) -> dict[str, Any] | None:
+    """Return the overlay of the acceptable ranges over two numeric factors, the others at the balanced settings.
+
+    The two factors are those that move the responses' desirabilities most: each factor's main effects,
+    summed over the responses, each over its acceptable range's width. Over a grid of their coded
+    settings, each response's prediction (``z``) and the levels its acceptable boundary is at (``levels``:
+    the low end to maximise, the high end to minimise, both for a target); ``acceptable``, 1 where every
+    response has a desirability above 0; and ``runnable``, 1 where the limits on the settings allow the
+    setting, or None without limits. ``at`` is the balanced settings, coded; ``ticks`` mark each axis
+    with the factor's own settings; ``held`` lists the other factors at the balanced settings, in their
+    own units or levels. None when the study has fewer than two numeric factors.
+    """
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    if len(numeric) < 2:  # an overlay is over two factors
+        return None
+    names = [f["name"] for f in numeric]
+    size = dict.fromkeys(names, 0.0)
+    for goal in goals:
+        for c in found["models"][goal["response"]]:
+            if c["term"] in size:
+                size[c["term"]] += abs(c["coefficient"]) / (goal["high"] - goal["low"])
+    pair = sorted(names, key=lambda n: -size[n])[:2]
+    axis = np.linspace(-1.0, 1.0, OVERLAY_POINTS)
+    u, v = np.meshgrid(axis, axis)  # v down the rows, u across: z[row][column] as Plotly draws it
+    points = np.tile(found["x"], (u.size, 1))
+    points[:, names.index(pair[0])] = u.ravel()
+    points[:, names.index(pair[1])] = v.ravel()
+    acceptable = np.ones(u.size, dtype=bool)
+    surfaces = []
+    for goal in goals:
+        z = _predict(found["models"][goal["response"]], names, points)
+        inside, levels = _acceptable(goal, z)
+        acceptable &= inside
+        surfaces.append({"name": goal["response"], "z": _grid(z, u.shape), "levels": levels})
+    runnable = None
+    if region is not None:
+        runnable = region.feasible(points[:, [names.index(n) for n in region.names]]).astype(int)
+        runnable = runnable.reshape(u.shape).tolist()
+    factors = {f["name"]: f for f in spec["factors"]}
+    point = _full_point(spec, found["x"], found["levels"])
+    return {
+        "x": pair[0],
+        "y": pair[1],
+        "grid": axis.tolist(),
+        "ticks": {name: _ticks(factors[name]) for name in pair},
+        "responses": surfaces,
+        "acceptable": acceptable.astype(int).reshape(u.shape).tolist(),
+        "runnable": runnable,
+        "at": [point[pair[0]], point[pair[1]]],
+        "held": [
+            {"name": f["name"], "value": _in_units(f, point[f["name"]])}
+            for f in spec["factors"]
+            if f["name"] not in pair
+        ],
+    }
+
+
+def _acceptable(goal: dict, z: np.ndarray) -> tuple[np.ndarray, list[float]]:
+    """Return where a response is acceptable, a desirability above 0, and the levels its acceptable boundary is at."""
+    if goal["goal"] == "maximize":
+        return z > goal["low"], [goal["low"]]
+    if goal["goal"] == "minimize":
+        return z < goal["high"], [goal["high"]]
+    return (z > goal["low"]) & (z < goal["high"]), [goal["low"], goal["high"]]
+
+
+def _in_units(factor: dict, coded: float) -> float | str:
+    """Return a factor's coded setting in its own units, or a categorical factor's level."""
+    if _categorical(factor):
+        return factor["low"] if coded < 0 else factor["high"]
+    return (factor["low"] + factor["high"]) / 2 + coded * (factor["high"] - factor["low"]) / 2
+
+
+def _grid(values: np.ndarray, shape: tuple[int, ...]) -> list[list[float]]:
+    """Return a surface's values on its grid, rows of columns, each to six significant figures: enough to draw it."""
+    return [[float(f"{v:.6g}") for v in row] for row in values.reshape(shape)]
+
+
 # --------------------------------------------------------------------------- JSON entry points
 def api_catalogue(payload: str = "{}") -> str:
     """JSON wrapper around :func:`catalogue`."""
@@ -3986,3 +4346,8 @@ def api_limits(payload: str) -> str:
 def api_best_settings(payload: str) -> str:
     """JSON wrapper around :func:`best_settings`."""
     return _reply(best_settings, payload)
+
+
+def api_balance(payload: str) -> str:
+    """JSON wrapper around :func:`balance`."""
+    return _reply(balance, payload)

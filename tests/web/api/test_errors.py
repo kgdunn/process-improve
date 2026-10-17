@@ -109,6 +109,25 @@ def _limited(design_type: str, *limits: str) -> Callable[[Example], dict]:
     return lambda _: {"design_type": design_type, "factors": FACTORS, "constraints": sent}
 
 
+def _balanced(cost: dict | None = None, costs: list | None = None, **change: object) -> Callable[[Example], dict]:
+    """Build a balance request: the worked example's yield, and a cost measured in the same runs (``cost``)."""
+
+    def payload(ex: Example) -> dict:
+        spec = ex["held"]["spec"]
+        described = cost or {"name": "Cost", "label": "Cost", "goal": "minimize"}
+        responses = [{"name": "Yield", **spec["response_info"]}, described]
+        sent = costs if costs is not None else [20 + 0.1 * i for i in range(15)]
+        return {
+            **ex["held"],
+            "spec": {**spec, "responses": responses},
+            "responses": ex["simulated"]["responses"],
+            "more_responses": {"Cost": sent},
+            **change,
+        }
+
+    return payload
+
+
 #: A temperature, a pressure and a supplier, A or B.
 WITH_SUPPLIER = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
 
@@ -186,6 +205,39 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     # The design's settings.
     "unknown design": ("api_make_design", _make(design_type="rocket"), "Unknown design type 'rocket'."),
+    # The settings that balance the responses, and the goals the reader sets for them.
+    "goals that are not goals": (
+        "api_balance",
+        _balanced(goals="narrow"),
+        "The page sent goals for the responses this page did not write.",
+    ),
+    "an acceptable range upside down": (
+        "api_balance",
+        _balanced(goals={"Yield": {"low": 70, "high": 60}}),
+        "The acceptable range of Yield must run from a lower value to a higher one.",
+    ),
+    "a target outside its acceptable range": (
+        "api_balance",
+        _balanced(
+            {"name": "Cost", "label": "Cost", "goal": "target", "target": 21}, goals={"Cost": {"low": 0, "high": 10}}
+        ),
+        "The target of Cost, 21, must lie inside its acceptable range.",
+    ),
+    "an importance of six": (
+        "api_balance",
+        _balanced(goals={"Yield": {"importance": 6}}),
+        "The importance of Yield must be a whole number from 1 to 5.",
+    ),
+    "a shape the page does not offer": (
+        "api_balance",
+        _balanced(goals={"Cost": {"shape": "steep"}}),
+        "The shape of Cost's desirability must be one the page offers.",
+    ),
+    "a response to balance without results": (
+        "api_balance",
+        _balanced(costs=[None] * 15),
+        "Enter results for Cost first: the balance is found on each response's model.",
+    ),
     # Several responses, as the brief lists them.
     "a list of responses that is not one": (
         "api_make_design",
