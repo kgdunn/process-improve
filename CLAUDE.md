@@ -71,7 +71,7 @@ NumPy-style `Attributes` section, and any list duplicated here would rot.
   concrete estimators, not the mixins.
 - Fitted attributes use the trailing `_` convention and are set only in `fit()`, never in `__init__`
   (sklearn requires `__init__` to set only the constructor parameters).
-- `predict()` returns `sklearn.utils.Bunch` with named fields (not custom classes)
+- `diagnose()` returns `sklearn.utils.Bunch` with named fields (not custom classes); `PLS.predict` / `OPLS.predict` return a DataFrame (sklearn convention)
 - `score()` follows sklearn convention (higher is better)
 - `fit()` returns `self`
 

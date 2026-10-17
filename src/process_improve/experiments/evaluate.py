@@ -34,7 +34,7 @@ from patsy import categorical as patsy_categorical
 from patsy.design_info import DesignInfo
 from scipy import stats
 
-from process_improve._random import check_random_state, resolve_deprecated_seed
+from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
@@ -630,20 +630,6 @@ def _compute_average_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
         return {"average_prediction_variance": None, "note": "Design is rank-deficient for the specified model."}
     average, note = _region_average(ctx)
     return {"average_prediction_variance": average, **({"note": note} if note else {})}
-
-
-def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
-    """Compute the deprecated ``100 * p / (N * average prediction variance)``, which is not bounded by 100."""
-    if ctx.is_singular:
-        return {"i_efficiency": None, "note": "Design is rank-deficient for the specified model."}
-
-    avg_pv, _note = _region_average(ctx)
-
-    i_eff = 100.0 * ctx.p / (ctx.N * avg_pv) if avg_pv > 0 else None
-    return {
-        "i_efficiency": float(i_eff) if i_eff is not None else None,
-        "average_prediction_variance": avg_pv,
-    }
 
 
 def _term_order(name: str) -> int:
@@ -1507,7 +1493,6 @@ def _compute_moment_aberration(ctx: _EvalContext) -> dict[str, Any]:
 _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "d_efficiency": _compute_d_efficiency,
     "average_prediction_variance": _compute_average_prediction_variance,
-    "i_efficiency": _compute_i_efficiency,
     "g_efficiency": _compute_g_efficiency,
     "a_optimality": _compute_a_optimality,
     "e_optimality": _compute_e_optimality,
@@ -1532,23 +1517,12 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
 }
 
 #: Accepted spelling variants for the optimality-criterion metrics. The registry
-#: historically mixed suffixes (``d_efficiency`` / ``i_efficiency`` /
-#: ``g_efficiency`` versus ``a_optimality`` / ``e_optimality``), so callers who
-#: reach for the "other" suffix (a natural guess, e.g. ``d_optimality``) hit an
-#: "unknown metric" error. Each alias resolves to its canonical registry key
-#: *before* validation, so both spellings work and the returned dict still keys
-#: the result under the canonical name. Aliases are deliberately kept out of
-#: ``_METRIC_REGISTRY`` so ``metric="all"`` does not compute anything twice.
-#: Metrics kept for compatibility but left out of ``metric="all"``; asking for one warns.
-#: ``i_efficiency`` divided ``p / N`` by the average prediction variance, which, unlike
-#: D- and G-efficiency, has no upper bound of 100 (181% for a design in a small region).
-_DEPRECATED_METRICS: dict[str, str] = {
-    "i_efficiency": (
-        "metric 'i_efficiency' is deprecated since 1.97.0 and will be removed in 2.0; use "
-        "'average_prediction_variance' (the I-criterion, lower is better). The percentage was not bounded by 100."
-    ),
-}
-
+#: mixes suffixes (``d_efficiency`` / ``g_efficiency`` versus ``a_optimality`` /
+#: ``e_optimality``), so callers who reach for the "other" suffix (a natural guess,
+#: e.g. ``d_optimality``) hit an "unknown metric" error. Each alias resolves to its
+#: canonical registry key *before* validation, so both spellings work and the returned
+#: dict still keys the result under the canonical name. Aliases are deliberately kept
+#: out of ``_METRIC_REGISTRY`` so ``metric="all"`` does not compute anything twice.
 _METRIC_ALIASES: dict[str, str] = {
     "d_optimality": "d_efficiency",
     "i_optimality": "average_prediction_variance",
@@ -1560,17 +1534,14 @@ _METRIC_ALIASES: dict[str, str] = {
 
 
 def _resolve_metrics(metric: str | list[str]) -> list[str]:
-    """Return the canonical metric names asked for; warn for a deprecated one, raise for an unknown one."""
+    """Return the canonical metric names asked for; raise for an unknown one."""
     if metric == "all":
-        return [m for m in _METRIC_REGISTRY if m not in _DEPRECATED_METRICS]
+        return list(_METRIC_REGISTRY)
     # Resolve accepted spelling variants to their canonical registry keys.
     metrics = [_METRIC_ALIASES.get(m, m) for m in ([metric] if isinstance(metric, str) else metric)]
     unknown = [m for m in metrics if m not in _METRIC_REGISTRY]
     if unknown:
         raise ValueError(f"Unknown metric(s): {unknown}. Available metrics: {sorted(_METRIC_REGISTRY)}")
-    for m in metrics:
-        if m in _DEPRECATED_METRICS:
-            warnings.warn(_DEPRECATED_METRICS[m], category=DeprecationWarning, stacklevel=3)
     return metrics
 
 
@@ -1662,7 +1633,6 @@ def evaluate_design(  # noqa: PLR0913
     region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int | None = None,
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
     categorical_coding: str = "effect",
@@ -1703,13 +1673,11 @@ def evaluate_design(  # noqa: PLR0913
         unit length, so the factors' units do not count), ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
         ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
         ``"clear_effects"``, ``"minimum_aberration"``, ``"moment_aberration"``.
-        ``"i_efficiency"`` still works but is deprecated (since 1.97.0, removed in
-        2.0): it divides ``p / N`` by the average prediction variance and so is not
-        bounded by 100. ``"g_efficiency"`` is ``100 * p / (N * max d(x))``
-        (Atkinson, Donev and Tobias; Montgomery), where JMP reports its square
-        root. The optimality-criterion
-        metrics also accept the opposite suffix as an alias (e.g.
-        ``"d_optimality"`` for ``"d_efficiency"``, ``"a_efficiency"`` for
+        ``"g_efficiency"`` is ``100 * p / (N * max d(x))`` (Atkinson, Donev and
+        Tobias; Montgomery), where JMP reports its square root. The
+        optimality-criterion metrics also accept the opposite suffix as an alias
+        (e.g. ``"d_optimality"`` for ``"d_efficiency"``, ``"i_optimality"`` for
+        ``"average_prediction_variance"``, ``"a_efficiency"`` for
         ``"a_optimality"``); the result is keyed under the canonical name.
     effect_size : float or None
         Anticipated size of a model *coefficient* in coded units, for the power
@@ -1744,8 +1712,6 @@ def evaluate_design(  # noqa: PLR0913
         combination of categorical levels; for a :class:`DesignRegion`, its
         support points (extreme vertices and edge midpoints for a mixture).  They
         are used only for the maximum, not for the region average.
-    random_seed : int or None
-        Deprecated since 1.97.0 and removed in 2.0; use ``random_state``.
     fds_resolution : int or None
         Resolution of the dense FDS curve.  When *None* (default) the ``fds``
         metric returns only the coarse 11-point ``quantiles`` summary.  When set
@@ -1768,7 +1734,7 @@ def evaluate_design(  # noqa: PLR0913
         formula is sum-coded under ``"effect"``, as ``analyze_experiment`` codes blocks.
     integration : {"sample", "exact"}
         How the region average of the prediction variance (the I-criterion, in
-        ``average_prediction_variance`` and ``i_efficiency``) is worked out. ``"sample"``
+        ``average_prediction_variance``) is worked out. ``"sample"``
         (default) averages it over the uniform sample. ``"exact"`` integrates it over the
         cuboidal region by Gauss-Legendre quadrature, ``trace((X'X)^-1 W)`` with ``W`` the
         region's moment matrix: exact for a model of degree up to four in each factor, a
@@ -1851,7 +1817,7 @@ def evaluate_design(  # noqa: PLR0913
             region=region,
             n_samples=n_samples,
             include_vertices=include_vertices,
-            random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_design"),
+            random_state=random_state,
             fds_resolution=fds_resolution,
             design_type=design_type,
             categorical_coding=categorical_coding,
@@ -1886,7 +1852,6 @@ def evaluate_all(  # noqa: PLR0913
     region: str | DesignRegion | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
-    random_seed: int | None = None,
     fds_resolution: int | None = None,
     random_state: int | np.random.Generator | None = 42,
     categorical_coding: str = "effect",
@@ -1919,7 +1884,7 @@ def evaluate_all(  # noqa: PLR0913
         n_samples=n_samples,
         include_vertices=include_vertices,
         fds_resolution=fds_resolution,
-        random_state=resolve_deprecated_seed(random_state, random_seed, "evaluate_all"),
+        random_state=random_state,
         categorical_coding=categorical_coding,
         integration=integration,
         max_search=max_search,

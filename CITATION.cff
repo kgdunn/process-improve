@@ -12,8 +12,8 @@ authors:
 repository-code: "https://github.com/kgdunn/process-improve"
 url: "https://kgdunn.github.io/process-improve/"
 license: MIT
-version: 1.99.0
-date-released: "2026-10-15"
+version: 2.0.0
+date-released: "2026-10-17"
 keywords:
   - chemometrics
   - multivariate analysis

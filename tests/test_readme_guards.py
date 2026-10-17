@@ -32,8 +32,8 @@ else:  # pragma: no cover - Python 3.10 only
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-#: Extras a reader is not told to install: the contributors' tools and a deprecated empty one.
-UNDOCUMENTED_EXTRAS = {"dev", "ilp"}
+#: Extras a reader is not told to install: the contributors' tools.
+UNDOCUMENTED_EXTRAS = {"dev"}
 _PATH = r"([^\s)\"'#?<>]*)"  # a URL's path, up to a query, an anchor or the end of the link
 REPOSITORY_LINK = re.compile(
     r"https://(?:github\.com/kgdunn/process-improve/(?:blob|tree)/main|"

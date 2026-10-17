@@ -53,8 +53,6 @@ __all__ = [
     "check_predictive_signal",
     "class_enrichment",
     "count_discoveries_under_null",
-    "permutation_q2",
-    "pipeline_null",
 ]
 
 
@@ -340,12 +338,6 @@ def count_discoveries_under_null(
             Number of names selected on the real response.
         ``null_mean``, ``null_p95``
             Mean and 95th percentile of the selection count under permutation.
-        ``empirical_fdr``
-            .. deprecated:: 1.77.0
-                The old name for the ratio below, kept for one release and
-                clipped to ``[0, 1]`` as it always was. Prefer
-                ``null_to_observed_ratio``, which is unclipped. Will be removed
-                in 2.0.0.
         ``null_to_observed_ratio``
             ``null_mean / observed``; ``NaN`` when nothing was selected. Read it
             as "of the names this procedure returned, about this fraction is
@@ -416,9 +408,6 @@ def count_discoveries_under_null(
         "null_mean": null_mean,
         "null_p95": float(np.percentile(counts, 95)),
         "null_to_observed_ratio": ratio,
-        # Deprecated since 1.77.0, removed in 2.0.0: the same quantity under its
-        # old name, still clipped so an existing caller sees no change in value.
-        "empirical_fdr": float(np.clip(ratio, 0.0, 1.0)) if observed else float("nan"),
         "null_counts": counts,
         "selected": selected,
     }
@@ -525,54 +514,3 @@ def class_enrichment(
         "p_value": p_value,
         "matched": matched,
     }
-
-
-# ---------------------------------------------------------------------------
-# Deprecated aliases - removal scheduled for 2.0.0
-# ---------------------------------------------------------------------------
-
-
-def permutation_q2(
-    fit_predict: Callable,
-    x: pd.DataFrame,
-    y: pd.DataFrame,
-    n_perm: int = 500,
-    seed: int = 0,
-) -> pd.DataFrame:
-    """Forward to :func:`check_predictive_signal`; emits a :class:`DeprecationWarning`.
-
-    .. deprecated:: 1.77.0
-        Use :func:`check_predictive_signal` instead. Note the argument order
-        changed: the blocks come first and ``fit_predict`` is now optional.
-        Will be removed in 2.0.0.
-    """
-    warnings.warn(
-        "process_improve.multivariate.permutation_q2 is deprecated since 1.77.0 and will be "
-        "removed in 2.0.0; use check_predictive_signal instead. Note the argument order changed: "
-        "check_predictive_signal(x, y, fit_predict=None, ...).",
-        category=DeprecationWarning,
-        stacklevel=2,
-    )
-    return check_predictive_signal(x, y, fit_predict, n_perm=n_perm, seed=seed)
-
-
-def pipeline_null(
-    select: Callable,
-    x: pd.DataFrame,
-    y: pd.DataFrame,
-    n_perm: int = 500,
-    seed: int = 0,
-) -> dict:
-    """Forward to :func:`count_discoveries_under_null`; emits a :class:`DeprecationWarning`.
-
-    .. deprecated:: 1.77.0
-        Use :func:`count_discoveries_under_null` instead. Will be removed in
-        2.0.0.
-    """
-    warnings.warn(
-        "process_improve.multivariate.pipeline_null is deprecated since 1.77.0 and will be "
-        "removed in 2.0.0; use count_discoveries_under_null instead.",
-        category=DeprecationWarning,
-        stacklevel=2,
-    )
-    return count_discoveries_under_null(select, x, y, n_perm=n_perm, seed=seed)

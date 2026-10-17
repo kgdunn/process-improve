@@ -97,9 +97,10 @@ Pull these from `evaluate_design` when they are relevant:
 - **`vif`** and **`condition_number`** - for optimal and non-orthogonal
   designs. VIFs of 1 mean perfectly orthogonal. Above about 5 the coefficient
   estimates start blurring into each other.
-- **`d_efficiency`** / **`i_efficiency`** - for comparing optimal designs.
-  D for estimating coefficients precisely, I for predicting well across the
-  region. Optimisation usually wants I.
+- **`d_efficiency`** / **`average_prediction_variance`** - for comparing optimal
+  designs. D for estimating coefficients precisely (higher is better), I, the
+  prediction variance averaged over the region, for predicting well across it
+  (lower is better). Optimisation usually wants I.
 - **`degrees_of_freedom`** - a quick check that the design can actually fit
   the intended model. Zero residual degrees of freedom means no F-test, and
   the analysis will need Lenth's method.
@@ -131,5 +132,5 @@ mentioning when they fire:
 else with a clear message. That is not a limitation to work around: verify the
 two-level core of the design, then add center points afterwards. For
 genuinely mixed-level or response-surface designs, use `d_efficiency`,
-`i_efficiency`, `vif` and `power` instead, since resolution is not defined for
-them.
+`average_prediction_variance`, `vif` and `power` instead, since resolution is
+not defined for them.

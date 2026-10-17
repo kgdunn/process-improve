@@ -396,7 +396,7 @@ class TestCriteria:
         np.testing.assert_allclose(result.design_actual[["x1", "x2", "x3"]].sum(axis=1), 1.0)
 
     @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal"])
-    def test_random_seed_reproduces_the_design(self, design_type: str) -> None:
+    def test_random_state_reproduces_the_design(self, design_type: str) -> None:
         kwargs = {"design_type": design_type, "budget": 9, "constraints": [HEAT], "random_state": 5}
         first = generate_design([TEMP, DOSE], **kwargs)
         second = generate_design([TEMP, DOSE], **kwargs)

@@ -60,17 +60,16 @@ class AnalyzeExperimentInput(BaseModel):
         description="Optional response transform before fitting.",
     )
     coding: Literal["actual", "coded", "auto"] | dict[str, dict[str, float]] | None = Field(
-        None,
+        "auto",
         description=(
-            "Scale of the coefficients and confidence_intervals. 'actual': the factors as given. 'coded': refitted "
-            "with each factor from -1 at its lowest value to +1 at its highest. 'auto': 'coded', but 'actual' for a "
-            "mixture model. Or ranges, e.g. {'T': {'low': 150, 'high': 200}}, that map to -1 and +1, such as a "
-            "central composite design's cube levels rather than its axial runs. Omitted: 'actual' until 2.0 and "
-            "'auto' after; when that change would affect the result, it carries a coding_note saying so. Use "
-            "'auto' when the coefficients go to optimize_responses, which evaluates models at coded settings and "
-            "refuses actual-unit coefficients; coded results also carry coefficients_actual, the equation in the "
-            "factors' own units. With interactions, a coded main effect is tested at the centre of the design, "
-            "an actual one where the other factors are zero."
+            "Scale of the coefficients and confidence_intervals. 'auto' (default; null means the same): 'coded', "
+            "but 'actual' for a mixture model. 'actual': the factors as given. 'coded': refitted with each factor "
+            "from -1 at its lowest value to +1 at its highest. Or ranges, e.g. {'T': {'low': 150, 'high': 200}}, "
+            "that map to -1 and +1, such as a central composite design's cube levels rather than its axial runs. "
+            "Coded coefficients are what optimize_responses needs, since it evaluates models at coded settings "
+            "and refuses actual-unit coefficients; coded results also carry coefficients_actual, the equation in "
+            "the factors' own units. With interactions, a coded main effect is tested at the centre of the "
+            "design, an actual one where the other factors are zero."
         ),
     )
     new_points: list[dict[str, Any]] | None = Field(
@@ -135,8 +134,9 @@ class AnalyzeExperimentInput(BaseModel):
         "generalized linear models (logistic, Poisson, gamma) with Wald tests, odds ratios, goodness of fit "
         "and intervals for the fitted means. "
         "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
-        "Factor columns may be coded (-1/+1) or in actual units; for actual units, set coding='auto' to get "
-        "coefficients on the -1/+1 scale, as optimize_responses needs. "
+        "Factor columns may be coded (-1/+1) or in actual units; either way the coefficients come back on the "
+        "-1/+1 scale by default (coding='auto'), as optimize_responses needs, and coding='actual' keeps the "
+        "factors' own scale. "
         "The response can be in a separate column or included in design_matrix."
     ),
     input_model=AnalyzeExperimentInput,
@@ -155,7 +155,7 @@ class AnalyzeExperimentInput(BaseModel):
 
     # "Fit my experiment in actual units, then find the best settings"
         -> ``analyze_experiment(design_matrix=[{"T":150,"P":1,"y":10}, ...],
-                response_column="y", analysis_type="coefficients", coding="auto")``,
+                response_column="y", analysis_type="coefficients")``,
            then pass the result to ``optimize_responses``
 
     # "Analyse my split-plot experiment; temperature was hard to change"

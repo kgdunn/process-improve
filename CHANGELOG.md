@@ -11,6 +11,8 @@ those changes.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-17
+
 ### Added
 
 - **Factorial makes Taguchi orthogonal arrays.** A new design type takes 2 to 12 numeric or
@@ -703,6 +705,102 @@ those changes.
   coefficients table then shows a VIF column, defined on request, and the Python shown and the
   notebook work the VIFs out with `evaluate_design`. An orthogonal design, every VIF 1, shows
   neither.
+- **`generate_omars` returns an exhaustively searched design in one fixed orientation.** For three and
+  four factors at small run sizes the search enumerates every design and picks the best. Designs that differ
+  only in factor order and factor signs tie exactly on every criterion, so rounding in the floating-point
+  scores picked among them, and the design returned could differ between platforms. The winner is now
+  returned in its canonical orientation, which is the same on every platform. It scores as before on every
+  criterion, but its columns can be permuted and sign-flipped relative to 1.99.0.
+- **`analyze_experiment`'s `coding` defaults to `"auto"`, so coefficients on factors not already
+  coded come back on the -1/+1 scale.** The change was announced in 1.98.0. A call that passes no
+  `coding` now gets its `"coefficients"` and `"confidence_intervals"` refitted with each numeric
+  factor mapped from its minimum and maximum to -1 and +1 and each two-level categorical factor
+  from its first level to its second; in a named model a categorical factor with more levels gets
+  sum-to-zero contrasts. A main effect in a model with interactions is then tested at the centre of
+  the design, and the result is reported with `coding: "coded"`, its `factor_coding`, and the
+  equation on the factors' own scale as `coefficients_actual`. A numeric factor already coded to
+  -1/+1 is left as it is, and a Scheffe mixture model keeps `"actual"`. The other analyses do not
+  use `coding` and are unchanged.
+  - Pass `coding="actual"` to keep the old scale. `coding=None`, and a `null` in the agent tool, mean
+    `"auto"`.
+  - The `FutureWarning` and the `coding_note` key that announced the change are removed.
+
+### Deprecated
+
+- **The module-level `DEFAULT_TIMEOUT_S`, `DEFAULT_MAX_CELLS`, `DEFAULT_MAX_STRING`,
+  `DEFAULT_MAX_DEPTH` and `DEFAULT_MEMORY_MB` names in `process_improve.tool_safety` are deprecated
+  since 2.0.0 and will be removed in 3.0; use `settings.tool_timeout`, `settings.max_cells`,
+  `settings.max_string`, `settings.max_depth` and `settings.max_memory_mb` from
+  `process_improve.config`.** A read still returns the current settings value, and now issues a
+  `DeprecationWarning`. The names were marked for removal in 2.0 but never warned, so the
+  deprecation cycle starts with this release.
+
+### Removed
+
+- **`random_seed` is removed; use `random_state`.** It was deprecated since 1.97.0. Passing
+  `random_seed=` to `generate_design`, `evaluate_design`, `evaluate_all` or `generate_omars` now
+  raises `TypeError`, and the `generate_design` agent tool refuses it as an unknown key, as it
+  refuses any other. `random_state` takes an int, a `numpy.random.Generator` or `None`, and its
+  default (42) gives the same designs as before. The parameters that followed `random_seed` in
+  those signatures each move up one position.
+- **The `i_efficiency` metric of `evaluate_design` is removed; use
+  `"average_prediction_variance"`.** It was deprecated since 1.97.0. Asking for it now raises the
+  `ValueError` any unknown metric raises, which lists the metrics there are. The replacement
+  reports the I-criterion itself: the prediction variance averaged over the region, in units of
+  the error variance, where lower is better. `"i_optimality"` and `"i_criterion"` remain aliases
+  for it.
+- **`optimize_responses(..., desirability_weights=)` is removed; use `response_importance`.** It
+  was renamed in 1.62.0, since the values are importances, which set how much each response
+  counts in the overall desirability, and not the per-goal `weight` that shapes a response's
+  ramp. Passing it now raises `TypeError`, and the `optimize_responses` agent tool refuses it as
+  an unknown key. The parameters that followed it in the signature each move up one position.
+- **The empty `ilp` extra.** It was deprecated since 1.97.0, when `generate_omars` moved from
+  pulp's CBC solver to SciPy's HiGHS, a core dependency. `pip install 'process-improve[ilp]'` now
+  warns that the extra does not exist and installs the core package, which is all it ever added.
+- **`PCA.predict`, `MBPCA.predict`, `MBPLS.predict` and `TPLS.predict`.** Each one forwarded to
+  `diagnose`, which returns the same `Bunch`, so call `diagnose` instead. `PLS.predict` and
+  `OPLS.predict` are the scikit-learn regressor method and stay.
+- **`TPLS.tolerance_`.** Read `TPLS.tol` instead.
+- **`permutation_q2` and `pipeline_null`.** Use `check_predictive_signal(x, y, fit_predict)` and
+  `count_discoveries_under_null(select, x, y)`; `check_predictive_signal` takes the blocks first.
+- **The `empirical_fdr` key of the `count_discoveries_under_null` result.** Read
+  `null_to_observed_ratio`, which is the same ratio without the clip to `[0, 1]`.
+- **`OPLS(max_iter=..., tol=...)`.** The single-response algorithm is closed form and never read
+  them, so leave them out; passing either now raises `TypeError`.
+- **The `md_tol` and `md_max_iter` keys of `missing_data_settings` on `PCA`, `PLS`, `MBPCA` and
+  `MBPLS`.** Pass `tol` and `max_iter` to the constructor instead. A dict that still holds either
+  key raises `ValueError` at `fit`, since ignoring a convergence setting would change the fit.
+- **`PCA.select_n_components(n_iter=..., tol=..., threshold=...)`.** Use `ekf_max_iter` and
+  `ekf_tol`. `threshold` was already ignored; `selection_rule="q2_increment"` with
+  `min_q2_increase` gives a similar preference for fewer components.
+- **`PCA.select_n_components(cv_scheme="row_wise")` and its `**pca_kwargs`.** Use `"ekf"`,
+  `"ckf"`, `"ek"`, `"sacv"` or `"gcv"`, which the `ValueError` for `"row_wise"` now lists.
+  `**pca_kwargs` reached `PCA` only under that scheme, so an unknown keyword now raises `TypeError`
+  instead of being ignored.
+- **`process_improve.sensory.discriminate_observational`.** Deprecated since 1.77.0. Use
+  `find_predictive_descriptors`, which takes the same arguments and returns the same result. The old
+  name now raises `ImportError` on import and `AttributeError` on attribute access.
+- **The `discriminator=` keyword of `relate_observational` and `analyze_descriptive`.** Deprecated
+  since 1.77.0. Use `find_predictive=`. Passing `discriminator=` now raises `TypeError`. The
+  `sensory_analyze_descriptive` tool no longer declares a `discriminator` field, and because its
+  schema forbids unknown keys, a call that sends it now fails validation with
+  `ToolInputInvalidError`.
+- **The `discriminator` keys in sensory results.** Deprecated since 1.77.0. Read
+  `result.relate["predictive_descriptors"]` instead of `result.relate["discriminator"]`, and
+  `result.config["find_predictive"]` instead of `result.config["discriminator"]`.
+- **`q_value` and `discriminator_significant` on the `find_predictive_descriptors` descriptor
+  records.** Deprecated since 1.77.0. Read `p_value_fwer` and `is_predictive`, which carry the same
+  values. The `q_value` on the marginal `associations` rows of `relate_observational` is a
+  Benjamini-Hochberg q-value and stays.
+- **The `"z value"` and `"Pooled standard deviation"` keys of `ttest_independent`.** Deprecated
+  since 1.70.0. Read `"t value"` and `"Std error of difference"`, which carry the same values. The
+  statistic is a t-statistic, and the second key held the standard error of the difference, not the
+  pooled standard deviation, which is `"Pooled std dev"`. The two columns are also gone from
+  `ttest_independent_from_df`. Reading an old key now raises `KeyError`. The paired test,
+  `ttest_paired`, is unchanged.
+- **The `z_value` and `pooled_std` fields of the `ttest_two_samples` tool.** Deprecated since 1.70.0.
+  Read `t_value` and `std_error_of_difference`. The `pooled_std_dev` field stays. The
+  `ttest_paired_samples` tool is unchanged.
 
 ### Fixed
 
@@ -9001,7 +9099,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.99.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/kgdunn/process-improve/compare/v1.99.0...v2.0.0
 [1.99.0]: https://github.com/kgdunn/process-improve/compare/v1.98.0...v1.99.0
 [1.98.0]: https://github.com/kgdunn/process-improve/compare/v1.97.2...v1.98.0
 [1.97.2]: https://github.com/kgdunn/process-improve/compare/v1.97.1...v1.97.2
