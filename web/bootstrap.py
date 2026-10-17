@@ -3051,6 +3051,10 @@ STATIONARY = 1e-4
 #: A factor whose slope is below this share of the largest is left out of the way the prediction improves fastest.
 SHARE = 0.01
 
+#: How far past a limit, in its own units, the optimiser accepts its settings as inside it (the library's
+#: ``_within_region``): the best settings on a limit lie on it to this, and so do the confirmation runs made there.
+ON_LIMIT = 1e-6
+
 
 def best_settings(request: dict) -> dict:
     """Find the settings that best meet the response's goal on the fitted model, and say how well they are known.
@@ -3641,7 +3645,9 @@ def _practical(spec: dict, point: dict[str, float], region: DesignRegion | None)
 
     A numeric setting is rounded to a thousandth of its range's order of magnitude (0.01 degC for a
     range of 50 degC), and kept inside its range; when the rounding takes the settings outside the
-    limits, it is done again a digit finer, up to 12 digits. A categorical factor's setting is its level.
+    limits, it is done again a digit finer, up to 12 digits. Inside means as the optimiser means it,
+    to :data:`ON_LIMIT`: the best settings on a limit are on it to that. A categorical factor's
+    setting is its level.
     """
     factors = spec["factors"]
     numeric = [f for f in factors if not _categorical(f)]
@@ -3656,7 +3662,7 @@ def _practical(spec: dict, point: dict[str, float], region: DesignRegion | None)
             exact = (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
             values[f["name"]] = min(max(round(exact, decimals), f["low"]), f["high"]) + 0.0
         coded_values = np.array([[_coded_value(_factor_of(f), values[f["name"]]) for f in numeric]])
-        if region is None or region.feasible(coded_values)[0]:
+        if region is None or region.feasible(coded_values, tol=ON_LIMIT)[0]:
             return values
     return {
         f["name"]: (f["low"] + f["high"]) / 2 + point[f["name"]] * (f["high"] - f["low"]) / 2

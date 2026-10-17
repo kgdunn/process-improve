@@ -315,6 +315,28 @@ def test_limits_on_the_settings_are_kept_and_named_when_the_best_is_on_one(api):
     assert best["predicted"] >= predict(analysis["coefficients"], points)[inside].max() - 1e-9
 
 
+@pytest.mark.parametrize(
+    "limits",
+    [
+        ["T + 25*P <= 215"],
+        ["T * F <= 3000"],
+        ["T + 25 * P + 5 * F <= 290"],
+        ["T + 25*P <= 250", "T * F <= 3600"],
+    ],
+    ids=["straight", "curved", "centre ruled out", "straight and curved"],
+)
+@pytest.mark.parametrize("goal", ["maximize", "minimize"])
+def test_the_best_settings_and_the_confirmation_runs_keep_to_every_limit(api, limits, goal):
+    """To the optimiser's own tolerance, a millionth in each limit's units: the best on a limit is on it."""
+    held = design_of(api, design_type="d_optimal", factors=FACTORS, constraints=[{"expression": e} for e in limits])
+    responses = api.ok("api_simulate", {**held, "scenario": "random", "seed": 3})["responses"]
+    best = best_of(api, held, responses, goal)
+    region = DesignRegion([Factor(**f) for f in FACTORS], limits)
+    at = best["confirm_at"]
+    settings = [[best["coded"][n] for n in "TPF"], [(at["T"] - 175) / 25, at["P"] - 2, (at["F"] - 15) / 5]]
+    assert region.feasible(np.array(settings), tol=1e-6).all()
+
+
 # --------------------------------------------------------------------------- what the page says beside them
 def test_a_factor_the_model_leaves_out_is_held_at_the_centre(api, held, simulated):
     model = {"terms": [["T"], ["P"], ["T", "P"]]}
