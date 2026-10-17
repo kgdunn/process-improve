@@ -4,8 +4,16 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  BALANCED,
   BEST_MARKER,
+  GREYED,
   MOVES,
+  RESPONSE_DASHES,
+  SHADED,
+  boundaryDrawn,
+  boundaryName,
+  overlayFigure,
+  withAlpha,
   PALE,
   SIGN_COLOURS,
   TRUE_MARKER,
@@ -238,5 +246,101 @@ describe("a card's layout", () => {
     assert.equal(layout.title, undefined);
     assert.equal(layout.width, undefined);
     assert.equal(layout.xaxis.constrain, "domain", "equal axes keep their range and shrink the plot");
+  });
+});
+
+describe("the overlay of the acceptable ranges", () => {
+  const PAGE = { fg: "#1d1d1f", muted: "#5f6368", line: "#dcd8ce", accent: "#2c5f7c", warn: "#a35f00", ok: "#1e7b3a", error: "#b3261e" };
+  const grid = [-1, 0, 1];
+  const OVERLAY = {
+    x: "T",
+    y: "P",
+    grid,
+    ticks: { T: { tickvals: [-1, 0, 1], ticktext: ["150", "175", "200"] }, P: { tickvals: [-1, 0, 1], ticktext: ["1", "2", "3"] } },
+    responses: [
+      { name: "Yield", z: [[50, 55, 60], [52, 57, 62], [54, 59, 64]], levels: [55] },
+      { name: "Purity", z: [[97, 98, 99], [97, 98, 99], [97, 98, 99]], levels: [97.5, 99.5] },
+    ],
+    acceptable: [[0, 1, 1], [0, 1, 1], [0, 1, 1]],
+    runnable: null,
+    at: [0.25, -0.5],
+    held: [],
+  };
+  const RESPONSES = [
+    { name: "Yield", label: "Yield", units: "%", goal: "maximize", low: 55, high: 64 },
+    { name: "Purity", label: "Purity", units: "%", goal: "target", target: 98.5, low: 97.5, high: 99.5 },
+  ];
+  const AXES = { T: "T (degC)", P: "P (bar)" };
+
+  test("a colour of the page's with an opacity, for a shading the lines show through", () => {
+    assert.equal(withAlpha("#2c5f7c", 0.2), "rgba(44, 95, 124, 0.2)");
+    assert.equal(withAlpha("#06c", 0.5), "rgba(0, 102, 204, 0.5)");
+    assert.equal(withAlpha("rebeccapurple", 0.5), "rebeccapurple", "a colour that is no hex code is kept");
+  });
+
+  test("each response's boundary is named by the results it accepts", () => {
+    assert.equal(boundaryName(RESPONSES[0]), "Yield: 55% and above");
+    assert.equal(boundaryName({ label: "Cost", units: "$/kg", goal: "minimize", low: 10, high: 12.5 }), "Cost: 12.5 $/kg and below");
+    assert.equal(boundaryName(RESPONSES[1]), "Purity: 97.5 to 99.5%");
+  });
+
+  test("shaded where every response is acceptable, a line at each boundary, and a star at the balanced settings", () => {
+    const figure = overlayFigure(OVERLAY, RESPONSES, AXES, PAGE);
+    const [shade, yieldLine, purityLine] = figure.data;
+    assert.equal(shade.contours.type, "constraint");
+    assert.equal(shade.contours.operation, "<", "Plotly fills the side a constraint rules out: here, the 1s");
+    // The mask, with a border of 0 beyond the axes, so a region acceptable to the edge is still shaded.
+    assert.deepEqual(shade.z, [[0, 0, 0, 0, 0], ...OVERLAY.acceptable.map((row) => [0, ...row, 0]), [0, 0, 0, 0, 0]]);
+    assert.deepEqual(shade.x, [-2, -1, 0, 1, 2]);
+    assert.equal(shade.fillcolor, "rgba(44, 95, 124, 0.22)");
+    // A yield to maximise: its low end, the one level drawn, the next beyond every value the yield takes here.
+    assert.deepEqual([yieldLine.contours.start, yieldLine.contours.end, yieldLine.contours.size], [55, 70, 15]);
+    assert.deepEqual([purityLine.contours.start, purityLine.contours.end, purityLine.contours.size], [97.5, 99.5, 2], "a target: both ends");
+    assert.equal(yieldLine.contours.coloring, "none");
+    assert.ok(yieldLine.contours.showlabels, "each boundary carries its value");
+    assert.deepEqual([yieldLine.line.color, yieldLine.line.dash], [PAGE.accent, RESPONSE_DASHES[0]]);
+    assert.deepEqual([purityLine.line.color, purityLine.line.dash], [PAGE.warn, RESPONSE_DASHES[1]], "a colour and a dash each");
+    const star = figure.data.at(-1);
+    assert.equal(star.name, BALANCED);
+    assert.deepEqual([star.x[0], star.y[0]], OVERLAY.at);
+    assert.deepEqual(star.marker, BEST_MARKER);
+    const legend = figure.data.filter((t) => t.showlegend !== false).map((t) => t.name);
+    assert.deepEqual(legend, [SHADED, "Yield: 55% and above", "Purity: 97.5 to 99.5%", BALANCED]);
+  });
+
+  test("its axes are the two factors in their own units, square, ticked at their settings", () => {
+    const { layout } = overlayFigure(OVERLAY, RESPONSES, AXES, PAGE);
+    assert.equal(layout.xaxis.title.text, "T (degC)");
+    assert.deepEqual(layout.xaxis.ticktext, ["150", "175", "200"]);
+    assert.deepEqual(layout.yaxis.range, [-1, 1]);
+    assert.equal(layout.yaxis.scaleanchor, "x");
+  });
+
+  test("with limits on the settings, what cannot be run is grey, and the legend says so", () => {
+    const limited = { ...OVERLAY, runnable: [[1, 1, 0], [1, 1, 0], [1, 1, 1]] };
+    const figure = overlayFigure(limited, RESPONSES, AXES, PAGE);
+    const grey = figure.data[1];
+    assert.equal(grey.contours.operation, "<");
+    assert.deepEqual(grey.z.slice(1, -1).map((row) => row.slice(1, -1)), [[0, 0, 1], [0, 0, 1], [0, 0, 0]], "1 where the setting cannot be run");
+    assert.ok(grey.z[0].every((v) => v === 0), "a border of 0s, so grey to the edge still has an edge");
+    assert.ok(figure.data.some((t) => t.name === GREYED && t.showlegend !== false));
+  });
+
+  test("a boundary that misses the settings drawn has no key in the legend", () => {
+    const missed = { name: "Yield", z: OVERLAY.responses[0].z, levels: [40] };
+    assert.equal(boundaryDrawn(OVERLAY.responses[0]), true);
+    assert.equal(boundaryDrawn(OVERLAY.responses[1]), true, "a target with one end inside the values drawn");
+    assert.equal(boundaryDrawn(missed), false);
+    const figure = overlayFigure({ ...OVERLAY, responses: [missed, OVERLAY.responses[1]] }, RESPONSES, AXES, PAGE);
+    const legend = figure.data.filter((t) => t.showlegend !== false).map((t) => t.name);
+    assert.deepEqual(legend, [SHADED, "Purity: 97.5 to 99.5%", BALANCED]);
+  });
+
+  test("five responses take five colours and five dashes", () => {
+    const five = Array.from({ length: 5 }, (_, i) => ({ name: `R${i}`, z: OVERLAY.responses[0].z, levels: [55] }));
+    const words = five.map((r) => ({ name: r.name, label: r.name, units: "", goal: "maximize", low: 55, high: 60 }));
+    const lines = overlayFigure({ ...OVERLAY, responses: five }, words, AXES, PAGE).data.filter((t) => t.type === "contour" && t.contours.coloring === "none");
+    assert.equal(new Set(lines.map((t) => t.line.color)).size, 5);
+    assert.equal(new Set(lines.map((t) => t.line.dash)).size, 5);
   });
 });

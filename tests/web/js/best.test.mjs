@@ -8,7 +8,22 @@ import {
   CONFIRMATION,
   CONFIRMATION_RUNS,
   CONFIRMS,
+  GOOD_END,
+  IMPORTANCE,
+  IMPORTANCES,
+  SHAPE,
   UNCLEAR,
+  balanceConfirmation,
+  balanceLead,
+  balanceLeverage,
+  balanceRows,
+  balanceWhere,
+  dWords,
+  goalProblem,
+  goalWords,
+  limitingSentence,
+  missedBoundaries,
+  overlayCaption,
   ascentSentence,
   bestContourCaption,
   confirmationRows,
@@ -388,5 +403,140 @@ describe("what the confirmation runs show", () => {
     const said = confirmationSentences(level, factors, WORDS);
     assert.match(said[0], /at T = 200 degC, P = 1 bar and S at B\./);
     assert.match(said[0], /the page cannot judge their average\.$/);
+  });
+});
+
+describe("the settings that balance the responses", () => {
+  /** A balance as bootstrap.balance gives it: a yield to maximise and a purity with a target, at T and P. */
+  const BALANCE = {
+    balanced: true,
+    composite: 0.7305,
+    limiting: "Purity",
+    leverage: 0.2564,
+    max_leverage: 0.7939,
+    leverage_of: "Yield",
+    extrapolating: false,
+    limits: [],
+    settings: [
+      { name: "T", kind: "numeric", value: 169.3, coded: -0.228, units: "degC", in_model: true, end: null, beyond: false },
+      { name: "F", kind: "numeric", value: 15, coded: 0, units: "L/min", in_model: false, end: null, beyond: false },
+    ],
+    responses: [
+      { name: "Yield", label: "Yield", units: "%", goal: "maximize", low: 49, high: 61, importance: 3, d: 0.83, predicted: 58.96, prediction: [57.1, 60.8], default_low: 49, default_high: 61 },
+      { name: "Purity", label: "Purity", units: "%", goal: "target", target: 98.5, low: 97, high: 100, importance: 3, d: 0.64, predicted: 98.04, prediction: null, default_low: 97, default_high: 100 },
+    ],
+  };
+
+  test("the goal as the table says it", () => {
+    assert.equal(goalWords({ goal: "maximize" }), "Maximise");
+    assert.equal(goalWords({ goal: "minimize" }), "Minimise");
+    assert.equal(goalWords({ goal: "target", target: 98.5, units: "%" }), "Target 98.5%");
+  });
+
+  test("a range typed upside down, or one that leaves the target out, is said as Python says it", () => {
+    const [yieldR, purity] = BALANCE.responses;
+    assert.equal(goalProblem(yieldR, 55, 60), "");
+    assert.equal(goalProblem(yieldR, null, null), "", "blank boxes take the results' range");
+    assert.equal(goalProblem(yieldR, 61, null), "The acceptable range of Yield must run from a lower value to a higher one.");
+    assert.equal(goalProblem(yieldR, 50, 50), "The acceptable range of Yield must run from a lower value to a higher one.");
+    assert.equal(goalProblem(purity, 99, 100), "The target of Purity, 98.5, must lie inside its acceptable range.");
+    assert.equal(goalProblem(purity, 97, null), "");
+  });
+
+  test("the panel says first how good the balance is", () => {
+    assert.equal(balanceLead(BALANCE), "These settings balance the responses best: an overall desirability of 0.73.");
+    assert.equal(balanceLead({ ...BALANCE, composite: 1 }), "These settings make every response as good as it gets: an overall desirability of 1.");
+    assert.match(balanceLead({ ...BALANCE, composite: 0 }), /^No setting in your ranges makes every response acceptable\./);
+  });
+
+  test("the response that holds D down most is named, with its importance when they differ", () => {
+    assert.equal(limitingSentence(BALANCE), "Purity holds the overall desirability down most: its desirability is 0.64.");
+    const weighted = { ...BALANCE, responses: [BALANCE.responses[0], { ...BALANCE.responses[1], importance: 5 }] };
+    assert.equal(limitingSentence(weighted), "Purity holds the overall desirability down most: its desirability is 0.64, at importance 5.");
+    assert.equal(limitingSentence({ ...BALANCE, composite: 1 }), "");
+    const none = { ...BALANCE, composite: 0, responses: [{ ...BALANCE.responses[0], d: 0 }, BALANCE.responses[1]] };
+    assert.equal(limitingSentence(none), "At these settings Yield is not acceptable: a desirability of 0.");
+  });
+
+  test("each response at the balanced settings, a row each", () => {
+    assert.deepEqual(balanceRows(BALANCE), [
+      ["Yield", "58.96%", "57.1 to 60.8%", "0.83"],
+      ["Purity", "98.04%", "", "0.64"],
+    ]);
+    assert.equal(dWords(0.6), "0.60");
+  });
+
+  test("the leverage, for the model that leans furthest on the runs", () => {
+    assert.equal(balanceLeverage(BALANCE), "The leverage here is 0.26 for Yield's model, within its runs': 0.79 at most.");
+    assert.match(balanceLeverage({ ...BALANCE, extrapolating: true }), /above its runs'/);
+  });
+
+  test("the limits the settings are on, and the factors no model holds", () => {
+    assert.deepEqual(balanceWhere(BALANCE), ["F is in no response's model, so it changes nothing; these settings hold it at the center."]);
+    const limited = { ...BALANCE, settings: [], limits: [{ index: 1, expression: "T + 25*P <= 215", beyond: false }] };
+    assert.deepEqual(balanceWhere(limited), ["These settings are on your limit 2, T + 25*P <= 215."]);
+  });
+
+  test("the overlay's caption says what it is drawn over, where the others are held, and what each mark means", () => {
+    const overlay = { x: "T", y: "P", held: [{ name: "F", value: 16.25 }], runnable: null };
+    assert.equal(
+      overlayCaption(overlay, FACTORS),
+      "Drawn over T and P, the two factors that move the responses' desirabilities most, with F at 16.25 L/min, its " +
+        "balanced setting. Shaded where every response is acceptable; each line is a response's acceptable boundary; the " +
+        "star marks the balanced settings.",
+    );
+    assert.match(overlayCaption({ ...overlay, held: [], runnable: [[1]] }, FACTORS), /, the two factors that move the responses' desirabilities most\. .*; grey: settings outside your limits;/);
+  });
+
+  test("a boundary that misses the settings drawn has no line, and the caption says why", () => {
+    const responses = [
+      { name: "Yield", label: "Yield", goal: "maximize", low: 55, high: 64 },
+      { name: "Cost", label: "Cost", goal: "minimize", low: 10, high: 12 },
+      { name: "Purity", label: "Purity", goal: "target", low: 97.5, high: 99.5 },
+    ];
+    const surfaces = [
+      { name: "Yield", z: [[50, 60]], levels: [55] }, // crosses: a line
+      { name: "Cost", z: [[10.5, 11]], levels: [12] }, // below its high end throughout: acceptable everywhere
+      { name: "Purity", z: [[96, 97]], levels: [97.5, 99.5] }, // below the range throughout: acceptable nowhere
+    ];
+    const overlay = { x: "T", y: "P", held: [], runnable: null, responses: surfaces };
+    assert.deepEqual(missedBoundaries(overlay, responses), { everywhere: ["Cost"], nowhere: ["Purity"] });
+    assert.match(
+      overlayCaption(overlay, FACTORS, responses),
+      /the star marks the balanced settings\. No line for Cost: it is acceptable at every setting drawn\. Narrow a range in the table to draw its boundary\. No line for Purity: it is not acceptable at any setting drawn\.$/,
+    );
+    const all = { ...overlay, responses: [{ name: "Yield", z: [[60, 62]], levels: [55] }, surfaces[1]] };
+    assert.match(overlayCaption(all, FACTORS, responses), /No line for Yield and Cost: they are acceptable at every setting drawn\./);
+    assert.ok(overlayCaption({ ...overlay, responses: [surfaces[0]] }, FACTORS, responses).endsWith("the star marks the balanced settings."));
+  });
+
+  test("confirmation runs are judged response by response", () => {
+    const group = {
+      runs: 3,
+      at: { T: 169.3, P: 2.016, F: 15 },
+      responses: [
+        { name: "Yield", done: 3, mean: 58.5, predicted: 58.96, interval: [56.9, 61.0], inside: true },
+        { name: "Purity", done: 3, mean: 95, predicted: 98.04, interval: [97.1, 99.0], inside: false },
+      ],
+    };
+    const { said, state } = balanceConfirmation(group, FACTORS, BALANCE.responses);
+    assert.equal(state, "outside");
+    assert.deepEqual(said, [
+      "3 confirmation runs at T = 169.3 degC, P = 2.016 bar and F = 15 L/min.",
+      "Yield: the average of 3 results, 58.5%, is inside the 95% prediction interval, 56.9 to 61%: the model holds here.",
+      "Purity: the average of 3 results, 95%, is outside the 95% prediction interval, 97.1 to 99%: the process differs from the model here.",
+    ]);
+    const waiting = { ...group, responses: [group.responses[0], { name: "Purity", done: 0, mean: null, predicted: 98, interval: [97, 99], inside: null }] };
+    assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).state, "waiting");
+    assert.equal(balanceConfirmation(waiting, FACTORS, BALANCE.responses).said[2], "Purity: no result yet; enter it in Run.");
+    const both = { ...group, responses: [group.responses[0], { ...group.responses[1], mean: 98, inside: true }] };
+    assert.equal(balanceConfirmation(both, FACTORS, BALANCE.responses).state, "inside");
+  });
+
+  test("the choices the table offers", () => {
+    assert.deepEqual(Object.keys(GOOD_END), ["less", "even", "more", "much_more"]);
+    assert.deepEqual(IMPORTANCES, [1, 2, 3, 4, 5]);
+    assert.equal(IMPORTANCE, 3);
+    assert.equal(SHAPE, "even");
   });
 });

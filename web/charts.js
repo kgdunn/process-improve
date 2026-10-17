@@ -34,7 +34,15 @@ export function loadPlotly(version) {
 export function palette() {
   const css = getComputedStyle(document.documentElement);
   const read = (name) => css.getPropertyValue(name).trim();
-  return { fg: read("--fg"), muted: read("--muted"), line: read("--line"), accent: read("--accent"), warn: read("--warn") };
+  return {
+    fg: read("--fg"),
+    muted: read("--muted"),
+    line: read("--line"),
+    accent: read("--accent"),
+    warn: read("--warn"),
+    ok: read("--ok"),
+    error: read("--error"),
+  };
 }
 
 /**
@@ -482,5 +490,154 @@ export function sensitivityFigure(sensitivity, { label, units = "" }, colours = 
       showlegend: true,
     },
     height: sensitivityHeight(rows.length),
+  };
+}
+
+// ---------------------------------------------------------------- the settings that balance the responses
+/** A colour of the page's, ``#2c5f7c``, as an rgba with this opacity, for a shading that lets the lines through. */
+export function withAlpha(colour, alpha) {
+  const hex = String(colour).trim().replace(/^#/, "");
+  const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return colour;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Each response's line on the overlay, in turn: a colour of the page's and a dash, so a line reads without its colour. */
+export const RESPONSE_DASHES = ["solid", "dash", "dot", "dashdot", "longdash"];
+export const responseColours = (colours) => [colours.accent, colours.warn, colours.ok, colours.error, colours.fg];
+
+/** The star on the overlay at the balanced settings: the best settings' marker, which reads on every shading. */
+export const BALANCED = "Balanced settings";
+
+/** What the overlay's shading means, as its legend says it. */
+export const SHADED = "Every response acceptable";
+export const GREYED = "Outside your limits";
+
+/**
+ * What a response's line on the overlay is, as the legend names it: the boundary of the results it accepts, in its
+ * units. ``r`` is the response as bootstrap.balance gives it, its acceptable range from ``low`` to ``high``.
+ */
+export function boundaryName(r) {
+  const at = (x) => `${Number(Number(x).toPrecision(4))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
+  if (r.goal === "maximize") return `${r.label}: ${at(r.low)} and above`;
+  if (r.goal === "minimize") return `${r.label}: ${at(r.high)} and below`;
+  return `${r.label}: ${at(r.low).replace(/%$/, "")} to ${at(r.high)}`;
+}
+
+/** Whether a response's acceptable boundary crosses the settings the overlay draws, so it has a line there. */
+export function boundaryDrawn(surface) {
+  const values = surface.z.flat();
+  const [lo, hi] = [Math.min(...values), Math.max(...values)];
+  return surface.levels.some((level) => level > lo && level < hi);
+}
+
+/**
+ * The overlay of the responses' acceptable ranges over two factors, the others at the balanced settings: shaded where
+ * every response is acceptable (a desirability above 0), each response's acceptable boundary a labelled line, greyed
+ * where a limit on the settings rules the setting out, and a star at the balanced settings. ``overlay`` is
+ * bootstrap.balance's, in coded units, ticked with the factors' own settings; ``responses`` are the reply's, for each
+ * response's words and range; ``axes`` names each axis with its units.
+ */
+export function overlayFigure(overlay, responses, axes, colours = palette()) {
+  const { grid } = overlay;
+  const byName = Object.fromEntries(responses.map((r) => [r.name, r]));
+  const lineColours = responseColours(colours);
+  // A shading is a constraint on a mask of 1s and 0s. Plotly fills the side a constraint rules out, so each keeps what
+  // is below 0.5 and fills the 1s. It draws only where the mask crosses 0.5, so each mask gets a border of 0s beyond
+  // the axes, outside what is shown: a mask of 1s everywhere still crosses there, and is shaded whole.
+  const step = grid.length > 1 ? grid[1] - grid[0] : 1;
+  const padded = [grid[0] - step, ...grid, grid.at(-1) + step];
+  const pad = (z) => [Array(padded.length).fill(0), ...z.map((row) => [0, ...row, 0]), Array(padded.length).fill(0)];
+  const region = (z, fill, name) => ({
+    type: "contour",
+    x: padded,
+    y: padded,
+    z: pad(z),
+    name,
+    showscale: false,
+    showlegend: false,
+    hoverinfo: "skip",
+    contours: { type: "constraint", operation: "<", value: 0.5 },
+    fillcolor: fill,
+    line: { width: 0 },
+  });
+  const data = [region(overlay.acceptable, withAlpha(colours.accent, 0.22), SHADED)];
+  if (overlay.runnable) data.push(region(overlay.runnable.map((row) => row.map((v) => 1 - v)), withAlpha(colours.muted, 0.45), GREYED));
+  overlay.responses.forEach((surface, i) => {
+    const r = byName[surface.name];
+    const colour = lineColours[i % lineColours.length];
+    const dash = RESPONSE_DASHES[i % RESPONSE_DASHES.length];
+    // One level is drawn as the first of two, the second beyond every value, as a contour of start and end alike is not.
+    const values = surface.z.flat();
+    const beyond = Math.max(...values) - Math.min(...values) + 1;
+    const [low, high = low] = surface.levels;
+    data.push({
+      type: "contour",
+      x: grid,
+      y: grid,
+      z: surface.z,
+      name: boundaryName(r),
+      showscale: false,
+      showlegend: false,
+      autocontour: false,
+      contours: {
+        coloring: "none",
+        start: low,
+        end: high > low ? high : low + beyond,
+        size: high > low ? high - low : beyond,
+        showlabels: true,
+        labelformat: ".4~g",
+        labelfont: { size: 11, color: colour },
+      },
+      line: { color: colour, width: 2.5, dash },
+      hovertemplate: `${r.label}: %{z:.4g}${r.units ? ` ${r.units}` : ""}<extra></extra>`,
+    });
+  });
+  data.push(
+    {
+      type: "scatter",
+      mode: "markers",
+      name: SHADED,
+      x: [null],
+      y: [null],
+      marker: { symbol: "square", size: 12, color: withAlpha(colours.accent, 0.35) },
+      hoverinfo: "skip",
+    },
+    ...(overlay.runnable
+      ? [{ type: "scatter", mode: "markers", name: GREYED, x: [null], y: [null], marker: { symbol: "square", size: 12, color: withAlpha(colours.muted, 0.55) }, hoverinfo: "skip" }]
+      : []),
+    // A boundary that misses the settings drawn has no line, so no key: the caption says why.
+    ...overlay.responses.flatMap((surface, i) =>
+      boundaryDrawn(surface) ? [legendKey(boundaryName(byName[surface.name]), lineColours[i % lineColours.length], RESPONSE_DASHES[i % RESPONSE_DASHES.length])] : [],
+    ),
+    {
+      type: "scatter",
+      mode: "markers",
+      name: BALANCED,
+      x: [overlay.at[0]],
+      y: [overlay.at[1]],
+      marker: BEST_MARKER,
+      cliponaxis: false,
+      hovertemplate: `${BALANCED}<extra></extra>`,
+    },
+  );
+  const axis = (name) => ({
+    title: { text: axes[name] ?? name },
+    range: [-1, 1],
+    showgrid: false,
+    zeroline: false,
+    ...(overlay.ticks?.[name] ?? {}),
+  });
+  return {
+    data,
+    layout: {
+      xaxis: axis(overlay.x),
+      yaxis: { ...axis(overlay.y), scaleanchor: "x" },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+      margin: { t: 8 },
+    },
+    height: 420 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
   };
 }

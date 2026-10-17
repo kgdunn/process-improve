@@ -149,6 +149,21 @@ export const GLOSSARY = {
   "sensitivity":
     "How much the predicted response changes when one factor alone moves a little from the best settings: a factor " +
     "that moves it most must be held most tightly.",
+
+  // Balancing several responses
+  desirability:
+    "A response's score for its goal, d, from 0 where it is not acceptable to 1 where it is as good as it gets, " +
+    "rising across the range you accept. Derringer and Suich's measure.",
+  "overall-desirability":
+    "D, the geometric mean of every response's desirability, each counted by its importance. It is 0 where any " +
+    "response is not acceptable, so a balance never trades one response away entirely.",
+  importance: "How much a response counts in the overall desirability, from 1 to 5, beside the others.",
+  "desirability-shape":
+    "How fast d rises towards the good end of its range. Evenly, in a straight line; more, a result counts well " +
+    "only near the good end; less, most of the range counts nearly as well as the good end.",
+  overlay:
+    "Each response's acceptable boundary drawn over the same two factors, the others held at the balanced " +
+    "settings. Where the regions they leave overlap, every response is acceptable.",
 };
 
 /** Phrases marked wherever the page's sentences or the library's notes use them, and the entry each opens. */
@@ -174,4 +189,6 @@ export const MARKED = {
   "stationary point": "stationary-point",
   "steepest ascent": "steepest-ascent",
   "steepest descent": "steepest-ascent",
+  "overall desirability": "overall-desirability",
+  desirability: "desirability",
 };

@@ -276,3 +276,182 @@ export function withoutConfirmationRuns(design, results, marks) {
 export function confirmedAt(design, at) {
   return confirmationRows(design).some((i) => Object.entries(at).every(([name, value]) => design.rows[i][design.columns.indexOf(name)] === value));
 }
+
+// ---------------------------------------------------------------- the settings that balance the responses
+/** How strongly the good end of a response's acceptable range counts, as the balance's table words it; mirrors bootstrap.SHAPES. */
+export const GOOD_END = { less: "Less", even: "Evenly", more: "More", much_more: "Much more" };
+
+/** The shape a response's desirability has unless the reader chooses another; mirrors bootstrap.SHAPE. */
+export const SHAPE = "even";
+
+/** The importances a response can have, and the one it has unless the reader sets it; mirror bootstrap.IMPORTANCES and IMPORTANCE. */
+export const IMPORTANCES = [1, 2, 3, 4, 5];
+export const IMPORTANCE = 3;
+
+/** A desirability as the page writes it: two decimals, enough to compare one response's with another's. */
+export const dWords = (d) => Number(d).toFixed(2);
+
+/** A response's goal as the balance's table says it: "Maximise", "Minimise", or "Target 63%". */
+export function goalWords(r) {
+  if (r.goal === "maximize") return "Maximise";
+  if (r.goal === "minimize") return "Minimise";
+  return `Target ${withUnit(r.target, r.units)}`;
+}
+
+/**
+ * What a response's acceptable range still needs, as the reader types it, in bootstrap._balance_goal's words; "" when
+ * it is ready. ``low`` and ``high`` are the numbers typed, null for a box left blank (its default holds).
+ */
+export function goalProblem(r, low, high) {
+  const from = low ?? r.default_low;
+  const to = high ?? r.default_high;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || !(from < to)) {
+    return `The acceptable range of ${r.label} must run from a lower value to a higher one.`;
+  }
+  if (r.goal === "target" && !(from < r.target && r.target < to)) {
+    return `The target of ${r.label}, ${num(r.target)}, must lie inside its acceptable range.`;
+  }
+  return "";
+}
+
+/**
+ * What the balance panel says first: how good the balance is, as the overall desirability D. With D of 0, no setting
+ * makes every response acceptable, and the settings shown are those that come closest.
+ */
+export function balanceLead(b) {
+  if (b.composite <= 0) {
+    return "No setting in your ranges makes every response acceptable. These settings come closest: widen an acceptable range to find a balance.";
+  }
+  if (b.composite >= 1) return "These settings make every response as good as it gets: an overall desirability of 1.";
+  return `These settings balance the responses best: an overall desirability of ${dWords(b.composite)}.`;
+}
+
+/**
+ * Which response holds the overall desirability down most, and by how much: the one whose desirability, counted by its
+ * importance, is lowest. Its importance is said when the importances differ. Nothing when every response is as good
+ * as it gets; with D of 0, the responses not acceptable at these settings.
+ */
+export function limitingSentence(b) {
+  if (b.composite >= 1) return "";
+  if (b.composite <= 0) {
+    const out = b.responses.filter((r) => r.d <= 0).map((r) => r.label);
+    return `At these settings ${listed(out)} ${out.length === 1 ? "is" : "are"} not acceptable: a desirability of 0.`;
+  }
+  const r = b.responses.find((one) => one.name === b.limiting);
+  const differ = new Set(b.responses.map((one) => one.importance)).size > 1;
+  return `${r.label} holds the overall desirability down most: its desirability is ${dWords(r.d)}${differ ? `, at importance ${r.importance}` : ""}.`;
+}
+
+/**
+ * Each response at the balanced settings, a row each for a table: its name, its prediction, its 95% prediction
+ * interval for one new run, and its desirability.
+ */
+export function balanceRows(b) {
+  return b.responses.map((r) => [
+    r.label,
+    withUnit(r.predicted, r.units),
+    r.prediction ? `${num(r.prediction[0])} to ${withUnit(r.prediction[1], r.units)}` : "",
+    dWords(r.d),
+  ]);
+}
+
+/** The leverage at the balanced settings, for the model that leans furthest on the runs, as a sentence. */
+export function balanceLeverage(b) {
+  const r = b.responses.find((one) => one.name === b.leverage_of);
+  const where = b.extrapolating ? "above" : "within";
+  return `The leverage here is ${lev(b.leverage)} for ${r.label}'s model, ${where} its runs': ${lev(b.max_leverage)} at most.`;
+}
+
+/**
+ * What the table of settings cannot say of the balanced settings: the limits they are on, and the factors no response's
+ * model holds, each held at the center or at its first level.
+ */
+export function balanceWhere(b) {
+  const said = (b.limits ?? []).map((limit) => `These settings are on your limit ${limit.index + 1}, ${limit.expression}.`);
+  for (const s of (b.settings ?? []).filter((one) => !one.in_model)) {
+    said.push(
+      s.kind === "categorical"
+        ? `${s.name} is in no response's model, so either level serves; these settings use ${s.value}.`
+        : `${s.name} is in no response's model, so it changes nothing; these settings hold it at the center.`,
+    );
+  }
+  return said;
+}
+
+/**
+ * The caption of the overlay of the acceptable ranges: the two factors drawn and why, where the others are held,
+ * and what the shading, the lines, the grey and the star mean. ``factors`` are the spec's, for their units.
+ */
+export function overlayCaption(overlay, factors = [], responses = []) {
+  const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
+  const held = overlay.held ?? [];
+  const others = held.length ? `, with ${listed(held.map(at))}, ${held.length === 1 ? "its balanced setting" : "their balanced settings"}` : "";
+  const grey = overlay.runnable ? "; grey: settings outside your limits" : "";
+  const { everywhere, nowhere } = missedBoundaries(overlay, responses);
+  const missed = (labels, said) => (labels.length ? ` No line for ${listed(labels)}: ${labels.length === 1 ? "it is" : "they are"} ${said}.` : "");
+  const narrow = everywhere.length ? " Narrow a range in the table to draw its boundary." : "";
+  return (
+    `Drawn over ${overlay.x} and ${overlay.y}, the two factors that move the responses' desirabilities most${others}. ` +
+    `Shaded where every response is acceptable; each line is a response's acceptable boundary${grey}; the star marks the balanced settings.` +
+    missed(everywhere, "acceptable at every setting drawn") +
+    narrow +
+    missed(nowhere, "not acceptable at any setting drawn")
+  );
+}
+
+/**
+ * The responses whose acceptable boundary misses the settings the overlay draws, by what that means: acceptable at
+ * every setting drawn, or at none. ``responses`` are the balance's, for each one's label, goal and range.
+ */
+export function missedBoundaries(overlay, responses = []) {
+  const byName = Object.fromEntries(responses.map((r) => [r.name, r]));
+  const everywhere = [];
+  const nowhere = [];
+  for (const surface of overlay.responses ?? []) {
+    const r = byName[surface.name];
+    if (!r) continue;
+    const values = surface.z.flat();
+    const [lo, hi] = [Math.min(...values), Math.max(...values)];
+    if (surface.levels.some((level) => level > lo && level < hi)) continue;
+    const ok = (r.goal === "minimize" || lo >= r.low) && (r.goal === "maximize" || hi <= r.high);
+    (ok ? everywhere : nowhere).push(r.label);
+  }
+  return { everywhere, nowhere };
+}
+
+/**
+ * What the page says of one group of confirmation runs, response by response: where they are, and for each response
+ * with a goal, once its results are in, whether their average falls inside the prediction interval for an average of
+ * that many runs. ``responses`` are the balance's, for each one's words. Returns the sentences and the group's state:
+ * ``inside`` when every response's average is, ``outside`` when one is not, else ``waiting``.
+ */
+export function balanceConfirmation(group, factors, responses) {
+  const unitsOf = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const words = Object.fromEntries(responses.map((r) => [r.name, r]));
+  const at = listed(
+    factors.map((f) => (typeof group.at[f.name] === "string" ? `${f.name} at ${group.at[f.name]}` : `${f.name} = ${withUnit(group.at[f.name], unitsOf[f.name])}`)),
+  );
+  const said = [`${group.runs} confirmation ${group.runs === 1 ? "run" : "runs"} at ${at}.`];
+  for (const v of group.responses) {
+    const { label, units } = words[v.name];
+    if (!v.done) {
+      said.push(`${label}: no result yet; enter it in Run.`);
+      continue;
+    }
+    if (!v.interval) {
+      said.push(`${label}: with no runs left to estimate the noise, the page cannot judge its average.`);
+      continue;
+    }
+    const average = `the average of ${v.done === 1 ? "the one result" : `${v.done} results`}, ${withUnit(v.mean, units)}`;
+    const range = `${num(v.interval[0])} to ${withUnit(v.interval[1], units)}`;
+    said.push(
+      v.inside
+        ? `${label}: ${average}, is inside the 95% prediction interval, ${range}: the model holds here.`
+        : `${label}: ${average}, is outside the 95% prediction interval, ${range}: the process differs from the model here.`,
+    );
+  }
+  const judged = group.responses.filter((v) => v.inside !== null);
+  const state = judged.some((v) => !v.inside) ? "outside" : judged.length === group.responses.length ? "inside" : "waiting";
+  return { said, state };
+}

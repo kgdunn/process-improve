@@ -397,7 +397,7 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * or read from a workbook are written out. ``model`` is the model the analysis fitted, or null
  * when there is no analysis yet; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, version, url, best = null, analyses = null }) {
+export function notebook({ title, design, responses, sources, simulation, model, version, url, best = null, analyses = null, balance = null }) {
   const names = responseNames(design.spec);
   const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
   const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
@@ -438,6 +438,9 @@ export function notebook({ title, design, responses, sources, simulation, model,
       step += 1;
     }
   }
+  if (balance?.balanced) {
+    cells.push(markdownCell("balance-step", `## ${step}. The balance of the responses`), codeCell("balance", balanceCode(balance, design.spec)));
+  }
   return {
     cells,
     metadata: {
@@ -447,4 +450,56 @@ export function notebook({ title, design, responses, sources, simulation, model,
     nbformat: 4,
     nbformat_minor: 5,
   };
+}
+
+/** What a goal holds as the library's desirability takes it: mirrors bootstrap.DESIRABILITY_KEYS. */
+const DESIRABILITY_KEYS = ["response", "goal", "target", "low", "high", "weight", "importance"];
+
+/**
+ * The balance of the responses: each response with a goal fitted with its own model to the runs that have its result,
+ * its goal as a desirability over its acceptable range, and the settings with the best overall desirability found
+ * with the library's optimiser over every model. It builds on step 2's ``runs`` and ``X``. ``balance`` is what
+ * bootstrap.balance answered: its ``search`` holds each response's fitted formula, its goal, and what the page held
+ * each categorical factor and block at.
+ */
+export function balanceCode(balance, spec) {
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const held = balance.search?.held ?? {};
+  const holds = Object.keys(held).length > 0;
+  const limits = spec.constraints ?? [];
+  const formulas = balance.search.formulas;
+  const goals = balance.search.goals.map((g) => Object.fromEntries(DESIRABILITY_KEYS.filter((k) => k in g).map((k) => [k, g[k]])));
+  const ranges = numeric.map((f) => `${repr(f.name)}: {"low": ${f.low}, "high": ${f.high}}`).join(", ");
+  const imports = [
+    ...(holds ? ["import math"] : []),
+    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment, optimize_responses`,
+    "",
+  ];
+  return [
+    ...imports,
+    ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
+    "# Each response with a goal, fitted with its own model to the runs that have its result.",
+    "models = []",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    '    fit = analyze_experiment(X[done], runs[name][done], model=model, analysis_type="coefficients")',
+    `    coefficients = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
+    `    models.append({"response_name": name, "coefficients": coefficients, "factor_names": ${repr(numeric.map((f) => f.name))}})`,
+    "",
+    "# Each goal as a desirability: 0 outside its acceptable range (low to high), 1 at its good end; its weight shapes",
+    "# the ramp between, and its importance is how much it counts in the overall desirability.",
+    "goals = [",
+    ...goals.map((g) => `    ${repr(g)},`),
+    "]",
+    "balanced = optimize_responses(",
+    "    models,",
+    "    goals=goals,",
+    `    factor_ranges={${ranges}},`,
+    ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+    ')["desirability"]',
+    'print(balanced["optimal_actual"])  # the balanced settings, in the factors\' own units',
+    'print(balanced["predicted_responses"])  # what each model predicts there',
+    'print(balanced["individual_desirability"])  # each response\'s desirability, d',
+    'print(balanced["composite_desirability"])  # the overall desirability, D',
+  ].join("\n");
 }

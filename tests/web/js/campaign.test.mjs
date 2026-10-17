@@ -5,6 +5,7 @@ import { describe, test } from "node:test";
 
 import {
   AIMS,
+  GOAL_SHAPES,
   BOOK_PARAM,
   CAMPAIGN_VERSION,
   bookName,
@@ -545,5 +546,25 @@ describe("a campaign of several responses", () => {
     assert.ok(sameCampaign(a, b));
     b.more_responses.Cost[1] = 1;
     assert.ok(!sameCampaign(a, b));
+  });
+
+  test("what the reader set of each goal in the balance travels with the campaign, checked", async () => {
+    const c = three();
+    c.goals = { y: { low: 60, importance: 5 }, Cost: { high: 8.75, shape: "more" } };
+    const back = await unpackCampaign(await packCampaign(c));
+    assert.deepEqual(back.goals, c.goals);
+    assert.deepEqual(shareable(c, false).goals, c.goals, "a link without results keeps them too");
+    assert.equal(checkCampaign(three()).goals, undefined, "none set: none kept");
+    assert.deepEqual(GOAL_SHAPES, ["less", "even", "more", "much_more"]);
+    const refused = (goals, why) => {
+      const d = three();
+      d.goals = goals;
+      assert.throws(() => checkCampaign(d), (err) => why.test(err.message));
+    };
+    refused({ Colour: { low: 1 } }, /its goals name a response it does not measure/);
+    refused({ Cost: 3 }, /the goal of Cost is not one/);
+    refused({ Cost: { high: "8" } }, /the acceptable range of Cost is not a number/);
+    refused({ Cost: { importance: 6 } }, /the importance of Cost is not 1 to 5/);
+    refused({ Cost: { shape: "steep" } }, /the shape of Cost's desirability is unknown/);
   });
 });

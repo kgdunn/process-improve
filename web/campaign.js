@@ -281,7 +281,7 @@ export function checkCampaign(data) {
     simulate: simulateSettings(data.simulate),
     model: checkModel(data.model ?? "", factorNames),
   };
-  if (names.length > 1) Object.assign(out, laterResults(data, names.slice(1), n, factorNames));
+  if (names.length > 1) Object.assign(out, laterResults(data, names.slice(1), n, factorNames, names[0]));
   return out;
 }
 
@@ -297,9 +297,10 @@ function results(values, marks, n) {
 /**
  * The later responses' results, their sources and the model each is analysed with, by their columns, as a
  * campaign of several responses keeps them beside the first's: ``more_responses``, ``more_sources`` and
- * ``more_models``. A response without results yet has none, and one without a model is analysed as designed.
+ * ``more_models``. A response without results yet has none, and one without a model is analysed as designed. What
+ * the reader set of each response's goal in the balance, ``goals``, is kept when there is some.
  */
-function laterResults(data, names, n, factorNames) {
+function laterResults(data, names, n, factorNames, first) {
   const keyed = (value, what) => {
     if (value === undefined || value === null) return {};
     if (!isObject(value) || !Object.keys(value).every((name) => names.includes(name))) refuse(`${what} name a response it does not measure`);
@@ -313,7 +314,39 @@ function laterResults(data, names, n, factorNames) {
     [out.more_responses[name], out.more_sources[name]] = results(values[name], marks[name], n);
     out.more_models[name] = checkModel(models[name] ?? "", factorNames);
   }
+  if (data.goals !== undefined && data.goals !== null) out.goals = balanceGoals(data.goals, [first, ...names]);
   return out;
+}
+
+/** The shapes a response's desirability can have in the balance; mirrors bootstrap.SHAPES, as best.js does. */
+export const GOAL_SHAPES = ["less", "even", "more", "much_more"];
+
+/**
+ * What the reader set of each response's goal in the balance, by its column: its acceptable range (``low``,
+ * ``high``), its importance from 1 to 5 and its shape. Each is checked for its kind; Python checks they hold together.
+ */
+function balanceGoals(value, names) {
+  if (!isObject(value) || !Object.keys(value).every((name) => names.includes(name))) refuse("its goals name a response it does not measure");
+  return Object.fromEntries(
+    Object.entries(value).map(([name, goal]) => {
+      if (!isObject(goal)) refuse(`the goal of ${name} is not one`);
+      const out = {};
+      for (const key of ["low", "high"]) {
+        if (goal[key] === undefined) continue;
+        if (!isFiniteNumber(goal[key])) refuse(`the acceptable range of ${name} is not a number`);
+        out[key] = goal[key];
+      }
+      if (goal.importance !== undefined) {
+        if (![1, 2, 3, 4, 5].includes(goal.importance)) refuse(`the importance of ${name} is not 1 to 5`);
+        out.importance = goal.importance;
+      }
+      if (goal.shape !== undefined) {
+        if (!GOAL_SHAPES.includes(goal.shape)) refuse(`the shape of ${name}'s desirability is unknown`);
+        out.shape = goal.shape;
+      }
+      return [name, out];
+    }),
+  );
 }
 
 /** How the reader last simulated results: the process, the noise and the seed, each only when it is one. */
@@ -395,6 +428,7 @@ export function shareable(campaign, withResults) {
   const { spec, columns, rows, facts, outside_range } = design;
   const out = { v, title, design: { spec, columns, rows, model: design.model, facts, outside_range }, model };
   if (campaign.more_models) out.more_models = campaign.more_models;
+  if (campaign.goals) out.goals = campaign.goals;
   if (withResults) {
     Object.assign(out, { responses: campaign.responses, sources: campaign.sources, simulation: campaign.simulation });
     if (campaign.more_responses) Object.assign(out, { more_responses: campaign.more_responses, more_sources: campaign.more_sources });
