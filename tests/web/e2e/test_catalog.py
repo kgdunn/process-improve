@@ -86,6 +86,9 @@ def test_a_design_s_detail_shows_its_source_and_its_checks(context, site):
     assert "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978)" in text
     assert "recomputed numbers agree" in text
     assert "The library makes this design" in text
+    assert page.get_attribute("#detail-body .detail__cite a", "target") == "_blank", "the source opens in a new tab"
+    stray = "a => [...a.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('')"
+    assert page.eval_on_selector("#detail-body .actions", stray).strip() == "", "no text between the buttons"
     assert "d=bhh-pilot-plant-2-3" in page.url
     page.keyboard.press("Escape")
     page.wait_for_selector("#detail:not([open])", state="attached")
@@ -174,6 +177,53 @@ def test_the_map_draws_a_mark_for_every_design_listed(context, site):
         "document.querySelector('#map').data.filter((t) => t.customdata).flatMap((t) => t.customdata).sort()"
     )
     assert marks == sorted(CATALOG_SAMPLE)
+
+
+def _drag_a_box(page, factors: tuple[float, float], runs: tuple[float, float]) -> None:
+    """Drag a box on the map over a span of factors and runs, as a reader does with the mouse."""
+    corners = page.evaluate(
+        """([factors, runs]) => {
+          const div = document.querySelector('#map');
+          const { xaxis, yaxis } = div._fullLayout;
+          const area = div.querySelector('.nsewdrag').getBoundingClientRect();
+          const at = (k, n) => [area.left + xaxis.l2p(k), area.top + yaxis.l2p(Math.log10(n))];
+          return [at(factors[0], runs[0]), at(factors[1], runs[1])];
+        }""",
+        [list(factors), list(runs)],
+    )
+    page.mouse.move(*corners[0])
+    page.mouse.down()
+    page.mouse.move(*corners[1], steps=8)
+    page.mouse.up()
+
+
+BOXES = "document.querySelector('#map')._fullLayout.selections?.length ?? 0"
+
+
+def test_a_box_on_the_map_filters_and_the_reset_puts_the_map_back(context, site):
+    page = open_catalog(context, site)
+    page.wait_for_selector("#map .scatterlayer")
+    _drag_a_box(page, (2.5, 3.5), (4, 64))
+    counted(page, "3 of 5")
+    assert set(shown(page)) == {PILOT, CCD, CUBE}, "the designs of 3 factors"
+    page.wait_for_timeout(500)
+    assert page.text_content("#count").startswith("3 of 5"), "the map's redraw keeps the filter"
+    page.click("#map-reset")
+    counted(page, "5 of 5")
+    assert "runs=" not in page.url, "the address loses the box's filter"
+    assert "k=" not in page.url
+
+
+def test_a_box_around_no_design_stays_drawn_until_the_map_is_reset(context, site):
+    """A box that catches no design filters nothing, and Plotly leaves it on the map: the reset takes it away."""
+    page = open_catalog(context, site)
+    page.wait_for_selector("#map .scatterlayer")
+    _drag_a_box(page, (5.5, 6.5), (100, 400))
+    page.wait_for_function(f"({BOXES}) === 1")
+    assert page.text_content("#count").startswith("5 of 5")
+    page.click("#map-reset")
+    page.wait_for_function(f"({BOXES}) === 0")
+    assert page.text_content("#count").startswith("5 of 5")
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

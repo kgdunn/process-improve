@@ -43,6 +43,30 @@ those changes.
   own and never fitted; once their results are in, Learn says whether their average falls inside
   the prediction interval for an average of three runs. The "Show the Python code" panel and the
   notebook reproduce the search with the library (`api_best_settings`).
+- **The information matrix and exact region values in `evaluate_design`.** The new metric
+  `information_matrix` gives X'X, its determinant, the D-, A- and E-criteria, the rank, the residual
+  degrees of freedom, the inverse and each coefficient's variance; `estimable_interactions` counts
+  the omitted two-factor interactions a design estimates beside its model. `integration="exact"`
+  works out the average prediction variance over the cube by Gauss-Legendre quadrature,
+  trace((X'X)^-1 W), in place of a sample; `max_search="optimize"` climbs from the sample's largest
+  points by a compass search, so a maximum inside a face or an edge is not missed.
+- **`evaluate_projections`** evaluates a design on every projection onto a number of its factors,
+  or a number from each of several groups (quantitative and categorical, say), and reports the
+  fraction that estimate the model (the projection estimation capacity) and the metrics' averages.
+- **`design_measures.design_structure`** counts what a design's runs are made of: levels and how
+  often each factor takes each one, middle-level zeros of the main effects and of the products of two
+  three-level factors (n0ME, n0IE), centre runs, mirror-image pairs, replicated runs and blocks.
+- **`allocate_runs`** tabulates every whole-run split of a budget between two levels that differ
+  in noise or cost, with each split's variance and efficiency, and finds the most precise one.
+- **Reference catalogue: design checks.** New check kinds read a design's structure
+  (`design_structure`), its projections (`projections`) and its projectivity (`design_measure`);
+  a printed vector or matrix is compared entry by entry with X, X'X, X'y or (X'X)^-1; a design
+  metric's table of terms can be picked by a regular expression and reduced; and a check may name
+  a design `generate_omars` chooses; `library_text` compares a label the library gives word for
+  word; and `desirability_optimum` runs the library's desirability search on the fitted responses.
+  With these, 565 printed numbers that were set aside by hand in Núñez Ares and Goos (2020), Núñez
+  Ares et al. (2023), Goos (2025), Jones and Nachtsheim (2013) and the PID book are now checked.
+
 - **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
   `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
   "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
@@ -511,6 +535,14 @@ those changes.
   compared over the settings that can be run, Learn greys the response surface outside them, and
   the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
   factor renames it inside the limits, and the run sheet keeps its runs.
+
+### Changed
+
+- **Factorial's three ways in stand out, and links out open in a tab of their own.** The header's
+  buttons are larger, each in a colour of its own with an icon, and each begins with a verb: *Start
+  a new study*, *Explore a worked example* and *Browse the design catalog*. Every link from the
+  app, its About page and the design catalog to another site (a source, GitHub, Pyodide) opens in a
+  new tab, and a link to the book in the book's tab, so the page and its study stay where they are.
 
 ### Fixed
 
