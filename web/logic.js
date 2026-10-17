@@ -11,6 +11,19 @@ export function nTerms(k, model) {
   return 1 + k + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? k : 0);
 }
 
+/** The space-filling designs, made for no model; mirrors bootstrap.SPACE_FILLING. */
+export const SPACE_FILLING = ["maximin_lhs"];
+
+/** Runs a factor in a space-filling design, unless the reader gives a number; mirrors bootstrap.SPACE_FILLING_RUNS. */
+export const SPACE_FILLING_RUNS = 10;
+
+/**
+ * The runs a design that takes a number of runs opens with, as bootstrap.py gives them: SPACE_FILLING_RUNS a factor
+ * for a space-filling design, else the coefficients of the model it is made for and SPARE_RUNS more.
+ */
+export const defaultBudget = (designType, k, model) =>
+  SPACE_FILLING.includes(designType) ? SPACE_FILLING_RUNS * k : nTerms(k, model) + SPARE_RUNS;
+
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 

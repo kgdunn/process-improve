@@ -169,7 +169,30 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 2,
         "max_factors": 6,
     },
+    "maximin_lhs": {
+        "label": "Space-filling (Latin hypercube)",
+        "hint": (
+            "Runs spread evenly through the ranges, made for no model: each factor takes as many different settings "
+            "as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model."
+        ),
+        "model": "quadratic",
+        "options": ["budget", "n_replicates", "n_blocks"],
+        "min_factors": 2,
+        "max_factors": 8,
+    },
 }
+
+#: The space-filling designs (``designs_space_filling.py``): their runs spread through the ranges for no model in
+#: particular, so the comparison of designs for a model leaves them out, and Learn analyses one with the model the
+#: study aims to learn. A maximin Latin hypercube keeps each factor's settings apart as well as the runs.
+SPACE_FILLING = ("maximin_lhs",)
+
+#: Runs a factor in a space-filling design, unless the reader gives a number: the usual start for a model fitted
+#: to a computer experiment (Loeppky, Sacks and Welch 2009), and the library's default (logic.js mirrors it).
+SPACE_FILLING_RUNS = 10
+
+#: The most runs a space-filling design has on this page, as the Runs box allows.
+MAX_SPACE_FILLING_RUNS = 200
 
 #: The design the page holds but does not make: runs taken as they are given, such as a design a book
 #: prints, opened from the design catalog. It is not in :data:`DESIGNS`, so the comparison never tries
@@ -1031,14 +1054,8 @@ def make_design(spec: dict) -> dict:
     # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
     result = generate_design(made, design_type=design_type, **asked, **({"constraints": expressions} if limits else {}))
 
-    # The library returns the runs already randomised, and ``run_order[i]`` is the
-    # standard-order position of its i-th run: the sheet keeps the rows as they come.
     names = [f.name for f in factors]
-    runs = pd.DataFrame(result.design_actual[names].to_numpy(), columns=names)
-    if BLOCK in result.design_actual.columns:  # the runs are listed block by block
-        runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
-    runs.insert(0, "Run order", range(1, len(runs) + 1))
-    runs.insert(0, "Std order", result.run_order)
+    runs = _made_runs(result, factors, design_type, kwargs)
     for response in responses:  # a column for each response's results, in the brief's order
         runs[response["name"]] = np.nan
 
@@ -1047,7 +1064,7 @@ def make_design(spec: dict) -> dict:
         "design_type": design_type,
         "factors": [_factor_spec(f) for f in factors],
         "response": responses[0]["name"],
-        "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution, made),
+        "model": kwargs.get("model_type") or _designed_model(design_type, result.resolution, made, spec.get("aim")),
         "options": kwargs,
         **described,
         **({"constraints": limits} if limits else {}),
@@ -1056,6 +1073,8 @@ def make_design(spec: dict) -> dict:
     facts = _design_facts(result, coded.to_numpy(dtype=float), names, kwargs)
     if array := (result.metadata or {}).get("orthogonal_array"):
         facts["notes"].insert(0, _array_sentence(array, stored["model"]))
+    if design_type in SPACE_FILLING:
+        facts["notes"].insert(0, _spread_sentence(kwargs["budget"]))
     if region is not None:
         if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
             raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
@@ -1070,6 +1089,25 @@ def make_design(spec: dict) -> dict:
         "spec": stored,
         "xlsx_base64": _to_workbook(runs, stored),
     }
+
+
+def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dict[str, Any]) -> pd.DataFrame:  # noqa: ANN401
+    """Lay out the runs the library made as the run sheet lists them, before the responses' columns.
+
+    The library returns the runs already randomised, and ``run_order[i]`` is the standard-order
+    position of its i-th run: the sheet keeps the rows as they come, under their "Std order" and
+    "Run order", with their block first when they come in blocks. A space-filling design's settings
+    are rounded to what can be set (:func:`_round_spread`).
+    """
+    names = [f.name for f in factors]
+    runs = pd.DataFrame(result.design_actual[names].to_numpy(), columns=names)
+    if BLOCK in result.design_actual.columns:  # the runs are listed block by block
+        runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
+    if design_type in SPACE_FILLING:
+        _round_spread(runs, factors, kwargs["budget"])
+    runs.insert(0, "Run order", range(1, len(runs) + 1))
+    runs.insert(0, "Std order", result.run_order)
+    return runs
 
 
 #: What a design made with limits on the settings says of its runs. It names no factor, so a renaming keeps it.
@@ -1524,14 +1562,18 @@ def _check_factor_count(design_type: str, n_factors: int) -> None:
         )
 
 
-def _designed_model(design_type: str, resolution: int | None, factors: list[Factor]) -> str:
+def _designed_model(design_type: str, resolution: int | None, factors: list[Factor], aim: str | None = None) -> str:
     """Name the model a design is analysed with when the reader does not choose one.
 
     A fraction keeps two-factor interactions clear of main effects and of each other
     only from resolution V, so below that it is analysed for its main effects. A Taguchi
     array estimates the main effects, and with a numeric factor at three levels (``factors``
-    as the library made the design) each numeric factor's square too.
+    as the library made the design) each numeric factor's square too. A space-filling design
+    is made for no model, so it is analysed with the smallest model that holds the study's
+    ``aim``, as an optimal design is made for.
     """
+    if design_type in SPACE_FILLING and aim in OPTIMAL_MODEL:
+        return OPTIMAL_MODEL[aim]
     if design_type == "fractional_factorial" and (resolution or 0) >= INTERACTIONS_CLEAR_FROM:
         return "interactions"
     if design_type == "taguchi" and any(f.type != "categorical" and f.levels for f in factors):
@@ -1595,17 +1637,69 @@ def _design_options(spec: dict, design_type: str) -> dict[str, Any]:
     if "n_levels" in allowed and (levels := _levels(spec)) != TAGUCHI_LEVELS[0]:
         kwargs["n_levels"] = levels
     if "model_type" in allowed:
-        model_type = spec.get("model_type", "quadratic")
-        if model_type not in MODELS:
-            raise ValueError(f"Unknown model {model_type!r}.")
-        kwargs["model_type"] = model_type
-        budget = spec.get("budget")
-        kwargs["budget"] = int(budget) if budget else _n_terms(n_factors, model_type) + SPARE_RUNS
+        kwargs["model_type"] = _model_type(spec)
+    if "budget" in allowed:
+        kwargs["budget"] = _budget(spec, design_type, n_factors, kwargs.get("model_type"))
     if "n_replicates" in allowed and (replicates := _replicates(spec)) > 1:
         kwargs["n_replicates"] = replicates
     if "n_blocks" in allowed and (blocks := _blocks(spec)) > 1:
         kwargs["n_blocks"] = blocks
     return kwargs
+
+
+def _model_type(spec: dict) -> str:
+    """Read the model an optimal design is made for: one of :data:`MODELS`, the quadratic unless named."""
+    model_type = spec.get("model_type", "quadratic")
+    if model_type not in MODELS:
+        raise ValueError(f"Unknown model {model_type!r}.")
+    return model_type
+
+
+def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int:
+    """Read the runs of a design that takes a number of them, or give its own (logic.js's ``defaultBudget``).
+
+    A space-filling design has :func:`_space_filling_runs`; an optimal one the reader's number, else the
+    coefficients of the model it is made for and :data:`SPARE_RUNS` more.
+    """
+    if design_type in SPACE_FILLING:
+        return _space_filling_runs(spec, k)
+    budget = spec.get("budget")
+    return int(budget) if budget else _n_terms(k, model_type) + SPARE_RUNS
+
+
+def _space_filling_runs(spec: dict, k: int) -> int:
+    """Read a space-filling design's runs: :data:`SPACE_FILLING_RUNS` a factor, unless the reader gives a number.
+
+    The fewest is one more than the factors, which the main effects take to fit.
+    """
+    budget = spec.get("budget")
+    if budget is None or budget in ("", 0):
+        return SPACE_FILLING_RUNS * k
+    runs = _number(budget)
+    if runs is None or runs != int(runs) or not k + 1 <= runs <= MAX_SPACE_FILLING_RUNS:
+        raise ValueError(f"A space-filling design in {k} factors has {k + 1} to {MAX_SPACE_FILLING_RUNS} runs.")
+    return int(runs)
+
+
+def _round_spread(runs: pd.DataFrame, factors: list[Factor], budget: int) -> None:
+    """Round a space-filling design's settings, in place, to what can be set: to a tenth of their step, or finer.
+
+    A Latin hypercube cuts each factor's range into ``budget`` equal steps and sets one run in the middle of each,
+    such as 12.833... L/min. Rounded to the decimal place of a tenth of a step, each setting moves by at most a
+    twentieth of a step, so it stays in its own step, and the settings keep their order and stay apart.
+    """
+    for f in factors:
+        step = (f.high - f.low) / budget
+        decimals = max(0, math.ceil(1 - math.log10(step)))
+        runs[f.name] = runs[f.name].astype(float).round(decimals) + 0.0  # -0.0 reads 0
+
+
+def _spread_sentence(runs: int) -> str:
+    """Say how a maximin Latin hypercube spreads its runs: every factor's settings, and the runs among themselves."""
+    return (
+        f"Each factor takes {runs} different settings, evenly spaced across its range, and the runs are placed so "
+        "the nearest two are as far apart as the search could make them."
+    )
 
 
 def _alpha(spec: dict) -> str | float:
@@ -3454,6 +3548,8 @@ def compare_plan(request: dict) -> dict:
     # model it was compared on.
     described = _described({"response_info": request.get("response_info"), "aim": model})
     for design_type, info in DESIGNS.items():
+        if design_type in SPACE_FILLING:
+            continue  # made for no model, so not one to compare on a model
         why = _left_out(design_type, k, labelled=labelled, limited=bool(limits))
         if why:
             left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})

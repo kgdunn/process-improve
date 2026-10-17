@@ -45,7 +45,12 @@ def test_run_sheet_lists_the_runs_in_their_randomised_order(api, bootstrap, desi
     options = bootstrap._design_options(spec, design_type)
     design = generate_design(bootstrap._factors(spec), design_type=design_type, **options)
     names = [f["name"] for f in FACTORS]
-    np.testing.assert_allclose(sheet[names].to_numpy(float), design.design_actual[names].to_numpy(float))
+    made = design.design_actual[names].to_numpy(float)
+    if design_type in bootstrap.SPACE_FILLING:  # rounded as the reader can set them: by at most a twentieth of a step
+        steps = np.array([f["high"] - f["low"] for f in FACTORS]) / options["budget"]
+        assert (np.abs(sheet[names].to_numpy(float) - made) <= steps / 20).all()
+    else:
+        np.testing.assert_allclose(sheet[names].to_numpy(float), made)
     assert sheet["Run order"].tolist() == list(range(1, design.n_runs + 1))
     assert sheet["Std order"].tolist() == design.run_order
 

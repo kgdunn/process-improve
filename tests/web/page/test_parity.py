@@ -317,6 +317,20 @@ def test_design_marks_too_few_spare_runs_where_learn_offers_to_make_them_again(b
     assert javascript(node, source("logic.js"), [("SPARE_FOR_NOISE", [])]) == [bootstrap.SPARE_FOR_NOISE]
 
 
+def test_a_design_s_runs_open_where_bootstrap_makes_them(api, bootstrap, node):
+    """A design that takes a number of runs opens on bootstrap's own: ten a factor for a space-filling design."""
+    spread, runs = javascript(node, source("logic.js"), [("SPACE_FILLING", []), ("SPACE_FILLING_RUNS", [])])
+    assert spread == list(bootstrap.SPACE_FILLING)
+    assert runs == bootstrap.SPACE_FILLING_RUNS
+    assert javascript(node, source("python.js"), [("SPACE_FILLING", [])]) == [list(bootstrap.SPACE_FILLING)]
+    counted = [d for d, info in bootstrap.DESIGNS.items() if "budget" in info["options"]]
+    assert set(bootstrap.SPACE_FILLING) < set(counted)
+    for design_type in counted:
+        made = api.ok("api_make_design", {"design_type": design_type, "factors": FACTORS, "model_type": "interactions"})
+        opened = javascript(node, source("logic.js"), [("defaultBudget", [design_type, len(FACTORS), "interactions"])])
+        assert opened == [made["spec"]["options"]["budget"]], design_type
+
+
 def test_a_report_names_the_seed_bootstrap_puts_the_runs_in_order_with(bootstrap, api):
     """report.js imports logic.js, which a module given as text cannot, so its constant is read from its source."""
     (seed,) = re.findall(r"^export const RUN_ORDER_SEED = (\d+);$", source("report.js"), flags=re.MULTILINE)

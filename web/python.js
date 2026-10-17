@@ -68,6 +68,22 @@ function constraintLines(limits) {
   return ["constraints = [  # the settings that can be run, in the factors' own units", ...limits.map((l) => `    ${repr(l.expression)},`), "]"];
 }
 
+/** The space-filling designs, whose settings the page rounds as the reader can set them; mirrors bootstrap.SPACE_FILLING. */
+export const SPACE_FILLING = ["maximin_lhs"];
+
+/**
+ * The lines that round a space-filling design's settings as the page lists them (bootstrap._round_spread): each to
+ * the decimal place of a tenth of the step between its settings, so it stays in its own step.
+ */
+function spreadLines(budget) {
+  return [
+    "# Each setting rounded to a tenth of the step between a factor's settings, as the page lists it.",
+    "for f in factors:",
+    `    step = (f.high - f.low) / ${budget}`,
+    "    result.design_actual[f.name] = result.design_actual[f.name].round(max(0, math.ceil(1 - math.log10(step))))",
+  ];
+}
+
 /** Step 1: the design, as generate_design makes it, inside the limits on the settings when there are some. */
 export function designCode(spec) {
   const { options, threeLevels } = libraryOptions(spec.options);
@@ -93,12 +109,15 @@ export function designCode(spec) {
       "print(result.design_actual)  # the blends, in randomised order: each run's proportions sum to 1",
     ].join("\n");
   }
+  const spread = SPACE_FILLING.includes(spec.design_type);
   return [
+    ...(spread ? ["import math", ""] : []),
     "from process_improve.experiments import Factor, generate_design",
     "",
     factorList(spec.factors, threeLevels),
     ...constraintLines(limits),
     `result = generate_design(factors, design_type=${repr(spec.design_type)}, ${limits.length ? "constraints=constraints, " : ""}${kwargs(options)})`,
+    ...(spread ? spreadLines(spec.options.budget) : []),
     "print(result.design_actual)  # the runs, in randomised order, in the factors' own units",
   ].join("\n");
 }

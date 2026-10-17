@@ -89,6 +89,9 @@ import {
   SCREEN_FROM,
   SPARE_FOR_NOISE,
   SPARE_RUNS,
+  SPACE_FILLING,
+  SPACE_FILLING_RUNS,
+  defaultBudget,
   TITLES,
   TRADE_OFF_FACTORS,
   TRADE_OFF_RUNS,
@@ -1091,7 +1094,7 @@ function setDesignForm(spec) {
   const k = factorCount();
   resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
   if (options.resolution) $("#resolution").value = String(options.resolution);
-  budgetEdited = Boolean(options.budget) && options.budget !== nTerms(k, options.model_type) + SPARE_RUNS;
+  budgetEdited = Boolean(options.budget) && options.budget !== defaultBudget(spec.design_type, k, options.model_type);
   if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
@@ -1132,9 +1135,13 @@ function refreshDesign() {
   centre.min = centreNeeded ? 1 : 0;
   if (centreNeeded && Number(centre.value) < 1) centre.value = 1;
 
-  const p = nTerms(k, $("#model_type").value);
-  if (!budgetEdited) $("#budget").value = p + SPARE_RUNS;
-  $("#budget-hint").textContent = `The model has ${p} coefficients.`;
+  // A space-filling design is made for no model: its runs are so many a factor, and Learn fits the aim's model.
+  const spread = SPACE_FILLING.includes(option.value);
+  const p = nTerms(k, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
+  if (!budgetEdited) $("#budget").value = defaultBudget(option.value, k, $("#model_type").value);
+  $("#budget-hint").textContent = spread
+    ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; Learn fits the model of your aim, which has ${p} coefficients.`
+    : `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
   const one = labelled.length === 1;

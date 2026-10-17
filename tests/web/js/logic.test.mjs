@@ -35,6 +35,8 @@ import {
   GOALS,
   OPTIMAL_MODEL,
   SCREEN_FROM,
+  SPACE_FILLING_RUNS,
+  defaultBudget,
   aimTerms,
   analysisModel,
   candidateRows,
@@ -750,6 +752,12 @@ describe("the designs that can learn the brief", () => {
     ]);
     assert.deepEqual(leftOutSentences(leftOut.slice(3), 2), [], "no sentence on numeric factors for a brief without");
     assert.deepEqual(leftOutSentences([], 4), []);
+  });
+
+  test("a design that takes a number of runs opens on its own: ten a factor, or the model's coefficients and spare", () => {
+    assert.equal(defaultBudget("maximin_lhs", 3, "interactions"), 3 * SPACE_FILLING_RUNS, "a space-filling design has no model");
+    assert.equal(defaultBudget("d_optimal", 3, "interactions"), 7 + 4);
+    assert.equal(defaultBudget("i_optimal", 4, "quadratic"), 15 + 4);
   });
 
   test("the Run tab counts the runs, then the results in", () => {

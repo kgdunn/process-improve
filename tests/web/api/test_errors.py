@@ -415,6 +415,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(n_replicates=1.5),
         "Replicates must be a whole number from 1 to 10.",
     ),
+    "a space-filling design with too few runs to fit the main effects": (
+        "api_make_design",
+        _make(design_type="maximin_lhs", budget=3),
+        "A space-filling design in 3 factors has 4 to 200 runs.",
+    ),
+    "a space-filling design with runs not a whole number": (
+        "api_make_design",
+        _make(design_type="maximin_lhs", budget=12.5),
+        "A space-filling design in 3 factors has 4 to 200 runs.",
+    ),
     "unknown model to design for": (
         "api_make_design",
         _make(design_type="d_optimal", model_type="cubic"),
