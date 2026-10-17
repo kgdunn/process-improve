@@ -39,7 +39,8 @@ def test_an_orthogonal_design_gives_every_term_a_vif_of_one_and_no_note(api):
     responses = [float((3 * i) % 7) for i in range(design["n_runs"])]
     analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "interactions"})
     vifs = vifs_of(analysis)
-    assert vifs.pop("Intercept") is None, "the intercept has no VIF"
+    intercept = vifs.pop("Intercept")
+    assert intercept is None, "the intercept has no VIF"
     assert vifs == dict.fromkeys(["T", "P", "F", "T·P", "T·F", "P·F"], pytest.approx(1.0))
     assert vif_notes(analysis) == []
 
