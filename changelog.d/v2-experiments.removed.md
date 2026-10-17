@@ -15,3 +15,6 @@
   counts in the overall desirability, and not the per-goal `weight` that shapes a response's
   ramp. Passing it now raises `TypeError`, and the `optimize_responses` agent tool refuses it as
   an unknown key. The parameters that followed it in the signature each move up one position.
+- **The empty `ilp` extra.** It was deprecated since 1.97.0, when `generate_omars` moved from
+  pulp's CBC solver to SciPy's HiGHS, a core dependency. `pip install 'process-improve[ilp]'` now
+  warns that the extra does not exist and installs the core package, which is all it ever added.
