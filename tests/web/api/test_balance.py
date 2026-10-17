@@ -243,7 +243,8 @@ def test_each_response_has_its_intervals_and_the_leverage_is_the_furthest_model_
 
 def test_the_overlay_shades_where_every_response_is_acceptable(api):
     held = design_of(api, TWO)
-    reply = balanced(api, held)
+    # Ends that cross the ranges, so each boundary runs through the plot and not only through a corner of it.
+    reply = balanced(api, held, {"Yield": {"low": 58}, "Cost": {"high": 22}})
     overlay = reply["overlay"]
     assert {overlay["x"], overlay["y"]} == {"T", "P"}
     grid = np.array(overlay["grid"])
@@ -257,8 +258,8 @@ def test_the_overlay_shades_where_every_response_is_acceptable(api):
     on_edge = np.isclose(yields, goals["Yield"]["low"], atol=1e-6) | np.isclose(costs, goals["Cost"]["high"], atol=1e-6)
     shaded = np.array(overlay["acceptable"], dtype=bool)
     assert np.array_equal(shaded[~on_edge], acceptable[~on_edge])
-    assert shaded.any(), "some settings are acceptable for both"
-    assert not shaded.all(), "and some are not"
+    assert shaded[~on_edge].any(), "some settings are acceptable for both"
+    assert not shaded[~on_edge].all(), "and some are not"
     assert surfaces["Yield"]["levels"] == [goals["Yield"]["low"]], "a yield to maximise is acceptable above its low end"
     assert surfaces["Cost"]["levels"] == [goals["Cost"]["high"]], "a cost to minimise, below its high end"
     assert overlay["at"] == [reply["coded"][overlay["x"]], reply["coded"][overlay["y"]]]
