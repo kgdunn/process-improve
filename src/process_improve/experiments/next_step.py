@@ -945,7 +945,9 @@ def _edges(study: _Study, model: _Model, x: np.ndarray, sense: float) -> tuple[l
     A factor improves past its end when the gradient there points out of the range, the way
     the goal wants the response to move. The gain is the directional derivative along the
     outward directions of those factors, scaled to one coded unit in the factor that moves
-    most: the change the first step of the path of steepest ascent should bring.
+    most: the change the first step of the path of steepest ascent should bring. A factor
+    whose range is a hard limit (``Factor.hard_limits``) cannot go past it, so it is no
+    part of that direction.
     """
     gradient = model.gradient(x)
     in_model = set().union(*(_term_factors(t) for t in model.terms)) if model.terms else set()
@@ -955,10 +957,16 @@ def _edges(study: _Study, model: _Model, x: np.ndarray, sense: float) -> tuple[l
             continue
         pushes = sense * gradient[j] * np.sign(x[j])
         improves = bool(pushes > 1e-9)
+        limited = study.factors[j].hard_limits
         edges.append(
-            {"factor": study.factors[j].name, "end": "high" if x[j] > 0 else "low", "improves_beyond": improves}
+            {
+                "factor": study.factors[j].name,
+                "end": "high" if x[j] > 0 else "low",
+                "improves_beyond": improves,
+                "hard_limit": limited,
+            }
         )
-        if improves:
+        if improves and not limited:
             outward[j] = sense * gradient[j]
     if not outward.any():
         return edges, 0.0
@@ -1094,6 +1102,7 @@ def _confirm(ctx: _Context) -> _Step:
             f"{_names(ctx, left_out)} {'is' if len(left_out) == 1 else 'are'} not in the model, so set at the end "
             "the small, not significant, effect favours; any setting in the range should do as well."
         )
+    reasons.extend(_held_at_limits(ctx))
     after = (
         f"If the mean of the {n} runs lies between {_g(low)} and {_g(high)}, accept these settings. If not, the "
         "model has missed something: call recommend_next_step again with these runs as the confirmation runs."
@@ -1162,7 +1171,10 @@ def _more_error_df(ctx: _Context) -> _Step:
 
 
 def _widen_ranges(ctx: _Context) -> _Step:
-    """Widen the numeric ranges about their middles and run the design again; replicate when they cannot move."""
+    """Widen the numeric ranges about their middles and run the design again; replicate when none can move.
+
+    A range that is a hard limit (``Factor.hard_limits``) stays as it is.
+    """
     spread = float(ctx.study.data["y"].std(ddof=1)) if len(ctx.study.data) > 1 else math.nan
     smallest = min(ctx.model.judged.values(), default=math.nan)
     reasons = [
@@ -1176,22 +1188,36 @@ def _widen_ranges(ctx: _Context) -> _Step:
             "noisy to see them move it: check its repeatability before spending more runs."
         ),
     ]
-    if not ctx.ranges_can_move:
+    soft = [j for j, f in enumerate(ctx.study.factors) if f.type != FactorType.categorical and not f.hard_limits]
+    if not ctx.ranges_can_move or not soft:
         step = _replicate(ctx)
-        step.reasons = [*reasons, "The ranges cannot move, so more runs at the same settings average the noise down."]
+        why = "cannot move" if not ctx.ranges_can_move else "are hard limits"
+        step.reasons = [*reasons, f"The ranges {why}, so more runs at the same settings average the noise down."]
         return step
     ranges = {}
-    for f in ctx.study.factors:
-        if f.type == FactorType.categorical:
-            continue
+    for j in soft:
+        f = ctx.study.factors[j]
         mid, half = (f.high + f.low) / 2, (f.high - f.low) / 2  # type: ignore[operator]
         ranges[f.name] = [mid - _WIDEN * half, mid + _WIDEN * half]
-    runs = ctx.study.data[ctx.study.names].to_numpy(dtype=float)
+    runs = ctx.study.data[ctx.study.names].to_numpy(dtype=float, copy=True)
+    runs[:, soft] *= _WIDEN  # the same coded design, read on the old scale: the new ends are 1.5 old half-ranges out
+    numeric = sum(f.type != FactorType.categorical for f in ctx.study.factors)
+    which = "every numeric range" if len(soft) == numeric else f"the ranges of {_names(ctx, soft)}"
+    kept = [j for j in range(ctx.k) if ctx.study.numeric[j] and j not in soft]
+    reasons.append("Wider ranges make each factor's effect larger against the same noise.")
+    if kept:
+        one = len(kept) == 1
+        held = (
+            "range of {} is a hard limit, and stays as it is"
+            if one
+            else "ranges of {} are hard limits, and stay as they are"
+        )
+        reasons.append(f"The {held.format(_names(ctx, kept))}.")
     return _Step(
         "widen_ranges",
-        f"Widen every numeric range by half again about its middle, and run the {len(runs)}-run design again.",
-        [*reasons, "Wider ranges make each factor's effect larger against the same noise."],
-        runs * _WIDEN,  # the same coded design, read on the old scale: the new ends are 1.5 old half-ranges out
+        f"Widen {which} by half again about the middle, and run the {len(runs)}-run design again.",
+        reasons,
+        runs,
         "Analyse the new runs on their own ranges; if still nothing stands out, check the measurement system.",
         {"new_ranges": ranges},
     )
@@ -1366,6 +1392,7 @@ def _move_region(ctx: _Context) -> _Step | None:
                 "Past the ranges the model is extrapolating: its predictions along the path "
                 f"({', '.join(_g(v) for v in predicted)}) say where to look, not what will be found."
             ),
+            *_held_at_limits(ctx),
         ],
         runs,
         "Make the runs in order and stop at the first one that does worse than the run before it. Then centre a "
@@ -1379,9 +1406,25 @@ def _move_region(ctx: _Context) -> _Step | None:
 
 
 def _edge_flags(ctx: _Context) -> list[bool]:
-    """For each factor, whether it is at an edge the goal improves beyond."""
-    beyond = {e["factor"] for e in ctx.edges if e["improves_beyond"]}
+    """For each factor, whether it is at an edge the goal improves beyond, and may go past it."""
+    beyond = {e["factor"] for e in ctx.edges if e["improves_beyond"] and not e["hard_limit"]}
     return [f.name in beyond for f in ctx.study.factors]
+
+
+def _held_at_limits(ctx: _Context) -> list[str]:
+    """Say which factors the goal would take past their hard limits, which hold them at that end."""
+    held = [e["factor"] for e in ctx.edges if e["improves_beyond"] and e["hard_limit"]]
+    if not held:
+        return []
+    names = ", ".join(held)
+    one = len(held) == 1
+    return [
+        (
+            f"The response would improve past the {'end' if one else 'ends'} of {names}, but "
+            f"{'its range is a hard limit' if one else 'their ranges are hard limits'}: "
+            f"{'it stays at that end' if one else 'they stay at those ends'}."
+        )
+    ]
 
 
 def _no_effect(ctx: _Context) -> _Step:
