@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "about": ["Part of the reference catalogue: the case studies, designs and worked examples of chapters 1 to 10 of Goos and Jones,", "Optimal Design of Experiments: A Case Study Approach (2011), for testing that software reproduces them. source: the", "citation, with what was read and when. experiments: the extraction experiment of chapter 2, the same experiment", "augmented with eight runs in chapter 3, the peel strength experiment of chapter 4, the yield of a reaction over a", "square and over a constrained region in chapter 5, the rolling mill of chapter 6, a mixture with process variables,", "the experiments in blocks of chapters 7 and 8, the pastry dough and the stability of riboflavin, the polypropylene", "experiment with covariates of chapter 9 and the wind tunnel split-plot experiment of chapter 10, each with its", "factors, responses and runs as printed, where it is printed, and expected: every number the book prints for it, as", "printed text, with where it is printed (a page and a quotation) and check: how to recompute it, or manual, the reason", "it is not recomputed. A check with a disagreement records a number known not to reproduce and why. The book fits", "every model in coded units, except chapter 4's prediction equations and chapter 6's mixture models, which are in", "pseudocomponents, and its VIF is n times a coefficient's variance in units of sigma squared (Equation 2.13): the", "library's coefficient variance from evaluate_design's information_matrix, times the run count. Random block effects", "and whole plots are fitted by REML with JMP's Kenward-Roger standard errors and degrees of freedom from the observed", "information (split_plot), and a VIF or efficiency factor due to blocking is a coefficient's variance with the blocks", "as fixed effects over its variance without them (relative_to). A split-plot design is evaluated through the", "generalized least squares information X'V^-1 X, V = I + eta ZZ' (evaluate_design's whole_plot_variance_ratio, with", "the runs' whole_plot column), and a run order's robustness to a time trend by Equation 9.19 (trend_robustness). An", "alias matrix printed in thirds is compared entry by entry as arithmetic (expression). Table 3.1's AICc is the model", "summary's aicc, and Table 3.2's recommended settings the corner of the six factors where each model predicts the most", "yield (best_corner). designs: the splits of chapter 1's runs between two machines or two treatments (allocate_runs),", "Table 2.4's bias calculation (product_column), the four-run design of Table 2.8, the D-optimal design of Table", "2.11, the designs of the coordinate-exchange example, each compared on |X'X|, chapter 4's D-optimal and I-optimal", "designs, compared on their relative variances, their average prediction variance, their FDS plots and each other", "(relative_efficiency), chapter 6's half fraction of the 2^5 factorial, the blocked designs of chapters 7 and 8, the", "samples and the second design of chapter 9 and its trend-robust run orders, and the split-plot designs of chapter 10.", "not_captured: what in these pages is not an experiment with data. Read with", "process_improve.experiments.reference_catalogue.reference_experiments; tests/test_reference_catalogue.py recomputes", "every number that has a check."],
+ "about": ["Part of the reference catalogue: the case studies, designs and worked examples of chapters 1 to 10 of Goos and Jones,", "Optimal Design of Experiments: A Case Study Approach (2011), for testing that software reproduces them. source: the", "citation, with what was read and when. experiments: the extraction experiment of chapter 2, the same experiment", "augmented with eight runs in chapter 3, the peel strength experiment of chapter 4, the yield of a reaction over a", "square and over a constrained region in chapter 5, the rolling mill of chapter 6, a mixture with process variables,", "the experiments in blocks of chapters 7 and 8, the pastry dough and the stability of riboflavin, the polypropylene", "experiment with covariates of chapter 9 and the wind tunnel split-plot experiment of chapter 10, each with its", "factors, responses and runs as printed, where it is printed, and expected: every number the book prints for it, as", "printed text, with where it is printed (a page and a quotation) and check: how to recompute it, or manual, the reason", "it is not recomputed. A check with a disagreement records a number known not to reproduce and why. The book fits", "every model in coded units, except chapter 4's prediction equations and chapter 6's mixture models, which are in", "pseudocomponents, and its VIF is n times a coefficient's variance in units of sigma squared (Equation 2.13): the", "library's coefficient variance from evaluate_design's information_matrix, times the run count. Random block effects", "and whole plots are fitted by REML with JMP's Kenward-Roger standard errors and degrees of freedom from the observed", "information (split_plot), and a VIF or efficiency factor due to blocking is a coefficient's variance with the blocks", "as fixed effects over its variance without them (relative_to). A split-plot design is evaluated through the", "generalized least squares information X'V^-1 X, V = I + eta ZZ' (evaluate_design's random_effects, with the runs'", "column of whole plots in groups), and a run order's robustness to a time trend by Equation 9.19 (trend_robustness). An", "alias matrix printed in thirds is compared entry by entry as arithmetic (expression). Table 3.1's AICc is the model", "summary's aicc, and Table 3.2's recommended settings the corner of the six factors where each model predicts the most", "yield (best_corner). designs: the splits of chapter 1's runs between two machines or two treatments (allocate_runs),", "Table 2.4's bias calculation (product_column), the four-run design of Table 2.8, the D-optimal design of Table", "2.11, the designs of the coordinate-exchange example, each compared on |X'X|, chapter 4's D-optimal and I-optimal", "designs, compared on their relative variances, their average prediction variance, their FDS plots and each other", "(relative_efficiency), chapter 6's half fraction of the 2^5 factorial, the blocked designs of chapters 7 and 8, the", "samples and the second design of chapter 9 and its trend-robust run orders, and the split-plot designs of chapter 10.", "not_captured: what in these pages is not an experiment with data. Read with", "process_improve.experiments.reference_catalogue.reference_experiments; tests/test_reference_catalogue.py recomputes", "every number that has a check."],
  "source": {
   "key": "goos-jones-2011",
   "authors": ["Peter Goos", "Bradley Jones"],
@@ -20178,9 +20178,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.Intercept",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.4471: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20199,9 +20201,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh"
      }
     },
@@ -20219,9 +20223,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.rrh"
      }
     },
@@ -20239,9 +20245,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.yaw",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0340: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20260,9 +20268,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.grille",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0333: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20281,9 +20291,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh:rrh"
      }
     },
@@ -20301,9 +20313,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh:yaw",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0485: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20322,9 +20336,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh:grille",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0466: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20343,9 +20359,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.rrh:yaw",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20364,9 +20382,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.rrh:grille",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0468: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20385,9 +20405,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.yaw:grille",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20406,9 +20428,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(frh ** 2)",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.5242: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20427,9 +20451,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(rrh ** 2)",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.5235: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20448,9 +20474,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(yaw ** 2)",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1001: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20469,9 +20497,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(grille ** 2)",
       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1050: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
      }
@@ -20490,9 +20520,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances",
       "terms": ".*",
       "reduce": "mean"
@@ -20512,9 +20544,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances",
       "terms": "(?!Intercept).*",
       "reduce": "mean",
@@ -20536,9 +20570,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.frh",
        "printed": "0.2"
       },
@@ -20547,9 +20583,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.rrh",
        "printed": "0.2"
       }
@@ -20570,9 +20608,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.yaw",
        "printed": "0.032",
        "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0340: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
@@ -20582,9 +20622,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.grille",
        "printed": "0.032",
        "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0333: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
@@ -20605,9 +20647,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh:rrh",
       "printed": "0.3"
      }
@@ -20628,9 +20672,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.frh:yaw",
        "printed": "0.046",
        "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0485: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
@@ -20640,9 +20686,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.frh:grille",
        "printed": "0.046",
        "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0466: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
@@ -20652,9 +20700,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.rrh:yaw",
        "printed": "0.046",
        "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
@@ -20664,9 +20714,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.rrh:grille",
        "printed": "0.046",
        "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0468: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
@@ -20688,9 +20740,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.frh:yaw",
        "printed": "<0.05"
       },
@@ -20699,9 +20753,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.frh:grille",
        "printed": "<0.05"
       },
@@ -20710,9 +20766,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.rrh:yaw",
        "printed": "<0.05"
       },
@@ -20721,9 +20779,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.rrh:grille",
        "printed": "<0.05"
       },
@@ -20732,9 +20792,11 @@
        "metric": "information_matrix",
        "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
        "options": {
-        "whole_plot_variance_ratio": 1.0
+        "random_effects": {
+         "setting": 1.0
+        }
        },
-       "whole_plot": ["setting"],
+       "groups": ["setting"],
        "key": "coefficient_variances.yaw:grille",
        "printed": "<0.05"
       }
@@ -20755,9 +20817,11 @@
       "criterion": "d",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "versus": "goos-jones-wind-tunnel-second-option",
       "gain": true,
       "printed": "12.1",
@@ -20778,10 +20842,12 @@
       "metric": "average_prediction_variance",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0,
+       "random_effects": {
+        "setting": 1.0
+       },
        "integration": "exact"
       },
-      "whole_plot": ["setting"]
+      "groups": ["setting"]
      }
     },
     {
@@ -20798,9 +20864,11 @@
       "metric": "fds",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": ["quantiles", "0.5"],
       "printed": "0.47",
       "disagreement": "the design printed in Table 10.2 has a median prediction variance of 0.475 over 100,000 uniform points of the cube, which rounds to 0.48; the text reads it off Figure 10.4"
@@ -40359,9 +40427,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "rank",
       "printed": "13"
      }
@@ -40510,9 +40580,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.Intercept"
      }
     },
@@ -40531,9 +40603,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh"
      }
     },
@@ -40552,9 +40626,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.rrh"
      }
     },
@@ -40573,9 +40649,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.yaw"
      }
     },
@@ -40594,9 +40672,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.grille"
      }
     },
@@ -40615,9 +40695,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh:rrh"
      }
     },
@@ -40636,9 +40718,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh:yaw"
      }
     },
@@ -40657,9 +40741,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.frh:grille"
      }
     },
@@ -40678,9 +40764,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.rrh:yaw"
      }
     },
@@ -40699,9 +40787,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.rrh:grille"
      }
     },
@@ -40720,9 +40810,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.yaw:grille"
      }
     },
@@ -40741,9 +40833,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(frh ** 2)"
      }
     },
@@ -40762,9 +40856,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(rrh ** 2)"
      }
     },
@@ -40783,9 +40879,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(yaw ** 2)"
      }
     },
@@ -40804,9 +40902,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances.I(grille ** 2)"
      }
     },
@@ -40824,9 +40924,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances",
       "terms": ".*",
       "reduce": "mean"
@@ -40846,9 +40948,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "coefficient_variances",
       "terms": "(?!Intercept).*",
       "reduce": "mean"
@@ -40952,9 +41056,11 @@
       "criterion": "d",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "versus": "goos-jones-wind-tunnel",
       "percent": true,
       "disagreement": "the designs of Figure 10.2 and Table 10.2 give a relative D-efficiency of 91.4%, 9.4% more information for the I-optimal design; like Table 10.3's I-optimal column, the 89.2% belongs to an I-optimal design other than the one printed"
@@ -40974,9 +41080,11 @@
       "metric": "information_matrix",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": "n_parameters",
       "printed": "15"
      }
@@ -40996,10 +41104,12 @@
       "metric": "average_prediction_variance",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0,
+       "random_effects": {
+        "setting": 1.0
+       },
        "integration": "exact"
       },
-      "whole_plot": ["setting"]
+      "groups": ["setting"]
      }
     },
     {
@@ -41016,9 +41126,11 @@
       "metric": "fds",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "setting": 1.0
+       }
       },
-      "whole_plot": ["setting"],
+      "groups": ["setting"],
       "key": ["quantiles", "0.5"]
      }
     },
@@ -41237,9 +41349,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.Intercept"
      }
     },
@@ -41258,9 +41372,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.w"
      }
     },
@@ -41279,9 +41395,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.s1"
      }
     },
@@ -41300,9 +41418,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.s2"
      }
     },
@@ -41321,9 +41441,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.s3"
      }
     },
@@ -41342,9 +41464,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.w:s1"
      }
     },
@@ -41363,9 +41487,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.w:s2"
      }
     },
@@ -41384,9 +41510,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.w:s3"
      }
     },
@@ -41405,9 +41533,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.s1:s2"
      }
     },
@@ -41426,9 +41556,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.s1:s3"
      }
     },
@@ -41447,9 +41579,11 @@
       "metric": "information_matrix",
       "model": "w + s1 + s2 + s3 + w:s1 + w:s2 + w:s3 + s1:s2 + s1:s3 + s2:s3",
       "options": {
-       "whole_plot_variance_ratio": 1.0
+       "random_effects": {
+        "plot": 1.0
+       }
       },
-      "whole_plot": ["plot"],
+      "groups": ["plot"],
       "key": "coefficient_variances.s2:s3"
      }
     }

@@ -87,17 +87,18 @@ These summarise the information matrix :math:`X^\top X` for the fitted model.
   model the design can estimate beside it: the rank the omitted interaction columns add
   to :math:`X`.
 
-Split-plot designs
-~~~~~~~~~~~~~~~~~~
+Split-plot and two-way split-plot designs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In a split-plot design the runs that share a setting of the hard-to-change factors (a
-whole plot) are correlated, so ordinary least squares misstates the variances. Pass
-``whole_plot_variance_ratio``, the whole-plot variance over the run variance
-:math:`\eta = \sigma_\gamma^2 / \sigma_\varepsilon^2`, and give each run's whole plot
-in a ``WholePlot`` column. Every metric then uses the generalized least squares
-information :math:`X^\top V^{-1} X`, with :math:`V = I + \eta Z Z^\top` and :math:`Z`
-the whole-plot indicators, in place of :math:`X^\top X`. The variances are in units of
-the run variance, as JMP reports them for a split-plot design.
+whole plot) are correlated, and in a two-way split-plot (strip-plot) design the runs that
+share a row or a column are; ordinary least squares then misstates the variances. Pass
+``random_effects``, mapping each column that labels a random effect's groups to its
+variance over the run variance :math:`\eta_k`. Every metric then uses the generalized
+least squares information :math:`X^\top V^{-1} X`, with
+:math:`V = I + \sum_k \eta_k Z_k Z_k^\top` and :math:`Z_k` the indicators of effect
+:math:`k`'s groups, in place of :math:`X^\top X`. The variances are in units of the run
+variance, as JMP reports them.
 
 .. code-block:: python
 
@@ -105,8 +106,12 @@ the run variance, as JMP reports them for a split-plot design.
        design,  # with a WholePlot column
        model="quadratic",
        metric=["information_matrix", "average_prediction_variance"],
-       whole_plot_variance_ratio=1.0,
+       random_effects={"WholePlot": 1.0},
    )
+
+   # a two-way split-plot design, its rows and columns each a random effect
+   evaluate_design(strip_plot, model="interactions", metric="information_matrix",
+                   random_effects={"Row": 1.0, "Column": 1.0})
 
 Term correlation
 ~~~~~~~~~~~~~~~~~

@@ -1507,6 +1507,40 @@ WIND_TUNNEL_QUADRATIC = (
 )
 
 
+def _battery_design() -> pd.DataFrame:
+    """Goos and Jones (2011), Table 11.2: a 48-run two-way split-plot design, 16 rows by 6 columns.
+
+    Each row (a lot from the assembly stage, x1 to x4) runs in three of the six columns (curing
+    cycles, x5 and x6): the odd rows in cycles 1 to 3, the even rows in cycles 4 to 6.
+    """
+    lots = [
+        "--++",
+        "+---",
+        "----",
+        "++-+",
+        "-+-+",
+        "+-++",
+        "+--+",
+        "+++-",
+        "++++",
+        "-+--",
+        "+-+-",
+        "-+++",
+        "-++-",
+        "--+-",
+        "++--",
+        "---+",
+    ]
+    cycles = {1: "--", 2: "++", 3: "-+", 4: "+-", 5: "++", 6: "-+"}
+    sign = {"-": -1.0, "+": 1.0}
+    runs = [
+        [str(row), str(column), *(sign[v] for v in lot + cycles[column])]
+        for row, lot in enumerate(lots, start=1)
+        for column in ((1, 2, 3) if row % 2 else (4, 5, 6))
+    ]
+    return pd.DataFrame(runs, columns=["Row", "Column", "x1", "x2", "x3", "x4", "x5", "x6"])
+
+
 class TestSplitPlotInformation:
     def test_the_variances_of_a_published_split_plot_design(self) -> None:
         """Goos and Jones (2011), Table 10.3, Marc's column: GLS variances with sigma_gamma^2 = sigma_eps^2 = 1."""
@@ -1514,7 +1548,7 @@ class TestSplitPlotInformation:
             _wind_tunnel_design(),
             model=WIND_TUNNEL_QUADRATIC,
             metric=["information_matrix", "average_prediction_variance"],
-            whole_plot_variance_ratio=1.0,
+            random_effects={"WholePlot": 1.0},
             integration="exact",
         )
         variances = found["information_matrix"]["coefficient_variances"]
@@ -1524,7 +1558,18 @@ class TestSplitPlotInformation:
             assert variances[term] == pytest.approx(value, abs=5e-4), term
         assert np.mean(list(variances.values())) == pytest.approx(0.189, abs=5e-4)
         assert found["average_prediction_variance"] == pytest.approx(0.526, abs=5e-4)
-        assert "10 whole plots" in found["notes"]["whole_plots"]
+        assert "WholePlot (10 groups, ratio 1)" in found["notes"]["random_effects"]
+
+    def test_the_variances_of_a_two_way_split_plot_design(self) -> None:
+        """Goos and Jones (2011), Table 11.3: rows and columns as random effects, all three variances one."""
+        found = evaluate_design(
+            _battery_design(), model="interactions", metric="information_matrix", random_effects={"Row": 1, "Column": 1}
+        )
+        variances = found["information_matrix"]["coefficient_variances"]
+        expected = {"Intercept": 0.2734, "x1": 0.0859, "x5": 0.2237, "x6": 0.2109, "x1:x2": 0.0833}
+        expected |= {"x1:x5": 0.0227, "x1:x6": 0.0234, "x5:x6": 0.2237}
+        for term, value in expected.items():
+            assert variances[term] == pytest.approx(value, abs=5e-5), term
 
     def test_it_equals_the_direct_inverse_of_the_runs_covariance(self) -> None:
         rng = np.random.default_rng(3)
@@ -1533,26 +1578,26 @@ class TestSplitPlotInformation:
         X = np.column_stack([np.ones(12), design["A"], design["B"], design["A"] * design["B"]])
         Z = (design["WholePlot"].to_numpy()[:, None] == np.arange(1, 5)).astype(float)
         direct = X.T @ np.linalg.solve(np.eye(12) + 2.5 * Z @ Z.T, X)
-        found = evaluate_design(design, model="A * B", metric="information_matrix", whole_plot_variance_ratio=2.5)
+        found = evaluate_design(design, model="A * B", metric="information_matrix", random_effects={"WholePlot": 2.5})
         np.testing.assert_allclose(found["information_matrix"]["xtx"], direct, rtol=1e-12)
         np.testing.assert_allclose(found["information_matrix"]["inverse"], np.linalg.inv(direct), rtol=1e-10)
 
     def test_a_ratio_of_zero_gives_the_ordinary_least_squares_metrics(self) -> None:
         design = _wind_tunnel_design()
-        gls = evaluate_design(design, model="quadratic", metric="all", whole_plot_variance_ratio=0.0)
+        gls = evaluate_design(design, model="quadratic", metric="all", random_effects={"WholePlot": 0.0})
         ols = evaluate_design(design, model="quadratic", metric="all")
         assert gls["d_efficiency"] == pytest.approx(ols["d_efficiency"])
         assert gls["average_prediction_variance"] == pytest.approx(ols["average_prediction_variance"])
-        assert "whole_plots" not in ols.get("notes", {})
+        assert "random_effects" not in ols.get("notes", {})
 
-    def test_the_whole_plot_column_is_needed(self) -> None:
-        with pytest.raises(ValueError, match="WholePlot"):
-            evaluate_design(_full_factorial_df(2), whole_plot_variance_ratio=1.0)
+    def test_the_group_column_is_needed(self) -> None:
+        with pytest.raises(ValueError, match="'WholePlot', which is not a column"):
+            evaluate_design(_full_factorial_df(2), random_effects={"WholePlot": 1.0})
 
     @pytest.mark.parametrize("ratio", [-0.5, float("nan")])
     def test_a_negative_or_undefined_ratio_is_refused(self, ratio: float) -> None:
-        with pytest.raises(ValueError, match="whole_plot_variance_ratio"):
-            evaluate_design(_wind_tunnel_design(), whole_plot_variance_ratio=ratio)
+        with pytest.raises(ValueError, match="variance ratio of random effect 'WholePlot'"):
+            evaluate_design(_wind_tunnel_design(), random_effects={"WholePlot": ratio})
 
     def test_the_tool_passes_the_ratio_on(self) -> None:
         from process_improve.tool_spec import execute_tool_call
@@ -1560,7 +1605,12 @@ class TestSplitPlotInformation:
         rows = _wind_tunnel_design().to_dict(orient="records")
         result = execute_tool_call(
             "evaluate_design",
-            {"design_matrix": rows, "model": "quadratic", "metric": "a_optimality", "whole_plot_variance_ratio": 1.0},
+            {
+                "design_matrix": rows,
+                "model": "quadratic",
+                "metric": "a_optimality",
+                "random_effects": {"WholePlot": 1.0},
+            },
         )
         assert "error" not in result
-        assert "whole_plots" in result["notes"]
+        assert "random_effects" in result["notes"]

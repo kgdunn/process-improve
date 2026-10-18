@@ -93,14 +93,14 @@ class EvaluateDesignInput(BaseModel):
             "power and the alias matrix depend on the coding; prediction variance and D rankings do not."
         ),
     )
-    whole_plot_variance_ratio: float | None = Field(
+    random_effects: dict[str, float] | None = Field(
         None,
-        ge=0,
         description=(
-            "For a split-plot design: the whole-plot variance over the run variance (1 is a common "
-            "assumption). Each run must carry its whole plot under the key 'WholePlot'. The metrics then "
-            "use the generalized least squares information X' V^-1 X in place of X'X. Default: ignore the "
-            "whole plots."
+            "For runs that share random effects, such as a split-plot design's whole plots or a two-way "
+            "split-plot (strip-plot) design's rows and columns: each key the run key that labels a run's group "
+            "(e.g. 'WholePlot'), each value that effect's variance over the run variance (1 is a common "
+            "assumption). The metrics then use the generalized least squares information X' V^-1 X in place of "
+            "X'X. Default: the runs are independent."
         ),
     )
 
@@ -160,7 +160,7 @@ def evaluate_design_tool(spec: EvaluateDesignInput) -> dict[str, Any]:
             region=region,
             random_state=spec.random_state,
             categorical_coding=spec.categorical_coding,
-            whole_plot_variance_ratio=spec.whole_plot_variance_ratio,
+            random_effects=spec.random_effects,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

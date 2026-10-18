@@ -23,7 +23,7 @@ import itertools
 import logging
 import re
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -78,8 +78,8 @@ class _EvalRequest:
     categorical_coding: str = "effect"
     integration: str = "sample"
     max_search: str = "sample"
-    whole_plots: np.ndarray | None = None  # each run's whole plot, for the split-plot (GLS) information
-    whole_plot_variance_ratio: float | None = None
+    # each random effect's group labels, one array per run, and its variance over the run variance (GLS)
+    random_effects: dict[str, tuple[np.ndarray, float]] | None = None
 
 
 @dataclass
@@ -251,20 +251,27 @@ def _unit_length_columns(X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return X / lengths, lengths
 
 
-def _split_plot_information(X: np.ndarray, whole_plots: np.ndarray, ratio: float) -> np.ndarray:
-    """Return the generalized least squares information ``X' V^-1 X`` of a split-plot design.
+def _random_effects_information(X: np.ndarray, random_effects: dict[str, tuple[np.ndarray, float]]) -> np.ndarray:
+    """Return the generalized least squares information ``X' V^-1 X`` of runs that share random effects.
 
-    ``V = I + ratio * Z Z'`` is the runs' covariance in units of the run (sub-plot) variance,
-    with ``Z`` the runs' whole-plot indicators and ``ratio`` the whole-plot variance over the
-    run variance. ``V`` is block diagonal, and a whole plot of ``n`` runs has the inverse
-    ``I - ratio / (1 + ratio * n) J``, so ``X' V^-1 X = X'X - sum_i w_i s_i s_i'`` with ``s_i``
-    the column sums of ``X`` over whole plot ``i`` and ``w_i = ratio / (1 + ratio * n_i)``.
+    ``V = I + sum_k eta_k Z_k Z_k'`` is the runs' covariance in units of the run variance, with
+    ``Z_k`` the indicators of the groups of random effect ``k`` (the whole plots of a split-plot
+    design, the rows and the columns of a two-way split-plot design) and ``eta_k`` its variance
+    over the run variance. With ``Z = [Z_1 ... Z_K]`` and ``D`` the diagonal of the ``eta_k``,
+    Woodbury's identity gives ``V^-1 = I - Z (D^-1 + Z'Z)^-1 Z'``, so only a matrix the size of
+    the number of groups is inverted. A random effect of ratio zero leaves ``V`` unchanged.
     """
-    codes, _ = pd.factorize(whole_plots)
-    Z = np.eye(int(codes.max()) + 1)[codes]
+    indicators, ratios = [], []
+    for labels, ratio in random_effects.values():
+        if ratio > 0:
+            codes, _ = pd.factorize(labels)
+            indicators.append(np.eye(int(codes.max()) + 1)[codes])
+            ratios.append(np.full(indicators[-1].shape[1], 1.0 / ratio))
+    if not indicators:
+        return X.T @ X
+    Z = np.hstack(indicators)
     sums = Z.T @ X
-    weights = ratio / (1.0 + ratio * Z.sum(axis=0))
-    return X.T @ X - sums.T @ (weights[:, None] * sums)
+    return X.T @ X - sums.T @ np.linalg.solve(np.diag(np.concatenate(ratios)) + Z.T @ Z, sums)
 
 
 def _build_context(req: _EvalRequest) -> _EvalContext:
@@ -275,9 +282,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
     N, p = X.shape
 
     def information(Xs: np.ndarray) -> np.ndarray:
-        if req.whole_plots is None or req.whole_plot_variance_ratio is None:
-            return Xs.T @ Xs
-        return _split_plot_information(Xs, req.whole_plots, req.whole_plot_variance_ratio)
+        return Xs.T @ Xs if not req.random_effects else _random_effects_information(Xs, req.random_effects)
 
     XtX = information(X)
 
@@ -721,7 +726,11 @@ def _compute_information_matrix(ctx: _EvalContext) -> dict[str, Any]:
     (every term orthogonal to every other). For a model the design estimates it adds the
     ``inverse``, whose entries are the coefficients' variances and covariances in units of
     sigma^2, its trace, the A-criterion ``a_criterion``, that trace over ``p``
-    (``a_criterion_per_parameter``) and each term's ``coefficient_variances``.
+    (``a_criterion_per_parameter``), each term's ``coefficient_variances``, and the
+    correlations of the estimates, ``estimate_correlations`` (term by term, JMP's
+    "Correlation of Estimates"), with the largest in size off the diagonal,
+    ``max_abs_estimate_correlation``, and the number of pairs of terms whose estimates are
+    correlated at all, ``n_correlated_pairs``.
     """
     sign, logdet = np.linalg.slogdet(ctx.XtX)
     estimable = sign > 0 and not ctx.is_singular
@@ -751,7 +760,26 @@ def _compute_information_matrix(ctx: _EvalContext) -> dict[str, Any]:
             "a_criterion_per_parameter": trace / ctx.p,
             "coefficient_variances": dict(zip(ctx.column_names, map(float, np.diag(ctx.XtX_inv)), strict=True)),
         }
+        result |= _estimate_correlations(ctx.XtX_inv, ctx.column_names)
     return {"information_matrix": result}
+
+
+#: Correlations of the estimates smaller than this in size count as zero: rounding, not dependence.
+_CORRELATION_TOLERANCE = 1e-8
+
+
+def _estimate_correlations(inverse: np.ndarray, names: list[str]) -> dict[str, Any]:
+    """Return the correlations of the estimates, ``(X'X)^-1`` scaled to a unit diagonal, and their summary."""
+    scale = np.sqrt(np.diag(inverse))
+    correlation = inverse / np.outer(scale, scale)
+    upper = np.abs(correlation[np.triu_indices(len(names), 1)])
+    return {
+        "estimate_correlations": {
+            a: dict(zip(names, map(float, row), strict=True)) for a, row in zip(names, correlation, strict=True)
+        },
+        "max_abs_estimate_correlation": float(upper.max()) if upper.size else 0.0,
+        "n_correlated_pairs": int(np.count_nonzero(upper > _CORRELATION_TOLERANCE)),
+    }
 
 
 def _compute_estimable_interactions(ctx: _EvalContext) -> dict[str, Any]:
@@ -1569,28 +1597,35 @@ def _resolve_metrics(metric: str | list[str]) -> list[str]:
     return metrics
 
 
-def _whole_plots(design_df: pd.DataFrame, ratio: float | None) -> tuple[np.ndarray | None, str | None]:
-    """Return each run's whole plot and a note when *ratio* asks for the split-plot information.
+def _random_effect_groups(
+    design_df: pd.DataFrame, factor_names: list[str], random_effects: Mapping[str, float] | None
+) -> tuple[pd.DataFrame, list[str], dict[str, tuple[np.ndarray, float]] | None, str | None]:
+    """Take the columns that label the random effects' groups out of the design, with a note.
 
-    ``None`` for both when *ratio* is ``None``; raise when it is negative or the design
-    has no ``WholePlot`` column.
+    Return the design and factor names without them, each random effect's labels and ratio,
+    and the note; raise for a column the design does not have or a ratio below zero.
     """
-    if ratio is None:
-        return None, None
-    if not np.isfinite(ratio) or ratio < 0:
-        raise ValueError(f"whole_plot_variance_ratio must be a finite number of at least 0; got {ratio!r}.")
-    if WHOLE_PLOT_COL not in design_df.columns:
-        raise ValueError(
-            f"whole_plot_variance_ratio needs each run's whole plot: a {WHOLE_PLOT_COL!r} column in the design."
-        )
-    whole_plots = design_df[WHOLE_PLOT_COL].to_numpy()
-    n_plots = len(pd.unique(whole_plots))
-    note = (
-        f"The metrics use the generalized least squares information X' V^-1 X of a split-plot design, with "
-        f"V = I + {ratio:g} Z Z' over the {n_plots} whole plots: variances are in units of the run variance. "
-        "The degrees of freedom and the power keep the run-level residual degrees of freedom."
+    if not random_effects:
+        return design_df, factor_names, None, None
+    groups: dict[str, tuple[np.ndarray, float]] = {}
+    for name, ratio in random_effects.items():
+        if name not in design_df.columns:
+            raise ValueError(f"random_effects names {name!r}, which is not a column of the design.")
+        if not np.isfinite(ratio) or ratio < 0:
+            raise ValueError(
+                f"The variance ratio of random effect {name!r} must be a finite number of at least 0; got {ratio!r}."
+            )
+        groups[name] = (design_df[name].to_numpy(), float(ratio))
+    described = ", ".join(
+        f"{name} ({len(pd.unique(labels))} groups, ratio {ratio:g})" for name, (labels, ratio) in groups.items()
     )
-    return whole_plots, note
+    note = (
+        "The metrics use the generalized least squares information X' V^-1 X, with V = I + sum_k eta_k Z_k Z_k' "
+        f"over the random effects {described}: variances are in units of the run variance. The degrees of freedom "
+        "and the power keep the run-level residual degrees of freedom."
+    )
+    kept = [f for f in factor_names if f not in groups]
+    return design_df.drop(columns=list(groups)), kept, groups, note
 
 
 def _separate_run_columns(
@@ -1686,7 +1721,7 @@ def evaluate_design(  # noqa: PLR0913
     categorical_coding: str = "effect",
     integration: str = "sample",
     max_search: str = "sample",
-    whole_plot_variance_ratio: float | None = None,
+    random_effects: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1796,16 +1831,18 @@ def evaluate_design(  # noqa: PLR0913
         search inside the cube, so a maximum between the vertices is found rather than
         missed: the variance of a design's projection often peaks inside a face or an
         edge. Over a :class:`DesignRegion` it is the sample's maximum.
-    whole_plot_variance_ratio : float or None
-        For a split-plot design, the whole-plot variance over the run (sub-plot) variance,
-        ``eta = sigma_gamma^2 / sigma_epsilon^2``, at least 0. The design must carry each
-        run's whole plot in a ``WholePlot`` column. Every metric then uses the generalized
-        least squares information ``X' V^-1 X``, with ``V = I + eta Z Z'`` and ``Z`` the
-        whole-plot indicators, in place of ``X'X``: the variances are in units of the run
-        variance, as JMP reports them for a split-plot design, and ``0`` gives back the
-        ordinary least squares metrics. The degrees of freedom and the power keep the
-        run-level residual degrees of freedom ``N - p``. ``None`` (default) ignores the
-        whole plots.
+    random_effects : mapping of str to float, or None
+        For runs that share random effects: each key a column of the design that labels a
+        run's group (the ``WholePlot`` of a split-plot design; the rows and the columns of a
+        two-way split-plot, or strip-plot, design; random blocks), each value that effect's
+        variance over the run variance, at least 0 (1 is a common assumption). The columns
+        are not factors. Every metric then uses the generalized least squares information
+        ``X' V^-1 X``, with ``V = I + sum_k eta_k Z_k Z_k'`` and ``Z_k`` the indicators of
+        effect ``k``'s groups, in place of ``X'X``: the variances are in units of the run
+        variance, as JMP reports them for split-plot and two-way split-plot designs, and
+        ratios of 0 give back the ordinary least squares metrics. The degrees of freedom and
+        the power keep the run-level residual degrees of freedom ``N - p``. ``None`` (default)
+        treats the runs as independent.
 
     Returns
     -------
@@ -1820,8 +1857,7 @@ def evaluate_design(  # noqa: PLR0913
     ValueError
         If *alpha* is not in (0, 1), *sigma* is not positive, *n_samples* is
         below 1, a factor setting is missing, *categorical_coding* is unknown, or
-        *whole_plot_variance_ratio* is negative or given for a design without a
-        ``WholePlot`` column.
+        *random_effects* names a column the design lacks or has a negative ratio.
 
     Examples
     --------
@@ -1849,7 +1885,7 @@ def evaluate_design(  # noqa: PLR0913
         design_df = pd.DataFrame(design_matrix)
         factor_names = list(design_df.columns)
 
-    whole_plots, whole_plot_note = _whole_plots(design_df, whole_plot_variance_ratio)
+    design_df, factor_names, groups, groups_note = _random_effect_groups(design_df, factor_names, random_effects)
     design_df, factor_names, block_note = _separate_run_columns(design_df, factor_names, model)
     _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
     if integration not in _INTEGRATIONS:
@@ -1885,8 +1921,7 @@ def evaluate_design(  # noqa: PLR0913
             categorical_coding=categorical_coding,
             integration=integration,
             max_search=max_search,
-            whole_plots=whole_plots,
-            whole_plot_variance_ratio=whole_plot_variance_ratio,
+            random_effects=groups,
         )
     )
 
@@ -1901,8 +1936,8 @@ def evaluate_design(  # noqa: PLR0913
         results.update(result)
     if block_note:
         notes["blocks"] = block_note
-    if whole_plot_note:
-        notes["whole_plots"] = whole_plot_note
+    if groups_note:
+        notes["random_effects"] = groups_note
     if notes:
         results["notes"] = notes
 
@@ -1923,7 +1958,7 @@ def evaluate_all(  # noqa: PLR0913
     categorical_coding: str = "effect",
     integration: str = "sample",
     max_search: str = "sample",
-    whole_plot_variance_ratio: float | None = None,
+    random_effects: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1955,5 +1990,5 @@ def evaluate_all(  # noqa: PLR0913
         categorical_coding=categorical_coding,
         integration=integration,
         max_search=max_search,
-        whole_plot_variance_ratio=whole_plot_variance_ratio,
+        random_effects=random_effects,
     )

@@ -674,3 +674,100 @@ class TestKenwardRoger:
     def test_an_unknown_information_is_refused(self) -> None:
         with pytest.raises(ValueError, match="information must be one of"):
             self._analyse(_vitamin(), "y ~ x1", "block", information="empirical")
+
+
+# Goos and Jones (2011), Table 11.5: a 48-run two-way split-plot design for a battery cell, 16 rows (lots of the
+# assembly stage, x1 to x4) by 6 columns (curing cycles, x5 and x6); the response is the coded open circuit voltage.
+_BATTERY = (
+    "1 1 - - + + - - 55;1 2 - - + + + + 26;1 3 - - + + - + 26;"
+    "2 4 + - - - + - 28;2 5 + - - - + + 9;2 6 + - - - - + 12;"
+    "3 1 - - - - - - 49;3 2 - - - - + + 17;3 3 - - - - - + 8;"
+    "4 4 + + - + + - 28;4 5 + + - + + + 14;4 6 + + - + - + 15;"
+    "5 1 - + - + - - 53;5 2 - + - + + + 27;5 3 - + - + - + 24;"
+    "6 4 + - + + + - 43;6 5 + - + + + + 29;6 6 + - + + - + 26;"
+    "7 1 + - - + - - 51;7 2 + - - + + + 14;7 3 + - - + - + 18;"
+    "8 4 + + + - + - 40;8 5 + + + - + + 11;8 6 + + + - - + 12;"
+    "9 1 + + + + - - 38;9 2 + + + + + + 16;9 3 + + + + - + 24;"
+    "10 4 - + - - + - 41;10 5 - + - - + + 19;10 6 - + - - - + 5;"
+    "11 1 + - + - - - 44;11 2 + - + - + + 12;11 3 + - + - - + 15;"
+    "12 4 - + + + + - 52;12 5 - + + + + + 27;12 6 - + + + - + 5;"
+    "13 1 - + + - - - 60;13 2 - + + - + + 19;13 3 - + + - - + 11;"
+    "14 4 - - + - + - 44;14 5 - - + - + + 10;14 6 - - + - - + 7;"
+    "15 1 + + - - - - 39;15 2 + + - - + + 4;15 3 + + - - - + 5;"
+    "16 4 - - - + + - 49;16 5 - - - + + + 24;16 6 - - - + - + 17"
+)
+
+
+def _battery() -> pd.DataFrame:
+    rows = [run.split() for run in _BATTERY.split(";")]
+    sign = {"-": -1.0, "+": 1.0}
+    return pd.DataFrame(
+        [[r[0], r[1], *(sign[v] for v in r[2:8]), float(r[8])] for r in rows],
+        columns=["Row", "Column", "x1", "x2", "x3", "x4", "x5", "x6", "ocv"],
+    )
+
+
+class TestTwoWaySplitPlot:
+    """Crossed row and column random effects: Goos and Jones (2011), Tables 11.6 and 11.7, as JMP computes them."""
+
+    MODEL = "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6"
+
+    def _analyse(self, df: pd.DataFrame, **kwargs) -> dict:
+        kwargs = {"model": self.MODEL, "whole_plot": ["Row", "Column"]} | kwargs
+        return analyze_experiment(df, response_column="ocv", analysis_type="split_plot", **kwargs)["split_plot"]
+
+    def test_the_published_kenward_roger_fit(self) -> None:
+        found = self._analyse(_battery(), df_method="kenward_roger", information="observed")
+        variances = found["variance_components"]
+        assert (variances["Row"], variances["Column"], variances["residual"]) == pytest.approx(
+            (12.88, 12.62, 16.72), abs=0.005
+        )
+        rows = {row["term"]: row for row in found["coefficients"]}
+        table_11_6 = {
+            "Intercept": (30.25, 1.89, 4.21, 0.0001), "x1": (-3.44, 1.09, 12.69, 0.0080),
+            "x5": (-0.19, 1.60, 2.69, 0.9148), "x6": (-14.38, 1.66, 2.57, 0.0057),
+            "x1:x5": (-2.27, 0.62, 26.69, 0.0011), "x4:x6": (1.69, 0.63, 24.82, 0.0124),
+        }  # fmt: skip
+        for term, (estimate, std_error, dof, p_value) in table_11_6.items():
+            row = rows[term]
+            assert row["coefficient"] == pytest.approx(estimate, abs=0.0051), term  # -14.375 is printed -14.38
+            assert row["std_error"] == pytest.approx(std_error, abs=0.005), term
+            assert row["df"] == pytest.approx(dof, abs=0.005), term
+            assert row["p_value"] == pytest.approx(p_value, abs=0.00005), term
+        assert [rows[t]["stratum"] for t in ("x1", "x6", "x1:x6")] == ["Row", "Column", "residual"]
+        assert found["error_df"] == {"Row": 13, "Column": 3, "residual": 25}
+
+    def test_the_best_linear_unbiased_predictions(self) -> None:
+        """Table 11.7: row 6 is the highest, 5.65, and column 6 one of the lowest, -2.79."""
+        blups = self._analyse(_battery(), df_method="kenward_roger", information="observed")["blups"]
+        assert blups["Row"]["6"] == pytest.approx(5.65, abs=0.005)
+        assert blups["Row"]["15"] == pytest.approx(-3.49, abs=0.005)
+        assert [round(blups["Column"][c], 2) for c in "123456"] == [2.90, 0.64, -0.11, -2.90, 2.25, -2.79]
+
+    def test_the_satterthwaite_standard_errors_are_unadjusted(self) -> None:
+        """Without Kenward and Roger's adjustment x5's standard error is the GLS one, 1.588, not 1.597."""
+        rows = {r["term"]: r for r in self._analyse(_battery(), information="observed")["coefficients"]}
+        assert rows["x5"]["std_error"] == pytest.approx(1.5878, abs=5e-5)
+
+    def test_one_grouping_in_a_list_is_the_split_plot_analysis(self) -> None:
+        df = _battery()
+        listed = self._analyse(df, whole_plot=["Row"])
+        named = self._analyse(df, whole_plot="Row")
+        assert listed["variance_components"] == pytest.approx(named["variance_components"])
+        assert set(named["blups"]["Row"]) == {str(r) for r in range(1, 17)}
+
+    def test_four_columns_leave_the_column_variance_without_df(self) -> None:
+        """Pino's plan (Table 11.1): four curing cycles for x5, x6 and x5 x6 leave nothing for the column error."""
+        cycles = [(-1, -1), (1, -1), (-1, 1), (1, 1)]
+        runs = [
+            [str(r), str(c), x1, x5, x6, float(r + c)]
+            for r, x1 in enumerate([-1, 1] * 4)
+            for c, (x5, x6) in enumerate(cycles)
+        ]
+        df = pd.DataFrame(runs, columns=["Row", "Column", "x1", "x5", "x6", "ocv"])
+        with pytest.raises(ValueError, match="No degrees of freedom are left"):
+            self._analyse(df, model="x1 + x5 + x6 + x5:x6")
+
+    def test_an_unknown_grouping_column_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="'Cycle' missing"):
+            self._analyse(_battery(), whole_plot=["Row", "Cycle"])

@@ -1783,22 +1783,22 @@ def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
     return runs["columns"], runs["rows"]
 
 
-def _with_whole_plots(settings: pd.DataFrame, experiment: dict, check: dict) -> pd.DataFrame:
-    """Return the settings with each run's whole plot, when ``check["whole_plot"]`` names the columns that hold it.
+def _with_groups(settings: pd.DataFrame, experiment: dict, check: dict) -> pd.DataFrame:
+    """Return the settings with the runs' columns ``check["groups"]`` beside them, each run's group as text.
 
-    The columns of the runs listed in ``check["whole_plot"]`` are joined into the label of a run's whole
-    plot, in a ``WholePlot`` column, which :func:`~process_improve.experiments.evaluate_design` reads for a
-    split-plot evaluation (``"whole_plot_variance_ratio"`` in ``check["options"]``). ``check["runs"]``
-    keeps the runs at these 1-based positions, as it keeps the settings.
+    A column of the runs that labels a random effect's groups (a split-plot design's whole plots, a
+    two-way split-plot design's rows and columns) is not a factor, so the settings lack it;
+    :func:`~process_improve.experiments.evaluate_design` reads it under the name its
+    ``random_effects`` option (in ``check["options"]``) gives it. ``check["runs"]`` keeps the runs at
+    these 1-based positions, as it keeps the settings.
     """
-    if not check.get("whole_plot"):
+    if not check.get("groups"):
         return settings
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     if check.get("runs"):
         table = table.iloc[[p - 1 for p in check["runs"]]]
-    labels = table[list(check["whole_plot"])].astype(str).agg(":".join, axis=1).to_numpy()
-    return settings.assign(WholePlot=labels)
+    return settings.assign(**{name: table[name].astype(str).to_numpy() for name in check["groups"]})
 
 
 def _relative_efficiency(experiment: dict, check: dict) -> float:
@@ -1808,14 +1808,14 @@ def _relative_efficiency(experiment: dict, check: dict) -> float:
     ``check["criterion"]`` is ``"d"``: (|X'X| / |X0'X0|)^(1/p) for p model terms, the two designs'
     determinants compared per parameter; or ``"i"``: the other design's average prediction variance
     over this one's (``check["options"]`` as :func:`~process_improve.experiments.evaluate_design`
-    takes them). Above one, the entry's runs are the better. ``check["whole_plot"]`` names the runs'
-    columns that hold their whole plots, in both entries, for split-plot designs (see
-    :func:`_with_whole_plots`). ``"percent": true`` returns the efficiency in percent, and ``"gain":
+    takes them). Above one, the entry's runs are the better. ``check["groups"]`` names the runs'
+    columns that label random effects' groups, in both entries, for split-plot designs (see
+    :func:`_with_groups`). ``"percent": true`` returns the efficiency in percent, and ``"gain":
     true`` the percent by which it exceeds one: how much more information the entry's runs carry.
     """
     other = _entry(str(_CATALOGUE_DIR), check["versus"])
     every_run = check | {"runs": None}
-    settings = [_with_whole_plots(_coded_runs(entry, None)[0], entry, every_run) for entry in (experiment, other)]
+    settings = [_with_groups(_coded_runs(entry, None)[0], entry, every_run) for entry in (experiment, other)]
     sources = [json.dumps({"columns": list(s.columns), "runs": s.to_dict("list")}, sort_keys=True) for s in settings]
     metric = "information_matrix" if check["criterion"] == "d" else "average_prediction_variance"
     asked = json.dumps({"model": check["model"], "metric": metric, "options": check.get("options")}, sort_keys=True)
@@ -1993,16 +1993,16 @@ def _design_metric(experiment: dict, check: dict) -> float:
     them is its variance inflation from the blocking, and the reverse its efficiency factor.
     ``"percent": true`` returns the number times 100. ``check["count"]``, ``{"above": v}`` or
     ``{"below": v}``, counts the terms whose number is above or below v in place of ``reduce``.
-    ``check["whole_plot"]`` names the runs' columns that hold their whole plots, for a split-plot
-    design evaluated with ``"whole_plot_variance_ratio"`` in ``check["options"]`` (see
-    :func:`_with_whole_plots`).
+    ``check["groups"]`` names the runs' columns that label random effects' groups, for a split-plot
+    or two-way split-plot design evaluated with ``"random_effects"`` in ``check["options"]`` (see
+    :func:`_with_groups`).
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
         n_runs = len(_made(json.dumps(check["design"], sort_keys=True)).design)
     else:
         settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
-        settings = _with_whole_plots(settings, experiment, check)
+        settings = _with_groups(settings, experiment, check)
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
         n_runs = len(settings)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
@@ -3120,7 +3120,7 @@ def _design_metric_array(experiment: dict, check: dict) -> np.ndarray:
         source = json.dumps({"design": check["design"]}, sort_keys=True)
     else:
         settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
-        settings = _with_whole_plots(settings, experiment, check)
+        settings = _with_groups(settings, experiment, check)
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     return np.asarray(_walk(_evaluated(source, asked)[check["metric"]], check.get("key")), dtype=float)

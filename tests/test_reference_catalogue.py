@@ -1209,10 +1209,10 @@ def test_split_plot_designs_are_evaluated_and_compared_through_their_whole_plots
         return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
 
     factors = [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("a", "b")]
-    gls = {"kind": "design_metric", "metric": "information_matrix", "model": "a + b", "whole_plot": ["plot"]}
-    gls |= {"options": {"whole_plot_variance_ratio": 1.0}}
-    versus = {"kind": "relative_efficiency", "criterion": "d", "model": "a + b", "whole_plot": ["plot"]}
-    versus |= {"options": {"whole_plot_variance_ratio": 1.0}}
+    gls = {"kind": "design_metric", "metric": "information_matrix", "model": "a + b", "groups": ["plot"]}
+    gls |= {"options": {"random_effects": {"plot": 1.0}}}
+    versus = {"kind": "relative_efficiency", "criterion": "d", "model": "a + b", "groups": ["plot"]}
+    versus |= {"options": {"random_effects": {"plot": 1.0}}}
     split = [[plot, a, b] for plot, a in ((1, -1), (2, 1), (3, -1), (4, 1)) for b in (-1, 1)]
     within = [[plot, a * s, a] for plot, s in ((1, 1), (2, -1), (3, 1), (4, -1)) for a in (-1, 1)]
     expected = [

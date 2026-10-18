@@ -80,11 +80,13 @@ class AnalyzeExperimentInput(BaseModel):
         None,
         description="Observed values at new_points (for confirmation testing).",
     )
-    whole_plot: str | None = Field(
+    whole_plot: str | list[str] | None = Field(
         None,
         description=(
             "Column labelling each run's whole plot, for analysis_type='split_plot'. "
-            "Default: the 'WholePlot' column that generate_design adds to a split-plot design."
+            "Default: the 'WholePlot' column that generate_design adds to a split-plot design. "
+            "A list of columns gives crossed random effects, as the rows and the columns of a two-way "
+            "split-plot (strip-plot) design."
         ),
     )
     family: Literal["binomial", "poisson", "gamma", "gaussian", "inverse_gaussian"] | None = Field(
