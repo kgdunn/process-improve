@@ -317,13 +317,14 @@ def _surface_shape(
     Methodology*, sec. 6.4): a *stationary ridge*, a line or plane of equal
     optima, when *b* has no component along the flat directions, and a *rising
     ridge*, with no stationary point, when it has one and the response keeps
-    changing along them.
+    changing along them. The slope along the flat directions is judged as their
+    eigenvalues are: at most ``flat_tolerance`` of the largest eigenvalue in size
+    is none, so a ridge whose estimated slope is small is stationary.
     """
     scale = float(np.abs(eigenvalues).max())
     flat = np.abs(eigenvalues) <= flat_tolerance * scale
-    drifts = bool(
-        np.linalg.norm(eigenvectors[:, flat].T @ b) > _FLAT_EIGENVALUE_TOL * max(1.0, float(np.linalg.norm(b)))
-    )
+    slope = float(np.linalg.norm(eigenvectors[:, flat].T @ b))
+    drifts = slope > max(_FLAT_EIGENVALUE_TOL * max(1.0, float(np.linalg.norm(b))), flat_tolerance * scale)
     curved = eigenvalues[~flat]
     if np.all(curved < 0):
         kind, ridge_of = "maximum", "maxima"
@@ -2017,11 +2018,14 @@ def optimize_responses(  # noqa: PLR0913
         For ``"stationary_point"`` and ``"canonical_analysis"``: an eigenvalue of
         the pure-quadratic matrix ``B`` at most this share of the largest in size
         is read as zero, so the surface is classified as a ridge along its
-        eigenvector. The default, 1e-8, reads only rounding as zero. An estimated
-        eigenvalue is rarely exactly zero, and the sources read a small one as
-        flat: Box, Hunter and Hunter's ridge has eigenvalues -9.02 and 0.0017,
-        which ``flat_tolerance=0.05`` reads as a stationary ridge. Below 5% of the
-        largest, the result's ``classification_note`` says so.
+        eigenvector, and so is the slope along that eigenvector: a ridge rises
+        only when its slope is above this share of the largest eigenvalue. The
+        default, 1e-8, reads only rounding as zero. An estimated eigenvalue is
+        rarely exactly zero, and the sources read a small one as flat: Box,
+        Hunter and Hunter's stationary ridge has eigenvalues -9.02 and 0.0017 and
+        a slope of 0.005 along it, which ``flat_tolerance=0.05`` reads as a
+        stationary ridge; their rising ridge, with a slope of 2.97, still rises.
+        Below 5% of the largest, the result's ``classification_note`` says so.
 
     Returns
     -------

@@ -501,6 +501,31 @@ class TestRidgeSystems:
         assert "classification_note" not in tolerant["stationary_point"]
         assert tolerant["stationary_point"]["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
 
+    @pytest.mark.parametrize(
+        ("b0", "b1", "b2", "expected"),
+        [(83.93, 10.23, 5.59, "stationary_ridge"), (82.71, 8.8, 8.19, "rising_ridge")],
+    )
+    def test_bhh_figure_15_7_c_and_d_under_a_tolerance(self, b0: float, b1: float, b2: float, expected: str) -> None:
+        """BHH Figure 15.7: (c) a line of maxima, its slope along the ridge 0.005; (d) a rising ridge, slope 2.97."""
+        model = {
+            "response_name": "y",
+            "factor_names": ["x1", "x2"],
+            "coefficients": [
+                {"term": "Intercept", "coefficient": b0},
+                {"term": "x1", "coefficient": b1},
+                {"term": "x2", "coefficient": b2},
+                {"term": "I(x1 ** 2)", "coefficient": -6.95},
+                {"term": "I(x2 ** 2)", "coefficient": -2.07},
+                {"term": "x1:x2", "coefficient": -7.59},
+            ],
+        }
+        default = optimize_responses([model], method="canonical_analysis")["canonical_analysis"]
+        assert default["classification"] == "saddle_point"  # the eigenvalue 0.0017 bends up, if only just
+        assert default["eigenvalues"] == pytest.approx([-9.0217, 0.0017], abs=5e-5)
+        tolerant = optimize_responses([model], method="canonical_analysis", flat_tolerance=0.05)
+        assert tolerant["canonical_analysis"]["classification"] == expected
+        assert tolerant["stationary_point"]["classification"] == expected
+
     @pytest.mark.parametrize("flat_tolerance", [-0.1, 1.0])
     def test_flat_tolerance_is_a_share_of_the_largest_eigenvalue(self, flat_tolerance: float) -> None:
         with pytest.raises(ValueError, match="flat_tolerance must be at least 0 and below 1"):
