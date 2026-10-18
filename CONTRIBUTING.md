@@ -349,7 +349,7 @@ change; a divergence introduced quietly is expensive to find later.
 - Open a pull request against `main` with a clear description of the change
   and why it is needed.
 - Do not bump the version. Add your changelog entry as a fragment,
-  `changelog.d/<slug>.<type>.md` (see [`changelog.d/README.md`](changelog.d/README.md)),
+  `changelog.d/<yyyy-mm-dd>-<slug>.<type>.md` (see [`changelog.d/README.md`](changelog.d/README.md)),
   and leave `CHANGELOG.md`, `pyproject.toml` and `CITATION.cff` alone; the
   version is set at release time (see "Versioning policy" below).
 - Bugs and feature requests can also be filed on the
@@ -394,7 +394,7 @@ entries never meet until the release files them.
 
 The headings under `[Unreleased]` decide it, so the level is read off the
 changelog rather than argued about. A fragment's type is the heading it is
-filed under, so `changelog.d/glm.added.md` counts as `### Added`:
+filed under, so `changelog.d/2026-10-18-glm.added.md` counts as `### Added`:
 
 | Highest heading present under `[Unreleased]` | Level |
 |---|---|

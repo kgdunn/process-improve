@@ -1,10 +1,12 @@
 """Changelog fragments: each pull request adds a file of its own, filed into ``CHANGELOG.md`` at release.
 
 When every pull request inserted at the same anchor of ``CHANGELOG.md``, every open pull request
-conflicted with every other one. A pull request now adds ``changelog.d/<slug>.<type>.md`` instead,
-holding its entry as one or more Markdown bullets, so two pull requests never touch the same
-lines. ``<type>`` is the heading the entry belongs under, and it picks the release level as the
-heading does (see "Choosing the level at release" in ``CONTRIBUTING.md``).
+conflicted with every other one. A pull request now adds ``changelog.d/<date>-<slug>.<type>.md``
+instead, holding its entry as one or more Markdown bullets, so two pull requests never touch the
+same lines. ``<date>`` is the day the fragment was written, as ``yyyy-mm-dd``, so the fragments list
+in the order they were written and each heading files them in that order. ``<type>`` is the heading
+the entry belongs under, and it picks the release level as the heading does (see "Choosing the
+level at release" in ``CONTRIBUTING.md``).
 
     python tools/changelog.py check   # exit status 1 if a fragment is not well formed
     python tools/changelog.py build   # at release: file every fragment under ## [Unreleased]
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,7 +32,9 @@ HEADINGS = {
     "security": "Security",
     "documentation": "Documentation",
 }
-NAME = re.compile(rf"^[a-z0-9][a-z0-9-]*\.({'|'.join(HEADINGS)})\.md$")
+NAME = re.compile(rf"^(?P<date>\d{{4}}-\d{{2}}-\d{{2}})-[a-z0-9][a-z0-9-]*\.(?:{'|'.join(HEADINGS)})\.md$")
+#: What a fragment's name must be, as ``check`` says it.
+NAMED = f"name it <yyyy-mm-dd>-<slug>.<type>.md, with <type> one of {', '.join(HEADINGS)}"
 EM_DASH = "\u2014"
 
 
@@ -38,13 +43,25 @@ def fragments(folder: Path) -> list[Path]:
     return sorted(path for path in folder.glob("*.md") if path.name != "README.md")
 
 
+def _is_date(text: str) -> bool:
+    """Say whether ``text`` is a calendar date written as ``yyyy-mm-dd``."""
+    try:
+        date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
 def problems(folder: Path) -> list[str]:
     """Return what is wrong with each fragment in ``folder``: its name or its text."""
     found = []
     for path in fragments(folder):
         text = path.read_text(encoding="utf-8")
-        if not NAME.match(path.name):
-            found.append(f"{path.name}: name it <slug>.<type>.md, with <type> one of {', '.join(HEADINGS)}")
+        named = NAME.match(path.name)
+        if not named:
+            found.append(f"{path.name}: {NAMED}")
+        elif not _is_date(named["date"]):
+            found.append(f"{path.name}: {named['date']} is no date; the name starts with the day it was written")
         if not text.startswith("- "):
             found.append(f"{path.name}: the entry is a Markdown bullet, so it starts with '- '")
         if any(line.startswith("#") for line in text.splitlines()):
@@ -81,7 +98,10 @@ def _filed(lines: list[str], heading: str, entry: list[str]) -> list[str]:
 
 
 def build(changelog: Path, folder: Path) -> int:
-    """File every fragment under its heading in ``## [Unreleased]``, delete it, and return how many."""
+    """File every fragment under its heading in ``## [Unreleased]``, delete it, and return how many.
+
+    Under each heading the fragments go in the order of their names, so in the order they were written.
+    """
     lines = changelog.read_text(encoding="utf-8").splitlines()
     filed = sorted(fragments(folder), key=lambda path: (list(HEADINGS).index(path.name.split(".")[-2]), path.name))
     for path in filed:
