@@ -432,16 +432,33 @@ def _term_tests(
     return records
 
 
-def run_split_plot(  # noqa: PLR0913
-    df: pd.DataFrame,
-    formula: str,
-    whole_plot: str,
-    alpha: float,
-    blocks: tuple[str, ...] = (),
-    *,
-    df_method: str = "satterthwaite",
-    information: str = "expected",
-) -> dict[str, Any]:
+@dataclass(frozen=True)
+class SplitPlotSpec:
+    """How :func:`run_split_plot` analyses the runs.
+
+    Attributes
+    ----------
+    whole_plot : str
+        The column of the runs that labels each run's whole plot.
+    alpha : float
+        Significance level of the tests and the confidence intervals.
+    blocks : tuple[str, ...]
+        The block contrast columns in the formula, tested together as one ``"Block"`` term.
+    df_method : {"satterthwaite", "kenward_roger"}
+        ``"kenward_roger"`` adjusts the covariance of the estimates and scales the F tests
+        as Kenward and Roger (1997) do; see the module docstring.
+    information : {"expected", "observed"}
+        The REML information the degrees of freedom are computed from (see :func:`fit_reml`).
+    """
+
+    whole_plot: str
+    alpha: float
+    blocks: tuple[str, ...] = ()
+    df_method: str = "satterthwaite"
+    information: str = "expected"
+
+
+def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[str, Any]:
     """Analyse a split-plot experiment by REML, with Satterthwaite's or Kenward and Roger's degrees of freedom.
 
     Parameters
@@ -450,17 +467,8 @@ def run_split_plot(  # noqa: PLR0913
         The runs: the response, the factors and the whole-plot labels, with no missing values.
     formula : str
         The model, as a patsy formula; see :func:`sum_coded` for categorical factors.
-    whole_plot : str
-        The column of ``df`` that labels each run's whole plot.
-    alpha : float
-        Significance level of the tests and the confidence intervals.
-    blocks : tuple[str, ...]
-        The block contrast columns in ``formula``, tested together as one ``"Block"`` term.
-    df_method : {"satterthwaite", "kenward_roger"}
-        ``"kenward_roger"`` adjusts the covariance of the estimates and scales the F tests
-        as Kenward and Roger (1997) do; see the module docstring.
-    information : {"expected", "observed"}
-        The REML information the degrees of freedom are computed from (see :func:`fit_reml`).
+    spec : SplitPlotSpec
+        The whole-plot column, the significance level, the block terms and the method.
 
     Returns
     -------
@@ -468,11 +476,12 @@ def run_split_plot(  # noqa: PLR0913
         ``{"split_plot": {...}}``, with ``"split_plot_note"`` when the whole-plot variance
         is estimated as zero. See :func:`~process_improve.experiments.analysis.analyze_experiment`.
     """
+    whole_plot, alpha, blocks, information = spec.whole_plot, spec.alpha, spec.blocks, spec.information
     y, X = dmatrices(formula, df, eval_env=sum_coding_env(), NA_action="raise", return_type="dataframe")
     labels = df[whole_plot].to_numpy()  # by position: NA_action="raise" keeps every row, in order
     fit = fit_reml(y.to_numpy(dtype=float).ravel(), X.to_numpy(dtype=float), labels, information)
     whole_plot_columns = _constant_within(X, labels)
-    kenward_roger = df_method == "kenward_roger"
+    kenward_roger = spec.df_method == "kenward_roger"
     tests = _term_tests(fit, X, whole_plot_columns, blocks, kenward_roger=kenward_roger)
     factor_tests = [row for row in tests if row["source"] != "Block"]
     result: dict[str, Any] = {

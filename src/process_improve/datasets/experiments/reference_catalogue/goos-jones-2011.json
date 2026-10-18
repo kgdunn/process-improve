@@ -25844,7 +25844,7 @@
    ],
    "responses": [],
    "design": {
-    "type": "random design in blocks",
+    "type": "random two-level design in incomplete blocks",
     "details": "32 runs, each setting -1 or +1 at random, in eight blocks of four",
     "n_runs": 32,
     "treatment_factors": 6

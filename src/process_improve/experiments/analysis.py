@@ -61,6 +61,7 @@ from process_improve.experiments._analyses.ols_extractors import (
 from process_improve.experiments._analyses.prediction import _run_confirmation_test, _run_prediction
 from process_improve.experiments._analyses.split_plot import (
     DF_METHODS,
+    SplitPlotSpec,
     _readable,
     run_split_plot,
     sum_coded,
@@ -630,15 +631,14 @@ def _split_plot(fit: _Fit) -> dict[str, Any]:
     formula = fit.ols.model.formula
     if fit.model in _NAMED_MODELS and fit.model not in SCHEFFE_MODELS:
         formula = sum_coded(formula, [c for c in fit.factor_cols if not _is_numeric(fit.df[c])])
-    return run_split_plot(
-        fit.df,
-        formula,
-        fit.whole_plot,
-        fit.alpha,
-        fit.blocks,
+    spec = SplitPlotSpec(
+        whole_plot=fit.whole_plot,
+        alpha=fit.alpha,
+        blocks=fit.blocks,
         df_method=fit.df_method,
         information=fit.glm["information"],
     )
+    return run_split_plot(fit.df, formula, spec)
 
 
 def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
