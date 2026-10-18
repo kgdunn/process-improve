@@ -210,8 +210,19 @@ def _warns(spec: _WarnInput) -> dict | int:
     return {"ok": True} if spec.as_dict else 42
 
 
+@tool_spec(name="test_dummy_warns_numpy", description="Warn from inside numpy.", input_model=_EmptyInput)
+def _warns_numpy(spec: _EmptyInput) -> dict:
+    warnings.warn_explicit("divide by zero encountered", RuntimeWarning, "/site-packages/numpy/linalg/_x.py", 1)
+    warnings.warn("the library's own advice", UserWarning, stacklevel=2)
+    return {"ok": True}
+
+
 class TestToolWarningsReachTheCaller:
     """A warning a tool raises is returned in its result, where a model calling the tool reads it."""
+
+    def test_the_numerical_packages_own_warnings_are_left_out(self) -> None:
+        result = execute_tool_call("test_dummy_warns_numpy", {})
+        assert result["library_warnings"] == [{"category": "UserWarning", "message": "the library's own advice"}]
 
     def test_each_warning_is_returned_once_in_the_order_raised(self) -> None:
         result = execute_tool_call("test_dummy_warns", {"message": "the design leaves no error df"})

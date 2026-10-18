@@ -337,8 +337,23 @@ def get_tool_specs(
     return specs
 
 
+#: Packages whose own warnings are numerical noise to a caller of the tools, such as a saturated
+#: fit's division by zero; the library says what they mean in its own warnings. The browser app
+#: leaves out the same packages (``web/bootstrap.py``).
+_FOREIGN_PACKAGES = ("numpy", "scipy", "statsmodels", "pandas", "patsy", "sklearn")
+
+
+def _foreign(filename: str) -> bool:
+    """Say whether a warning was raised inside one of the numerical packages."""
+    path = filename.replace("\\", "/")
+    return any(f"/{package}/" in path for package in _FOREIGN_PACKAGES)
+
+
 def _call_recording_warnings(func: Callable[..., Any], parsed: BaseModel) -> tuple[Any, list[warnings.WarningMessage]]:
-    """Run ``func(parsed)``; return its result and each warning it raised, once, in the order raised."""
+    """Run ``func(parsed)``; return its result and each warning it raised, once, in the order raised.
+
+    Warnings raised inside numpy, scipy, statsmodels, pandas, patsy or scikit-learn are left out.
+    """
     context_aware = getattr(sys.flags, "context_aware_warnings", False)
     guard = contextlib.nullcontext() if context_aware else _WARNINGS_LOCK
     with guard, warnings.catch_warnings(record=True) as caught:
@@ -346,7 +361,8 @@ def _call_recording_warnings(func: Callable[..., Any], parsed: BaseModel) -> tup
         result = func(parsed)
     unique: dict[tuple[type[Warning], str], warnings.WarningMessage] = {}
     for record in caught:
-        unique.setdefault((record.category, str(record.message)), record)
+        if not _foreign(record.filename):
+            unique.setdefault((record.category, str(record.message)), record)
     return result, list(unique.values())
 
 
@@ -361,7 +377,8 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
 
     A warning the tool raises would otherwise reach only the server's stderr, which a
     model calling the tool never reads. Each one is returned in the result instead,
-    under ``library_warnings`` as ``{"category", "message"}`` records, once each. A
+    under ``library_warnings`` as ``{"category", "message"}`` records, once each; the
+    numerical packages' own warnings, such as a division by zero, are left out. A
     tool whose result is not a dict has its warnings raised again, as they were. The
     warnings are recorded under a lock, so tool calls on different threads run one at
     a time, except on a build with context-aware warnings.
