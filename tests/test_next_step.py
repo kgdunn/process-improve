@@ -106,6 +106,15 @@ class TestScreeningResults:
         assert step["evidence"]["active_terms"] == ["A", "C", "G", "A:C"]
         assert "stepwise search (AICc)" in step["model"]["judged_by"]
 
+    def test_proposed_interactions_that_would_make_the_tests_singular_are_left_out(self) -> None:
+        """Beside every main effect, A:C, B:C and C:G are not separable in this 12-run design; t-tests needed pinv."""
+        factors = _factors("ABCDEFGH")
+        runs = _runs(factors, ADHESION, 143, design_type="plackett_burman", n_center_points=3)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # statsmodels' SingularMatrixWarning
+            step = recommend_next_step(factors, runs, "y", ranges_can_move=False)
+        assert "A:C" in step["evidence"]["active_terms"]
+
     def test_resolution_iii_fraction_folds_over_an_active_effect_aliased_with_an_interaction(self) -> None:
         """In 2^(7-4) with D = AB, the D the analysis sees may be A:B: A and B are active, so A:B is plausible."""
         factors = _factors("ABCDEFG")
