@@ -17,10 +17,21 @@ def test_each_step_shows_the_python_that_does_the_same(page):
     assert 'generate_design(factors, design_type="box_behnken"' in code(page, "design")
     assert "TrueProcess(" in code(page, "run")
     assert "analyze_experiment(" in code(page, "analyse")
-    for step in ("design", "run", "analyse"):
+    summaries = {
+        "design": "Show the Python code",
+        "run": "Show the Python code",
+        "analyse": "Show the Python code of this analysis",
+        "best": "Show the Python code of these settings",
+    }
+    for step, summary in summaries.items():
         reveal(page, f"#py-{step}")
         assert page.is_visible(f"#py-{step}"), step
-        assert page.text_content(f"#py-{step} summary") == "Show the Python code"
+        assert page.text_content(f"#py-{step} summary") == summary, "Learn's panels each say what they are the code of"
+    placed = page.evaluate(
+        "() => Boolean(document.querySelector('#py-analyse').compareDocumentPosition(document.querySelector('#best'))"
+        " & Node.DOCUMENT_POSITION_FOLLOWING)"
+    )
+    assert placed, "the analysis's code sits with the analysis, before the best settings"
     reveal(page, "#compare")
     page.click("#compare")
     assert 'compare_designs(designs, model="main_quadratic")' in code(page, "compare")

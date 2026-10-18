@@ -12,7 +12,7 @@ import platform
 from pathlib import Path
 from typing import Any
 
-from tests.web.e2e._page import practise, reveal, settled
+from tests.web.e2e._page import practise, reveal, settled, status
 from tests.web.e2e.test_responses import pick, tabs, three_responses
 
 
@@ -77,6 +77,21 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     assert all(src.startswith("data:image/png;base64,") for src in images.evaluate_all("(i) => i.map((x) => x.src)"))
     assert report.locator("button, input, select, script").count() == 0, "nothing to use, only to read"
     assert "from process_improve.experiments import" in report.text_content("pre code")
+
+
+def test_the_report_opens_in_a_tab_of_its_own_to_read(page):
+    for button in ("#report-view", "#learn-report-view"):
+        reveal(page, button)
+        with page.expect_popup() as popup:
+            page.click(button)
+        report = popup.value
+        report.wait_for_url("blob:**")
+        report.wait_for_load_state()
+        assert report.text_content("h1") == "Yield (%), maximise: Box-Behnken in T, P and F", button
+        assert "The next step" in headings(report)
+        settled(page)
+        assert status(page)[0].startswith("The report is open in a tab of its own")
+        report.close()
 
 
 def test_the_digest_is_of_what_the_link_carries(page):

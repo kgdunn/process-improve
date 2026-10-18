@@ -705,7 +705,8 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 
 /* The best settings for the response's goal: the prediction first, then the settings, how well the model knows the
    response there, how tightly to hold each factor, and the confirmation runs that test it. */
-.best { margin: 24px 0 0; padding: 14px 0 0; border-top: 2px solid var(--accent); }
+/* A card, as every section is, so its text keeps clear of the card's edge. */
+.best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--accent); }
 .best h3 { margin: 0 0 6px; font-size: 1.05rem; }
 .best h4 { margin: 0 0 6px; font-size: 0.95rem; }
 .best .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
@@ -721,7 +722,8 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .verdict[data-state="inside"] { border-left-color: var(--ok); }
 .verdict[data-state="outside"] { border-left-color: var(--error); }
 /* The next step: a new study with moved ranges, and the ways to add runs to this one, each a short case and a button. */
-.next .step { margin: 14px 0 0; }
+/* Not .step, which is the numbered badge of Design, Run and Learn. */
+.next__part { margin: 14px 0 0; }
 .next .offer { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 

@@ -436,6 +436,7 @@
             <button type="button" id="to-learn" class="primary" hidden>See what the results say</button>
             <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
             <button type="button" id="notebook" class="button">Download notebook (.ipynb)</button>
+            <button type="button" id="report-view" class="button">View the report</button>
             <button type="button" id="report" class="button">Download report (.html)</button>
             <button type="button" id="share" class="button">Copy a link to this study</button>
             <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
@@ -480,6 +481,12 @@
         </fieldset>
         <div id="analysis" hidden></div>
         <div id="charts" class="charts" hidden></div>
+        <details class="python" id="py-analyse" hidden>
+          <summary>Show the Python code of this analysis</summary>
+          <p class="hint">The design, its results and their analysis together, so it runs as it is.</p>
+          <pre><code></code></pre>
+          <button type="button" class="link copy">Copy the code</button>
+        </details>
         <!-- The best settings for the response's goal (app.js, with best.js): where to run the process, how well the
              model knows the response there, how tightly to hold each factor, and the confirmation runs that test it. -->
         <section id="best" class="best" aria-labelledby="h-best" hidden>
@@ -499,18 +506,12 @@
             </p>
           </div>
           <details class="python" id="py-best" hidden>
-            <summary>Show the Python code</summary>
+            <summary>Show the Python code of these settings</summary>
             <p class="hint">The design, its results, their analysis and the best settings together, so it runs as it is.</p>
             <pre><code></code></pre>
             <button type="button" class="link copy">Copy the code</button>
           </details>
         </section>
-        <details class="python" id="py-analyse" hidden>
-          <summary>Show the Python code</summary>
-          <p class="hint">The design, its results and their analysis together, so it runs as it is.</p>
-          <pre><code></code></pre>
-          <button type="button" class="link copy">Copy the code</button>
-        </details>
         </div>
         <!-- With two responses or more given a goal, the settings that balance them (app.js, with best.js): each
              response's acceptable range, importance and shape, the settings with the best overall desirability, each
@@ -542,7 +543,7 @@
             </p>
           </div>
           <details class="python" id="py-balance" hidden>
-            <summary>Show the Python code</summary>
+            <summary>Show the Python code of the balance</summary>
             <p class="hint">The design, its results and the balance of the responses together, so it runs as it is.</p>
             <pre><code></code></pre>
             <button type="button" class="link copy">Copy the code</button>
@@ -558,7 +559,8 @@
         <!-- The study as a report (app.js, with report.js): what Learn shows, with the brief, the run sheet, the code
              and a stamp of the releases, seeds and inputs that give the same numbers again. -->
         <p id="learn-report" class="actions" hidden>
-          <button type="button" id="learn-report-button" class="button">Download a report of this study (.html)</button>
+          <button type="button" id="learn-report-view" class="button">View a report of this study</button>
+          <button type="button" id="learn-report-button" class="button">Download it (.html)</button>
         </p>
       </section>
     </div>
