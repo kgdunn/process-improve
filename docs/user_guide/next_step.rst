@@ -138,3 +138,70 @@ number of terms (Bonferroni) sees one large effect; the F-test of the whole mode
 moderate ones, which Bonferroni misses with few degrees of freedom for error. The statistic is
 the smaller of the two, and its critical value is simulated for the design, so pure noise raises
 a false alarm in one study in twenty.
+
+How well it works
+-----------------
+
+Each study below was simulated 40 times on a known process with normal noise, following every
+recommendation from the first design until the study stopped. The shortfall is how far the true
+response at the final settings falls below the true optimum (inside the ranges when they cannot
+move), in noise standard deviations.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 34 10 11 11
+
+   * - Study
+     - Path taken most often
+     - Runs
+     - Shortfall
+     - Worst
+   * - Adhesion (8 factors, three active, one interaction), DSD
+     - confirm, stop
+     - 25.0
+     - 0.00
+     - 0.06
+   * - Adhesion, Plackett-Burman with three centre runs
+     - confirm, stop
+     - 19.2
+     - 0.00
+     - 0.00
+   * - Adhesion, Plackett-Burman without centre runs
+     - confirm, stop
+     - 18.4
+     - 0.03
+     - 1.1
+   * - Interior maximum, 2\ :sup:`3` with three centre runs
+     - augment_to_rsm, confirm, stop
+     - 23.2
+     - 0.01
+     - 0.04
+   * - Interior minimum, 2\ :sup:`4-1` with three centre runs
+     - augment_to_rsm, confirm, stop
+     - 24.4
+     - 0.17
+     - 0.68
+   * - Interior maximum, six-factor DSD
+     - confirm, stop
+     - 21.1
+     - 0.15
+     - 1.2
+   * - Resolution III fraction, an active effect aliased with A:B
+     - de_alias, confirm, stop
+     - 19.6
+     - 0.00
+     - 0.00
+   * - Optimum outside the ranges, 2\ :sup:`3` with three centre runs
+     - augment_to_rsm, move_region, augment_to_rsm, confirm, stop
+     - 47.4
+     - 0.04
+     - 0.37
+   * - Pure noise, 2\ :sup:`4` with three centre runs
+     - widen_ranges, stop
+     - 38.2
+     - 0.00
+     - 0.00
+
+Every one of the 360 studies stopped. The largest shortfalls come from a square missed at the
+0.05 level in a design with few degrees of freedom for error: the confirmation runs then agree
+with a model whose optimum sits at an edge rather than just inside it.
