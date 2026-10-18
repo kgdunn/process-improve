@@ -712,13 +712,27 @@ def _judge_proposed_terms(
             return judged
     searched = "quadratic" if design.three_level else "interactions"
     proposed = _proposed_terms(_less_blocks(data), "y", names, searched)
-    second = [t for t in proposed if t not in names]
+    second = _estimable(data, names, [t for t in proposed if t not in names], extra)
     if error_runs - len(names) - len(second) < _MIN_ERROR_DF:
         return None
     method = f"t-tests of every main effect and the {searched} terms a stepwise search (AICc) proposed"
     judged = _t_tests(data, [*names, *second], extra, method, alpha)
     judged["considered"] = set(_rhs_terms(names, study.numeric, searched))  # the search weighed every term
     return judged
+
+
+def _estimable(data: pd.DataFrame, names: list[str], second: list[str], extra: list[str]) -> list[str]:
+    """Return the proposed second-order terms, in order, that keep the model with every main effect full rank.
+
+    The search proposed them beside the main effects it kept; beside every main effect, a
+    Plackett-Burman design's partial aliasing can leave one of them a combination of the others.
+    """
+    kept: list[str] = []
+    for term in second:
+        x = _matrix(data, [*names, *kept, term, *extra])[0]
+        if int(np.linalg.matrix_rank(x)) == x.shape[1]:
+            kept.append(term)
+    return kept
 
 
 def _extra(data: pd.DataFrame, design: _Design, numeric: list[bool]) -> list[str]:
