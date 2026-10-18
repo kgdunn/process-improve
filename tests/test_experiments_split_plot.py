@@ -224,6 +224,24 @@ class TestAgainstLmerTest:
             assert dof == pytest.approx(expected["df_kenward_roger"], rel=_R_RTOL)
             assert dof < expected["df_satterthwaite"]
 
+    def test_with_the_observed_information_the_df_are_lmertests(self, reference: dict) -> None:
+        """The Satterthwaite df of lmerTest use the observed REML information, as information='observed' does."""
+        df = pd.read_csv(_LMER_FIXTURE / "unbalanced.csv")
+        found = analyze_experiment(
+            df,
+            response_column="y",
+            model="y ~ A * B",
+            whole_plot="plot",
+            analysis_type="split_plot",
+            information="observed",
+        )["split_plot"]
+        assert found["information"] == "observed"
+        for row in found["coefficients"]:
+            expected = reference["unbalanced"]["coefficients"][
+                "(Intercept)" if row["term"] == "Intercept" else row["term"]
+            ]
+            assert row["df"] == pytest.approx(expected["df_satterthwaite"], rel=1e-6)
+
     def test_corrosion_matches_all_three(self, corrosion: dict, reference: dict) -> None:
         """The balanced textbook split plot: the variance components, F, df and p agree everywhere."""
         for component, value in reference["corrosion"]["variance_components"].items():
@@ -257,6 +275,7 @@ class TestCombinedDegreesOfFreedom:
             dcov=np.stack([np.diag(np.sqrt([2.0 / nu_1, 2.0 / nu_2])), np.zeros((2, 2))]),
             whole_plot_error_df=1,
             subplot_error_df=1,
+            cov_beta_kr=np.eye(2),
         )
 
     def test_unequal_df_combine_to_the_mean_matching_value(self) -> None:
@@ -560,3 +579,195 @@ class TestSplitPlotDesigns:
         assert evaluate_design(result.design, model="interactions") == evaluate_design(without, model="interactions")
         coded = result.design.drop(columns="RunOrder")
         assert moment_aberration(coded).pattern == moment_aberration(coded.drop(columns="WholePlot")).pattern
+
+
+# Goos and Jones (2011), Table 8.9: a 32-run screening design in eight random blocks of four runs. JMP's
+# REML analysis of it (their Table 8.11) uses Kenward and Roger's method with the observed information.
+_VITAMIN = (
+    "1 + + + + - + 237;1 - - + + + + 42;1 - - + - - + 29;1 - + - + - - 72;2 + + - - + - 229;2 - - - - - - 11;"
+    "2 + + - - - + 235;2 - + - + + + 89;3 - + + + + - 76;3 - - - + - + 18;3 + + - + + + 246;3 + - + + - - 23;"
+    "4 - - + - + - 29;4 + - - + + - 44;4 + + + - - - 228;4 + - + + + + 46;5 - + - - - + 83;5 - - - + + - 30;"
+    "5 + - - - + + 60;5 + + - + - - 228;6 + - + - + - 39;6 - + + - + + 92;6 - + - - + - 76;6 - - + + - - 7;"
+    "7 + + + - + + 240;7 + - - + - + 38;7 - + + + - + 74;7 - - - - + + 24;8 - + + - - - 65;8 + - + - - + 34;"
+    "8 + - - - - - 24;8 + + + + + - 237"
+)
+
+
+def _vitamin() -> pd.DataFrame:
+    rows = [run.split() for run in _VITAMIN.split(";")]
+    sign = {"+": 1.0, "-": -1.0}
+    return pd.DataFrame(
+        [[r[0], *(sign[s] for s in r[1:7]), float(r[7])] for r in rows],
+        columns=["block", "x1", "x2", "x3", "x4", "x5", "x6", "y"],
+    )
+
+
+class TestKenwardRoger:
+    """Kenward and Roger's (1997) adjusted covariance and F test."""
+
+    @staticmethod
+    def _analyse(df: pd.DataFrame, model: str, whole_plot: str, **options: str) -> dict:
+        return analyze_experiment(
+            df,
+            response_column=df.columns[-1],
+            model=model,
+            whole_plot=whole_plot,
+            analysis_type="split_plot",
+            **options,
+        )["split_plot"]
+
+    def test_jmp_is_kenward_roger_with_the_observed_information(self) -> None:
+        """Goos and Jones's Table 8.11: standard errors, df and t ratios as JMP prints them."""
+        found = self._analyse(
+            _vitamin(), "y ~ x1 + x2 + x5 + x6 + x1:x2", "block", df_method="kenward_roger", information="observed"
+        )
+        assert found["df_method"] == "Kenward-Roger"
+        printed = {  # term: standard error, df, t ratio
+            "Intercept": (1.51, 6.93, 62.07),
+            "x1": (0.66, 20.21, 65.34),
+            "x2": (0.64, 19.70, 99.06),
+            "x5": (0.66, 20.21, 9.36),
+            "x6": (0.71, 21.52, 7.72),
+            "x1:x2": (0.66, 20.32, 53.10),
+        }
+        for row in found["coefficients"]:
+            std_error, dof, t_value = printed[row["term"]]
+            assert row["std_error"] == pytest.approx(std_error, abs=0.005)
+            assert row["df"] == pytest.approx(dof, abs=0.005)
+            assert row["t_value"] == pytest.approx(t_value, abs=0.005)
+
+    def test_the_adjustment_only_inflates_the_standard_errors(self) -> None:
+        df = pd.read_csv(_LMER_FIXTURE / "unbalanced.csv")[["A", "B", "plot", "y"]]
+        plain = self._analyse(df, "y ~ A * B", "plot")
+        adjusted = self._analyse(df, "y ~ A * B", "plot", df_method="kenward_roger")
+        for before, after in zip(plain["coefficients"], adjusted["coefficients"], strict=True):
+            assert after["coefficient"] == pytest.approx(before["coefficient"], rel=1e-12)
+            assert after["df"] == pytest.approx(before["df"], rel=1e-12)
+            assert after["std_error"] > before["std_error"]
+
+    def test_a_balanced_split_plot_is_left_as_it_is(self) -> None:
+        """The textbook corrosion split plot: no adjustment, and the classical F tests on 3 and 9 df."""
+        df = _corrosion().drop(columns="Position")
+        df = df[[c for c in df.columns if c != "Resistance"] + ["Resistance"]]
+        model = "Resistance ~ C(Temperature, Sum) * C(Coating, Sum)"
+        plain = {row["source"]: row for row in self._analyse(df, model, "Heat")["tests"]}
+        adjusted = self._analyse(df, model, "Heat", df_method="kenward_roger")
+        for row in adjusted["tests"]:
+            assert row["F"] == pytest.approx(plain[row["source"]]["F"], rel=1e-8)
+            assert row["df_denominator"] == pytest.approx(plain[row["source"]]["df_denominator"], rel=1e-8)
+
+    def test_one_coefficient_is_scaled_by_one_on_satterthwaites_df(self) -> None:
+        """For a single row lambda = 1 and m is Satterthwaite's df: the F is the square of t on the adjusted error."""
+        df = pd.read_csv(_LMER_FIXTURE / "unbalanced.csv")
+        y, X = dmatrices("y ~ A * B", df, return_type="dataframe")
+        fit = fit_reml(y.to_numpy().ravel(), X.to_numpy(), df["plot"].to_numpy())
+        for j in range(X.shape[1]):
+            unit = np.eye(X.shape[1])[j : j + 1]
+            f_value, dof = fit.kenward_roger_test(unit)
+            assert f_value == pytest.approx(fit.beta[j] ** 2 / fit.cov_beta_kr[j, j], rel=1e-10)
+            assert dof == pytest.approx(fit.satterthwaite_df(unit[0]), rel=1e-10)
+
+    def test_an_unknown_method_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="df_method must be one of"):
+            self._analyse(_vitamin(), "y ~ x1", "block", df_method="containment")
+
+    def test_an_unknown_information_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="information must be one of"):
+            self._analyse(_vitamin(), "y ~ x1", "block", information="empirical")
+
+
+# Goos and Jones (2011), Table 11.5: a 48-run two-way split-plot design for a battery cell, 16 rows (lots of the
+# assembly stage, x1 to x4) by 6 columns (curing cycles, x5 and x6); the response is the coded open circuit voltage.
+_BATTERY = (
+    "1 1 - - + + - - 55;1 2 - - + + + + 26;1 3 - - + + - + 26;"
+    "2 4 + - - - + - 28;2 5 + - - - + + 9;2 6 + - - - - + 12;"
+    "3 1 - - - - - - 49;3 2 - - - - + + 17;3 3 - - - - - + 8;"
+    "4 4 + + - + + - 28;4 5 + + - + + + 14;4 6 + + - + - + 15;"
+    "5 1 - + - + - - 53;5 2 - + - + + + 27;5 3 - + - + - + 24;"
+    "6 4 + - + + + - 43;6 5 + - + + + + 29;6 6 + - + + - + 26;"
+    "7 1 + - - + - - 51;7 2 + - - + + + 14;7 3 + - - + - + 18;"
+    "8 4 + + + - + - 40;8 5 + + + - + + 11;8 6 + + + - - + 12;"
+    "9 1 + + + + - - 38;9 2 + + + + + + 16;9 3 + + + + - + 24;"
+    "10 4 - + - - + - 41;10 5 - + - - + + 19;10 6 - + - - - + 5;"
+    "11 1 + - + - - - 44;11 2 + - + - + + 12;11 3 + - + - - + 15;"
+    "12 4 - + + + + - 52;12 5 - + + + + + 27;12 6 - + + + - + 5;"
+    "13 1 - + + - - - 60;13 2 - + + - + + 19;13 3 - + + - - + 11;"
+    "14 4 - - + - + - 44;14 5 - - + - + + 10;14 6 - - + - - + 7;"
+    "15 1 + + - - - - 39;15 2 + + - - + + 4;15 3 + + - - - + 5;"
+    "16 4 - - - + + - 49;16 5 - - - + + + 24;16 6 - - - + - + 17"
+)
+
+
+def _battery() -> pd.DataFrame:
+    rows = [run.split() for run in _BATTERY.split(";")]
+    sign = {"-": -1.0, "+": 1.0}
+    return pd.DataFrame(
+        [[r[0], r[1], *(sign[v] for v in r[2:8]), float(r[8])] for r in rows],
+        columns=["Row", "Column", "x1", "x2", "x3", "x4", "x5", "x6", "ocv"],
+    )
+
+
+class TestTwoWaySplitPlot:
+    """Crossed row and column random effects: Goos and Jones (2011), Tables 11.6 and 11.7, as JMP computes them."""
+
+    MODEL = "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6"
+
+    def _analyse(self, df: pd.DataFrame, **kwargs) -> dict:
+        kwargs = {"model": self.MODEL, "whole_plot": ["Row", "Column"]} | kwargs
+        return analyze_experiment(df, response_column="ocv", analysis_type="split_plot", **kwargs)["split_plot"]
+
+    def test_the_published_kenward_roger_fit(self) -> None:
+        found = self._analyse(_battery(), df_method="kenward_roger", information="observed")
+        variances = found["variance_components"]
+        assert (variances["Row"], variances["Column"], variances["residual"]) == pytest.approx(
+            (12.88, 12.62, 16.72), abs=0.005
+        )
+        rows = {row["term"]: row for row in found["coefficients"]}
+        table_11_6 = {
+            "Intercept": (30.25, 1.89, 4.21, 0.0001), "x1": (-3.44, 1.09, 12.69, 0.0080),
+            "x5": (-0.19, 1.60, 2.69, 0.9148), "x6": (-14.38, 1.66, 2.57, 0.0057),
+            "x1:x5": (-2.27, 0.62, 26.69, 0.0011), "x4:x6": (1.69, 0.63, 24.82, 0.0124),
+        }  # fmt: skip
+        for term, (estimate, std_error, dof, p_value) in table_11_6.items():
+            row = rows[term]
+            assert row["coefficient"] == pytest.approx(estimate, abs=0.0051), term  # -14.375 is printed -14.38
+            assert row["std_error"] == pytest.approx(std_error, abs=0.005), term
+            assert row["df"] == pytest.approx(dof, abs=0.005), term
+            assert row["p_value"] == pytest.approx(p_value, abs=0.00005), term
+        assert [rows[t]["stratum"] for t in ("x1", "x6", "x1:x6")] == ["Row", "Column", "residual"]
+        assert found["error_df"] == {"Row": 13, "Column": 3, "residual": 25}
+
+    def test_the_best_linear_unbiased_predictions(self) -> None:
+        """Table 11.7: row 6 is the highest, 5.65, and column 6 one of the lowest, -2.79."""
+        blups = self._analyse(_battery(), df_method="kenward_roger", information="observed")["blups"]
+        assert blups["Row"]["6"] == pytest.approx(5.65, abs=0.005)
+        assert blups["Row"]["15"] == pytest.approx(-3.49, abs=0.005)
+        assert [round(blups["Column"][c], 2) for c in "123456"] == [2.90, 0.64, -0.11, -2.90, 2.25, -2.79]
+
+    def test_the_satterthwaite_standard_errors_are_unadjusted(self) -> None:
+        """Without Kenward and Roger's adjustment x5's standard error is the GLS one, 1.588, not 1.597."""
+        rows = {r["term"]: r for r in self._analyse(_battery(), information="observed")["coefficients"]}
+        assert rows["x5"]["std_error"] == pytest.approx(1.5878, abs=5e-5)
+
+    def test_one_grouping_in_a_list_is_the_split_plot_analysis(self) -> None:
+        df = _battery()
+        listed = self._analyse(df, whole_plot=["Row"])
+        named = self._analyse(df, whole_plot="Row")
+        assert listed["variance_components"] == pytest.approx(named["variance_components"])
+        assert set(named["blups"]["Row"]) == {str(r) for r in range(1, 17)}
+
+    def test_four_columns_leave_the_column_variance_without_df(self) -> None:
+        """Pino's plan (Table 11.1): four curing cycles for x5, x6 and x5 x6 leave nothing for the column error."""
+        cycles = [(-1, -1), (1, -1), (-1, 1), (1, 1)]
+        runs = [
+            [str(r), str(c), x1, x5, x6, float(r + c)]
+            for r, x1 in enumerate([-1, 1] * 4)
+            for c, (x5, x6) in enumerate(cycles)
+        ]
+        df = pd.DataFrame(runs, columns=["Row", "Column", "x1", "x5", "x6", "ocv"])
+        with pytest.raises(ValueError, match="No degrees of freedom are left"):
+            self._analyse(df, model="x1 + x5 + x6 + x5:x6")
+
+    def test_an_unknown_grouping_column_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="'Cycle' missing"):
+            self._analyse(_battery(), whole_plot=["Row", "Cycle"])
