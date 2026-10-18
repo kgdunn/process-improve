@@ -40,6 +40,7 @@ from process_improve.experiments.random_effects import (
 )
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.run_order import run_order_trends, time_trends, trend_robust_run_order
+from process_improve.experiments.run_sheet import read_run_sheet, run_sheet
 from process_improve.experiments.separating import (
     NotSeparableError,
     constraint_through_cuts,
@@ -116,9 +117,11 @@ __all__ = [
     "optimize_responses",
     "popcorn",
     "predict",
+    "read_run_sheet",
     "recommend_strategy",
     "rename_factors",
     "run_order_trends",
+    "run_sheet",
     "separating_constraint",
     "summary",
     "supplement",
