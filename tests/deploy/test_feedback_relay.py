@@ -79,11 +79,13 @@ def report(**changes: object) -> dict:
     return {key: value for key, value in whole.items() if value is not None}
 
 
-class Outbox(list):
-    """What the stand-in SMTP server was asked to do, and each email it was handed, parsed back from its bytes."""
+class Outbox:
+    """What the stand-in SMTP server was asked to do, each email it was handed, parsed back from its bytes, and the
+    error it raises instead of sending, if a test gives it one.
+    """
 
     def __init__(self) -> None:
-        super().__init__()
+        self.emails: list[Any] = []
         self.steps: list[tuple] = []
         self.fail: Exception | None = None
 
@@ -113,7 +115,7 @@ def outbox(monkeypatch) -> Outbox:
             if box.fail:
                 raise box.fail
             box.steps.append(("send", from_addr, to_addrs))
-            box.append(email.message_from_bytes(message.as_bytes(), policy=email.policy.default))
+            box.emails.append(email.message_from_bytes(message.as_bytes(), policy=email.policy.default))
 
     monkeypatch.setattr(relay.smtplib, "SMTP", SMTP)
     return box
@@ -177,7 +179,7 @@ def ask(
 # --------------------------------------------------------------------------- a report, emailed
 def test_a_report_is_emailed_to_the_maintainer_alone(server, outbox):
     assert ask(server, report())[::2] == (200, {"ok": True})
-    [mail] = outbox
+    [mail] = outbox.emails
     assert mail["From"] == "Factorial feedback <feedback@factori.al>"
     assert mail["To"] == "kevin@example.org"
     assert mail["Subject"] == "[Factorial feedback: Algorithm or model]"
@@ -201,7 +203,7 @@ def test_a_report_is_emailed_to_the_maintainer_alone(server, outbox):
 
 def test_a_report_of_a_message_alone_says_what_it_lacks(server, outbox):
     assert ask(server, {"topic": "general", "message": "  Ça marche: ∑ and é read well.  "})[0] == 200
-    [mail] = outbox
+    [mail] = outbox.emails
     assert mail["Subject"] == "[Factorial feedback: General]"
     assert mail["Reply-To"] is None
     assert not list(mail.iter_attachments())
@@ -216,7 +218,7 @@ def test_a_message_s_line_breaks_stay_in_the_body(server, outbox):
     """A header-injection attempt: the reader's text is the email's body, and never one of its headers."""
     attempt = "Hello\r\nBcc: victim@example.com\r\nSubject: You won\r\n\r\nand more"
     assert ask(server, report(message=attempt))[0] == 200
-    [mail] = outbox
+    [mail] = outbox.emails
     assert mail["Bcc"] is None
     assert mail.get_all("Subject") == ["[Factorial feedback: Algorithm or model]"]
     assert ("send", "feedback@factori.al", ["kevin@example.org"]) in outbox.steps
@@ -235,7 +237,7 @@ def test_a_message_s_line_breaks_stay_in_the_body(server, outbox):
 def test_a_header_injection_attempt_in_a_one_line_field_is_refused(server, outbox, field, value):
     status, _, reply = ask(server, report(**{field: value}))
     assert status == 400, reply
-    assert outbox == []
+    assert outbox.emails == []
 
 
 # --------------------------------------------------------------------------- what the relay refuses before the body
@@ -268,7 +270,7 @@ def test_a_request_that_is_not_the_app_s_report_is_refused_before_its_body_is_re
     got, _, reply = ask(server, report(), headers, path=path)
     assert (got, reply) == (status, {"ok": False, "error": reply["error"]})
     assert reason in reply["error"]
-    assert outbox == []
+    assert outbox.emails == []
     assert server.limits.today == 0, "a request refused by its headers does not count against the network"
 
 
@@ -277,7 +279,7 @@ def test_two_content_lengths_are_refused(server, outbox):
     head = "".join(f"{name}: {value}\r\n" for name, value in HEADERS.items())
     data = f"POST /api/feedback HTTP/1.1\r\n{head}Content-Length: {len(body)}\r\nContent-Length: 5\r\n\r\n"
     assert send_raw(server, data.encode() + body)[0] == 400
-    assert outbox == []
+    assert outbox.emails == []
 
 
 def test_a_body_larger_than_a_report_is_refused_unread(server, outbox):
@@ -289,7 +291,7 @@ def test_a_body_larger_than_a_report_is_refused_unread(server, outbox):
     assert status == 413
     assert reply["error"] == f"a report holds at most {relay.MAX_BODY // 2**10} KiB"
     assert time.monotonic() - started < 2
-    assert outbox == []
+    assert outbox.emails == []
 
 
 def test_a_body_shorter_than_its_length_is_refused(server, outbox):
@@ -298,7 +300,7 @@ def test_a_body_shorter_than_its_length_is_refused(server, outbox):
     data = f"POST /api/feedback HTTP/1.1\r\n{head}Content-Length: {len(body) + 10}\r\n\r\n".encode() + body
     status, _, reply = send_raw(server, data)
     assert (status, reply["error"]) == (400, "the body is shorter than its Content-Length")
-    assert outbox == []
+    assert outbox.emails == []
 
 
 def test_a_body_that_arrives_too_slowly_is_refused_at_its_deadline(server, outbox, monkeypatch):
@@ -310,12 +312,12 @@ def test_a_body_that_arrives_too_slowly_is_refused_at_its_deadline(server, outbo
     status, _, reply = send_raw(server, data, close=False)  # the rest never comes, and the connection stays open
     assert (status, reply["error"]) == (408, "the body took too long to arrive")
     assert 0.3 < time.monotonic() - started < 5
-    assert outbox == []
+    assert outbox.emails == []
 
 
 def test_only_post_is_answered(server, outbox):
     assert send_raw(server, b"GET /api/feedback HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")[0] == 501
-    assert outbox == []
+    assert outbox.emails == []
 
 
 # --------------------------------------------------------------------------- what the relay refuses in the body
@@ -374,7 +376,7 @@ def test_a_report_that_is_not_one_is_refused(server, outbox, body, reason):
     status, _, reply = ask(server, body)
     assert (status, reply) == (400, {"ok": False, "error": reply["error"]})
     assert reason in reply["error"]
-    assert outbox == []
+    assert outbox.emails == []
 
 
 def test_a_screenshot_larger_than_its_limit_is_refused(server, outbox, monkeypatch):
@@ -383,7 +385,7 @@ def test_a_screenshot_larger_than_its_limit_is_refused(server, outbox, monkeypat
     assert (status, reply["error"]) == (400, "the screenshot is larger than 0 MiB")
     monkeypatch.setattr(relay, "MAX_SCREENSHOT", 10)
     assert ask(server, report())[2]["error"] == "the screenshot is larger than 0 MiB", "refused before it is decoded"
-    assert outbox == []
+    assert outbox.emails == []
 
 
 def test_a_refusal_repeats_nothing_the_request_held(server):
@@ -403,7 +405,7 @@ def test_a_network_sends_ten_reports_an_hour(server, outbox, clock):
     assert ask(server, report(), {"X-Real-IP": "198.51.100.7"})[0] == 200, "another network"
     clock.now += relay.HOUR
     assert ask(server, report())[0] == 200, "an hour later"
-    assert len(outbox) == relay.PER_NETWORK + 2
+    assert len(outbox.emails) == relay.PER_NETWORK + 2
 
 
 @pytest.mark.parametrize(
@@ -455,7 +457,7 @@ def test_a_ninth_request_in_flight_is_refused(server, outbox):
     assert (status, headers["Retry-After"], reply["error"]) == (503, "60", "the relay is busy: try again in a minute")
     server.slots.release()
     assert ask(server, report())[0] == 200
-    assert len(outbox) == 1
+    assert len(outbox.emails) == 1
 
 
 # --------------------------------------------------------------------------- when the email cannot go
