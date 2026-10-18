@@ -989,18 +989,50 @@ def _split_plot(out: dict, check: dict, experiment: dict) -> float:
     or ``"subplot_error_df"``; ``"f.<term>"``, ``"p.<term>"``, ``"df.<term>"`` or ``"df_den.<term>"``
     for a term's F test; ``"coefficient.<term>"``, ``"std_error.<term>"``, ``"t_value.<term>"``,
     ``"p_value.<term>"`` or ``"df_t.<term>"`` for a coefficient's t-test, the term named as the
-    library names it; or ``"prediction"``, the generalized least-squares fit at the coded point
-    ``check["point"]``.
+    library names it; ``"prediction"``, the generalized least-squares fit at the coded point
+    ``check["point"]``; or ``"best_corner.<factor>"``, the factor's setting at the corner of
+    ``check["factors"]`` (the others at zero) where that fit predicts the most, or the least with
+    ``"goal": "minimize"``.
+
+    With ``"crossed": true`` each column of ``check["whole_plot"]`` is a random effect of its own,
+    crossed with the others, as the rows and the columns of a two-way split-plot design are; a
+    variance component, ``"<column>_error_df"`` and ``"blup.<column>.<label>"``, the best linear
+    unbiased prediction of one group's effect, are then named by the column.
     """
-    runs = experiment["runs"]
+    fit = _split_plot_fit(out, check, experiment)
+    kind, _, term = check["key"].partition(".")
+    if kind in ("prediction", "best_corner"):
+        return _split_plot_prediction(fit, out, check, term)
+    if kind == "blup":
+        name, _, level = term.partition(".")
+        return float(fit["blups"][name][level])
+    if kind in fit["variance_components"]:
+        return float(fit["variance_components"][kind])
+    if kind.endswith("_error_df"):
+        return float(fit["error_df"][kind.removesuffix("_error_df")])
+    if kind in ("coefficient", "std_error", "t_value", "p_value", "df_t"):
+        rows = {row["term"]: row for row in fit["coefficients"]}
+        return float(rows[term]["df" if kind == "df_t" else kind])
+    test = next(row for row in fit["tests"] if row["source"] == term)
+    return float({"f": test["F"], "p": test["p_value"], "df": test["df"], "df_den": test["df_denominator"]}[kind])
+
+
+def _split_plot_fit(out: dict, check: dict, experiment: dict) -> dict[str, Any]:
+    """Return the library's split-plot analysis a check asks for, worked once per fit and set of options."""
     whole_plots = tuple(check["whole_plot"])
+    crossed = bool(check.get("crossed"))
     options = {k: check[k] for k in ("df_method", "information") if k in check}
     cache = out.setdefault("split_plot_fits", {})
-    cached = (whole_plots, tuple(sorted(options.items())))
+    cached = (whole_plots, crossed, tuple(sorted(options.items())))
     if cached not in cache:
-        table = pd.DataFrame(runs["rows"], columns=runs["columns"])
-        labels = table[list(whole_plots)].astype(str).agg(":".join, axis=1).to_numpy()
-        settings = out["settings"].assign(WholePlot=labels)
+        table = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])
+        whole_plot: str | list[str] = "WholePlot"
+        if crossed:
+            settings = out["settings"].assign(**{name: table[name].astype(str).to_numpy() for name in whole_plots})
+            whole_plot = list(whole_plots)
+        else:
+            labels = table[list(whole_plots)].astype(str).agg(":".join, axis=1).to_numpy()
+            settings = out["settings"].assign(WholePlot=labels)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cache[cached] = analyze_experiment(
@@ -1008,25 +1040,33 @@ def _split_plot(out: dict, check: dict, experiment: dict) -> float:
                 out["y"],
                 model=check["model"],
                 analysis_type="split_plot",
-                whole_plot="WholePlot",
+                whole_plot=whole_plot,
                 **options,
             )["split_plot"]
-    fit = cache[cached]
-    kind, _, term = check["key"].partition(".")
-    if kind in fit["variance_components"]:
-        return float(fit["variance_components"][kind])
-    if kind.endswith("_error_df"):
-        return float(fit["error_df"][kind.removesuffix("_error_df")])
+    return cache[cached]
+
+
+def _split_plot_prediction(fit: dict, out: dict, check: dict, factor: str) -> float:
+    """Return the split-plot fit's prediction at ``check["point"]``, or a factor's setting at its best corner.
+
+    The corners are those of ``check["factors"]``, every other factor at zero; the best is where the
+    fit predicts the most, or the least with ``"goal": "minimize"``.
+    """
     rows = {row["term"]: row for row in fit["coefficients"]}
-    if kind == "prediction":
-        names = list(out["settings"].columns)
-        point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
-        at = dmatrix(check["model"], point, return_type="dataframe").iloc[0]
-        return float(sum(rows[column]["coefficient"] * value for column, value in at.items()))
-    if kind in ("coefficient", "std_error", "t_value", "p_value", "df_t"):
-        return float(rows[term]["df" if kind == "df_t" else kind])
-    test = next(row for row in fit["tests"] if row["source"] == term)
-    return float({"f": test["F"], "p": test["p_value"], "df": test["df"], "df_den": test["df_denominator"]}[kind])
+    names = list(out["settings"].columns)
+
+    def fitted(points: list[dict]) -> np.ndarray:
+        frame = pd.DataFrame([dict.fromkeys(names, 0.0) | point for point in points])[names]
+        model = dmatrix(check["model"], frame, return_type="dataframe")
+        return model.to_numpy() @ np.array([rows[column]["coefficient"] for column in model.columns])
+
+    if "point" in check:
+        return float(fitted([check["point"]])[0])
+    levels = itertools.product([-1.0, 1.0], repeat=len(check["factors"]))
+    corners = [dict(zip(check["factors"], c, strict=True)) for c in levels]
+    values = fitted(corners)
+    best = int(np.argmin(values) if check.get("goal") == "minimize" else np.argmax(values))
+    return corners[best][factor]
 
 
 def _transmitted_variance(out: dict, check: dict, experiment: dict) -> float:

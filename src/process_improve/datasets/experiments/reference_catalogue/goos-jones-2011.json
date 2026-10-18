@@ -1,18 +1,18 @@
 {
  "schema": 1,
- "about": ["Part of the reference catalogue: the case studies, designs and worked examples of chapters 1 to 10 of Goos and Jones,", "Optimal Design of Experiments: A Case Study Approach (2011), for testing that software reproduces them. source: the", "citation, with what was read and when. experiments: the extraction experiment of chapter 2, the same experiment", "augmented with eight runs in chapter 3, the peel strength experiment of chapter 4, the yield of a reaction over a", "square and over a constrained region in chapter 5, the rolling mill of chapter 6, a mixture with process variables,", "the experiments in blocks of chapters 7 and 8, the pastry dough and the stability of riboflavin, the polypropylene", "experiment with covariates of chapter 9 and the wind tunnel split-plot experiment of chapter 10, each with its", "factors, responses and runs as printed, where it is printed, and expected: every number the book prints for it, as", "printed text, with where it is printed (a page and a quotation) and check: how to recompute it, or manual, the reason", "it is not recomputed. A check with a disagreement records a number known not to reproduce and why. The book fits", "every model in coded units, except chapter 4's prediction equations and chapter 6's mixture models, which are in", "pseudocomponents, and its VIF is n times a coefficient's variance in units of sigma squared (Equation 2.13): the", "library's coefficient variance from evaluate_design's information_matrix, times the run count. Random block effects", "and whole plots are fitted by REML with JMP's Kenward-Roger standard errors and degrees of freedom from the observed", "information (split_plot), and a VIF or efficiency factor due to blocking is a coefficient's variance with the blocks", "as fixed effects over its variance without them (relative_to). A split-plot design is evaluated through the", "generalized least squares information X'V^-1 X, V = I + eta ZZ' (evaluate_design's random_effects, with the runs'", "column of whole plots in groups), and a run order's robustness to a time trend by Equation 9.19 (trend_robustness). An", "alias matrix printed in thirds is compared entry by entry as arithmetic (expression). Table 3.1's AICc is the model", "summary's aicc, and Table 3.2's recommended settings the corner of the six factors where each model predicts the most", "yield (best_corner). designs: the splits of chapter 1's runs between two machines or two treatments (allocate_runs),", "Table 2.4's bias calculation (product_column), the four-run design of Table 2.8, the D-optimal design of Table", "2.11, the designs of the coordinate-exchange example, each compared on |X'X|, chapter 4's D-optimal and I-optimal", "designs, compared on their relative variances, their average prediction variance, their FDS plots and each other", "(relative_efficiency), chapter 6's half fraction of the 2^5 factorial, the blocked designs of chapters 7 and 8, the", "samples and the second design of chapter 9 and its trend-robust run orders, and the split-plot designs of chapter 10.", "not_captured: what in these pages is not an experiment with data. Read with", "process_improve.experiments.reference_catalogue.reference_experiments; tests/test_reference_catalogue.py recomputes", "every number that has a check."],
+ "about": ["Part of the reference catalogue: the case studies, designs and worked examples of the 11 chapters of Goos and Jones,", "Optimal Design of Experiments: A Case Study Approach (2011), for testing that software reproduces them. source: the", "citation, with what was read and when. experiments: the extraction experiment of chapter 2, the same experiment", "augmented with eight runs in chapter 3, the peel strength experiment of chapter 4, the yield of a reaction over a", "square and over a constrained region in chapter 5, the rolling mill of chapter 6, a mixture with process variables,", "the experiments in blocks of chapters 7 and 8, the pastry dough and the stability of riboflavin, the polypropylene", "experiment with covariates of chapter 9, the wind tunnel split-plot experiment of chapter 10 and the battery cell", "two-way split-plot experiment of chapter 11, each with its", "factors, responses and runs as printed, where it is printed, and expected: every number the book prints for it, as", "printed text, with where it is printed (a page and a quotation) and check: how to recompute it, or manual, the reason", "it is not recomputed. A check with a disagreement records a number known not to reproduce and why. The book fits", "every model in coded units, except chapter 4's prediction equations and chapter 6's mixture models, which are in", "pseudocomponents, and its VIF is n times a coefficient's variance in units of sigma squared (Equation 2.13): the", "library's coefficient variance from evaluate_design's information_matrix, times the run count. Random block effects", "and whole plots, and a two-way split-plot design's crossed rows and columns, are fitted by REML with JMP's", "Kenward-Roger standard errors and degrees of freedom from the observed", "information (split_plot), and a VIF or efficiency factor due to blocking is a coefficient's variance with the blocks", "as fixed effects over its variance without them (relative_to). A split-plot design is evaluated through the", "generalized least squares information X'V^-1 X, V = I + eta ZZ' (evaluate_design's random_effects, with the runs'", "column of whole plots in groups), and a run order's robustness to a time trend by Equation 9.19 (trend_robustness). An", "alias matrix printed in thirds is compared entry by entry as arithmetic (expression). Table 3.1's AICc is the model", "summary's aicc, and Table 3.2's recommended settings the corner of the six factors where each model predicts the most", "yield (best_corner). designs: the splits of chapter 1's runs between two machines or two treatments (allocate_runs),", "Table 2.4's bias calculation (product_column), the four-run design of Table 2.8, the D-optimal design of Table", "2.11, the designs of the coordinate-exchange example, each compared on |X'X|, chapter 4's D-optimal and I-optimal", "designs, compared on their relative variances, their average prediction variance, their FDS plots and each other", "(relative_efficiency), chapter 6's half fraction of the 2^5 factorial, the blocked designs of chapters 7 and 8, the", "samples and the second design of chapter 9 and its trend-robust run orders, the split-plot designs of chapter 10, and", "the two-way split-plot designs of chapter 11, evaluated with the rows and the columns as random effects.", "not_captured: what in these pages is not an experiment with data. Read with", "process_improve.experiments.reference_catalogue.reference_experiments; tests/test_reference_catalogue.py recomputes", "every number that has a check."],
  "source": {
   "key": "goos-jones-2011",
   "authors": ["Peter Goos", "Bradley Jones"],
   "title": "Optimal Design of Experiments: A Case Study Approach",
   "edition": "first edition",
-  "pages": "chapters 1 to 10, pp. 1 to 254",
+  "pages": "chapters 1 to 11, the bibliography and the index, pp. 1 to 287",
   "year": 2011,
   "publisher": "John Wiley & Sons, Ltd",
   "isbn": "978-0-470-74461-1",
   "url": "https://search.worldcat.org/search?q=bn:9780470744611",
   "cite": "Goos, P. and Jones, B. (2011), Optimal Design of Experiments: A Case Study Approach, Wiley",
-  "read": "2026-10-18, from five PDFs supplied by the user, of chapters 1 and 2 (pp. 1 to 45), 3 and 4 (pp. 47 to 93), 5 and 6 (pp. 95 to 133), 7 and 8 (pp. 135 to 185) and 9 and 10 (pp. 187 to 254), one PDF page a book page; every number copied from the PDF's text layer and checked against the page, and Table 2.7, whose text layer drops a row of zeros, the matrices of Equations 3.6, 3.7 and 3.14 and of p. 159, which the text layer scrambles, the designs of Figures 10.1 and 10.2, and the columns of Table 10.8, read from the page images",
+  "read": "2026-10-18, from six PDFs supplied by the user, of chapters 1 and 2 (pp. 1 to 45), 3 and 4 (pp. 47 to 93), 5 and 6 (pp. 95 to 133), 7 and 8 (pp. 135 to 185), 9 and 10 (pp. 187 to 254) and 11 with the bibliography and the index (pp. 255 to 287), the whole book, one PDF page a book page; every number copied from the PDF's text layer and checked against the page, and Table 2.7, whose text layer drops a row of zeros, the matrices of Equations 3.6, 3.7 and 3.14 and of p. 159, which the text layer scrambles, the designs of Figures 10.1 and 10.2, and the columns of Tables 10.8 and 11.2, read from the page images",
   "rights": "The book is protected by copyright (© 2011 John Wiley & Sons, Ltd) and is not reproduced here. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -28396,6 +28396,2998 @@
      }
     }
    ]
+  },
+  {
+   "name": "goos-jones-battery-cell",
+   "title": "Open circuit voltage of battery cells: a 48-run D-optimal two-way split-plot design, 16 lots by six curing cycles, for six two-level factors",
+   "topics": ["electrical-electronic"],
+   "kind": "example",
+   "where": {
+    "section": "11.2",
+    "pages": "255-267",
+    "tables": ["Table 11.2", "Table 11.3", "Table 11.4", "Table 11.5", "Table 11.6", "Table 11.7"],
+    "figures": ["Figure 11.1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "assembly factor 1, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "assembly factor 2, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "assembly factor 3, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "assembly factor 4, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "curing factor (temperature, by Peter's guess), applied to the curing cycles (columns)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "curing factor (humidity, by Peter's guess), applied to the curing cycles (columns)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "ocv",
+     "description": "the sublot's average open circuit voltage, coded (volts - 1.175) x 1000",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "D-optimal two-way split-plot (strip-plot) design",
+    "details": "16 rows (lots, one per setting of x1 to x4) and six columns (curing cycles, set by x5 and x6), three sublots per lot and eight per cycle, D-optimal for the main effects and two-factor interactions with the row, column and run variances equal",
+    "n_runs": 48,
+    "treatment_factors": 6
+   },
+   "runs": {
+    "columns": ["row", "column", "x1", "x2", "x3", "x4", "x5", "x6", "ocv"],
+    "rows": [
+     [1, 1, -1, -1, 1, 1, -1, -1, 55],
+     [1, 2, -1, -1, 1, 1, 1, 1, 26],
+     [1, 3, -1, -1, 1, 1, -1, 1, 26],
+     [2, 4, 1, -1, -1, -1, 1, -1, 28],
+     [2, 5, 1, -1, -1, -1, 1, 1, 9],
+     [2, 6, 1, -1, -1, -1, -1, 1, 12],
+     [3, 1, -1, -1, -1, -1, -1, -1, 49],
+     [3, 2, -1, -1, -1, -1, 1, 1, 17],
+     [3, 3, -1, -1, -1, -1, -1, 1, 8],
+     [4, 4, 1, 1, -1, 1, 1, -1, 28],
+     [4, 5, 1, 1, -1, 1, 1, 1, 14],
+     [4, 6, 1, 1, -1, 1, -1, 1, 15],
+     [5, 1, -1, 1, -1, 1, -1, -1, 53],
+     [5, 2, -1, 1, -1, 1, 1, 1, 27],
+     [5, 3, -1, 1, -1, 1, -1, 1, 24],
+     [6, 4, 1, -1, 1, 1, 1, -1, 43],
+     [6, 5, 1, -1, 1, 1, 1, 1, 29],
+     [6, 6, 1, -1, 1, 1, -1, 1, 26],
+     [7, 1, 1, -1, -1, 1, -1, -1, 51],
+     [7, 2, 1, -1, -1, 1, 1, 1, 14],
+     [7, 3, 1, -1, -1, 1, -1, 1, 18],
+     [8, 4, 1, 1, 1, -1, 1, -1, 40],
+     [8, 5, 1, 1, 1, -1, 1, 1, 11],
+     [8, 6, 1, 1, 1, -1, -1, 1, 12],
+     [9, 1, 1, 1, 1, 1, -1, -1, 38],
+     [9, 2, 1, 1, 1, 1, 1, 1, 16],
+     [9, 3, 1, 1, 1, 1, -1, 1, 24],
+     [10, 4, -1, 1, -1, -1, 1, -1, 41],
+     [10, 5, -1, 1, -1, -1, 1, 1, 19],
+     [10, 6, -1, 1, -1, -1, -1, 1, 5],
+     [11, 1, 1, -1, 1, -1, -1, -1, 44],
+     [11, 2, 1, -1, 1, -1, 1, 1, 12],
+     [11, 3, 1, -1, 1, -1, -1, 1, 15],
+     [12, 4, -1, 1, 1, 1, 1, -1, 52],
+     [12, 5, -1, 1, 1, 1, 1, 1, 27],
+     [12, 6, -1, 1, 1, 1, -1, 1, 5],
+     [13, 1, -1, 1, 1, -1, -1, -1, 60],
+     [13, 2, -1, 1, 1, -1, 1, 1, 19],
+     [13, 3, -1, 1, 1, -1, -1, 1, 11],
+     [14, 4, -1, -1, 1, -1, 1, -1, 44],
+     [14, 5, -1, -1, 1, -1, 1, 1, 10],
+     [14, 6, -1, -1, 1, -1, -1, 1, 7],
+     [15, 1, 1, 1, -1, -1, -1, -1, 39],
+     [15, 2, 1, 1, -1, -1, 1, 1, 4],
+     [15, 3, 1, 1, -1, -1, -1, 1, 5],
+     [16, 4, -1, -1, -1, 1, 1, -1, 49],
+     [16, 5, -1, -1, -1, 1, 1, 1, 24],
+     [16, 6, -1, -1, -1, 1, -1, 1, 17]
+    ],
+    "coded": true,
+    "notes": "Table 11.5 in its printed order; Table 11.2 prints the same runs with its lots and cycles numbered differently (its cycles 1, 4 and 3 are Table 11.5's columns 1 to 3, and its cycles 2, 6 and 5 columns 4 to 6)"
+   },
+   "notes": "The analysis is REML with the rows and the columns as crossed random effects, with JMP's Kenward-Roger standard errors and degrees of freedom from the observed information (split_plot, crossed). Tables 11.3 and 11.4 evaluate the design through the generalized least squares information X'V^-1 X with V = I + Z1 Z1' + Z2 Z2', the three variance components all one (evaluate_design's random_effects).",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "48",
+     "where": {
+      "page": 259,
+      "source_kind": "prose",
+      "quote": "If you use six curing cycles of eight sublots each, you end up with 48 runs."
+     },
+     "check": {
+      "kind": "run_count",
+      "printed": "48"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "per lot",
+     "value": "three for every setting of the assembly factors",
+     "where": {
+      "page": 259,
+      "source_kind": "prose",
+      "quote": "The design involves only 48 sublots, three for every setting of the assembly factors."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 1
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 2
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 3
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 4
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 5
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 6
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 7
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 8
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 9
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 10
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 11
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 12
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 13
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 14
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 15
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "row": 16
+       },
+       "printed": "3"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": "per curing cycle",
+     "value": "eight of the sublots",
+     "where": {
+      "page": 259,
+      "source_kind": "prose",
+      "quote": "And each of the six curing cycles involves eight of the sublots."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "column": 1
+       },
+       "printed": "8"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "column": 2
+       },
+       "printed": "8"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "column": 3
+       },
+       "printed": "8"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "column": 4
+       },
+       "printed": "8"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "column": 5
+       },
+       "printed": "8"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "column": 6
+       },
+       "printed": "8"
+      }
+     ]
+    },
+    {
+     "what": "n_parameters",
+     "term": "main effects and two-factor interactions",
+     "value": "22",
+     "where": {
+      "page": 259,
+      "source_kind": "prose",
+      "quote": "It contains the variance of each of the 22 factor-effect estimates for your experiment."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "n_parameters",
+      "printed": "22"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "Intercept",
+     "value": "0.2734",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... Intercept 0.2734 –"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.Intercept"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x1",
+     "value": "0.0859",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x1 0.0859 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x1"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x2",
+     "value": "0.0859",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x2 0.0859 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x2"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x3",
+     "value": "0.0859",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x3 0.0859 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x3"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x4",
+     "value": "0.0859",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x4 0.0859 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x4"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x5",
+     "value": "0.2237",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x5 0.2237 Column factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x5"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x6",
+     "value": "0.2109",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x6 0.2109 Column factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x6"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x1 x2",
+     "value": "0.0833",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x1 x2 0.0833 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x1:x2"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x1 x3",
+     "value": "0.0833",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x1 x3 0.0833 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x1:x3"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x1 x4",
+     "value": "0.0833",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x1 x4 0.0833 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x1:x4"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x1 x5",
+     "value": "0.0227",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x1 x5 0.0227 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x1:x5"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x1 x6",
+     "value": "0.0234",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x1 x6 0.0234 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x1:x6"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x2 x3",
+     "value": "0.0833",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x2 x3 0.0833 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x2:x3"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x2 x4",
+     "value": "0.0833",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x2 x4 0.0833 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x2:x4"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x2 x5",
+     "value": "0.0227",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x2 x5 0.0227 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x2:x5"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x2 x6",
+     "value": "0.0234",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x2 x6 0.0234 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x2:x6"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x3 x4",
+     "value": "0.0833",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x3 x4 0.0833 Row factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x3:x4"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x3 x5",
+     "value": "0.0227",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x3 x5 0.0227 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x3:x5"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x3 x6",
+     "value": "0.0234",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x3 x6 0.0234 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x3:x6"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x4 x5",
+     "value": "0.0227",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x4 x5 0.0227 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x4:x5"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x4 x6",
+     "value": "0.0234",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x4 x6 0.0234 Row × Column interaction effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x4:x6"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "x5 x6",
+     "value": "0.2237",
+     "analysis": "the diagonal of (X'V^-1 X)^-1 with V = I + Z1 Z1' + Z2 Z2', the row, column and run variances all one",
+     "where": {
+      "page": 261,
+      "source_kind": "table",
+      "quote": "Table 11.3 Variances of the factor-effect estimates for the D-optimal 48-run two-way split-plot design. ... x5 x6 0.2237 Column factor effect"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances.x5:x6"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "row factor effects",
+     "value": "about 0.085",
+     "where": {
+      "page": 259,
+      "source_kind": "prose",
+      "quote": "One group of effects has a variance of about 0.085."
+     },
+     "check": {
+      "manual": "the ten row-factor effects have variances 0.0859 (the four main effects) and 0.0833 (their six interactions), 0.0843 on average"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "column factor effects",
+     "value": "about 0.22",
+     "where": {
+      "page": 261,
+      "source_kind": "prose",
+      "quote": "These effects are estimated with a variance of about 0.22."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances",
+      "terms": "x5|x6|x5:x6",
+      "reduce": "mean",
+      "printed": "0.22"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "row × column interaction effects",
+     "value": "all around 0.023",
+     "where": {
+      "page": 261,
+      "source_kind": "prose",
+      "quote": "For that group, which involves interaction effects involving one of the assembly factors and one of the curing factors, the variances are all around 0.023."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances",
+      "terms": "x1:x5|x1:x6|x2:x5|x2:x6|x3:x5|x3:x6|x4:x5|x4:x6",
+      "reduce": "mean",
+      "printed": "0.023"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "row × column interaction effects",
+     "value": "only a tiny little bit higher than 1/48",
+     "where": {
+      "page": 262,
+      "source_kind": "prose",
+      "quote": "They are all around 0.023, which is only a tiny little bit higher than 1/48, which is the smallest possible variance for these effects."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances",
+      "terms": "x1:x5|x1:x6|x2:x5|x2:x6|x3:x5|x3:x6|x4:x5|x4:x6",
+      "reduce": "min",
+      "printed": ">0.0208"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "smallest possible",
+     "value": "1/48 ... around 0.021",
+     "where": {
+      "page": 262,
+      "source_kind": "prose",
+      "quote": "1/48 is around 0.021."
+     },
+     "check": {
+      "manual": "arithmetic: 1/48 = 0.0208"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "row factor effects",
+     "value": "all 1/12, that is, 0.0833, or slightly larger",
+     "where": {
+      "page": 262,
+      "source_kind": "prose",
+      "quote": "Similarly, the variances of the estimates of the row factor effects are all 1/12, that is, 0.0833, or slightly larger than that."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "coefficient_variances",
+      "terms": "x1|x2|x3|x4|x1:x2|x1:x3|x1:x4|x2:x3|x2:x4|x3:x4",
+      "reduce": "min",
+      "printed": "0.0833"
+     }
+    },
+    {
+     "what": "n_correlated_pairs",
+     "term": null,
+     "value": "only six pairs",
+     "where": {
+      "page": 262,
+      "source_kind": "prose",
+      "quote": "Only six pairs of factor-effect estimates are dependent."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "n_correlated_pairs",
+      "printed": "6"
+     }
+    },
+    {
+     "what": "n_pairs",
+     "term": null,
+     "value": "22 × 21/2 pairs, which is 231",
+     "where": {
+      "page": 262,
+      "source_kind": "prose",
+      "quote": "Out of a total of 22 × 21/2 pairs, which is 231."
+     },
+     "check": {
+      "manual": "arithmetic: the pairs of 22 estimates"
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "x1 and x1 x6",
+     "value": "−0.174",
+     "where": {
+      "page": 262,
+      "source_kind": "table",
+      "quote": "Table 11.4 Nonzero correlations between the factor-effect estimates for the 48-run two-way split-plot design in Table 11.2. ... x1 and x1 x6 −0.174"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": ["estimate_correlations", "x1", "x1:x6"]
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "x2 and x2 x6",
+     "value": "−0.174",
+     "where": {
+      "page": 262,
+      "source_kind": "table",
+      "quote": "Table 11.4 Nonzero correlations between the factor-effect estimates for the 48-run two-way split-plot design in Table 11.2. ... x2 and x2 x6 −0.174"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": ["estimate_correlations", "x2", "x2:x6"]
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "x3 and x3 x6",
+     "value": "−0.174",
+     "where": {
+      "page": 262,
+      "source_kind": "table",
+      "quote": "Table 11.4 Nonzero correlations between the factor-effect estimates for the 48-run two-way split-plot design in Table 11.2. ... x3 and x3 x6 −0.174"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": ["estimate_correlations", "x3", "x3:x6"]
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "x4 and x4 x6",
+     "value": "−0.174",
+     "where": {
+      "page": 262,
+      "source_kind": "table",
+      "quote": "Table 11.4 Nonzero correlations between the factor-effect estimates for the 48-run two-way split-plot design in Table 11.2. ... x4 and x4 x6 −0.174"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": ["estimate_correlations", "x4", "x4:x6"]
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "x5 and x5 x6",
+     "value": "−0.371",
+     "where": {
+      "page": 262,
+      "source_kind": "table",
+      "quote": "Table 11.4 Nonzero correlations between the factor-effect estimates for the 48-run two-way split-plot design in Table 11.2. ... x5 and x5 x6 −0.371"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": ["estimate_correlations", "x5", "x5:x6"]
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "Intercept and x6",
+     "value": "−0.293",
+     "where": {
+      "page": 262,
+      "source_kind": "table",
+      "quote": "Table 11.4 Nonzero correlations between the factor-effect estimates for the 48-run two-way split-plot design in Table 11.2. ... Intercept and x6 −0.293"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": ["estimate_correlations", "Intercept", "x6"]
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "largest in size",
+     "value": "only 0.371",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "In absolute value, the largest absolute correlation is, let me see, only 0.371."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "max_abs_estimate_correlation",
+      "printed": "0.371"
+     }
+    },
+    {
+     "what": "estimate_correlation",
+     "term": "largest in size",
+     "value": "roughly 1/3",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "A correlation of roughly 1/3 is definitely no cause for alarm."
+     },
+     "check": {
+      "manual": "0.371, read as about a third"
+     }
+    },
+    {
+     "what": "orthogonal_design",
+     "term": null,
+     "value": "no orthogonal two-way split-plot design with 48 runs",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "Because there is no orthogonal two-way split-plot design with 48 runs, 16 rows, and six columns that gives independent estimates for all main effects and all two-factor interaction effects."
+     },
+     "check": {
+      "manual": "a claim about every design of this size, not about these runs"
+     }
+    },
+    {
+     "what": "n_parameters",
+     "term": "main effects and two-factor interactions",
+     "value": "22 unknown parameters",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "That model involves 22 unknown parameters, six main effects, 15 two-factor interaction effects, and an intercept."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "(x1 + x2 + x3 + x4 + x5 + x6) ** 2",
+      "groups": ["row", "column"],
+      "options": {
+       "random_effects": {
+        "row": 1.0,
+        "column": 1.0
+       }
+      },
+      "key": "n_parameters",
+      "printed": "22"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "30.25",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.Intercept"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "−3.44",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x1"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x4",
+     "value": "3.19",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x4"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x5",
+     "value": "−0.19",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x6",
+     "value": "−14.38",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x6"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1 x5",
+     "value": "−2.27",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x1:x5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1 x6",
+     "value": "2.31",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x1:x6"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x4 x6",
+     "value": "1.69",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "OCV = 30.25 − 3.44x1 + 3.19x4 − 0.19x5 − 14.38x6 −2.27x1 x5 + 2.31x1 x6 + 1.69x4 x6."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x4:x6"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x5",
+     "value": "0.91",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "As you can see from this table, the p value for that effect is 0.91."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "30.25",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... Intercept 30.25 1.89 4.21 16.02 0.0001"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.Intercept"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "1.89",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... Intercept 30.25 1.89 4.21 16.02 0.0001"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.Intercept"
+     }
+    },
+    {
+     "what": "df",
+     "term": "Intercept",
+     "value": "4.21",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... Intercept 30.25 1.89 4.21 16.02 0.0001"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.Intercept"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Intercept",
+     "value": "16.02",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... Intercept 30.25 1.89 4.21 16.02 0.0001"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.Intercept"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Intercept",
+     "value": "0.0001",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... Intercept 30.25 1.89 4.21 16.02 0.0001"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.Intercept"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1",
+     "value": "−3.44",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 −3.44 1.09 12.69 −3.14 0.0080"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x1"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x1",
+     "value": "1.09",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 −3.44 1.09 12.69 −3.14 0.0080"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.x1"
+     }
+    },
+    {
+     "what": "df",
+     "term": "x1",
+     "value": "12.69",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 −3.44 1.09 12.69 −3.14 0.0080"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.x1"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x1",
+     "value": "−3.14",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 −3.44 1.09 12.69 −3.14 0.0080"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.x1"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x1",
+     "value": "0.0080",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 −3.44 1.09 12.69 −3.14 0.0080"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x1"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x4",
+     "value": "3.19",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 3.19 1.09 12.69 2.91 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x4"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x4",
+     "value": "1.09",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 3.19 1.09 12.69 2.91 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.x4"
+     }
+    },
+    {
+     "what": "df",
+     "term": "x4",
+     "value": "12.69",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 3.19 1.09 12.69 2.91 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.x4"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x4",
+     "value": "2.91",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 3.19 1.09 12.69 2.91 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.x4"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x4",
+     "value": "0.0124",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 3.19 1.09 12.69 2.91 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x4"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x5",
+     "value": "−0.19",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x5 −0.19 1.60 2.69 −0.12 0.9148"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x5"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x5",
+     "value": "1.60",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x5 −0.19 1.60 2.69 −0.12 0.9148"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.x5"
+     }
+    },
+    {
+     "what": "df",
+     "term": "x5",
+     "value": "2.69",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x5 −0.19 1.60 2.69 −0.12 0.9148"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.x5"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x5",
+     "value": "−0.12",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x5 −0.19 1.60 2.69 −0.12 0.9148"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.x5"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x5",
+     "value": "0.9148",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x5 −0.19 1.60 2.69 −0.12 0.9148"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x6",
+     "value": "−14.38",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x6 −14.38 1.66 2.57 −8.66 0.0057"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x6"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x6",
+     "value": "1.66",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x6 −14.38 1.66 2.57 −8.66 0.0057"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.x6"
+     }
+    },
+    {
+     "what": "df",
+     "term": "x6",
+     "value": "2.57",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x6 −14.38 1.66 2.57 −8.66 0.0057"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.x6"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x6",
+     "value": "−8.66",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x6 −14.38 1.66 2.57 −8.66 0.0057"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.x6"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x6",
+     "value": "0.0057",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x6 −14.38 1.66 2.57 −8.66 0.0057"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x6"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1 x5",
+     "value": "−2.27",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x5 −2.27 0.62 26.69 −3.66 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x1:x5"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x1 x5",
+     "value": "0.62",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x5 −2.27 0.62 26.69 −3.66 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.x1:x5"
+     }
+    },
+    {
+     "what": "df",
+     "term": "x1 x5",
+     "value": "26.69",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x5 −2.27 0.62 26.69 −3.66 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.x1:x5"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x1 x5",
+     "value": "−3.66",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x5 −2.27 0.62 26.69 −3.66 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.x1:x5"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x1 x5",
+     "value": "0.0011",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x5 −2.27 0.62 26.69 −3.66 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x1:x5"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x1 x6",
+     "value": "2.31",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x6 2.31 0.63 24.82 3.69 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x1:x6"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x1 x6",
+     "value": "0.63",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x6 2.31 0.63 24.82 3.69 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.x1:x6"
+     }
+    },
+    {
+     "what": "df",
+     "term": "x1 x6",
+     "value": "24.82",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x6 2.31 0.63 24.82 3.69 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.x1:x6"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x1 x6",
+     "value": "3.69",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x6 2.31 0.63 24.82 3.69 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.x1:x6"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x1 x6",
+     "value": "0.0011",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x1 x6 2.31 0.63 24.82 3.69 0.0011"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x1:x6"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "x4 x6",
+     "value": "1.69",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 x6 1.69 0.63 24.82 2.70 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "coefficient.x4:x6"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "x4 x6",
+     "value": "0.63",
+     "analysis": "Kenward and Roger's standard error, from the observed REML information, as JMP computes it",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 x6 1.69 0.63 24.82 2.70 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "std_error.x4:x6"
+     }
+    },
+    {
+     "what": "df",
+     "term": "x4 x6",
+     "value": "24.82",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 x6 1.69 0.63 24.82 2.70 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "df_t.x4:x6"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "x4 x6",
+     "value": "2.70",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 x6 1.69 0.63 24.82 2.70 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "t_value.x4:x6"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "x4 x6",
+     "value": "0.0124",
+     "where": {
+      "page": 265,
+      "source_kind": "table",
+      "quote": "Table 11.6 Simplified model for the data from the D-optimal 48-run two-way split-plot design for the battery cell experiment. ... x4 x6 1.69 0.63 24.82 2.70 0.0124"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "p_value.x4:x6"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "the minimum",
+     "value": "7.42",
+     "analysis": "the generalized least squares fit at x1, x5 and x6 high and x4 low",
+     "where": {
+      "page": 265,
+      "source_kind": "prose",
+      "quote": "The minimum OCV predicted value I've been able to achieve with the estimated model is 7.42."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "prediction",
+      "point": {
+       "x1": 1.0,
+       "x4": -1.0,
+       "x5": 1.0,
+       "x6": 1.0
+      }
+     }
+    },
+    {
+     "what": "best_setting",
+     "term": "x1",
+     "value": "high",
+     "analysis": "the corner of the four factors where the generalized least squares fit predicts the least OCV",
+     "where": {
+      "page": 265,
+      "source_kind": "prose",
+      "quote": "For that purpose, you need to set x1, x5, and x6 at their high levels, and x4 at its low level."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "best_corner.x1",
+      "factors": ["x1", "x4", "x5", "x6"],
+      "goal": "minimize",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "best_setting",
+     "term": "x4",
+     "value": "low",
+     "analysis": "the corner of the four factors where the generalized least squares fit predicts the least OCV",
+     "where": {
+      "page": 265,
+      "source_kind": "prose",
+      "quote": "For that purpose, you need to set x1, x5, and x6 at their high levels, and x4 at its low level."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "best_corner.x4",
+      "factors": ["x1", "x4", "x5", "x6"],
+      "goal": "minimize",
+      "printed": "-1"
+     }
+    },
+    {
+     "what": "best_setting",
+     "term": "x5",
+     "value": "high",
+     "analysis": "the corner of the four factors where the generalized least squares fit predicts the least OCV",
+     "where": {
+      "page": 265,
+      "source_kind": "prose",
+      "quote": "For that purpose, you need to set x1, x5, and x6 at their high levels, and x4 at its low level."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "best_corner.x5",
+      "factors": ["x1", "x4", "x5", "x6"],
+      "goal": "minimize",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "best_setting",
+     "term": "x6",
+     "value": "high",
+     "analysis": "the corner of the four factors where the generalized least squares fit predicts the least OCV",
+     "where": {
+      "page": 265,
+      "source_kind": "prose",
+      "quote": "For that purpose, you need to set x1, x5, and x6 at their high levels, and x4 at its low level."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "best_corner.x6",
+      "factors": ["x1", "x4", "x5", "x6"],
+      "goal": "minimize",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "OCV of five",
+     "value": "three OCV values of five",
+     "where": {
+      "page": 266,
+      "source_kind": "prose",
+      "quote": "When we look at the data table, we can find three OCV values of five, and even one value as low as four."
+     },
+     "check": {
+      "kind": "run_count",
+      "at": {
+       "ocv": 5
+      },
+      "printed": "3"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "OCV of four",
+     "value": "one value as low as four",
+     "where": {
+      "page": 266,
+      "source_kind": "prose",
+      "quote": "When we look at the data table, we can find three OCV values of five, and even one value as low as four."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "ocv": 4
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "minimum",
+       "printed": "4"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": "OCV of five in column 6",
+     "value": "two of the fives were obtained in the sixth curing cycle",
+     "where": {
+      "page": 266,
+      "source_kind": "prose",
+      "quote": "Now, two of the fives were obtained in the sixth curing cycle, indicated as Column 6 in the data table."
+     },
+     "check": {
+      "kind": "run_count",
+      "at": {
+       "ocv": 5,
+       "column": 6
+      },
+      "printed": "2"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "row 15",
+     "value": "The OCV value of four and the third five",
+     "where": {
+      "page": 266,
+      "source_kind": "prose",
+      "quote": "The OCV value of four and the third five was obtained for the 15th setting of the assembly process, which is indicated as row 15 in the table."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "ocv": 4,
+        "row": 15
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "ocv": 5,
+        "row": 15
+       },
+       "printed": "1"
+      }
+     ]
+    },
+    {
+     "what": "minimum",
+     "term": "OCV",
+     "value": "as low as five",
+     "where": {
+      "page": 266,
+      "source_kind": "prose",
+      "quote": "there were OCV values as low as five I believe."
+     },
+     "check": {
+      "manual": "Hermans's recollection; Peter answers that the lowest is four"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 1",
+     "value": "2.33",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 1 2.33"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.1"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 2",
+     "value": "−0.52",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 2 −0.52"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.2"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 3",
+     "value": "−0.11",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 3 −0.11"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.3"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 4",
+     "value": "−3.89",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 4 −3.89"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.4"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 5",
+     "value": "1.63",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 5 1.63"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.5"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 6",
+     "value": "5.65",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 6 5.65"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.6"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 7",
+     "value": "−0.58",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 7 −0.58"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.7"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 8",
+     "value": "2.74",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 8 2.74"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.8"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 9",
+     "value": "−1.75",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 9 −1.75"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.9"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 10",
+     "value": "−1.58",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 10 −1.58"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.10"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 11",
+     "value": "1.86",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 11 1.86"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.11"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 12",
+     "value": "−2.39",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 12 −2.39"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.12"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 13",
+     "value": "3.61",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 13 3.61"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.13"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 14",
+     "value": "−2.51",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 14 −2.51"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.14"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 15",
+     "value": "−3.49",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 15 −3.49"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.15"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 16",
+     "value": "−0.99",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Row 16 −0.99"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.16"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Column 1",
+     "value": "2.90",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Column 1 2.90"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.column.1"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Column 2",
+     "value": "0.64",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Column 2 0.64"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.column.2"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Column 3",
+     "value": "−0.11",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Column 3 −0.11"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.column.3"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Column 4",
+     "value": "−2.90",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Column 4 −2.90"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.column.4"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Column 5",
+     "value": "2.25",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Column 5 2.25"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.column.5"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Column 6",
+     "value": "−2.79",
+     "analysis": "the best linear unbiased prediction of the random effect, at the REML variance components",
+     "where": {
+      "page": 266,
+      "source_kind": "table",
+      "quote": "Table 11.7 Best linear unbiased predictions (BLUPs) of the row and column effects for the data from the battery cell experiment in Table 11.5. ... Column 6 −2.79"
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.column.6"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Column 6",
+     "value": "−2.79",
+     "where": {
+      "page": 266,
+      "source_kind": "prose",
+      "quote": "I can see that Column 6 has a BLUP of −2.79 and that Row 15 has one of −3.49."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.column.6"
+     }
+    },
+    {
+     "what": "blup",
+     "term": "Row 15",
+     "value": "−3.49",
+     "where": {
+      "page": 266,
+      "source_kind": "prose",
+      "quote": "I can see that Column 6 has a BLUP of −2.79 and that Row 15 has one of −3.49."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "blup.row.15"
+     }
+    },
+    {
+     "what": "variance_component",
+     "term": "rows",
+     "value": "12.88",
+     "where": {
+      "page": 267,
+      "source_kind": "prose",
+      "quote": "I get 12.88 for the variance component that corresponds to the rows, and 12.62 for the variance component that corresponds to the columns."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "row"
+     }
+    },
+    {
+     "what": "variance_component",
+     "term": "columns",
+     "value": "12.62",
+     "where": {
+      "page": 267,
+      "source_kind": "prose",
+      "quote": "I get 12.88 for the variance component that corresponds to the rows, and 12.62 for the variance component that corresponds to the columns."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "column"
+     }
+    },
+    {
+     "what": "variance_component",
+     "term": "residual",
+     "value": "16.72",
+     "where": {
+      "page": 267,
+      "source_kind": "prose",
+      "quote": "The estimate of the random error variance is 16.72."
+     },
+     "check": {
+      "kind": "split_plot",
+      "whole_plot": ["row", "column"],
+      "crossed": true,
+      "df_method": "kenward_roger",
+      "information": "observed",
+      "model": "x1 + x4 + x5 + x6 + x1:x5 + x1:x6 + x4:x6",
+      "key": "residual"
+     }
+    },
+    {
+     "what": "defective_rate",
+     "term": null,
+     "value": "1% ... about 80%",
+     "where": {
+      "page": 267,
+      "source_kind": "prose",
+      "quote": "We managed to reduce the production line defective rate to 1%. That was an improvement of about 80%."
+     },
+     "check": {
+      "manual": "the confirmation, reported, not in the data"
+     }
+    },
+    {
+     "what": "coding",
+     "term": "OCV",
+     "value": "(Volts − 1.175) × 1000",
+     "where": {
+      "page": 263,
+      "source_kind": "prose",
+      "quote": "The response, OCV, in the table is the average OCV coded by (Volts − 1.175) × 1000 per sublot."
+     },
+     "check": {
+      "manual": "the response's coding, as recorded"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "per sublot",
+     "value": "500 batteries",
+     "where": {
+      "page": 257,
+      "source_kind": "prose",
+      "quote": "split randomly each of these lots into four sublots of 500 batteries each"
+     },
+     "check": {
+      "manual": "the size of a sublot, not in the data"
+     }
+    }
+   ]
   }
  ],
  "designs": [
@@ -41588,7 +44580,680 @@
      }
     }
    ]
+  },
+  {
+   "name": "goos-jones-battery-cell-four-cycles",
+   "title": "Pino's two-way split-plot design for a battery cell: the 2^6 factorial as 16 lots by four curing cycles",
+   "topics": ["electrical-electronic"],
+   "kind": "design",
+   "where": {
+    "section": "11.2.1",
+    "pages": "256-259",
+    "tables": ["Table 11.1"],
+    "figures": ["Figure 11.1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "assembly factor 1, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "assembly factor 2, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "assembly factor 3, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "assembly factor 4, hard to change, applied to the lots (rows)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "curing factor (temperature, by Peter's guess), applied to the curing cycles (columns)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "curing factor (humidity, by Peter's guess), applied to the curing cycles (columns)",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "lot",
+     "description": "the lot (row), one per setting of x1 to x4",
+     "levels": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "cycle",
+     "description": "the curing cycle (column), one per setting of x5 and x6",
+     "levels": [1, 2, 3, 4],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "two-way split-plot (strip-plot) design",
+    "details": "the 2^4 in the assembly factors x1 to x4 as 16 lots (rows), each split into four sublots, one to each of four curing cycles (columns) set by the 2^2 in x5 and x6",
+    "n_runs": 64,
+    "treatment_factors": 6
+   },
+   "runs": {
+    "columns": ["lot", "cycle", "sublot", "x1", "x2", "x3", "x4", "x5", "x6"],
+    "rows": [
+     [1, 1, 1, -1, -1, -1, -1, -1, -1],
+     [1, 2, 2, -1, -1, -1, -1, 1, -1],
+     [1, 3, 4, -1, -1, -1, -1, -1, 1],
+     [1, 4, 3, -1, -1, -1, -1, 1, 1],
+     [2, 1, 2, 1, -1, -1, -1, -1, -1],
+     [2, 2, 4, 1, -1, -1, -1, 1, -1],
+     [2, 3, 1, 1, -1, -1, -1, -1, 1],
+     [2, 4, 3, 1, -1, -1, -1, 1, 1],
+     [3, 1, 3, -1, 1, -1, -1, -1, -1],
+     [3, 2, 1, -1, 1, -1, -1, 1, -1],
+     [3, 3, 4, -1, 1, -1, -1, -1, 1],
+     [3, 4, 2, -1, 1, -1, -1, 1, 1],
+     [4, 1, 4, 1, 1, -1, -1, -1, -1],
+     [4, 2, 3, 1, 1, -1, -1, 1, -1],
+     [4, 3, 1, 1, 1, -1, -1, -1, 1],
+     [4, 4, 2, 1, 1, -1, -1, 1, 1],
+     [5, 1, 1, -1, -1, 1, -1, -1, -1],
+     [5, 2, 4, -1, -1, 1, -1, 1, -1],
+     [5, 3, 3, -1, -1, 1, -1, -1, 1],
+     [5, 4, 2, -1, -1, 1, -1, 1, 1],
+     [6, 1, 1, 1, -1, 1, -1, -1, -1],
+     [6, 2, 3, 1, -1, 1, -1, 1, -1],
+     [6, 3, 2, 1, -1, 1, -1, -1, 1],
+     [6, 4, 4, 1, -1, 1, -1, 1, 1],
+     [7, 1, 2, -1, 1, 1, -1, -1, -1],
+     [7, 2, 1, -1, 1, 1, -1, 1, -1],
+     [7, 3, 3, -1, 1, 1, -1, -1, 1],
+     [7, 4, 4, -1, 1, 1, -1, 1, 1],
+     [8, 1, 4, 1, 1, 1, -1, -1, -1],
+     [8, 2, 1, 1, 1, 1, -1, 1, -1],
+     [8, 3, 2, 1, 1, 1, -1, -1, 1],
+     [8, 4, 3, 1, 1, 1, -1, 1, 1],
+     [9, 1, 1, -1, -1, -1, 1, -1, -1],
+     [9, 2, 2, -1, -1, -1, 1, 1, -1],
+     [9, 3, 3, -1, -1, -1, 1, -1, 1],
+     [9, 4, 4, -1, -1, -1, 1, 1, 1],
+     [10, 1, 4, 1, -1, -1, 1, -1, -1],
+     [10, 2, 3, 1, -1, -1, 1, 1, -1],
+     [10, 3, 1, 1, -1, -1, 1, -1, 1],
+     [10, 4, 2, 1, -1, -1, 1, 1, 1],
+     [11, 1, 1, -1, 1, -1, 1, -1, -1],
+     [11, 2, 2, -1, 1, -1, 1, 1, -1],
+     [11, 3, 3, -1, 1, -1, 1, -1, 1],
+     [11, 4, 4, -1, 1, -1, 1, 1, 1],
+     [12, 1, 1, 1, 1, -1, 1, -1, -1],
+     [12, 2, 4, 1, 1, -1, 1, 1, -1],
+     [12, 3, 2, 1, 1, -1, 1, -1, 1],
+     [12, 4, 3, 1, 1, -1, 1, 1, 1],
+     [13, 1, 1, -1, -1, 1, 1, -1, -1],
+     [13, 2, 4, -1, -1, 1, 1, 1, -1],
+     [13, 3, 3, -1, -1, 1, 1, -1, 1],
+     [13, 4, 2, -1, -1, 1, 1, 1, 1],
+     [14, 1, 2, 1, -1, 1, 1, -1, -1],
+     [14, 2, 4, 1, -1, 1, 1, 1, -1],
+     [14, 3, 1, 1, -1, 1, 1, -1, 1],
+     [14, 4, 3, 1, -1, 1, 1, 1, 1],
+     [15, 1, 2, -1, 1, 1, 1, -1, -1],
+     [15, 2, 1, -1, 1, 1, 1, 1, -1],
+     [15, 3, 4, -1, 1, 1, 1, -1, 1],
+     [15, 4, 3, -1, 1, 1, 1, 1, 1],
+     [16, 1, 4, 1, 1, 1, 1, -1, -1],
+     [16, 2, 3, 1, 1, 1, 1, 1, -1],
+     [16, 3, 2, 1, 1, 1, 1, -1, 1],
+     [16, 4, 1, 1, 1, 1, 1, 1, 1]
+    ],
+    "coded": true,
+    "notes": "Table 11.1, one run per lot and cycle: the sublot of the lot (1 to 4, allocated at random) that goes to each cycle"
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "64",
+     "where": {
+      "page": 256,
+      "source_kind": "prose",
+      "quote": "If we were to run a 64-run completely randomized design, the curing conditions would need to be changed 64 times."
+     },
+     "check": {
+      "kind": "run_count",
+      "printed": "64"
+     }
+    },
+    {
+     "what": "duration",
+     "term": "completely randomized",
+     "value": "320 days",
+     "where": {
+      "page": 256,
+      "source_kind": "prose",
+      "quote": "Sixty-four times 5 gives you 320 days in total."
+     },
+     "check": {
+      "manual": "64 curing cycles of 5 days"
+     }
+    },
+    {
+     "what": "n_lots",
+     "term": null,
+     "value": "2⁴ or 16 lots",
+     "where": {
+      "page": 257,
+      "source_kind": "prose",
+      "quote": "As there are four assembly factors, this gives us 2⁴ or 16 lots."
+     },
+     "check": {
+      "kind": "distinct_runs",
+      "columns": ["lot"],
+      "printed": "16"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "per lot",
+     "value": "four sublots of 500 batteries each",
+     "where": {
+      "page": 257,
+      "source_kind": "prose",
+      "quote": "Now, our plan is to split randomly each of these lots into four sublots of 500 batteries each"
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 1
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 2
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 3
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 4
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 5
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 6
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 7
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 8
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 9
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 10
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 11
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 12
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 13
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 14
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 15
+       },
+       "printed": "4"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "lot": 16
+       },
+       "printed": "4"
+      }
+     ]
+    },
+    {
+     "what": "n_cycles",
+     "term": null,
+     "value": "as few as four curing cycles",
+     "where": {
+      "page": 257,
+      "source_kind": "prose",
+      "quote": "This would require as few as four curing cycles. Times five gives us 20 days."
+     },
+     "check": {
+      "kind": "distinct_runs",
+      "columns": ["cycle"],
+      "printed": "4"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "per cycle",
+     "value": "16 sublots",
+     "where": {
+      "page": 257,
+      "source_kind": "prose",
+      "quote": "All 16 sublots allocated to the same setting of the curing factors can then be processed together."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "cycle": 1
+       },
+       "printed": "16"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "cycle": 2
+       },
+       "printed": "16"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "cycle": 3
+       },
+       "printed": "16"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "cycle": 4
+       },
+       "printed": "16"
+      }
+     ]
+    },
+    {
+     "what": "duration",
+     "term": "two-way split-plot",
+     "value": "20 days",
+     "where": {
+      "page": 257,
+      "source_kind": "prose",
+      "quote": "This would require as few as four curing cycles. Times five gives us 20 days."
+     },
+     "check": {
+      "manual": "four curing cycles of 5 days"
+     }
+    },
+    {
+     "what": "column_df",
+     "term": null,
+     "value": "only three degrees of freedom",
+     "analysis": "the degrees of freedom among the four cycles; x5, x6 and x5 x6 use all three, so none is left for the column variance",
+     "where": {
+      "page": 258,
+      "source_kind": "prose",
+      "quote": "That is, it involves only four independent settings of the curing factors. This gives you only three degrees of freedom and you have to estimate four things related to the columns"
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "degrees_of_freedom",
+      "model": "C(cycle)",
+      "key": "model",
+      "printed": "3"
+     }
+    },
+    {
+     "what": "duration",
+     "term": "six or eight cycles",
+     "value": "from 20 to 30 days ... doubles",
+     "where": {
+      "page": 259,
+      "source_kind": "prose",
+      "quote": "Using six curing cycles increases the time required to run the experiment from 20 to 30 days. Using eight curing cycles doubles the run time of the experiment."
+     },
+     "check": {
+      "manual": "six or eight curing cycles of 5 days"
+     }
+    },
+    {
+     "what": "capacity",
+     "term": null,
+     "value": "eight sublots of 500 batteries instead of 16",
+     "where": {
+      "page": 259,
+      "source_kind": "prose",
+      "quote": "That means eight sublots of 500 batteries instead of 16."
+     },
+     "check": {
+      "manual": "4000 batteries in the smallest chamber, in sublots of 500"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-jones-two-way-split-plot-twelve-runs",
+   "title": "A 12-run two-way split-plot design in four rows and four columns for two row factors and one column factor",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "11.3.2",
+    "pages": "270-273",
+    "tables": ["Table 11.8", "Table 11.9"],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "row factor 1",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "row factor 2",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "column factor",
+     "low": -1,
+     "high": 1,
+     "levels": [-1, 1],
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "row",
+     "description": "the run's row",
+     "levels": [1, 2, 3, 4],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "column",
+     "description": "the run's column",
+     "levels": [1, 2, 3, 4],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "D-optimal two-way split-plot (strip-plot) design",
+    "details": "four rows set by x1 and x2 and four columns set by x3, three runs in each row and column, D-optimal for the main effects",
+    "n_runs": 12,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": ["run", "row", "column", "x1", "x2", "x3"],
+    "rows": [
+     [1, 1, 1, -1, -1, -1],
+     [2, 1, 2, -1, -1, 1],
+     [3, 1, 3, -1, -1, 1],
+     [4, 2, 4, 1, -1, -1],
+     [5, 2, 1, 1, -1, -1],
+     [6, 2, 2, 1, -1, 1],
+     [7, 3, 3, 1, 1, 1],
+     [8, 3, 4, 1, 1, -1],
+     [9, 3, 1, 1, 1, -1],
+     [10, 4, 2, -1, 1, 1],
+     [11, 4, 3, -1, 1, 1],
+     [12, 4, 4, -1, 1, -1]
+    ],
+    "coded": true,
+    "notes": "Table 11.8; Table 11.9 prints the same runs as four lots (rows) by four columns, with x3 -1, +1, +1, -1 in columns 1 to 4"
+   },
+   "expected": [
+    {
+     "what": "size",
+     "term": null,
+     "value": "n = 12 and r = c = 4",
+     "where": {
+      "page": 271,
+      "source_kind": "prose",
+      "quote": "Because n = 12 and r = c = 4 for this design, Z1 and Z2 have 12 rows and four columns"
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "printed": "12"
+      },
+      {
+       "kind": "distinct_runs",
+       "columns": ["row"],
+       "printed": "4"
+      },
+      {
+       "kind": "distinct_runs",
+       "columns": ["column"],
+       "printed": "4"
+      }
+     ]
+    },
+    {
+     "what": "indicators",
+     "term": "Z1",
+     "value": [
+      ["1", "0", "0", "0"],
+      ["1", "0", "0", "0"],
+      ["1", "0", "0", "0"],
+      ["0", "1", "0", "0"],
+      ["0", "1", "0", "0"],
+      ["0", "1", "0", "0"],
+      ["0", "0", "1", "0"],
+      ["0", "0", "1", "0"],
+      ["0", "0", "1", "0"],
+      ["0", "0", "0", "1"],
+      ["0", "0", "0", "1"],
+      ["0", "0", "0", "1"]
+     ],
+     "analysis": "the run-to-row indicator matrix, the model matrix of the row labels",
+     "where": {
+      "page": 272,
+      "source_kind": "prose",
+      "quote": "Because n = 12 and r = c = 4 for this design, Z1 and Z2 have 12 rows and four columns"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "0 + C(row)",
+      "key": "model_matrix",
+      "printed": [
+       ["1", "0", "0", "0"],
+       ["1", "0", "0", "0"],
+       ["1", "0", "0", "0"],
+       ["0", "1", "0", "0"],
+       ["0", "1", "0", "0"],
+       ["0", "1", "0", "0"],
+       ["0", "0", "1", "0"],
+       ["0", "0", "1", "0"],
+       ["0", "0", "1", "0"],
+       ["0", "0", "0", "1"],
+       ["0", "0", "0", "1"],
+       ["0", "0", "0", "1"]
+      ]
+     }
+    },
+    {
+     "what": "indicators",
+     "term": "Z2",
+     "value": [
+      ["1", "0", "0", "0"],
+      ["0", "1", "0", "0"],
+      ["0", "0", "1", "0"],
+      ["0", "0", "0", "1"],
+      ["1", "0", "0", "0"],
+      ["0", "1", "0", "0"],
+      ["0", "0", "1", "0"],
+      ["0", "0", "0", "1"],
+      ["1", "0", "0", "0"],
+      ["0", "1", "0", "0"],
+      ["0", "0", "1", "0"],
+      ["0", "0", "0", "1"]
+     ],
+     "where": {
+      "page": 272,
+      "source_kind": "prose",
+      "quote": "Because n = 12 and r = c = 4 for this design, Z1 and Z2 have 12 rows and four columns"
+     },
+     "check": {
+      "kind": "normal_equations",
+      "model": "0 + C(column)",
+      "key": "model_matrix",
+      "printed": [
+       ["1", "0", "0", "0"],
+       ["0", "1", "0", "0"],
+       ["0", "0", "1", "0"],
+       ["0", "0", "0", "1"],
+       ["1", "0", "0", "0"],
+       ["0", "1", "0", "0"],
+       ["0", "0", "1", "0"],
+       ["0", "0", "0", "1"],
+       ["1", "0", "0", "0"],
+       ["0", "1", "0", "0"],
+       ["0", "0", "1", "0"],
+       ["0", "0", "0", "1"]
+      ]
+     }
+    },
+    {
+     "what": "optimality",
+     "term": null,
+     "value": "D-optimal for estimating a main-effects model",
+     "where": {
+      "page": 271,
+      "source_kind": "prose",
+      "quote": "An alternative representation of that design, which is D-optimal for estimating a main-effects model, is shown in Table 11.9."
+     },
+     "check": {
+      "manual": "a property of the design among all designs of its size, which the library's optimal design search does not cover for two crossed random effects"
+     }
+    },
+    {
+     "what": "robustness",
+     "term": null,
+     "value": "optimal for any values of these ratios between 0.1 and 10",
+     "where": {
+      "page": 273,
+      "source_kind": "prose",
+      "quote": "The optimal designs shown in Tables 11.2 and 11.8 were generated assuming that σγ2/σε2 = σδ2/σε2 = 1, but they are optimal for any values of these ratios between 0.1 and 10."
+     },
+     "check": {
+      "manual": "a property found by searching for each ratio"
+     }
+    },
+    {
+     "what": "covariance",
+     "term": "V",
+     "value": "σγ2 for runs in the same row, σδ2 in the same column, 0 otherwise",
+     "where": {
+      "page": 272,
+      "source_kind": "prose",
+      "quote": "The fifth element in the first row of V, for instance, is the covariance between the responses of the first and the fifth run. These runs belong to the same column according to Table 11.8, which is why their covariance is σδ2."
+     },
+     "check": {
+      "manual": "the symbolic V = σγ2 Z1 Z1' + σδ2 Z2 Z2' + σε2 I; its pattern is that of Z1 and Z2, which are checked"
+     }
+    }
+   ]
   }
  ],
- "not_captured": ["1.1 and 1.2 (pp. 1 to 3): the key concepts and the conversation that sets up the comparison of two machines, and the variances var(X̄1 − X̄2) = σ²(1/n1 + 1/n2) and σ1²/n1 + σ2²/n2 (pp. 3 and 4): formulas, worked in Tables 1.1 to 1.4", "1.3 (p. 8): the summary, no data", "2.1 (pp. 9 and 10): the key concepts, no data", "2.2.1 (pp. 10 to 14): GeneBe's process in words: cultures grown at 37 °C for 24 hours and then at 30 °C to 33 °C, 100 ml of culture per extraction, the current yield of about 25 mg, the target of more than 45 mg, and a budget of at most 15 runs, of which 12 are used and three kept for a confirmatory experiment; context, held in the extraction entry's notes", "2.2.2 (p. 15): the all-subsets regression of all models with up to seven effects, which finds the ethanol-by-propanol interaction; the models it compares are not printed", "2.3.1 to 2.3.4 (pp. 21 to 26): the main-effects and two-factor interaction models (Equations 2.3 to 2.5, Attachments 2.1 and 2.2), factor scaling (Equation 2.6), least squares (Equations 2.7 to 2.11), and the conditions under which X'X is diagonal with n on its diagonal, so that each relative variance takes its minimum, 1/n: formulas, no data", "2.3.5 (pp. 27 and 28): significance tests and power in words, with Fisher's (1926) cutoff of 5% and the false positive rate of one test in 10,000 at a cutoff of 0.0001; no power is computed", "2.3.6 (pp. 28 and 29): the variance inflation factor (Equation 2.13), the rule of thumb that a VIF above five signals collinearity, and that a VIF of four doubles a confidence interval: definitions, applied in Tables 2.10 and 2.12", "2.3.7 (pp. 29 to 31): the alias matrix A = (X1'X1)^-1 X1'X2 (Equations 2.14 to 2.18), derived; applied in Tables 2.7 and 2.9", "2.3.8 (pp. 33 and 34): D-optimality, the determinant (1/n)^p of (X'X)^-1 for an orthogonal design, and that no orthogonal two-level design exists when the run count is not a multiple of 4: statements, no data", "2.3.9.1 and 2.3.9.2 (pp. 35 to 37): the coordinate-exchange algorithm in words, with the advice to use at least 1000 random starts", "Figure 2.3 (p. 38): the designs of the worked example plotted, held as goos-jones-coordinate-exchange-two-factors", "2.3.10 (p. 41): the statement that no 12-run two-level design has orthogonal columns for the six main effects and the one interaction; no number", "2.3.11 (pp. 41 to 43): sparsity, hierarchy and heredity, the 80-20 rule, and Li et al. (2006)'s reanalysis of 113 published full factorial experiments with three to seven factors, which found 80% of the active two-factor interactions synergistic: the findings of another source, without its data", "2.4 and 2.5 (pp. 44 and 45): background reading and the summary, no data", "3.1 and 3.2.1 (pp. 47 to 53): the key concepts, the follow-up meeting at GeneBe (yields doubled to more than 50 mg per 100 ml), strong and weak heredity, AICc, R2 and the RMSE as model selection criteria, and why a foldover was not used, in words", "Equations 3.1, 3.4 and 3.5 (pp. 60 and 61): the main-effects model, the model with six interactions, and that model with the block effect: formulas, their terms checked through the model matrices", "Equation 3.8 (p. 62): the model matrix of the augmented design before the follow-up runs are chosen, printed with dots for them", "Equations 3.9 to 3.12 (p. 63): the total information X'X = X1'X1 + X2'X2 and |X1'X1| × |I + X2(X1'X1)^-1 X2'| for an invertible X1'X1: formulas", "3.3.2 and 3.3.3 (pp. 65 and 66): the coordinate-exchange algorithm for augmentation and the foldover technique, in words, and that seven follow-up runs could have been enough", "3.4 and 3.5 (p. 67): background reading, among it Miller and Sitter (1997)'s folded-over 12-run Plackett-Burman design for 12 factors in 24 runs, and the summary, no data", "4.1 (p. 69): the key concepts, no data", "Table 4.1 (p. 71): the factors' ranges, held as the peel strength entries' factors", "Equations 4.1 to 4.6 (pp. 72, 73 and 83): the models in words and symbols, their parameter counts checked", "Figures 4.2 to 4.4 (pp. 80 to 82): predicted peel strength by supplier at three or four speeds, drawn; the predictions the text quotes from them are checked", "4.3.1 to 4.3.3 (pp. 82 to 87): quadratic effects, Figure 4.5's four quadratic curves 5 ± 2x ± 3x^2, dummy and effects coding of a categorical factor, and D-efficiency (Equation 4.7): definitions and formulas", "4.3.4 to 4.3.6 (pp. 87 to 90): how an FDS plot is drawn, the average prediction variance 2^-k tr[(X'X)^-1 M] and the moments matrix M (Equations 4.8 and 4.9, Attachment 4.1), G-optimality, and relative I-efficiency: formulas", "4.3.7 and 4.3.8 (pp. 90 to 92): independent errors, hard-to-change factors, and cuboidal and spherical regions, in words", "4.4 and 4.5 (pp. 92 and 93): background reading and the summary, no data", "5.1 (p. 95): the key concepts, no data", "Figures 5.1 to 5.3 (pp. 100 and 101): the feasible region drawn, with four of its vertices, (360 s, 529 K), (660 s, 520 K), (420 s, 550 K) and (720 s, 523 K), which the two constraint lines checked join", "Figures 5.4, 5.7 and 5.8 (pp. 103, 107 and 108): the design drawn in the region, the profiler with its confidence band, and the contours of the predicted yield; the numbers they print are checked", "5.3.1 (pp. 108 and 109): the full cubic model's k, k(k - 1) and k(k - 1)(k - 2)/6 third-order terms: formulas", "5.3.2 (pp. 109 to 111): the lack-of-fit test's sums of squares and degrees of freedom, as formulas; the numbers it works for the experiment are checked", "5.3.3 (pp. 111 and 112): the coordinate-exchange algorithm under inequality constraints, in words, with the interval [-1, 0.7] of the example checked", "5.4 and 5.5 (p. 112): background reading and the summary, no data", "6.1 (pp. 113 and 114): the key concepts, no data", "Figure 6.2 (p. 116): the historical scatter plot of reflectivity against melt temperature, drawn without data", "Figure 6.3 (p. 120): the ternary plot of Table 6.2's mill settings, whose counts are checked", "6.3.1 to 6.3.3 (pp. 123 to 127): the mixture constraint, the Scheffé models (Equations 6.8 to 6.10), the crossed mixture-process variable model (Equation 6.11) with [q + q(q - 1)/2] × [1 + m + m(m - 1)/2] terms, Kowalski et al.'s model (Equation 6.12) with q + q(q - 1)/2 + qm + m(m - 1)/2 + m terms, and Prescott's with q(q + 1)(q + 2)/6 + mq(m + q + 2)/2: formulas", "6.3.4 (pp. 127 to 130): the {q, 1} and {q, 2} lattice designs and the special-cubic design (Figures 6.5 to 6.7), and pseudocomponents for lower bounds (Figure 6.8: 0.2 <= a1 <= 0.8, 0.2 <= a2 <= 0.8 and 0 <= a3 <= 0.6, so x1 = 1 is a1 = 0.8, a2 = 0.2, a3 = 0): formulas and arithmetic. The text counts the special-cubic design's face centroids as q(q - 1)(q - 2)/3; the ternary blends number q(q - 1)(q - 2)/6, one for three ingredients, as Figure 6.7 draws", "6.3.5 (pp. 130 to 132): the mixture coordinate-exchange algorithm and its step along the Cox-effect direction from (0.30, 0.30, 0.40) to (0.50, 0.214, 0.286), x_j - δ x_j / (1 - x_i): a formula and its arithmetic", "6.4 and 6.5 (pp. 132 and 133): background reading and the summary, no data", "7.1 and 8.1 (pp. 135 and 163): the key concepts, no data", "Table 7.3 (p. 139): the factors' three levels, held as the pastry entry's factors", "The engineering-units forms of the two models (p. 147): the coefficients of Table 7.9 over the factors' half ranges, checked in coded units", "Figure 7.1 (p. 148): the profiler at the settings that hit both targets; its readouts are checked, and the moisture content's range of 21.5% to 23.5% over which the desirability changes little is read off it", "Attachment 7.1 (pp. 150 and 151): REML illustrated by the sample variance and the mean squared error, formulas", "7.3.1 to 7.3.5 (pp. 151 to 158): the mixed model, its covariance matrices (Equations 7.5 to 7.12), the restricted log likelihood and the D-optimality of block designs, formulas", "7.4, 7.5, 8.4 and 8.5 (pp. 160, 161, 184 and 185): background reading and the summaries, no data", "8.3 (pp. 179 to 184): fixed and random block effects, effects-type coding of the blocks (Equations 8.1 to 8.9), formulas", "9.1 and 10.1 (pp. 187 and 219): the key concepts, no data", "Figure 9.1 to Figure 9.3 (pp. 191 to 195): scatter plots of the samples and histograms of Table 9.2's levels, which the counts of the polypropylene entry check", "Figure 9.4 (p. 203): contour plots of the predicted surface tension; the points read off its 34 contours are checked as predictions", "9.3.1, 9.3.2 and 9.3.4 (pp. 206 to 211 and 215): covariates, their models (Equations 9.1 to 9.16), variance inflation and the design construction algorithms, formulas", "9.3.5, 9.3.6, 9.4 and 9.5 (pp. 215 to 217): randomization, final thoughts, background reading and the summary, no data", "10.2.1 (pp. 220 to 222): the history of the tunnel and the cost argument, a 50-run split-plot study in 80% of the time of a 28-run completely randomized central composite design, which is 20% less expensive; a cost model the book does not give", "Table 10.1 (p. 221): the factors' levels, held as the wind tunnel entry's factors", "Figure 10.5 (p. 241): a schematic of a classical agricultural split-plot design, three fertilizers on six whole plots and three varieties within each, no data", "10.3.1, 10.3.2 and 10.3.4 to 10.3.8 (pp. 240 to 253): split-plot terminology, the model (Equations 10.1 to 10.6), disguises of a split-plot design, the required numbers of whole plots and runs, the optimal design criteria and the coordinate-exchange algorithm, formulas", "10.4 and 10.5 (pp. 253 and 254): background reading and the summary, no data"]
+ "not_captured": ["1.1 and 1.2 (pp. 1 to 3): the key concepts and the conversation that sets up the comparison of two machines, and the variances var(X̄1 − X̄2) = σ²(1/n1 + 1/n2) and σ1²/n1 + σ2²/n2 (pp. 3 and 4): formulas, worked in Tables 1.1 to 1.4", "1.3 (p. 8): the summary, no data", "2.1 (pp. 9 and 10): the key concepts, no data", "2.2.1 (pp. 10 to 14): GeneBe's process in words: cultures grown at 37 °C for 24 hours and then at 30 °C to 33 °C, 100 ml of culture per extraction, the current yield of about 25 mg, the target of more than 45 mg, and a budget of at most 15 runs, of which 12 are used and three kept for a confirmatory experiment; context, held in the extraction entry's notes", "2.2.2 (p. 15): the all-subsets regression of all models with up to seven effects, which finds the ethanol-by-propanol interaction; the models it compares are not printed", "2.3.1 to 2.3.4 (pp. 21 to 26): the main-effects and two-factor interaction models (Equations 2.3 to 2.5, Attachments 2.1 and 2.2), factor scaling (Equation 2.6), least squares (Equations 2.7 to 2.11), and the conditions under which X'X is diagonal with n on its diagonal, so that each relative variance takes its minimum, 1/n: formulas, no data", "2.3.5 (pp. 27 and 28): significance tests and power in words, with Fisher's (1926) cutoff of 5% and the false positive rate of one test in 10,000 at a cutoff of 0.0001; no power is computed", "2.3.6 (pp. 28 and 29): the variance inflation factor (Equation 2.13), the rule of thumb that a VIF above five signals collinearity, and that a VIF of four doubles a confidence interval: definitions, applied in Tables 2.10 and 2.12", "2.3.7 (pp. 29 to 31): the alias matrix A = (X1'X1)^-1 X1'X2 (Equations 2.14 to 2.18), derived; applied in Tables 2.7 and 2.9", "2.3.8 (pp. 33 and 34): D-optimality, the determinant (1/n)^p of (X'X)^-1 for an orthogonal design, and that no orthogonal two-level design exists when the run count is not a multiple of 4: statements, no data", "2.3.9.1 and 2.3.9.2 (pp. 35 to 37): the coordinate-exchange algorithm in words, with the advice to use at least 1000 random starts", "Figure 2.3 (p. 38): the designs of the worked example plotted, held as goos-jones-coordinate-exchange-two-factors", "2.3.10 (p. 41): the statement that no 12-run two-level design has orthogonal columns for the six main effects and the one interaction; no number", "2.3.11 (pp. 41 to 43): sparsity, hierarchy and heredity, the 80-20 rule, and Li et al. (2006)'s reanalysis of 113 published full factorial experiments with three to seven factors, which found 80% of the active two-factor interactions synergistic: the findings of another source, without its data", "2.4 and 2.5 (pp. 44 and 45): background reading and the summary, no data", "3.1 and 3.2.1 (pp. 47 to 53): the key concepts, the follow-up meeting at GeneBe (yields doubled to more than 50 mg per 100 ml), strong and weak heredity, AICc, R2 and the RMSE as model selection criteria, and why a foldover was not used, in words", "Equations 3.1, 3.4 and 3.5 (pp. 60 and 61): the main-effects model, the model with six interactions, and that model with the block effect: formulas, their terms checked through the model matrices", "Equation 3.8 (p. 62): the model matrix of the augmented design before the follow-up runs are chosen, printed with dots for them", "Equations 3.9 to 3.12 (p. 63): the total information X'X = X1'X1 + X2'X2 and |X1'X1| × |I + X2(X1'X1)^-1 X2'| for an invertible X1'X1: formulas", "3.3.2 and 3.3.3 (pp. 65 and 66): the coordinate-exchange algorithm for augmentation and the foldover technique, in words, and that seven follow-up runs could have been enough", "3.4 and 3.5 (p. 67): background reading, among it Miller and Sitter (1997)'s folded-over 12-run Plackett-Burman design for 12 factors in 24 runs, and the summary, no data", "4.1 (p. 69): the key concepts, no data", "Table 4.1 (p. 71): the factors' ranges, held as the peel strength entries' factors", "Equations 4.1 to 4.6 (pp. 72, 73 and 83): the models in words and symbols, their parameter counts checked", "Figures 4.2 to 4.4 (pp. 80 to 82): predicted peel strength by supplier at three or four speeds, drawn; the predictions the text quotes from them are checked", "4.3.1 to 4.3.3 (pp. 82 to 87): quadratic effects, Figure 4.5's four quadratic curves 5 ± 2x ± 3x^2, dummy and effects coding of a categorical factor, and D-efficiency (Equation 4.7): definitions and formulas", "4.3.4 to 4.3.6 (pp. 87 to 90): how an FDS plot is drawn, the average prediction variance 2^-k tr[(X'X)^-1 M] and the moments matrix M (Equations 4.8 and 4.9, Attachment 4.1), G-optimality, and relative I-efficiency: formulas", "4.3.7 and 4.3.8 (pp. 90 to 92): independent errors, hard-to-change factors, and cuboidal and spherical regions, in words", "4.4 and 4.5 (pp. 92 and 93): background reading and the summary, no data", "5.1 (p. 95): the key concepts, no data", "Figures 5.1 to 5.3 (pp. 100 and 101): the feasible region drawn, with four of its vertices, (360 s, 529 K), (660 s, 520 K), (420 s, 550 K) and (720 s, 523 K), which the two constraint lines checked join", "Figures 5.4, 5.7 and 5.8 (pp. 103, 107 and 108): the design drawn in the region, the profiler with its confidence band, and the contours of the predicted yield; the numbers they print are checked", "5.3.1 (pp. 108 and 109): the full cubic model's k, k(k - 1) and k(k - 1)(k - 2)/6 third-order terms: formulas", "5.3.2 (pp. 109 to 111): the lack-of-fit test's sums of squares and degrees of freedom, as formulas; the numbers it works for the experiment are checked", "5.3.3 (pp. 111 and 112): the coordinate-exchange algorithm under inequality constraints, in words, with the interval [-1, 0.7] of the example checked", "5.4 and 5.5 (p. 112): background reading and the summary, no data", "6.1 (pp. 113 and 114): the key concepts, no data", "Figure 6.2 (p. 116): the historical scatter plot of reflectivity against melt temperature, drawn without data", "Figure 6.3 (p. 120): the ternary plot of Table 6.2's mill settings, whose counts are checked", "6.3.1 to 6.3.3 (pp. 123 to 127): the mixture constraint, the Scheffé models (Equations 6.8 to 6.10), the crossed mixture-process variable model (Equation 6.11) with [q + q(q - 1)/2] × [1 + m + m(m - 1)/2] terms, Kowalski et al.'s model (Equation 6.12) with q + q(q - 1)/2 + qm + m(m - 1)/2 + m terms, and Prescott's with q(q + 1)(q + 2)/6 + mq(m + q + 2)/2: formulas", "6.3.4 (pp. 127 to 130): the {q, 1} and {q, 2} lattice designs and the special-cubic design (Figures 6.5 to 6.7), and pseudocomponents for lower bounds (Figure 6.8: 0.2 <= a1 <= 0.8, 0.2 <= a2 <= 0.8 and 0 <= a3 <= 0.6, so x1 = 1 is a1 = 0.8, a2 = 0.2, a3 = 0): formulas and arithmetic. The text counts the special-cubic design's face centroids as q(q - 1)(q - 2)/3; the ternary blends number q(q - 1)(q - 2)/6, one for three ingredients, as Figure 6.7 draws", "6.3.5 (pp. 130 to 132): the mixture coordinate-exchange algorithm and its step along the Cox-effect direction from (0.30, 0.30, 0.40) to (0.50, 0.214, 0.286), x_j - δ x_j / (1 - x_i): a formula and its arithmetic", "6.4 and 6.5 (pp. 132 and 133): background reading and the summary, no data", "7.1 and 8.1 (pp. 135 and 163): the key concepts, no data", "Table 7.3 (p. 139): the factors' three levels, held as the pastry entry's factors", "The engineering-units forms of the two models (p. 147): the coefficients of Table 7.9 over the factors' half ranges, checked in coded units", "Figure 7.1 (p. 148): the profiler at the settings that hit both targets; its readouts are checked, and the moisture content's range of 21.5% to 23.5% over which the desirability changes little is read off it", "Attachment 7.1 (pp. 150 and 151): REML illustrated by the sample variance and the mean squared error, formulas", "7.3.1 to 7.3.5 (pp. 151 to 158): the mixed model, its covariance matrices (Equations 7.5 to 7.12), the restricted log likelihood and the D-optimality of block designs, formulas", "7.4, 7.5, 8.4 and 8.5 (pp. 160, 161, 184 and 185): background reading and the summaries, no data", "8.3 (pp. 179 to 184): fixed and random block effects, effects-type coding of the blocks (Equations 8.1 to 8.9), formulas", "9.1 and 10.1 (pp. 187 and 219): the key concepts, no data", "Figure 9.1 to Figure 9.3 (pp. 191 to 195): scatter plots of the samples and histograms of Table 9.2's levels, which the counts of the polypropylene entry check", "Figure 9.4 (p. 203): contour plots of the predicted surface tension; the points read off its 34 contours are checked as predictions", "9.3.1, 9.3.2 and 9.3.4 (pp. 206 to 211 and 215): covariates, their models (Equations 9.1 to 9.16), variance inflation and the design construction algorithms, formulas", "9.3.5, 9.3.6, 9.4 and 9.5 (pp. 215 to 217): randomization, final thoughts, background reading and the summary, no data", "10.2.1 (pp. 220 to 222): the history of the tunnel and the cost argument, a 50-run split-plot study in 80% of the time of a 28-run completely randomized central composite design, which is 20% less expensive; a cost model the book does not give", "Table 10.1 (p. 221): the factors' levels, held as the wind tunnel entry's factors", "Figure 10.5 (p. 241): a schematic of a classical agricultural split-plot design, three fertilizers on six whole plots and three varieties within each, no data", "10.3.1, 10.3.2 and 10.3.4 to 10.3.8 (pp. 240 to 253): split-plot terminology, the model (Equations 10.1 to 10.6), disguises of a split-plot design, the required numbers of whole plots and runs, the optimal design criteria and the coordinate-exchange algorithm, formulas", "10.4 and 10.5 (pp. 253 and 254): background reading and the summary, no data", "11.1 (p. 255): the key concepts, no data", "Figure 11.2 (p. 268): a schematic of an agricultural two-way split-plot design, two fertilizers on the columns and four herbicides on the rows of two fields, no data", "11.3.1 to 11.3.5 (pp. 269 to 275): the two-way split-plot model (Equations 11.1 to 11.3), its covariance matrix V, the D-optimality criterion and the coordinate-exchange algorithm for two-way split-plot designs, formulas", "11.4 and 11.5 (pp. 275 and 276): background reading and the summary, no data", "Bibliography and index (pp. 277 to 287): references and page numbers, no data"]
 }

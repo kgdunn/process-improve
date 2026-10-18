@@ -1,5 +1,5 @@
 - **The reference catalogue reads Goos and Jones, *Optimal Design of Experiments: A Case Study Approach*
-  (2011), chapters 1 to 10.** It holds:
+  (2011), the whole book.** It holds:
   - the splits of a two-machine comparison's runs (Tables 1.1 to 1.4), checked with `allocate_runs`;
   - the GeneBe extraction experiment, with its fits, predictions, alias matrix (Table 2.7) and variance
     inflation factors;
@@ -32,9 +32,14 @@
     its variances, average and median prediction variance beside Dr. Cavendish's two designs, the
     ordinary and Kenward-Roger generalized least squares fits of the efficiency (Tables 10.5 to 10.7)
     and the simplified models of all five responses (Table 10.8), and the eight-whole-plot design of
-    Tables 10.9 and 10.10.
+    Tables 10.9 and 10.10;
+  - the battery cell experiment (chapter 11), a 48-run D-optimal two-way split-plot design in 16 lots
+    and six curing cycles: its variances and correlations of estimates with the rows and the columns
+    as random effects (Tables 11.3 and 11.4), the Kenward-Roger fit (Table 11.6), the BLUPs of the
+    rows and columns (Table 11.7) and the variance components, beside Pino's four-cycle plan and the
+    12-run design of Tables 11.8 and 11.9.
 
-  2015 printed numbers give 2186 checks, all agreeing or explained. The 77 explained disagreements are
+  2164 printed numbers give 2361 checks, all agreeing or explained. The 77 explained disagreements are
   misprints, numbers read off a figure, or numbers of a design other than the one printed:
   - two t ratios in Table 2.5 and two in Table 3.7;
   - the time coefficient of Equation 2.1;
@@ -70,6 +75,8 @@
   (`relative_to`, for a VIF or efficiency factor due to blocking), in percent (`percent`) or counted
   (`count`), a block's average model row (`average`), and the split-plot analysis's coefficients,
   variance ratio and predictions, by Kenward and Roger's method (`df_method`, `information`), a
-  design's runs evaluated as a split-plot design through their whole plots (`whole_plot`, on
+  design's runs evaluated as a split-plot design through their groups (`groups`, on
   `design_metric` and `relative_efficiency`), a relative efficiency in percent or as a gain (`percent`,
-  `gain`), and a run order's trend-robustness (`trend_robustness`, Equation 9.19).
+  `gain`), a run order's trend-robustness (`trend_robustness`, Equation 9.19), and a two-way
+  split-plot analysis's crossed random effects, BLUPs and best corner (`crossed`, `blup`,
+  `best_corner` on `split_plot`).
