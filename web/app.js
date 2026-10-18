@@ -3295,7 +3295,7 @@ function movedStudy(best) {
   start.type = "button";
   start.id = "next-study";
   start.onclick = () => startMovedStudy(moved);
-  const step = el("div", "step", "");
+  const step = el("div", "next__part", "");
   step.append(
     el("h4", "", "A new study further along"),
     said("", `The ranges moved along the ${climb(best)}:`),
@@ -3308,7 +3308,7 @@ function movedStudy(best) {
 
 /** The ways to add runs to this study, each what it is for and a button, and why any way is not offered. */
 function addedRuns(next) {
-  const step = el("div", "step", "");
+  const step = el("div", "next__part", "");
   step.append(el("h4", "", "Add runs to this study"));
   if (next.offers.length) {
     step.append(said("hint", "The runs made so far stay as they are, with their results; the runs added go at the end of the run sheet."));

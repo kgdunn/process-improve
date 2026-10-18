@@ -67,6 +67,21 @@ def test_the_worked_example_points_to_a_new_study_further_along(page, first_pain
     assert offered(page) == [], "its Box-Behnken design fits the full quadratic with runs to spare"
 
 
+def test_the_next_step_lies_inside_its_card(page):
+    reveal(page, "#next")
+    card = page.locator("#next").bounding_box()
+    parts = page.locator("#next-out > div").all()
+    assert parts, "the new study further along"
+    for part in parts:
+        assert part.bounding_box()["width"] > card["width"] / 2, "each part spans the card, not a numbered badge"
+    for inside in (page.locator("#next-out table"), page.locator("#next-study")):
+        box = inside.bounding_box()
+        assert card["x"] <= box["x"]
+        assert box["x"] + box["width"] <= card["x"] + card["width"]
+        assert card["y"] <= box["y"]
+        assert box["y"] + box["height"] <= card["y"] + card["height"], "below the card, as on a tablet before"
+
+
 def test_the_new_study_opens_in_design_with_the_moved_ranges(page):
     reveal(page, "#next")
     page.click("#next-study")
