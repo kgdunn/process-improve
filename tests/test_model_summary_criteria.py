@@ -57,3 +57,10 @@ def test_without_an_intercept_the_f_test_is_against_zero():
     fitted = x @ np.linalg.lstsq(x, y, rcond=None)[0]
     f = (float(fitted @ fitted) / 2) / (float(((y - fitted) ** 2).sum()) / 10)
     assert found["f_statistic"] == pytest.approx(f)
+
+
+def test_the_corrected_aic_adds_the_small_sample_term_and_is_none_where_it_is_undefined():
+    found, n, k = _summary("y ~ A + B + A:B"), 12, 5  # four coefficients and the error variance
+    assert found["aicc"] == pytest.approx(found["aic"] + 2 * k * (k + 1) / (n - k - 1))
+    few = analyze_experiment(RUNS.iloc[:4], response_column="y", model="y ~ A + B", coding="actual")
+    assert few["model_summary"]["aicc"] is None  # n - k - 1 = 4 - 4 - 1 < 0
