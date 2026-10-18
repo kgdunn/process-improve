@@ -57,7 +57,7 @@ from process_improve.experiments._desirability import composite_desirability, in
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
-from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
+from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -858,7 +858,9 @@ def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
             f"The limit {text!r} cannot use {found[1] if found else exc}: a limit is written with numbers, your "
             f"factors, + - * / ** and the functions {_listed(list(LIMIT_FUNCTIONS))}."
         ) from exc
-    canonical = ast.unparse(tree)
+    # The library's canonical text, with each factor written as it is named: the parsed text holds a name's NFKC
+    # form, the plain T of a full-width one (#808).
+    canonical = rename_factors(text, {name: name for name in named})
     _short_enough(canonical)
     return canonical, [name for name in numeric if name in named]
 
@@ -881,16 +883,20 @@ def _one_comparison(text: str, tree: ast.expr, numeric: list[str]) -> None:
 
 
 def _factors_named(text: str, tree: ast.expr, factors: list[Factor]) -> list[str]:
-    """Return the names a limit uses for factors, refusing a function, a factor or a name it cannot use."""
+    """Return the factors a limit uses, by their names, refusing a function, a factor or a name it cannot use.
+
+    The parsed limit holds each name in its NFKC form, so a name is matched through that form (#808).
+    """
     names = [f.name for f in factors]
     numeric = [f.name for f in factors if f.type != "categorical"]
+    lookup = factor_lookup(names)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and not (isinstance(node.func, ast.Name) and node.func.id in LIMIT_FUNCTIONS):
             raise ValueError(
                 f"The limit {text!r} uses {ast.unparse(node.func)}, which a limit cannot: the functions it can use "
                 f"are {_listed(list(LIMIT_FUNCTIONS))}."
             )
-    named = _named(tree)
+    named = [lookup.get(name, name) for name in _named(tree)]
     for name in named:
         if name in names and name not in numeric:
             raise ValueError(
