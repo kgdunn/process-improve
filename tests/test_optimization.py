@@ -214,7 +214,7 @@ class TestExtractBandB:
         with pytest.raises(ValueError, match=r"second-order model.*\['A:B:C'\]"):
             optimize_responses([model], method=method)
 
-    @pytest.mark.parametrize("term", ["I(A ** 3)", "C(A)[T.1]", "Z"])
+    @pytest.mark.parametrize("term", ["I(A ** 0.5)", "C(A)[T.1]", "Z"])
     @pytest.mark.parametrize("method", ["stationary_point", "steepest_ascent"])
     def test_unrecognised_term_names_itself(self, term: str, method: str) -> None:
         """Terms that are not products of the factors used to surface as a bare KeyError."""
@@ -227,6 +227,35 @@ class TestExtractBandB:
         """The general evaluator multiplies any number of factors, so desirability keeps working."""
         coefficients = [{"term": "Intercept", "coefficient": 1.0}, {"term": "A:B:C", "coefficient": 2.0}]
         assert evaluate_model(coefficients, ["A", "B", "C"], {"A": 0.5, "B": -1.0, "C": 2.0}) == pytest.approx(-1.0)
+
+    @pytest.mark.parametrize(
+        ("term", "value"),
+        [
+            ("I(A ** 3)", 0.125),
+            ("np.power(A, 3)", 0.125),
+            ("A:I(B ** 2)", 4.5),
+            ("I(A ** 2):B", 0.75),
+            ("I(A ** 2):I(B ** 2)", 2.25),
+        ],
+    )
+    def test_a_product_of_powers_is_evaluated_whole(self, term: str, value: float) -> None:
+        """I(A ** 2):B was read as I(A ** 2), dropping B; a cubic term was refused."""
+        coefficients = [{"term": term, "coefficient": 1.0}]
+        assert evaluate_model(coefficients, ["A", "B"], {"A": 0.5, "B": 3.0}) == pytest.approx(value)
+
+    def test_a_cubic_term_is_refused_by_a_second_order_analysis(self) -> None:
+        model = {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _quadratic_2f_coeffs()}
+        model["coefficients"].append({"term": "I(A ** 3)", "coefficient": 1.0})
+        with pytest.raises(ValueError, match=re.escape("second-order model")):
+            optimize_responses([model], method="stationary_point")
+
+    def test_desirability_finds_the_maximum_of_a_cubic(self) -> None:
+        """The cubic 3A - A^3 on [-1, 1] rises to its greatest value, 2, at A = 1, where its slope is zero."""
+        coefficients = [{"term": "A", "coefficient": 3.0}, {"term": "I(A ** 3)", "coefficient": -1.0}]
+        model = {"response_name": "y", "factor_names": ["A"], "coefficients": coefficients}
+        goals = [{"response": "y", "goal": "maximize", "low": -2.0, "high": 2.0}]
+        found = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert found["predicted_responses"]["y"] == pytest.approx(2.0, abs=1e-4)
 
 
 # ---------------------------------------------------------------------------
