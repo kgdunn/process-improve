@@ -21,6 +21,7 @@ from process_improve.experiments.least_squares_means import Comparisons, least_s
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.multistratum import multistratum_anova
+from process_improve.experiments.next_step import recommend_next_step
 from process_improve.experiments.omars import OmarsResult, analyze_omars
 from process_improve.experiments.omars_trade_off import (
     OmarsTradeOffTableEntry,
@@ -116,6 +117,7 @@ __all__ = [
     "optimize_responses",
     "popcorn",
     "predict",
+    "recommend_next_step",
     "recommend_strategy",
     "rename_factors",
     "run_order_trends",
