@@ -790,7 +790,11 @@ def analyze_experiment(  # noqa: PLR0913
         components sum to 1), an explicit formula whose left-hand side is the
         response, or *None*: ``"scheffe_quadratic"`` when every run's factor
         settings are proportions summing to 1, and ``"interactions"`` otherwise.
-        The model may expand to at most ``settings.max_formula_terms`` terms.
+        That default becomes ``"main_effects"``, with a warning and
+        ``model_summary["model_note"]``, when the design cannot estimate the
+        interactions and does not alias them in whole chains (a Plackett-Burman or
+        definitive screening design); ``"model_selection"`` still searches the
+        interactions. The model may expand to at most ``settings.max_formula_terms`` terms.
     analysis_type : str or list[str]
         One or more of: ``"anova"``, ``"effects"``, ``"coefficients"``,
         ``"significance"``, ``"residual_diagnostics"``, ``"lack_of_fit"``,
