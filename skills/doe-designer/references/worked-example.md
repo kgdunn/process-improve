@@ -32,14 +32,14 @@ Returned a three-stage plan:
 
 | Stage | Design | Runs | Purpose |
 |---|---|---|---|
-| 1. Screening | Definitive screening design | 17 | Find the vital few among 7 factors, and test for curvature |
+| 1. Screening | Definitive screening design, 4 center points | 20 | Find the vital few among 7 factors, and test for curvature |
 | 2. Optimisation (conditional) | CCD, 3 center points, face-centred | 17 | Quadratic surface on the survivors, only if screening calls for it |
 | 3. Confirmation | 3 replicates at the optimum | 3 | Check the prediction holds |
 
 Stage 2 comes back with `conditional: true` and a `run_if` saying when it is
 needed: a DSD already fits the full quadratic in any three factors, so with
 three or fewer active factors the study goes straight to confirmation. The
-plan therefore needs 20 runs (`minimum_total_runs`) or 37 (`total_estimated_runs`).
+plan therefore needs 23 runs (`minimum_total_runs`) or 40 (`total_estimated_runs`).
 It also returned transition rules worth quoting to the user, because they say
 in advance what to do with each outcome: 0-1 significant factors means the
 ranges were too narrow (or the measurement system is the problem); 2-5 means
@@ -47,7 +47,7 @@ proceed to optimisation; 6+ means split the factors into subgroups; curvature
 detected at the center points means augment to a CCD.
 
 We chose a 16-run resolution IV fractional factorial for stage 1 instead of
-the plan's 17-run DSD. Both keep every main effect clear of the two-factor
+the plan's 20-run DSD. Both keep every main effect clear of the two-factor
 interactions. The fraction also estimates the two-factor interactions, in
 alias chains, and this process is one where a temperature-by-catalyst
 interaction is chemically plausible; the DSD's extra strength, a curvature

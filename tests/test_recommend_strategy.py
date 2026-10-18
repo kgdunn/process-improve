@@ -702,9 +702,9 @@ class TestScreeningDesignParams:
         """``fake_factor`` is not a generate_design argument; the DSD handles an even count itself (#638)."""
         assert _screening_design_params("dsd", 16) == {}
 
-    def test_an_even_factor_dsd_gets_centre_runs_for_error_degrees_of_freedom(self):
-        assert _screening_design_params("dsd", 17, n_factors=8) == {"n_center_points": 3}
-        assert _screening_design_params("dsd", 17, n_factors=7) == {}
+    def test_a_dsd_gets_the_centre_runs_that_leave_four_degrees_of_freedom_for_error(self):
+        assert _screening_design_params("dsd", 17, n_factors=8) == {"n_center_points": 5}
+        assert _screening_design_params("dsd", 17, n_factors=7) == {"n_center_points": 4}
 
     def test_supersaturated_carries_its_run_count(self):
         assert _screening_design_params("supersaturated", 6) == {"budget": 6}
@@ -957,15 +957,17 @@ def test_eight_continuous_factors_screen_with_a_dsd_that_leaves_error_degrees_of
     factors = _continuous(8)
     screening = _stage(recommend_strategy(factors=factors, responses=_maximise()), "Screening")
     assert screening["design_type"] == "dsd"
-    assert screening["design_params"] == {"n_center_points": 3}
+    assert screening["design_params"] == {"n_center_points": 5}
     with warnings.catch_warnings():
         warnings.simplefilter("error")  # no "analyze_omars cannot test any effect" warning
-        assert _build(factors, screening).n_runs == screening["estimated_runs"] == 19
+        assert _build(factors, screening).n_runs == screening["estimated_runs"] == 21
 
 
-def test_an_odd_number_of_factors_needs_no_extra_centre_runs_in_its_dsd() -> None:
+def test_an_odd_number_of_factors_needs_one_centre_run_fewer_in_its_dsd() -> None:
+    """The odd DSD leaves one more degree of freedom for error per centre run than the even one."""
     screening = _stage(recommend_strategy(factors=_continuous(7), responses=_maximise()), "Screening")
-    assert (screening["design_type"], screening["design_params"], screening["estimated_runs"]) == ("dsd", {}, 17)
+    expected = ("dsd", {"n_center_points": 4}, 20)
+    assert (screening["design_type"], screening["design_params"], screening["estimated_runs"]) == expected
 
 
 def test_the_optimisation_stage_after_a_dsd_is_conditional_on_its_analysis() -> None:
@@ -973,8 +975,8 @@ def test_the_optimisation_stage_after_a_dsd_is_conditional_on_its_analysis() -> 
     optimisation = _stage(strategy, "Optimization")
     assert optimisation["conditional"] is True
     assert "analyze_omars" in optimisation["run_if"]
-    assert strategy["minimum_total_runs"] == 19 + 3
-    assert strategy["total_estimated_runs"] == 19 + optimisation["estimated_runs"] + 3
+    assert strategy["minimum_total_runs"] == 21 + 3
+    assert strategy["total_estimated_runs"] == 21 + optimisation["estimated_runs"] + 3
     assert any("Conditional: run this stage only if" in line for line in strategy["reasoning"])
 
 
@@ -1021,7 +1023,7 @@ def test_a_budget_that_would_strip_the_curvature_test_gets_one_dsd_instead() -> 
     """Reducing the plan to fit 30 runs gave a 12-run Plackett-Burman design and an optimisation always run."""
     strategy = recommend_strategy(factors=_continuous(8), responses=_maximise(), budget=30)
     assert [s["design_type"] for s in strategy["stages"]] == ["dsd", "replicates_at_optimum"]
-    assert strategy["total_estimated_runs"] == 22
+    assert strategy["total_estimated_runs"] == 24
     assert any("cannot test for curvature" in risk for risk in strategy["risks"])
 
 
@@ -1046,3 +1048,10 @@ def test_a_dsd_plan_is_offered_plackett_burman_as_the_alternative() -> None:
     assert any(
         alt.startswith("Plackett-Burman design with 3 centre runs") for alt in strategy["alternative_strategies"]
     )
+
+
+def test_a_budget_too_small_for_the_extra_centre_runs_gets_the_dsd_without_them() -> None:
+    strategy = recommend_strategy(factors=_continuous(8), responses=_maximise(), budget=20)
+    screening = strategy["stages"][0]
+    assert (screening["design_type"], screening["design_params"], screening["estimated_runs"]) == ("dsd", {}, 17)
+    assert any("0 degree(s) of freedom for error" in risk for risk in strategy["risks"])

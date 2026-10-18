@@ -359,20 +359,28 @@ def _large_factor_screening_choice(n: int, classification: dict[str, Any], templ
     return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
 
 
+#: Degrees of freedom for error a planned DSD leaves :func:`analyze_omars`. With two, its
+#: t-tests' critical value is 4.3 and a simulated 8-factor study missed an active factor 6%
+#: of the time; with four it is 2.8, and it missed none.
+_DSD_ERROR_DF = 4
+
+
 def _dsd_params(n_factors: int) -> dict[str, Any]:
     """Return the ``generate_design`` keyword arguments for a DSD of ``n_factors`` continuous factors.
 
-    The DSD for an even number of factors fills every degree of freedom the full
-    second-order model needs, so :func:`analyze_omars` would have none left to
-    estimate the error and could test no effect. Three centre runs in all (two more
-    than the design has) leave it some; an odd number of factors needs none.
+    The staged analysis (:func:`analyze_omars`) estimates the error from what the full
+    second-order model cannot fit. The DSD of an even number of factors leaves it nothing,
+    and of an odd number one degree of freedom less than its centre runs; each centre run
+    added gives one more. Centre runs are added until :data:`_DSD_ERROR_DF` are left: five
+    in all for an even number of factors, four for an odd number.
     """
-    return {"n_center_points": 3} if n_factors % 2 == 0 else {}
+    return {"n_center_points": _DSD_ERROR_DF + 1 if n_factors % 2 == 0 else _DSD_ERROR_DF}
 
 
-def _dsd_has_error_df(n_factors: int, params: dict[str, Any]) -> bool:
-    """Whether a DSD built with ``params`` leaves :func:`analyze_omars` degrees of freedom for error."""
-    return n_factors % 2 == 1 or params.get("n_center_points", 0) >= 2
+def _dsd_error_df(n_factors: int, params: dict[str, Any]) -> int:
+    """Return the degrees of freedom for error a DSD built with ``params`` leaves :func:`analyze_omars`."""
+    centres = max(int(params.get("n_center_points") or 1), 1)
+    return centres - 1 if n_factors % 2 == 0 else centres
 
 
 def _screening_design_params(
@@ -380,9 +388,8 @@ def _screening_design_params(
 ) -> dict[str, Any]:
     """Build the ``generate_design`` keyword arguments for a large-factor screening stage.
 
-    A definitive screening design takes three centre runs for an even number of
-    factors (see :func:`_dsd_params`) and none otherwise; ``generate_design`` handles
-    the even count's construction itself. A Plackett-Burman design gets three centre runs when
+    A definitive screening design takes the centre runs that leave its analysis four
+    degrees of freedom for error (see :func:`_dsd_params`). A Plackett-Burman design gets three centre runs when
     every factor is continuous, for two reasons: they test for curvature, which is
     what decides whether the optimisation stage is needed at all, and the extra
     degrees of freedom let a stepwise search hold an interaction beside the main
@@ -670,12 +677,18 @@ def _curvature_gate(screening: ExperimentalStage, spec: DOEProblemSpec) -> str:
     after it is planned unconditionally.
     """
     if screening.design_type == "dsd":
-        analysis = (
-            "analyze_omars"
-            if _dsd_has_error_df(spec.n_factors, screening.design_params)
-            else "analyze_experiment with analysis_type='model_selection', since without extra centre runs "
-            "analyze_omars has no degrees of freedom for error"
-        )
+        error_df = _dsd_error_df(spec.n_factors, screening.design_params)
+        if error_df >= _DSD_ERROR_DF:
+            analysis = "analyze_omars"
+        elif error_df:
+            analysis = (
+                f"analyze_omars, whose {error_df} degree(s) of freedom for error can miss a smaller active effect"
+            )
+        else:
+            analysis = (
+                "analyze_experiment with analysis_type='model_selection', since without extra centre runs "
+                "analyze_omars has no degrees of freedom for error"
+            )
         return (
             f"the analysis of the definitive screening design ({analysis}) finds more than three active "
             "factors, or active second-order terms it cannot separate. A DSD already fits the full quadratic "
@@ -844,11 +857,15 @@ def _variant_runs(stage: ExperimentalStage, spec: DOEProblemSpec) -> list[tuple[
     return out
 
 
-def _single_dsd_plan(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> list[ExperimentalStage] | None:
+def _single_dsd_plan(
+    stages: list[ExperimentalStage], spec: DOEProblemSpec, *, extra_centres: bool = True
+) -> list[ExperimentalStage] | None:
     """One definitive screening design in place of separate screening and optimisation stages.
 
-    Returns None when the plan has no such pair, or when a DSD cannot take the factors
-    (fewer than three, any not continuous, or hard-to-change factors needing a split plot).
+    The DSD has the centre runs that leave its analysis :data:`_DSD_ERROR_DF` degrees of
+    freedom for error, or, with ``extra_centres=False``, only its own. Returns None when the
+    plan has no such pair, or when a DSD cannot take the factors (fewer than three, any not
+    continuous, or hard-to-change factors needing a split plot).
     """
     names = {s.stage_name for s in stages}
     if (
@@ -858,7 +875,7 @@ def _single_dsd_plan(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> l
         or spec.has_hard_to_change
     ):
         return None
-    params = _dsd_params(spec.n_factors)
+    params = _dsd_params(spec.n_factors) if extra_centres else {}
     fits = (
         "it estimates the full quadratic model in up to three active factors"
         if spec.n_factors >= _DSD_PROJECTS_TO_QUADRATIC
@@ -878,6 +895,15 @@ def _single_dsd_plan(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> l
     confirmation = next(s for s in stages if s.stage_name == "Confirmation")
     smallest = confirmation.model_copy(update={"design_params": {"n_replicates": 3}, "estimated_runs": 3})
     return [dsd, smallest]
+
+
+def _few_error_df_note(spec: DOEProblemSpec) -> str:
+    """Say what a DSD without its extra centre runs leaves its analysis."""
+    error_df = _dsd_error_df(spec.n_factors, {})
+    return (
+        f" To fit the budget it has no extra centre runs, so its analysis has {error_df} degree(s) of freedom for "
+        "error and can miss a smaller active effect."
+    )
 
 
 def _lost_curvature_test(ideal: list[ExperimentalStage], fitted: list[ExperimentalStage], spec: DOEProblemSpec) -> bool:
@@ -973,16 +999,18 @@ def _apply_budget_constraints(
             )
         ]
 
-    if single is not None and single_total <= budget:
-        return single, [
-            (
-                f"Budget of {budget} runs cannot hold separate screening and optimisation stages (at least "
-                f"{smallest_total} runs), so one definitive screening design screens the factors and detects "
-                "curvature; it fits a full quadratic model only if at most three factors are active."
-            )
-        ]
-    if single is not None and single_total < smallest_total:
-        fitted, smallest_total = single, single_total
+    bare = _single_dsd_plan(stages, spec, extra_centres=False)
+    for plan, note in ((single, ""), (bare, _few_error_df_note(spec))):
+        if plan is not None and sum(s.estimated_runs for s in plan) <= budget:
+            return plan, [
+                (
+                    f"Budget of {budget} runs cannot hold separate screening and optimisation stages (at least "
+                    f"{smallest_total} runs), so one definitive screening design screens the factors and detects "
+                    f"curvature; it fits a full quadratic model only if at most three factors are active.{note}"
+                )
+            ]
+    if bare is not None and sum(s.estimated_runs for s in bare) < smallest_total:
+        fitted, smallest_total = bare, sum(s.estimated_runs for s in bare)
     return fitted, [
         (
             f"Budget of {budget} runs is below the smallest plan the rules give ({smallest_total} runs, with "

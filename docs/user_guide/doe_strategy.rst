@@ -53,7 +53,9 @@ the results.  For example, after screening:
 Six or more continuous factors are screened with a DSD by default. Its main
 effects are orthogonal to every two-factor interaction and square, whereas in a
 12-run Plackett-Burman design each interaction biases the main effects of the
-factors outside it by a third of its size, which can hide a real factor.
+factors outside it by a third of its size, which can hide a real factor. The DSD
+gets the centre runs that leave its analysis (``analyze_omars``) four degrees of
+freedom for error; under a budget too tight for them, it keeps only its own.
 
 Conditional stages
 ~~~~~~~~~~~~~~~~~~
@@ -207,7 +209,7 @@ adjusts stage complexity accordingly:
 ::
 
    Budget=  60: 33 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
-   Budget=  25: 20 runs, ['dsd', 'replicates_at_optimum']
+   Budget=  25: 23 runs, ['dsd', 'replicates_at_optimum']
    Budget=  20: 20 runs, ['dsd', 'replicates_at_optimum']
    Budget=None: 33 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
 
@@ -329,7 +331,7 @@ Comparing two domains on the same factors shows how design choices differ:
 ::
 
    fermentation: plackett_burman, 11 screening runs
-   cell_culture: dsd, 17 screening runs
+   cell_culture: dsd, 20 screening runs
 
 Fermentation uses Plackett-Burman (efficient, many-factor screening, here with
 3 centre runs), while
