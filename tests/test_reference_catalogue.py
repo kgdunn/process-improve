@@ -1116,6 +1116,46 @@ def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arr
     assert report["reason"].iloc[16].startswith("ValueError")
 
 
+def test_an_alias_matrix_in_thirds_product_columns_a_changed_run_and_some_columns_are_checked(monkeypatch, tmp_path):
+    """The half fraction x3 = x1 x2: its alias matrix in thirds, product columns, a changed run, two of its columns."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    half = [[-1, -1, 1], [1, -1, -1], [-1, 1, -1], [1, 1, 1]]
+    runs = {"columns": ["x1", "x2", "x3", "x1x2"], "rows": [[*r, r[0] * r[1]] for r in half], "coded": True}
+    alias = {"kind": "design_metric", "metric": "alias_matrix", "model": "x1 + x2 + x3", "expression": True}
+    sd = {"kind": "library_value", "function": "allocate_runs", "kwargs": {"variance_a": 1, "variance_b": 1}}
+    halved = {"generators": ["C=AB"], "n_center_points": 0}
+    fraction = {"design_type": "fractional_factorial", "k": 3, "options": halved}
+    changed = {"kind": "design_metric", "metric": "information_matrix", "model": "x1", "set": [[1, "x1", 1]]}
+    expected = [
+        item([["0", "0", "0"], ["0", "0", "1"], ["0", "1", "0"], ["1", "0", "0"]], alias | {"key": "matrix"}),
+        item("1", alias | {"key": "matrix.1.2"}),
+        item("1/3", alias | {"key": "matrix.1.2"}),  # the half fraction aliases x1 with x2 x3 wholly
+        item("x1x2", {"kind": "product_column", "column": "x1x2", "of": ["x1", "x2"]}),
+        item("x1x2", {"kind": "product_column", "column": "x1x2", "of": ["x1", "x3"]}),
+        item("1", {"kind": "dot_product", "columns": ["x1", "x2", "x3"], "mean": True}),
+        item("4", {"kind": "dot_product", "columns": ["x1", "x2", "x3"]}),
+        item("0.577", sd | {"key": "best.variance", "root": True}),  # the even split of 12 runs: sqrt(1/6 + 1/6)
+        item("2", changed | {"key": "xtx.0.1"}),  # run 1 set to x1 = +1: the column sums to 2
+        item("x", {"kind": "same_projections", "columns": ["x1", "x2"], "design": fraction, "design_columns": 2}),
+    ]
+    experiment = {
+        "name": "half",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("x1", "x2", "x3")],
+        "responses": [],
+        "runs": runs,
+        "expected": expected,
+    }
+    source = {"key": "half", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    (tmp_path / "half.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("half")
+    assert report["agrees"].tolist() == [True, True, False, True, False, True, True, True, True, True]
+    assert report["found"].iloc[4] == "not in runs 1, 3"  # x1 x3 is x2, which differs from x1 x2 where x1 = -1
+
+
 def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
     from process_improve.experiments.reference_catalogue import _library_text
 

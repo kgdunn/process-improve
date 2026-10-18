@@ -449,6 +449,20 @@ def _coded_runs(
     return pd.DataFrame(settings), table[names].astype(float)
 
 
+def _changed(settings: pd.DataFrame, changes: list | None) -> pd.DataFrame:
+    """Return coded settings with some elements replaced, each change ``[run, factor, value]``, the run 1-based.
+
+    A source can work a design element by element from a printed one, as a coordinate exchange
+    changes one setting at a time: each design it considers is the printed runs with its changes.
+    """
+    if not changes:
+        return settings
+    changed = settings.copy()
+    for run, factor, value in changes:
+        changed.loc[run - 1, factor] = float(value)
+    return changed
+
+
 _ANALYSES = ["coefficients", "anova", "residual_diagnostics", "lack_of_fit", "lenth_method", "curvature_test"]
 
 
@@ -1503,9 +1517,11 @@ def _same_projections(experiment: dict, check: dict, printed: str) -> tuple[str,
     size (see :func:`_j_counts`). Agreement in all three shows the printed columns are as balanced
     and as orthogonal as the library's, and their products of three as strongly aliased. It is the
     test of :func:`_same_runs` with its relabelling, without the search over relabellings.
+    ``check["design_columns"]`` keeps that many of the library's columns, the first, as a source
+    uses six columns of the 12-run design for eleven factors.
     """
     made = _made(json.dumps(check["design"], sort_keys=True))
-    library = made.design[made.factor_names].to_numpy(dtype=float)
+    library = made.design[made.factor_names[: check.get("design_columns")]].to_numpy(dtype=float)
     columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
     matrix = _printed_matrix(experiment, columns, None)
     same = matrix.shape == library.shape and all(_j_counts(matrix, r) == _j_counts(library, r) for r in (1, 2, 3))
@@ -1536,15 +1552,18 @@ def _product_column(experiment: dict, check: dict, printed: str) -> tuple[str, b
 
     A table of signs heads a column with an effect and its aliases, ``AB = CE``; the column
     ``check["column"]`` holds, in every run, the product of the A and B settings and that of C and
-    E. A word with a minus sign, ``-ABD``, is the negated product.
+    E. A word with a minus sign, ``-ABD``, is the negated product. Columns not named by single
+    letters, ``x2`` and ``x3``, are listed in ``check["of"]``, whose product the column holds.
     """
     column = np.asarray(
         [row[experiment["runs"]["columns"].index(check["column"])] for row in experiment["runs"]["rows"]]
     )
+    words = [check["of"]] if check.get("of") else _words(str(check.get("printed", printed)))
     failing = set()
-    for word in _words(str(check.get("printed", printed))):
-        sign = -1.0 if word.startswith("-") else 1.0
-        product = sign * _printed_matrix(experiment, list(word.lstrip("-")), None).prod(axis=1)
+    for word in words:
+        sign = -1.0 if isinstance(word, str) and word.startswith("-") else 1.0
+        names = list(word.lstrip("-")) if isinstance(word, str) else word
+        product = sign * _printed_matrix(experiment, names, None).prod(axis=1)
         failing |= {i + 1 for i in np.flatnonzero(~np.isclose(product, column.astype(float)))}
     found = "every run" if not failing else f"not in runs {', '.join(map(str, sorted(failing)))}"
     return found, not failing
@@ -1868,13 +1887,14 @@ def _design_metric(experiment: dict, check: dict) -> float:
     ``"max"``) reduces them to one number. ``check["result"]`` names another number the metric
     returns beside its own, ``"max_prediction_variance"`` beside ``"g_efficiency"``, and
     ``"times_runs": true`` multiplies the number by the design's run count, as a source prints the
-    scaled prediction variance G, the run count times the largest prediction variance.
+    scaled prediction variance G, the run count times the largest prediction variance. ``check["set"]``
+    changes some elements of the runs first (see :func:`_changed`).
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
         n_runs = len(_made(json.dumps(check["design"], sort_keys=True)).design)
     else:
-        settings = _coded_runs(experiment, check.get("runs"))[0]
+        settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
         n_runs = len(settings)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
@@ -1954,9 +1974,11 @@ def _library_value(check: dict) -> float:
 
     For a number the library computes directly, such as the run count of the OMARS estimability
     frontier, without building a design to read it from, or the canonical analysis of a fitted
-    equation a source prints without its data. ``"squared": true`` returns the square of the number read.
+    equation a source prints without its data. ``"squared": true`` returns the square of the number read,
+    and ``"root": true`` its square root, a standard deviation from a variance.
     """
     found = _read(_library_result(check), check.get("key"))
+    found = math.sqrt(found) if check.get("root") else found
     return found**2 if check.get("squared") else found
 
 
@@ -2310,8 +2332,10 @@ def _dot_product(experiment: dict, check: dict) -> float:
     """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal.
 
     ``check["runs"]`` keeps the runs at these 1-based positions, as the runs of a design before it is augmented.
+    ``"mean": true`` divides the sum by the number of runs, as a source prints the average of a product column.
     """
-    return float(_printed_matrix(experiment, check["columns"], None, check.get("runs")).prod(axis=1).sum())
+    products = _printed_matrix(experiment, check["columns"], None, check.get("runs")).prod(axis=1)
+    return float(products.mean() if check.get("mean") else products.sum())
 
 
 def _normal_equations(experiment: dict, check: dict) -> float:
@@ -2326,9 +2350,11 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     ``check["point"]``, the variance of the prediction there in units of σ² (JMP's prediction
     variance profile), N times it with ``"scaled": true``; and ``"relative_d"``, the D-efficiency of these
     runs relative to the runs
-    ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms.
+    ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms. ``check["set"]`` changes
+    some elements of the runs first (see :func:`_changed`).
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings = _changed(settings, check.get("set"))
     model = dmatrix(check["model"], settings, return_type="dataframe")
     matrix = model.to_numpy()
     kind, *place = check["key"].split(".")
@@ -2949,7 +2975,7 @@ def _design_metric_array(experiment: dict, check: dict) -> np.ndarray:
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
     else:
-        settings = _coded_runs(experiment, check.get("runs"))[0]
+        settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     return np.asarray(_walk(_evaluated(source, asked)[check["metric"]], check.get("key")), dtype=float)
@@ -2960,9 +2986,11 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
 
     ``check["key"]`` is ``"xtx"``, ``"xty"``, ``"inverse"`` or ``"model_matrix"``; ``"rows"`` and
     ``"columns"`` (0-based) pick part of it, ``"diagonal": true`` its diagonal, and ``"abs": true``
-    compares its entries' sizes, as a source prints them ±2.
+    compares its entries' sizes, as a source prints them ±2. ``check["set"]`` changes some elements of
+    the runs first (see :func:`_changed`).
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings = _changed(settings, check.get("set"))
     matrix = dmatrix(check["model"], settings, return_type="dataframe").to_numpy()
     found = {
         "model_matrix": lambda: matrix,
@@ -2985,14 +3013,19 @@ _ARRAY_KINDS: dict[str, Callable[[dict, dict], np.ndarray]] = {
 
 
 def _array_agreement(found: np.ndarray, printed: list, check: dict) -> tuple[str, bool]:
-    """Compare a printed vector or matrix with the one found, entry by entry, each to its own printed digits."""
+    """Compare a printed vector or matrix with the one found, entry by entry, each to its own printed digits.
+
+    With ``"expression": true`` each entry is arithmetic, worked exactly, as a source prints an alias matrix in thirds.
+    """
     wanted = np.asarray(printed, dtype=object)
     shown = np.array2string(np.round(found, 6), separator=", ")
     if found.shape != wanted.shape:
         return f"{shown} (shape {found.shape}, printed {wanted.shape})", False
     decimals = check.get("decimals")
+    expression = bool(check.get("expression"))
     agree = all(
-        _agrees(float(f), str(w), decimals=decimals) for f, w in zip(found.ravel(), wanted.ravel(), strict=True)
+        _agrees(float(f), str(w), expression=expression, decimals=decimals)
+        for f, w in zip(found.ravel(), wanted.ravel(), strict=True)
     )
     return shown, agree
 
