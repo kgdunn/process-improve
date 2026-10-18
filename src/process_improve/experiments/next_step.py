@@ -67,7 +67,7 @@ from process_improve._random import check_random_state
 from process_improve.experiments._analyses.aliasing import alias_chains_of
 from process_improve.experiments._analyses.curvature import _run_curvature_test
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
-from process_improve.experiments._analyses.model_selection import _run_model_selection
+from process_improve.experiments._analyses.model_selection import _proposed_terms
 from process_improve.experiments._analyses.prediction import _mean_tests
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.factor import Factor, FactorType
@@ -553,7 +553,37 @@ def _lenth(data: pd.DataFrame, terms: list[str], alpha: float) -> dict[str, Any]
         "considered": set(terms),
         "noise_sd": pse,
         "noise_df": max(1, round(m / 3)),
+        "contrasts": m,
     }
+
+
+def _lenth_on_the_cube(
+    study: _Study, design: _Design, terms: list[str], alpha: float, t_df: int
+) -> dict[str, Any] | None:
+    """Judge a two-level design with centre runs by Lenth's method on its two-level runs, when t-tests see less.
+
+    Centre runs added to a saturated two-level design leave a t-test few degrees of freedom for
+    error: two, with three centre runs in a 16-run fraction, where a t of 4.3 is needed to pass.
+    The pseudo standard error of the two-level runs' m contrasts is worth about m / 3 degrees of
+    freedom (Lenth, 1989), so it judges the terms instead when that is more, and the centre runs
+    test curvature against their own repeats. Each of the two tests is made at ``alpha / 2`` for
+    the signal, so together they raise a false alarm at most ``alpha`` of the time. None when
+    t-tests have :data:`_FEW_ERROR_DF` or more, or Lenth's method does not apply to the two-level runs.
+    """
+    if t_df >= _FEW_ERROR_DF or not (design.two_level and design.center.any()):
+        return None
+    judged = _lenth(study.data.loc[~design.center], terms, alpha / 2)
+    if judged is None or judged["noise_df"] <= t_df:
+        return None
+    test = _run_curvature_test(study.data, "y", study.names, alpha, _repeats(study))["curvature_test"]
+    p = math.nan if "error" in test else float(test["p_value"])
+    judged["judged"][_CURVATURE] = p
+    judged["signal"] = judged["signal"] or bool(p < alpha / 2)
+    judged["method"] = (
+        f"Lenth's method on the {judged['contrasts']} contrasts of the two-level runs, with simulated p-values, "
+        "and a curvature test of the centre runs against their repeats"
+    )
+    return judged
 
 
 def _omars(data: pd.DataFrame, names: list[str], alpha: float) -> dict[str, Any] | None:
@@ -657,7 +687,9 @@ def _judge_in_standard_models(
         if leaders is None:
             return None, True
         if error_runs - len(leaders) >= _MIN_ERROR_DF:
-            return _t_tests(data, leaders, extra, f"t-tests in the {model.replace('_', ' ')} model", alpha), False
+            method = f"t-tests in the {model.replace('_', ' ')} model"
+            judged = _lenth_on_the_cube(study, design, leaders, alpha, error_runs - len(leaders))
+            return judged or _t_tests(data, leaders, extra, method, alpha), False
         if design.two_level and not extra and model == "interactions":
             judged = _lenth(data, leaders, alpha)
             if judged is not None:
@@ -679,7 +711,7 @@ def _judge_proposed_terms(
         if judged is not None:
             return judged
     searched = "quadratic" if design.three_level else "interactions"
-    proposed = _run_model_selection(_less_blocks(data), "y", names, model=searched)["model_selection"]["selected_terms"]
+    proposed = _proposed_terms(_less_blocks(data), "y", names, searched)
     second = [t for t in proposed if t not in names]
     if error_runs - len(names) - len(second) < _MIN_ERROR_DF:
         return None
@@ -1295,17 +1327,71 @@ def _de_alias(ctx: _Context) -> _Step | None:
     )
 
 
-def _quadratic_runs(ctx: _Context, factors: list[int]) -> _Step | None:
+def _quadratic_runs(ctx: _Context, factors: list[int], suspects: list[int]) -> _Step | None:
     """Return runs that let the full quadratic model in ``factors`` be fitted: axial runs, or runs chosen for it.
 
     None when there is no numeric factor among them, or the runs already fit that model (see
     :func:`_quadratic_fits`). The other numeric factors are held at the middle of their ranges,
     as in a central composite design, so the runs added tell the squares of ``factors`` from
-    theirs; categorical factors are held at the level the optimum takes.
+    theirs; categorical factors are held at the level the optimum takes. The ``suspects``,
+    factors whose squares the runs so far cannot tell from the curvature (see
+    :func:`_square_suspects`), vary too, in runs chosen to separate their squares.
     """
     numeric = [j for j in factors if ctx.study.numeric[j]]
-    if not numeric or _quadratic_fits(ctx, numeric):
+    if not numeric or (not suspects and _quadratic_fits(ctx, numeric)):
         return None
+    added, how = _separating_runs(ctx, numeric, suspects) if suspects else _quadratic_design(ctx, numeric)
+    varied = [*numeric, *suspects]
+    held = [j for j in range(ctx.k) if ctx.study.numeric[j] and j not in varied]
+    if held:
+        how += f" Hold {_names(ctx, held)} at the middle of {'its range' if len(held) == 1 else 'their ranges'}."
+    runs = _with_others(_held_settings(ctx), added, varied, ctx.study)
+    return _Step(
+        "augment_to_rsm",
+        how,
+        [],
+        runs,
+        "Fit the full quadratic model to every run; its optimum, inside the ranges or on an edge, is "
+        "where the confirmation runs go next.",
+    )
+
+
+def _separating_runs(ctx: _Context, numeric: list[int], suspects: list[int]) -> tuple[pd.DataFrame, str]:
+    """Return runs chosen to fit the full quadratic model in ``numeric`` and each suspect's own square, and why."""
+    chosen = [ctx.study.names[j] for j in numeric]
+    others = [ctx.study.names[j] for j in suspects]
+    rhs = " + ".join(
+        [
+            *chosen,
+            *(f"{a}:{b}" for a, b in itertools.combinations(chosen, 2)),
+            *(f"I({n} ** 2)" for n in chosen),
+            *others,
+            *(f"I({n} ** 2)" for n in others),
+        ]
+    )
+    frame = ctx.study.data[[*chosen, *others]]
+    columns = np.asarray(dmatrix(rhs, frame), dtype=float)
+    n_new = columns.shape[1] - int(np.linalg.matrix_rank(columns)) + _SPARE_RUNS
+    result = augment_design(
+        frame,
+        "add_runs_optimal",
+        target_model=rhs,
+        n_additional_runs=n_new,
+        factor_names=[*chosen, *others],
+        random_state=ctx.seed,
+    )
+    added = pd.DataFrame(result["new_runs"])
+    how = (
+        f"Add {len(added)} runs chosen (D-optimal) to fit the full quadratic model in {_names(ctx, numeric)} and to "
+        f"tell the squares of {_names(ctx, suspects)} apart: so far the runs give "
+        f"{'its square' if len(suspects) == 1 else 'their squares'} the same column as the curvature they show, "
+        "which could be any of theirs."
+    )
+    return added, how
+
+
+def _quadratic_design(ctx: _Context, numeric: list[int]) -> tuple[pd.DataFrame, str]:
+    """Return the runs that complete a face-centred central composite design in ``numeric``, or D-optimal runs."""
     names = [ctx.study.names[j] for j in numeric]
     frame = ctx.study.data[names]
     quadratic = _model_columns(frame, "quadratic")
@@ -1332,18 +1418,7 @@ def _quadratic_runs(ctx: _Context, factors: list[int]) -> _Step | None:
         )
         added = pd.DataFrame(result["new_runs"])
         how = f"Add {len(added)} runs chosen (D-optimal) to fit the full quadratic model in {_names(ctx, numeric)}."
-    held = [j for j in range(ctx.k) if ctx.study.numeric[j] and j not in numeric]
-    if held:
-        how += f" Hold {_names(ctx, held)} at the middle of {'its range' if len(held) == 1 else 'their ranges'}."
-    runs = _with_others(_held_settings(ctx), added, numeric, ctx.study)
-    return _Step(
-        "augment_to_rsm",
-        how,
-        [],
-        runs,
-        "Fit the full quadratic model to every run; its optimum, inside the ranges or on an edge, is "
-        "where the confirmation runs go next.",
-    )
+    return added, how
 
 
 def _quadratic_fits(ctx: _Context, numeric: list[int]) -> bool:
@@ -1528,10 +1603,43 @@ def _rsm_step(ctx: _Context, why: str) -> _Step | None:
         factors = numeric
     else:
         factors = ctx.active_factors or _model_factor_indices(ctx) or numeric
-    step = _quadratic_runs(ctx, factors)
+    step = _quadratic_runs(ctx, factors, _square_suspects(ctx, factors))
     if step is not None:
         step.reasons = [why, *step.reasons]
     return step
+
+
+def _square_suspects(ctx: _Context, factors: list[int]) -> list[int]:
+    """Return the numeric factors outside ``factors`` whose square the runs cannot tell from the curvature they show.
+
+    Centre runs among two-level runs give every factor's square the same column, so curvature
+    at the centre could be any factor's; and a square judged active stands for every square
+    with the same column, of which the analysis names only the first. Each such factor needs
+    runs that separate its square, or the optimum is sought in the wrong factor.
+    """
+    data = ctx.study.data
+    references = [data[_square_factor(t)].to_numpy(dtype=float) ** 2 for t in ctx.curvature.get("terms") or []]
+    if ctx.curvature.get("source") == "center_runs":
+        references.append(data[_CURVATURE].to_numpy(dtype=float))
+    return [
+        j
+        for j, name in enumerate(ctx.study.names)
+        if ctx.study.numeric[j]
+        and j not in factors
+        and any(_identical(data[name].to_numpy(dtype=float) ** 2, r) for r in references)
+    ]
+
+
+def _square_factor(term: str) -> str:
+    """Return the factor a square term squares."""
+    return _canonical(term)[1][0]
+
+
+def _identical(a: np.ndarray, b: np.ndarray) -> bool:
+    """Say whether two columns that vary are the same up to sign, scale and a constant: exactly aliased."""
+    a, b = a - a.mean(), b - b.mean()
+    scale = float(np.linalg.norm(a)) * float(np.linalg.norm(b))
+    return scale > 1e-12 and abs(float(a @ b)) > (1 - 1e-9) * scale
 
 
 def _full_quadratic_fits(ctx: _Context) -> bool:
@@ -1868,7 +1976,7 @@ def _alternatives(ctx: _Context, chosen: str) -> list[dict[str, Any]]:
         _confirm,
         _add_center_points,
         _de_alias,
-        lambda c: _quadratic_runs(c, c.active_factors),
+        lambda c: _quadratic_runs(c, c.active_factors, _square_suspects(c, c.active_factors)),
         _move_region,
     ):
         try:

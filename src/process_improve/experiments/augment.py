@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import re
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -561,6 +562,33 @@ def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candi
     return rows[: len(existing)], rows[len(existing) :]
 
 
+#: A square in a custom formula, as ``I(A ** 2)``.
+_SQUARE_TERM = re.compile(r"I\(\s*(\w+)\s*\*\*\s*2\s*\)")
+
+
+def _polynomial_terms(rhs: str, factor_names: list[str]) -> list[tuple[int, ...]] | None:
+    """Read a custom formula written term by term as main effects, ``A:B`` products and ``I(A ** 2)`` squares.
+
+    Returns each term as the positions of the factors it multiplies, or None for any other
+    formula, which then goes through patsy.
+    """
+    position = {name: i for i, name in enumerate(factor_names)}
+    terms: dict[tuple[int, ...], None] = {}
+    for text in (t.strip() for t in rhs.split("+")):
+        square = _SQUARE_TERM.fullmatch(text)
+        names = [square.group(1)] * 2 if square else [part.strip() for part in text.split(":")]
+        if not names or any(n not in position for n in names) or len(names) > 2:
+            return None
+        terms[tuple(sorted(position[n] for n in names))] = None
+    return list(terms)
+
+
+def _polynomial_rows(points: np.ndarray, terms: list[tuple[int, ...]]) -> np.ndarray:
+    """Return the model rows of coded points: the intercept, then each term's product of factor columns."""
+    columns = [np.ones(len(points))] + [np.prod(points[:, list(term)], axis=1) for term in terms]
+    return np.column_stack(columns)
+
+
 #: Target models whose columns ``designs_constrained.model_matrix`` builds directly, without patsy.
 _NAMED_MODELS = ("main_effects", "interactions", "quadratic")
 
@@ -581,6 +609,10 @@ def _exchange_rows(
         coded = existing[factor_names].to_numpy(dtype=float)
         fixed = model_matrix(region, coded, np.empty((len(coded), 0), dtype=int), model)
         return fixed, lambda points, cats: model_matrix(region, points, cats, model)
+    terms = _polynomial_terms(rhs, factor_names)
+    if terms is not None:
+        coded = existing[factor_names].to_numpy(dtype=float)
+        return _polynomial_rows(coded, terms), lambda points, _cats: _polynomial_rows(points, terms)
     fixed = _model_rows(rhs, factor_names, existing, np.empty((0, len(factor_names))))[0]
     return fixed, lambda points, _cats: _model_rows(rhs, factor_names, existing, points)[1]
 
