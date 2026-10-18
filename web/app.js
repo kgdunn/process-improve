@@ -2299,12 +2299,12 @@ function reportedInputs() {
 }
 
 /**
- * Download the study as a report: one HTML page with the brief, the design and its run sheet, what Learn makes of
- * the results, the next step and the Python code, under a stamp that says how to get the same numbers again: the
- * releases, the seeds, the SHA-256 of the study's inputs, and a link that opens the study with its results.
+ * The study as a report: one HTML page with the brief, the design and its run sheet, what Learn makes of the results,
+ * the next step and the Python code, under a stamp that says how to get the same numbers again: the releases, the
+ * seeds, the SHA-256 of the study's inputs, and a link that opens the study with its results. Resolves to the page and
+ * the name it is saved under.
  */
-async function downloadReport() {
-  if (!state.design) return;
+async function makeReport() {
   setStatus("Making the report...", "busy");
   const learned = await learnSections();
   const closing = await closingSections();
@@ -2339,8 +2339,35 @@ async function downloadReport() {
       ...closing,
     ],
   });
-  download(new Blob([page], { type: "text/html" }), `${spec.design_type}-${rows.length}-runs-report.html`);
+  return { page, name: `${spec.design_type}-${rows.length}-runs-report.html` };
+}
+
+/** Download the study's report, to keep or to send. */
+async function downloadReport() {
+  if (!state.design) return;
+  const { page, name } = await makeReport();
+  download(new Blob([page], { type: "text/html" }), name);
   setStatus("Report downloaded: open it in a browser, or print it to PDF.");
+}
+
+/**
+ * Open the study's report in a tab of its own, to read, print or share from there. The tab is opened at the click, as
+ * a browser allows a new tab only then, and shows the report once it is made; where the browser opens none, the report
+ * is downloaded instead.
+ */
+async function viewReport() {
+  if (!state.design) return;
+  const tab = window.open("", "_blank");
+  if (tab) tab.document.title = "Making the report...";
+  const { page, name } = await makeReport();
+  if (!tab || tab.closed) {
+    download(new Blob([page], { type: "text/html" }), name);
+    setStatus("The browser opened no tab, so the report is downloaded: open it in a browser, or print it to PDF.");
+    return;
+  }
+  // The address lasts while this page is open, so the report's tab can be reloaded.
+  tab.location.href = URL.createObjectURL(new Blob([page], { type: "text/html" }));
+  setStatus("The report is open in a tab of its own: print it to PDF from there, or download it to keep.");
 }
 
 async function readUpload(file) {
@@ -4312,6 +4339,8 @@ $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
 $("#report").onclick = downloadReport;
 $("#learn-report-button").onclick = downloadReport;
+$("#report-view").onclick = viewReport;
+$("#learn-report-view").onclick = viewReport;
 $("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
