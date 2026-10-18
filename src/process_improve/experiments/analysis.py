@@ -1146,25 +1146,30 @@ def _model_summary(
     }
 
 
-def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float]:
+def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float | None]:
     """Return the overall F test of the model and its likelihood criteria, as R's summary, AIC and step give them.
 
     The F test compares the model with the intercept alone (with no intercept, with zero, on the
     uncorrected sums of squares, as R does). ``aic`` and ``bic`` count the error variance among the
     parameters, -2 ln L + 2(p + 1), as R's ``AIC`` and the library's model selection do;
     ``aic_step`` is n ln(RSS/n) + 2p, which R's ``step`` and ``extractAIC`` print. The two
-    AICs differ by a constant for a given number of runs, so they rank models alike.
+    AICs differ by a constant for a given number of runs, so they rank models alike. ``aicc``
+    corrects ``aic`` for a small number of runs, AIC + 2k(k + 1)/(n - k - 1) with k = p + 1, as JMP
+    and the library's model selection compute it; it is ``None`` when n <= p + 2, where the
+    correction is undefined.
     """
     n, p = float(ols_result.nobs), float(ols_result.df_model + ols_result.k_constant)
     rss = max(float(ols_result.ssr), 1e-300)
     log_likelihood = -n / 2 * (np.log(2 * np.pi * rss / n) + 1)
     with np.errstate(divide="ignore", invalid="ignore"):
         f_statistic, f_p_value = float(ols_result.fvalue), float(ols_result.f_pvalue)
+    aic, k = -2 * log_likelihood + 2 * (p + 1), p + 1  # k counts the error variance among the parameters
     return {
         "f_statistic": f_statistic,
         "f_p_value": f_p_value,
         "log_likelihood": float(log_likelihood),
-        "aic": float(-2 * log_likelihood + 2 * (p + 1)),
+        "aic": float(aic),
+        "aicc": float(aic + 2 * k * (k + 1) / (n - k - 1)) if n - k - 1 > 0 else None,
         "bic": float(-2 * log_likelihood + np.log(n) * (p + 1)),
         "aic_step": float(n * np.log(rss / n) + 2 * p),
     }
