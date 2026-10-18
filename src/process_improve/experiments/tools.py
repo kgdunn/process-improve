@@ -29,7 +29,6 @@ from process_improve.experiments._tools.fit_linear_model import fit_linear_model
 from process_improve.experiments._tools.generate_design import generate_design_tool
 from process_improve.experiments._tools.evaluate_design import evaluate_design_tool
 from process_improve.experiments._tools.analyze_experiment import analyze_experiment_tool
-from process_improve.experiments._tools.analyze_omars import analyze_omars_tool
 from process_improve.experiments._tools.optimize_responses import optimize_responses_tool
 from process_improve.experiments._tools.augment_design import augment_design_tool
 from process_improve.experiments._tools.visualize_doe import visualize_doe_tool
@@ -37,6 +36,9 @@ from process_improve.experiments._tools.doe_knowledge import doe_knowledge_tool
 from process_improve.experiments._tools.recommend_strategy import recommend_strategy_tool
 from process_improve.experiments._tools.trade_off_table import trade_off_table_tool
 from process_improve.experiments._tools.search_design_catalog import search_design_catalog_tool
+
+# Tools added since the split, appended so the tools before keep their place in the spec order.
+from process_improve.experiments._tools.analyze_omars import analyze_omars_tool
 
 __all__ = [
     "analyze_experiment_tool",
