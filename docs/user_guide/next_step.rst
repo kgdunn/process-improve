@@ -123,9 +123,14 @@ The rules, in order
    apart. The same holds for a square judged active whose column the runs share with other
    squares: the analysis names only the first of them, so the runs that follow separate them all
    before the optimum is sought.
-6. The best settings sit at an **edge**, and the goal improves past it by more than twice the
+6. A **lack of fit** that the full quadratic model in the active factors does not remove: the
+   model misses effects, and they went into its residual. Every factor with some evidence of an
+   effect (a term with a p-value below 0.2) joins the active ones, and runs are chosen for the
+   full quadratic model in all of them. Confirmation runs at an optimum the model cannot be
+   trusted to find would test little.
+7. The best settings sit at an **edge**, and the goal improves past it by more than twice the
    noise per coded unit: when the ranges may move, four runs along the path of steepest ascent.
-7. Otherwise, **confirm** at the predicted optimum.
+8. Otherwise, **confirm** at the predicted optimum.
 
 How the terms are judged
 ------------------------
@@ -158,6 +163,15 @@ in:
        proposes, since main effects alone would leave an active interaction in the error, where
        it hides them. A square may enter the search without its main effect: a factor whose best
        setting is in the middle of its range has a square and no main effect.
+
+When something stands out but the model judged does not fit the repeated runs (its
+lack-of-fit test is significant at ``alpha``), its residual holds the effects it leaves out and
+overstates the noise: every term looks smaller than it is. The terms are then tested against
+the repeats' own variation (pure error) instead, when that has four degrees of freedom or more.
+With fewer, the test finds a lack of fit most often when the repeats happen to agree closely,
+and so many terms would look active by chance. After a missed confirmation the missed runs are
+themselves repeats, far from the model; the rules for a miss handle them, and the terms are not
+judged against them.
 
 Interactions of the active factors that this could not test are then tested in the model of the
 active terms. Lenth's own margins, a t quantile on a third as many degrees of freedom as

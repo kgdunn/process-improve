@@ -5,16 +5,18 @@ from __future__ import annotations
 import itertools
 import json
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
 
 import process_improve.experiments.tools  # noqa: F401 - registers the experiments tools
-from process_improve.experiments import Factor, TrueProcess, generate_design, omars, recommend_next_step
+from process_improve.experiments import Factor, TrueProcess, generate_design, next_step, omars, recommend_next_step
 from process_improve.experiments.next_step import (
     _CURVATURE,
     ACTIONS,
+    _against_pure_error,
     _code,
     _design,
     _lenth_null,
@@ -22,6 +24,7 @@ from process_improve.experiments.next_step import (
     _select,
     _stands_out,
     _Study,
+    _t_tests,
     _with_blocks,
 )
 from process_improve.tool_spec import execute_tool_call
@@ -198,6 +201,77 @@ class TestTheStagedAnalysis:
         x = grid[~((grid[:, 0] == -1) & (grid[:, 1] != 0))]  # runs missing: A no longer balanced
         data = pd.DataFrame(x, columns=list("ABC")).assign(y=5 + 4 * x[:, 0] ** 2)
         assert _omars(data, list("ABC"), 0.05) is None
+
+
+class TestLackOfFit:
+    """A model that does not fit the repeats: its terms are judged against them, and factors with some evidence join."""
+
+    @staticmethod
+    def _study(three_factor: float, n_center: int = 5) -> _Study:
+        """Return a 2^3 factorial with centre runs: A large, B small, and A:B:C, which no model judged holds."""
+        factors = _factors("ABC")
+        runs = generate_design(factors, design_type="full_factorial", n_center_points=n_center).design_actual
+        x = runs[list("ABC")].astype(float).to_numpy()
+        y = 50 + 5 * x[:, 0] + 0.8 * x[:, 1] + three_factor * x[:, 0] * x[:, 1] * x[:, 2]
+        y = y + np.random.default_rng(0).normal(0, 0.3, len(x))
+        return _Study(factors, _with_blocks(_code(factors, runs[list("ABC")].assign(y=y), "y")), "y")
+
+    def test_a_model_that_misses_is_judged_against_the_repeats(self) -> None:
+        """A:B:C goes into the residual and hides B; the centre runs' own spread shows it."""
+        study = self._study(three_factor=4)
+        judged = _t_tests(study.data, study.names, [], "t-tests of the main effects", 0.05)
+        again = _against_pure_error(study, judged, 0.05)
+        centre = study.data.loc[(study.data[study.names] == 0).all(axis=1), "y"]
+        assert judged["judged"]["x1"] > 0.2
+        assert again["judged"]["x1"] < 0.01
+        assert again["noise_df"] == 4
+        assert again["noise_sd"] == pytest.approx(centre.std())
+        assert "against the variation of the repeated runs" in again["method"]
+
+    def test_a_model_that_fits_is_judged_as_before(self) -> None:
+        study = self._study(three_factor=0)
+        judged = _t_tests(study.data, study.names, [], "t-tests of the main effects", 0.05)
+        assert _against_pure_error(study, judged, 0.05) is judged
+
+    def test_too_few_repeats_leave_the_judging_alone(self) -> None:
+        """Three centre runs: a lack of fit against two degrees of freedom is as often a close agreement by chance."""
+        study = self._study(three_factor=4, n_center=3)
+        judged = _t_tests(study.data, study.names, [], "t-tests of the main effects", 0.05)
+        assert _against_pure_error(study, judged, 0.05) is judged
+
+    @staticmethod
+    def _context(significant: bool, judged: dict[str, float]) -> SimpleNamespace:
+        return SimpleNamespace(
+            lack_of_fit={"tested": True, "significant": significant, "p_value": 0.004},
+            model=SimpleNamespace(judged=judged),
+            study=SimpleNamespace(names=["x0", "x1", "x2"], numeric=[True, True, True]),
+            active_factors=[0],
+            name="ABC".__getitem__,
+        )
+
+    def test_a_factor_with_some_evidence_joins_the_runs_for_the_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        asked: list[list[int]] = []
+
+        def quadratic_runs(ctx: object, factors: list[int], suspects: list[int]) -> object:
+            asked.append(factors)
+            return next_step._Step("augment_to_rsm", "Add runs.", ["The runs fit A only."], np.zeros((1, 3)), "")
+
+        monkeypatch.setattr(next_step, "_quadratic_runs", quadratic_runs)
+        ctx = self._context(significant=True, judged={"x0": 0.001, "x1": 0.15, "x2": 0.6, "x1:x2": 0.3})
+        step = next_step._lack_of_fit_step(ctx)
+        assert asked == [[0, 1]]  # B (p = 0.15) joins A; C and B:C show nothing
+        assert step.action == "add_runs_for_model"
+        assert "B shows some evidence of an effect" in step.reasons[0]
+
+    @pytest.mark.parametrize(
+        ("significant", "judged"),
+        [(False, {"x0": 0.001, "x1": 0.15}), (True, {"x0": 0.001, "x1": 0.5, "x2": 0.9})],
+    )
+    def test_no_runs_when_the_model_fits_or_no_factor_shows_evidence(
+        self, monkeypatch: pytest.MonkeyPatch, significant: bool, judged: dict[str, float]
+    ) -> None:
+        monkeypatch.setattr(next_step, "_quadratic_runs", lambda *_args: pytest.fail("no runs were to be asked for"))
+        assert next_step._lack_of_fit_step(self._context(significant, judged)) is None
 
 
 class TestNothingStandsOut:

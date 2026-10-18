@@ -6,8 +6,10 @@
   Whether anything stands out from the noise is one test whose critical value is simulated for the
   design, so pure noise raises a false alarm in one study in twenty, and Lenth's method uses
   simulated critical values (with seven contrasts the individual one is 2.31 PSE, not the 3.76 of
-  its t approximation). Followed round by round in simulation, from a screening design to `stop`,
-  it reached the true optimum in every one of nine kinds of study.
+  its t approximation). A model that does not fit the repeated runs is not confirmed: its terms
+  are judged against the repeats' own variation, and factors with some evidence of an effect join
+  the next runs. Followed round by round in simulation, from a screening design to `stop`, it
+  reached the true optimum in every one of nine kinds of study.
 - **The browser app says what the results call for next.** Once every run of a study has its result,
   Learn's "The next step" opens with the step `recommend_next_step` takes for the response's goal,
   and one button that carries it out: the runs added to the run sheet as a block of their own,
