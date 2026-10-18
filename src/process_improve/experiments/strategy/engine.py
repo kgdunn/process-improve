@@ -639,7 +639,8 @@ def _build_confirmation_stage(
         estimated_runs=n_runs,
         purpose=(
             "Run replicates at the predicted optimum to verify the model predictions. "
-            "Compare observed vs. predicted using a confirmation test (prediction interval check)."
+            "Compare their mean with the prediction interval for the mean of that many runs (analyze_experiment "
+            "with analysis_type='confirmation_test' reports the verdict as 'confirmed')."
         ),
         success_criteria={"observed_within_prediction_interval": True},
         transition_rules=[

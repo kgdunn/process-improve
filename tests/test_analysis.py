@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from scipy import stats
 
 from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
@@ -785,6 +786,61 @@ class TestConfirmationTest:
         assert "results" in ct
         assert "all_within_PI" in ct
         assert len(ct["results"]) == 1
+
+    def test_repeated_runs_at_one_setting_are_judged_by_their_mean(self) -> None:
+        """The interval for the mean of m runs is predicted +/- t sqrt(se_fit**2 + s**2 / m)."""
+        df = _two_factor_replicated()
+        new = pd.DataFrame({"A": [1, 1, 1], "B": [-1, -1, -1]})
+        observed = [37.0, 35.5, 36.4]
+        result = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="confirmation_test",
+            new_points=new,
+            observed_at_new=observed,
+        )
+        ct = result["confirmation_test"]
+        (test,) = ct["mean_tests"]
+        fit = smf.ols("y ~ A + B", data=df).fit()
+        frame = fit.get_prediction(new.iloc[[0]]).summary_frame(alpha=0.05).iloc[0]
+        half = stats.t.ppf(0.975, fit.df_resid) * np.sqrt(frame["mean_se"] ** 2 + fit.scale / 3)
+        assert test["n_runs"] == 3
+        assert test["settings"] == {"A": 1, "B": -1}
+        assert test["observed_mean"] == pytest.approx(np.mean(observed))
+        assert test["pi_low"] == pytest.approx(frame["mean"] - half)
+        assert test["pi_high"] == pytest.approx(frame["mean"] + half)
+        assert ct["confirmed"] is test["within_PI"]
+        assert len(ct["results"]) == 3  # each run is still compared on its own
+
+    def test_each_distinct_setting_gets_its_own_mean_test(self) -> None:
+        df = _two_factor_replicated()
+        new = pd.DataFrame({"A": [1, 0, 1, 0], "B": [-1, 0, -1, 0]})
+        ct = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="confirmation_test",
+            new_points=new,
+            observed_at_new=[36.0, 27.0, 36.5, 26.5],
+        )["confirmation_test"]
+        assert [(t["settings"], t["n_runs"]) for t in ct["mean_tests"]] == [
+            ({"A": 1, "B": -1}, 2),
+            ({"A": 0, "B": 0}, 2),
+        ]
+
+    def test_a_shifted_mean_is_not_confirmed(self) -> None:
+        df = _two_factor_replicated()
+        new = pd.DataFrame({"A": [1, 1, 1], "B": [-1, -1, -1]})
+        ct = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="confirmation_test",
+            new_points=new,
+            observed_at_new=[60.0, 61.0, 59.0],
+        )["confirmation_test"]
+        assert ct["confirmed"] is False
 
     def test_confirmation_missing_args(self) -> None:
         """Verify confirmation test returns error when args missing."""
