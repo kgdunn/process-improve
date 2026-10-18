@@ -89,3 +89,21 @@ def test_the_screening_cases_reach_their_best(name: str) -> None:
     study = run_study(BY_NAME[name], random_state=3)
     assert study["ended"] == "stop"
     assert study["shortfall_in_sigma"] < 0.1
+
+
+@pytest.mark.slow
+def test_a_study_of_ten_factors_does_not_stall_in_the_staged_analysis() -> None:
+    """After its D-optimal round the runs are three-level but not OMARS: the staged search once ran for hours."""
+    study = run_study(BY_NAME["impact (03), hypothesised"], random_state=7)
+    assert study["ended"] == "stop"
+    assert study["shortfall_in_sigma"] < 0.5
+
+
+@pytest.mark.slow
+def test_the_ten_factor_impact_study_stays_near_its_best() -> None:
+    """Small effects against noise of 8: a 24-run DSD misses some, so the mean falls short by about 0.6 sd."""
+    shortfalls = [
+        run_study(BY_NAME["impact (03), hypothesised"], random_state=s)["shortfall_in_sigma"] for s in range(8)
+    ]
+    assert sum(shortfalls) / len(shortfalls) < 1.0
+    assert max(shortfalls) < 3.0
