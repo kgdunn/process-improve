@@ -1,5 +1,5 @@
 - **The reference catalogue reads Goos and Jones, *Optimal Design of Experiments: A Case Study Approach*
-  (2011), chapters 1 to 4.** It holds:
+  (2011), chapters 1 to 6.** It holds:
   - the splits of a two-machine comparison's runs (Tables 1.1 to 1.4), checked with `allocate_runs`;
   - the GeneBe extraction experiment, with its fits, predictions, alias matrix (Table 2.7) and variance
     inflation factors;
@@ -10,9 +10,15 @@
     14-term model, and the fits of the 20 runs;
   - the peel strength experiment (chapter 4): its D-optimal and I-optimal designs, compared on their
     relative variances, average prediction variance, FDS plots and each other, and the prediction
-    equations of the final model, one per supplier.
+    equations of the final model, one per supplier;
+  - the yield of a reaction (chapter 5): a 3 x 3 factorial with its quadratic fit, and a 15-run
+    D-optimal design in a constrained region with its cubic fits, lack-of-fit test and greatest
+    predicted yield;
+  - the rolling mill (chapter 6), a mixture with two process variables: its design's balance and
+    prediction variance, its first-order Scheffé fit in pseudocomponents, and the half fraction of the
+    2^5 factorial that the mixture constraint rules out.
 
-  774 printed numbers give 832 checks, all agreeing or explained. The 24 explained disagreements are
+  949 printed numbers give 1048 checks, all agreeing or explained. The 24 explained disagreements are
   misprints or numbers read off a figure:
   - two t ratios in Table 2.5 and two in Table 3.7;
   - the time coefficient of Equation 2.1;
@@ -30,4 +36,5 @@
   alias matrix printed in thirds), a product column named by its columns (`of`), the mean of a
   product column (`mean`), the square root of a library value (`root`), the first columns of a
   library design (`design_columns`), and some of the printed runs compared with a library design
-  (`runs`, for one supplier's runs).
+  (`runs`, for one supplier's runs), and the runs whose column is above or at least a value
+  (`above` and `at_least` on `run_count`).

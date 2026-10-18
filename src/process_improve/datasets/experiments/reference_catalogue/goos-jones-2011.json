@@ -1,18 +1,18 @@
 {
  "schema": 1,
- "about": ["Part of the reference catalogue: the case studies, designs and worked examples of chapters 1 to 4 of Goos and Jones,", "Optimal Design of Experiments: A Case Study Approach (2011), for testing that software reproduces them. source: the", "citation, with what was read and when. experiments: the extraction experiment of chapter 2, the same experiment", "augmented with eight runs in chapter 3, and the peel strength experiment of chapter 4, each with its factors,", "responses and runs as printed, where it is printed, and expected: every number the book prints for it, as printed", "text, with where it is printed (a page and a quotation) and check: how to recompute it, or manual, the reason it is", "not recomputed. A check with a disagreement records a number known not to reproduce and why. The book fits every", "model in coded units, except chapter 4's prediction equations, and its VIF is n times a coefficient's variance in", "units of sigma squared (Equation 2.13): the library's coefficient variance from evaluate_design's", "information_matrix, times the run count. An alias matrix printed in thirds is compared entry by entry as arithmetic", "(expression). Table 3.1's AICc is the model summary's aicc, and Table 3.2's recommended settings the corner of the", "six factors where each model predicts the most yield (best_corner). designs: the splits of chapter 1's runs between", "two machines or two treatments (allocate_runs: each split's variance, its root and its efficiency), Table 2.4's bias", "calculation (product_column, the mean of a product column), the four-run design of Table 2.8, the D-optimal design", "of Table 2.11, the designs of the coordinate-exchange example, each compared on |X'X| (information_matrix,", "determinant), and chapter 4's D-optimal and I-optimal designs, compared on their relative variances, their average", "prediction variance, their FDS plots and each other (relative_efficiency). not_captured: what in these pages is not", "an experiment with data. Read with process_improve.experiments.reference_catalogue.reference_experiments;", "tests/test_reference_catalogue.py recomputes every number that has a check."],
+ "about": ["Part of the reference catalogue: the case studies, designs and worked examples of chapters 1 to 6 of Goos and Jones,", "Optimal Design of Experiments: A Case Study Approach (2011), for testing that software reproduces them. source: the", "citation, with what was read and when. experiments: the extraction experiment of chapter 2, the same experiment", "augmented with eight runs in chapter 3, the peel strength experiment of chapter 4, the yield of a reaction over a", "square and over a constrained region in chapter 5, and the rolling mill of chapter 6, a mixture with process", "variables, each with its factors, responses and runs as printed, where it is printed, and expected: every number the", "book prints for it, as printed text, with where it is printed (a page and a quotation) and check: how to recompute", "it, or manual, the reason it is not recomputed. A check with a disagreement records a number known not to reproduce", "and why. The book fits every model in coded units, except chapter 4's prediction equations and chapter 6's mixture", "models, which are in pseudocomponents, and its VIF is n times a coefficient's variance in units of sigma squared", "(Equation 2.13): the library's coefficient variance from evaluate_design's information_matrix, times the run count.", "An alias matrix printed in thirds is compared entry by entry as arithmetic (expression). Table 3.1's AICc is the", "model summary's aicc, and Table 3.2's recommended settings the corner of the six factors where each model predicts", "the most yield (best_corner). designs: the splits of chapter 1's runs between two machines or two treatments", "(allocate_runs: each split's variance, its root and its efficiency), Table 2.4's bias calculation (product_column,", "the mean of a product column), the four-run design of Table 2.8, the D-optimal design of Table 2.11, the designs of", "the coordinate-exchange example, each compared on |X'X| (information_matrix, determinant), chapter 4's D-optimal and", "I-optimal designs, compared on their relative variances, their average prediction variance, their FDS plots and each", "other (relative_efficiency), and chapter 6's half fraction of the 2^5 factorial. not_captured: what in these pages is", "not an experiment with data. Read with process_improve.experiments.reference_catalogue.reference_experiments;", "tests/test_reference_catalogue.py recomputes every number that has a check."],
  "source": {
   "key": "goos-jones-2011",
   "authors": ["Peter Goos", "Bradley Jones"],
   "title": "Optimal Design of Experiments: A Case Study Approach",
   "edition": "first edition",
-  "pages": "chapters 1 to 4, pp. 1 to 93",
+  "pages": "chapters 1 to 6, pp. 1 to 133",
   "year": 2011,
   "publisher": "John Wiley & Sons, Ltd",
   "isbn": "978-0-470-74461-1",
   "url": "https://search.worldcat.org/search?q=bn:9780470744611",
   "cite": "Goos, P. and Jones, B. (2011), Optimal Design of Experiments: A Case Study Approach, Wiley",
-  "read": "2026-10-18, from two PDFs supplied by the user, of chapters 1 and 2 (pp. 1 to 45) and chapters 3 and 4 (pp. 47 to 93), one PDF page a book page; every number copied from the PDF's text layer and checked against the page, and Table 2.7, whose text layer drops a row of zeros, and Equations 3.6, 3.7 and 3.14, whose matrices the text layer scrambles, read from the page images at 220 dpi",
+  "read": "2026-10-18, from three PDFs supplied by the user, of chapters 1 and 2 (pp. 1 to 45), chapters 3 and 4 (pp. 47 to 93) and chapters 5 and 6 (pp. 95 to 133), one PDF page a book page; every number copied from the PDF's text layer and checked against the page, and Table 2.7, whose text layer drops a row of zeros, and Equations 3.6, 3.7 and 3.14, whose matrices the text layer scrambles, read from the page images at 220 dpi",
   "rights": "The book is protected by copyright (© 2011 John Wiley & Sons, Ltd) and is not reproduced here. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -8212,6 +8212,3405 @@
      }
     }
    ]
+  },
+  {
+   "name": "goos-jones-yield-original",
+   "title": "Yield of a reaction A to B to C over a 3 x 3 factorial in time and temperature, with a full quadratic model",
+   "topics": ["chemical-processes"],
+   "kind": "example",
+   "where": {
+    "section": "5.2.1",
+    "pages": "96-99",
+    "tables": ["Table 5.1", "Table 5.2"],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "reaction time",
+     "low": 430,
+     "high": 650,
+     "levels": [430, 540, 650],
+     "units": "s",
+     "type": "numeric"
+    },
+    {
+     "name": "temperature",
+     "description": "reaction temperature",
+     "low": 500,
+     "high": 550,
+     "levels": [500, 525, 550],
+     "units": "K",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "yield",
+     "description": "the percentage of reactant A converted to product B",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "3 x 3 full factorial",
+    "details": "nine runs, a face-centred central composite design with one centre run",
+    "n_runs": 9,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": ["run", "time", "temperature", "yield"],
+    "rows": [
+     [1, 430, 500, 10.0],
+     [2, 430, 525, 44.1],
+     [3, 430, 550, 51.6],
+     [4, 540, 500, 12.3],
+     [5, 540, 525, 49.6],
+     [6, 540, 550, 42.9],
+     [7, 650, 500, 14.5],
+     [8, 650, 525, 53.7],
+     [9, 650, 550, 35.1]
+    ],
+    "coded": false,
+    "notes": "Table 5.1 in its printed order"
+   },
+   "notes": "Table 5.2 is fitted in coded units, each factor -1 at its low level and +1 at its high level. The reaction is A to B to C: at 500 K too little A reacts, and at 650 s and 550 K too much B turns into C.",
+   "expected": [
+    {
+     "what": "same_runs",
+     "term": null,
+     "value": "a classical 3-by-3 full factorial design",
+     "analysis": "the nine runs of a 3 x 3 factorial are those of the face-centred central composite design with one centre run",
+     "where": {
+      "page": 97,
+      "source_kind": "prose",
+      "quote": "It looks like your consultant ran a classical 3-by-3 full factorial design here."
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "same_runs",
+     "term": null,
+     "value": "a central composite design with the axial points on the edges of a square",
+     "where": {
+      "page": 97,
+      "source_kind": "prose",
+      "quote": "He called it a central composite design modified to put the axial points on the edges of a square."
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 2,
+       "options": {
+        "alpha": "face_centered",
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "centre",
+     "term": "Time and Temperature",
+     "value": "540 seconds at 525 K",
+     "where": {
+      "page": 97,
+      "source_kind": "prose",
+      "quote": "Does your usual reaction run for 540 seconds at 525 K? ... That setting is at the center of the design."
+     },
+     "check": {
+      "manual": "the midpoints of 430 and 650 s and of 500 and 550 K: arithmetic"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "540 s, 525 K",
+     "value": "49.6%",
+     "where": {
+      "page": 99,
+      "source_kind": "prose",
+      "quote": "we have not varied more than half a percent on either side of the 49.6% we got in the experiment"
+     },
+     "check": {
+      "kind": "observation",
+      "run": 5,
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "impractical settings",
+     "value": "four of the nine",
+     "analysis": "the three runs at 500 K, too cold for A to turn into B, and the run at 650 s and 550 K, where B turns into C",
+     "where": {
+      "page": 98,
+      "source_kind": "prose",
+      "quote": "In your case, four of the nine experimental runs were at impractical settings."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "temperature": 500
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "time": 650,
+        "temperature": 550
+       },
+       "printed": "1"
+      }
+     ]
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "49.20",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Intercept 49.20 3.89 12.66 0.0011"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "3.89",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Intercept 49.20 3.89 12.66 0.0011"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Intercept",
+     "value": "12.66",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Intercept 49.20 3.89 12.66 0.0011"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Intercept",
+     "value": "0.0011",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Intercept 49.20 3.89 12.66 0.0011"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time",
+     "value": "−0.40",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time −0.40 2.13 −0.19 0.8629"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time",
+     "value": "2.13",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time −0.40 2.13 −0.19 0.8629"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time",
+     "value": "−0.19",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time −0.40 2.13 −0.19 0.8629"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time",
+     "value": "0.8629",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time −0.40 2.13 −0.19 0.8629"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature",
+     "value": "15.47",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature 15.47 2.13 7.27 0.0054"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature",
+     "value": "2.13",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature 15.47 2.13 7.27 0.0054"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature",
+     "value": "7.27",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature 15.47 2.13 7.27 0.0054"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature",
+     "value": "0.0054",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature 15.47 2.13 7.27 0.0054"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time × Time",
+     "value": "−0.10",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Time −0.10 3.69 −0.03 0.9801"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time × Time",
+     "value": "3.69",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Time −0.10 3.69 −0.03 0.9801"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time × Time",
+     "value": "−0.03",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Time −0.10 3.69 −0.03 0.9801"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time × Time",
+     "value": "0.9801",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Time −0.10 3.69 −0.03 0.9801"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time × Temperature",
+     "value": "−5.25",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Temperature −5.25 2.61 −2.01 0.1375"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time × Temperature",
+     "value": "2.61",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Temperature −5.25 2.61 −2.01 0.1375"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time × Temperature",
+     "value": "−2.01",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Temperature −5.25 2.61 −2.01 0.1375"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time × Temperature",
+     "value": "0.1375",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Time × Temperature −5.25 2.61 −2.01 0.1375"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature × Temperature",
+     "value": "−21.40",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature × Temperature −21.40 3.69 −5.80 0.0102"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature × Temperature",
+     "value": "3.69",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature × Temperature −21.40 3.69 −5.80 0.0102"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature × Temperature",
+     "value": "−5.80",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature × Temperature −21.40 3.69 −5.80 0.0102"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature × Temperature",
+     "value": "0.0102",
+     "where": {
+      "page": 99,
+      "source_kind": "table",
+      "quote": "Table 5.2 Analysis of the data from the original yield maximization experiment. ... Temperature × Temperature −21.40 3.69 −5.80 0.0102"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)"
+     }
+    },
+    {
+     "what": "rmse",
+     "term": null,
+     "value": "about 5.2%",
+     "where": {
+      "page": 99,
+      "source_kind": "prose",
+      "quote": "Let’s have a look at the root mean squared error of the residuals of our analysis. Here it is: about 5.2%."
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)",
+      "printed": "5.2"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "higher yields than the current process",
+     "value": "two",
+     "analysis": "the runs whose yield is above the 49.6% of the standard settings: 51.6% at 430 s and 550 K, and 53.7% at 650 s and 525 K",
+     "where": {
+      "page": 99,
+      "source_kind": "prose",
+      "quote": "I noticed that two of the runs in your original experiment had higher yields than your current process."
+     },
+     "check": {
+      "kind": "run_count",
+      "above": {
+       "yield": 49.6
+      },
+      "printed": "2"
+     }
+    },
+    {
+     "what": "time_change",
+     "term": "the two better runs",
+     "value": "110 seconds",
+     "where": {
+      "page": 99,
+      "source_kind": "prose",
+      "quote": "A further good feature of that run was that the reaction was 110 seconds shorter. The other was at the same temperature we normally use, but 110 seconds longer."
+     },
+     "check": {
+      "manual": "540 - 430 and 650 - 540 s: arithmetic"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-jones-yield-constrained",
+   "title": "Yield of a reaction over a hexagonal region of time and temperature: a 15-run D-optimal design for a cubic model",
+   "topics": ["chemical-processes"],
+   "kind": "example",
+   "where": {
+    "section": "5.2 and 5.3",
+    "pages": "99-112",
+    "tables": ["Table 5.3", "Table 5.4", "Table 5.5", "Table 5.6", "Table 5.7"],
+    "figures": ["Figure 5.4", "Figure 5.5", "Figure 5.6", "Figure 5.7", "Figure 5.8"]
+   },
+   "factors": [
+    {
+     "name": "time",
+     "description": "reaction time",
+     "low": 360,
+     "high": 720,
+     "levels": [360, 720],
+     "units": "s",
+     "type": "numeric"
+    },
+    {
+     "name": "temperature",
+     "description": "reaction temperature",
+     "low": 520,
+     "high": 550,
+     "levels": [520, 550],
+     "units": "K",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "yield",
+     "description": "the percentage of reactant A converted to product B",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "D-optimal design in a constrained region",
+    "details": "15 runs for the full cubic model in time and temperature, in the hexagon the ranges and the constraints 0.03 Time + Temperature >= 539.8 and 0.09 Time + Temperature <= 587.8 leave",
+    "n_runs": 15,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": ["run", "time", "temperature", "yield"],
+    "rows": [
+     [1, 580, 528, 55.9],
+     [2, 360, 529, 46.7],
+     [3, 480, 525, 46.8],
+     [4, 720, 523, 52.8],
+     [5, 360, 545, 62.1],
+     [6, 660, 520, 45.7],
+     [7, 480, 525, 46.6],
+     [8, 420, 550, 52.6],
+     [9, 360, 536, 57.8],
+     [10, 454, 539, 61.9],
+     [11, 720, 520, 47.7],
+     [12, 630, 531, 60.0],
+     [13, 360, 529, 46.8],
+     [14, 510, 542, 59.4],
+     [15, 360, 550, 57.3]
+    ],
+    "coded": false,
+    "notes": "Table 5.4 in its printed order: the runs of Table 5.3 with their yields"
+   },
+   "notes": "The book fits every model in coded units, time (t - 540)/180 and temperature (T - 535)/15, as its software does for the ranges 360 to 720 s and 520 to 550 K. As printed, runs 3 and 7 (480 s, 525 K) lie 0.4 K below the lower constraint and run 14 (510 s, 542 K) 0.1 K above the upper one; the other runs satisfy both. The greatest predicted yield over the ranges is at 360 s and 543.1 K, inside the constraints; the profiler of Figures 5.6 and 5.7 shows it at 543 K.",
+   "expected": [
+    {
+     "what": "lower_constraint",
+     "term": "Time and Temperature",
+     "value": "0.03 Time + Temperature ≥ 539.8",
+     "where": {
+      "page": 100,
+      "source_kind": "prose",
+      "quote": "Here is the equation of Gray’s lower inequality constraint: 0.03 Time + Temperature ≥ 539.8."
+     },
+     "check": {
+      "manual": "the line through (360 s, 529 K) and (660 s, 520 K): its slope is -9/300 = -0.03 K per second, and 529 + 0.03 × 360 = 539.8: arithmetic"
+     }
+    },
+    {
+     "what": "upper_constraint",
+     "term": "Time and Temperature",
+     "value": "0.09 Time + Temperature ≤ 587.8",
+     "where": {
+      "page": 101,
+      "source_kind": "prose",
+      "quote": "here is the equation of Gray’s upper inequality constraint: 0.09 Time + Temperature ≤ 587.8."
+     },
+     "check": {
+      "manual": "the line through (420 s, 550 K) and (720 s, 523 K): its slope is -27/300 = -0.09 K per second, and 550 + 0.09 × 420 = 587.8: arithmetic"
+     }
+    },
+    {
+     "what": "n_terms",
+     "term": "third-order terms",
+     "value": "four",
+     "analysis": "the full cubic model's 10 terms less the full quadratic model's 6",
+     "where": {
+      "page": 102,
+      "source_kind": "prose",
+      "quote": "Suppose we add all the third-order terms to the quadratic model. For two factors, there are only four such terms."
+     },
+     "check": [
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)",
+       "key": "n_parameters",
+       "printed": "10"
+      },
+      {
+       "kind": "design_metric",
+       "metric": "information_matrix",
+       "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2)",
+       "key": "n_parameters",
+       "printed": "6"
+      }
+     ]
+    },
+    {
+     "what": "n_runs",
+     "term": "the full cubic model",
+     "value": "ten",
+     "analysis": "one run for each of the full cubic model's terms",
+     "where": {
+      "page": 102,
+      "source_kind": "prose",
+      "quote": "How about a number of runs? At a very minimum we need ten."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)",
+      "key": "n_parameters",
+      "printed": "10"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "15",
+     "where": {
+      "page": 102,
+      "source_kind": "prose",
+      "quote": "I suppose we can manage 15 runs."
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "replicated_runs",
+     "term": "runs 2 and 13, runs 3 and 7",
+     "value": "the same settings",
+     "where": {
+      "page": 102,
+      "source_kind": "prose",
+      "quote": "Table 5.3 Optimal design for the new yield maximization experiment with the constrained experimental region. Runs 2 and 3 have the same settings as runs 13 and 7, respectively."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "time": 360,
+        "temperature": 529
+       },
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "time": 480,
+        "temperature": 525
+       },
+       "printed": "2"
+      }
+     ]
+    },
+    {
+     "what": "distinct_runs",
+     "term": null,
+     "value": "13 points instead of 15",
+     "where": {
+      "page": 103,
+      "source_kind": "prose",
+      "quote": "You only see 13 points instead of 15 because two of the points are replicated."
+     },
+     "check": {
+      "kind": "distinct_runs",
+      "columns": ["time", "temperature"],
+      "printed": "13"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "360 s, 545 K",
+     "value": "62.1%",
+     "where": {
+      "page": 103,
+      "source_kind": "prose",
+      "quote": "Look at that 62.1% yield for 360 seconds and 545 K."
+     },
+     "check": {
+      "kind": "observation",
+      "run": 5,
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "improvement",
+     "term": "360 s, 545 K",
+     "value": "a 20% improvement",
+     "where": {
+      "page": 103,
+      "source_kind": "prose",
+      "quote": "That’s a 20% improvement over the yields they were getting."
+     },
+     "check": {
+      "manual": "62.1% against the 49.6% of the standard settings (goos-jones-yield-original, run 5) is 25% more, 12.5 percentage points; the text does not say which yields it compares with"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "61.08",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Intercept 61.08 0.10 598.66 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "0.10",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Intercept 61.08 0.10 598.66 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Intercept",
+     "value": "598.66",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Intercept 61.08 0.10 598.66 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Intercept",
+     "value": "< .0001",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Intercept 61.08 0.10 598.66 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time (360,720)",
+     "value": "0.91",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time (360,720) 0.91 0.33 2.77 0.0391"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time (360,720)",
+     "value": "0.33",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time (360,720) 0.91 0.33 2.77 0.0391"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time (360,720)",
+     "value": "2.77",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time (360,720) 0.91 0.33 2.77 0.0391"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time (360,720)",
+     "value": "0.0391",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time (360,720) 0.91 0.33 2.77 0.0391"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature (520,550)",
+     "value": "5.06",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature (520,550) 5.06 0.34 14.97 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature (520,550)",
+     "value": "0.34",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature (520,550) 5.06 0.34 14.97 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature (520,550)",
+     "value": "14.97",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature (520,550) 5.06 0.34 14.97 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature (520,550)",
+     "value": "< .0001",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature (520,550) 5.06 0.34 14.97 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time2",
+     "value": "−3.75",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 −3.75 0.60 −6.21 0.0016"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time2",
+     "value": "0.60",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 −3.75 0.60 −6.21 0.0016"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time2",
+     "value": "−6.21",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 −3.75 0.60 −6.21 0.0016"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time2",
+     "value": "0.0016",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 −3.75 0.60 −6.21 0.0016"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time × Temperature",
+     "value": "−16.50",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature −16.50 1.08 −15.22 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time × Temperature",
+     "value": "1.08",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature −16.50 1.08 −15.22 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time × Temperature",
+     "value": "−15.22",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature −16.50 1.08 −15.22 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time × Temperature",
+     "value": "< .0001",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature −16.50 1.08 −15.22 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature2",
+     "value": "−21.32",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature2 −21.32 0.56 −38.08 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature2",
+     "value": "0.56",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature2 −21.32 0.56 −38.08 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature2",
+     "value": "−38.08",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature2 −21.32 0.56 −38.08 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature2",
+     "value": "< .0001",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature2 −21.32 0.56 −38.08 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time × Temperature2",
+     "value": "−7.63",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature2 −7.63 1.06 −7.19 0.0008"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time × Temperature2",
+     "value": "1.06",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature2 −7.63 1.06 −7.19 0.0008"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time × Temperature2",
+     "value": "−7.19",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature2 −7.63 1.06 −7.19 0.0008"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time × Temperature2",
+     "value": "0.0008",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time × Temperature2 −7.63 1.06 −7.19 0.0008"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time2 × Temperature",
+     "value": "−1.69",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 × Temperature −1.69 0.99 −1.71 0.1475"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(time ** 2):temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time2 × Temperature",
+     "value": "0.99",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 × Temperature −1.69 0.99 −1.71 0.1475"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(time ** 2):temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time2 × Temperature",
+     "value": "−1.71",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 × Temperature −1.69 0.99 −1.71 0.1475"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(time ** 2):temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time2 × Temperature",
+     "value": "0.1475",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time2 × Temperature −1.69 0.99 −1.71 0.1475"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(time ** 2):temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature3",
+     "value": "−5.39",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature3 −5.39 0.53 −10.11 0.0002"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature3",
+     "value": "0.53",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature3 −5.39 0.53 −10.11 0.0002"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature3",
+     "value": "−10.11",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature3 −5.39 0.53 −10.11 0.0002"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature3",
+     "value": "0.0002",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Temperature3 −5.39 0.53 −10.11 0.0002"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time3",
+     "value": "−0.12",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time3 −0.12 0.34 −0.36 0.7323"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(time ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time3",
+     "value": "0.34",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time3 −0.12 0.34 −0.36 0.7323"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(time ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time3",
+     "value": "−0.36",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time3 −0.12 0.34 −0.36 0.7323"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(time ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time3",
+     "value": "0.7323",
+     "where": {
+      "page": 104,
+      "source_kind": "table",
+      "quote": "Table 5.5 Analysis of the data from the new yield maximization experiment: full model. ... Time3 −0.12 0.34 −0.36 0.7323"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(time ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(time ** 2):temperature + I(temperature ** 3) + I(time ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "60.99",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Intercept 60.99 0.10 610.21 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Intercept",
+     "value": "0.10",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Intercept 60.99 0.10 610.21 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Intercept",
+     "value": "610.21",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Intercept 60.99 0.10 610.21 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Intercept",
+     "value": "< .0001",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Intercept 60.99 0.10 610.21 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "Intercept",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time (360,720)",
+     "value": "1.38",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time (360,720) 1.38 0.32 4.32 0.0035"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time (360,720)",
+     "value": "0.32",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time (360,720) 1.38 0.32 4.32 0.0035"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time (360,720)",
+     "value": "4.32",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time (360,720) 1.38 0.32 4.32 0.0035"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time (360,720)",
+     "value": "0.0035",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time (360,720) 1.38 0.32 4.32 0.0035"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature (520,550)",
+     "value": "5.22",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature (520,550) 5.22 0.40 13.19 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature (520,550)",
+     "value": "0.40",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature (520,550) 5.22 0.40 13.19 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature (520,550)",
+     "value": "13.19",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature (520,550) 5.22 0.40 13.19 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature (520,550)",
+     "value": "< .0001",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature (520,550) 5.22 0.40 13.19 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time2",
+     "value": "−2.89",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time2 −2.89 0.26 −10.92 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time2",
+     "value": "0.26",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time2 −2.89 0.26 −10.92 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time2",
+     "value": "−10.92",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time2 −2.89 0.26 −10.92 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time2",
+     "value": "< .0001",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time2 −2.89 0.26 −10.92 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(time ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time × Temperature",
+     "value": "−14.69",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature −14.69 0.42 −35.36 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time × Temperature",
+     "value": "0.42",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature −14.69 0.42 −35.36 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time × Temperature",
+     "value": "−35.36",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature −14.69 0.42 −35.36 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time × Temperature",
+     "value": "< .0001",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature −14.69 0.42 −35.36 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time:temperature",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature2",
+     "value": "−20.32",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature2 −20.32 0.27 −75.91 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature2",
+     "value": "0.27",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature2 −20.32 0.27 −75.91 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature2",
+     "value": "−75.91",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature2 −20.32 0.27 −75.91 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature2",
+     "value": "< .0001",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature2 −20.32 0.27 −75.91 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time × Temperature2",
+     "value": "−5.74",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature2 −5.74 0.52 −11.08 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Time × Temperature2",
+     "value": "0.52",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature2 −5.74 0.52 −11.08 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Time × Temperature2",
+     "value": "−11.08",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature2 −5.74 0.52 −11.08 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Time × Temperature2",
+     "value": "< .0001",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Time × Temperature2 −5.74 0.52 −11.08 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "time:I(temperature ** 2)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Temperature3",
+     "value": "−4.73",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature3 −4.73 0.53 −8.90 < .0001"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "Temperature3",
+     "value": "0.53",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature3 −4.73 0.53 −8.90 < .0001"
+     },
+     "check": {
+      "kind": "std_error",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "Temperature3",
+     "value": "−8.90",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature3 −4.73 0.53 −8.90 < .0001"
+     },
+     "check": {
+      "kind": "t_value",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Temperature3",
+     "value": "< .0001",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.6 Analysis of the data from the new yield maximization experiment: simplified model. ... Temperature3 −4.73 0.53 −8.90 < .0001"
+     },
+     "check": {
+      "kind": "p_value",
+      "term": "I(temperature ** 3)",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "rmse",
+     "term": "the simplified model",
+     "value": "0.17%",
+     "where": {
+      "page": 104,
+      "source_kind": "prose",
+      "quote": "The root mean squared error is only 0.17%."
+     },
+     "check": {
+      "kind": "residual_std_error",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "df",
+     "term": "Lack of fit",
+     "value": "5",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Lack of fit 5 0.1827 0.0365 2.92 0.2743"
+     },
+     "check": {
+      "kind": "lack_of_fit_df",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "ss",
+     "term": "Lack of fit",
+     "value": "0.1827",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Lack of fit 5 0.1827 0.0365 2.92 0.2743"
+     },
+     "check": {
+      "kind": "lack_of_fit_ss",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "ms",
+     "term": "Lack of fit",
+     "value": "0.0365",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Lack of fit 5 0.1827 0.0365 2.92 0.2743"
+     },
+     "check": {
+      "kind": "lack_of_fit_ms",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "f",
+     "term": "Lack of fit",
+     "value": "2.92",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Lack of fit 5 0.1827 0.0365 2.92 0.2743"
+     },
+     "check": {
+      "kind": "lack_of_fit_f",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "Lack of fit",
+     "value": "0.2743",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Lack of fit 5 0.1827 0.0365 2.92 0.2743"
+     },
+     "check": {
+      "kind": "lack_of_fit_p",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "df",
+     "term": "Pure error",
+     "value": "2",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Pure error 2 0.0250 0.0125"
+     },
+     "check": {
+      "kind": "pure_error_df",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "ss",
+     "term": "Pure error",
+     "value": "0.0250",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Pure error 2 0.0250 0.0125"
+     },
+     "check": {
+      "kind": "pure_error_ss",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "ms",
+     "term": "Pure error",
+     "value": "0.0125",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Pure error 2 0.0250 0.0125"
+     },
+     "check": {
+      "kind": "pure_error_ms",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "df",
+     "term": "Total error",
+     "value": "7",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Total error 7 0.2077"
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "ss",
+     "term": "Total error",
+     "value": "0.2077",
+     "where": {
+      "page": 105,
+      "source_kind": "table",
+      "quote": "Table 5.7 Lack-of-fit test for the simplified model based on the data from the new yield maximization experiment. ... Total error 7 0.2077"
+     },
+     "check": {
+      "kind": "ss_residual",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "540 s, 535 K",
+     "value": "60.98892",
+     "where": {
+      "page": 106,
+      "source_kind": "figure",
+      "quote": "Figure 5.5 ... 60.98892"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": 0,
+       "temperature": 0
+      }
+     }
+    },
+    {
+     "what": "ci_half_width",
+     "term": "540 s, 535 K",
+     "value": "±0.236337",
+     "analysis": "the half-width of the 95% confidence interval for the mean yield, which the prediction profiler prints beside the prediction",
+     "where": {
+      "page": 106,
+      "source_kind": "figure",
+      "quote": "Figure 5.5 ... ±0.236337"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": 0,
+       "temperature": 0
+      },
+      "bound": "ci_half_width",
+      "printed": "0.236337"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "540 s, 535 K",
+     "value": "just under 61%",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "On the left-hand side of the plot, you can read that the predicted yield for this setting is just under 61%."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": 0,
+       "temperature": 0
+      },
+      "printed": "<61"
+     }
+    },
+    {
+     "what": "time_limit",
+     "term": "535 K",
+     "value": "586 seconds",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "Note that we cannot increase the time beyond 586 seconds when the temperature is 535 K, because that would violate the second constraint that Gray imposed on the factor settings."
+     },
+     "check": {
+      "manual": "(587.8 - 535) / 0.09 = 586.7 s, the upper constraint at 535 K: arithmetic"
+     }
+    },
+    {
+     "what": "optimal_temperature",
+     "term": "Temperature",
+     "value": "543 K",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "The temperature is now fixed at 543 K instead of 535 K"
+     },
+     "check": {
+      "kind": "desirability_optimum",
+      "goals": [
+       {
+        "response": "yield",
+        "goal": "maximize",
+        "low": 45,
+        "high": 70,
+        "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+       }
+      ],
+      "key": "optimal_actual.temperature",
+      "printed": "543"
+     }
+    },
+    {
+     "what": "optimal_time",
+     "term": "Time",
+     "value": "360",
+     "analysis": "the setting is the time's, the lowest of 360 to 720 s; the text writes the lowest temperature, 360 K",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "the maximum yield is obtained for the lowest temperature that Gray wanted to study, 360 K."
+     },
+     "check": {
+      "kind": "desirability_optimum",
+      "goals": [
+       {
+        "response": "yield",
+        "goal": "maximize",
+        "low": 45,
+        "high": 70,
+        "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+       }
+      ],
+      "key": "optimal_actual.time",
+      "printed": "360"
+     }
+    },
+    {
+     "what": "optimum",
+     "term": "360 s, 543 K",
+     "value": "about 62.5%",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "You can read what the maximum yield is right next to the vertical axis: about 62.5%."
+     },
+     "check": {
+      "kind": "desirability_optimum",
+      "goals": [
+       {
+        "response": "yield",
+        "goal": "maximize",
+        "low": 45,
+        "high": 70,
+        "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+       }
+      ],
+      "key": "predicted_responses.yield",
+      "printed": "62.5"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "360 s, 543 K",
+     "value": "62.46975",
+     "analysis": "the prediction at the settings the profiler shows, 360 s and 543 K",
+     "where": {
+      "page": 107,
+      "source_kind": "figure",
+      "quote": "Figure 5.6 ... 62.46975"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": -1,
+       "temperature": 0.5333333333333333
+      }
+     }
+    },
+    {
+     "what": "ci_half_width",
+     "term": "360 s, 543 K",
+     "value": "±0.299359",
+     "where": {
+      "page": 107,
+      "source_kind": "figure",
+      "quote": "Figure 5.6 ... ±0.299359"
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": -1,
+       "temperature": 0.5333333333333333
+      },
+      "bound": "ci_half_width",
+      "printed": "0.299359"
+     }
+    },
+    {
+     "what": "ci_half_width",
+     "term": "360 s, 543 K",
+     "value": "plus or minus 0.3%",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "[Peter] Plus or minus 0.3%."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": -1,
+       "temperature": 0.5333333333333333
+      },
+      "bound": "ci_half_width",
+      "printed": "0.3"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "360 s, 543 K",
+     "value": "62.2%",
+     "analysis": "the 95% confidence interval for the mean yield, which the text calls a prediction interval",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "So, the 95% prediction interval for the mean yield is about [62.2%, 62.8%] at a time of 360 seconds and a temperature of 543 K."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": -1,
+       "temperature": 0.5333333333333333
+      },
+      "bound": "ci_low",
+      "printed": "62.2"
+     }
+    },
+    {
+     "what": "ci_high",
+     "term": "360 s, 543 K",
+     "value": "62.8%",
+     "where": {
+      "page": 106,
+      "source_kind": "prose",
+      "quote": "So, the 95% prediction interval for the mean yield is about [62.2%, 62.8%] at a time of 360 seconds and a temperature of 543 K."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "point": {
+       "time": -1,
+       "temperature": 0.5333333333333333
+      },
+      "bound": "ci_high",
+      "printed": "62.8"
+     }
+    },
+    {
+     "what": "distinct_runs",
+     "term": null,
+     "value": "13 unique factor-level combinations",
+     "where": {
+      "page": 109,
+      "source_kind": "prose",
+      "quote": "In the yield maximization experiment, there were 13 unique factor-level combinations or design points."
+     },
+     "check": {
+      "kind": "distinct_runs",
+      "columns": ["time", "temperature"],
+      "printed": "13"
+     }
+    },
+    {
+     "what": "replicated_runs",
+     "term": null,
+     "value": "two",
+     "where": {
+      "page": 109,
+      "source_kind": "prose",
+      "quote": "Two of these factor-level combinations were run twice; we say that they were replicated."
+     },
+     "check": {
+      "kind": "design_structure",
+      "factors": ["time", "temperature"],
+      "key": "replicated.len",
+      "printed": "2"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "n = 15",
+     "where": {
+      "page": 110,
+      "source_kind": "prose",
+      "quote": "Hence, n = 15 and p = 8."
+     },
+     "check": {
+      "kind": "n_runs",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "printed": "15"
+     }
+    },
+    {
+     "what": "n_parameters",
+     "term": "the simplified model",
+     "value": "p = 8",
+     "where": {
+      "page": 110,
+      "source_kind": "prose",
+      "quote": "Hence, n = 15 and p = 8."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "key": "n_parameters",
+      "printed": "8"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": "the simplified model",
+     "value": "n − p = 7",
+     "where": {
+      "page": 110,
+      "source_kind": "prose",
+      "quote": "Therefore, the degrees of freedom associated with the residual sum of squares is n − p = 7."
+     },
+     "check": {
+      "kind": "residual_df",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "printed": "7"
+     }
+    },
+    {
+     "what": "replicated_runs",
+     "term": null,
+     "value": "m = 2 and n1 = n2 = 2",
+     "where": {
+      "page": 110,
+      "source_kind": "prose",
+      "quote": "The design involves two duplicated points, so that m = 2 and n1 = n2 = 2."
+     },
+     "check": [
+      {
+       "kind": "design_structure",
+       "factors": ["time", "temperature"],
+       "key": "replicated.len",
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "time": 360,
+        "temperature": 529
+       },
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "time": 480,
+        "temperature": 525
+       },
+       "printed": "2"
+      }
+     ]
+    },
+    {
+     "what": "pure_error_df",
+     "term": null,
+     "value": "dfPE = 2",
+     "where": {
+      "page": 110,
+      "source_kind": "prose",
+      "quote": "As a result, dfPE = n1 + n2 − m = 2 + 2 − 2 = 2"
+     },
+     "check": {
+      "kind": "pure_error_df",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "printed": "2"
+     }
+    },
+    {
+     "what": "lack_of_fit_df",
+     "term": null,
+     "value": "dfLOF = 5",
+     "where": {
+      "page": 110,
+      "source_kind": "prose",
+      "quote": "and dfLOF = 7 − dfPE = 7 − 2 = 5."
+     },
+     "check": {
+      "kind": "lack_of_fit_df",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "printed": "5"
+     }
+    },
+    {
+     "what": "lack_of_fit_f",
+     "term": null,
+     "value": "a little less than three",
+     "where": {
+      "page": 111,
+      "source_kind": "prose",
+      "quote": "In our example, this ratio is a little less than three."
+     },
+     "check": {
+      "kind": "lack_of_fit_f",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)",
+      "printed": "<3"
+     }
+    },
+    {
+     "what": "lack_of_fit_p",
+     "term": null,
+     "value": "0.2743",
+     "where": {
+      "page": 111,
+      "source_kind": "prose",
+      "quote": "This is reflected by the p value of 0.2743."
+     },
+     "check": {
+      "kind": "lack_of_fit_p",
+      "model": "time + temperature + I(time ** 2) + time:temperature + I(temperature ** 2) + time:I(temperature ** 2) + I(temperature ** 3)"
+     }
+    },
+    {
+     "what": "upper_limit",
+     "term": "x1, with x2 = 0.3",
+     "value": "0.7",
+     "where": {
+      "page": 111,
+      "source_kind": "prose",
+      "quote": "the maximum possible value for x1, given that x2 takes the value 0.3, is 0.7"
+     },
+     "check": {
+      "manual": "x1 <= 1 - x2 = 1 - 0.3 under the constraint x1 + x2 <= 1 (Equation 5.1): arithmetic; the next sentence writes 'when x1 = 0.3' for x2"
+     }
+    }
+   ]
+  },
+  {
+   "name": "goos-jones-rolling-mill",
+   "title": "Reflectivity of aluminium sheet from three rolling mills, whose reductions in thickness sum to one, with two coolant settings",
+   "topics": ["metals"],
+   "kind": "example",
+   "where": {
+    "section": "6.2 and 6.3.2",
+    "pages": "114-125",
+    "tables": ["Table 6.2", "Table 6.3"],
+    "figures": ["Figure 6.3"]
+   },
+   "factors": [
+    {
+     "name": "mill1",
+     "description": "the fraction of the reduction in thickness done by mill 1, 0.1 to 0.8",
+     "low": 0.1,
+     "high": 0.8,
+     "levels": [0.1, 0.8],
+     "units": "",
+     "type": "numeric",
+     "coding": "pseudocomponent"
+    },
+    {
+     "name": "mill2",
+     "description": "the fraction of the reduction in thickness done by mill 2, 0.1 to 0.8",
+     "low": 0.1,
+     "high": 0.8,
+     "levels": [0.1, 0.8],
+     "units": "",
+     "type": "numeric",
+     "coding": "pseudocomponent"
+    },
+    {
+     "name": "mill3",
+     "description": "the fraction of the reduction in thickness done by mill 3, 0.1 to 0.8",
+     "low": 0.1,
+     "high": 0.8,
+     "levels": [0.1, 0.8],
+     "units": "",
+     "type": "numeric",
+     "coding": "pseudocomponent"
+    },
+    {
+     "name": "spray",
+     "description": "volume of the oil-water coolant sprayed between the mills",
+     "low": "Low",
+     "high": "High",
+     "levels": ["Low", "High"],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "oil",
+     "description": "ratio of oil to water in the coolant",
+     "low": "Low",
+     "high": "High",
+     "levels": ["Low", "High"],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "reflectivity",
+     "description": "the measured reflectivity of the finished sheet; 5.5 or higher is acceptable",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "D-optimal mixture-process variable design",
+    "details": "12 runs for the second-order Scheffé model in the three mills' pseudocomponents and the main effects of spray volume and oil-water, each mill 0.1 to 0.8 of the reduction",
+    "n_runs": 12,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": ["run", "mill1", "mill2", "mill3", "spray", "oil", "reflectivity"],
+    "rows": [
+     [1, 0.1, 0.8, 0.1, "Low", "Low", 5.3],
+     [2, 0.8, 0.1, 0.1, "Low", "Low", 4.8],
+     [3, 0.1, 0.45, 0.45, "Low", "Low", 5.4],
+     [4, 0.1, 0.1, 0.8, "High", "Low", 6.3],
+     [5, 0.45, 0.45, 0.1, "High", "Low", 4.7],
+     [6, 0.45, 0.1, 0.45, "High", "Low", 5.4],
+     [7, 0.45, 0.1, 0.45, "Low", "High", 4.9],
+     [8, 0.1, 0.1, 0.8, "Low", "High", 6.8],
+     [9, 0.45, 0.45, 0.1, "Low", "High", 5.3],
+     [10, 0.8, 0.1, 0.1, "High", "High", 4.3],
+     [11, 0.1, 0.8, 0.1, "High", "High", 4.7],
+     [12, 0.1, 0.45, 0.45, "High", "High", 5.1]
+    ],
+    "coded": false,
+    "notes": "Table 6.3 in its printed order, run numbers added: the runs of Table 6.2 with their reflectivity"
+   },
+   "notes": "The mills are fitted in pseudocomponents, (Mill - 0.1)/0.7, which run from 0 to 1 as the mills' fractions run from 0.1 to 0.8, and spray volume and oil-water -1 at Low and +1 at High. Four confirmation runs at 10%, 10% and 80% averaged 6.4, and fewer than 5% of the runs since have been below 5.5; the book prints no data for them.",
+   "expected": [
+    {
+     "what": "row_sums",
+     "term": "mill 1, mill 2 and mill 3",
+     "value": "one",
+     "where": {
+      "page": 119,
+      "source_kind": "prose",
+      "quote": "I see that, if you sum the settings of the mill factors for every row, you always get one."
+     },
+     "check": {
+      "manual": "each row of Table 6.2 is 0.1 + 0.8 + 0.1, 0.1 + 0.45 + 0.45 or 0.1 + 0.1 + 0.8 in some order: arithmetic"
+     }
+    },
+    {
+     "what": "level_counts",
+     "term": "spray volume and oil-water",
+     "value": "the same number of high and low settings",
+     "where": {
+      "page": 119,
+      "source_kind": "prose",
+      "quote": "I also notice that the number of high and low settings of the spray volume and oil–water factors is the same."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "spray": "Low"
+       },
+       "printed": "6"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "spray": "High"
+       },
+       "printed": "6"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "oil": "Low"
+       },
+       "printed": "6"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "oil": "High"
+       },
+       "printed": "6"
+      }
+     ]
+    },
+    {
+     "what": "combination_counts",
+     "term": "spray volume and oil-water",
+     "value": "three times",
+     "where": {
+      "page": 119,
+      "source_kind": "prose",
+      "quote": "In fact, the four possible combinations of levels of these factors each appears three times."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "spray": "Low",
+        "oil": "Low"
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "spray": "Low",
+        "oil": "High"
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "spray": "High",
+        "oil": "Low"
+       },
+       "printed": "3"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "spray": "High",
+        "oil": "High"
+       },
+       "printed": "3"
+      }
+     ]
+    },
+    {
+     "what": "distinct_runs",
+     "term": "mill 1, mill 2 and mill 3",
+     "value": "six",
+     "where": {
+      "page": 119,
+      "source_kind": "prose",
+      "quote": "the plot clearly shows is that there are six different level combinations of the milling factors."
+     },
+     "check": {
+      "kind": "distinct_runs",
+      "columns": ["mill1", "mill2", "mill3"],
+      "printed": "6"
+     }
+    },
+    {
+     "what": "replicates",
+     "term": "each mill combination",
+     "value": "twice",
+     "where": {
+      "page": 119,
+      "source_kind": "prose",
+      "quote": "Each of these appears twice."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.8,
+        "mill3": 0.1
+       },
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.8,
+        "mill2": 0.1,
+        "mill3": 0.1
+       },
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.45,
+        "mill3": 0.45
+       },
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.1,
+        "mill3": 0.8
+       },
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.45,
+        "mill3": 0.1
+       },
+       "printed": "2"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.1,
+        "mill3": 0.45
+       },
+       "printed": "2"
+      }
+     ]
+    },
+    {
+     "what": "balance",
+     "term": "each mill combination and oil-water",
+     "value": "once at the low setting and once at the high setting",
+     "where": {
+      "page": 119,
+      "source_kind": "prose",
+      "quote": "each of the six milling factor-level combinations appears once at the low setting of the oil–water ratio and once at the high setting."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.8,
+        "mill3": 0.1,
+        "oil": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.8,
+        "mill3": 0.1,
+        "oil": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.8,
+        "mill2": 0.1,
+        "mill3": 0.1,
+        "oil": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.8,
+        "mill2": 0.1,
+        "mill3": 0.1,
+        "oil": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.45,
+        "mill3": 0.45,
+        "oil": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.45,
+        "mill3": 0.45,
+        "oil": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.1,
+        "mill3": 0.8,
+        "oil": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.1,
+        "mill3": 0.8,
+        "oil": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.45,
+        "mill3": 0.1,
+        "oil": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.45,
+        "mill3": 0.1,
+        "oil": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.1,
+        "mill3": 0.45,
+        "oil": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.1,
+        "mill3": 0.45,
+        "oil": "High"
+       },
+       "printed": "1"
+      }
+     ]
+    },
+    {
+     "what": "balance",
+     "term": "each mill combination and spray volume",
+     "value": "the same",
+     "where": {
+      "page": 120,
+      "source_kind": "prose",
+      "quote": "[Dr. Nighthome] That is attractive indeed. Is the same thing true for the spray volume factor? [Brad] Yes, it is."
+     },
+     "check": [
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.8,
+        "mill3": 0.1,
+        "spray": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.8,
+        "mill3": 0.1,
+        "spray": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.8,
+        "mill2": 0.1,
+        "mill3": 0.1,
+        "spray": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.8,
+        "mill2": 0.1,
+        "mill3": 0.1,
+        "spray": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.45,
+        "mill3": 0.45,
+        "spray": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.45,
+        "mill3": 0.45,
+        "spray": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.1,
+        "mill3": 0.8,
+        "spray": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.1,
+        "mill2": 0.1,
+        "mill3": 0.8,
+        "spray": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.45,
+        "mill3": 0.1,
+        "spray": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.45,
+        "mill3": 0.1,
+        "spray": "High"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.1,
+        "mill3": 0.45,
+        "spray": "Low"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "run_count",
+       "at": {
+        "mill1": 0.45,
+        "mill2": 0.1,
+        "mill3": 0.45,
+        "spray": "High"
+       },
+       "printed": "1"
+      }
+     ]
+    },
+    {
+     "what": "max_prediction_variance",
+     "term": null,
+     "value": "two-thirds",
+     "analysis": "the relative prediction variance at each run, its leverage: 2/3 at all 12. The library samples no region of mixture and process factors together, so the maximum over the region is not recomputed; a grid over the simplex at the four corners of the process variables finds none larger",
+     "where": {
+      "page": 120,
+      "source_kind": "prose",
+      "quote": "I have checked and the worst relative variance of prediction is two-thirds."
+     },
+     "check": [
+      {
+       "kind": "leverage",
+       "run": 1,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 2,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 3,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 4,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 5,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 6,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 7,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 8,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 9,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 10,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 11,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      },
+      {
+       "kind": "leverage",
+       "run": 12,
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": "0.667"
+      }
+     ]
+    },
+    {
+     "what": "least_max_prediction_variance",
+     "term": null,
+     "value": "two-thirds",
+     "where": {
+      "page": 120,
+      "source_kind": "prose",
+      "quote": "There is a theoretical result stating that for this number of runs and this model, two-thirds is the minimum value that the worst relative variance of prediction can have."
+     },
+     "check": {
+      "manual": "the number of terms over the number of runs, p/n = 8/12, the 8 terms of the model checked below"
+     }
+    },
+    {
+     "what": "n_parameters",
+     "term": "Table 6.2's model",
+     "value": "8",
+     "analysis": "the three mills, their three products and the main effects of spray volume and oil-water",
+     "where": {
+      "page": 119,
+      "source_kind": "prose",
+      "quote": "I created a 12-run design for your five factors assuming that there might be two-factor interactions involving the milling operations. But I only considered main effects in the spray volume and oil–water factors."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+      "key": "n_parameters",
+      "printed": "8"
+     }
+    },
+    {
+     "what": "average_prediction_variance",
+     "term": null,
+     "value": "a little less than a half",
+     "where": {
+      "page": 120,
+      "source_kind": "prose",
+      "quote": "The average relative variance of prediction is a little less than a half."
+     },
+     "check": {
+      "manual": "an average over the simplex of the mills' pseudocomponents and the two levels of each process variable, which the library's regions (a mixture or a box) do not hold together; sampled with 400,000 points it is 0.483, and 0.372 with the process variables continuous between -1 and +1"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "acceptable reflectivity",
+     "value": "two of the 12",
+     "analysis": "the runs with a reflectivity of 5.5 or higher",
+     "where": {
+      "page": 121,
+      "source_kind": "prose",
+      "quote": "Only two of the 12 runs yielded acceptable values for reflectivity."
+     },
+     "check": {
+      "kind": "run_count",
+      "at_least": {
+       "reflectivity": 5.5
+      },
+      "printed": "2"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "acceptable reflectivity, mill 1 and mill 2 at 10%",
+     "value": "both",
+     "where": {
+      "page": 121,
+      "source_kind": "prose",
+      "quote": "Both of the good runs resulted when Mill 1 and Mill 2 each did 10% of the thickness reduction and Mill 3 did the rest of the work."
+     },
+     "check": {
+      "kind": "run_count",
+      "at": {
+       "mill1": 0.1,
+       "mill2": 0.1
+      },
+      "at_least": {
+       "reflectivity": 5.5
+      },
+      "printed": "2"
+     }
+    },
+    {
+     "what": "p_value",
+     "term": "spray volume and oil-water",
+     "value": "no visible effect",
+     "analysis": "the process variables' main effects in the model of Table 6.2, neither significant at the 5% level",
+     "where": {
+      "page": 121,
+      "source_kind": "prose",
+      "quote": "The process variables, spray volume and oil–water, have no visible effect."
+     },
+     "check": [
+      {
+       "kind": "p_value",
+       "term": "spray",
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": ">0.05"
+      },
+      {
+       "kind": "p_value",
+       "term": "oil",
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": ">0.05"
+      }
+     ]
+    },
+    {
+     "what": "p_value",
+     "term": "the mills' products",
+     "value": "linear",
+     "analysis": "the three nonlinear blending terms of the model of Table 6.2, none significant at the 5% level",
+     "where": {
+      "page": 121,
+      "source_kind": "prose",
+      "quote": "The relationship between the mills and reflectivity appears to be linear."
+     },
+     "check": [
+      {
+       "kind": "p_value",
+       "term": "mill1:mill2",
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": ">0.05"
+      },
+      {
+       "kind": "p_value",
+       "term": "mill1:mill3",
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": ">0.05"
+      },
+      {
+       "kind": "p_value",
+       "term": "mill2:mill3",
+       "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil",
+       "printed": ">0.05"
+      }
+     ]
+    },
+    {
+     "what": "prediction",
+     "term": "10%, 10% and 80%",
+     "value": "6.25",
+     "analysis": "the first-order Scheffé model in the mills' pseudocomponents, the third at 1",
+     "where": {
+      "page": 121,
+      "source_kind": "prose",
+      "quote": "Taking off 10% with Mills 1 and 2 and 80% with Mill 3 results in a predicted reflectivity of 6.25."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "0 + mill1 + mill2 + mill3",
+      "point": {
+       "mill1": 0,
+       "mill2": 0,
+       "mill3": 1
+      }
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Mill 1 pseudocomponent",
+     "value": "4.55",
+     "analysis": "the first-order Scheffé model in the pseudocomponents (Mill - 0.1)/0.7, the process variables left out",
+     "where": {
+      "page": 122,
+      "source_kind": "equation",
+      "quote": "Reflectivity = 4.55 (Mill 1 − 0.1)/0.7 + 4.95 (Mill 2 − 0.1)/0.7 + 6.25 (Mill 3 − 0.1)/0.7"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "mill1",
+      "model": "0 + mill1 + mill2 + mill3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Mill 2 pseudocomponent",
+     "value": "4.95",
+     "analysis": "the first-order Scheffé model in the pseudocomponents (Mill - 0.1)/0.7, the process variables left out",
+     "where": {
+      "page": 122,
+      "source_kind": "equation",
+      "quote": "Reflectivity = 4.55 (Mill 1 − 0.1)/0.7 + 4.95 (Mill 2 − 0.1)/0.7 + 6.25 (Mill 3 − 0.1)/0.7"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "mill2",
+      "model": "0 + mill1 + mill2 + mill3"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Mill 3 pseudocomponent",
+     "value": "6.25",
+     "analysis": "the first-order Scheffé model in the pseudocomponents (Mill - 0.1)/0.7, the process variables left out",
+     "where": {
+      "page": 122,
+      "source_kind": "equation",
+      "quote": "Reflectivity = 4.55 (Mill 1 − 0.1)/0.7 + 4.95 (Mill 2 − 0.1)/0.7 + 6.25 (Mill 3 − 0.1)/0.7"
+     },
+     "check": {
+      "kind": "coefficient",
+      "term": "mill3",
+      "model": "0 + mill1 + mill2 + mill3"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "Mill 1 pseudocomponent at one",
+     "value": "4.55",
+     "where": {
+      "page": 122,
+      "source_kind": "prose",
+      "quote": "When the Mill-1 pseudocomponent value is one, then the others are zero and the predicted reflectivity is 4.55."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "0 + mill1 + mill2 + mill3",
+      "point": {
+       "mill1": 1,
+       "mill2": 0,
+       "mill3": 0
+      }
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "Mill 2 pseudocomponent at one",
+     "value": "4.95",
+     "where": {
+      "page": 122,
+      "source_kind": "prose",
+      "quote": "... when the Mill-2 pseudocomponent is one, the predicted reflectivity is 4.95."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "0 + mill1 + mill2 + mill3",
+      "point": {
+       "mill1": 0,
+       "mill2": 1,
+       "mill3": 0
+      }
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "Mill 3 pseudocomponent at one",
+     "value": "6.25",
+     "where": {
+      "page": 122,
+      "source_kind": "prose",
+      "quote": "... when the Mill-3 pseudocomponent is one, the predicted reflectivity is 6.25."
+     },
+     "check": {
+      "kind": "prediction",
+      "model": "0 + mill1 + mill2 + mill3",
+      "point": {
+       "mill1": 0,
+       "mill2": 0,
+       "mill3": 1
+      }
+     }
+    },
+    {
+     "what": "determinant",
+     "term": "the intercept and the three mills",
+     "value": "X'X cannot be inverted",
+     "analysis": "shown on the runs of Table 6.2: the three mills' pseudocomponents sum to the intercept's column of ones",
+     "where": {
+      "page": 124,
+      "source_kind": "prose",
+      "quote": "if one column in the model matrix X is the sum (or any other linear combination) of other columns in X, we cannot compute the ordinary least squares estimator ... because X'X cannot be inverted."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "mill1 + mill2 + mill3",
+      "key": "determinant",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "determinant",
+     "term": "a pure quadratic beside the products",
+     "value": "the least squares estimator does not exist",
+     "analysis": "shown on the runs of Table 6.2: x1^2 = x1 - x1 x2 - x1 x3 (Equation 6.6)",
+     "where": {
+      "page": 124,
+      "source_kind": "prose",
+      "quote": "Including quadratic terms in a model that already contains main effects and two-factor interaction effects, therefore, creates a model for which the least squares estimator does not exist."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "0 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + I(mill1 ** 2)",
+      "key": "determinant",
+      "printed": "0"
+     }
+    },
+    {
+     "what": "determinant",
+     "term": "a process variable beside its products with the mills",
+     "value": "redundant",
+     "analysis": "shown on the runs of Table 6.2 for spray volume: z x1 + z x2 + z x3 = z (Equation 6.7)",
+     "where": {
+      "page": 124,
+      "source_kind": "prose",
+      "quote": "In this case, the main effect of the process variable is redundant and should be removed from the model."
+     },
+     "check": {
+      "kind": "design_metric",
+      "metric": "information_matrix",
+      "model": "0 + mill1 + mill2 + mill3 + mill1:spray + mill2:spray + mill3:spray + spray",
+      "key": "determinant",
+      "printed": "0"
+     }
+    }
+   ]
   }
  ],
  "designs": [
@@ -15698,7 +19097,156 @@
      }
     }
    ]
+  },
+  {
+   "name": "goos-jones-rolling-mill-half-fraction",
+   "title": "A 16-run half fraction of the 2^5 factorial for the rolling mill, infeasible because each run's three thickness reductions must sum to 1",
+   "topics": ["metals"],
+   "kind": "design",
+   "where": {
+    "section": "6.2.1",
+    "pages": "117-118",
+    "tables": ["Table 6.1"],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "mill1",
+     "description": "reduction in thickness by mill 1, 0.1 to 0.8 unit",
+     "low": 0.1,
+     "high": 0.8,
+     "levels": [0.1, 0.8],
+     "units": "unit",
+     "type": "numeric"
+    },
+    {
+     "name": "mill2",
+     "description": "reduction in thickness by mill 2, 0.1 to 0.8 unit",
+     "low": 0.1,
+     "high": 0.8,
+     "levels": [0.1, 0.8],
+     "units": "unit",
+     "type": "numeric"
+    },
+    {
+     "name": "mill3",
+     "description": "reduction in thickness by mill 3, 0.1 to 0.8 unit",
+     "low": 0.1,
+     "high": 0.8,
+     "levels": [0.1, 0.8],
+     "units": "unit",
+     "type": "numeric"
+    },
+    {
+     "name": "spray",
+     "description": "volume of the oil-water coolant sprayed between the mills",
+     "low": "Low",
+     "high": "High",
+     "levels": ["Low", "High"],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "oil",
+     "description": "ratio of oil to water in the coolant",
+     "low": "Low",
+     "high": "High",
+     "levels": ["Low", "High"],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "fractional factorial",
+    "details": "2^(5-1), E = ABCD",
+    "n_runs": 16,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": ["mill1", "mill2", "mill3", "spray", "oil"],
+    "rows": [
+     [0.8, 0.8, 0.8, "High", "High"],
+     [0.8, 0.8, 0.8, "Low", "Low"],
+     [0.8, 0.8, 0.1, "High", "Low"],
+     [0.8, 0.8, 0.1, "Low", "High"],
+     [0.8, 0.1, 0.8, "High", "Low"],
+     [0.8, 0.1, 0.8, "Low", "High"],
+     [0.8, 0.1, 0.1, "High", "High"],
+     [0.8, 0.1, 0.1, "Low", "Low"],
+     [0.1, 0.8, 0.8, "High", "Low"],
+     [0.1, 0.8, 0.8, "Low", "High"],
+     [0.1, 0.8, 0.1, "High", "High"],
+     [0.1, 0.8, 0.1, "Low", "Low"],
+     [0.1, 0.1, 0.8, "High", "High"],
+     [0.1, 0.1, 0.8, "Low", "Low"],
+     [0.1, 0.1, 0.1, "High", "Low"],
+     [0.1, 0.1, 0.1, "Low", "High"]
+    ],
+    "coded": false,
+    "notes": "Table 6.1 in its printed order, which prints no run numbers"
+   },
+   "notes": "The design ignores the mixture constraint: the three mills' reductions must sum to the 1.0 unit removed, and only 2 of its 16 runs come near that.",
+   "expected": [
+    {
+     "what": "same_runs",
+     "term": null,
+     "value": "a half-fraction of a 2^5 factorial design",
+     "analysis": "the half fraction with E = ABCD, mill 1 to 3, spray volume and oil-water as A to E, of resolution V",
+     "where": {
+      "page": 117,
+      "source_kind": "prose",
+      "quote": "I was thinking about a half-fraction of a 2^5 factorial design"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": ["E=ABCD"],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "16",
+     "where": {
+      "page": 117,
+      "source_kind": "prose",
+      "quote": "The good thing is that only 16 processing runs are necessary."
+     },
+     "check": {
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 5,
+       "options": {
+        "generators": ["E=ABCD"],
+        "n_center_points": 0
+       }
+      }
+     }
+    },
+    {
+     "what": "thickness_removed",
+     "term": "the first run",
+     "value": "2.4 units",
+     "where": {
+      "page": 117,
+      "source_kind": "prose",
+      "quote": "All together I am supposed to remove 2.4 units of thickness, but there is only 1.1 to start with."
+     },
+     "check": {
+      "manual": "0.8 + 0.8 + 0.8 for the first run's three mills: arithmetic; a melt 1.1 units thick finished at 0.1 unit leaves 1.0 to remove"
+     }
+    }
+   ]
   }
  ],
- "not_captured": ["1.1 and 1.2 (pp. 1 to 3): the key concepts and the conversation that sets up the comparison of two machines, and the variances var(X̄1 − X̄2) = σ²(1/n1 + 1/n2) and σ1²/n1 + σ2²/n2 (pp. 3 and 4): formulas, worked in Tables 1.1 to 1.4", "1.3 (p. 8): the summary, no data", "2.1 (pp. 9 and 10): the key concepts, no data", "2.2.1 (pp. 10 to 14): GeneBe's process in words: cultures grown at 37 °C for 24 hours and then at 30 °C to 33 °C, 100 ml of culture per extraction, the current yield of about 25 mg, the target of more than 45 mg, and a budget of at most 15 runs, of which 12 are used and three kept for a confirmatory experiment; context, held in the extraction entry's notes", "2.2.2 (p. 15): the all-subsets regression of all models with up to seven effects, which finds the ethanol-by-propanol interaction; the models it compares are not printed", "2.3.1 to 2.3.4 (pp. 21 to 26): the main-effects and two-factor interaction models (Equations 2.3 to 2.5, Attachments 2.1 and 2.2), factor scaling (Equation 2.6), least squares (Equations 2.7 to 2.11), and the conditions under which X'X is diagonal with n on its diagonal, so that each relative variance takes its minimum, 1/n: formulas, no data", "2.3.5 (pp. 27 and 28): significance tests and power in words, with Fisher's (1926) cutoff of 5% and the false positive rate of one test in 10,000 at a cutoff of 0.0001; no power is computed", "2.3.6 (pp. 28 and 29): the variance inflation factor (Equation 2.13), the rule of thumb that a VIF above five signals collinearity, and that a VIF of four doubles a confidence interval: definitions, applied in Tables 2.10 and 2.12", "2.3.7 (pp. 29 to 31): the alias matrix A = (X1'X1)^-1 X1'X2 (Equations 2.14 to 2.18), derived; applied in Tables 2.7 and 2.9", "2.3.8 (pp. 33 and 34): D-optimality, the determinant (1/n)^p of (X'X)^-1 for an orthogonal design, and that no orthogonal two-level design exists when the run count is not a multiple of 4: statements, no data", "2.3.9.1 and 2.3.9.2 (pp. 35 to 37): the coordinate-exchange algorithm in words, with the advice to use at least 1000 random starts", "Figure 2.3 (p. 38): the designs of the worked example plotted, held as goos-jones-coordinate-exchange-two-factors", "2.3.10 (p. 41): the statement that no 12-run two-level design has orthogonal columns for the six main effects and the one interaction; no number", "2.3.11 (pp. 41 to 43): sparsity, hierarchy and heredity, the 80-20 rule, and Li et al. (2006)'s reanalysis of 113 published full factorial experiments with three to seven factors, which found 80% of the active two-factor interactions synergistic: the findings of another source, without its data", "2.4 and 2.5 (pp. 44 and 45): background reading and the summary, no data", "3.1 and 3.2.1 (pp. 47 to 53): the key concepts, the follow-up meeting at GeneBe (yields doubled to more than 50 mg per 100 ml), strong and weak heredity, AICc, R2 and the RMSE as model selection criteria, and why a foldover was not used, in words", "Equations 3.1, 3.4 and 3.5 (pp. 60 and 61): the main-effects model, the model with six interactions, and that model with the block effect: formulas, their terms checked through the model matrices", "Equation 3.8 (p. 62): the model matrix of the augmented design before the follow-up runs are chosen, printed with dots for them", "Equations 3.9 to 3.12 (p. 63): the total information X'X = X1'X1 + X2'X2 and |X1'X1| × |I + X2(X1'X1)^-1 X2'| for an invertible X1'X1: formulas", "3.3.2 and 3.3.3 (pp. 65 and 66): the coordinate-exchange algorithm for augmentation and the foldover technique, in words, and that seven follow-up runs could have been enough", "3.4 and 3.5 (p. 67): background reading, among it Miller and Sitter (1997)'s folded-over 12-run Plackett-Burman design for 12 factors in 24 runs, and the summary, no data", "4.1 (p. 69): the key concepts, no data", "Table 4.1 (p. 71): the factors' ranges, held as the peel strength entries' factors", "Equations 4.1 to 4.6 (pp. 72, 73 and 83): the models in words and symbols, their parameter counts checked", "Figures 4.2 to 4.4 (pp. 80 to 82): predicted peel strength by supplier at three or four speeds, drawn; the predictions the text quotes from them are checked", "4.3.1 to 4.3.3 (pp. 82 to 87): quadratic effects, Figure 4.5's four quadratic curves 5 ± 2x ± 3x^2, dummy and effects coding of a categorical factor, and D-efficiency (Equation 4.7): definitions and formulas", "4.3.4 to 4.3.6 (pp. 87 to 90): how an FDS plot is drawn, the average prediction variance 2^-k tr[(X'X)^-1 M] and the moments matrix M (Equations 4.8 and 4.9, Attachment 4.1), G-optimality, and relative I-efficiency: formulas", "4.3.7 and 4.3.8 (pp. 90 to 92): independent errors, hard-to-change factors, and cuboidal and spherical regions, in words", "4.4 and 4.5 (pp. 92 and 93): background reading and the summary, no data"]
+ "not_captured": ["1.1 and 1.2 (pp. 1 to 3): the key concepts and the conversation that sets up the comparison of two machines, and the variances var(X̄1 − X̄2) = σ²(1/n1 + 1/n2) and σ1²/n1 + σ2²/n2 (pp. 3 and 4): formulas, worked in Tables 1.1 to 1.4", "1.3 (p. 8): the summary, no data", "2.1 (pp. 9 and 10): the key concepts, no data", "2.2.1 (pp. 10 to 14): GeneBe's process in words: cultures grown at 37 °C for 24 hours and then at 30 °C to 33 °C, 100 ml of culture per extraction, the current yield of about 25 mg, the target of more than 45 mg, and a budget of at most 15 runs, of which 12 are used and three kept for a confirmatory experiment; context, held in the extraction entry's notes", "2.2.2 (p. 15): the all-subsets regression of all models with up to seven effects, which finds the ethanol-by-propanol interaction; the models it compares are not printed", "2.3.1 to 2.3.4 (pp. 21 to 26): the main-effects and two-factor interaction models (Equations 2.3 to 2.5, Attachments 2.1 and 2.2), factor scaling (Equation 2.6), least squares (Equations 2.7 to 2.11), and the conditions under which X'X is diagonal with n on its diagonal, so that each relative variance takes its minimum, 1/n: formulas, no data", "2.3.5 (pp. 27 and 28): significance tests and power in words, with Fisher's (1926) cutoff of 5% and the false positive rate of one test in 10,000 at a cutoff of 0.0001; no power is computed", "2.3.6 (pp. 28 and 29): the variance inflation factor (Equation 2.13), the rule of thumb that a VIF above five signals collinearity, and that a VIF of four doubles a confidence interval: definitions, applied in Tables 2.10 and 2.12", "2.3.7 (pp. 29 to 31): the alias matrix A = (X1'X1)^-1 X1'X2 (Equations 2.14 to 2.18), derived; applied in Tables 2.7 and 2.9", "2.3.8 (pp. 33 and 34): D-optimality, the determinant (1/n)^p of (X'X)^-1 for an orthogonal design, and that no orthogonal two-level design exists when the run count is not a multiple of 4: statements, no data", "2.3.9.1 and 2.3.9.2 (pp. 35 to 37): the coordinate-exchange algorithm in words, with the advice to use at least 1000 random starts", "Figure 2.3 (p. 38): the designs of the worked example plotted, held as goos-jones-coordinate-exchange-two-factors", "2.3.10 (p. 41): the statement that no 12-run two-level design has orthogonal columns for the six main effects and the one interaction; no number", "2.3.11 (pp. 41 to 43): sparsity, hierarchy and heredity, the 80-20 rule, and Li et al. (2006)'s reanalysis of 113 published full factorial experiments with three to seven factors, which found 80% of the active two-factor interactions synergistic: the findings of another source, without its data", "2.4 and 2.5 (pp. 44 and 45): background reading and the summary, no data", "3.1 and 3.2.1 (pp. 47 to 53): the key concepts, the follow-up meeting at GeneBe (yields doubled to more than 50 mg per 100 ml), strong and weak heredity, AICc, R2 and the RMSE as model selection criteria, and why a foldover was not used, in words", "Equations 3.1, 3.4 and 3.5 (pp. 60 and 61): the main-effects model, the model with six interactions, and that model with the block effect: formulas, their terms checked through the model matrices", "Equation 3.8 (p. 62): the model matrix of the augmented design before the follow-up runs are chosen, printed with dots for them", "Equations 3.9 to 3.12 (p. 63): the total information X'X = X1'X1 + X2'X2 and |X1'X1| × |I + X2(X1'X1)^-1 X2'| for an invertible X1'X1: formulas", "3.3.2 and 3.3.3 (pp. 65 and 66): the coordinate-exchange algorithm for augmentation and the foldover technique, in words, and that seven follow-up runs could have been enough", "3.4 and 3.5 (p. 67): background reading, among it Miller and Sitter (1997)'s folded-over 12-run Plackett-Burman design for 12 factors in 24 runs, and the summary, no data", "4.1 (p. 69): the key concepts, no data", "Table 4.1 (p. 71): the factors' ranges, held as the peel strength entries' factors", "Equations 4.1 to 4.6 (pp. 72, 73 and 83): the models in words and symbols, their parameter counts checked", "Figures 4.2 to 4.4 (pp. 80 to 82): predicted peel strength by supplier at three or four speeds, drawn; the predictions the text quotes from them are checked", "4.3.1 to 4.3.3 (pp. 82 to 87): quadratic effects, Figure 4.5's four quadratic curves 5 ± 2x ± 3x^2, dummy and effects coding of a categorical factor, and D-efficiency (Equation 4.7): definitions and formulas", "4.3.4 to 4.3.6 (pp. 87 to 90): how an FDS plot is drawn, the average prediction variance 2^-k tr[(X'X)^-1 M] and the moments matrix M (Equations 4.8 and 4.9, Attachment 4.1), G-optimality, and relative I-efficiency: formulas", "4.3.7 and 4.3.8 (pp. 90 to 92): independent errors, hard-to-change factors, and cuboidal and spherical regions, in words", "4.4 and 4.5 (pp. 92 and 93): background reading and the summary, no data", "5.1 (p. 95): the key concepts, no data", "Figures 5.1 to 5.3 (pp. 100 and 101): the feasible region drawn, with four of its vertices, (360 s, 529 K), (660 s, 520 K), (420 s, 550 K) and (720 s, 523 K), which the two constraint lines checked join", "Figures 5.4, 5.7 and 5.8 (pp. 103, 107 and 108): the design drawn in the region, the profiler with its confidence band, and the contours of the predicted yield; the numbers they print are checked", "5.3.1 (pp. 108 and 109): the full cubic model's k, k(k - 1) and k(k - 1)(k - 2)/6 third-order terms: formulas", "5.3.2 (pp. 109 to 111): the lack-of-fit test's sums of squares and degrees of freedom, as formulas; the numbers it works for the experiment are checked", "5.3.3 (pp. 111 and 112): the coordinate-exchange algorithm under inequality constraints, in words, with the interval [-1, 0.7] of the example checked", "5.4 and 5.5 (p. 112): background reading and the summary, no data", "6.1 (pp. 113 and 114): the key concepts, no data", "Figure 6.2 (p. 116): the historical scatter plot of reflectivity against melt temperature, drawn without data", "Figure 6.3 (p. 120): the ternary plot of Table 6.2's mill settings, whose counts are checked", "6.3.1 to 6.3.3 (pp. 123 to 127): the mixture constraint, the Scheffé models (Equations 6.8 to 6.10), the crossed mixture-process variable model (Equation 6.11) with [q + q(q - 1)/2] × [1 + m + m(m - 1)/2] terms, Kowalski et al.'s model (Equation 6.12) with q + q(q - 1)/2 + qm + m(m - 1)/2 + m terms, and Prescott's with q(q + 1)(q + 2)/6 + mq(m + q + 2)/2: formulas", "6.3.4 (pp. 127 to 130): the {q, 1} and {q, 2} lattice designs and the special-cubic design (Figures 6.5 to 6.7), and pseudocomponents for lower bounds (Figure 6.8: 0.2 <= a1 <= 0.8, 0.2 <= a2 <= 0.8 and 0 <= a3 <= 0.6, so x1 = 1 is a1 = 0.8, a2 = 0.2, a3 = 0): formulas and arithmetic. The text counts the special-cubic design's face centroids as q(q - 1)(q - 2)/3; the ternary blends number q(q - 1)(q - 2)/6, one for three ingredients, as Figure 6.7 draws", "6.3.5 (pp. 130 to 132): the mixture coordinate-exchange algorithm and its step along the Cox-effect direction from (0.30, 0.30, 0.40) to (0.50, 0.214, 0.286), x_j - δ x_j / (1 - x_i): a formula and its arithmetic", "6.4 and 6.5 (pp. 132 and 133): background reading and the summary, no data"]
 }
