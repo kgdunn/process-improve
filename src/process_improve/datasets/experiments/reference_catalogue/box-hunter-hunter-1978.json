@@ -55874,7 +55874,7 @@
      "what": "curvature",
      "term": "b11 + b22",
      "value": "-0.50",
-     "analysis": "the curvature check: the factorial average less the centre average; the library reports the centre average less the factorial average, so the sign is turned",
+     "analysis": "the curvature check: the factorial average less the centre average, as the library reports it",
      "where": {
       "page": 516,
       "source_kind": "prose",
@@ -55891,8 +55891,7 @@
        5,
        6,
        7
-      ],
-      "printed": "0.50"
+      ]
      }
     },
     {
@@ -56374,8 +56373,7 @@
      },
      "check": {
       "kind": "curvature_difference",
-      "model": "time * temperature",
-      "printed": "0.50"
+      "model": "time * temperature"
      }
     }
    ]
@@ -56704,8 +56702,7 @@
        4,
        5,
        6
-      ],
-      "printed": "5.28"
+      ]
      }
     },
     {

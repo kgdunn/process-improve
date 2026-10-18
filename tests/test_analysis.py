@@ -505,6 +505,20 @@ class TestCurvatureTest:
         assert ct["n_center_points"] == 3
         assert ct["n_factorial_points"] == 4
 
+    def test_the_difference_is_the_factorial_mean_less_the_centre_mean(self) -> None:
+        """BHH 15.2 (p. 516): b11 + b22 = (54.3 + 60.3 + 64.6 + 68.0)/4 - (60.3 + 62.3 + 64.3)/3 = -0.50 (#796)."""
+        df = pd.DataFrame({"A": [-1, 1, -1, 1, 0, 0, 0], "B": [-1, -1, 1, 1, 0, 0, 0]})
+        df["y"] = [54.3, 60.3, 64.6, 68.0, 60.3, 62.3, 64.3]
+        ct = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="curvature_test")[
+            "curvature_test"
+        ]
+        assert ct["difference"] == pytest.approx(ct["factorial_point_mean"] - ct["center_point_mean"])
+        assert ct["difference"] == pytest.approx(-0.50, abs=1e-12)
+        # The three centre runs give s = 2, so the difference's standard error is 2 sqrt(1/4 + 1/3).
+        assert ct["std_error"] == pytest.approx(2 * np.sqrt(7 / 12))
+        assert ct["t_statistic"] == pytest.approx(-0.50 / (2 * np.sqrt(7 / 12)))
+        assert ct["t_statistic"] ** 2 == pytest.approx(ct["F_statistic"])
+
     def test_curvature_without_center_points(self) -> None:
         """Verify curvature test returns error without center points."""
         df = _two_factor_data()
