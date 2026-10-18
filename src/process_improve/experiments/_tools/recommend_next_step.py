@@ -78,6 +78,14 @@ class RecommendNextStepInput(BaseModel):
     n_confirmation_runs: int = Field(3, ge=1, description="Runs made to confirm an optimum.")
     alpha: float = Field(0.05, gt=0.0, lt=1.0, description="Significance level of every test the decision reads.")
     random_state: int = Field(42, description="Seed for the search for the optimum and for runs chosen by exchange.")
+    block: str | None = Field(
+        None,
+        description=(
+            "The column of runs that holds each run's block, such as the round it was made in. Every model then "
+            "fits a shift for each block, so a process that drifted between the rounds does not bias the effects; "
+            "the next runs are predicted as the process was in the latest block."
+        ),
+    )
     history: list[Action] | None = Field(
         None,
         description=(
@@ -138,6 +146,7 @@ def recommend_next_step_tool(spec: RecommendNextStepInput) -> dict[str, Any]:
             alpha=spec.alpha,
             random_state=spec.random_state,
             history=list(spec.history or []),
+            block=spec.block,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

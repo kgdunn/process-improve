@@ -42,6 +42,18 @@ def dsd_study() -> tuple[list[Factor], pd.DataFrame]:
     return factors, _runs(factors, ADHESION, 1, design_type="dsd", n_center_points=5)
 
 
+@pytest.fixture(scope="module")
+def drifted() -> tuple[list[Factor], pd.DataFrame]:
+    """Return a 2^3 with centre runs, then the axial runs it calls for, made after the process rose by 8."""
+    factors = _factors("ABC")
+    first = _runs(factors, CURVED, 2, design_type="full_factorial", n_center_points=3).assign(Round=1)
+    step = recommend_next_step(factors, first, "y", block="Round")
+    assert step["action"] == "augment_to_rsm"
+    second = _made(step, CURVED, 3).assign(Round=2)
+    second["y"] += 8.0
+    return factors, pd.concat([first, second], ignore_index=True)
+
+
 class TestScreeningResults:
     """What follows a screening design, by what its results show."""
 
@@ -339,6 +351,40 @@ class TestBudget:
         step = recommend_next_step(factors, runs, "y", ranges_can_move=False, budget=2)
         assert step["action"] == "stop"
         assert step["headline"] == "Stop: 2 run(s) are left, fewer than the next step needs."
+
+
+class TestBlocks:
+    """A process that drifts between rounds: each round a block, its shift fitted and kept out of the effects."""
+
+    def test_the_shift_between_rounds_is_fitted_as_a_block(self, drifted: tuple) -> None:
+        factors, runs = drifted
+        step = recommend_next_step(factors, runs, "y", ranges_can_move=False, block="Round")
+        assert step["evidence"]["n_blocks"] == 2
+        assert step["evidence"]["active_terms"] == ["A", "B", "I(A ** 2)", "I(B ** 2)"]
+        coded = step["evidence"]["optimum"]["coded"]
+        assert coded["A"] == pytest.approx(0.15, abs=0.15)  # the true optimum is at A = 0.15, B = -0.17
+        assert coded["B"] == pytest.approx(-0.17, abs=0.15)
+        assert all(not c["term"].startswith("blk") for c in step["model"]["coefficients"])
+
+    def test_without_the_blocks_the_shift_hides_the_effects(self, drifted: tuple) -> None:
+        factors, runs = drifted
+        blocked = recommend_next_step(factors, runs, "y", ranges_can_move=False, block="Round")
+        ignored = recommend_next_step(factors, runs, "y", ranges_can_move=False)
+        assert ignored["evidence"]["noise_sd"] > 3 * blocked["evidence"]["noise_sd"]
+
+    def test_the_next_runs_are_predicted_at_the_latest_block(self, drifted: tuple) -> None:
+        """The confirmation runs, made with the drift still there, agree: they are judged as the process is now."""
+        factors, runs = drifted
+        step = recommend_next_step(factors, runs, "y", ranges_can_move=False, block="Round")
+        assert step["evidence"]["optimum"]["predicted"] == pytest.approx(60.27 + 8.0, abs=1.0)
+        made = _made(step, CURVED, 4).assign(y=lambda d: d["y"] + 8.0)
+        done = recommend_next_step(factors, runs, "y", ranges_can_move=False, block="Round", confirmation_runs=made)
+        assert done["action"] == "stop"
+
+    def test_a_missing_block_column_is_refused(self, drifted: tuple) -> None:
+        factors, runs = drifted
+        with pytest.raises(ValueError, match="no block column"):
+            recommend_next_step(factors, runs, "y", block="Lot")
 
 
 class TestModelGiven:

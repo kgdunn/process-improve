@@ -68,6 +68,17 @@ actions so far. Some actions ask for more:
    * - ``stop``, ``investigate``
      - The study ends, or waits for a look at the process.
 
+Runs made in rounds
+~~~~~~~~~~~~~~~~~~~
+
+A process can drift between rounds: a new lot of raw material, a recalibrated instrument. Pass
+the column that holds each run's round as ``block``, and every model fits a shift for each
+round, so the drift neither biases the effects nor swells the noise. In a simulated study whose
+second round ran 8 units (11 noise standard deviations) high, the blocks recovered the true
+optimum; without them the noise estimate grew more than fourfold and the effects of A and B were
+lost. The next runs are predicted as the process was in the latest round, since that is when
+they are made.
+
 The rules, in order
 -------------------
 

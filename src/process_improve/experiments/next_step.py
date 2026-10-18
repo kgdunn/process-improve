@@ -183,8 +183,11 @@ def _check_factors(factors: list[Factor]) -> None:
             )
 
 
-def _code(factors: list[Factor], frame: pd.DataFrame, response: str | None) -> pd.DataFrame:
-    """Return the runs coded to -1/+1 under the internal names, with the response as ``y`` when given."""
+def _code(factors: list[Factor], frame: pd.DataFrame, response: str | None, block: str | None = None) -> pd.DataFrame:
+    """Return the runs coded to -1/+1 under the internal names, the response as ``y`` and the block as ``block``.
+
+    A run with no block (a confirmation run, say) has None as its block.
+    """
     missing = [f.name for f in factors if f.name not in frame.columns]
     if missing:
         raise ValueError(f"The runs have no column for the factor(s) {missing}.")
@@ -205,7 +208,37 @@ def _code(factors: list[Factor], frame: pd.DataFrame, response: str | None) -> p
         if response not in frame.columns:
             raise ValueError(f"The runs have no response column {response!r}.")
         out["y"] = pd.to_numeric(frame[response], errors="raise").astype(float)
+    if block is not None:
+        labels = frame[block] if block in frame.columns else pd.Series(None, index=frame.index, dtype=object)
+        out[_BLOCK_LABEL] = labels.map(lambda v: None if pd.isna(v) else str(v))
     return out
+
+
+#: The column holding each run's block, as text, and the prefix of the columns that code the blocks.
+_BLOCK_LABEL = "block"
+_BLOCK = "blk"
+
+
+def _with_blocks(data: pd.DataFrame) -> pd.DataFrame:
+    """Return the runs with the blocks coded as contrasts that sum to zero over the blocks, for every fit to hold.
+
+    The blocks are taken in the order they first appear in the runs, the latest last. Block ``j``
+    of ``m`` is 1 in contrast ``j``, and the latest block is -1 in every contrast: the process as
+    it was when the last runs were made, at which the confirmation runs are judged (see
+    :func:`_points`). One block needs no contrast.
+    """
+    data = data.drop(columns=_nuisance(data))
+    if _BLOCK_LABEL not in data.columns:
+        return data
+    levels = list(dict.fromkeys(v for v in data[_BLOCK_LABEL] if v is not None))
+    for j, level in enumerate(levels[:-1]):
+        data[f"{_BLOCK}{j + 1}"] = [1.0 if v == level else -1.0 if v == levels[-1] else 0.0 for v in data[_BLOCK_LABEL]]
+    return data
+
+
+def _nuisance(data: pd.DataFrame) -> list[str]:
+    """Return the block contrasts among the runs' columns: every fit holds them, and no decision reads them."""
+    return [str(c) for c in data.columns if str(c).startswith(_BLOCK)]
 
 
 # --------------------------------------------------------------------------- what the design can show
@@ -231,7 +264,10 @@ def _design(study: _Study) -> _Design:
         and bool(numeric.any())
         and all(len(np.unique(np.round(x[:, j], 9))) >= 3 for j in np.flatnonzero(numeric))
     )
-    groups = pd.DataFrame(np.round(x, 9)).value_counts()
+    settings = pd.DataFrame(np.round(x, 9))
+    if _BLOCK_LABEL in study.data.columns:  # repeats in different blocks differ by the blocks too
+        settings["block"] = study.data[_BLOCK_LABEL].fillna("").to_numpy()
+    groups = settings.value_counts()
     return _Design(
         n_runs=len(x),
         center=center,
@@ -324,24 +360,34 @@ def _rhs_terms(names: list[str], numeric: list[bool], model: str) -> list[str]:
     return terms
 
 
+def _rhs_of(data: pd.DataFrame, terms: list[str]) -> str:
+    """Return the right-hand side of a fit: the block contrasts first, so they lead their chains, then the terms."""
+    every = [*[c for c in _nuisance(data) if c not in terms], *terms]
+    return " + ".join(every) if every else "1"
+
+
 def _ols(data: pd.DataFrame, terms: list[str]) -> RegressionResultsWrapper:
-    return smf.ols("y ~ " + (" + ".join(terms) if terms else "1"), data=data).fit()
+    return smf.ols("y ~ " + _rhs_of(data, terms), data=data).fit()
 
 
 def _matrix(data: pd.DataFrame, terms: list[str]) -> tuple[np.ndarray, list[str]]:
-    """Return the model matrix of the terms, with the intercept first, and its column names; no fit."""
-    matrix = dmatrix(" + ".join(terms) if terms else "1", data, return_type="dataframe")
+    """Return the model matrix of the terms (and the block contrasts), the intercept first, and its column names."""
+    matrix = dmatrix(_rhs_of(data, terms), data, return_type="dataframe")
     return matrix.to_numpy(dtype=float), [str(c) for c in matrix.columns]
 
 
 def _chain_leaders(data: pd.DataFrame, rhs: str) -> list[str] | None:
-    """Return one term per chain of exact aliases in a model; None when even those cannot all be estimated."""
+    """Return one term per chain of exact aliases in a model; None when even those cannot all be estimated.
+
+    A block contrast leads its chain, so a term confounded with the blocks is not among the terms returned.
+    """
     exog, names = _matrix(data, [rhs])
     leaders = [chain[0][0] for chain in alias_chains_of(exog, names)]
     kept = exog[:, [names.index(t) for t in leaders]]
     if int(np.linalg.matrix_rank(kept)) < kept.shape[1]:
         return None
-    return [t for t in leaders if t != "Intercept"]
+    nuisance = _nuisance(data)
+    return [t for t in leaders if t != "Intercept" and t not in nuisance]
 
 
 def _t_tests(data: pd.DataFrame, terms: list[str], extra: list[str], method: str, alpha: float) -> dict[str, Any]:
@@ -350,7 +396,7 @@ def _t_tests(data: pd.DataFrame, terms: list[str], extra: list[str], method: str
     return {
         "method": method,
         "judged": judged,
-        "signal": _signal(fit, alpha),
+        "signal": _signal(fit, [*terms, *extra], alpha),
         "considered": set(terms),
         "noise_sd": float(np.sqrt(fit.scale)),
         "noise_df": int(fit.df_resid),
@@ -362,37 +408,45 @@ _NULL_DRAWS = 4_000
 _LENTH_DRAWS = 20_000
 
 
-def _signal(fit: RegressionResultsWrapper, alpha: float) -> bool:
-    """Say whether any term of a least-squares fit stands out from the noise (see :func:`_stands_out`)."""
+def _signal(fit: RegressionResultsWrapper, tested: list[str], alpha: float) -> bool:
+    """Say whether any of the ``tested`` terms of a fit stands out from the noise (see :func:`_stands_out`)."""
     x = np.asarray(fit.model.exog, dtype=float)
-    return _stands_out(x, np.asarray(fit.model.endog, dtype=float), list(range(1, x.shape[1])), alpha)
+    columns = list(fit.model.exog_names)
+    return _stands_out(x, np.asarray(fit.model.endog, dtype=float), [columns.index(t) for t in tested], alpha)
 
 
-def _stands_out(x: np.ndarray, y: np.ndarray, tested: list[int], alpha: float) -> bool:
+def _stands_out(
+    x: np.ndarray, y: np.ndarray, tested: list[int], alpha: float, together: list[int] | None = None
+) -> bool:
     """Say whether anything stands out from the noise in the regression of ``y`` on ``x``, at level ``alpha``.
 
     Two tests see different signals: the smallest p-value of the ``tested`` columns times their
-    number (Bonferroni) sees one large effect, and the F-test of every column but the first
-    (the intercept) sees several moderate ones, which Bonferroni misses with few degrees of
-    freedom for error. The statistic is the smaller of the two p-values; its critical value is
-    its ``alpha`` quantile over responses of pure noise on these runs, so the false alarm rate
-    is ``alpha`` for this design, not up to twice it.
+    number (Bonferroni) sees one large effect, and the F-test of the columns ``together`` (by
+    default the tested ones), against the model without them, sees several moderate ones,
+    which Bonferroni misses with few degrees of freedom for error. The statistic is the smaller
+    of the two p-values; its critical value is its ``alpha`` quantile over responses of pure
+    noise on these runs, so the false alarm rate is ``alpha`` for this design, not up to twice
+    it. Columns in neither (the intercept, the block contrasts) are fitted and never tested.
     """
     n, p = x.shape
     df = n - p
+    together = tested if together is None else together
     if not tested or df < 1:
         return False
     pinv = np.linalg.pinv(x)
     scale = np.diag(pinv @ pinv.T)[tested]
+    rest = x[:, [j for j in range(p) if j not in together]]
+    rest_pinv = np.linalg.pinv(rest)
 
     def statistic(responses: np.ndarray) -> np.ndarray:
         beta = pinv @ responses
-        fitted = x @ beta
-        s2 = ((responses - fitted) ** 2).sum(axis=0) / df
+        rss = ((responses - x @ beta) ** 2).sum(axis=0)
+        s2 = rss / df
         t = np.abs(beta[tested]) / np.sqrt(np.outer(scale, s2))
         bonferroni = 2 * stats.t.sf(t.max(axis=0), df) * len(tested)
-        f = ((fitted - responses.mean(axis=0)) ** 2).sum(axis=0) / (p - 1) / s2
-        return np.minimum(bonferroni, stats.f.sf(f, p - 1, df))
+        without = ((responses - rest @ (rest_pinv @ responses)) ** 2).sum(axis=0)
+        f = (without - rss) / len(together) / s2
+        return np.minimum(bonferroni, stats.f.sf(f, len(together), df))
 
     null = statistic(np.random.default_rng(n).standard_normal((n, _NULL_DRAWS)))
     return bool(statistic(y[:, None])[0] < np.quantile(null, alpha))
@@ -437,12 +491,20 @@ def _lenth(data: pd.DataFrame, terms: list[str], alpha: float) -> dict[str, Any]
     The contrasts are the terms' coefficients and, to make up ``n - 1``, the projections of the
     response on an orthonormal basis of what the model leaves (scaled to the coefficients'
     variance): a Plackett-Burman design's unused columns, or a full factorial's three-factor
-    interaction. None when the terms are not balanced and orthogonal, or the contrasts are too few.
+    interaction. The block contrasts are fitted and are no contrasts of their own. None when the
+    terms are not balanced, orthogonal to each other and to the blocks, or the contrasts are too few.
     """
-    x, names = _matrix(data, terms)
-    names = names[1:]  # patsy orders terms by degree, so the names come from the matrix
-    n, columns = len(x), x[:, 1:]
-    if not np.allclose(columns.T @ columns, n * np.eye(columns.shape[1])) or not np.allclose(columns.sum(axis=0), 0):
+    x, every = _matrix(data, terms)
+    nuisance = _nuisance(data)
+    effect = [j for j, name in enumerate(every) if j and name not in nuisance]  # patsy orders terms by degree
+    names = [every[j] for j in effect]
+    n, columns = len(x), x[:, effect]
+    blocks = x[:, [j for j, name in enumerate(every) if name in nuisance]]
+    if (
+        not np.allclose(columns.T @ columns, n * np.eye(columns.shape[1]))
+        or not np.allclose(columns.sum(axis=0), 0)
+        or not np.allclose(blocks.T @ columns, 0)
+    ):
         return None
     y = data["y"].to_numpy(dtype=float)
     effects = columns.T @ y / n
@@ -469,6 +531,9 @@ def _lenth(data: pd.DataFrame, terms: list[str], alpha: float) -> dict[str, Any]
 
 def _omars(data: pd.DataFrame, names: list[str], alpha: float) -> dict[str, Any] | None:
     from process_improve.experiments.omars import analyze_omars  # noqa: PLC0415 - one caller
+
+    if _nuisance(data):
+        return None  # the staged analysis has no place for blocks
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # its structure check, read from the result instead
@@ -510,7 +575,8 @@ def _omars_signal(data: pd.DataFrame, names: list[str], alpha: float) -> bool:
     u, sv, _ = np.linalg.svd(second, full_matrices=False)
     basis = u[:, sv > 1e-8 * sv.max()]
     x = np.hstack([mains, basis])
-    return _stands_out(x, data["y"].to_numpy(dtype=float), list(range(1, len(names) + 1)), alpha)
+    y = data["y"].to_numpy(dtype=float)
+    return _stands_out(x, y, list(range(1, len(names) + 1)), alpha, together=list(range(1, x.shape[1])))
 
 
 def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any] | None:  # noqa: C901, PLR0911 - one return per way of judging, in the order they are tried
@@ -530,8 +596,8 @@ def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any]
     anything.
     """
     data, names, numeric = study.data, study.names, study.numeric
-    extra = [_CURVATURE] if design.two_level and design.center.any() and any(numeric) else []
-    n = len(data)
+    extra = _extra(data, design, numeric)
+    n = len(data) - len(_nuisance(data))  # each block contrast takes a run
 
     def enough(n_terms: int) -> bool:
         return n - n_terms - 1 - len(extra) >= _MIN_ERROR_DF
@@ -554,7 +620,7 @@ def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any]
         if judged is not None:
             return judged
     searched = "quadratic" if design.three_level else "interactions"
-    proposed = _run_model_selection(data, "y", names, model=searched)["model_selection"]["selected_terms"]
+    proposed = _run_model_selection(_less_blocks(data), "y", names, model=searched)["model_selection"]["selected_terms"]
     second = [t for t in proposed if t not in names]
     if enough(len(names) + len(second)):
         method = f"t-tests of every main effect and the {searched} terms a stepwise search (AICc) proposed"
@@ -569,6 +635,27 @@ def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any]
     if mains is not None and enough(len(mains)):
         return _t_tests(data, mains, extra, "t-tests in the main effects model", alpha)
     return None
+
+
+def _extra(data: pd.DataFrame, design: _Design, numeric: list[bool]) -> list[str]:
+    """Return the curvature column when the runs are two-level with centre runs, and the blocks do not hold it.
+
+    Centre runs made in a block of their own would show the shift between the blocks as curvature: their
+    column is then a combination of the block contrasts, and is left out.
+    """
+    if not (design.two_level and design.center.any() and any(numeric)):
+        return []
+    blocks = _matrix(data, [])[0]  # the intercept and the block contrasts
+    return [_CURVATURE] if _explained(blocks, data[_CURVATURE].to_numpy(dtype=float)) < 1 - 1e-9 else []
+
+
+def _less_blocks(data: pd.DataFrame) -> pd.DataFrame:
+    """Return the runs with the shifts between the blocks taken out of the response, for a search that has no blocks."""
+    if not _nuisance(data):
+        return data
+    blocks = _matrix(data, [])[0]
+    y = data["y"].to_numpy(dtype=float)
+    return data.assign(y=y - blocks[:, 1:] @ np.linalg.lstsq(blocks, y, rcond=None)[0][1:])
 
 
 def _interaction_candidates(study: _Study, active: list[str]) -> list[str]:
@@ -624,7 +711,8 @@ def _second_look(study: _Study, judged: dict[str, Any], active: list[str], extra
     terms = _with_parents(active, study.names)
     untested = [c for c in _interaction_candidates(study, active) if c not in judged["considered"]]
     untested = _separable(study, [*terms, *extra], untested)
-    if not untested or len(study.data) - len(terms) - len(untested) - 1 - len(extra) < _MIN_ERROR_DF:
+    spare = len(study.data) - len(_nuisance(study.data)) - len(terms) - len(untested) - 1 - len(extra)
+    if not untested or spare < _MIN_ERROR_DF:
         return
     fit = _ols(study.data, [*terms, *untested, *extra])
     found = {c: float(fit.pvalues[c]) for c in untested}
@@ -638,16 +726,20 @@ def _second_look(study: _Study, judged: dict[str, Any], active: list[str], extra
 
 
 def _fit(study: _Study, terms: list[str], judged: dict[str, Any], design: _Design) -> _Model:
-    """Fit the model for prediction, and write it as the polynomial ``b0 + x'b + x'Bx`` in coded units."""
-    extra = [_CURVATURE] if _CURVATURE in judged["judged"] or (design.two_level and design.center.any()) else []
-    extra = [c for c in extra if c in study.data.columns]
+    """Fit the model for prediction, and write it as the polynomial ``b0 + x'b + x'Bx`` in coded units.
+
+    With blocks, ``b0`` is the latest block's level (every contrast -1), where the next runs are made.
+    """
+    extra = _extra(study.data, design, study.numeric)
     fit = _ols(study.data, [*terms, *extra])
+    nuisance = _nuisance(study.data)
     params = [
         {"term": str(name), "coefficient": float(value)}
         for name, value in fit.params.items()
-        if str(name) != _CURVATURE
+        if str(name) != _CURVATURE and str(name) not in nuisance
     ]
     b0, b, B = _extract_b_and_B(params, study.names)
+    b0 -= sum(float(fit.params[c]) for c in nuisance)  # the latest block is -1 in every contrast
     return _Model(
         terms=terms,
         fit=fit,
@@ -664,7 +756,7 @@ def _fit(study: _Study, terms: list[str], judged: dict[str, Any], design: _Desig
 
 def _select(study: _Study, design: _Design, model_terms: list[str] | None, alpha: float) -> _Model:
     """Judge the terms (see :func:`_judge_terms`), or the caller's model's, and fit the model for prediction."""
-    extra = [_CURVATURE] if design.two_level and design.center.any() and any(study.numeric) else []
+    extra = _extra(study.data, design, study.numeric)
     if model_terms is not None:
         terms = _internal_terms(study, model_terms)
         return _fit(study, terms, _t_tests(study.data, terms, extra, "t-tests in the model given", alpha), design)
@@ -707,7 +799,7 @@ def _internal_terms(study: _Study, model_terms: list[str]) -> list[str]:
 def _favoured_ends(study: _Study, sense: float) -> np.ndarray:
     """Each factor's end that its marginal effect favours for the goal (+1 or -1), from the runs at its ends."""
     ends = np.ones(len(study.factors))
-    y = study.data["y"].to_numpy(dtype=float)
+    y = _less_blocks(study.data)["y"].to_numpy(dtype=float)
     for j, name in enumerate(study.names):
         x = study.data[name].to_numpy(dtype=float)
         high, low = y[x > _AT_EDGE], y[x < -_AT_EDGE]
@@ -793,16 +885,21 @@ def _curvature(study: _Study, design: _Design, model: _Model, alpha: float) -> d
         if np.isfinite(p):  # the curvature column's test in the judging fit, against its residual error
             return {"source": "center_runs", "significant": bool(p < alpha), "p_value": p}
         if design.pure_error_df > 0:  # judged by Lenth's method: the centre runs' own repeats instead
-            test = _run_curvature_test(study.data, "y", study.names, alpha)["curvature_test"]
+            test = _run_curvature_test(study.data, "y", study.names, alpha, _repeats(study))["curvature_test"]
             if "error" not in test:
                 return {"source": "center_runs", "significant": bool(test["significant"]), "p_value": test["p_value"]}
     return {"source": None, "significant": False}
 
 
+def _repeats(study: _Study) -> list[str]:
+    """Return the columns whose values mark repeated runs: the settings, and the block when there are blocks."""
+    return [*study.names, _BLOCK_LABEL] if _nuisance(study.data) else study.names
+
+
 def _lack_of_fit(study: _Study, model: _Model, alpha: float) -> dict[str, Any]:
     if model.error_df <= 0:
         return {"tested": False}
-    result = _run_lack_of_fit(model.fit, study.data, "y", study.names, alpha)["lack_of_fit"]
+    result = _run_lack_of_fit(model.fit, study.data, "y", _repeats(study), alpha)["lack_of_fit"]
     if "error" in result:
         return {"tested": False}
     return {"tested": True, "significant": bool(result["significant"]), "p_value": result["p_value"]}
@@ -867,10 +964,16 @@ def _edges(study: _Study, model: _Model, x: np.ndarray, sense: float) -> tuple[l
 
 # --------------------------------------------------------------------------- the runs of each action
 def _points(study: _Study, coded: np.ndarray) -> pd.DataFrame:
-    """Coded settings as the model's fit reads them, with the curvature column: 1 at the centre of every range."""
+    """Return coded settings as the model's fit reads them: the curvature column 1 at the centre, the latest block.
+
+    Runs made next are made after every run so far, so they are predicted as the process was in
+    the latest block (every block contrast -1), not at the average of the blocks.
+    """
     frame = pd.DataFrame(np.atleast_2d(coded), columns=study.names)
     numeric = [n for n, num in zip(study.names, study.numeric, strict=True) if num]
     frame[_CURVATURE] = (frame[numeric].abs() < _AT_EDGE).all(axis=1).astype(float) if numeric else 0.0
+    for contrast in _nuisance(study.data):
+        frame[contrast] = -1.0
     return frame
 
 
@@ -1465,6 +1568,7 @@ def recommend_next_step(  # noqa: PLR0913
     alpha: float = 0.05,
     random_state: int = 42,
     history: list[str] | None = None,
+    block: str | None = None,
 ) -> dict[str, Any]:
     """Recommend the next round of a designed experiment from every run so far.
 
@@ -1506,6 +1610,13 @@ def recommend_next_step(  # noqa: PLR0913
         returned them. With ``"widen_ranges"`` among them (or ``"replicate"``, when the ranges
         cannot move), a study in which nothing stands out stops rather than widen the ranges
         again.
+    block : str or None
+        The column of ``runs`` that holds each run's block: the round it was made in, say. Every
+        model then holds a shift for each block, so a process that drifted between the rounds
+        does not bias the effects or swell the noise. The blocks are taken in the order they
+        first appear, and runs made next are predicted as the process was in the latest one.
+        Confirmation runs need no block; when they miss and join the runs, they count in the
+        latest block.
 
     Returns
     -------
@@ -1523,8 +1634,8 @@ def recommend_next_step(  # noqa: PLR0913
     ValueError
         For a mixture factor, a categorical factor not at two levels, a factor or response
         missing from the runs, a level not among a factor's levels, a target goal without a
-        target, an action in ``history`` not among :data:`ACTIONS`, or fewer than two runs with
-        a response.
+        target, an action in ``history`` not among :data:`ACTIONS`, a ``block`` that is not a
+        column of the runs, or fewer than two runs with a response.
 
     Examples
     --------
@@ -1538,6 +1649,33 @@ def recommend_next_step(  # noqa: PLR0913
     >>> step["action"], step["evidence"]["active_terms"]
     ('confirm', ['A', 'C', 'G', 'A:C'])
     """
+    _check_choices(factors, runs, goal, target, n_confirmation_runs, history, block)
+    data = _with_blocks(_code(factors, runs, response, block).dropna(subset=["y"]).reset_index(drop=True))
+    if len(data) < 2:
+        raise ValueError("At least two runs with a response are needed to recommend the next step.")
+    choices = _Choices(goal, target, alpha, n_confirmation_runs, ranges_can_move, random_state, tuple(history or ()))
+    ctx = _context(_Study(factors, data, response), model_terms, choices)
+    judged = None
+    if confirmation_runs is not None and len(confirmation_runs):
+        confirming = _code(factors, confirmation_runs, response, block).dropna(subset=["y"]).reset_index(drop=True)
+        judged = _judge(ctx, confirming, confirming["y"])
+        ctx, step = _after_confirmation(ctx, confirming, judged["at_optimum"], model_terms)
+    else:
+        step = _decide(ctx)
+    step = _within_budget(ctx, step, budget)
+    return _reply(ctx, step, judged)
+
+
+def _check_choices(  # noqa: PLR0913
+    factors: list[Factor],
+    runs: pd.DataFrame,
+    goal: str,
+    target: float | None,
+    n_confirmation_runs: int,
+    history: list[str] | None,
+    block: str | None,
+) -> None:
+    """Refuse choices :func:`recommend_next_step` cannot act on, with what is wrong."""
     _check_factors(factors)
     if goal not in ("maximize", "minimize", "target"):
         raise ValueError(f"goal must be 'maximize', 'minimize' or 'target', not {goal!r}.")
@@ -1548,33 +1686,38 @@ def recommend_next_step(  # noqa: PLR0913
     unknown = sorted(set(history or []) - set(ACTIONS))
     if unknown:
         raise ValueError(f"history holds {unknown}, which are not actions recommend_next_step returns: {ACTIONS}.")
-    data = _code(factors, runs, response).dropna(subset=["y"]).reset_index(drop=True)
-    if len(data) < 2:
-        raise ValueError("At least two runs with a response are needed to recommend the next step.")
-    choices = _Choices(goal, target, alpha, n_confirmation_runs, ranges_can_move, random_state, tuple(history or ()))
-    ctx = _context(_Study(factors, data, response), model_terms, choices)
-    judged = None
-    if confirmation_runs is not None and len(confirmation_runs):
-        confirming = _code(factors, confirmation_runs, response).dropna(subset=["y"]).reset_index(drop=True)
-        judged = _judge(ctx, confirming, confirming["y"])
-        verdict = judged["at_optimum"]
-        if verdict is not None and verdict["within_PI"]:
-            step = _move_region(ctx) or _stop(ctx, verdict)
-        else:
-            # The confirmation runs are data now: the model is chosen again with them in.
-            both = _Study(factors, pd.concat([data, confirming], ignore_index=True), response)
-            judged_ctx, ctx = ctx, _context(both, model_terms, choices)
-            if verdict is None:
-                step = _decide(ctx)
-                step.reasons.append(
-                    "The confirmation runs were not at the optimum the model now predicts, so they join the other runs."
-                )
-            else:
-                step = _after_a_miss(ctx, judged_ctx, verdict)
-    else:
-        step = _decide(ctx)
-    step = _within_budget(ctx, step, budget)
-    return _reply(ctx, step, judged)
+    if block is not None and block not in runs.columns:
+        raise ValueError(f"The runs have no block column {block!r}.")
+
+
+def _after_confirmation(
+    ctx: _Context, confirming: pd.DataFrame, verdict: dict[str, Any] | None, model_terms: list[str] | None
+) -> tuple[_Context, _Step]:
+    """Return the context the next step reads and the step, once confirmation runs are judged (``verdict``).
+
+    Runs inside the interval stop the study, or move it on when the ranges may move. Otherwise
+    they are data, made after the other runs (in the last block, when there are blocks), and the
+    model is chosen again with them in.
+    """
+    if verdict is not None and verdict["within_PI"]:
+        return ctx, _move_region(ctx) or _stop(ctx, verdict)
+    data = ctx.study.data
+    if _BLOCK_LABEL in data.columns:
+        last = next((v for v in reversed(data[_BLOCK_LABEL].tolist()) if v is not None), None)
+        confirming[_BLOCK_LABEL] = confirming[_BLOCK_LABEL].map(lambda v: last if v is None else v)
+    together = pd.concat([data.drop(columns=[*_nuisance(data), _CURVATURE]), confirming], ignore_index=True)
+    choices = _Choices(
+        ctx.goal, ctx.target, ctx.alpha, ctx.n_confirmation_runs, ctx.ranges_can_move, ctx.seed, ctx.history
+    )
+    judged_ctx = ctx
+    ctx = _context(_Study(ctx.study.factors, _with_blocks(together), ctx.study.response), model_terms, choices)
+    if verdict is not None:
+        return ctx, _after_a_miss(ctx, judged_ctx, verdict)
+    step = _decide(ctx)
+    step.reasons.append(
+        "The confirmation runs were not at the optimum the model now predicts, so they join the other runs."
+    )
+    return ctx, step
 
 
 def _after_a_miss(ctx: _Context, judged_ctx: _Context, verdict: dict[str, Any]) -> _Step:
@@ -1678,12 +1821,15 @@ def _alternatives(ctx: _Context, chosen: str) -> list[dict[str, Any]]:
 def _reply(ctx: _Context, step: _Step, judged: dict[str, Any] | None) -> dict[str, Any]:
     study, model = ctx.study, ctx.model
     low, high = ctx.mean_interval(ctx.n_confirmation_runs)
+    nuisance = _nuisance(study.data)
     coefficients = [
         {"term": study.real(str(term)), "coefficient": float(value), "p_value": float(model.fit.pvalues[term])}
         for term, value in model.fit.params.items()
+        if str(term) not in nuisance
     ]
     evidence: dict[str, Any] = {
         "n_runs": ctx.design.n_runs,
+        "n_blocks": len(nuisance) + 1,
         "active_terms": [study.real(t) for t in ctx.active],
         "active_factors": [ctx.name(j) for j in ctx.active_factors],
         "noise_sd": model.sigma,
