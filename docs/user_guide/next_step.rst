@@ -179,19 +179,24 @@ move), in noise standard deviations.
      - Worst
    * - Adhesion (8 factors, three active, one interaction), DSD
      - confirm, stop
-     - 25.0
+     - 25.1
      - 0.00
      - 0.06
    * - Adhesion, Plackett-Burman with three centre runs
      - confirm, stop
-     - 19.2
+     - 19.6
      - 0.00
      - 0.00
    * - Adhesion, Plackett-Burman without centre runs
      - confirm, stop
-     - 18.4
-     - 0.03
-     - 1.1
+     - 18.8
+     - 0.00
+     - 0.00
+   * - Adhesion, 2\ :sup:`8-4` with three centre runs
+     - confirm, stop
+     - 24.8
+     - 0.00
+     - 0.00
    * - Interior maximum, 2\ :sup:`3` with three centre runs
      - augment_to_rsm, confirm, stop
      - 23.2
@@ -202,6 +207,11 @@ move), in noise standard deviations.
      - 24.4
      - 0.17
      - 0.68
+   * - Curvature in one of eight factors, 2\ :sup:`8-4` with three centre runs
+     - augment_to_rsm, confirm, stop
+     - 32.6
+     - 0.01
+     - 0.04
    * - Interior maximum, six-factor DSD
      - confirm, stop
      - 21.1
@@ -223,6 +233,8 @@ move), in noise standard deviations.
      - 0.00
      - 0.00
 
-Every one of the 360 studies stopped. The largest shortfalls come from a square missed at the
-0.05 level in a design with few degrees of freedom for error: the confirmation runs then agree
-with a model whose optimum sits at an edge rather than just inside it.
+Of the 440 studies, 437 stopped and three ended with ``investigate`` when their confirmation
+runs missed the prediction, each at settings within 0.04 noise standard deviations of the optimum. The
+largest shortfalls come from a square missed at the 0.05 level in a design with few degrees of
+freedom for error: the confirmation runs then agree with a model whose optimum sits at an edge
+rather than just inside it.
