@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import warnings
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pytest
@@ -192,6 +194,51 @@ class TestExecuteToolCall:
 
         with pytest.raises(ToolInputInvalidError, match="extra_forbidden"):
             execute_tool_call("robust_summary_stats", {"values": [1, 2, 3], "rogue": "x"})
+
+
+class _WarnInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message: str
+    as_dict: bool = True
+
+
+@tool_spec(name="test_dummy_warns", description="Warn, then return.", input_model=_WarnInput)
+def _warns(spec: _WarnInput) -> dict | int:
+    warnings.warn(spec.message, RuntimeWarning, stacklevel=2)
+    warnings.warn(spec.message, RuntimeWarning, stacklevel=2)  # the same warning twice is reported once
+    warnings.warn("a second, different warning", UserWarning, stacklevel=2)
+    return {"ok": True} if spec.as_dict else 42
+
+
+class TestToolWarningsReachTheCaller:
+    """A warning a tool raises is returned in its result, where a model calling the tool reads it."""
+
+    def test_each_warning_is_returned_once_in_the_order_raised(self) -> None:
+        result = execute_tool_call("test_dummy_warns", {"message": "the design leaves no error df"})
+        assert result["ok"] is True
+        assert result["library_warnings"] == [
+            {"category": "RuntimeWarning", "message": "the design leaves no error df"},
+            {"category": "UserWarning", "message": "a second, different warning"},
+        ]
+
+    def test_a_tool_raising_no_warning_gets_no_library_warnings_key(self) -> None:
+        assert "library_warnings" not in execute_tool_call("robust_summary_stats", {"values": [1, 2, 3]})
+
+    def test_a_result_that_is_not_a_dict_raises_its_warnings_again(self) -> None:
+        with pytest.warns(RuntimeWarning, match="not a dict"):
+            assert execute_tool_call("test_dummy_warns", {"message": "not a dict", "as_dict": False}) == 42
+
+    def test_the_warning_filters_are_restored_after_the_call(self) -> None:
+        before = list(warnings.filters)
+        execute_tool_call("test_dummy_warns", {"message": "restore the filters"})
+        assert warnings.filters == before
+
+    def test_calls_on_two_threads_each_get_only_their_own_warnings(self) -> None:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda m: execute_tool_call("test_dummy_warns", {"message": m}), ["one", "two"]))
+        for message, result in zip(["one", "two"], results, strict=True):
+            assert result["library_warnings"][0]["message"] == message
+            assert len(result["library_warnings"]) == 2
 
 
 # The pre-pydantic ``_filter_to_declared_keys`` helper was deleted in the
