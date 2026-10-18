@@ -102,15 +102,28 @@ variance, as JMP reports them.
 
 .. code-block:: python
 
+   import itertools
+
+   import pandas as pd
+
+   # A 2^3 twice, in four whole plots: A is hard to change, B and C change from run to run.
+   split_plot = pd.DataFrame(
+       [{"WholePlot": wp, "A": a, "B": b, "C": c}
+        for wp, a in enumerate([-1, 1, -1, 1]) for b, c in itertools.product([-1, 1], repeat=2)]
+   )
    evaluate_design(
-       design,  # with a WholePlot column
-       model="quadratic",
+       split_plot,
+       model="A * B * C",
        metric=["information_matrix", "average_prediction_variance"],
        random_effects={"WholePlot": 1.0},
    )
 
-   # a two-way split-plot design, its rows and columns each a random effect
-   evaluate_design(strip_plot, model="interactions", metric="information_matrix",
+   # A two-way split-plot design: x1 set on four rows, x2 on four columns, every row in every column.
+   strip_plot = pd.DataFrame(
+       [{"Row": r, "Column": c, "x1": x1, "x2": x2}
+        for (r, x1), (c, x2) in itertools.product(enumerate([-1, 1, -1, 1]), enumerate([-1, -1, 1, 1]))]
+   )
+   evaluate_design(strip_plot, model="x1 * x2", metric="information_matrix",
                    random_effects={"Row": 1.0, "Column": 1.0})
 
 Term correlation
