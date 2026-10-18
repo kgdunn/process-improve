@@ -670,3 +670,7 @@ class TestKenwardRoger:
     def test_an_unknown_method_is_refused(self) -> None:
         with pytest.raises(ValueError, match="df_method must be one of"):
             self._analyse(_vitamin(), "y ~ x1", "block", df_method="containment")
+
+    def test_an_unknown_information_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="information must be one of"):
+            self._analyse(_vitamin(), "y ~ x1", "block", information="empirical")
