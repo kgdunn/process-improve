@@ -79,6 +79,18 @@ optimum; without them the noise estimate grew more than fourfold and the effects
 lost. The next runs are predicted as the process was in the latest round, since that is when
 they are made.
 
+.. _next-step-hard-limits:
+
+Ranges that are limits of the process
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``ranges_can_move=False`` holds every range. To hold only some, mark those factors with
+``Factor(..., hard_limits=True)``. The path of steepest ascent then moves only the other
+factors, with each held factor kept at its best end. When nothing stands out, only the other
+ranges are widened, and the runs are made again when every range is held. Each step's reasons
+say which factors the response would improve past their limits, which tells the experimenter
+what the limits cost.
+
 The rules, in order
 -------------------
 
