@@ -270,6 +270,8 @@
                   data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
                 <option value="i_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="6"
                   data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
+                <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
+                  data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
                 <option value="given" data-options="" data-min-factors="2" data-max-factors="12" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
                 <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
@@ -434,6 +436,7 @@
             <button type="button" id="to-learn" class="primary" hidden>See what the results say</button>
             <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
             <button type="button" id="notebook" class="button">Download notebook (.ipynb)</button>
+            <button type="button" id="report" class="button">Download report (.html)</button>
             <button type="button" id="share" class="button">Copy a link to this study</button>
             <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
           </div>
@@ -545,6 +548,18 @@
             <button type="button" class="link copy">Copy the code</button>
           </details>
         </section>
+        <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
+             with its ranges moved the way the best settings point, and runs to add to this study, each for what its
+             design cannot say yet. -->
+        <section id="next" class="best next" aria-labelledby="h-next" hidden>
+          <h3 id="h-next">The next step</h3>
+          <div id="next-out" aria-live="polite"></div>
+        </section>
+        <!-- The study as a report (app.js, with report.js): what Learn shows, with the brief, the run sheet, the code
+             and a stamp of the releases, seeds and inputs that give the same numbers again. -->
+        <p id="learn-report" class="actions" hidden>
+          <button type="button" id="learn-report-button" class="button">Download a report of this study (.html)</button>
+        </p>
       </section>
     </div>
   </div>

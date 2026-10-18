@@ -40,7 +40,7 @@ PROSE = r"""
 #: little more; on a phone the comparison says that its table scrolls sideways.
 BUDGET = {
     "a first visit": 85,
-    "the designs for a brief": 140,
+    "the designs for a brief": 155,  # with the sentence on why Design picked the design it holds
     "a brief with a limit": 240,
     "a limit proposed from a corner": 270,
     "a new run sheet": 125,

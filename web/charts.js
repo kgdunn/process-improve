@@ -114,6 +114,36 @@ export async function draw(div, figure, version, height = 340) {
   await react(div, make(), version, height);
 }
 
+/** The light theme's colours, as style.css gives them: a report is read on white, whatever theme the page shows. */
+export const LIGHT = {
+  fg: "#1d1d1f",
+  muted: "#5f6368",
+  line: "#dcd8ce",
+  accent: "#2c5f7c",
+  warn: "#a35f00",
+  ok: "#1e7b3a",
+  error: "#b3261e",
+};
+
+/**
+ * A chart the page drew, as a PNG on white in the light theme's axes and text, for a report: a data URL. It is
+ * ``width`` CSS pixels wide, at its height on the page, and drawn at twice that for print. Null for a div no chart
+ * was drawn in.
+ */
+export async function chartImage(div, width = 720) {
+  const shown = drawn.get(div);
+  if (!shown || !window.Plotly) return null;
+  const figure = shown.make();
+  const layout = {
+    ...pageLayout(figure.layout || {}, shown.height, LIGHT),
+    width,
+    autosize: false,
+    paper_bgcolor: "#ffffff",
+    plot_bgcolor: "#ffffff",
+  };
+  return window.Plotly.toImage({ data: figure.data, layout }, { format: "png", width, height: shown.height, scale: 2 });
+}
+
 /** Draw every chart on the page again, in the colours of the theme it shows now. */
 export async function redrawAll() {
   for (const [div, { make, version, height }] of drawn) {

@@ -11,6 +11,19 @@ export function nTerms(k, model) {
   return 1 + k + (model === "main_effects" ? 0 : pairs) + (model === "quadratic" ? k : 0);
 }
 
+/** The space-filling designs, made for no model; mirrors bootstrap.SPACE_FILLING. */
+export const SPACE_FILLING = ["maximin_lhs"];
+
+/** Runs a factor in a space-filling design, unless the reader gives a number; mirrors bootstrap.SPACE_FILLING_RUNS. */
+export const SPACE_FILLING_RUNS = 10;
+
+/**
+ * The runs a design that takes a number of runs opens with, as bootstrap.py gives them: SPACE_FILLING_RUNS a factor
+ * for a space-filling design, else the coefficients of the model it is made for and SPARE_RUNS more.
+ */
+export const defaultBudget = (designType, k, model) =>
+  SPACE_FILLING.includes(designType) ? SPACE_FILLING_RUNS * k : nTerms(k, model) + SPARE_RUNS;
+
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 
@@ -615,6 +628,92 @@ export function pickCandidate(rows) {
   return (spare[0] ?? fitting[0] ?? null)?.design_type ?? null;
 }
 
+/**
+ * What Design says of the design it picked for a reader who has not chosen one: why that one, by pickCandidate's rule.
+ * ``rows`` are candidateRows', ``picked`` the design type the plan holds; "" when the rule would not pick it.
+ */
+export function pickSentence(rows, picked) {
+  if (!picked || pickCandidate(rows) !== picked) return "";
+  const row = rows.find((r) => r.design_type === picked);
+  const spare = row.spare >= SPARE_FOR_NOISE;
+  const why = spare
+    ? `the fewest runs with ${SPARE_FOR_NOISE} or more spare`
+    : `the fewest runs, as none here has ${SPARE_FOR_NOISE} spare`;
+  return `Picked for you: ${row.label}, ${why}.`;
+}
+
+/**
+ * The comparison's measures a design can stand out on among the designs listed, each with the words the list names it
+ * with: the fewest runs, the precision of the coefficients and of the predictions, the correlation between the
+ * second-order terms, and the power for each kind of term. Each is a key of the comparison's values.
+ */
+export const STANDOUTS = [
+  ["runs", "fewest runs"],
+  ["a", "precise coefficients"],
+  ["d", "joint precision"],
+  ["i", "precise predictions"],
+  ["g", "precise worst-case prediction"],
+  ["max_r", "least correlated terms"],
+  ["power_main", "power for main effects"],
+  ["power_interaction", "power for interactions"],
+  ["power_quadratic", "power for curvature"],
+];
+
+/** How close to the best value a design's must be, as a share of the best, to share the lead on a measure. */
+export const STANDOUT_TIE = 0.01;
+
+/**
+ * What each design that fits the model does best of those that fit, by its design type: each measure of STANDOUTS on
+ * which it is best, or within STANDOUT_TIE of the best, while some other design that fits is not. A measure no design
+ * leads alone, as when every design has the same, is left out; with fewer than two designs that fit, none stands out.
+ * Each is {key, words}. ``result`` is the comparison's, ``made`` its designs in the order scored.
+ */
+export function standouts(result, made) {
+  const lower = new Set(result.measures.filter((m) => m.direction === "lower").map((m) => m.key).concat("runs"));
+  const fitting = result.designs
+    .map((sized, i) => ({ type: made[i].design_type, values: result.values[sized] }))
+    .filter((d) => d.values.fits);
+  const out = Object.fromEntries(fitting.map((d) => [d.type, []]));
+  if (fitting.length < 2) return out;
+  for (const [key, words] of STANDOUTS) {
+    const known = fitting.filter((d) => typeof d.values[key] === "number" && Number.isFinite(d.values[key]));
+    if (known.length < 2) continue;
+    const values = known.map((d) => d.values[key]);
+    const best = lower.has(key) ? Math.min(...values) : Math.max(...values);
+    const near = (x) => Math.abs(x - best) <= STANDOUT_TIE * Math.abs(best);
+    const leaders = known.filter((d) => near(d.values[key]));
+    if (leaders.length === known.length) continue;
+    for (const d of leaders) out[d.type].push({ key, words });
+  }
+  return out;
+}
+
+/**
+ * Why Design lists none of some designs the page offers, a sentence for each reason: the factor count a design takes,
+ * by the bound the brief's count breaks, and the designs of numeric factors when the brief has a categorical one.
+ * ``leftOut`` is api_candidates', ``k`` the brief's factor count and ``categorical`` the names of its categorical
+ * factors. Limits on the settings leave designs out too, and the comparison's own note says so, so they get no
+ * sentence here.
+ */
+export function leftOutSentences(leftOut, k, categorical = []) {
+  const said = [];
+  const bounds = new Map();
+  for (const d of leftOut.filter((one) => one.reason === "factors")) {
+    const bound = k < d.low ? `${d.low} factors or more` : `at most ${d.high} factors`;
+    bounds.set(bound, [...(bounds.get(bound) ?? []), d.label]);
+  }
+  const verb = (labels, singular, plural) => (labels.length === 1 ? `is not listed: it ${singular}` : `are not listed: they ${plural}`);
+  for (const [bound, labels] of bounds) {
+    said.push(`${listNames(labels)} ${verb(labels, "takes", "take")} ${bound}, and the brief has ${k}.`);
+  }
+  const numeric = leftOut.filter((one) => one.reason === "categorical").map((d) => d.label);
+  if (numeric.length && categorical.length) {
+    const are = categorical.length === 1 ? "is" : "are";
+    said.push(`${listNames(numeric)} ${verb(numeric, "needs", "need")} numeric factors, and ${listNames(categorical)} ${are} categorical.`);
+  }
+  return said;
+}
+
 /** A power as the page prints it: a whole percentage. */
 export const percent = (p) => (p === null || p === undefined ? "" : `${Math.round(100 * p)}%`);
 
@@ -747,6 +846,136 @@ export const CAPTIONS = {
   residuals: "A curve or a funnel points to a missing term or a changing noise level.",
   half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
 };
+
+// ---------------------------------------------------------------- results pasted from a spreadsheet
+/** The headings, in lower case, a pasted column of run numbers may have: the run sheet's own, and the usual others. */
+export const RUN_HEADINGS = ["run order", "run", "run number", "run no.", "run #"];
+
+/** A block of cells as a spreadsheet copies it: a line a row, its cells split by tabs; a trailing blank line dropped. */
+export function pastedCells(text) {
+  const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+  while (lines.length && lines.at(-1) === "") lines.pop(); // a line of tabs is a row of blank cells, and stays
+  return lines.map((line) => line.split("\t").map((cell) => cell.trim()));
+}
+
+/**
+ * A pasted cell as a result: null for a blank, a number however a spreadsheet writes it (2.5 or 2,5, with a hyphen
+ * or a minus sign, with spaces between its thousands), and undefined for text that is no number.
+ */
+export function pastedNumber(cell) {
+  const text = String(cell).replace(/[\s  ]/g, "").replace(/−/g, "-");
+  if (text === "") return null;
+  const decimal = !text.includes(".") && text.split(",").length === 2 ? text.replace(",", ".") : text;
+  const value = Number(decimal);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+/** A heading as it names a column, in lower case and without the units after it: "Yield (%)" names yield. */
+const headingKey = (text) => text.replace(/\s*[([].*$/, "").trim().toLowerCase();
+
+/**
+ * Where each line of a pasted block goes when its rows are matched by run number: the row index of each line's
+ * run (``at`` the column holding them), or a problem: a run the sheet does not have, or one given twice.
+ */
+function rowsByRun(lines, at, sheet, first) {
+  const rowOf = new Map(sheet.runs.map((run, i) => [run, i]));
+  const seen = new Set();
+  const rows = [];
+  for (const [j, line] of lines.entries()) {
+    const run = pastedNumber(line[at] ?? "");
+    const where = `Line ${first + j} of what you pasted`;
+    if (!rowOf.has(run)) return { problem: `${where} is for run ${line[at] || "(none)"}, which the run sheet does not have.` };
+    if (seen.has(run)) return { problem: `${where} is for run ${run} again.` };
+    seen.add(run);
+    rows.push(rowOf.get(run));
+  }
+  return { rows };
+}
+
+/** The rows a pasted block of ``count`` lines fills in place: down the sheet as it is shown, from the row pasted into. */
+function rowsInPlace(count, sheet, at) {
+  const start = sheet.order.indexOf(at.index);
+  if (start + count > sheet.order.length) {
+    const room = sheet.order.length - start;
+    return { problem: `You pasted ${count} lines, and the run sheet shows ${room} runs from the one pasted into down.` };
+  }
+  return { rows: sheet.order.slice(start, start + count) };
+}
+
+/** The response columns a pasted block of ``width`` columns of results fills: from the one pasted into, across. */
+function columnsInPlace(width, sheet, at) {
+  const names = sheet.names.slice(sheet.names.indexOf(at.name));
+  if (width > names.length) {
+    const from = sheet.labels[at.name] ?? at.name;
+    return { problem: `You pasted ${width} columns of results, and the run sheet has ${names.length} from ${from} on.` };
+  }
+  return { names: names.slice(0, width) };
+}
+
+/**
+ * How a pasted block maps onto the run sheet: the row and the response column of each of its cells, or a problem.
+ * A first line of headings names the columns: the one headed Run order (or Run) matches each line to its run, and
+ * each one headed by a response's name or column holds its results, the others (the factors', say) passed over;
+ * without a Run order column the lines go in place. With no headings, a first column of run numbers, each on the
+ * sheet once, matches the lines to their runs; else the block goes in place.
+ */
+function pastedPlan(cells, sheet, at) {
+  const heading = cells[0].some((cell) => cell !== "" && pastedNumber(cell) === undefined);
+  if (heading) {
+    const [head, ...lines] = cells;
+    const label = (name) => (sheet.labels[name] ?? name).toLowerCase();
+    const names = head.map((h) => sheet.names.find((name) => [name.toLowerCase(), label(name)].includes(headingKey(h))) ?? null);
+    if (!names.some(Boolean)) {
+      const wanted = listNames(sheet.names.map((name) => sheet.labels[name] ?? name));
+      return { problem: `No heading of what you pasted names a response of the run sheet: ${wanted}.` };
+    }
+    const runAt = head.findIndex((h) => RUN_HEADINGS.includes(headingKey(h)));
+    const rows = runAt >= 0 ? rowsByRun(lines, runAt, sheet, 2) : rowsInPlace(lines.length, sheet, at);
+    const how = runAt >= 0 ? "matched to the runs by the Run order column" : null;
+    return rows.problem ? rows : { lines, first: 2, rows: rows.rows, names, how };
+  }
+  const width = Math.max(...cells.map((line) => line.length));
+  const byRun = width >= 2 ? rowsByRun(cells, 0, sheet, 1) : { problem: "one column" };
+  if (!byRun.problem) {
+    const columns = columnsInPlace(width - 1, sheet, at);
+    if (columns.problem) return columns;
+    const how = "matched to the runs by the run numbers in the first column";
+    return { lines: cells, first: 1, rows: byRun.rows, names: [null, ...columns.names], how };
+  }
+  const rows = rowsInPlace(cells.length, sheet, at);
+  const columns = columnsInPlace(width, sheet, at);
+  return rows.problem ? rows : columns.problem ? columns : { lines: cells, first: 1, rows: rows.rows, names: columns.names, how: null };
+}
+
+/**
+ * Where the results of a block pasted into the run sheet go, as a spreadsheet copies it (see pastedPlan). ``sheet``
+ * is {runs, order, names, labels}: each row's run number, the row indices in the order the sheet shows them, the
+ * response columns, and each response's name as the reader gave it. ``at`` is the box pasted into, {index, name}.
+ * Returns {values: [{index, name, value}], said}, or {problem} for a block that does not fit, of which nothing is
+ * pasted. A blank cell leaves the result there as it is.
+ */
+export function placePasted(cells, sheet, at) {
+  if (!cells.length) return { values: [], said: "Nothing to paste: every cell was blank." };
+  const plan = pastedPlan(cells, sheet, at);
+  if (plan.problem) return { problem: `${plan.problem} Nothing was pasted.` };
+  const values = [];
+  for (const [j, line] of plan.lines.entries()) {
+    for (const [c, name] of plan.names.entries()) {
+      if (!name) continue;
+      const value = pastedNumber(line[c] ?? "");
+      if (value === undefined) {
+        return { problem: `Line ${plan.first + j} of what you pasted holds "${line[c]}", which is not a number. Nothing was pasted.` };
+      }
+      if (value !== null) values.push({ index: plan.rows[j], name, value });
+    }
+  }
+  const touched = sheet.names.filter((name) => values.some((v) => v.name === name)).map((name) => sheet.labels[name] ?? name);
+  const how = plan.how ?? `down the run sheet from run ${sheet.runs[at.index]}`;
+  const said = values.length
+    ? `Pasted ${values.length} result${values.length === 1 ? "" : "s"} of ${listNames(touched)}, ${how}.`
+    : "Nothing to paste: every cell was blank.";
+  return { values, said };
+}
 
 // ---------------------------------------------------------------- limits on the settings
 /** The most limits a study can have on its settings; mirrors bootstrap.MAX_CONSTRAINTS. */

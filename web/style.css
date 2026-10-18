@@ -560,8 +560,13 @@ table.pick tr + tr th:first-child { text-align: right; }
 table.pick tbody tr { cursor: pointer; }
 table.pick tbody tr:hover td { background: var(--bg); }
 table.pick tbody tr[aria-selected="true"] td { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
-table.pick td:first-child label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+table.pick td:first-child label {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; white-space: nowrap;
+}
 table.pick td.low { color: var(--warn); }
+/* What a design does best of those listed is words, not a number: read from the left, a little quieter. */
+table.pick th.stands { text-align: left; }
+table.pick td.stands { text-align: left; color: var(--muted); min-width: 11em; }
 /* While the brief's own designs are made, the last list stays in view, dimmed, and cannot be picked from. */
 .candidates[data-stale="true"] > :not(.busy) { opacity: 0.5; }
 .candidates[data-stale="true"] table.pick tbody tr { cursor: default; }
@@ -707,6 +712,10 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .verdict p { margin: 2px 0; }
 .verdict[data-state="inside"] { border-left-color: var(--ok); }
 .verdict[data-state="outside"] { border-left-color: var(--error); }
+/* The next step: a new study with moved ranges, and the ways to add runs to this one, each a short case and a button. */
+.next .step { margin: 14px 0 0; }
+.next .offer { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
+.next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
    best settings show theirs, and the overlay of the acceptable ranges. */

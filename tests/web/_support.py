@@ -54,6 +54,7 @@ APP_SOURCES = (
     "charts.js",
     "python.js",
     "best.js",
+    "report.js",
     "campaign.js",
     "store.js",
     "glossary.js",
@@ -87,10 +88,11 @@ ALL_DESIGNS = (
     "ccd",
     "d_optimal",
     "i_optimal",
+    "maximin_lhs",
 )
 
 #: The designs the book has no page on: the page shows their hint without a link to it.
-NO_BOOK_PAGE = frozenset({"taguchi"})
+NO_BOOK_PAGE = frozenset({"taguchi", "maximin_lhs"})
 #: Every mixture design the page offers, kept apart from ``ALL_DESIGNS`` as ``bootstrap.MIXTURES`` is from
 #: ``DESIGNS``: its factors are the components of a blend. ``api/test_mixture.py`` checks it against ``MIXTURES``.
 ALL_MIXTURES = ("simplex_lattice", "simplex_centroid", "extreme_vertices")

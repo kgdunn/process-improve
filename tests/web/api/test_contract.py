@@ -11,6 +11,8 @@ from __future__ import annotations
 import functools
 import json
 import re
+import sys
+import types
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -45,6 +47,9 @@ READS: dict[str, list[str]] = {
         "demo.model: str",
         "demo.seed: int",
         "version: str?",
+        "runtime.python: str",
+        "runtime.packages{}: str",
+        "runtime.pyodide: str?",
     ],
     "design": [
         "n_runs: int",
@@ -380,6 +385,7 @@ READS: dict[str, list[str]] = {
         "model: str",
         "notes: list",
         "waiting: list",
+        "left_out: list",
         "made[].label: str",
         "made[].design_type: str",
         "made[].warnings: list",
@@ -412,6 +418,13 @@ READS: dict[str, list[str]] = {
         "result.correlations{}.terms[]: str",
         "result.correlations{}.matrix[].[]: number?",
     ],
+    "candidates with designs left out": [
+        "left_out[].design_type: str",
+        "left_out[].label: str",
+        "left_out[].reason: str",
+        "left_out[].low: int",
+        "left_out[].high: int",
+    ],
     "slow candidates": [
         "waiting[].label: str",
         "waiting[].design_type: str",
@@ -420,6 +433,30 @@ READS: dict[str, list[str]] = {
         "spec.constraints[].expression: str",
         "spec.constraints[].type: str",
         "facts.notes[]: str",
+    ],
+    "next runs": [
+        "offers[].kind: str",
+        "offers[].label: str",
+        "offers[].why: str",
+        "offers[].blocked: bool",
+        "notes: list",
+    ],
+    "next runs outside the limits": [
+        "notes[]: str",
+    ],
+    "runs added": [
+        "added: int",
+        "n_runs: int",
+        "columns[]: str",
+        "rows[]: list",
+        "model: str",
+        "outside_range: list",
+        "facts.center_runs: int",
+        "facts.notes[]: str",
+        "spec.design_type: str",
+        "spec.model: str",
+        "spec.options.n_blocks: int",
+        "spec.factors[].name: str",
     ],
     "limits": [
         "constraints[].expression: str",
@@ -543,8 +580,12 @@ ENTRY_POINTS = {
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
     "candidates": "api_candidates",
+    "candidates with designs left out": "api_candidates",
     "slow candidates": "api_candidates",
     "design with limits": "api_make_design",
+    "next runs": "api_next_runs",
+    "next runs outside the limits": "api_next_runs",
+    "runs added": "api_add_runs",
     "limits": "api_limits",
     "limits with a problem": "api_limits",
     "limits proposed": "api_limits",
@@ -654,6 +695,28 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
     }
 
 
+def next_steps(api) -> dict[str, Callable[[], dict]]:
+    """Return the requests about runs added to a study: the ways offered, with and without limits, and one added."""
+
+    def fraction() -> dict:
+        factors = [{"name": n, "low": -1, "high": 1} for n in "ABCDEFG"]
+        spec = {"design_type": "fractional_factorial", "factors": factors, "resolution": 3, "n_center_points": 0}
+        return held_of(api.ok("api_make_design", spec))
+
+    def half_fraction() -> dict:
+        factors = [{"name": n, "low": -1, "high": 1} for n in "ABC"]
+        runs = [[-1, -1, 1], [1, -1, -1], [-1, 1, -1], [1, 1, 1]]
+        limits = [{"expression": "A + B + C >= -2"}]
+        spec = {"design_type": "given", "factors": factors, "runs": runs, "constraints": limits}
+        return held_of(api.ok("api_make_design", spec))
+
+    return {
+        "next runs": fraction,
+        "next runs outside the limits": half_fraction,
+        "runs added": lambda: {**fraction(), "kind": "foldover"},
+    }
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -733,8 +796,10 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "relabel": relabel,
         "upload": upload,
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
+        "candidates with designs left out": lambda: {"factors": FACTORS[:2], "model": "main_effects"},
         "slow candidates": slow,
         "design with limits": lambda: {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS},
+        **next_steps(api),
         "limits": lambda: {"factors": FACTORS, "constraints": LIMITS},
         "limits with a problem": lambda: {"factors": FACTORS, "constraints": [{"expression": "T + Z <= 3"}]},
         "limits proposed": lambda: {
@@ -834,3 +899,16 @@ def test_a_page_run_from_a_source_tree_names_no_release(api, bootstrap, monkeypa
 
     monkeypatch.setattr(bootstrap, "version", not_installed)
     assert api.ok("api_catalogue")["version"] is None
+    assert api.ok("api_catalogue")["runtime"]["packages"] == {}, "nor any package's, which a report then leaves out"
+
+
+def test_the_catalogue_names_what_the_page_runs_on_for_a_report(api, bootstrap, monkeypatch):
+    import platform
+    from importlib.metadata import version
+
+    runtime = api.ok("api_catalogue")["runtime"]
+    assert runtime["python"] == platform.python_version()
+    assert runtime["packages"] == {name: version(name) for name in bootstrap.RUNTIME_PACKAGES}
+    assert runtime["pyodide"] is None, "outside a browser, no Pyodide"
+    monkeypatch.setitem(sys.modules, "pyodide", types.SimpleNamespace(__version__="314.0.7"))
+    assert api.ok("api_catalogue")["runtime"]["pyodide"] == "314.0.7"

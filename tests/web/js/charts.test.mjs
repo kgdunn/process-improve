@@ -1,11 +1,13 @@
 // web/charts.js: the figures the page draws, built without a browser.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
 import {
   BALANCED,
   BEST_MARKER,
+  LIGHT,
   GREYED,
   MOVES,
   RESPONSE_DASHES,
@@ -392,4 +394,11 @@ describe("a mixture's pictures", () => {
     assert.equal(coefficientFigure(coefficients, false, COLOURS, { mixture: true }).layout.xaxis.title.text, "Coefficient");
     assert.equal(coefficientFigure(coefficients, false, COLOURS).layout.xaxis.title.text, "Coefficient, coded units");
   });
+});
+
+test("a report's charts take the light theme's colours, as style.css gives them", () => {
+  const css = readFileSync(new URL("../../../web/style.css", import.meta.url), "utf8");
+  const start = css.indexOf(":root {");
+  const light = css.slice(start, css.indexOf("}", start));
+  for (const [name, colour] of Object.entries(LIGHT)) assert.match(light, new RegExp(`--${name}: ${colour};`), name);
 });

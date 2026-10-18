@@ -23,6 +23,7 @@ SUITES = (
     "charts.test.mjs",
     "python.test.mjs",
     "best.test.mjs",
+    "report.test.mjs",
     "campaign.test.mjs",
     "picture.test.mjs",
     "catalog.test.mjs",

@@ -35,6 +35,8 @@ import {
   GOALS,
   OPTIMAL_MODEL,
   SCREEN_FROM,
+  SPACE_FILLING_RUNS,
+  defaultBudget,
   aimTerms,
   analysisModel,
   candidateRows,
@@ -45,6 +47,12 @@ import {
   nameProblem,
   percent,
   pickCandidate,
+  pickSentence,
+  pastedCells,
+  pastedNumber,
+  placePasted,
+  leftOutSentences,
+  standouts,
   responseProblems,
   runBadge,
   isBlank,
@@ -653,6 +661,108 @@ describe("the designs that can learn the brief", () => {
     assert.equal(changeWords({ noise: 1 }), "a change of two noise standard deviations");
   });
 
+  test("the pick says why: the fewest runs that fit and leave three for the noise", () => {
+    const rows = candidateRows(result, made);
+    assert.equal(
+      pickSentence(rows, "dsd"),
+      "Picked for you: DSD, the fewest runs with 3 or more spare.",
+    );
+    const tight = { ...result, values: { ...result.values, "DSD [n=11]": value(11, true, 2, 0.4), "Box-Behnken [n=15]": value(15, true, 2, 0.5) } };
+    assert.equal(
+      pickSentence(candidateRows(tight, made), "d_optimal"),
+      "Picked for you: D-optimal, the fewest runs, as none here has 3 spare.",
+    );
+    assert.equal(pickSentence(rows, "d_optimal"), "", "a design the rule would not pick has no reason to give");
+    assert.equal(pickSentence(rows, "full_factorial"), "", "nor one that cannot fit");
+    assert.equal(pickSentence([], null), "");
+  });
+
+  describe("what each design does best of those that fit", () => {
+    const measures = [
+      { key: "a", direction: "lower" },
+      { key: "d", direction: "higher" },
+      { key: "max_r", direction: "lower" },
+      { key: "power_main", direction: "higher" },
+      { key: "power_quadratic", direction: "higher" },
+    ];
+    const scored = (runs, fits, extra) => ({ ...value(runs, fits, 4, null), ...extra });
+    const compared = {
+      measures,
+      designs: ["Full factorial [n=11]", "DSD [n=11]", "Box-Behnken [n=15]", "D-optimal [n=8]"],
+      values: {
+        "Full factorial [n=11]": scored(11, false, { a: 0.01, d: 9, power_main: 1 }),
+        "DSD [n=11]": scored(11, true, { a: 0.2, d: 0.5, max_r: 0.5, power_main: 0.46, power_quadratic: 0.23 }),
+        "Box-Behnken [n=15]": scored(15, true, { a: 0.1, d: 0.6, max_r: 0.0, power_main: 0.7, power_quadratic: 0.39 }),
+        "D-optimal [n=8]": scored(8, true, { a: 0.3, d: 0.604, max_r: 0.0, power_main: 0.3, power_quadratic: 0.1 }),
+      },
+    };
+    const words = (out) => Object.fromEntries(Object.entries(out).map(([type, best]) => [type, best.map((b) => b.words)]));
+
+    test("names the measures it leads, lower or higher as each measure reads, ties within 1% shared", () => {
+      assert.deepEqual(words(standouts(compared, made)), {
+        dsd: [],
+        box_behnken: [
+          "precise coefficients",
+          "joint precision",
+          "least correlated terms",
+          "power for main effects",
+          "power for curvature",
+        ],
+        d_optimal: ["fewest runs", "joint precision", "least correlated terms"],
+      });
+    });
+
+    test("a design that cannot fit stands out on nothing, nor does it set the best", () => {
+      assert.equal(standouts(compared, made).full_factorial, undefined);
+    });
+
+    test("a measure every design shares, or one only a design knows, is not a lead", () => {
+      const even = { ...compared, values: { ...compared.values } };
+      for (const key of ["DSD [n=11]", "Box-Behnken [n=15]", "D-optimal [n=8]"]) {
+        even.values[key] = { ...even.values[key], max_r: 0.25 };
+      }
+      even.values["DSD [n=11]"] = { ...even.values["DSD [n=11]"], power_interaction: 0.9 };
+      const leads = Object.values(words(standouts(even, made))).flat();
+      assert.ok(!leads.includes("least correlated terms"));
+      assert.ok(!leads.includes("power for interactions"));
+    });
+
+    test("with one design that fits, none stands out", () => {
+      const alone = { ...compared, values: { ...compared.values, "DSD [n=11]": value(11, false, 4, null) } };
+      alone.values["Box-Behnken [n=15]"] = value(15, false, 8, null);
+      assert.deepEqual(standouts(alone, made), { d_optimal: [] });
+    });
+  });
+
+  test("the designs left out say why: the factor count they take, or numeric factors", () => {
+    const leftOut = [
+      { design_type: "box_behnken", label: "Box-Behnken", reason: "factors", low: 3, high: 7 },
+      { design_type: "dsd", label: "DSD", reason: "factors", low: 3, high: 12 },
+      { design_type: "taguchi", label: "Taguchi", reason: "factors", low: 4, high: 12 },
+      { design_type: "ccd", label: "Central composite", reason: "categorical" },
+      { design_type: "d_optimal", label: "D-optimal", reason: "limits" },
+    ];
+    assert.deepEqual(leftOutSentences(leftOut, 2, ["Catalyst"]), [
+      "Box-Behnken and DSD are not listed: they take 3 factors or more, and the brief has 2.",
+      "Taguchi is not listed: it takes 4 factors or more, and the brief has 2.",
+      "Central composite is not listed: it needs numeric factors, and Catalyst is categorical.",
+    ]);
+    assert.deepEqual(leftOutSentences(leftOut.slice(0, 1), 9), [
+      "Box-Behnken is not listed: it takes at most 7 factors, and the brief has 9.",
+    ]);
+    assert.deepEqual(leftOutSentences(leftOut.slice(3), 2, ["Catalyst", "Mill"]), [
+      "Central composite is not listed: it needs numeric factors, and Catalyst and Mill are categorical.",
+    ]);
+    assert.deepEqual(leftOutSentences(leftOut.slice(3), 2), [], "no sentence on numeric factors for a brief without");
+    assert.deepEqual(leftOutSentences([], 4), []);
+  });
+
+  test("a design that takes a number of runs opens on its own: ten a factor, or the model's coefficients and spare", () => {
+    assert.equal(defaultBudget("maximin_lhs", 3, "interactions"), 3 * SPACE_FILLING_RUNS, "a space-filling design has no model");
+    assert.equal(defaultBudget("d_optimal", 3, "interactions"), 7 + 4);
+    assert.equal(defaultBudget("i_optimal", 4, "quadratic"), 15 + 4);
+  });
+
   test("the Run tab counts the runs, then the results in", () => {
     assert.equal(runBadge([]), "");
     assert.equal(runBadge([null, null]), "2 runs");
@@ -990,5 +1100,82 @@ describe("a mixture's components", () => {
     assert.match(mixtureProblem(heavy, "extreme_vertices", ""), /^The lower proportions sum to 1.2, and must sum to less than 1/);
     const light = blank.map((f) => ({ ...f, high: 1 / 3 }));
     assert.match(mixtureProblem(light, "extreme_vertices", ""), /^The upper proportions sum to 1, and must sum to more than 1/);
+  });
+});
+
+describe("results pasted from a spreadsheet", () => {
+  // Five runs, listed as made but sorted on the sheet by their Std order: row 0 is run 3, row 1 run 1, and so on.
+  const sheet = {
+    runs: [3, 1, 5, 2, 4],
+    order: [1, 3, 0, 4, 2],
+    names: ["y", "cost"],
+    labels: { y: "Yield", cost: "Cost" },
+  };
+  const paste = (text, at = { index: 1, name: "y" }) => placePasted(pastedCells(text), sheet, at);
+  const of = (placed) => placed.values.map(({ index, name, value }) => `${name}[${index}]=${value}`);
+
+  test("a block is a line a row and a tab between cells, as a spreadsheet copies it", () => {
+    assert.deepEqual(pastedCells("1\t2\r\n3\t 4 \n\n"), [["1", "2"], ["3", "4"]]);
+  });
+
+  test("a cell reads as a number however a spreadsheet writes it, a blank as none", () => {
+    assert.deepEqual(["2.5", "2,5", " 1 234,5 ", "\u22121.5", "1e3", "", "n/a", "1,234.5", "1,2,3"].map(pastedNumber), [
+      2.5, 2.5, 1234.5, -1.5, 1000, null, undefined, undefined, undefined,
+    ]);
+  });
+
+  test("a column goes in place, down the sheet as it is shown, from the box pasted into", () => {
+    const placed = paste("61.2\n62,5\n63");
+    assert.deepEqual(of(placed), ["y[1]=61.2", "y[3]=62.5", "y[0]=63"]);
+    assert.equal(placed.said, "Pasted 3 results of Yield, down the run sheet from run 1.");
+  });
+
+  test("two columns go across the responses from the one pasted into, and a blank cell leaves a result as it is", () => {
+    assert.deepEqual(of(paste("61\t9\n\t8")), ["y[1]=61", "cost[1]=9", "cost[3]=8"]);
+  });
+
+  test("a first column of run numbers matches each line to its run, whatever the order", () => {
+    const placed = paste("5\t70\n2\t71");
+    assert.deepEqual(of(placed), ["y[2]=70", "y[3]=71"]);
+    assert.equal(placed.said, "Pasted 2 results of Yield, matched to the runs by the run numbers in the first column.");
+  });
+
+  test("headings name the columns: Run order matches the runs, a response's name or column its results", () => {
+    const placed = paste("Std order\tRun order\tT\tCost ($/kg)\tYield [%]\n1\t4\t150\t9.5\t60\n2\t1\t200\t8.5\t65");
+    assert.deepEqual(of(placed), ["cost[4]=9.5", "y[4]=60", "cost[1]=8.5", "y[1]=65"]);
+    assert.equal(placed.said, "Pasted 4 results of Yield and Cost, matched to the runs by the Run order column.");
+    assert.deepEqual(of(paste("y\n50\n51", { index: 0, name: "cost" })), ["y[0]=50", "y[4]=51"], "no Run order: in place");
+  });
+
+  test("a block that does not fit is refused whole, saying where", () => {
+    assert.equal(
+      paste("1\n2\n3\n4\n5\n6").problem,
+      "You pasted 6 lines, and the run sheet shows 5 runs from the one pasted into down. Nothing was pasted.",
+    );
+    assert.equal(
+      paste("61\t2\t3").problem,
+      "You pasted 3 columns of results, and the run sheet has 2 from Yield on. Nothing was pasted.",
+    );
+    assert.equal(
+      paste("1\t60\t9\t2").problem,
+      "You pasted 3 columns of results, and the run sheet has 2 from Yield on. Nothing was pasted.",
+      "after a first column of run numbers",
+    );
+    assert.equal(paste("Run\tYield\n9\t60").problem, "Line 2 of what you pasted is for run 9, which the run sheet does not have. Nothing was pasted.");
+    assert.equal(paste("Run\tYield\n2\t60\n2\t61").problem, "Line 3 of what you pasted is for run 2 again. Nothing was pasted.");
+    assert.equal(paste("60\nabout 61").problem, 'Line 2 of what you pasted holds "about 61", which is not a number. Nothing was pasted.');
+    assert.equal(
+      paste("Temperature\tPressure\n1\t2").problem,
+      "No heading of what you pasted names a response of the run sheet: Yield and Cost. Nothing was pasted.",
+    );
+  });
+
+  test("run numbers that are not all on the sheet read as results instead", () => {
+    assert.deepEqual(of(paste("7\t1\n8\t2")), ["y[1]=7", "cost[1]=1", "y[3]=8", "cost[3]=2"]);
+  });
+
+  test("a block of blanks pastes nothing, and says so", () => {
+    assert.deepEqual(paste("\t\n\t"), { values: [], said: "Nothing to paste: every cell was blank." });
+    assert.deepEqual(paste(""), { values: [], said: "Nothing to paste: every cell was blank." });
   });
 });

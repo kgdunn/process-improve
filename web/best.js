@@ -116,8 +116,37 @@ export function ascentSentence(best, factors) {
   const steps = shares.map(step).sort((a, b) => Math.abs(b.share) - Math.abs(a.share));
   const way = (s) => (s.share > 0 ? "up" : "down");
   if (steps.length === 1) return `A next study could move the range of ${steps[0].name} ${way(steps[0])}.`;
-  const climb = best.goal === "minimize" || (best.goal === "target" && best.predicted > best.target) ? "descent" : "ascent";
-  return `A next study could move the ranges along the steepest ${climb}: ${steps.map((s) => `${s.name} ${way(s)} ${s.size}`).join(", ")}.`;
+  return `A next study could move the ranges along the ${climb(best)}: ${steps.map((s) => `${s.name} ${way(s)} ${s.size}`).join(", ")}.`;
+}
+
+/** The way the goal improves fastest, as a sentence names it: the steepest descent to minimise or to come down to a target, else the steepest ascent. */
+export const climb = (best) =>
+  best.goal === "minimize" || (best.goal === "target" && best.predicted > best.target) ? "steepest descent" : "steepest ascent";
+
+/**
+ * Whether the best settings point to a next study with moved ranges: the goal may be better past an end of a factor's
+ * range that the model holds, no limit on the settings stands in the way, and there is a way to move. A target the
+ * settings reach is met inside the ranges, so it points nowhere.
+ */
+export function movesOn(best) {
+  if (best.goal === "target" && best.reached) return false;
+  if ((best.limits ?? []).some((l) => l.beyond)) return false;
+  return (best.settings ?? []).some((s) => s.in_model && s.beyond) && Object.keys(best.ascent ?? {}).length > 0;
+}
+
+/**
+ * The factors of the next study the best settings point to: each factor the steepest ascent (or descent) moves has its
+ * range shifted by its share of half the range, to two significant figures, as ascentSentence says it; the others, and
+ * every categorical factor, keep theirs. ``factors`` are the spec's.
+ */
+export function nextRanges(best, factors) {
+  const shares = best.ascent ?? {};
+  const clean = (x) => Number(x.toPrecision(12)); // 1 - 0.6 is 0.4, not 0.40000000000000002
+  return factors.map((f) => {
+    if (!(f.name in shares) || typeof f.low === "string") return { ...f };
+    const step = Number(((shares[f.name] * (f.high - f.low)) / 2).toPrecision(2));
+    return { ...f, low: clean(f.low + step), high: clean(f.high + step) };
+  });
 }
 
 /** The shape of the fitted surface at a stationary point inside the ranges, as the page says it. */
@@ -148,10 +177,7 @@ export function whereSentences(best, factors, { label }) {
           : `These settings are on your ${which}.`,
       );
     }
-    if (settings.some((s) => s.in_model && s.beyond) && !limits.some((l) => l.beyond)) {
-      const sentence = ascentSentence(best, factors);
-      if (sentence) said.push(sentence);
-    }
+    if (movesOn(best)) said.push(ascentSentence(best, factors));
     if (best.stationary?.inside) said.push(`These settings are a stationary point: ${SHAPES[best.stationary.kind]}.`);
   }
   for (const s of settings.filter((s) => !s.in_model)) {

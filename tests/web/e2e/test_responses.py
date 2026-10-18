@@ -158,7 +158,8 @@ def test_three_responses_are_made_simulated_and_analysed_response_by_response(fr
     made = calls(page, "api_make_design")[-1]["payload"]
     assert [r["name"] for r in made["responses"]] == ["Yield", "Cost", "Purity"]
     assert page.text_content("#run-source") == (
-        "No results yet: type them into the Yield, Cost and Purity columns as the runs are made."
+        "No results yet: type them into the Yield, Cost and Purity columns as the runs are made, or paste them from a "
+        "spreadsheet."
     )
     practise(page)
     assert page.locator("#design-table input.sim").count() == 3 * 15, "every result simulated, in italics"

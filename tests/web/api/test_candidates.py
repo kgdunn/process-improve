@@ -101,3 +101,47 @@ def test_with_limits_from_five_factors_every_design_waits_for_the_search(api):
     listed = api.ok("api_candidates", request)
     assert (listed["made"], listed["result"]) == ([], None)
     assert [w["design_type"] for w in listed["waiting"]] == ["d_optimal", "i_optimal"]
+
+
+# --------------------------------------------------------------------------- the designs not listed, and why
+def test_a_design_the_factor_count_rules_out_is_left_out_with_its_range(api, bootstrap):
+    """Two factors: Box-Behnken, the fraction and the DSD take three or more."""
+    listed = api.ok("api_candidates", {"factors": FACTORS[:2], "model": "main_effects"})
+    left = {d["design_type"]: d for d in listed["left_out"]}
+    assert left["box_behnken"] == {
+        "design_type": "box_behnken",
+        "label": "Box-Behnken",
+        "reason": "factors",
+        "low": 3,
+        "high": 7,
+    }
+    assert {"fractional_factorial", "dsd"} <= set(left)
+    made = {m["design_type"] for m in listed["made"]}
+    assert not made & set(left), "a design is either made or left out"
+    offered = set(api.ok("api_catalogue")["designs"]) - set(bootstrap.SPACE_FILLING)
+    assert made | set(left) == offered, "and every design for a model the page offers is one"
+
+
+def test_a_space_filling_design_is_never_compared_nor_said_to_be_left_out(api, bootstrap):
+    """It is made for no model, so a comparison of designs for one has nothing to say of it."""
+    listed = api.ok("api_candidates", {"factors": FACTORS, "model": "quadratic"})
+    named = {m["design_type"] for m in listed["made"]} | {d["design_type"] for d in listed["left_out"]}
+    assert not named & set(bootstrap.SPACE_FILLING)
+
+
+def test_a_categorical_factor_leaves_out_the_designs_of_numeric_factors(api):
+    factors = [*FACTORS[:2], {"name": "S", "low": "A", "high": "B", "units": ""}]
+    listed = api.ok("api_candidates", {"factors": factors, "model": "main_effects"})
+    reasons = {d["design_type"]: d["reason"] for d in listed["left_out"]}
+    assert reasons == dict.fromkeys(("dsd", "box_behnken", "ccd", "d_optimal", "i_optimal"), "categorical")
+
+
+def test_limits_leave_out_every_design_but_the_optimal_ones(api):
+    limits = [{"expression": "T + 25*P <= 215"}]
+    plan = api.ok("api_compare_plan", {"factors": FACTORS, "model": "interactions", "constraints": limits})
+    assert {d["reason"] for d in plan["left_out"]} == {"limits"}
+    assert {d["design_type"] for d in plan["designs"]} == {"d_optimal", "i_optimal"}
+
+
+def test_nothing_is_left_out_of_a_brief_every_design_takes(api):
+    assert api.ok("api_compare_plan", {"factors": FACTORS, "model": "main_effects"})["left_out"] == []

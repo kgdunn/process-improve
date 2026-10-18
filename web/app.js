@@ -16,6 +16,7 @@ import {
   coefficientFigure,
   correlationFigure,
   coxFigure,
+  chartImage,
   draw,
   fdsFigure,
   markBest,
@@ -53,7 +54,10 @@ import {
   intervalRows,
   leadSentence,
   limitingSentence,
+  climb,
   mixtureSentence,
+  movesOn,
+  nextRanges,
   noGoalSentence,
   noIntervalSentence,
   num,
@@ -85,6 +89,9 @@ import {
   SCREEN_FROM,
   SPARE_FOR_NOISE,
   SPARE_RUNS,
+  SPACE_FILLING,
+  SPACE_FILLING_RUNS,
+  defaultBudget,
   TITLES,
   TRADE_OFF_FACTORS,
   TRADE_OFF_RUNS,
@@ -129,7 +136,11 @@ import {
   partialRuns,
   partialSentence,
   percent,
+  leftOutSentences,
   pickCandidate,
+  pickSentence,
+  pastedCells,
+  placePasted,
   positional,
   powerScale,
   proportionValue,
@@ -147,6 +158,8 @@ import {
   runBadge,
   showsVif,
   splitResults,
+  standouts,
+  STANDOUT_TIE,
   storedResponses,
   tradeOffCell,
   withResponses,
@@ -188,6 +201,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
+import { briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
@@ -327,6 +341,7 @@ const state = {
   analysis: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
+  next: null, // the ways to add runs to the run sheet, {design, offers, notes}: what api_next_runs returned for it
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
@@ -334,6 +349,7 @@ const state = {
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
   example: false, // the worked example is on the page, as the build made it or as run again here
   version: null, // the process-improve release Python runs, once it has started
+  runtime: null, // the Python, packages and Pyodide it runs on, which a report names
 };
 let seed = 1;
 let catalogue = null;
@@ -1080,7 +1096,7 @@ function setDesignForm(spec) {
   const k = factorCount();
   resolutionEdited = Boolean(options.resolution) && options.resolution !== defaultResolution(k);
   if (options.resolution) $("#resolution").value = String(options.resolution);
-  budgetEdited = Boolean(options.budget) && options.budget !== nTerms(k, options.model_type) + SPARE_RUNS;
+  budgetEdited = Boolean(options.budget) && options.budget !== defaultBudget(spec.design_type, k, options.model_type);
   if (options.budget) $("#budget").value = options.budget;
   refreshDesign();
 }
@@ -1121,9 +1137,13 @@ function refreshDesign() {
   centre.min = centreNeeded ? 1 : 0;
   if (centreNeeded && Number(centre.value) < 1) centre.value = 1;
 
-  const p = nTerms(k, $("#model_type").value);
-  if (!budgetEdited) $("#budget").value = p + SPARE_RUNS;
-  $("#budget-hint").textContent = `The model has ${p} coefficients.`;
+  // A space-filling design is made for no model: its runs are so many a factor, and Learn fits the aim's model.
+  const spread = SPACE_FILLING.includes(option.value);
+  const p = nTerms(k, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
+  if (!budgetEdited) $("#budget").value = defaultBudget(option.value, k, $("#model_type").value);
+  $("#budget-hint").textContent = spread
+    ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; Learn fits the model of your aim, which has ${p} coefficients.`
+    : `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
   const one = labelled.length === 1;
@@ -1341,6 +1361,7 @@ async function generate() {
     mixture_model: $("#mixture_model").value,
     constraints: currentLimits(),
     runs: $("#design-type").value === GIVEN ? givenRuns() : undefined,
+    blocks: $("#design-type").value === GIVEN ? givenBlocks() : undefined,
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
@@ -1365,6 +1386,14 @@ function givenRuns() {
   const held = designRows(state.design); // the confirmation runs are not made again with the design
   const at = state.design.spec.factors.map((f) => held.columns.indexOf(f.name));
   return held.rows.map((row) => at.map((i) => row[i]));
+}
+
+/** The block of each run a design of given runs is made again with, as givenRuns lists them; undefined for no blocks. */
+function givenBlocks() {
+  if (!state.design) return undefined;
+  const held = designRows(state.design);
+  const at = held.columns.indexOf(BLOCK);
+  return at < 0 ? undefined : held.rows.map((row) => row[at]);
 }
 
 /**
@@ -1442,7 +1471,8 @@ function renderDesign(warnings = state.designWarnings ?? []) {
     const outside = r.outside_range?.length
       ? ` Some runs of ${r.outside_range.join(", ")} lie outside the ranges you entered; check they are safe to run.`
       : "";
-    const order = r.spec?.design_type === GIVEN ? "in the order given" : "in random run order";
+    // Runs as given keep the order they came in; a study Learn added runs to holds runs the page put in random order.
+    const order = r.spec?.design_type === GIVEN && !r.spec.options?.grown ? "in the order given" : "in random run order";
     parts.push(said("", `${r.n_runs} runs${centre}, ${order}.${outside}`), ...noteList(r.facts.notes));
   } else {
     parts.push(el("p", "", `${r.rows.length} runs, read from the workbook.`));
@@ -1565,11 +1595,14 @@ function renderCandidates(busy = null) {
 
 /**
  * The comparison's designs as a list to pick from: those that fit the model in a table, sorted by
- * their runs, and which do not. The table's headings say what its numbers are; what spare runs
- * and power mean is a "?" away.
+ * their runs, with what each does best of them; which do not; and why the designs not listed are
+ * not. The table's headings say what its numbers are; what spare runs and power mean is a "?" away.
+ * Until the reader chooses a design, a sentence says why Design picked the one it holds.
  */
 function candidateList(c, current) {
   const rows = candidateRows(c.result, c.made);
+  const best = standouts(c.result, c.made);
+  const leads = rows.some((r) => best[r.design_type]?.length);
   const kinds = [
     ["main", "Main effect"],
     ["interaction", "Interaction"],
@@ -1599,6 +1632,13 @@ function candidateList(c, current) {
         `the ${Math.round(100 * c.result.significance_level)}% level.` +
         (powerScale(info) ? "" : " To set your own, give the noise and the change under What you know of it already."),
     });
+    const stands = term("Stands out for", {
+      alone: true,
+      definition:
+        `What a design does best of those listed, or within ${Math.round(100 * STANDOUT_TIE)}% of the best: its ` +
+        "runs, the precision of its coefficients and predictions, how little its terms correlate, and its power. " +
+        "Compare them in detail shows each measure.",
+    });
     const head = el("tr", "", "");
     head.append(heading("Design", { rowSpan: 2 }), heading("Runs", { rowSpan: 2 }), heading(spare, { rowSpan: 2 }));
     const sub = el("tr", "", "");
@@ -1606,6 +1646,7 @@ function candidateList(c, current) {
       head.append(heading(power, { colSpan: kinds.length }));
       for (const [kind, words] of kinds) sub.append(heading(term(words, { key: KIND_TERMS[kind], alone: true })));
     }
+    if (leads) head.append(heading(stands, { rowSpan: 2, className: "stands" }));
     const thead = el("thead", "", "");
     thead.append(head, ...(kinds.length ? [sub] : []));
     const tbody = el("tbody", "", "");
@@ -1623,6 +1664,7 @@ function candidateList(c, current) {
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
       for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
+      if (leads) tr.append(el("td", "stands", (best[r.design_type] ?? []).map((b) => b.words).join(", ")));
       if (current) tr.onclick = () => pickDesign(r.design_type);
       tbody.append(tr);
     }
@@ -1631,8 +1673,12 @@ function candidateList(c, current) {
     wrap.append(t);
     parts.push(wrap);
   }
+  const picked = designChosen ? "" : pickSentence(rows, $("#design-type").value);
+  if (picked) parts.push(el("p", "hint picked", picked));
   const unfit = rows.filter((r) => !r.fits);
   if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
+  const categorical = readFactors().filter(isCategorical).map((f) => f.name);
+  for (const why of leftOutSentences(c.left_out ?? [], factorCount(), categorical)) parts.push(el("p", "hint left-out", why));
   if (c.waiting?.length) parts.push(waitingNote(c));
   parts.push(...noteList(c.notes.map(prettyTerm)));
   return parts;
@@ -1649,9 +1695,14 @@ function waitingNote(c) {
   );
 }
 
-/** Mark the design the plan holds in the list of designs that can learn the brief. */
+/**
+ * Mark the design the plan holds in the list of designs that can learn the brief. Once the reader
+ * chooses one, the sentence on why Design picked its own goes.
+ */
 function markPicked() {
   const chosen = $("#design-type").value;
+  const note = $("#candidates .picked");
+  if (note) note.hidden = designChosen;
   for (const tr of document.querySelectorAll("#candidates tbody tr")) {
     const on = tr.dataset.design === chosen;
     tr.setAttribute("aria-selected", String(on));
@@ -1868,15 +1919,60 @@ function renderRuns() {
     state.results[name][i] = input.value === "" ? null : Number(input.value);
     state.marks[name][i] = input.value === "" ? null : "entered";
     input.classList.remove("sim");
-    describeSource();
-    renderTruth();
-    showResultsCode();
-    renderBadges();
-    scheduleAnalysis();
-    scheduleSave();
+    resultsChanged();
   };
+  t.onpaste = pasteResults;
   describeSource();
   renderBadges();
+}
+
+/** Follow results typed or pasted into the run sheet: where they came from, the code, the badges, the analysis. */
+function resultsChanged() {
+  describeSource();
+  renderTruth();
+  showResultsCode();
+  renderBadges();
+  scheduleAnalysis();
+  scheduleSave();
+}
+
+/** The run sheet as a pasted block is placed on it (logic.js placePasted): its run numbers, rows as shown, responses. */
+function pasteSheet() {
+  const d = state.design;
+  const runAt = d.columns.indexOf("Run order");
+  const shown = [...$("#design-table").querySelectorAll("tbody tr")].map((tr) => tr.querySelector("input[data-index]"));
+  return {
+    runs: d.rows.map((row, i) => (runAt >= 0 ? row[runAt] : i + 1)),
+    order: shown.filter(Boolean).map((input) => Number(input.dataset.index)),
+    names: resultNames(),
+    labels: Object.fromEntries(resultNames().map((name) => [name, wordsOf(name).label])),
+  };
+}
+
+/**
+ * Take a block of results pasted into a box of the run sheet, as a spreadsheet copies it (logic.js placePasted): in
+ * place, down from the box and across the responses, or matched to the runs by their run numbers or a Run order
+ * heading. A block that does not fit is not pasted at all, and the status line says why.
+ */
+function pasteResults(e) {
+  const input = e.target.closest("input[data-index]");
+  if (!input) return;
+  e.preventDefault(); // a number box would drop a block, or a value written 2,5
+  const at = { index: Number(input.dataset.index), name: input.dataset.response };
+  const placed = placePasted(pastedCells(e.clipboardData?.getData("text/plain") ?? ""), pasteSheet(), at);
+  if (placed.problem) {
+    setStatus(placed.problem, "error");
+    return;
+  }
+  for (const { index, name, value } of placed.values) {
+    state.results[name][index] = value;
+    state.marks[name][index] = "entered";
+    const box = $("#design-table").querySelector(`input[data-index="${index}"][data-response="${CSS.escape(name)}"]`);
+    box.value = String(value);
+    box.classList.remove("sim");
+  }
+  if (placed.values.length) resultsChanged();
+  if (placed.values.length !== 1) setStatus(placed.said); // one value is a box's own paste, and says nothing
 }
 
 /**
@@ -1909,7 +2005,7 @@ function describeSource() {
     const done = state.results[name].filter((v) => v !== null).length;
     const simulated = state.marks[name].filter((s) => s === "simulated").length;
     const { label, units } = responseWords();
-    let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made.`;
+    let text = done ? `${done} of ${n} results in.` : `No results yet: type them into the ${label} column as the runs are made, or paste them from a spreadsheet.`;
     if (simulated && sim) {
       text =
         `${simulated} of ${n} results simulated from "${sim.label}" (noise ${sim.sigma}${units ? ` ${units}` : ""}, ` +
@@ -1925,7 +2021,7 @@ function describeSource() {
     ? `${done} of ${n} runs have every result in.`
     : anyResult(state.results)
       ? `No run has every result in yet: ${listNames(labels)} each have a column.`
-      : `No results yet: type them into the ${listNames(labels)} columns as the runs are made.`;
+      : `No results yet: type them into the ${listNames(labels)} columns as the runs are made, or paste them from a spreadsheet.`;
   if (simulated && sim) {
     text =
       `${simulated} of ${n} runs' results simulated from "${sim.label}", each response from a process of its own ` +
@@ -2086,6 +2182,167 @@ async function downloadNotebook() {
   download(blob, `${state.design.spec.design_type}-${runCount()}-runs.ipynb`);
 }
 
+// ---------------------------------------------------------------- the study as a report
+/** The steps whose code a report gives, in the order they run: each builds on those before it. */
+const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
+
+/** What a report's copy of the page leaves out: what is there to use the page, and what the page hides. */
+const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart";
+
+/** The attributes a report's copy keeps: those that say how a cell spans, where a link goes, and how a part looks. */
+const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan"]);
+
+/**
+ * A part of the page as a report holds it, as HTML: a copy without what NOT_REPORTED names, a table's heading that
+ * sorts it and a dotted word each left as its text, and with none of the page's ids, ARIA or data. The page set its
+ * text as text, so the HTML is safe as it is.
+ */
+function reportCopy(node) {
+  const copy = node.cloneNode(true);
+  for (const word of copy.querySelectorAll("th button, .term")) word.replaceWith(word.textContent);
+  for (const part of copy.querySelectorAll(NOT_REPORTED)) part.remove();
+  for (const part of [copy, ...copy.querySelectorAll("*")]) {
+    for (const { name } of [...part.attributes]) if (!REPORTED_ATTRIBUTES.has(name)) part.removeAttribute(name);
+  }
+  return copy.innerHTML;
+}
+
+/** Whether a part of ``root`` is on show there: neither it nor a part between them is hidden. */
+function shownWithin(node, root) {
+  for (let part = node; part && part !== root.parentElement; part = part.parentElement) if (part.hidden) return false;
+  return true;
+}
+
+/** The charts the page drew inside ``root``, as a report shows them: each card's heading, its image and its caption. */
+async function chartsWithin(root) {
+  const charts = [];
+  for (const card of root.querySelectorAll("figure.chart")) {
+    if (!shownWithin(card, root)) continue;
+    const src = await chartImage(card.querySelector(".plot"));
+    const title = card.querySelector("h3, h4")?.textContent ?? "";
+    if (src) charts.push({ title, caption: card.querySelector("figcaption")?.textContent ?? "", src });
+  }
+  return charts;
+}
+
+/** The aim a design was made for, as Design words it: the choice's heading and what it fits; "" for none. */
+function aimWords(aim) {
+  const label = document.querySelector(`input[name=aim][value="${aim}"]`)?.closest("label");
+  if (!label) return "";
+  const words = (part) => label.querySelector(part)?.textContent.replace(/\s+/g, " ").trim() ?? "";
+  return `${words("strong")}: ${words(".hint")}`;
+}
+
+/** What Learn shows of the response it shows, as a report section: its analysis, charts and best settings. */
+async function learnSection() {
+  const parts = [reportCopy($("#analysis")), chartsHtml(await chartsWithin($("#charts")))];
+  if (!$("#best").hidden) {
+    parts.push(`<h3>${$("#h-best").textContent}</h3>`, reportCopy($("#best-out")), chartsHtml(await chartsWithin($("#best"))));
+    if (!$("#confirm").hidden) parts.push(reportCopy($("#confirm-out")));
+  }
+  const heading = several() ? `What the results say of ${wordsOf(state.shown).label}` : "What the results say";
+  return { heading, html: parts.join("\n") };
+}
+
+/**
+ * Learn's analysis of each response with results, as report sections, each as Learn shows it: with several
+ * responses, Learn shows each in turn, and then the one it showed. The analysis waiting for typing to pause is
+ * made first, so the report holds the results on the page.
+ */
+async function learnSections() {
+  if (analysisTimer !== null) {
+    clearTimeout(analysisTimer);
+    analysisTimer = null;
+    await analyseRuns();
+  }
+  if (!state.analysis && anyResult(state.results)) await analyseRuns();
+  const shown = state.shown;
+  const sections = [];
+  for (const name of resultNames().filter((one) => state.results[one]?.some((v) => v !== null))) {
+    if (name !== state.shown) await showAnalysisOf(name);
+    if (state.analysis) sections.push(await learnSection());
+  }
+  if (state.shown !== shown) await showAnalysisOf(shown);
+  return sections;
+}
+
+/** The sections a report ends with, after the analysis: the balance of the responses, the next step and the code. */
+async function closingSections() {
+  const sections = [];
+  if (!$("#balance").hidden && state.balance) {
+    const html = [reportCopy($("#balance-out")), chartsHtml(await chartsWithin($("#balance")))];
+    sections.push({ heading: $("#h-balance").textContent, html: html.join("\n") });
+  }
+  if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
+  const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
+  sections.push({
+    heading: "The Python code",
+    html:
+      '<p class="hint">The design, its results and what Learn made of them, so it runs as it is with the releases ' +
+      `the stamp names.</p>\n<pre><code>${escape(code)}</code></pre>`,
+  });
+  return sections;
+}
+
+/**
+ * The study's inputs, as a report's digest and link hold them: what its link carries, as Factorial reads a link,
+ * so a study opened from the link gives the same digest. What the page works out again (a design's aliases, the
+ * simulated results) is left out by that reading.
+ */
+function reportedInputs() {
+  const carried = shareable(currentCampaign(), true);
+  try {
+    return checkCampaign(JSON.parse(JSON.stringify(carried)));
+  } catch {
+    return carried; // what a link could not carry is still the study's: its digest is of it as it is
+  }
+}
+
+/**
+ * Download the study as a report: one HTML page with the brief, the design and its run sheet, what Learn makes of
+ * the results, the next step and the Python code, under a stamp that says how to get the same numbers again: the
+ * releases, the seeds, the SHA-256 of the study's inputs, and a link that opens the study with its results.
+ */
+async function downloadReport() {
+  if (!state.design) return;
+  setStatus("Making the report...", "busy");
+  const learned = await learnSections();
+  const closing = await closingSections();
+  const inputs = reportedInputs();
+  const url = `${location.origin}${location.pathname}`;
+  const packed = await packCampaign(inputs).catch(() => null); // a study too large for a link has none
+  const { spec, rows } = state.design;
+  const notes = state.design.facts?.notes ?? [];
+  const noted = notes.length ? `<ul>${notes.map((n) => `<li>${escape(n)}</li>`).join("")}</ul>\n` : "";
+  const page = report({
+    title: state.campaign?.title ?? titleOf(spec),
+    stamp: stampRows({
+      made: new Date(),
+      version: state.version,
+      runtime: state.runtime,
+      url,
+      spec,
+      runs: rows.length,
+      results: state.results,
+      marks: state.marks,
+      simulation: someSimulated() ? state.simulation : null,
+      sha: await sha256(canonicalJson(inputs)),
+      link: packed ? `${url}${LINK_KEY}${packed}` : null,
+    }),
+    sections: [
+      { heading: "The brief", html: briefHtml(spec, { aim: aimWords(spec.aim), mixture: isMixture(spec.design_type) }) },
+      {
+        heading: `The design: ${designLabel(spec.design_type)}, ${rows.length} runs`,
+        html: noted + runSheetHtml(state.design, state.results, state.marks),
+      },
+      ...learned,
+      ...closing,
+    ],
+  });
+  download(new Blob([page], { type: "text/html" }), `${spec.design_type}-${rows.length}-runs-report.html`);
+  setStatus("Report downloaded: open it in a browser, or print it to PDF.");
+}
+
 async function readUpload(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = "";
@@ -2134,7 +2391,10 @@ let ticket = 0;
 /** Analyse a moment after the last keystroke, rather than on every one. */
 function scheduleAnalysis() {
   clearTimeout(analysisTimer);
-  analysisTimer = setTimeout(analyseRuns, 700);
+  analysisTimer = setTimeout(() => {
+    analysisTimer = null;
+    analyseRuns();
+  }, 700);
 }
 
 /** What Learn says while there is nothing to analyse. */
@@ -2151,6 +2411,7 @@ function clearAnalysis() {
   $("#analyse-empty").textContent = NOTHING_TO_LEARN;
   $("#analyse-empty").hidden = false;
   $("#to-learn").hidden = true;
+  $("#learn-report").hidden = true;
   clearBest();
   renderBadges();
 }
@@ -2200,6 +2461,8 @@ async function analyseRuns() {
   if (reply.ok) {
     const best = await findBest(request, mine);
     if (mine !== ticket) return;
+    await findNext(); // the next step follows the best settings, and is on the page before the charts are drawn
+    if (mine !== ticket) return;
     // The response surface is drawn through the best settings, so the star that marks them sits on the surface drawn.
     await drawCharts(best?.coded ? { ...request, best: best.coded } : request, mine);
     if (mine !== ticket) return;
@@ -2212,6 +2475,7 @@ function renderAnalysis(reply) {
   out.hidden = false;
   $("#analyse-empty").hidden = true;
   $("#to-learn").hidden = !reply.ok;
+  $("#learn-report").hidden = !reply.ok;
   renderBadges();
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
@@ -2381,12 +2645,17 @@ function renderPicker() {
 /** Show a response's analysis in Learn: its own model, its fit, its charts and its best settings. */
 function pickResponse(name) {
   if (name === state.shown || !resultNames().includes(name)) return;
+  showAnalysisOf(name);
+  scheduleSave();
+}
+
+/** Put a response's analysis in Learn, with its own model, keeping the model of the one it showed; resolves once it is there. */
+async function showAnalysisOf(name) {
   state.models[state.shown] = modelChoice();
   state.shown = name;
   setModel(state.models[name] ?? "");
   renderPicker();
-  analyseRuns();
-  scheduleSave();
+  await analyseRuns();
 }
 
 // ---------------------------------------------------------------- the model's terms
@@ -2587,6 +2856,7 @@ function designComplete(name = state.shown) {
 function clearBest() {
   state.best = null;
   $("#best").hidden = true;
+  $("#next").hidden = true; // the next step follows the analysis; findNext shows it again with the next one
   hidePython("best");
 }
 
@@ -2737,20 +3007,7 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
   renderRuns();
   renderStudyBar();
   const practice = Boolean(state.simulation) && someSimulated();
-  if (practice) {
-    const { scenario, sigma, seed: drawn } = state.simulation;
-    const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
-    if (reply.ok) {
-      const [first] = resultNames();
-      for (const name of resultNames()) {
-        const simulated = name === first ? reply.result : reply.result.more?.[name];
-        if (!simulated || !processOf(name)) continue;
-        state.results[name] = state.results[name].map((v, i) => (i >= before ? simulated.responses[i] : v));
-        state.marks[name] = state.marks[name].map((s, i) => (i >= before ? "simulated" : s));
-      }
-      renderRuns();
-    }
-  }
+  if (practice) await simulateFrom(before);
   showResultsCode();
   scheduleSave();
   await analyseRuns(); // the fit is the same; what is said of the confirmation runs follows them
@@ -2997,6 +3254,156 @@ async function drawBalanceChart() {
   }
 }
 
+// ---------------------------------------------------------------- the next step
+// What the analysis points to next: a new study whose ranges move the way the best settings point (best.js), and the
+// ways to add runs to this study (bootstrap.next_runs), each for what its design cannot say yet. Adding runs keeps the
+// runs made so far and their results, so the study grows in place, as it does with confirmation runs.
+
+/**
+ * Ask Python which ways of adding runs suit the run sheet, once for each run sheet (they follow its runs and its aim,
+ * not its results), and show the next step. A mixture's blends take none of them, so it is not asked.
+ */
+async function findNext() {
+  const design = state.design;
+  if (design && !isMixture(design.spec.design_type) && state.next?.design !== design) {
+    const reply = await call("api_next_runs", held());
+    if (state.design !== design) return; // another run sheet took its place meanwhile
+    state.next = { design, offers: reply.ok ? reply.result.offers : [], notes: reply.ok ? reply.result.notes : [] };
+  }
+  renderNext();
+}
+
+/** Show the next step once there is an analysis: the moved ranges when the best settings point past them, and the runs to add. */
+function renderNext() {
+  const design = state.design;
+  const next = design && state.next?.design === design ? state.next : { offers: [], notes: [] };
+  const best = state.best?.settings && !isMixture(design?.spec.design_type) ? state.best : null;
+  const move = Boolean(best) && movesOn(best);
+  $("#next").hidden = !design || !state.analysis || (!move && !next.offers.length && !next.notes.length);
+  if ($("#next").hidden) return;
+  $("#next-out").replaceChildren(...(move ? movedStudy(best) : []), ...(next.offers.length || next.notes.length ? addedRuns(next) : []));
+}
+
+/** A factor's range as the next step's table writes it: "150 to 200 degC", or a categorical factor's two levels. */
+const rangeWords = (f) => (typeof f.low === "string" ? `${f.low} or ${f.high}` : `${num(f.low)} to ${withUnit(f.high, f.units ?? "")}`);
+
+/** The new study the best settings point to: each factor's range now and moved, and the button that starts it in Design. */
+function movedStudy(best) {
+  const factors = state.design.spec.factors;
+  const moved = nextRanges(best, factors);
+  const start = el("button", "button", "Start a new study with these ranges");
+  start.type = "button";
+  start.id = "next-study";
+  start.onclick = () => startMovedStudy(moved);
+  const step = el("div", "step", "");
+  step.append(
+    el("h4", "", "A new study further along"),
+    said("", `The ranges moved along the ${climb(best)}:`),
+    table(["Factor", "Range now", "Next study"], factors.map((f, i) => [f.name, rangeWords(f), rangeWords(moved[i])])),
+    el("p", "actions", ""),
+  );
+  step.lastChild.append(start);
+  return [step];
+}
+
+/** The ways to add runs to this study, each what it is for and a button, and why any way is not offered. */
+function addedRuns(next) {
+  const step = el("div", "step", "");
+  step.append(el("h4", "", "Add runs to this study"));
+  if (next.offers.length) {
+    step.append(said("hint", "The runs made so far stay as they are, with their results; the runs added go at the end of the run sheet."));
+  }
+  for (const offer of next.offers) {
+    const box = el("div", "offer", "");
+    box.dataset.kind = offer.kind;
+    const blocked = offer.blocked ? " They go in a block of their own, so a shift in the process since the runs before stays out of the effects." : "";
+    const add = el("button", "button", offer.label);
+    add.type = "button";
+    add.onclick = () => addRuns(offer.kind);
+    box.append(said("", `${offer.why}${blocked}`), add);
+    step.append(box);
+  }
+  step.append(...noteList(next.notes));
+  return [step];
+}
+
+/**
+ * Add one way's runs to the end of the run sheet: the runs before keep their results, the runs added have none, and the
+ * plan becomes the runs as given, in their blocks, so the run sheet is not out of date. While the results are practice
+ * ones, the runs added are simulated from the same processes, noise and seeds, and analysed with the rest; else the
+ * reader makes them, in Run.
+ */
+async function addRuns(kind) {
+  if (!state.design) return;
+  setStatus("Adding the runs...", "busy");
+  const reply = await call("api_add_runs", { ...held(), kind });
+  if (!reply.ok) {
+    setStatus(reply.error, "error");
+    return;
+  }
+  const { added, ...grown } = reply.result;
+  const before = state.design.rows.length;
+  state.design = { ...state.design, ...grown };
+  for (const name of resultNames()) {
+    state.results[name] = [...state.results[name], ...Array(added).fill(null)];
+    state.marks[name] = [...state.marks[name], ...Array(added).fill(null)];
+  }
+  setDesignForm(grown.spec);
+  state.planKey = planKey();
+  state.picked = null;
+  setModel(""); // the analysis follows the grown design's model
+  state.models = Object.fromEntries(resultNames().map((name) => [name, ""]));
+  renderDesign(reply.warnings);
+  renderRuns();
+  renderStudyBar();
+  showPython("design", designCode(grown.spec));
+  const practice = Boolean(state.simulation) && someSimulated() && (await simulateFrom(before));
+  showResultsCode();
+  scheduleSave();
+  await analyseRuns();
+  if (practice) {
+    setStatus(`${added} runs added at the end of the run sheet, their results simulated.`);
+    return;
+  }
+  showPhase("run");
+  setStatus(`${added} runs added at the end of the run sheet: enter their results in Run.`);
+}
+
+/**
+ * Simulate the results of the runs from place ``before`` on, from the same processes, noise and seeds, which leaves every
+ * result before them as it was. Resolves to whether they were simulated.
+ */
+async function simulateFrom(before) {
+  const { scenario, sigma, seed: drawn } = state.simulation;
+  const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
+  if (!reply.ok) return false;
+  const [first] = resultNames();
+  for (const name of resultNames()) {
+    const simulated = name === first ? reply.result : reply.result.more?.[name];
+    if (!simulated || !processOf(name)) continue;
+    state.results[name] = state.results[name].map((v, i) => (i >= before ? simulated.responses[i] : v));
+    state.marks[name] = state.marks[name].map((s, i) => (i >= before ? "simulated" : s));
+  }
+  renderRuns();
+  return true;
+}
+
+/**
+ * Start the new study the best settings point to, in Design: this study's brief and design with the moved ranges, its
+ * runs not yet made. This study stays in Your studies. Runs as given are made for one study only, so the new one has
+ * its design picked for it.
+ */
+function startMovedStudy(factors) {
+  const spec = state.design.spec;
+  const given = spec.design_type === GIVEN;
+  newStudy();
+  setForm({ ...spec, factors, ...(given ? { design_type: "box_behnken", options: { n_center_points: 3 } } : {}) });
+  if (given) designChosen = false;
+  showPhase("plan");
+  saveDraft();
+  setStatus("A new study, its ranges moved: check they are safe to run, then make its run sheet.");
+}
+
 // ---------------------------------------------------------------- the worked example
 /** The worked example the build computed into demo.json, fetched once; null in a plain preview of web/. */
 let builtExample;
@@ -3046,6 +3453,7 @@ async function showBuiltExample() {
     state.best = example.best;
     renderBest({ ok: true, result: example.best });
   }
+  renderNext(); // the moved ranges, which the best settings give; its Box-Behnken design takes no runs added
   $("#demo-version").textContent = `process-improve ${example.version}`;
   $("#demo-when").textContent = "when this page was built";
   $("#demo-banner").hidden = false;
@@ -3115,6 +3523,7 @@ function newStudy() {
     goals: {},
     simulation: null,
     analysis: null,
+    next: null,
     comparison: null,
     picked: null,
     campaign: null,
@@ -3901,6 +4310,8 @@ $("#balance-reset").onclick = () => {
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#notebook").onclick = downloadNotebook;
+$("#report").onclick = downloadReport;
+$("#learn-report-button").onclick = downloadReport;
 $("#share").onclick = shareLink;
 $("#model").onchange = () => {
   if ($("#model").value === CHOSEN_TERMS && state.design) startTermList();
@@ -3969,6 +4380,7 @@ call("api_catalogue").then((reply) => {
   }
   catalogue = reply.result;
   state.version = catalogue.version ?? null;
+  state.runtime = catalogue.runtime ?? null;
   pythonReady = true;
   for (const id of ["#upload", "#simulate", "#reroll"]) $(id).disabled = false;
   refreshDesign();
