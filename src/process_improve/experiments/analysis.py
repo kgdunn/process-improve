@@ -844,7 +844,12 @@ def analyze_experiment(  # noqa: PLR0913
         degC and kelvin. A model that coding would change, such as an interaction without
         its main effects, is tested as given. The
         ANOVA and significance list exactly aliased terms once, as their alias chain
-        (``"A:B + C:D"``), as the effects do; the coefficients keep one entry per term. Effects and Lenth's
+        (``"A:B + C:D"``), as the effects do; the coefficients keep one entry per term.
+        A factor nested in another, whose levels each fall in one of that other's, leaves
+        the model matrix short of full rank: the ANOVA then tests each term on the
+        degrees of freedom it adds, gives a term that adds none no test, and says so in
+        ``anova_note``, naming the strata for
+        :func:`~process_improve.experiments.multistratum_anova`. Effects and Lenth's
         method use the factors coded to -1/+1: a numeric factor not already coded is
         mapped from its own minimum and maximum, and a two-level categorical factor
         from its first level to its second (sorted); the mapping is reported under
