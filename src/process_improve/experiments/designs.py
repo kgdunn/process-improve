@@ -608,6 +608,47 @@ def _warn_if_no_error_df(
     )
 
 
+def _note_runs_beyond_ranges(design_type: str, coded_matrix: np.ndarray, factors: list[Factor], meta: dict) -> None:
+    """Record, and warn about, runs that set a continuous factor beyond its low or high value.
+
+    A CCD with ``alpha`` above 1 (rotatable, orthogonal or circumscribed) puts its axial
+    runs at plus or minus ``alpha`` in coded units, which is past the ranges the
+    factors were given. That is intended when the ranges are a convenient scale, and
+    impossible when they are limits: a negative concentration, a temperature the
+    equipment cannot reach. ``meta["runs_beyond_ranges"]`` maps each such factor to
+    the lowest and highest setting the design asks for, in its own units.
+    """
+    beyond: dict[str, dict[str, float]] = {}
+    for j, factor in enumerate(factors):
+        if factor.type != FactorType.continuous or factor.low is None or factor.high is None:
+            continue
+        column = coded_matrix[:, j].astype(float)
+        if column.min() >= -1 - 1e-9 and column.max() <= 1 + 1e-9:
+            continue
+        mid, half = (factor.high + factor.low) / 2, (factor.high - factor.low) / 2
+        beyond[factor.name] = {"lowest": float(mid + column.min() * half), "highest": float(mid + column.max() * half)}
+    if not beyond:
+        return
+    meta["runs_beyond_ranges"] = beyond
+    by_name = {f.name: f for f in factors}
+    detail = "; ".join(
+        f"{name} from {v['lowest']:.4g} to {v['highest']:.4g}{' ' + by_name[name].units if by_name[name].units else ''}"
+        f" against a range of {by_name[name].low:.4g} to {by_name[name].high:.4g}"
+        for name, v in beyond.items()
+    )
+    remedy = (
+        " If the ranges are limits, use alpha='face_centered' to keep every run inside them, or 'inscribed' to "
+        "shrink the cube so the axial runs reach the ranges exactly."
+        if design_type == "ccd"
+        else ""
+    )
+    warnings.warn(
+        f"This {design_type!r} design sets factors beyond the ranges given: {detail}.{remedy}",
+        category=UserWarning,
+        stacklevel=3,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -886,6 +927,8 @@ def generate_design(  # noqa: PLR0913
 
     extra_center_points = _extra_center_points(design_type, n_center_points, coded_matrix, factors)
     _warn_if_no_error_df(design_type, coded_matrix, extra_center_points, n_replicates, factors)
+    if not all_mixture and design_type != "mixture":
+        _note_runs_beyond_ranges(design_type, coded_matrix, factors, meta)
     own_center_rows = _own_center_rows(design_type, coded_matrix, factors)
     if budget is not None and not auto_selected:
         n_runs = _total_runs(coded_matrix.shape[0], own_center_rows, extra_center_points, n_replicates)

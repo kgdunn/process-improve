@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import warnings
 
 import numpy as np
 import pytest
@@ -402,6 +403,22 @@ class TestCCD:
         result = generate_design(factors, design_type="ccd", alpha="rotatable")
         max_abs = max(result.design[col].abs().max() for col in result.factor_names)
         assert max_abs > 1.0
+
+    def test_axial_runs_beyond_the_ranges_are_recorded_and_warned_about(self) -> None:
+        """A rotatable CCD asked for -0.68 wt% silane, without a word."""
+        factors = [Factor(name="Silane", low=0, high=2, units="wt%"), Factor(name="Ra", low=1, high=5)]
+        with pytest.warns(UserWarning, match=r"Silane from -0\.4142 to 2\.414 wt% against a range of 0 to 2"):
+            result = generate_design(factors, design_type="ccd", alpha="rotatable")
+        beyond = result.metadata["runs_beyond_ranges"]
+        assert beyond["Silane"] == {"lowest": pytest.approx(1 - 2**0.5), "highest": pytest.approx(1 + 2**0.5)}
+        assert set(beyond) == {"Silane", "Ra"}
+
+    @pytest.mark.parametrize("alpha", ["face_centered", "inscribed"])
+    def test_a_ccd_inside_the_ranges_is_silent(self, alpha: str) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            result = generate_design(_continuous_factors(3, "ABC"), design_type="ccd", alpha=alpha)
+        assert "runs_beyond_ranges" not in result.metadata
 
     def test_inscribed(self) -> None:
         """Inscribed CCD keeps all points within the coded cube."""
