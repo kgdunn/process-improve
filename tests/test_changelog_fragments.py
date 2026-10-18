@@ -49,14 +49,17 @@ def test_every_fragment_in_the_repository_is_well_formed(changelog):
 @pytest.mark.parametrize(
     ("name", "text", "complaint"),
     [
-        ("glm.new.md", "- An entry.\n", "name it <slug>.<type>.md"),
-        ("GLM.added.md", "- An entry.\n", "name it <slug>.<type>.md"),
-        ("glm.added.md", "An entry.\n", "starts with '- '"),
-        ("glm.added.md", "- An entry.\n\n### Added\n", "holds none"),
-        ("glm.added.md", "- An entry \u2014 with a dash.\n", "no em-dashes"),
+        ("2026-10-18-glm.new.md", "- An entry.\n", "name it <yyyy-mm-dd>-<slug>.<type>.md"),
+        ("2026-10-18-GLM.added.md", "- An entry.\n", "name it <yyyy-mm-dd>-<slug>.<type>.md"),
+        ("glm.added.md", "- An entry.\n", "name it <yyyy-mm-dd>-<slug>.<type>.md"),
+        ("18-10-2026-glm.added.md", "- An entry.\n", "name it <yyyy-mm-dd>-<slug>.<type>.md"),
+        ("2026-02-30-glm.added.md", "- An entry.\n", "2026-02-30 is no date"),
+        ("2026-10-18-glm.added.md", "An entry.\n", "starts with '- '"),
+        ("2026-10-18-glm.added.md", "- An entry.\n\n### Added\n", "holds none"),
+        ("2026-10-18-glm.added.md", "- An entry \u2014 with a dash.\n", "no em-dashes"),
     ],
 )
-def test_a_fragment_names_its_heading_and_holds_bullets_only(changelog, tmp_path, name, text, complaint):
+def test_a_fragment_names_its_date_and_heading_and_holds_bullets_only(changelog, tmp_path, name, text, complaint):
     (tmp_path / name).write_text(text, encoding="utf-8")
     (tmp_path / "README.md").write_text("# Not a fragment\n", encoding="utf-8")
     found = changelog.problems(tmp_path)
@@ -65,16 +68,19 @@ def test_a_fragment_names_its_heading_and_holds_bullets_only(changelog, tmp_path
 
 
 def test_build_files_each_fragment_under_its_heading_and_deletes_it(changelog, tmp_path):
-    """New bullets follow the ones already filed; a heading not yet present opens in Keep a Changelog order."""
+    """New bullets follow the ones already filed, oldest first; a heading not yet present opens in its order."""
     path = tmp_path / "CHANGELOG.md"
     path.write_text(_CHANGELOG, encoding="utf-8")
     folder = tmp_path / "changelog.d"
     folder.mkdir()
     (folder / "README.md").write_text("# Kept\n", encoding="utf-8")
-    (folder / "b-glm.added.md").write_text("- **GLM.** Counts and proportions.\n  A second line.\n", encoding="utf-8")
-    (folder / "a-lsmeans.added.md").write_text("- **Least-squares means.**\n", encoding="utf-8")
-    (folder / "pb.changed.md").write_text("- Plackett-Burman designs are cyclic.\n", encoding="utf-8")
-    (folder / "old.removed.md").write_text("- An old name.\n", encoding="utf-8")
+    # Written on different days: each heading files them in the order they were written, whatever their slugs.
+    (folder / "2026-10-18-a-glm.added.md").write_text(
+        "- **GLM.** Counts and proportions.\n  A second line.\n", encoding="utf-8"
+    )
+    (folder / "2026-10-17-z-lsmeans.added.md").write_text("- **Least-squares means.**\n", encoding="utf-8")
+    (folder / "2026-10-18-pb.changed.md").write_text("- Plackett-Burman designs are cyclic.\n", encoding="utf-8")
+    (folder / "2026-10-18-old.removed.md").write_text("- An old name.\n", encoding="utf-8")
 
     assert changelog.build(path, folder) == 4
     unreleased = path.read_text(encoding="utf-8").split("## [1.0.0]")[0]
@@ -95,7 +101,7 @@ def test_build_opens_the_first_heading_of_an_empty_unreleased_section(changelog,
     path.write_text("# Changelog\n\n## [Unreleased]\n\n## [1.0.0] - 2026-01-01\n", encoding="utf-8")
     folder = tmp_path / "changelog.d"
     folder.mkdir()
-    (folder / "doc.documentation.md").write_text("- A page.\n", encoding="utf-8")
+    (folder / "2026-10-18-doc.documentation.md").write_text("- A page.\n", encoding="utf-8")
     assert changelog.build(path, folder) == 1
     assert path.read_text(encoding="utf-8") == (
         "# Changelog\n\n## [Unreleased]\n\n### Documentation\n\n- A page.\n\n## [1.0.0] - 2026-01-01\n"
@@ -113,8 +119,8 @@ def test_build_without_fragments_leaves_the_changelog_as_it_is(changelog, tmp_pa
 def test_the_command_line_refuses_to_build_from_a_malformed_fragment(changelog, tmp_path, monkeypatch, capsys):
     folder = tmp_path / "changelog.d"
     folder.mkdir()
-    (folder / "glm.new.md").write_text("- An entry.\n", encoding="utf-8")
+    (folder / "glm.added.md").write_text("- An entry.\n", encoding="utf-8")
     monkeypatch.setattr(changelog, "FRAGMENTS", folder)
     assert changelog.main(["changelog.py", "build"]) == 1
-    assert "glm.new.md" in capsys.readouterr().out
+    assert "glm.added.md: name it <yyyy-mm-dd>-<slug>.<type>.md" in capsys.readouterr().out
     assert changelog.main(["changelog.py", "release"]) == 2
