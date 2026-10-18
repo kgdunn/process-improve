@@ -1116,6 +1116,186 @@ def test_a_design_is_checked_by_its_structure_projections_measures_and_whole_arr
     assert report["reason"].iloc[16].startswith("ValueError")
 
 
+def test_an_alias_matrix_in_thirds_product_columns_a_changed_run_and_some_columns_are_checked(monkeypatch, tmp_path):
+    """The half fraction x3 = x1 x2: its alias matrix in thirds, product columns, a changed run, two of its columns."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    half = [[-1, -1, 1], [1, -1, -1], [-1, 1, -1], [1, 1, 1]]
+    runs = {"columns": ["x1", "x2", "x3", "x1x2"], "rows": [[*r, r[0] * r[1]] for r in half], "coded": True}
+    alias = {"kind": "design_metric", "metric": "alias_matrix", "model": "x1 + x2 + x3", "expression": True}
+    sd = {"kind": "library_value", "function": "allocate_runs", "kwargs": {"variance_a": 1, "variance_b": 1}}
+    halved = {"generators": ["C=AB"], "n_center_points": 0}
+    fraction = {"design_type": "fractional_factorial", "k": 3, "options": halved}
+    changed = {"kind": "design_metric", "metric": "information_matrix", "model": "x1", "set": [[1, "x1", 1]]}
+    expected = [
+        item([["0", "0", "0"], ["0", "0", "1"], ["0", "1", "0"], ["1", "0", "0"]], alias | {"key": "matrix"}),
+        item("1", alias | {"key": "matrix.1.2"}),
+        item("1/3", alias | {"key": "matrix.1.2"}),  # the half fraction aliases x1 with x2 x3 wholly
+        item("x1x2", {"kind": "product_column", "column": "x1x2", "of": ["x1", "x2"]}),
+        item("x1x2", {"kind": "product_column", "column": "x1x2", "of": ["x1", "x3"]}),
+        item("1", {"kind": "dot_product", "columns": ["x1", "x2", "x3"], "mean": True}),
+        item("4", {"kind": "dot_product", "columns": ["x1", "x2", "x3"]}),
+        item("0.577", sd | {"key": "best.variance", "root": True}),  # the even split of 12 runs: sqrt(1/6 + 1/6)
+        item("2", changed | {"key": "xtx.0.1"}),  # run 1 set to x1 = +1: the column sums to 2
+        item("x", {"kind": "same_projections", "columns": ["x1", "x2"], "design": fraction, "design_columns": 2}),
+    ]
+    experiment = {
+        "name": "half",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("x1", "x2", "x3")],
+        "responses": [],
+        "runs": runs,
+        "expected": expected,
+    }
+    source = {"key": "half", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    (tmp_path / "half.json").write_text(json.dumps({"source": source, "experiments": [experiment]}), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("half")
+    assert report["agrees"].tolist() == [True, True, False, True, False, True, True, True, True, True]
+    assert report["found"].iloc[4] == "not in runs 1, 3"  # x1 x3 is x2, which differs from x1 x2 where x1 = -1
+
+
+def test_a_best_corner_some_runs_of_a_design_and_a_relative_efficiency_are_checked(monkeypatch, tmp_path):
+    """A 2^2 factorial with a centre run, y = 3 + 2a - b: its best corner, its corner runs, its efficiency."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+    factors = [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("a", "b")]
+    best = {"kind": "best_corner", "model": "a + b", "factors": ["a", "b"]}
+    versus = {"kind": "relative_efficiency", "model": "a + b", "versus": "corners"}
+    factorial = {"design_type": "full_factorial", "k": 2, "options": {"n_center_points": 0}}
+    expected = [
+        item("1", best | {"factor": "a"}),
+        item("-1", best | {"factor": "b"}),
+        item("-1", best | {"factor": "a", "goal": "minimize"}),
+        item("x", {"kind": "same_runs", "runs": [1, 2, 3, 4], "design": factorial}),
+        item("1.08", versus | {"criterion": "d"}),  # |X'X| 80 against 64, per parameter: (80/64)^(1/3)
+        item("1.14", versus | {"criterion": "i"}),  # 1/n + 1/6 over the square: (1/4 + 1/6) / (1/5 + 1/6)
+    ]
+    rows = [[a, b, 3 + 2 * a - b] for a, b in [*corners, [0, 0]]]
+    with_centre = {
+        "name": "with-centre",
+        "factors": factors,
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["a", "b", "y"], "rows": rows, "coded": True},
+        "expected": expected,
+    }
+    corner_runs = {
+        "name": "corners",
+        "factors": factors,
+        "responses": [],
+        "runs": {"columns": ["a", "b"], "rows": corners, "coded": True},
+    }
+    source = {"key": "two", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    catalogue = {"source": source, "experiments": [with_centre], "designs": [corner_runs | {"expected": []}]}
+    (tmp_path / "two.json").write_text(json.dumps(catalogue), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("two")
+    assert report["agrees"].tolist() == [True] * 6, report[["found", "reason"]].to_string()
+
+
+def test_split_plot_designs_are_evaluated_and_compared_through_their_whole_plots(monkeypatch, tmp_path):
+    """Four whole plots of two runs, V = I + J in each: a whole-plot column has variance 3/8, a sub-plot column 1/8.
+
+    With a set in the whole plots, the intercept and a carry 2/3 of a run's information per whole plot and b
+    carries 2; with a varied inside them as b is, |X'V^-1 X| is three times larger, (1/3)^(1/3) = 69.3% per
+    parameter, 30.7% less.
+    """
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    factors = [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("a", "b")]
+    gls = {"kind": "design_metric", "metric": "information_matrix", "model": "a + b", "groups": ["plot"]}
+    gls |= {"options": {"random_effects": {"plot": 1.0}}}
+    versus = {"kind": "relative_efficiency", "criterion": "d", "model": "a + b", "groups": ["plot"]}
+    versus |= {"options": {"random_effects": {"plot": 1.0}}}
+    split = [[plot, a, b] for plot, a in ((1, -1), (2, 1), (3, -1), (4, 1)) for b in (-1, 1)]
+    within = [[plot, a * s, a] for plot, s in ((1, 1), (2, -1), (3, 1), (4, -1)) for a in (-1, 1)]
+    expected = [
+        item("0.375", gls | {"key": "coefficient_variances.Intercept"}),
+        item("0.375", gls | {"key": "coefficient_variances.a"}),
+        item("0.125", gls | {"key": "coefficient_variances.b"}),
+        item("0.125", gls | {"key": "coefficient_variances.a", "options": None}),  # least squares ignores the plots
+        item("69.3", versus | {"versus": "within", "percent": True}),
+        item("-30.7", versus | {"versus": "within", "gain": True}),
+    ]
+    catalogue = {
+        "source": {"key": "plots", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"},
+        "experiments": [],
+        "designs": [
+            {
+                "name": "split",
+                "factors": factors,
+                "responses": [],
+                "expected": expected,
+                "runs": {"columns": ["plot", "a", "b"], "rows": split, "coded": True},
+            },
+            {
+                "name": "within",
+                "factors": factors,
+                "responses": [],
+                "expected": [],
+                "runs": {"columns": ["plot", "a", "b"], "rows": within, "coded": True},
+            },
+        ],
+    }
+    (tmp_path / "plots.json").write_text(json.dumps(catalogue), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("plots")
+    assert report["agrees"].tolist() == [True] * 6, report[["found", "reason"]].to_string()
+
+
+def test_blocking_variances_counts_and_average_rows_are_checked(monkeypatch, tmp_path):
+    """A 2^2 factorial in two blocks split by AB: the main effects are orthogonal to the blocks, A B is not."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    info = {"kind": "design_metric", "metric": "information_matrix", "key": "coefficient_variances"}
+    blocked, plain = "A + B + C(block)", "A + B"
+    rows = {"kind": "normal_equations", "model": "A + B", "key": "model_matrix", "average": True}
+    split_by_ab = [[1, 1, -1], [1, -1, 1], [2, -1, -1], [2, 1, 1]]
+    expected = [
+        item("100", info | {"model": plain, "key": "coefficient_variances.A", "relative_to": blocked, "percent": True}),
+        item("1", info | {"model": blocked, "terms": "A|B", "relative_to": plain, "reduce": "max"}),
+        item("2", info | {"model": blocked, "terms": "A|B", "times_runs": True, "count": {"below": 1.5}}),
+        item("0", info | {"model": blocked, "terms": "A|B", "times_runs": True, "count": {"above": 1.5}}),
+        item(["1", "0", "0"], rows | {"rows": [0, 1]}),
+        item(["0", "0"], rows | {"rows": [2, 3], "columns": [1, 2]}),
+        item("0", {"kind": "blocks_orthogonal", "block": "block"}),  # the blocks confound A B, a second-order term
+    ]
+    experiment = {
+        "name": "two-blocks",
+        "factors": [
+            {"name": "A", "type": "numeric", "low": -1, "high": 1},
+            {"name": "B", "type": "numeric", "low": -1, "high": 1},
+            {"name": "block", "type": "categorical", "low": 1, "high": 2, "levels": [1, 2], "coding": "name"},
+        ],
+        "responses": [],
+        "runs": {"columns": ["block", "A", "B"], "rows": split_by_ab, "coded": True},
+        "expected": expected,
+    }
+    source = {"key": "two-blocks", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    catalogue = {"source": source, "experiments": [experiment]}
+    (tmp_path / "two-blocks.json").write_text(json.dumps(catalogue), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("two-blocks")
+    assert report["agrees"].tolist() == [True] * 7, report[["found", "reason"]].to_string()
+
+
+def test_a_run_count_keeps_the_runs_above_or_at_least_a_value():
+    from process_improve.experiments.reference_catalogue import _run_count
+
+    experiment = {"runs": {"columns": ["A", "y"], "rows": [["Low", 5.5], ["Low", 6.0], ["High", 5.0]]}}
+    assert _run_count(experiment, {"at_least": {"y": 5.5}}) == 2
+    assert _run_count(experiment, {"above": {"y": 5.5}}) == 1
+    assert _run_count(experiment, {"at": {"A": "High"}, "at_least": {"y": 5.5}}) == 0
+
+
 def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
     from process_improve.experiments.reference_catalogue import _library_text
 
@@ -1523,6 +1703,25 @@ def test_a_design_is_compared_on_its_inverse_as_a_whole():
         entry, {"model": model, "key": "relative_d", "runs": [1, 2, 3, 4], "versus": [1, 2, 3, 4, 5]}
     )
     assert relative == pytest.approx((64 / 80) ** (1 / 3))
+
+
+def test_trend_robustness_is_the_share_of_information_a_time_trend_leaves():
+    """A 2^2 whose A is orthogonal to the linear trend and whose B is not: B keeps 0.8 of its 4, (0.8 / 4)^(1/3)."""
+    from process_improve.experiments.reference_catalogue import _normal_equations
+
+    entry = {
+        "name": "trend",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("A", "B", "t")],
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["A", "B", "t", "y"],
+            "rows": [[1, -1, -3, 0], [-1, -1, -1, 0], [-1, 1, 1, 0], [1, 1, 3, 0]],
+            "coded": True,
+        },
+    }
+    check = {"model": "A + B", "key": "trend_robustness", "covariates": ["t"]}
+    assert _normal_equations(entry, check) == pytest.approx(0.2 ** (1 / 3))
+    assert _normal_equations(entry, check | {"model": "A"}) == pytest.approx(1.0)
 
 
 def test_settings_printed_rounded_are_fitted_exactly_unless_asked_as_printed():

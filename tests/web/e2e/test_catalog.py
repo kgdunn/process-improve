@@ -466,6 +466,20 @@ def test_a_design_s_runs_outside_the_limit_are_marked_and_it_opens_with_the_limi
     )
 
 
+def test_a_design_opened_with_a_limit_waits_for_the_other_designs_runs_to_be_judged(context, site):
+    # The central composite design is a generated one: its file arrives at once, the published sources' late, so
+    # the detail is ready before every design's runs are judged against the limit.
+    context.add_init_script(
+        """const fetchNow = window.fetch;
+        window.fetch = (url, ...rest) => /catalog\\/detail\\/(?!generated\\.json)/.test(String(url))
+          ? new Promise((done) => setTimeout(done, 1000)).then(() => fetchNow(url, ...rest))
+          : fetchNow(url, ...rest);"""
+    )
+    page = open_catalog(context, site, f"#lim=A+%2B+B+%3C%3D+1&lima=1&d={CCD}")
+    page.wait_for_selector("#detail[open] .detail__warn")
+    assert page.text_content("#detail-body .detail__warn").endswith("are outside the limit A + B <= 1, of its 17 runs.")
+
+
 def test_a_link_that_names_a_design_in_its_query_opens_it(context, site):
     """The book links to a design as catalog/?d=<id>: its theme reads a fragment as a CSS selector."""
     page = context.new_page()

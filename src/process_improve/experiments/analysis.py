@@ -41,7 +41,7 @@ from process_improve.experiments._analyses.aliasing import alias_chains_of, chai
 from process_improve.experiments._analyses.box_cox import _run_box_cox
 from process_improve.experiments._analyses.curvature import _run_curvature_test
 from process_improve.experiments._analyses.diagnostics import _run_residual_diagnostics
-from process_improve.experiments._analyses.glm import GlmSpec, check_glm_options, run_glm
+from process_improve.experiments._analyses.glm import INFORMATIONS, GlmSpec, check_glm_options, run_glm
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.lenth import _run_lenth_method
 from process_improve.experiments._analyses.mixture import (
@@ -59,7 +59,14 @@ from process_improve.experiments._analyses.ols_extractors import (
     _run_significance,
 )
 from process_improve.experiments._analyses.prediction import _run_confirmation_test, _run_prediction
-from process_improve.experiments._analyses.split_plot import _readable, run_split_plot, sum_coded, sum_coding_env
+from process_improve.experiments._analyses.split_plot import (
+    DF_METHODS,
+    SplitPlotSpec,
+    _readable,
+    run_split_plot,
+    sum_coded,
+    sum_coding_env,
+)
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
@@ -370,6 +377,24 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     return df, f"{response} ~ {' + '.join([*names, *([rhs] if rhs else [])])}", tuple(names)
 
 
+def _whole_plot_columns(df: pd.DataFrame, whole_plot: str | Sequence[str] | None, types: list[str]) -> tuple[str, ...]:
+    """Name the columns of whole-plot labels: one, or several crossed groupings (a two-way split-plot design).
+
+    A single name, or ``None``, is :func:`_whole_plot_column`'s. Several names must each be a
+    column of the data, once each.
+    """
+    if whole_plot is None or isinstance(whole_plot, str):
+        return (_whole_plot_column(df, whole_plot, types),)
+    names = tuple(whole_plot)
+    missing = [name for name in names if name not in df.columns]
+    if not names or missing or len(set(names)) < len(names):
+        raise ValueError(
+            f"whole_plot={list(names)!r} must name one or more different columns of the data; "
+            f"{', '.join(map(repr, missing)) or 'none'} missing."
+        )
+    return names
+
+
 def _whole_plot_column(df: pd.DataFrame, whole_plot: str | None, types: list[str]) -> str:
     """Name the column of whole-plot labels; warn when the analysis would treat its runs as independent.
 
@@ -509,7 +534,8 @@ class _Fit:
     blocks: tuple[str, ...]
     transform_info: dict[str, Any]
     alpha: float
-    whole_plot: str = WHOLE_PLOT_COL
+    whole_plot: str | tuple[str, ...] = WHOLE_PLOT_COL
+    df_method: str = "satterthwaite"
     coding: str | Mapping[str, Mapping[str, float]] = "actual"
     _coded: tuple[RegressionResultsWrapper, dict[str, Any]] | None = None
     _coefficient_fit: RegressionResultsWrapper | None = None
@@ -668,7 +694,14 @@ def _split_plot(fit: _Fit) -> dict[str, Any]:
     formula = fit.ols.model.formula
     if fit.model in _NAMED_MODELS and fit.model not in SCHEFFE_MODELS:
         formula = sum_coded(formula, [c for c in fit.factor_cols if not _is_numeric(fit.df[c])])
-    return run_split_plot(fit.df, formula, fit.whole_plot, fit.alpha, fit.blocks)
+    spec = SplitPlotSpec(
+        whole_plot=fit.whole_plot,
+        alpha=fit.alpha,
+        blocks=fit.blocks,
+        df_method=fit.df_method,
+        information=fit.glm["information"],
+    )
+    return run_split_plot(fit.df, formula, spec)
 
 
 def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
@@ -753,12 +786,13 @@ def analyze_experiment(  # noqa: PLR0913
     new_points: pd.DataFrame | None = None,
     observed_at_new: list[float] | None = None,
     response_column: str | None = None,
-    whole_plot: str | None = None,
+    whole_plot: str | Sequence[str] | None = None,
     family: str | None = None,
     link: str | None = None,
     trials: str | float | Sequence[float] | None = None,
     dispersion: str | float | None = None,
     information: str = "expected",
+    df_method: str = "satterthwaite",
 ) -> dict[str, Any]:
     """Fit models, run ANOVA, compute effects, diagnose residuals.
 
@@ -844,8 +878,12 @@ def analyze_experiment(  # noqa: PLR0913
         ``significant_terms``. The degrees of freedom use the expected information,
         so they equal Kenward and Roger's (as R's pbkrtest gives them); R's lmerTest
         uses the observed information, and gives slightly larger ones in an
-        unbalanced design. Kenward and Roger's inflation of the standard errors is not
-        applied. In a balanced design all of these agree.
+        unbalanced design. ``df_method="kenward_roger"`` also applies Kenward and
+        Roger's inflation of the standard errors and their scaling of the F tests, and
+        ``information="observed"`` computes the df from the observed information: the
+        two together are JMP's analysis. In a balanced design all of these agree. A
+        design run in random blocks is analysed the same way, the blocks named as the
+        whole plots.
         ``"glm"`` fits a generalized linear model of the ``family`` given, for a response that
         is a count of defects (``"poisson"``), a number of successes out of a number of
         ``trials`` (``"binomial"``) or a positive amount whose spread grows with its size
@@ -903,10 +941,13 @@ def analyze_experiment(  # noqa: PLR0913
         Observed values at *new_points* (for confirmation testing), one per row.
     response_column : str or None
         Name of the response column when it lives inside *design_matrix*.
-    whole_plot : str or None
+    whole_plot : str, sequence of str, or None
         The column labelling each run's whole plot, for ``"split_plot"``. ``None``
         (default) uses the ``WholePlot`` column when there is one. The column is never
-        a factor.
+        a factor. Several columns are several crossed random effects: the rows and the
+        columns of a two-way split-plot (strip-plot) design, whose runs share a row's
+        first-stage setting and a column's second-stage processing. The result then has
+        one variance component, error df and set of BLUPs per column, named by it.
     family : str or None
         For ``"glm"``: ``"binomial"``, ``"poisson"``, ``"gamma"``, ``"gaussian"`` or
         ``"inverse_gaussian"``.
@@ -926,7 +967,15 @@ def analyze_experiment(  # noqa: PLR0913
     information : {"expected", "observed"}
         For ``"glm"``: whether the covariance of the coefficients inverts the expected
         information (default, as R does) or the observed information (as SAS's GENMOD does).
-        The two are the same under each family's canonical link.
+        The two are the same under each family's canonical link. For ``"split_plot"``: the
+        REML information the degrees of freedom are computed from, the expected (default,
+        as SAS and R's pbkrtest do) or the observed (as JMP and R's lmerTest do).
+    df_method : {"satterthwaite", "kenward_roger"}
+        For ``"split_plot"``: ``"satterthwaite"`` (default) tests each term on
+        Satterthwaite's df with the model-based standard errors; ``"kenward_roger"`` adjusts
+        the covariance of the estimates for the uncertainty in the variance components and
+        scales the F tests, as Kenward and Roger (1997) do. A single coefficient's df are the
+        same either way.
 
     Returns
     -------
@@ -1011,9 +1060,10 @@ def analyze_experiment(  # noqa: PLR0913
         available = sorted(_ANALYSIS_REGISTRY.keys())
         raise ValueError(f"Unknown analysis_type(s): {unknown}. Available: {available}")
     glm = {"family": family, "link": link, "trials": trials, "dispersion": dispersion, "information": information}
-    whole_plot_col, trials_col = _side_columns(df, whole_plot, types, transform, glm)
+    _check_df_method(df_method)
+    whole_plot_cols, trials_col = _side_columns(df, whole_plot, types, transform, glm)
 
-    _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL, whole_plot_col, trials_col}
+    _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL, *whole_plot_cols, trials_col}
     factor_cols = [c for c in df.columns if c not in _NON_FACTOR_COLS]
     for col in factor_cols:
         validate_identifier_is_safe(col)
@@ -1026,7 +1076,7 @@ def analyze_experiment(  # noqa: PLR0913
         response_col,
         *factor_cols,
         *([BLOCK_COL] if BLOCK_COL in df.columns else []),
-        *([whole_plot_col] if "split_plot" in types else []),
+        *(whole_plot_cols if "split_plot" in types else []),
         *([trials_col] if trials_col else []),
     ]
     df = _drop_incomplete_runs(df, used)
@@ -1077,7 +1127,8 @@ def analyze_experiment(  # noqa: PLR0913
         blocks=blocks,
         transform_info=transform_info,
         alpha=significance_level,
-        whole_plot=whole_plot_col,
+        whole_plot=whole_plot_cols if len(whole_plot_cols) > 1 else whole_plot_cols[0],
+        df_method=df_method,
         coding=coding,
         glm=glm,
         searched_model=searched_model,
@@ -1094,11 +1145,25 @@ def analyze_experiment(  # noqa: PLR0913
 
 
 def _side_columns(
-    df: pd.DataFrame, whole_plot: str | None, types: list[str], transform: str | None, glm: dict[str, Any]
-) -> tuple[str, str | None]:
+    df: pd.DataFrame,
+    whole_plot: str | Sequence[str] | None,
+    types: list[str],
+    transform: str | None,
+    glm: dict[str, Any],
+) -> tuple[tuple[str, ...], str | None]:
     """Check the transform and a generalized linear model's options; return the whole-plot and trials columns."""
     validate_transform(transform)
-    return _whole_plot_column(df, whole_plot, types), _trials_column(df, glm, types, transform)
+    if "split_plot" in types and glm["information"] not in INFORMATIONS:
+        raise ValueError(
+            f"information must be one of {', '.join(map(repr, INFORMATIONS))}; got {glm['information']!r}."
+        )
+    return _whole_plot_columns(df, whole_plot, types), _trials_column(df, glm, types, transform)
+
+
+def _check_df_method(df_method: str) -> None:
+    """Raise ``ValueError`` for a degrees-of-freedom method the split-plot analysis does not offer."""
+    if df_method not in DF_METHODS:
+        raise ValueError(f"df_method must be one of {', '.join(map(repr, DF_METHODS))}; got {df_method!r}.")
 
 
 def _trials_column(df: pd.DataFrame, glm: dict[str, Any], types: list[str], transform: str | None) -> str | None:
@@ -1213,25 +1278,30 @@ def _model_summary(
     }
 
 
-def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float]:
+def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float | None]:
     """Return the overall F test of the model and its likelihood criteria, as R's summary, AIC and step give them.
 
     The F test compares the model with the intercept alone (with no intercept, with zero, on the
     uncorrected sums of squares, as R does). ``aic`` and ``bic`` count the error variance among the
     parameters, -2 ln L + 2(p + 1), as R's ``AIC`` and the library's model selection do;
     ``aic_step`` is n ln(RSS/n) + 2p, which R's ``step`` and ``extractAIC`` print. The two
-    AICs differ by a constant for a given number of runs, so they rank models alike.
+    AICs differ by a constant for a given number of runs, so they rank models alike. ``aicc``
+    corrects ``aic`` for a small number of runs, AIC + 2k(k + 1)/(n - k - 1) with k = p + 1, as JMP
+    and the library's model selection compute it; it is ``None`` when n <= p + 2, where the
+    correction is undefined.
     """
     n, p = float(ols_result.nobs), float(ols_result.df_model + ols_result.k_constant)
     rss = max(float(ols_result.ssr), 1e-300)
     log_likelihood = -n / 2 * (np.log(2 * np.pi * rss / n) + 1)
     with np.errstate(divide="ignore", invalid="ignore"):
         f_statistic, f_p_value = float(ols_result.fvalue), float(ols_result.f_pvalue)
+    aic, k = -2 * log_likelihood + 2 * (p + 1), p + 1  # k counts the error variance among the parameters
     return {
         "f_statistic": f_statistic,
         "f_p_value": f_p_value,
         "log_likelihood": float(log_likelihood),
-        "aic": float(-2 * log_likelihood + 2 * (p + 1)),
+        "aic": float(aic),
+        "aicc": float(aic + 2 * k * (k + 1) / (n - k - 1)) if n - k - 1 > 0 else None,
         "bic": float(-2 * log_likelihood + np.log(n) * (p + 1)),
         "aic_step": float(n * np.log(rss / n) + 2 * p),
     }

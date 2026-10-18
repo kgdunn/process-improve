@@ -26,6 +26,22 @@ term combines its eigen-directions as Fai and Cornelius (1996) do, as lmerTest d
 With the expected information, the df equal Kenward and Roger's (1997, as pbkrtest
 computes them); lmerTest's Satterthwaite df use the observed information instead, and
 differ slightly in an unbalanced design.
+
+Kenward and Roger's method also inflates the covariance of the estimates, for the
+uncertainty in the variance components that :math:`(X^\top V^{-1} X)^{-1}` leaves out,
+and scales the F statistic of a term with more than one degree of freedom. For a single
+coefficient the scale is one and the df are Satterthwaite's, so only its standard error
+changes. JMP computes them with the observed information; SAS and pbkrtest with the
+expected. A random-block analysis is the same model, with the blocks as the whole plots.
+
+A two-way split-plot (strip-plot) design has two crossed random effects instead of one: a
+row effect, shared by the runs of one setting of the first stage's hard-to-change factors,
+and a column effect, shared by the runs processed together in the second stage, so
+:math:`V = \sigma^2_r Z_r Z_r^\top + \sigma^2_c Z_c Z_c^\top + \sigma^2 I`. With more than
+one grouping the variance components are estimated by the general crossed-random-intercepts
+REML of :func:`~process_improve.regression._variance_components.fit_variance_components`,
+and the same Satterthwaite and Kenward-Roger machinery is applied to them
+(:func:`fit_crossed_reml`).
 """
 
 from __future__ import annotations
@@ -41,7 +57,12 @@ from patsy import EvalEnvironment, dmatrices
 from patsy.builtins import C, Sum
 from scipy import optimize, stats
 
+from process_improve.regression._variance_components import fit_variance_components
+
 from ._shared import is_block_term
+
+#: The degrees-of-freedom methods :func:`run_split_plot` offers.
+DF_METHODS = ("satterthwaite", "kenward_roger")
 
 #: Variance ratios searched before the refinement: zero, then 1e-8 to 1e8.
 _ETA_GRID = np.concatenate([[0.0], np.logspace(-8, 8, 81)])
@@ -52,8 +73,82 @@ _CODER, _SUM = "_pi_C", "_pi_Sum"
 _SUM_CODED = re.compile(rf"{_CODER}\((\w+), {_SUM}\)")
 
 
+class _WaldTests:
+    """The t and F tests of a REML fit, from its estimates and their covariances.
+
+    A subclass holds ``beta``, ``cov_beta``, ``cov_beta_kr``, ``dcov`` (the derivatives of
+    ``cov_beta`` with respect to the variance parameters) and ``vc_cov`` (those parameters'
+    asymptotic covariance).
+    """
+
+    beta: np.ndarray
+    cov_beta: np.ndarray
+    cov_beta_kr: np.ndarray
+    dcov: np.ndarray
+    vc_cov: np.ndarray
+
+    def satterthwaite_df(self, contrast: np.ndarray) -> float:
+        """Denominator degrees of freedom of the t-test of ``contrast @ beta`` (Satterthwaite, 1946).
+
+        ``2 v**2 / (g' A g)``, with ``v`` the variance of the estimate, ``g`` its gradient
+        with respect to the variance parameters, and ``A`` their asymptotic covariance.
+        """
+        variance = float(contrast @ self.cov_beta @ contrast)
+        gradient = np.einsum("i,kij,j->k", contrast, self.dcov, contrast)
+        return 2.0 * variance**2 / float(gradient @ self.vc_cov @ gradient)
+
+    def wald_test(self, contrasts: np.ndarray, *, kenward_roger: bool = False) -> tuple[float, float]:
+        """F statistic and Satterthwaite denominator df for ``contrasts @ beta = 0`` (q rows).
+
+        The q x q covariance of the estimates is split into independent directions; each
+        gets its own Satterthwaite df, and they are combined by matching the mean of the F
+        distribution (Fai and Cornelius, 1996; Kuznetsova, Brockhoff and Christensen, 2017).
+        With ``kenward_roger`` the test is Kenward and Roger's instead (see :meth:`kenward_roger_test`).
+        """
+        if kenward_roger:
+            return self.kenward_roger_test(contrasts)
+        variances, vectors = np.linalg.eigh(contrasts @ self.cov_beta @ contrasts.T)
+        directions = vectors.T @ contrasts
+        f_value = float(np.sum((directions @ self.beta) ** 2 / variances)) / len(variances)
+        nus = np.array([self.satterthwaite_df(row) for row in directions])
+        if len(nus) == 1 or np.allclose(nus, nus[0], rtol=1e-8):
+            return f_value, float(np.mean(nus))
+        if np.any(nus <= 2):
+            return f_value, 2.0
+        expected = float(np.sum(nus / (nus - 2.0)))
+        return f_value, 2.0 * expected / (expected - len(nus))
+
+    def kenward_roger_test(self, contrasts: np.ndarray) -> tuple[float, float]:
+        """Kenward and Roger's (1997) F statistic and denominator df for ``contrasts @ beta = 0`` (q rows).
+
+        The Wald statistic on the adjusted covariance ``cov_beta_kr``, scaled by lambda so that
+        its first two moments match those of an F distribution on (q, m) degrees of freedom.
+        With ``D_i`` the derivatives in ``dcov`` and ``Theta = L' (L Phi L')^-1 L``,
+        ``A1 = sum W_ij tr(Theta D_i) tr(Theta D_j)`` and ``A2 = sum W_ij tr(Theta D_i Theta D_j)``.
+        For one row, lambda is one and m is Satterthwaite's df.
+        """
+        q = contrasts.shape[0]
+        theta = contrasts.T @ np.linalg.solve(contrasts @ self.cov_beta @ contrasts.T, contrasts)
+        traces = np.array([np.trace(theta @ d) for d in self.dcov])
+        products = np.array([[np.trace(theta @ di @ theta @ dj) for dj in self.dcov] for di in self.dcov])
+        a1 = float(traces @ self.vc_cov @ traces)
+        a2 = float(np.sum(self.vc_cov * products))
+        estimate = contrasts @ self.beta
+        f_value = float(estimate @ np.linalg.solve(contrasts @ self.cov_beta_kr @ contrasts.T, estimate)) / q
+        b = (a1 + 6.0 * a2) / (2.0 * q)
+        g = ((q + 1.0) * a1 - (q + 4.0) * a2) / ((q + 2.0) * a2)
+        denominator = 3.0 * q + 2.0 * (1.0 - g)
+        c1, c2, c3 = g / denominator, (q - g) / denominator, (q + 2.0 - g) / denominator
+        e_star = 1.0 / (1.0 - a2 / q)
+        v_star = (2.0 / q) * (1.0 + c1 * b) / ((1.0 - c2 * b) ** 2 * (1.0 - c3 * b))
+        rho = v_star / (2.0 * e_star**2)
+        m = 4.0 + (q + 2.0) / (q * rho - 1.0)
+        scale = m / (e_star * (m - 2.0))
+        return scale * f_value, m
+
+
 @dataclass(frozen=True)
-class RemlFit:
+class RemlFit(_WaldTests):
     r"""A REML fit of the split-plot model; see the module docstring for the notation.
 
     Attributes
@@ -66,9 +161,16 @@ class RemlFit:
         The whole-plot and the residual (subplot) variance.
     vc_cov : np.ndarray of shape (2, 2)
         Asymptotic covariance of :math:`(\hat\sigma^2_{wp}, \hat\sigma^2)`: the inverse
-        of the REML expected information.
+        of the REML expected information, or of the observed information when the fit
+        asks for it.
     dcov : np.ndarray of shape (2, p, p)
         Derivatives of ``cov_beta`` with respect to :math:`\sigma^2_{wp}` and :math:`\sigma^2`.
+    cov_beta_kr : np.ndarray of shape (p, p)
+        Kenward and Roger's (1997) adjusted covariance,
+        :math:`\Phi + 2\Phi \{\sum_{ij} W_{ij} (Q_{ij} - P_i \Phi P_j)\} \Phi`, with
+        :math:`\Phi` = ``cov_beta``, :math:`W` = ``vc_cov``,
+        :math:`P_i = X^\top V^{-1} V_i V^{-1} X` and
+        :math:`Q_{ij} = X^\top V^{-1} V_i V^{-1} V_j V^{-1} X`.
     whole_plot_error_df, subplot_error_df : int
         Degrees of freedom of the two error strata: ``rank([X Z]) - rank(X)`` and
         ``n - rank([X Z])``. In a balanced design, whole-plot terms are tested on the first
@@ -83,34 +185,7 @@ class RemlFit:
     dcov: np.ndarray
     whole_plot_error_df: int
     subplot_error_df: int
-
-    def satterthwaite_df(self, contrast: np.ndarray) -> float:
-        """Denominator degrees of freedom of the t-test of ``contrast @ beta`` (Satterthwaite, 1946).
-
-        ``2 v**2 / (g' A g)``, with ``v`` the variance of the estimate, ``g`` its gradient
-        with respect to the two variance components, and ``A`` their asymptotic covariance.
-        """
-        variance = float(contrast @ self.cov_beta @ contrast)
-        gradient = np.einsum("i,kij,j->k", contrast, self.dcov, contrast)
-        return 2.0 * variance**2 / float(gradient @ self.vc_cov @ gradient)
-
-    def wald_test(self, contrasts: np.ndarray) -> tuple[float, float]:
-        """F statistic and Satterthwaite denominator df for ``contrasts @ beta = 0`` (q rows).
-
-        The q x q covariance of the estimates is split into independent directions; each
-        gets its own Satterthwaite df, and they are combined by matching the mean of the F
-        distribution (Fai and Cornelius, 1996; Kuznetsova, Brockhoff and Christensen, 2017).
-        """
-        variances, vectors = np.linalg.eigh(contrasts @ self.cov_beta @ contrasts.T)
-        directions = vectors.T @ contrasts
-        f_value = float(np.sum((directions @ self.beta) ** 2 / variances)) / len(variances)
-        nus = np.array([self.satterthwaite_df(row) for row in directions])
-        if len(nus) == 1 or np.allclose(nus, nus[0], rtol=1e-8):
-            return f_value, float(np.mean(nus))
-        if np.any(nus <= 2):
-            return f_value, 2.0
-        expected = float(np.sum(nus / (nus - 2.0)))
-        return f_value, 2.0 * expected / (expected - len(nus))
+    cov_beta_kr: np.ndarray
 
 
 def _gls(
@@ -200,7 +275,7 @@ def _check_estimable(X: np.ndarray, Z: np.ndarray) -> tuple[int, int]:
     return int(rank_xz - rank_x), int(n - rank_xz)
 
 
-def fit_reml(y: np.ndarray, X: np.ndarray, whole_plots: np.ndarray) -> RemlFit:
+def fit_reml(y: np.ndarray, X: np.ndarray, whole_plots: np.ndarray, information: str = "expected") -> RemlFit:
     """Fit the split-plot model by REML.
 
     Parameters
@@ -211,6 +286,10 @@ def fit_reml(y: np.ndarray, X: np.ndarray, whole_plots: np.ndarray) -> RemlFit:
         The fixed-effects model matrix, of full column rank.
     whole_plots : np.ndarray of shape (n,)
         Each run's whole-plot label.
+    information : {"expected", "observed"}
+        The REML information whose inverse is the variance components' covariance, which
+        the degrees of freedom and Kenward and Roger's adjustment use. The observed one falls
+        back to the expected one where it is not positive definite.
 
     Returns
     -------
@@ -244,17 +323,175 @@ def fit_reml(y: np.ndarray, X: np.ndarray, whole_plots: np.ndarray) -> RemlFit:
 
     proj = v_inv - g @ X.T @ v_inv
     proj_z = proj @ Z
+    z_proj_z = Z.T @ proj_z
     cross = float(np.sum(proj_z**2))
-    info = 0.5 * np.array([[np.sum((Z.T @ proj_z) ** 2), cross], [cross, np.sum(proj**2)]])
+    info = 0.5 * np.array([[np.sum(z_proj_z**2), cross], [cross, np.sum(proj**2)]])
+    if information == "observed":
+        # -d2 l_R / d theta_k d theta_l = -tr(P V_k P V_l) / 2 + y' P V_k P V_l P y, and P y = V^-1 r.
+        u = v_inv @ resid
+        z_u = Z.T @ u
+        z_proj_u = Z.T @ (proj @ u)
+        data = np.array([[z_u @ z_proj_z @ z_u, z_u @ z_proj_u], [z_u @ z_proj_u, u @ proj @ u]])
+        observed = data - info
+        if np.all(np.linalg.eigvalsh(observed) > 0):
+            info = observed
+    vc_cov = np.linalg.inv(info)
+
+    # Kenward and Roger's adjustment, with A = V^-1 X: P_1 = A'ZZ'A, P_2 = A'A, and Q_ij the
+    # same products with V^-1 between the two derivatives of V.
+    a = v_inv @ X
+    z_a = Z.T @ a
+    p_terms = [z_a.T @ z_a, a.T @ a]
+    z_v_a = Z.T @ v_inv @ a
+    q12 = z_a.T @ z_v_a
+    q_terms = [[z_a.T @ (Z.T @ v_inv @ Z) @ z_a, q12], [q12.T, a.T @ v_inv @ a]]
+    middle = sum(
+        vc_cov[i, j] * (q_terms[i][j] - p_terms[i] @ cov_beta @ p_terms[j]) for i in range(2) for j in range(2)
+    )
     return RemlFit(
         beta=beta,
         cov_beta=cov_beta,
         sigma2_wp=eta * sigma2,
         sigma2=sigma2,
-        vc_cov=np.linalg.inv(info),
+        vc_cov=vc_cov,
         dcov=dcov,
         whole_plot_error_df=whole_plot_error_df,
         subplot_error_df=subplot_error_df,
+        cov_beta_kr=cov_beta + 2.0 * cov_beta @ middle @ cov_beta,
+    )
+
+
+@dataclass(frozen=True)
+class CrossedFit(_WaldTests):
+    r"""A REML fit with several crossed random effects, as of a two-way split-plot design.
+
+    Attributes
+    ----------
+    beta, cov_beta, cov_beta_kr : np.ndarray
+        As in :class:`RemlFit`; ``cov_beta_kr`` is Kenward and Roger's adjusted covariance over
+        every variance parameter that is not estimated as zero.
+    variances : np.ndarray of shape (K,)
+        The random effects' variances, in the order of the groupings.
+    sigma2 : float
+        The residual variance.
+    vc_cov : np.ndarray of shape (m, m)
+        Asymptotic covariance of the variance parameters off the boundary (each nonzero
+        variance, then ``sigma2``): the inverse of their expected or observed REML information.
+    dcov : np.ndarray of shape (m, p, p)
+        Derivatives of ``cov_beta`` with respect to the same parameters.
+    blups : list of np.ndarray
+        The best linear unbiased predictions of each grouping's random effects, its groups in
+        the order of their first run.
+    error_df : np.ndarray of shape (K + 1,)
+        Each grouping's error degrees of freedom, ``rank([X Z_k]) - rank(X)``, then the
+        residual's, ``n - rank([X Z_1 ... Z_K])``.
+    """
+
+    beta: np.ndarray
+    cov_beta: np.ndarray
+    cov_beta_kr: np.ndarray
+    variances: np.ndarray
+    sigma2: float
+    vc_cov: np.ndarray
+    dcov: np.ndarray
+    blups: list[np.ndarray]
+    error_df: np.ndarray
+
+
+def _crossed_error_df(X: np.ndarray, indicators: list[np.ndarray]) -> np.ndarray:
+    """Return each grouping's and the residual's error df, raising when one of them has none."""
+    n, p = X.shape
+    rank_x = np.linalg.matrix_rank(X)
+    if rank_x < p:
+        raise ValueError(
+            f"The model matrix has {p} columns but rank {rank_x}, so some terms are aliased and cannot be "
+            "estimated. The split-plot analysis needs every term estimable: fit fewer terms."
+        )
+    found = [int(np.linalg.matrix_rank(np.hstack([X, Z])) - rank_x) for Z in indicators]
+    found.append(int(n - np.linalg.matrix_rank(np.hstack([X, *indicators]))))
+    if min(found) == 0:
+        raise ValueError(
+            "No degrees of freedom are left for the error of every random effect: the model's terms in a "
+            "grouping's factors use all its groups, or the groupings and the model use up every run. Use more "
+            "groups (more rows or columns of a two-way split-plot design), or fit fewer terms."
+        )
+    return np.array(found)
+
+
+def kenward_roger_covariance(
+    cov_beta: np.ndarray, X: np.ndarray, v_inv: np.ndarray, derivatives: list[np.ndarray], vc_cov: np.ndarray
+) -> np.ndarray:
+    r"""Return Kenward and Roger's (1997) adjusted covariance of the estimates.
+
+    :math:`\Phi + 2\Phi \{\sum_{ij} W_{ij} (Q_{ij} - P_i \Phi P_j)\} \Phi`, with
+    :math:`\Phi` = ``cov_beta``, :math:`W` = ``vc_cov``, :math:`V_i` the ``derivatives`` of
+    the runs' covariance with respect to the variance parameters,
+    :math:`P_i = X^\top V^{-1} V_i V^{-1} X` and :math:`Q_{ij} = X^\top V^{-1} V_i V^{-1} V_j V^{-1} X`.
+    The second derivatives of :math:`V` vanish, since it is linear in its parameters.
+    """
+    a = v_inv @ X
+    p_terms = [a.T @ d @ a for d in derivatives]
+    va = [v_inv @ d @ a for d in derivatives]
+    m = len(derivatives)
+    middle = sum(
+        vc_cov[i, j] * ((derivatives[i] @ a).T @ va[j] - p_terms[i] @ cov_beta @ p_terms[j])
+        for i in range(m)
+        for j in range(m)
+    )
+    return cov_beta + 2.0 * cov_beta @ middle @ cov_beta
+
+
+def fit_crossed_reml(
+    y: np.ndarray, X: np.ndarray, groupings: list[np.ndarray], information: str = "expected"
+) -> CrossedFit:
+    """Fit a model with crossed random effects by REML, with the tests' degrees of freedom and adjustment.
+
+    Parameters
+    ----------
+    y : np.ndarray of shape (n,)
+        The response.
+    X : np.ndarray of shape (n, p)
+        The fixed-effects model matrix, of full column rank.
+    groupings : list of np.ndarray of shape (n,)
+        Each random effect's group labels: the rows and the columns of a two-way split-plot design.
+    information : {"expected", "observed"}
+        The REML information whose inverse is the variance parameters' covariance.
+
+    Returns
+    -------
+    CrossedFit
+
+    Raises
+    ------
+    ValueError
+        If a term is aliased, or a random effect or the residual has no degrees of freedom.
+    """
+    codes = [pd.factorize(labels)[0] for labels in groupings]
+    indicators = [np.eye(int(c.max()) + 1)[c] for c in codes]
+    error_df = _crossed_error_df(X, indicators)
+    fit = fit_variance_components(y, X, codes)
+    free = fit.variances > 0
+    derivatives = [Z @ Z.T for Z, keep in zip(indicators, free, strict=True) if keep] + [np.eye(len(y))]
+    v = fit.sigma2 * np.eye(len(y)) + sum(var * Z @ Z.T for var, Z in zip(fit.variances, indicators, strict=True))
+    v_inv = np.linalg.inv(v)
+    vc_cov = fit.vc_cov
+    if information == "expected":
+        # I_kl = tr(P V_k P V_l) / 2, with P = V^-1 - V^-1 X cov(beta) X' V^-1.
+        g = v_inv @ X
+        proj = v_inv - g @ fit.cov_beta @ g.T
+        pv = [proj @ d for d in derivatives]
+        vc_cov = np.linalg.inv(0.5 * np.array([[np.sum(a * b.T) for b in pv] for a in pv]))
+    sizes = [Z.shape[1] for Z in indicators]
+    return CrossedFit(
+        beta=fit.beta,
+        cov_beta=fit.cov_beta,
+        cov_beta_kr=kenward_roger_covariance(fit.cov_beta, X, v_inv, derivatives, vc_cov),
+        variances=fit.variances,
+        sigma2=fit.sigma2,
+        vc_cov=vc_cov,
+        dcov=fit.dcov,
+        blups=np.split(fit.blups, np.cumsum(sizes)[:-1]),
+        error_df=error_df,
     )
 
 
@@ -289,17 +526,35 @@ def _constant_within(X: pd.DataFrame, whole_plots: np.ndarray) -> np.ndarray:
     return (spread <= 1e-9 * (1.0 + X.abs().max())).to_numpy()
 
 
-def _stratum(whole_plot_columns: np.ndarray, columns: list[int]) -> str:
-    """``"whole_plot"`` when every one of ``columns`` is constant within whole plots, else ``"subplot"``."""
+def _stratum(whole_plot_columns: np.ndarray | dict[str, np.ndarray], columns: list[int]) -> str:
+    """Return the error stratum of ``columns``: the first grouping within whose groups they are constant.
+
+    With one grouping, ``"whole_plot"`` or else ``"subplot"``; with several (a dict from each
+    grouping's name to its columns' constancy), that grouping's name or else ``"residual"``.
+    """
+    if isinstance(whole_plot_columns, dict):
+        return next((name for name, constant in whole_plot_columns.items() if constant[columns].all()), "residual")
     return "whole_plot" if bool(whole_plot_columns[columns].all()) else "subplot"
 
 
-def _coefficients(fit: RemlFit, X: pd.DataFrame, whole_plot_columns: np.ndarray, alpha: float) -> list[dict[str, Any]]:
-    """One t-test per model column, on its own Satterthwaite df, with a confidence interval."""
+def _coefficients(
+    fit: _WaldTests,
+    X: pd.DataFrame,
+    whole_plot_columns: np.ndarray | dict[str, np.ndarray],
+    alpha: float,
+    *,
+    kenward_roger: bool = False,
+) -> list[dict[str, Any]]:
+    """One t-test per model column, on its own Satterthwaite df, with a confidence interval.
+
+    With ``kenward_roger`` the standard error is from Kenward and Roger's adjusted covariance;
+    the df are the same, since a single coefficient's Kenward-Roger df are Satterthwaite's.
+    """
+    cov = fit.cov_beta_kr if kenward_roger else fit.cov_beta
     records = []
     for j, column in enumerate(X.columns):
         unit = np.eye(X.shape[1])[j]
-        estimate, std_error = float(fit.beta[j]), float(np.sqrt(fit.cov_beta[j, j]))
+        estimate, std_error = float(fit.beta[j]), float(np.sqrt(cov[j, j]))
         dof = fit.satterthwaite_df(unit)
         half_width = float(stats.t.ppf(1.0 - alpha / 2.0, dof)) * std_error
         records.append(
@@ -319,7 +574,12 @@ def _coefficients(fit: RemlFit, X: pd.DataFrame, whole_plot_columns: np.ndarray,
 
 
 def _term_tests(
-    fit: RemlFit, X: pd.DataFrame, whole_plot_columns: np.ndarray, blocks: tuple[str, ...]
+    fit: _WaldTests,
+    X: pd.DataFrame,
+    whole_plot_columns: np.ndarray | dict[str, np.ndarray],
+    blocks: tuple[str, ...],
+    *,
+    kenward_roger: bool = False,
 ) -> list[dict[str, Any]]:
     """One F-test per model term, the block contrasts together as one ``"Block"`` term."""
     columns_of: dict[str, list[int]] = {}
@@ -329,7 +589,7 @@ def _term_tests(
             columns_of.setdefault(source, []).extend(range(columns.start, columns.stop))
     records = []
     for source, columns in columns_of.items():
-        f_value, df_denominator = fit.wald_test(np.eye(X.shape[1])[columns])
+        f_value, df_denominator = fit.wald_test(np.eye(X.shape[1])[columns], kenward_roger=kenward_roger)
         records.append(
             {
                 "source": source,
@@ -343,10 +603,36 @@ def _term_tests(
     return records
 
 
-def run_split_plot(
-    df: pd.DataFrame, formula: str, whole_plot: str, alpha: float, blocks: tuple[str, ...] = ()
-) -> dict[str, Any]:
-    """Analyse a split-plot experiment by REML, with Satterthwaite's degrees of freedom.
+@dataclass(frozen=True)
+class SplitPlotSpec:
+    """How :func:`run_split_plot` analyses the runs.
+
+    Attributes
+    ----------
+    whole_plot : str or tuple[str, ...]
+        The column of the runs that labels each run's whole plot; or several columns, each
+        labelling the groups of one of several crossed random effects, as the rows and the
+        columns of a two-way split-plot (strip-plot) design do.
+    alpha : float
+        Significance level of the tests and the confidence intervals.
+    blocks : tuple[str, ...]
+        The block contrast columns in the formula, tested together as one ``"Block"`` term.
+    df_method : {"satterthwaite", "kenward_roger"}
+        ``"kenward_roger"`` adjusts the covariance of the estimates and scales the F tests
+        as Kenward and Roger (1997) do; see the module docstring.
+    information : {"expected", "observed"}
+        The REML information the degrees of freedom are computed from (see :func:`fit_reml`).
+    """
+
+    whole_plot: str | tuple[str, ...]
+    alpha: float
+    blocks: tuple[str, ...] = ()
+    df_method: str = "satterthwaite"
+    information: str = "expected"
+
+
+def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[str, Any]:
+    """Analyse a split-plot experiment by REML, with Satterthwaite's or Kenward and Roger's degrees of freedom.
 
     Parameters
     ----------
@@ -354,12 +640,8 @@ def run_split_plot(
         The runs: the response, the factors and the whole-plot labels, with no missing values.
     formula : str
         The model, as a patsy formula; see :func:`sum_coded` for categorical factors.
-    whole_plot : str
-        The column of ``df`` that labels each run's whole plot.
-    alpha : float
-        Significance level of the tests and the confidence intervals.
-    blocks : tuple[str, ...]
-        The block contrast columns in ``formula``, tested together as one ``"Block"`` term.
+    spec : SplitPlotSpec
+        The whole-plot column, the significance level, the block terms and the method.
 
     Returns
     -------
@@ -367,16 +649,23 @@ def run_split_plot(
         ``{"split_plot": {...}}``, with ``"split_plot_note"`` when the whole-plot variance
         is estimated as zero. See :func:`~process_improve.experiments.analysis.analyze_experiment`.
     """
+    whole_plot, alpha, blocks, information = spec.whole_plot, spec.alpha, spec.blocks, spec.information
     y, X = dmatrices(formula, df, eval_env=sum_coding_env(), NA_action="raise", return_type="dataframe")
+    if not isinstance(whole_plot, str):
+        if len(whole_plot) > 1:
+            return _run_crossed(df, y.to_numpy(dtype=float).ravel(), X, spec)
+        whole_plot = whole_plot[0]
     labels = df[whole_plot].to_numpy()  # by position: NA_action="raise" keeps every row, in order
-    fit = fit_reml(y.to_numpy(dtype=float).ravel(), X.to_numpy(dtype=float), labels)
+    fit = fit_reml(y.to_numpy(dtype=float).ravel(), X.to_numpy(dtype=float), labels, information)
     whole_plot_columns = _constant_within(X, labels)
-    tests = _term_tests(fit, X, whole_plot_columns, blocks)
+    kenward_roger = spec.df_method == "kenward_roger"
+    tests = _term_tests(fit, X, whole_plot_columns, blocks, kenward_roger=kenward_roger)
     factor_tests = [row for row in tests if row["source"] != "Block"]
     result: dict[str, Any] = {
         "split_plot": {
             "method": "REML",
-            "df_method": "Satterthwaite",
+            "df_method": "Kenward-Roger" if kenward_roger else "Satterthwaite",
+            "information": information,
             "test_type": "III",
             "whole_plot_column": whole_plot,
             "n_whole_plots": len(pd.unique(labels)),
@@ -386,7 +675,8 @@ def run_split_plot(
                 "eta": fit.sigma2_wp / fit.sigma2,
             },
             "error_df": {"whole_plot": fit.whole_plot_error_df, "subplot": fit.subplot_error_df},
-            "coefficients": _coefficients(fit, X, whole_plot_columns, alpha),
+            "blups": {whole_plot: _whole_plot_blups(fit, y.to_numpy(dtype=float).ravel(), X.to_numpy(float), labels)},
+            "coefficients": _coefficients(fit, X, whole_plot_columns, alpha, kenward_roger=kenward_roger),
             "tests": tests,
             "significant_terms": [row["source"] for row in factor_tests if row["p_value"] < alpha],
             "not_significant_terms": [row["source"] for row in factor_tests if row["p_value"] >= alpha],
@@ -398,5 +688,66 @@ def run_split_plot(
             "The whole-plot variance is estimated as zero, so the estimates are those of ordinary least "
             "squares. The tests still allow for the uncertainty in that estimate, so whole-plot terms are "
             "judged on fewer degrees of freedom than ordinary least squares would give them."
+        )
+    return result
+
+
+def _whole_plot_blups(fit: RemlFit, y: np.ndarray, X: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+    """Return the best linear unbiased prediction of each whole plot's random effect, by its label.
+
+    ``sigma2_wp Z' V^-1 (y - X beta)``: the whole plot's departure from the fixed effects, shrunk by
+    how much of the variance lies between whole plots.
+    """
+    codes, names = pd.factorize(labels)
+    Z = np.eye(len(names))[codes]
+    eta = fit.sigma2_wp / fit.sigma2 if fit.sigma2 > 0 else 0.0
+    h_inv = _gls(eta, y, X, Z)[0]
+    predicted = eta * Z.T @ (h_inv @ (y - X @ fit.beta))
+    return {str(name): float(value) for name, value in zip(names, predicted, strict=True)}
+
+
+def _run_crossed(df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPlotSpec) -> dict[str, Any]:
+    """Analyse runs with several crossed random effects, as :func:`run_split_plot` does with one.
+
+    The result has one variance component, one error df and one set of BLUPs per grouping,
+    named by its column, beside the residual's; a term's stratum is the first grouping within
+    whose groups its columns are constant (``"residual"`` for none, as a row-by-column
+    interaction of a two-way split-plot design).
+    """
+    names = tuple(spec.whole_plot)
+    groupings = [df[name].to_numpy() for name in names]
+    fit = fit_crossed_reml(y, X.to_numpy(dtype=float), groupings, spec.information)
+    constant = {name: _constant_within(X, labels) for name, labels in zip(names, groupings, strict=True)}
+    kenward_roger = spec.df_method == "kenward_roger"
+    tests = _term_tests(fit, X, constant, spec.blocks, kenward_roger=kenward_roger)
+    factor_tests = [row for row in tests if row["source"] != "Block"]
+    variances = dict(zip(names, map(float, fit.variances), strict=True))
+    result: dict[str, Any] = {
+        "split_plot": {
+            "method": "REML",
+            "df_method": "Kenward-Roger" if kenward_roger else "Satterthwaite",
+            "information": spec.information,
+            "test_type": "III",
+            "whole_plot_column": list(names),
+            "n_whole_plots": {name: len(pd.unique(labels)) for name, labels in zip(names, groupings, strict=True)},
+            "variance_components": variances | {"residual": float(fit.sigma2)},
+            "variance_ratios": {name: value / fit.sigma2 for name, value in variances.items()},
+            "error_df": dict(zip([*names, "residual"], map(int, fit.error_df), strict=True)),
+            "blups": {
+                name: {str(level): float(v) for level, v in zip(pd.unique(labels), blups, strict=True)}
+                for name, labels, blups in zip(names, groupings, fit.blups, strict=True)
+            },
+            "coefficients": _coefficients(fit, X, constant, spec.alpha, kenward_roger=kenward_roger),
+            "tests": tests,
+            "significant_terms": [row["source"] for row in factor_tests if row["p_value"] < spec.alpha],
+            "not_significant_terms": [row["source"] for row in factor_tests if row["p_value"] >= spec.alpha],
+            "significance_level": spec.alpha,
+        }
+    }
+    zero = [name for name, value in variances.items() if value == 0.0]
+    if zero:
+        result["split_plot_note"] = (
+            f"The variance of {', '.join(map(repr, zero))} is estimated as zero; the tests leave it out of the "
+            "variance parameters whose uncertainty they allow for."
         )
     return result
