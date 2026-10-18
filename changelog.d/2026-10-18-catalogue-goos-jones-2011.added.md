@@ -12,7 +12,7 @@
     relative variances, average prediction variance, FDS plots and each other, and the prediction
     equations of the final model, one per supplier.
 
-  774 printed numbers give 845 checks, all agreeing or explained. The 24 explained disagreements are
+  774 printed numbers give 832 checks, all agreeing or explained. The 24 explained disagreements are
   misprints or numbers read off a figure:
   - two t ratios in Table 2.5 and two in Table 3.7;
   - the time coefficient of Equation 2.1;
