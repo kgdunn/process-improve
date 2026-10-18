@@ -75,8 +75,9 @@ Condition B adds::
 Results
 -------
 
-Twelve sessions, 2026-10-18. Shortfall is the true best minus the true response at
-the agent's answer, in noise standard deviations:
+Twelve sessions, 2026-10-18, with ``recommend_next_step`` as of commit ``6ff8a31``: before a
+model that does not fit the repeated runs was judged against them. Shortfall is the true best
+minus the true response at the agent's answer, in noise standard deviations:
 
 .. list-table::
    :header-rows: 1
