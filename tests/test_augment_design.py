@@ -621,6 +621,18 @@ class TestAddRunsOptimal:
         )
         assert result["n_runs_after"] == 6
 
+    @pytest.mark.slow
+    def test_custom_formula_runs_can_be_polished(self) -> None:
+        """Under pandas 3 patsy's model rows are read-only, and moving a run in the polish raised ValueError."""
+        names = list("ABCDEFGH")
+        factors = [Factor(name=n, low=-1, high=1) for n in names]
+        dsd = generate_design(factors, design_type="dsd", n_center_points=5).design[names]
+        model = (
+            "A + B + D + G + H + A:B + I(D ** 2) + I(H ** 2) + A:D + A:G + A:H + B:D + B:G + B:H + D:G + D:H + G:H"
+        )
+        result = augment_design(dsd, "add_runs_optimal", target_model=model, n_additional_runs=6, random_state=0)
+        assert result["n_runs_after"] == 27
+
 
 # ---------------------------------------------------------------------------
 # Add blocks
