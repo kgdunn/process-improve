@@ -2493,12 +2493,20 @@ def _distinct_runs(experiment: dict, check: dict) -> float:
 
 
 def _run_count(experiment: dict, check: dict) -> float:
-    """Return how many runs have the settings ``check["at"]``, a column and its printed level each."""
+    """Return how many runs have the settings ``check["at"]``, a column and its printed level each.
+
+    ``check["above"]`` and ``check["at_least"]`` keep the runs whose column exceeds, or reaches, a
+    value: the runs whose response passes a specification, say.
+    """
     runs = experiment["runs"]
-    table = pd.DataFrame(runs["rows"], columns=runs["columns"]).astype(str)
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     kept = np.ones(len(table), dtype=bool)
-    for column, level in check["at"].items():
-        kept &= (table[column] == str(level)).to_numpy()
+    for column, level in check.get("at", {}).items():
+        kept &= (table[column].astype(str) == str(level)).to_numpy()
+    for column, value in check.get("above", {}).items():
+        kept &= (table[column].astype(float) > float(value)).to_numpy()
+    for column, value in check.get("at_least", {}).items():
+        kept &= (table[column].astype(float) >= float(value)).to_numpy()
     return float(kept.sum())
 
 

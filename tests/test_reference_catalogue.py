@@ -1197,6 +1197,15 @@ def test_a_best_corner_some_runs_of_a_design_and_a_relative_efficiency_are_check
     assert report["agrees"].tolist() == [True] * 6, report[["found", "reason"]].to_string()
 
 
+def test_a_run_count_keeps_the_runs_above_or_at_least_a_value():
+    from process_improve.experiments.reference_catalogue import _run_count
+
+    experiment = {"runs": {"columns": ["A", "y"], "rows": [["Low", 5.5], ["Low", 6.0], ["High", 5.0]]}}
+    assert _run_count(experiment, {"at_least": {"y": 5.5}}) == 2
+    assert _run_count(experiment, {"above": {"y": 5.5}}) == 1
+    assert _run_count(experiment, {"at": {"A": "High"}, "at_least": {"y": 5.5}}) == 0
+
+
 def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
     from process_improve.experiments.reference_catalogue import _library_text
 
