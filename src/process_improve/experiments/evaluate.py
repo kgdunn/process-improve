@@ -1045,7 +1045,53 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
             "The linear blending terms are not tested against zero, so they have no power here; the "
             "mixture analysis tests them jointly for equality."
         )
+    else:
+        result.update(_power_alias_exposure(ctx, [name for _, name in terms]))
     return result
+
+
+#: Smallest alias weight treated as a real bias rather than rounding noise.
+_ALIAS_TOLERANCE = 1e-8
+
+
+def _power_alias_exposure(ctx: _EvalContext, tested: list[str]) -> dict[str, Any]:
+    """Say which tested coefficients the two-factor interactions outside the model would bias.
+
+    The power assumes the fitted model holds. An active interaction outside it adds
+    ``weight * beta`` to each coefficient it is aliased with (``weight`` from the alias
+    matrix), which can shrink the effect the test sees below ``effect_size``, and its
+    unfitted variation inflates the residual error. In a 12-run Plackett-Burman design
+    every main effect carries a third of each interaction among the other factors, and
+    the stated power can then be far above what the experiment delivers. Returns an
+    empty dict when no tested coefficient is aliased.
+    """
+    X2, alias_terms = _omitted_two_factor_interactions(ctx)
+    if X2.shape[1] == 0:
+        return {}
+    assert ctx.XtX_inv is not None  # guaranteed: _compute_power returned early for a singular design
+    alias = np.abs(ctx.XtX_inv @ ctx.X.T @ X2)
+    rows = {name: i for i, name in enumerate(ctx.column_names)}
+    exposure = {
+        name: {
+            "aliased_interactions": int(np.sum(alias[rows[name]] > _ALIAS_TOLERANCE)),
+            "max_abs_weight": float(alias[rows[name]].max()),
+        }
+        for name in tested
+        if alias[rows[name]].max() > _ALIAS_TOLERANCE
+    }
+    if not exposure:
+        return {}
+    worst = max(v["max_abs_weight"] for v in exposure.values())
+    return {
+        "alias_exposure": exposure,
+        "power_assumes": (
+            f"No two-factor interaction outside the model is active. {len(exposure)} of the tested coefficients are "
+            f"aliased with interactions among the {len(alias_terms)} left out (weights up to {worst:.3g}; see "
+            "alias_matrix): an active one biases them, which can hide a real effect or show a false one, and "
+            "inflates the residual error, so the real power can be much lower than stated. A design whose main "
+            "effects are orthogonal to the interactions (a DSD, or resolution IV and above) avoids this."
+        ),
+    }
 
 
 def _spans_constant(X: np.ndarray) -> bool:
