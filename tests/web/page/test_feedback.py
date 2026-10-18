@@ -14,6 +14,7 @@ import importlib.util
 import json
 import re
 import sys
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -72,6 +73,28 @@ def test_every_report_the_page_builds_passes_the_relay_s_checks(node, relay):
         checked = relay.read_report(json.dumps(report).encode())
         assert checked.topic == report["topic"]
     assert relay.read_report(json.dumps(built[2]).encode()).screenshot == jpeg
+
+
+def test_the_issue_link_fills_in_the_issue_form_s_own_fields(node):
+    """The repository takes no blank issue, so the link names the app's form and fills its fields by their ids."""
+    yaml = pytest.importorskip("yaml")
+    form = yaml.safe_load((ROOT / ".github" / "ISSUE_TEMPLATE" / "web_app.yml").read_text(encoding="utf-8"))
+    fields = {item["id"]: item for item in form["body"] if "id" in item}
+    [link, template] = page(
+        node,
+        ("issueUrl", [{"topic": "general", "message": "A message for the form.", "context": {"tab": "Run"}}]),
+        ("ISSUE_TEMPLATE", []),
+    )
+    assert template == "web_app.yml"
+    sent = parse_qs(urlsplit(link).query)
+    assert set(sent) - {"template", "title"} == set(fields), (
+        "every field the link fills is the form's, and each is filled"
+    )
+    assert all(fields[key]["type"] in {"input", "textarea"} for key in fields), "a link fills only the text fields"
+    required = {key for key, item in fields.items() if item.get("validations", {}).get("required")}
+    assert required <= set(sent)
+    assert sent["title"] == ["[Factorial] General: A message for the form."]
+    assert form["title"] == "[Factorial] "
 
 
 def test_the_screenshot_s_module_is_the_published_release_with_its_licence():

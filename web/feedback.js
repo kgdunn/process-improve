@@ -204,6 +204,59 @@ export function relayUrl(location) {
   return null;
 }
 
+/** The repository's form for a new issue about Factorial, and the most characters a link may hold. */
+export const ISSUES = "https://github.com/kgdunn/process-improve/issues/new";
+export const ISSUE_TEMPLATE = "web_app.yml";
+export const LINK_MAX = 8000;
+
+/** Where the reader's own email of a report goes: the address the repository gives for reports (SECURITY.md). */
+export const MAIL_TO = "kgdunn@gmail.com";
+
+/** What a message or a context cut to fit in a link ends with. */
+const CUT_NOTE = "\n[The rest did not fit in the link: copy the report to send all of it.]";
+
+/** A link's query, each value encoded as a URI component. */
+const query = (fields) => Object.entries(fields).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&");
+
+/** ``text`` if ``fits`` it, else its longest start that fits once CUT_NOTE is added; "" when none does. */
+function longest(text, fits) {
+  if (fits(text)) return text;
+  const chars = [...text];
+  let [low, high] = [0, chars.length];
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (fits(`${chars.slice(0, mid).join("")}${CUT_NOTE}`)) low = mid;
+    else high = mid - 1;
+  }
+  return low ? `${chars.slice(0, low).join("")}${CUT_NOTE}` : "";
+}
+
+/** The report as text, to copy into an email or an issue: its topic, its message, and what the page adds. */
+export function reportText({ topic, message, context = {} }) {
+  const lines = contextLines(context).map((line) => `  ${line}`);
+  return [`Topic: ${TOPICS[topic]}`, "", message.trim(), "", "What the page sent with it:", ...lines].join("\n");
+}
+
+/**
+ * A link to a new issue on GitHub with its form filled in from the report: a title, the topic, the message and what the
+ * page adds. An issue is public, so the link holds neither the screenshot, nor the study, nor the reader's address. It
+ * keeps under LINK_MAX characters: the context gives way first, to half of that, then the message.
+ */
+export function issueUrl({ topic, message, context = {} }) {
+  const first = message.trim().split("\n")[0];
+  const title = `[Factorial] ${TOPICS[topic]}: ${cut(first, 60)}${characters(first) > 60 ? "..." : ""}`;
+  const link = (text, about) =>
+    `${ISSUES}?${query({ template: ISSUE_TEMPLATE, title, topic: TOPICS[topic], message: text, context: about })}`;
+  const about = longest(contextLines(context).join("\n"), (text) => link("", text).length <= LINK_MAX / 2);
+  return link(longest(message.trim(), (text) => link(text, about).length <= LINK_MAX), about);
+}
+
+/** A mailto: link that opens the reader's own email of the report to the maintainer, under LINK_MAX characters. */
+export function mailtoUrl({ topic, message, context = {} }) {
+  const link = (text) => `mailto:${MAIL_TO}?${query({ subject: `[Factorial feedback: ${TOPICS[topic]}]`, body: text })}`;
+  return link(longest(reportText({ topic, message, context }), (text) => link(text).length <= LINK_MAX));
+}
+
 /** How long a report may take to reach the relay and be answered, in milliseconds. */
 const SEND_TIMEOUT = 30_000;
 
@@ -289,12 +342,27 @@ const FORM = `
       <button type="submit" id="feedback-send" class="primary">Send</button>
       <button type="button" class="link" data-close>Cancel</button>
     </p>
+    <div class="feedback__fallback" data-part="fallback" hidden>
+      <p data-note="why"></p>
+      <ul class="feedback__ways">
+        <li><a id="feedback-issue" target="_blank" rel="noopener">Open a new issue on GitHub</a>, filled in with your
+          message and what the page adds. An issue is public, so it holds neither the screenshot, nor your study, nor
+          your address.</li>
+        <li><button type="button" class="link" id="feedback-copy">Copy the report</button>, to paste into an email
+          or an issue.</li>
+        <li><a id="feedback-mail">Email it to the maintainer</a> from your own mail program.</li>
+      </ul>
+      <textarea id="feedback-copied" rows="6" readonly aria-label="The report, to copy" hidden></textarea>
+    </div>
   </div>
   <div data-part="sent" hidden>
     <p data-note="thanks" role="status"></p>
     <p class="actions"><button type="button" class="primary" data-close>Close</button></p>
   </div>
 </form>`;
+
+/** Why a copy of Factorial at any other address than factori.al offers only the other ways to send a report. */
+const MIRROR = "This copy of Factorial is not at factori.al, so it sends no report itself.";
 
 /** What the box under the study's checkbox says, with a study on the page and without one. */
 const STUDY_NOTE = "It goes as a link that opens your study, with its results, in Factorial.";
@@ -341,6 +409,30 @@ export function installFeedback({ context, study, hasStudy }) {
     dialog.querySelector("#feedback-sent").replaceChildren(
       ...lines.map((line) => Object.assign(document.createElement("li"), { textContent: line })),
     );
+    const words = { topic: topic(), message: field("message").value, context: about };
+    dialog.querySelector("#feedback-issue").href = issueUrl(words);
+    dialog.querySelector("#feedback-mail").href = mailtoUrl(words);
+  }
+
+  /** Offer the other ways to send the report, after saying why it does not go from here. */
+  function fallBack(why) {
+    note("why").textContent = `${why} Send it one of these ways instead:`;
+    part("fallback").hidden = false;
+  }
+
+  /** Copy the report as text; where the browser will not, show it in a box, selected, to copy by hand. */
+  async function copy() {
+    const box = dialog.querySelector("#feedback-copied");
+    box.value = reportText({ topic: topic(), message: field("message").value, context: about });
+    try {
+      await navigator.clipboard.writeText(box.value);
+      box.hidden = true;
+      say("The report is copied: paste it into an email or an issue.");
+    } catch {
+      box.hidden = false;
+      box.select();
+      say("The browser would not copy the report: it is selected in the box below, to copy by hand.");
+    }
   }
 
   /** Show the screenshot under its box, and say what is happening to it; "" says nothing. */
@@ -396,7 +488,14 @@ export function installFeedback({ context, study, hasStudy }) {
       shot = null;
       showShot();
     });
+    dialog.querySelector("#feedback-copy").onclick = copy;
     for (const button of dialog.querySelectorAll("[data-close]")) button.onclick = () => dialog.close();
+    if (!relay) {
+      // Nothing goes from here: no screenshot to take, no study to pack, and no address to keep out of a public issue.
+      part("extras").hidden = true;
+      field("email").closest("label").hidden = true;
+      dialog.querySelector("#feedback-send").hidden = true;
+    }
   }
 
   /** Open the dialog on ``chosen``, a topic; a message written before and not sent is kept. */
@@ -407,6 +506,9 @@ export function installFeedback({ context, study, hasStudy }) {
       part("write").hidden = false;
     }
     field("topic").value = chosen in TOPICS ? chosen : "general";
+    part("fallback").hidden = true;
+    dialog.querySelector("#feedback-copied").hidden = true;
+    if (!relay) fallBack(MIRROR);
     const can = hasStudy();
     field("study").disabled = !can;
     if (!can) field("study").checked = false;
@@ -455,16 +557,15 @@ export function installFeedback({ context, study, hasStudy }) {
       study: packed,
       context: about,
     });
-    const sent = relay
-      ? await post(relay, report)
-      : { ok: false, why: "This copy of Factorial is not at factori.al, so it sends no report itself." };
+    const sent = relay ? await post(relay, report) : { ok: false, why: MIRROR };
     sending = false;
     dialog.querySelector("#feedback-send").disabled = false;
+    say("");
     if (!sent.ok) {
-      say(sent.why, true);
+      fallBack(sent.why);
       return;
     }
-    say("");
+    part("fallback").hidden = true;
     field("message").value = "";
     field("study").checked = false;
     field("screenshot").checked = true;

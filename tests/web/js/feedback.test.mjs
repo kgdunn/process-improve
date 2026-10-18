@@ -5,6 +5,9 @@ import { describe, test } from "node:test";
 
 import {
   CONTEXT,
+  ISSUES,
+  LINK_MAX,
+  MAIL_TO,
   MAX_PIXELS,
   MAX_SCREENSHOT,
   MAX_STUDY,
@@ -17,11 +20,15 @@ import {
   cut,
   decodedSize,
   emailProblem,
+  failureWords,
   fitContext,
+  issueUrl,
   keepError,
+  mailtoUrl,
   messageCount,
   messageProblem,
   relayUrl,
+  reportText,
   screenshotProblem,
   screenshotScale,
   sentLines,
@@ -221,5 +228,56 @@ describe("where a report goes", () => {
       "file:///home/reader/site/index.html",
     ];
     for (const address of copies) assert.equal(relayUrl(new URL(address)), null, address);
+  });
+});
+
+describe("the other ways to send a report", () => {
+  const report = { topic: "algorithm", message: `  ${MESSAGE}\nWith a second line.  `, context: CONTEXT_SENT };
+
+  test("an issue's link fills in the form's title, topic, message and context, and holds nothing else", () => {
+    const link = new URL(issueUrl(report));
+    assert.equal(`${link.origin}${link.pathname}`, ISSUES);
+    assert.deepEqual([...link.searchParams.keys()], ["template", "title", "topic", "message", "context"]);
+    assert.equal(link.searchParams.get("template"), "web_app.yml");
+    assert.equal(link.searchParams.get("title"), `[Factorial] Algorithm or model: ${MESSAGE.slice(0, 60)}...`);
+    assert.equal(link.searchParams.get("topic"), "Algorithm or model");
+    assert.equal(link.searchParams.get("message"), `${MESSAGE}\nWith a second line.`);
+    assert.equal(link.searchParams.get("context"), contextLines(CONTEXT_SENT).join("\n"));
+    assert.ok(!issueUrl({ ...report, message: "Short title" }).includes("..."), "a short first line whole");
+  });
+
+  test("an issue's link and an email's stay under the length a browser and a mail program take", () => {
+    const long = { ...report, message: "é and a space ".repeat(800), context: { ...CONTEXT_SENT, stamp: Array(12).fill("s".repeat(400)) } };
+    for (const make of [issueUrl, mailtoUrl]) {
+      const link = make(long);
+      assert.ok(link.length <= LINK_MAX, `${link.length}`);
+      assert.match(decodeURIComponent(link), /The rest did not fit in the link: copy the report to send all of it\./);
+    }
+    const message = new URL(issueUrl(long)).searchParams.get("message");
+    assert.ok(message.length > 1000, "the message keeps what the context leaves");
+  });
+
+  test("an email goes to the maintainer, with the report as its text", () => {
+    const link = mailtoUrl(report);
+    assert.ok(link.startsWith(`mailto:${MAIL_TO}?subject=`));
+    const params = new URLSearchParams(link.slice(link.indexOf("?") + 1));
+    assert.equal(params.get("subject"), "[Factorial feedback: Algorithm or model]");
+    assert.equal(params.get("body"), reportText(report));
+  });
+
+  test("the copy is the topic, the message and the context, as text", () => {
+    assert.equal(
+      reportText({ topic: "general", message: " Hello, maintainer. ", context: { tab: "Run" } }),
+      "Topic: General\n\nHello, maintainer.\n\nWhat the page sent with it:\n  Tab on show: Run\n  Last Python errors: none",
+    );
+  });
+
+  test("says why a report did not go, by the relay's answer", () => {
+    assert.match(failureWords(429), /your network has sent as many reports as the site takes in an hour/);
+    assert.match(failureWords(503), /the site's mail relay is busy or not running/);
+    assert.match(failureWords(502), /busy or not running/, "Caddy, with no relay to pass the report to");
+    assert.match(failureWords(413), /larger than the site takes/);
+    assert.equal(failureWords(403), "The report could not be sent: the site refused it (HTTP 403).");
+    assert.equal(failureWords(null), "The report could not be sent: the page could not reach factori.al.");
   });
 });
