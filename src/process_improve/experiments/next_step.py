@@ -29,9 +29,12 @@ The decision is deterministic and follows the evidence in this order:
    model) that the design cannot model: add axial runs, which make a face-centred central
    composite design, or runs chosen for the full quadratic model. Curvature the centre runs
    show could be any factor's, so the axial runs go in every numeric factor (up to six).
-6. The best settings sit at an **edge of a range** and the goal improves past it by more than
+6. A **lack of fit** that the full quadratic model in the active factors does not remove: the
+   model misses effects. Every factor with some evidence of an effect joins the active ones,
+   and runs are chosen for the full quadratic model in all of them.
+7. The best settings sit at an **edge of a range** and the goal improves past it by more than
    twice the noise: when the ranges may move, run the path of steepest ascent beyond it.
-7. Otherwise, **confirm** at the predicted optimum.
+8. Otherwise, **confirm** at the predicted optimum.
 
 How the terms are judged matters as much as the rules. Each term is tested in the largest
 standard model the runs estimate with two degrees of freedom for error (one column per chain of
@@ -39,8 +42,10 @@ exact aliases), or by Lenth's method, with simulated critical values, on every c
 saturated two-level design, or by the staged analysis of a definitive screening design. Whether
 anything stands out at all is one test at ``alpha`` whose critical value is simulated for the
 design (:func:`_stands_out`), so pure noise raises a false alarm in one study in twenty, not in
-most of them. Interactions of the active factors (strong heredity) that the judging could not
-test are then tested in the model of the active terms.
+most of them. A model that does not fit the repeated runs has its terms tested against the
+repeats' own variation instead of its residual, which holds what it misses. Interactions of the
+active factors (strong heredity) that the judging could not test are then tested in the model of
+the active terms.
 
 A factor the selected model leaves out does not change the prediction, so any setting in its
 range will do. The runs recommended set it at the end its small, not significant, effect
@@ -427,6 +432,38 @@ def _t_tests(data: pd.DataFrame, terms: list[str], extra: list[str], method: str
         "considered": set(terms),
         "noise_sd": float(np.sqrt(fit.scale)),
         "noise_df": int(fit.df_resid),
+        "fit": fit,
+    }
+
+
+def _against_pure_error(study: _Study, judged: dict[str, Any], alpha: float) -> dict[str, Any]:
+    """Judge the terms against the repeats' own variation when the judging model does not fit the repeats.
+
+    Effects the model leaves out land in its residual, which then overstates the noise: every term
+    looks smaller than it is, and the model keeps too few terms to find what it misses. The
+    lack-of-fit test against the repeated runs shows it, and the terms are then tested against the
+    repeats' variation (pure error) instead. Only when something stands out (else there are no
+    terms to judge), and only with :data:`_FEW_ERROR_DF` degrees of freedom of pure error: the
+    test finds a lack of fit most often when the repeats happen to agree closely, and with fewer
+    such a chance spread would make many terms look active.
+    """
+    fit = judged.get("fit")
+    if fit is None or not judged["signal"]:  # nothing stands out: no terms to judge, whatever the noise
+        return judged
+    test = _run_lack_of_fit(fit, study.data, "y", _repeats(study), alpha)["lack_of_fit"]
+    if "error" in test or not test["significant"] or test["df_pure_error"] < _FEW_ERROR_DF:
+        return judged
+    t = fit.params / fit.bse * math.sqrt(fit.scale / test["ms_pure_error"])
+    p = pd.Series(2 * stats.t.sf(np.abs(t), test["df_pure_error"]), index=t.index)
+    return {
+        **judged,
+        "method": (
+            f"{judged['method']}, against the variation of the repeated runs: the model does not fit them "
+            f"(lack of fit p = {_g(test['p_value'])})"
+        ),
+        "judged": {term: float(p[term]) for term in judged["judged"]},
+        "noise_sd": float(np.sqrt(test["ms_pure_error"])),
+        "noise_df": int(test["df_pure_error"]),
     }
 
 
@@ -854,8 +891,14 @@ def _fit(study: _Study, terms: list[str], judged: dict[str, Any], design: _Desig
     )
 
 
-def _select(study: _Study, design: _Design, model_terms: list[str] | None, alpha: float) -> _Model:
-    """Judge the terms (see :func:`_judge_terms`), or the caller's model's, and fit the model for prediction."""
+def _select(
+    study: _Study, design: _Design, model_terms: list[str] | None, alpha: float, *, against_repeats: bool = True
+) -> _Model:
+    """Judge the terms (see :func:`_judge_terms`), or the caller's model's, and fit the model for prediction.
+
+    ``against_repeats`` allows the terms to be judged against the repeated runs when the model does not fit them
+    (:func:`_against_pure_error`).
+    """
     extra = _extra(study.data, design, study.numeric)
     if model_terms is not None:
         terms = _internal_terms(study, model_terms)
@@ -870,6 +913,8 @@ def _select(study: _Study, design: _Design, model_terms: list[str] | None, alpha
             "noise_df": 0,
         }
         return _fit(study, [], empty, design)
+    if against_repeats:
+        judged = _against_pure_error(study, judged, alpha)
     active = [t for t, p in judged["judged"].items() if t != _CURVATURE and p < alpha] if judged["signal"] else []
     if active:
         _second_look(study, judged, active, extra, alpha)
@@ -1670,16 +1715,55 @@ def _decide(ctx: _Context) -> _Step:
         return _add_center_points(ctx) or _replicate(ctx)
     if not ctx.model.signal:
         return _nothing_stands_out(ctx)
-    step = _de_alias(ctx) or _curvature_step(ctx)
+    step = _de_alias(ctx) or _curvature_step(ctx) or _lack_of_fit_step(ctx)
     if step is not None:
         return step
     step = _move_region(ctx) or _confirm(ctx)
     if ctx.lack_of_fit.get("significant"):
         step.reasons.append(
             f"The lack-of-fit test is significant (p = {_g(ctx.lack_of_fit['p_value'])}), though the runs fit the full "
-            "quadratic model: the model is off somewhere in the region, or the repeats agree more closely than the "
-            "noise usually allows. Runs at the optimum test it where it matters; look for an outlying run if they miss."
+            "quadratic model in every factor with some evidence of an effect: the model is off somewhere in the "
+            "region, or the repeats agree more closely than the noise usually allows. Runs at the optimum test it "
+            "where it matters; look for an outlying run if they miss."
         )
+    return step
+
+
+#: When the model does not fit the repeats, a factor with a term this significant joins the active ones: something is
+#: missing, and a missed effect then costs more than a spare factor, as in screening.
+_SOME_EVIDENCE = 0.2
+
+
+def _lack_of_fit_step(ctx: _Context) -> _Step | None:
+    """Return runs for the full quadratic model in every factor with some evidence of an effect, when the model misses.
+
+    The curvature step has found the active factors' full quadratic model fitted. A lack of fit then
+    points at factors judged inactive: the effects they have went into the residual. None when the
+    model fits, or no factor beyond the active ones shows some evidence (p below
+    :data:`_SOME_EVIDENCE`), or the runs already fit that larger model.
+    """
+    if not ctx.lack_of_fit.get("significant"):
+        return None
+    evidence = {
+        f for t, p in ctx.model.judged.items() if t != _CURVATURE and p < _SOME_EVIDENCE for f in _term_factors(t)
+    }
+    joining = [
+        j
+        for j, name in enumerate(ctx.study.names)
+        if name in evidence and j not in ctx.active_factors and ctx.study.numeric[j]
+    ]
+    step = _quadratic_runs(ctx, sorted([*ctx.active_factors, *joining]), []) if joining else None
+    if step is None:
+        return None
+    step.action = "add_runs_for_model"
+    step.reasons = [
+        (
+            f"The model does not fit the repeats (lack of fit p = {_g(ctx.lack_of_fit['p_value'])}): it misses "
+            f"effects. {_names(ctx, joining)} {'shows' if len(joining) == 1 else 'show'} some evidence of an effect "
+            f"(p below {_SOME_EVIDENCE:g}) and {'joins' if len(joining) == 1 else 'join'} the active factors."
+        ),
+        *step.reasons,
+    ]
     return step
 
 
@@ -1896,7 +1980,13 @@ def _after_confirmation(
         ctx.goal, ctx.target, ctx.alpha, ctx.n_confirmation_runs, ctx.ranges_can_move, ctx.seed, ctx.history
     )
     judged_ctx = ctx
-    ctx = _context(_Study(ctx.study.factors, _with_blocks(together), ctx.study.response), model_terms, choices)
+    # After a miss the missed runs are repeats far from the model: judged against them, terms would chase the miss
+    ctx = _context(
+        _Study(ctx.study.factors, _with_blocks(together), ctx.study.response),
+        model_terms,
+        choices,
+        against_repeats=verdict is None,
+    )
     if verdict is not None:
         return ctx, _after_a_miss(ctx, judged_ctx, verdict)
     step = _decide(ctx)
@@ -1957,10 +2047,12 @@ class _Choices:
     history: tuple[str, ...]
 
 
-def _context(study: _Study, model_terms: list[str] | None, choices: _Choices) -> _Context:
+def _context(
+    study: _Study, model_terms: list[str] | None, choices: _Choices, *, against_repeats: bool = True
+) -> _Context:
     design = _design(study)
     study.data[_CURVATURE] = design.center.astype(float)
-    model = _select(study, design, model_terms, choices.alpha)
+    model = _select(study, design, model_terms, choices.alpha, against_repeats=against_repeats)
     ctx = _Context(study, design, model, **vars(choices))
     return _gather(ctx)
 
