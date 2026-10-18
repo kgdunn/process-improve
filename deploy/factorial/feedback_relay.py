@@ -125,6 +125,10 @@ JPEG = b"\xff\xd8\xff"
 JPEG_URL = "data:image/jpeg;base64,"
 #: A study's packed text: URL-safe base64, as the page packs a link.
 PACKED = re.compile(r"[A-Za-z0-9_-]+")
+#: A reply address as the page takes one (``web/feedback.js``): a dot-atom name, an at sign, and a domain of
+#: labels joined by dots, in ASCII. A quoted name, a comment or an address literal is refused.
+ATEXT = r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+"
+ADDRESS = re.compile(rf"{ATEXT}(?:\.{ATEXT})*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 #: The control characters no text may hold, and the line breaks and tabs only a message may hold.
 CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 LINE_BREAK = re.compile(r"[\t\n\r]")
@@ -182,16 +186,21 @@ def text(value: object, name: str, most: int, *, lines: bool = False) -> str:
 
 
 def reply_address(value: object) -> str:
-    """Return ``value`` if it is one email address and nothing else: no name, no comment, no second address."""
+    """Return ``value`` if it is one email address and nothing else: no name, no comment, no second address.
+
+    It must have the plain form the page checks for (``ADDRESS``) before the email package parses it: on some
+    Pythons the parser raises IndexError or AttributeError on a malformed address, not a ValueError, so a form it
+    may stumble on never reaches it. Whatever it raises, the address is refused.
+    """
     address = text(value, "reply address", EMAIL_MAX)
     refused = RefusedError(400, "the reply address is not one email address")
-    if not address.isascii():
+    if not ADDRESS.fullmatch(address):
         raise refused
     try:
         parsed = Address(addr_spec=address)
-    except (ValueError, MessageError) as error:
+    except (ValueError, IndexError, TypeError, AttributeError, MessageError) as error:
         raise refused from error
-    if parsed.addr_spec != address or "." not in parsed.domain or parsed.domain.startswith("["):
+    if parsed.addr_spec != address or "." not in parsed.domain:
         raise refused
     return address
 
