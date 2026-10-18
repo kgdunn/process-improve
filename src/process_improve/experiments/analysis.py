@@ -37,7 +37,7 @@ from process_improve.experiments._analyses._shared import (
     _compute_adequate_precision,
     _compute_pred_r_squared,
 )
-from process_improve.experiments._analyses.aliasing import chain_reduced_fit
+from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
 from process_improve.experiments._analyses.box_cox import _run_box_cox
 from process_improve.experiments._analyses.curvature import _run_curvature_test
 from process_improve.experiments._analyses.diagnostics import _run_residual_diagnostics
@@ -254,6 +254,48 @@ def _resolve_model(
             )
         model = f"{response_col} ~ {rhs}"
     return model, [c for c in factor_cols if _references(rhs, c)]
+
+
+def _estimable_default(
+    df: pd.DataFrame,
+    requested: str | None,
+    model: str,
+    factor_cols: list[str],
+    rhs_of: Callable[[str], str],
+) -> tuple[str, str]:
+    """Fall back from the default interactions model to main effects when the design cannot estimate it.
+
+    A regular fraction aliases its interactions in whole chains (``A:B + C:D``), and the
+    analyses test one column per chain, so the interactions model stays. A 12-run
+    Plackett-Burman design for eight factors only partly aliases its 28 interactions
+    with everything else: no chains form, the 37-term model has rank 12, and a fit would
+    report a coefficient for every term, most of them arbitrary. Then, and only for the
+    default, the main-effects model is fitted; a model the caller names is fitted as
+    named. ``rhs_of`` gives the right-hand side of a named model's formula. Returns the
+    model to fit and a note saying what was done ("" when nothing was).
+    """
+    if requested is not None or model != "interactions" or len(factor_cols) < 2:
+        return model, ""
+
+    def matrix(candidate: str) -> tuple[np.ndarray, list[str]]:
+        coded = _coded_model_matrix(df, rhs_of(candidate), factor_cols, candidate)
+        return np.asarray(coded, dtype=float), [str(c) for c in coded.columns]
+
+    exog, names = matrix("interactions")
+    leaders = [names.index(chain[0][0]) for chain in alias_chains_of(exog, names)]
+    if np.linalg.matrix_rank(exog[:, leaders]) == len(leaders):
+        return model, ""  # every term is estimable, or exactly aliased in a chain the analyses test once
+    main = matrix("main_effects")[0]
+    if np.linalg.matrix_rank(main) < main.shape[1]:
+        return model, ""  # a supersaturated design: the main-effects model is not estimable either
+    note = (
+        f"The default interactions model has {len(names)} terms, of which this design can estimate "
+        f"{np.linalg.matrix_rank(exog)}, and its interactions are not aliased in whole chains, so the main-effects "
+        "model was fitted instead. Pass model='interactions' to fit it anyway, or analysis_type='model_selection' "
+        "to choose the interactions the data support."
+    )
+    warnings.warn(note, category=UserWarning, stacklevel=3)
+    return "main_effects", note
 
 
 def _drop_incomplete_runs(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -473,6 +515,9 @@ class _Fit:
     _coefficient_fit: RegressionResultsWrapper | None = None
     _reduced: tuple[RegressionResultsWrapper, dict[str, str]] | None = None
     glm: dict[str, Any] = field(default_factory=dict)
+    #: The largest model model_selection may reach: the model asked for, which is ``model`` unless the
+    #: default interactions model was not estimable and main effects were fitted instead.
+    searched_model: str | None = None
 
     @property
     def group_cols(self) -> list[str]:
@@ -672,7 +717,9 @@ def _handlers(
         "curvature_test": lambda: _run_curvature_test(
             fit.df, fit.response_col, fit.factor_cols, fit.alpha, group_cols=fit.group_cols
         ),
-        "model_selection": lambda: _run_model_selection(fit.df, fit.response_col, fit.factor_cols, model=fit.model),
+        "model_selection": lambda: _run_model_selection(
+            fit.df, fit.response_col, fit.factor_cols, model=fit.searched_model or fit.model
+        ),
         "box_cox": box_cox,
         "lenth_method": lambda: _effects(fit, lenth=True),
         "confidence_intervals": lambda: _coefficients(fit, "confidence_intervals"),
@@ -969,6 +1016,7 @@ def analyze_experiment(  # noqa: PLR0913
         if keyword.iskeyword(col):
             raise ValueError(f"Factor column {col!r} is a Python keyword, which a model formula cannot use; rename it.")
 
+    requested_model = model
     model, factor_cols = _resolve_model(df, model, response_col, reported_response, factor_cols)
     used = [
         response_col,
@@ -981,6 +1029,14 @@ def analyze_experiment(  # noqa: PLR0913
     coding = _resolve_coding(coding, df, factor_cols, model)
 
     categorical = [c for c in factor_cols if not _is_numeric(df[c])]
+    searched_model = model  # what model_selection searches, even when the default falls back below
+    model, model_note = _estimable_default(
+        df,
+        requested_model,
+        model,
+        factor_cols,
+        lambda m: build_formula(response_col, factor_cols, m, categorical).split("~", 1)[1],
+    )
     formula = build_formula(response_col, factor_cols, model, categorical)
     # Patsy evaluates formula terms as Python, so a custom ``model`` string is a
     # code-execution vector. Permit only a safe Wilkinson formula, optionally
@@ -1003,7 +1059,8 @@ def analyze_experiment(  # noqa: PLR0913
         "response_name": reported_response,
         "factor_names": list(factor_cols),
         "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
-        | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model)),
+        | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
+        | ({"model_note": model_note} if model_note else {}),
     }
 
     fit = _Fit(
@@ -1019,6 +1076,7 @@ def analyze_experiment(  # noqa: PLR0913
         whole_plot=whole_plot_col,
         coding=coding,
         glm=glm,
+        searched_model=searched_model,
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:
@@ -1069,12 +1127,17 @@ def _design_rank(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str)
     -1/+1 removes both without changing which terms the runs can separate. A mixture
     model's components are proportions and are not coded.
     """
+    return int(np.linalg.matrix_rank(np.asarray(_coded_model_matrix(df, rhs, factor_cols, model), dtype=float)))
+
+
+def _coded_model_matrix(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str) -> pd.DataFrame:
+    """Return the model matrix of ``rhs`` with each numeric factor coded to -1/+1 (a mixture's left as is)."""
     coded = df.copy()
     if model not in SCHEFFE_MODELS:
         for col in factor_cols:
             if _is_numeric(df[col]):
                 coded[col] = _code_factor(df[col])[0]
-    return int(np.linalg.matrix_rank(np.asarray(dmatrix(rhs, coded), dtype=float)))
+    return dmatrix(rhs, coded, return_type="dataframe")
 
 
 def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dict[str, Any]:

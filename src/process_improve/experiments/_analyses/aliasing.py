@@ -43,8 +43,13 @@ def alias_chains(ols_result: RegressionResultsWrapper) -> list[list[tuple[str, f
         where each term's column is ``factor`` times the leader's (``-1`` for an
         anti-alias in a coded design). A term aliased with nothing is a chain of one.
     """
-    exog = np.asarray(ols_result.model.exog, dtype=float)
-    names = [str(name) for name in ols_result.model.exog_names]
+    return alias_chains_of(
+        np.asarray(ols_result.model.exog, dtype=float), [str(n) for n in ols_result.model.exog_names]
+    )
+
+
+def alias_chains_of(exog: np.ndarray, names: list[str]) -> list[list[tuple[str, float]]]:
+    """Group the columns of a model matrix into chains of exact aliases, as :func:`alias_chains` does for a fit."""
     norms = np.linalg.norm(exog, axis=0)
     usable = norms > 0
     unit = np.divide(exog, norms, out=np.zeros_like(exog), where=usable)

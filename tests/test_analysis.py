@@ -11,7 +11,7 @@ import pytest
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
-from process_improve.experiments import Factor, generate_design
+from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments.analysis import (
@@ -160,6 +160,65 @@ class TestRankDeficiency:
         summary = result["model_summary"]
         assert summary["rank_deficient"] is False
         assert summary["model_rank"] == summary["n_terms"] == 3
+
+    @staticmethod
+    def _plackett_burman_runs() -> pd.DataFrame:
+        """Twelve runs for eight factors, with a response driven by X1, X3 and their interaction."""
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(1, 9)]
+        design = generate_design(factors, design_type="plackett_burman", n_center_points=0).design
+        truth = TrueProcess({"Intercept": 100, "X1": 10, "X3": 7, "X7": -6, "X1:X3": 8}, sigma=1.0)
+        return design.drop(columns="RunOrder").assign(y=truth.simulate(design, random_state=2))
+
+    def test_the_default_model_falls_back_to_main_effects_when_the_design_cannot_estimate_it(self) -> None:
+        """The 37-term interactions model on 12 runs reported 37 coefficients, 25 of them arbitrary."""
+        with pytest.warns(UserWarning, match="main-effects model was fitted instead"):
+            result = analyze_experiment(self._plackett_burman_runs(), response_column="y", analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["model"] == "main_effects"
+        assert summary["rank_deficient"] is False
+        assert (
+            "37 terms, of which this design can estimate 12, and its interactions are not aliased in whole chains"
+            in summary["model_note"]
+        )
+        assert len(result["coefficients"]) == 9
+
+    def test_model_selection_still_searches_the_interactions_after_the_fallback(self) -> None:
+        """The stepwise search with heredity is what recovers X7 from behind the X1:X3 interaction."""
+        with pytest.warns(UserWarning, match="main-effects model was fitted instead"):
+            chosen = analyze_experiment(
+                self._plackett_burman_runs(), response_column="y", analysis_type="model_selection"
+            )["model_selection"]
+        assert chosen["candidate_model"] == "interactions"
+        assert "X1:X3" in chosen["selected_terms"]
+
+    def test_a_named_interactions_model_is_fitted_as_named(self) -> None:
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            result = analyze_experiment(
+                self._plackett_burman_runs(), response_column="y", model="interactions", analysis_type="coefficients"
+            )
+        assert result["model_summary"]["rank_deficient"] is True
+        assert "model_note" not in result["model_summary"]
+
+    def test_a_regular_fraction_keeps_the_default_to_test_its_alias_chains(self) -> None:
+        """2^(4-1) with D = ABC: the interactions are aliased in pairs, and each pair is tested once."""
+        x = np.array(list(itertools.product([-1, 1], repeat=3)))
+        df = pd.DataFrame(np.c_[x, x.prod(axis=1)], columns=list("ABCD"))
+        df["y"] = 10 + 3 * df["A"] + 2 * df["A"] * df["B"] + np.random.default_rng(3).standard_normal(8)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")  # the pseudo-inverse fit warns of its rank, as it should
+            summary = analyze_experiment(df, response_column="y", analysis_type="effects")["model_summary"]
+        assert summary["model"] == "interactions"
+        assert "model_note" not in summary
+        assert not any("main-effects model was fitted instead" in str(w.message) for w in caught)
+
+    def test_a_design_that_estimates_the_interactions_keeps_the_default(self) -> None:
+        df = pd.DataFrame(list(itertools.product([-1, 1], repeat=3)), columns=["A", "B", "C"])
+        df["y"] = [1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 7.0, 9.5]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            summary = analyze_experiment(df, response_column="y", analysis_type="coefficients")["model_summary"]
+        assert summary["model"] == "interactions"
+        assert "model_note" not in summary
 
     def test_rank_deficient_model_warns_and_reports(self) -> None:
         df = self._foldover_design()
