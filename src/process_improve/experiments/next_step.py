@@ -587,13 +587,15 @@ def _lenth_on_the_cube(
 
 
 def _omars(data: pd.DataFrame, names: list[str], alpha: float) -> dict[str, Any] | None:
-    from process_improve.experiments.omars import analyze_omars  # noqa: PLC0415 - one caller
+    from process_improve.experiments.omars import _has_omars_structure, analyze_omars  # noqa: PLC0415 - one caller
 
     if _nuisance(data):
         return None  # the staged analysis has no place for blocks
+    if not _has_omars_structure(data[names].to_numpy(dtype=float)):
+        return None  # its tests hold only for that structure; checked first, as its search can take long elsewhere
 
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")  # its structure check, read from the result instead
+        warnings.simplefilter("ignore")  # a structure warning cannot arise after the check above
         result = analyze_omars(
             data[names],
             data["y"],
@@ -602,8 +604,8 @@ def _omars(data: pd.DataFrame, names: list[str], alpha: float) -> dict[str, Any]
             alpha_second_subset=alpha,
             interaction_heredity="strong",  # a DSD's A:B is partly aliased with C:D and E:F; heredity picks A:B
         )
-    if not result.success or not all(result.details["design_structure"].values()):
-        return None  # its tests hold only for a design with the OMARS structure
+    if not result.success:
+        return None
     judged = {name: float(p) for name, p in result.main_effect_p_values.items()}
     judged.update(dict.fromkeys(result.active_interactions, 0.0))
     judged.update({f"I({q[:-2]} ** 2)": 0.0 for q in result.active_quadratics})
