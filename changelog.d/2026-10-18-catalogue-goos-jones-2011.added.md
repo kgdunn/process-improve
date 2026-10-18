@@ -1,5 +1,5 @@
 - **The reference catalogue reads Goos and Jones, *Optimal Design of Experiments: A Case Study Approach*
-  (2011), chapters 1 to 8.** It holds:
+  (2011), chapters 1 to 10.** It holds:
   - the splits of a two-machine comparison's runs (Tables 1.1 to 1.4), checked with `allocate_runs`;
   - the GeneBe extraction experiment, with its fits, predictions, alias matrix (Table 2.7) and variance
     inflation factors;
@@ -22,10 +22,20 @@
     the days as random effects, beside the orthogonally blocked central composite design it replaces;
   - the stability of riboflavin (chapter 8), a D-optimal screening design in eight days of four: its
     blocking VIFs beside a random design's and Dr. Xu's blocked half fraction, the 64-run
-    alternatives, and the fixed and random block effects analyses.
+    alternatives, and the fixed and random block effects analyses;
+  - the polypropylene experiment (chapter 9), 18 samples chosen from 40 in stock with their EPDM,
+    ethylene and EVA as covariates: the design's balance, its relative standard errors beside a design
+    that treats the covariates as ordinary factors, the main-effects fit with its gas type coded as
+    JMP codes it, the prediction equations and the points of Figure 9.4's contours, and two run orders
+    of the 2^3 factorial robust to a linear time trend, with their trend-robustness (Equation 9.19);
+  - the wind tunnel experiment (chapter 10), a 50-run I-optimal split-plot design in ten whole plots:
+    its variances, average and median prediction variance beside Dr. Cavendish's two designs, the
+    ordinary and Kenward-Roger generalized least squares fits of the efficiency (Tables 10.5 to 10.7)
+    and the simplified models of all five responses (Table 10.8), and the eight-whole-plot design of
+    Tables 10.9 and 10.10.
 
-  1380 printed numbers give 1478 checks, all agreeing or explained. The 27 explained disagreements are
-  misprints or numbers read off a figure:
+  2015 printed numbers give 2186 checks, all agreeing or explained. The 77 explained disagreements are
+  misprints, numbers read off a figure, or numbers of a design other than the one printed:
   - two t ratios in Table 2.5 and two in Table 3.7;
   - the time coefficient of Equation 2.1;
   - Table 2.12's VIF of 1.25 for four terms, which Table 2.11's runs, and the best design a coordinate
@@ -37,7 +47,17 @@
   - three quantiles of chapter 4's FDS plot, read off Figure 4.1;
   - Figure 7.1's two predictions at the settings it shows, which Table 7.9's models do not give;
   - the "about 3% better" of the 64-run design printed as D-optimal (Table 8.7), which holds the same
-    runs as Table 8.6, blocked the same way.
+    runs as Table 8.6, blocked the same way;
+  - ten relative standard errors of Table 9.4 that differ from the printed runs' in the fourth decimal
+    (three of them inconsistent with Table 9.6's own standard errors);
+  - Table 10.3's I-optimal column, the 89.2% relative D-efficiency and the 12.1% gain, which belong to
+    an I-optimal design other than Table 10.2's (that design gives 91.4%); and the median prediction
+    variance "about 0.47", 0.475 for Table 10.2;
+  - the 45 degrees of freedom of Table 10.7's ordinary least squares, 35 for its 15-term model;
+  - one p value of Table 10.8 (0.0013 for 0.00136) and one square in Table 10.11.
+
+  Chapter 9's "95% prediction intervals" are the mean's 95% confidence intervals, and are checked as
+  those; a new run's prediction interval is about twice as wide.
 
   New check kinds: the corner of the cube where a model predicts the most (`best_corner`), a model's
   AICc (`aicc`), and one design's D- or I-efficiency relative to another entry's
@@ -49,4 +69,7 @@
   (`above` and `at_least` on `run_count`), a metric over the same metric of a second model
   (`relative_to`, for a VIF or efficiency factor due to blocking), in percent (`percent`) or counted
   (`count`), a block's average model row (`average`), and the split-plot analysis's coefficients,
-  variance ratio and predictions, by Kenward and Roger's method (`df_method`, `information`).
+  variance ratio and predictions, by Kenward and Roger's method (`df_method`, `information`), a
+  design's runs evaluated as a split-plot design through their whole plots (`whole_plot`, on
+  `design_metric` and `relative_efficiency`), a relative efficiency in percent or as a gain (`percent`,
+  `gain`), and a run order's trend-robustness (`trend_robustness`, Equation 9.19).
