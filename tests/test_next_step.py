@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import process_improve.experiments.tools  # noqa: F401 - registers the experiments tools
 from process_improve.experiments import Factor, TrueProcess, generate_design, next_step, omars, recommend_next_step
 from process_improve.experiments.next_step import (
     _CURVATURE,
