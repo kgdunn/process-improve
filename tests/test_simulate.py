@@ -195,8 +195,9 @@ class TestThroughTheTools:
         assert set(with_them["correlations"]) == {"BBD [n=15]", "CCD [n=17]"}
 
     def test_compare_reports_an_error(self) -> None:
-        result = execute_tool_call("compare_designs", {"designs": {"one": [{"A": "x"}, {"A": 1}]}})
-        assert "error" in result
+        designs = {"one": [{"A": -1}, {"A": 1}], "two": [{"B": -1}, {"B": 1}]}
+        result = execute_tool_call("compare_designs", {"designs": designs})
+        assert "name their factors differently" in result["error"]
 
 
 def test_the_true_optimum_of_many_factors_is_searched_from_a_sample() -> None:

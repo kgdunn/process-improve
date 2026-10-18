@@ -61,6 +61,12 @@ BUDGET: dict[str, int] = {
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
     "PLR0912": 21,
+    # 87: #793 adds `simulate_design_performance`, the public entry point that
+    # simulates studies with candidate designs. Its settings are the inputs of
+    # the simulation (the designs, the hypothesised process, the goal and its
+    # target, the number of studies, the significance level, the seed), and the
+    # last four are the ones `recommend_next_step` takes for the same judging;
+    # its private helpers stay under every threshold.
     # 86: #787 adds `recommend_next_step`, the public entry point that decides a
     # study's next round. Each of its keyword-only settings is a separate input to
     # that decision (goal and target, the confirmation runs, a given model, the
@@ -94,7 +100,7 @@ BUDGET: dict[str, int] = {
     # `select_n_components`' own. The width stops there: the function forms forward
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
-    "PLR0913": 86,
+    "PLR0913": 87,
     # 28: #513 (see C901). 29 before that.
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
