@@ -118,7 +118,11 @@ The rules, in order
    design and keep every run inside the ranges, or runs chosen for the full quadratic model.
    The curvature centre runs show could be any factor's square, and near an optimum a factor's
    linear effect vanishes while its square does not, so the axial runs go in every numeric
-   factor, up to six, rather than in the active ones only.
+   factor, up to six, rather than in the active ones only. With more factors, the full quadratic
+   model goes in the active factors, and runs chosen (D-optimal) tell the other factors' squares
+   apart. The same holds for a square judged active whose column the runs share with other
+   squares: the analysis names only the first of them, so the runs that follow separate them all
+   before the optimum is sought.
 6. The best settings sit at an **edge**, and the goal improves past it by more than twice the
    noise per coded unit: when the ranges may move, four runs along the path of steepest ascent.
 7. Otherwise, **confirm** at the predicted optimum.
@@ -141,13 +145,19 @@ in:
      - t-tests in the largest of these, with one column per chain of exactly aliased terms
    * - A saturated two-level design (a fraction, or a full factorial without repeats)
      - Lenth's method on all its contrasts, with simulated critical values
+   * - A two-level design whose centre runs leave the t-tests fewer than four degrees of
+       freedom for error (a 16-run fraction with three centre runs leaves two)
+     - Lenth's method on the contrasts of the two-level runs, worth about a third as many degrees
+       of freedom as contrasts, and a curvature test of the centre runs against their repeats;
+       for the signal, each at ``alpha / 2``
    * - A definitive screening design
      - its staged analysis (``analyze_omars``), every test at ``alpha``, with strong heredity
        for interactions
-   * - A Plackett-Burman design
-     - t-tests of every main effect and of the interactions a stepwise search (AICc) proposes,
-       since main effects alone would leave an active interaction in the error, where it hides
-       them
+   * - A Plackett-Burman design, or second-order terms partly aliased with each other
+     - t-tests of every main effect and of the second-order terms a stepwise search (AICc)
+       proposes, since main effects alone would leave an active interaction in the error, where
+       it hides them. A square may enter the search without its main effect: a factor whose best
+       setting is in the middle of its range has a square and no main effect.
 
 Interactions of the active factors that this could not test are then tested in the model of the
 active terms. Lenth's own margins, a t quantile on a third as many degrees of freedom as

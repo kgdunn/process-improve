@@ -11,7 +11,17 @@ import pytest
 
 import process_improve.experiments.tools  # noqa: F401 - registers the experiments tools
 from process_improve.experiments import Factor, TrueProcess, generate_design, recommend_next_step
-from process_improve.experiments.next_step import ACTIONS, _lenth_null, _stands_out
+from process_improve.experiments.next_step import (
+    _CURVATURE,
+    ACTIONS,
+    _code,
+    _design,
+    _lenth_null,
+    _select,
+    _stands_out,
+    _Study,
+    _with_blocks,
+)
 from process_improve.tool_spec import execute_tool_call
 
 ADHESION = TrueProcess({"Intercept": 100, "A": 10, "C": 7, "G": -6, "A:C": 8}, sigma=3)
@@ -27,6 +37,14 @@ def _runs(factors: list[Factor], truth: TrueProcess, seed: int, **design: object
     names = [f.name for f in factors]
     runs = generate_design(factors, **design).design_actual[names].astype(float)  # type: ignore[arg-type]
     return runs.assign(y=truth.simulate(runs, random_state=seed).to_numpy())
+
+
+def _signal(factors: list[Factor], runs: pd.DataFrame) -> bool:
+    """Say whether anything stands out in the runs, as recommend_next_step judges them, without deciding the step."""
+    study = _Study(factors, _with_blocks(_code(factors, runs, "y")), "y")
+    design = _design(study)
+    study.data[_CURVATURE] = design.center.astype(float)
+    return _select(study, design, None, 0.05).signal
 
 
 def _made(step: dict, truth: TrueProcess, seed: int) -> pd.DataFrame:
@@ -127,6 +145,27 @@ class TestScreeningResults:
         assert step["evidence"]["optimum"]["edges"] == []
 
 
+class TestSquaresAliasedWithEachOther:
+    """Centre runs give every factor's square one column: curvature in many factors is not yet anyone's."""
+
+    CURVED_8 = TrueProcess({"Intercept": 100, "A": 2, "I(A ** 2)": -6, "I(C ** 2)": -4}, sigma=1)
+
+    def test_runs_that_tell_every_square_apart_come_before_the_optimum(self) -> None:
+        """With axial runs in A alone, B's square stood for C's, and studies chased B."""
+        factors = _factors("ABCDEFGH")
+        runs = _runs(factors, self.CURVED_8, 0, design_type="fractional_factorial", resolution=4, n_center_points=3)
+        step = recommend_next_step(factors, runs, "y", ranges_can_move=False)
+        assert step["action"] == "augment_to_rsm"
+        assert "tell the squares of B, C, D, E, F, G, H apart" in step["headline"]
+        added = pd.DataFrame(step["runs"])
+        assert (added[list("BCDEFGH")] != 0).any().all()  # every suspect varies
+        after = recommend_next_step(
+            factors, pd.concat([runs, _made(step, self.CURVED_8, 1)]), "y", ranges_can_move=False
+        )
+        assert {"A", "I(A ** 2)", "I(C ** 2)"} <= set(after["evidence"]["active_terms"])
+        assert after["action"] == "confirm"
+
+
 class TestNothingStandsOut:
     """The gate on whether anything stands out from the noise, and what follows when nothing does."""
 
@@ -224,6 +263,36 @@ class TestLenth:
         assert step["model"]["judged_by"].startswith("Lenth's method on the 7 contrasts")
         assert step["model"]["signal"]
         assert {"A", "B"} <= set(step["evidence"]["active_terms"])
+
+    def test_a_fraction_with_three_centre_runs_is_judged_on_its_two_level_runs(self) -> None:
+        """t-tests in the interactions model had 2 error df: nothing stood out in a quarter of adhesion studies."""
+        factors = _factors("ABCDEFGH")
+        design = {"design_type": "fractional_factorial", "resolution": 4, "n_center_points": 3}
+        runs = _runs(factors, ADHESION, 1, **design)
+        step = recommend_next_step(factors, runs, "y", ranges_can_move=False)
+        assert step["model"]["judged_by"].startswith("Lenth's method on the 15 contrasts of the two-level runs")
+        assert {"A", "C", "G"} <= set(step["evidence"]["active_terms"])
+        assert step["evidence"]["curvature"]["source"] == "center_runs"
+        five = _runs(factors, ADHESION, 1, **(design | {"n_center_points": 5}))  # 4 error df: t-tests see enough
+        assert recommend_next_step(factors, five, "y")["model"]["judged_by"].startswith("t-tests")
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize(
+        ("truth", "low", "high"),
+        [
+            (TrueProcess({"Intercept": 100}, sigma=3), 0.02, 0.09),  # the false alarm rate: alpha
+            (TrueProcess({"Intercept": 100, "I(A ** 2)": -6, "I(C ** 2)": -4}, sigma=1), 0.95, 1.0),
+        ],
+    )
+    def test_the_curvature_of_the_centre_runs_counts_toward_the_signal(
+        self, truth: TrueProcess, low: float, high: float
+    ) -> None:
+        """No term of the two-level runs moves here, so only the centre runs can show the squares."""
+        factors = _factors("ABCDEFGH")
+        design = generate_design(factors, design_type="fractional_factorial", resolution=4, n_center_points=3)
+        coded = design.design[[f.name for f in factors]]
+        signals = [_signal(factors, coded.assign(y=truth.simulate(coded, random_state=seed))) for seed in range(300)]
+        assert low <= np.mean(signals) <= high
 
 
 class TestConfirmation:
@@ -560,6 +629,15 @@ class TestRoundByRound:
         assert "move_region" in history
         assert history[-1] == "stop"
         assert value > 98.75 - 0.5 * truth.sigma  # the true maximum is 98.75, at A = 2, B = -1.5
+
+    @pytest.mark.parametrize("seed", range(3))
+    def test_curvature_in_one_of_eight_factors_is_found_and_confirmed(self, seed: int) -> None:
+        truth = TestSquaresAliasedWithEachOther.CURVED_8
+        factors = _factors("ABCDEFGH")
+        runs = _runs(factors, truth, seed, design_type="fractional_factorial", resolution=4, n_center_points=3)
+        history, value = _follow(truth, factors, runs, seed=seed, moves=False)
+        assert history[-1] == "stop"
+        assert value > 100.17 - 0.1 * truth.sigma  # the true maximum is 100.17, at A = 1/6, C = 0
 
     @pytest.mark.parametrize("seed", range(3))
     def test_an_aliased_interaction_is_resolved_before_the_optimum_is_confirmed(self, seed: int) -> None:
