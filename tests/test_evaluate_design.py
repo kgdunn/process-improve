@@ -1480,3 +1480,137 @@ class TestExactRegionValues:
     def test_an_unknown_option_is_refused(self, option: str, value: str) -> None:
         with pytest.raises(ValueError, match=option):
             evaluate_design(THREE_RUNS, model=ONE_FACTOR_QUADRATIC, **{option: value})
+
+
+def _wind_tunnel_design() -> pd.DataFrame:
+    """Dr. Cavendish's split-plot design in Goos and Jones (2011), Figure 10.2: 10 whole plots of 5 runs.
+
+    The ride heights (x1, x2) are the hard-to-change factors, set on a 3^2 factorial with its centre
+    twice. A corner whole plot runs the 2^2 in yaw and grille (x3, x4) plus its centre, an edge whole
+    plot the four axial points plus the centre, and the two centre whole plots run the centre five times.
+    """
+    runs = []
+    for a in (-1, 0, 1):
+        for b in (-1, 0, 1):
+            corner = a != 0 and b != 0
+            sub = [(-1, -1), (1, -1), (-1, 1), (1, 1)] if corner else [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            for _ in range(2 if a == b == 0 else 1):
+                plot = len(runs) // 5 + 1
+                cells = [(0, 0)] * 5 if a == b == 0 else [*sub, (0, 0)]
+                runs += [(plot, a, b, c, d) for c, d in cells]
+    return pd.DataFrame(runs, columns=["WholePlot", "x1", "x2", "x3", "x4"]).astype(float)
+
+
+WIND_TUNNEL_QUADRATIC = (
+    "x1 + x2 + x3 + x4 + x1:x2 + x1:x3 + x1:x4 + x2:x3 + x2:x4 + x3:x4 "
+    "+ I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)"
+)
+
+
+def _battery_design() -> pd.DataFrame:
+    """Goos and Jones (2011), Table 11.2: a 48-run two-way split-plot design, 16 rows by 6 columns.
+
+    Each row (a lot from the assembly stage, x1 to x4) runs in three of the six columns (curing
+    cycles, x5 and x6): the odd rows in cycles 1 to 3, the even rows in cycles 4 to 6.
+    """
+    lots = [
+        "--++",
+        "+---",
+        "----",
+        "++-+",
+        "-+-+",
+        "+-++",
+        "+--+",
+        "+++-",
+        "++++",
+        "-+--",
+        "+-+-",
+        "-+++",
+        "-++-",
+        "--+-",
+        "++--",
+        "---+",
+    ]
+    cycles = {1: "--", 2: "++", 3: "-+", 4: "+-", 5: "++", 6: "-+"}
+    sign = {"-": -1.0, "+": 1.0}
+    runs = [
+        [str(row), str(column), *(sign[v] for v in lot + cycles[column])]
+        for row, lot in enumerate(lots, start=1)
+        for column in ((1, 2, 3) if row % 2 else (4, 5, 6))
+    ]
+    return pd.DataFrame(runs, columns=["Row", "Column", "x1", "x2", "x3", "x4", "x5", "x6"])
+
+
+class TestSplitPlotInformation:
+    def test_the_variances_of_a_published_split_plot_design(self) -> None:
+        """Goos and Jones (2011), Table 10.3, Marc's column: GLS variances with sigma_gamma^2 = sigma_eps^2 = 1."""
+        found = evaluate_design(
+            _wind_tunnel_design(),
+            model=WIND_TUNNEL_QUADRATIC,
+            metric=["information_matrix", "average_prediction_variance"],
+            random_effects={"WholePlot": 1.0},
+            integration="exact",
+        )
+        variances = found["information_matrix"]["coefficient_variances"]
+        expected = {"Intercept": 0.429, "x1": 0.200, "x3": 0.042, "x1:x2": 0.300, "x1:x3": 0.050}
+        expected |= {"x3:x4": 0.0625, "I(x1 ** 2)": 0.554, "I(x3 ** 2)": 0.125}
+        for term, value in expected.items():
+            assert variances[term] == pytest.approx(value, abs=5e-4), term
+        assert np.mean(list(variances.values())) == pytest.approx(0.189, abs=5e-4)
+        assert found["average_prediction_variance"] == pytest.approx(0.526, abs=5e-4)
+        assert "WholePlot (10 groups, ratio 1)" in found["notes"]["random_effects"]
+
+    def test_the_variances_of_a_two_way_split_plot_design(self) -> None:
+        """Goos and Jones (2011), Table 11.3: rows and columns as random effects, all three variances one."""
+        found = evaluate_design(
+            _battery_design(), model="interactions", metric="information_matrix", random_effects={"Row": 1, "Column": 1}
+        )
+        variances = found["information_matrix"]["coefficient_variances"]
+        expected = {"Intercept": 0.2734, "x1": 0.0859, "x5": 0.2237, "x6": 0.2109, "x1:x2": 0.0833}
+        expected |= {"x1:x5": 0.0227, "x1:x6": 0.0234, "x5:x6": 0.2237}
+        for term, value in expected.items():
+            assert variances[term] == pytest.approx(value, abs=5e-5), term
+
+    def test_it_equals_the_direct_inverse_of_the_runs_covariance(self) -> None:
+        rng = np.random.default_rng(3)
+        design = pd.DataFrame(rng.uniform(-1, 1, size=(12, 2)), columns=["A", "B"])
+        design["WholePlot"] = np.repeat([1, 2, 3, 4], [2, 3, 3, 4])
+        X = np.column_stack([np.ones(12), design["A"], design["B"], design["A"] * design["B"]])
+        Z = (design["WholePlot"].to_numpy()[:, None] == np.arange(1, 5)).astype(float)
+        direct = X.T @ np.linalg.solve(np.eye(12) + 2.5 * Z @ Z.T, X)
+        found = evaluate_design(design, model="A * B", metric="information_matrix", random_effects={"WholePlot": 2.5})
+        np.testing.assert_allclose(found["information_matrix"]["xtx"], direct, rtol=1e-12)
+        np.testing.assert_allclose(found["information_matrix"]["inverse"], np.linalg.inv(direct), rtol=1e-10)
+
+    def test_a_ratio_of_zero_gives_the_ordinary_least_squares_metrics(self) -> None:
+        design = _wind_tunnel_design()
+        gls = evaluate_design(design, model="quadratic", metric="all", random_effects={"WholePlot": 0.0})
+        ols = evaluate_design(design, model="quadratic", metric="all")
+        assert gls["d_efficiency"] == pytest.approx(ols["d_efficiency"])
+        assert gls["average_prediction_variance"] == pytest.approx(ols["average_prediction_variance"])
+        assert "random_effects" not in ols.get("notes", {})
+
+    def test_the_group_column_is_needed(self) -> None:
+        with pytest.raises(ValueError, match="'WholePlot', which is not a column"):
+            evaluate_design(_full_factorial_df(2), random_effects={"WholePlot": 1.0})
+
+    @pytest.mark.parametrize("ratio", [-0.5, float("nan")])
+    def test_a_negative_or_undefined_ratio_is_refused(self, ratio: float) -> None:
+        with pytest.raises(ValueError, match="variance ratio of random effect 'WholePlot'"):
+            evaluate_design(_wind_tunnel_design(), random_effects={"WholePlot": ratio})
+
+    def test_the_tool_passes_the_ratio_on(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        rows = _wind_tunnel_design().to_dict(orient="records")
+        result = execute_tool_call(
+            "evaluate_design",
+            {
+                "design_matrix": rows,
+                "model": "quadratic",
+                "metric": "a_optimality",
+                "random_effects": {"WholePlot": 1.0},
+            },
+        )
+        assert "error" not in result
+        assert "random_effects" in result["notes"]

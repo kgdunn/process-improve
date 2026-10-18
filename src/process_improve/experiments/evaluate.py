@@ -23,7 +23,7 @@ import itertools
 import logging
 import re
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -78,6 +78,8 @@ class _EvalRequest:
     categorical_coding: str = "effect"
     integration: str = "sample"
     max_search: str = "sample"
+    # each random effect's group labels, one array per run, and its variance over the run variance (GLS)
+    random_effects: dict[str, tuple[np.ndarray, float]] | None = None
 
 
 @dataclass
@@ -249,13 +251,40 @@ def _unit_length_columns(X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return X / lengths, lengths
 
 
+def _random_effects_information(X: np.ndarray, random_effects: dict[str, tuple[np.ndarray, float]]) -> np.ndarray:
+    """Return the generalized least squares information ``X' V^-1 X`` of runs that share random effects.
+
+    ``V = I + sum_k eta_k Z_k Z_k'`` is the runs' covariance in units of the run variance, with
+    ``Z_k`` the indicators of the groups of random effect ``k`` (the whole plots of a split-plot
+    design, the rows and the columns of a two-way split-plot design) and ``eta_k`` its variance
+    over the run variance. With ``Z = [Z_1 ... Z_K]`` and ``D`` the diagonal of the ``eta_k``,
+    Woodbury's identity gives ``V^-1 = I - Z (D^-1 + Z'Z)^-1 Z'``, so only a matrix the size of
+    the number of groups is inverted. A random effect of ratio zero leaves ``V`` unchanged.
+    """
+    indicators, ratios = [], []
+    for labels, ratio in random_effects.values():
+        if ratio > 0:
+            codes, _ = pd.factorize(labels)
+            indicators.append(np.eye(int(codes.max()) + 1)[codes])
+            ratios.append(np.full(indicators[-1].shape[1], 1.0 / ratio))
+    if not indicators:
+        return X.T @ X
+    Z = np.hstack(indicators)
+    sums = Z.T @ X
+    return X.T @ X - sums.T @ np.linalg.solve(np.diag(np.concatenate(ratios)) + Z.T @ Z, sums)
+
+
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
     X, column_names, design_info = _build_model_matrix(
         req.design_df, req.model, req.factor_names, req.categorical_coding
     )
     N, p = X.shape
-    XtX = X.T @ X
+
+    def information(Xs: np.ndarray) -> np.ndarray:
+        return Xs.T @ Xs if not req.random_effects else _random_effects_information(Xs, req.random_effects)
+
+    XtX = information(X)
 
     # The rank and (X'X)^-1 are worked on X with unit-length columns, which changes neither. In
     # the factors' own units the columns' lengths can differ by many orders (x1 beside x1^2 x2);
@@ -265,7 +294,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
     is_singular = rank < p
     XtX_inv: np.ndarray | None = None
     if not is_singular:
-        XtX_inv = np.linalg.inv(scaled.T @ scaled) / np.outer(lengths, lengths)
+        XtX_inv = np.linalg.inv(information(scaled)) / np.outer(lengths, lengths)
 
     return _EvalContext(
         X=X,
@@ -697,7 +726,11 @@ def _compute_information_matrix(ctx: _EvalContext) -> dict[str, Any]:
     (every term orthogonal to every other). For a model the design estimates it adds the
     ``inverse``, whose entries are the coefficients' variances and covariances in units of
     sigma^2, its trace, the A-criterion ``a_criterion``, that trace over ``p``
-    (``a_criterion_per_parameter``) and each term's ``coefficient_variances``.
+    (``a_criterion_per_parameter``), each term's ``coefficient_variances``, and the
+    correlations of the estimates, ``estimate_correlations`` (term by term, JMP's
+    "Correlation of Estimates"), with the largest in size off the diagonal,
+    ``max_abs_estimate_correlation``, and the number of pairs of terms whose estimates are
+    correlated at all, ``n_correlated_pairs``.
     """
     sign, logdet = np.linalg.slogdet(ctx.XtX)
     estimable = sign > 0 and not ctx.is_singular
@@ -727,7 +760,26 @@ def _compute_information_matrix(ctx: _EvalContext) -> dict[str, Any]:
             "a_criterion_per_parameter": trace / ctx.p,
             "coefficient_variances": dict(zip(ctx.column_names, map(float, np.diag(ctx.XtX_inv)), strict=True)),
         }
+        result |= _estimate_correlations(ctx.XtX_inv, ctx.column_names)
     return {"information_matrix": result}
+
+
+#: Correlations of the estimates smaller than this in size count as zero: rounding, not dependence.
+_CORRELATION_TOLERANCE = 1e-8
+
+
+def _estimate_correlations(inverse: np.ndarray, names: list[str]) -> dict[str, Any]:
+    """Return the correlations of the estimates, ``(X'X)^-1`` scaled to a unit diagonal, and their summary."""
+    scale = np.sqrt(np.diag(inverse))
+    correlation = inverse / np.outer(scale, scale)
+    upper = np.abs(correlation[np.triu_indices(len(names), 1)])
+    return {
+        "estimate_correlations": {
+            a: dict(zip(names, map(float, row), strict=True)) for a, row in zip(names, correlation, strict=True)
+        },
+        "max_abs_estimate_correlation": float(upper.max()) if upper.size else 0.0,
+        "n_correlated_pairs": int(np.count_nonzero(upper > _CORRELATION_TOLERANCE)),
+    }
 
 
 def _compute_estimable_interactions(ctx: _EvalContext) -> dict[str, Any]:
@@ -1545,6 +1597,37 @@ def _resolve_metrics(metric: str | list[str]) -> list[str]:
     return metrics
 
 
+def _random_effect_groups(
+    design_df: pd.DataFrame, factor_names: list[str], random_effects: Mapping[str, float] | None
+) -> tuple[pd.DataFrame, list[str], dict[str, tuple[np.ndarray, float]] | None, str | None]:
+    """Take the columns that label the random effects' groups out of the design, with a note.
+
+    Return the design and factor names without them, each random effect's labels and ratio,
+    and the note; raise for a column the design does not have or a ratio below zero.
+    """
+    if not random_effects:
+        return design_df, factor_names, None, None
+    groups: dict[str, tuple[np.ndarray, float]] = {}
+    for name, ratio in random_effects.items():
+        if name not in design_df.columns:
+            raise ValueError(f"random_effects names {name!r}, which is not a column of the design.")
+        if not np.isfinite(ratio) or ratio < 0:
+            raise ValueError(
+                f"The variance ratio of random effect {name!r} must be a finite number of at least 0; got {ratio!r}."
+            )
+        groups[name] = (design_df[name].to_numpy(), float(ratio))
+    described = ", ".join(
+        f"{name} ({len(pd.unique(labels))} groups, ratio {ratio:g})" for name, (labels, ratio) in groups.items()
+    )
+    note = (
+        "The metrics use the generalized least squares information X' V^-1 X, with V = I + sum_k eta_k Z_k Z_k' "
+        f"over the random effects {described}: variances are in units of the run variance. The degrees of freedom "
+        "and the power keep the run-level residual degrees of freedom."
+    )
+    kept = [f for f in factor_names if f not in groups]
+    return design_df.drop(columns=list(groups)), kept, groups, note
+
+
 def _separate_run_columns(
     design_df: pd.DataFrame, factor_names: list[str], model: str | None
 ) -> tuple[pd.DataFrame, list[str], str | None]:
@@ -1638,6 +1721,7 @@ def evaluate_design(  # noqa: PLR0913
     categorical_coding: str = "effect",
     integration: str = "sample",
     max_search: str = "sample",
+    random_effects: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1747,6 +1831,18 @@ def evaluate_design(  # noqa: PLR0913
         search inside the cube, so a maximum between the vertices is found rather than
         missed: the variance of a design's projection often peaks inside a face or an
         edge. Over a :class:`DesignRegion` it is the sample's maximum.
+    random_effects : mapping of str to float, or None
+        For runs that share random effects: each key a column of the design that labels a
+        run's group (the ``WholePlot`` of a split-plot design; the rows and the columns of a
+        two-way split-plot, or strip-plot, design; random blocks), each value that effect's
+        variance over the run variance, at least 0 (1 is a common assumption). The columns
+        are not factors. Every metric then uses the generalized least squares information
+        ``X' V^-1 X``, with ``V = I + sum_k eta_k Z_k Z_k'`` and ``Z_k`` the indicators of
+        effect ``k``'s groups, in place of ``X'X``: the variances are in units of the run
+        variance, as JMP reports them for split-plot and two-way split-plot designs, and
+        ratios of 0 give back the ordinary least squares metrics. The degrees of freedom and
+        the power keep the run-level residual degrees of freedom ``N - p``. ``None`` (default)
+        treats the runs as independent.
 
     Returns
     -------
@@ -1760,7 +1856,8 @@ def evaluate_design(  # noqa: PLR0913
     ------
     ValueError
         If *alpha* is not in (0, 1), *sigma* is not positive, *n_samples* is
-        below 1, a factor setting is missing, or *categorical_coding* is unknown.
+        below 1, a factor setting is missing, *categorical_coding* is unknown, or
+        *random_effects* names a column the design lacks or has a negative ratio.
 
     Examples
     --------
@@ -1788,6 +1885,7 @@ def evaluate_design(  # noqa: PLR0913
         design_df = pd.DataFrame(design_matrix)
         factor_names = list(design_df.columns)
 
+    design_df, factor_names, groups, groups_note = _random_effect_groups(design_df, factor_names, random_effects)
     design_df, factor_names, block_note = _separate_run_columns(design_df, factor_names, model)
     _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
     if integration not in _INTEGRATIONS:
@@ -1823,6 +1921,7 @@ def evaluate_design(  # noqa: PLR0913
             categorical_coding=categorical_coding,
             integration=integration,
             max_search=max_search,
+            random_effects=groups,
         )
     )
 
@@ -1837,6 +1936,8 @@ def evaluate_design(  # noqa: PLR0913
         results.update(result)
     if block_note:
         notes["blocks"] = block_note
+    if groups_note:
+        notes["random_effects"] = groups_note
     if notes:
         results["notes"] = notes
 
@@ -1857,6 +1958,7 @@ def evaluate_all(  # noqa: PLR0913
     categorical_coding: str = "effect",
     integration: str = "sample",
     max_search: str = "sample",
+    random_effects: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1888,4 +1990,5 @@ def evaluate_all(  # noqa: PLR0913
         categorical_coding=categorical_coding,
         integration=integration,
         max_search=max_search,
+        random_effects=random_effects,
     )
