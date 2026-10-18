@@ -14,6 +14,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from scipy import stats
+from statsmodels.formula._manager import FormulaManager
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 from ._shared import is_block_term
@@ -45,6 +47,105 @@ def _block_row(ols_result: RegressionResultsWrapper, blocks: tuple[str, ...]) ->
     }
 
 
+def _least_squares(columns: np.ndarray, y: np.ndarray) -> tuple[float, int]:
+    """Return the residual sum of squares of ``y`` on ``columns``, and the rank of ``columns``."""
+    if columns.shape[1] == 0:
+        return float(y @ y), 0
+    coefficients, _, rank, _ = np.linalg.lstsq(columns, y, rcond=None)
+    residuals = y - columns @ coefficients
+    return float(residuals @ residuals), int(rank)
+
+
+def _term_columns(ols_result: RegressionResultsWrapper) -> dict[str, tuple[frozenset, np.ndarray]]:
+    """Return each model term's factors and columns, by the term's name, the intercept's factors empty.
+
+    The columns are found by name, so a fit with columns dropped (one per alias chain, as
+    :func:`~.aliasing.chain_reduced_fit` leaves) keeps only the columns it has.
+    """
+    manager = FormulaManager()
+    spec = ols_result.model.data.model_spec
+    exog = np.asarray(ols_result.model.exog, dtype=float)
+    position = {str(name): k for k, name in enumerate(ols_result.model.exog_names)}
+    names = manager.get_column_names(spec)
+    terms = {}
+    for term in spec.terms:
+        found = [position[name] for name in names[manager.get_slice(spec, term)] if name in position]
+        terms[manager.get_term_name(term)] = (frozenset(term.factors), exog[:, found])
+    return terms
+
+
+def _type_ii_by_rank(ols_result: RegressionResultsWrapper, blocks: tuple[str, ...]) -> tuple[pd.DataFrame, list[str]]:
+    """Type II sums of squares of a model whose matrix lacks full rank, each on the degrees of freedom it adds.
+
+    A factor nested in another, such as the times of spinning within each square of Davies's
+    yarn experiment (#789 B7), has columns that lie in that other factor's. statsmodels' Type
+    II table then counts every column as a degree of freedom, and its rows can exceed the
+    total. Here each term's sum of squares is the drop in the residual sum of squares when it
+    joins the terms that do not contain it, on the rise in rank it brings. A term that adds no
+    rank cannot be tested, and a term that adds less than its columns is tested on what it adds.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, list[str]]
+        The table, laid out as ``anova_lm``'s with a ``Residual`` row, and one sentence for each
+        term that cannot be tested on all its columns.
+    """
+    y = np.asarray(ols_result.model.endog, dtype=float)
+    rss, rank = _least_squares(np.asarray(ols_result.model.exog, dtype=float), y)
+    df_resid = len(y) - rank
+    mse = rss / df_resid
+    terms = _term_columns(ols_result)
+    rows, notes = {}, []
+    for name, (factors, columns) in terms.items():
+        if not factors or is_block_term(name, blocks):
+            continue
+        kept = [other for other_factors, other in terms.values() if not factors <= other_factors]
+        reduced = np.hstack(kept) if kept else columns[:, :0]
+        rss_reduced, rank_reduced = _least_squares(reduced, y)
+        rss_added, rank_added = _least_squares(np.hstack([reduced, columns]), y)
+        df, width = rank_added - rank_reduced, columns.shape[1]
+        sum_sq = max(rss_reduced - rss_added, 0.0) if df > 0 else 0.0
+        f_value = sum_sq / df / mse if df > 0 else np.nan
+        rows[name] = (df, sum_sq, f_value, stats.f.sf(f_value, df, df_resid) if df > 0 else np.nan)
+        if df == 0:
+            notes.append(_untestable_note(name, terms))
+        elif df < width:
+            notes.append(
+                f"{name} is tested on {df} of its {width} degrees of freedom: the rest lie in the columns of the "
+                "terms it is adjusted for."
+            )
+    rows["Residual"] = (df_resid, rss, np.nan, np.nan)
+    table = pd.DataFrame.from_dict(rows, orient="index", columns=["df", "sum_sq", "F", "PR(>F)"])
+    return table, notes
+
+
+def _untestable_note(name: str, terms: dict[str, tuple[frozenset, np.ndarray]]) -> str:
+    """Say why term ``name`` adds no degrees of freedom: which terms' columns span its own, and the strata to use."""
+    factors, columns = terms[name]
+    intercept = [other for other_factors, other in terms.values() if not other_factors]
+
+    def spans(other: np.ndarray) -> bool:
+        base = np.hstack([*intercept, other])
+        return int(np.linalg.matrix_rank(np.hstack([base, columns]))) == int(np.linalg.matrix_rank(base))
+
+    within = [
+        other_name
+        for other_name, (other_factors, other) in terms.items()
+        if other_factors and other_name != name and not factors <= other_factors and spans(other)
+    ]
+    if not within:
+        return (
+            f"{name} cannot be tested: its columns lie in those of the other terms together, so adjusting it for them "
+            "leaves it no degrees of freedom."
+        )
+    strata = " + ".join(f"{name}/{other}" for other in within)
+    return (
+        f"{name} cannot be tested: its columns lie in those of {' and '.join(within)}, as a factor's do when another "
+        "is nested in it, so adjusting it for them leaves it no degrees of freedom. The other rows are adjusted for "
+        f'it. multistratum_anova(..., strata="{strata}") gives the nested sums of squares.'
+    )
+
+
 def _run_anova(
     ols_result: RegressionResultsWrapper,
     anova_type: int = 2,
@@ -59,11 +160,20 @@ def _run_anova(
     non-orthogonal one the two can differ, and the type used is reported under
     ``anova_type``. The ``blocks`` contrast columns are tested together, as one
     ``"Block"`` row with one degree of freedom fewer than the number of blocks.
+
+    When the model matrix lacks full rank, as with a factor nested in another, the Type II
+    rows are worked out on the rank each term adds (:func:`_type_ii_by_rank`), and
+    ``anova_note`` names each term that cannot be tested on all its columns.
     """
     if ols_result.df_resid <= 0:
         return {"anova_table": [], "anova_note": _SATURATED_NOTE}
     labels = labels or {}
-    table = sm.stats.anova_lm(ols_result, typ=anova_type)
+    notes: list[str] = []
+    exog = np.asarray(ols_result.model.exog, dtype=float)
+    if anova_type == 2 and np.linalg.matrix_rank(exog) < exog.shape[1]:
+        table, notes = _type_ii_by_rank(ols_result, blocks)
+    else:
+        table = sm.stats.anova_lm(ols_result, typ=anova_type)
     records = []
     for idx, row in table.iterrows():
         if is_block_term(str(idx), blocks):
@@ -82,7 +192,10 @@ def _run_anova(
         )
     if any(name in ols_result.model.exog_names for name in blocks):
         records.insert(0, _block_row(ols_result, blocks))
-    return {"anova_table": records, "anova_type": "I" * anova_type if anova_type <= 3 else str(anova_type)}
+    result = {"anova_table": records, "anova_type": "I" * anova_type if anova_type <= 3 else str(anova_type)}
+    if notes:
+        result["anova_note"] = " ".join(notes)
+    return result
 
 
 def _run_effects(
