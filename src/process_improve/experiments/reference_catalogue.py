@@ -981,30 +981,50 @@ def _split_plot(out: dict, check: dict, experiment: dict) -> float:
     """Return a number of the library's split-plot analysis: REML with the whole plots as a random effect.
 
     ``check["whole_plot"]`` lists the columns whose combination is a run's whole plot (the replicate
-    and the hard-to-change factor, say), and the model is ``check["model"]``, a formula; categorical
-    factors written ``C(name, Sum)`` are coded to sum to zero, as their main effects' tests need.
-    ``check["key"]`` is ``"whole_plot"`` or ``"residual"``, a variance; ``"whole_plot_error_df"`` or
-    ``"subplot_error_df"``; or ``"f.<term>"``, ``"p.<term>"``, ``"df.<term>"`` or ``"df_den.<term>"``
-    for a term's F test on Satterthwaite's degrees of freedom, the term named as the library names it.
+    and the hard-to-change factor, say, or the block of a design in random blocks), and the model is
+    ``check["model"]``, a formula; categorical factors written ``C(name, Sum)`` are coded to sum to
+    zero, as their main effects' tests need. ``check["df_method"]`` and ``check["information"]`` are
+    the analysis's (``"kenward_roger"`` and ``"observed"`` together are JMP's). ``check["key"]`` is
+    ``"whole_plot"``, ``"residual"`` or ``"eta"``, a variance or their ratio; ``"whole_plot_error_df"``
+    or ``"subplot_error_df"``; ``"f.<term>"``, ``"p.<term>"``, ``"df.<term>"`` or ``"df_den.<term>"``
+    for a term's F test; ``"coefficient.<term>"``, ``"std_error.<term>"``, ``"t_value.<term>"``,
+    ``"p_value.<term>"`` or ``"df_t.<term>"`` for a coefficient's t-test, the term named as the
+    library names it; or ``"prediction"``, the generalized least-squares fit at the coded point
+    ``check["point"]``.
     """
     runs = experiment["runs"]
     whole_plots = tuple(check["whole_plot"])
+    options = {k: check[k] for k in ("df_method", "information") if k in check}
     cache = out.setdefault("split_plot_fits", {})
-    if whole_plots not in cache:
+    cached = (whole_plots, tuple(sorted(options.items())))
+    if cached not in cache:
         table = pd.DataFrame(runs["rows"], columns=runs["columns"])
         labels = table[list(whole_plots)].astype(str).agg(":".join, axis=1).to_numpy()
         settings = out["settings"].assign(WholePlot=labels)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            cache[whole_plots] = analyze_experiment(
-                settings, out["y"], model=check["model"], analysis_type="split_plot", whole_plot="WholePlot"
+            cache[cached] = analyze_experiment(
+                settings,
+                out["y"],
+                model=check["model"],
+                analysis_type="split_plot",
+                whole_plot="WholePlot",
+                **options,
             )["split_plot"]
-    fit = cache[whole_plots]
+    fit = cache[cached]
     kind, _, term = check["key"].partition(".")
     if kind in fit["variance_components"]:
         return float(fit["variance_components"][kind])
     if kind.endswith("_error_df"):
         return float(fit["error_df"][kind.removesuffix("_error_df")])
+    rows = {row["term"]: row for row in fit["coefficients"]}
+    if kind == "prediction":
+        names = list(out["settings"].columns)
+        point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
+        at = dmatrix(check["model"], point, return_type="dataframe").iloc[0]
+        return float(sum(rows[column]["coefficient"] * value for column, value in at.items()))
+    if kind in ("coefficient", "std_error", "t_value", "p_value", "df_t"):
+        return float(rows[term]["df" if kind == "df_t" else kind])
     test = next(row for row in fit["tests"] if row["source"] == term)
     return float({"f": test["F"], "p": test["p_value"], "df": test["df"], "df_den": test["df_denominator"]}[kind])
 
@@ -1943,7 +1963,12 @@ def _design_metric(experiment: dict, check: dict) -> float:
     returns beside its own, ``"max_prediction_variance"`` beside ``"g_efficiency"``, and
     ``"times_runs": true`` multiplies the number by the design's run count, as a source prints the
     scaled prediction variance G, the run count times the largest prediction variance. ``check["set"]``
-    changes some elements of the runs first (see :func:`_changed`).
+    changes some elements of the runs first (see :func:`_changed`). ``check["relative_to"]`` names a
+    second model whose number, read the same way, divides this one's, term by term before
+    ``reduce``: a coefficient's variance with the blocks in the model over its variance without
+    them is its variance inflation from the blocking, and the reverse its efficiency factor.
+    ``"percent": true`` returns the number times 100. ``check["count"]``, ``{"above": v}`` or
+    ``{"below": v}``, counts the terms whose number is above or below v in place of ``reduce``.
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
@@ -1954,15 +1979,32 @@ def _design_metric(experiment: dict, check: dict) -> float:
         n_runs = len(settings)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     found = _evaluated(source, asked)[check.get("result", check["metric"])]
+    other = None
+    if check.get("relative_to"):
+        asked_other = json.dumps(
+            {"model": check["relative_to"], "metric": check["metric"], "options": check.get("options")}, sort_keys=True
+        )
+        other = _evaluated(source, asked_other)[check.get("result", check["metric"])]
     if check.get("terms"):  # the entries of a dict of terms whose names match, each as it is or its root
         table = _walk(found, check.get("key"))
         if not isinstance(table, dict):
             raise ValueError(f"the library gives no table of terms for {check['metric']}, but {table!r}")
-        picked = [v for t, v in table.items() if re.fullmatch(check["terms"], t)]
-        value = _REDUCE[check.get("reduce", "mean")]([math.sqrt(v) if check.get("root") else v for v in picked])
+        if other is not None:
+            below = _walk(other, check.get("key"))
+            table = {t: v / below[t] for t, v in table.items() if t in below}
+        picked = [math.sqrt(v) if check.get("root") else v for t, v in table.items() if re.fullmatch(check["terms"], t)]
+        picked = [100 * v if check.get("percent") else v for v in picked]
+        if check.get("count"):  # each term's number, times the runs where asked, against the limit
+            limit, scale = check["count"], n_runs if check.get("times_runs") else 1
+            return float(
+                sum(scale * v > limit["above"] if "above" in limit else scale * v < limit["below"] for v in picked)
+            )
+        value = _REDUCE[check.get("reduce", "mean")](picked)
     else:
         value = _read(found, check.get("key"))
+        value = value / _read(other, check.get("key")) if other is not None else value
         value = math.sqrt(value) if check.get("root") else value
+        value = 100 * value if check.get("percent") else value
     value = value**2 if check.get("squared") else value
     value = value * n_runs if check.get("times_runs") else value
     value = 1 / value if check.get("reciprocal") else value
@@ -2643,9 +2685,10 @@ def _blocks_orthogonal(experiment: dict, check: dict) -> float:
     every product of two summing to zero within it; and each block holds the same share of every
     factor's sum of squares as of the runs, which the library's
     :func:`~process_improve.experiments._blocking.squares_orthogonal_to_blocks` tests.
-    ``check["block"]`` names the column of block labels.
+    ``check["block"]`` names the column of block labels; ``check["set"]`` changes some elements of
+    the runs first (see :func:`_changed`).
     """
-    settings, _ = _coded_runs(experiment, None)
+    settings = _changed(_coded_runs(experiment, None)[0], check.get("set"))
     runs = experiment["runs"]
     labels = pd.DataFrame(runs["rows"], columns=runs["columns"])[check["block"]].astype(str).to_numpy()
     design = settings.drop(columns=[check["block"]], errors="ignore").to_numpy(dtype=float)
@@ -3050,8 +3093,9 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
 
     ``check["key"]`` is ``"xtx"``, ``"xty"``, ``"inverse"`` or ``"model_matrix"``; ``"rows"`` and
     ``"columns"`` (0-based) pick part of it, ``"diagonal": true`` its diagonal, and ``"abs": true``
-    compares its entries' sizes, as a source prints them ±2. ``check["set"]`` changes some elements of
-    the runs first (see :func:`_changed`).
+    compares its entries' sizes, as a source prints them ±2. ``"average": true`` returns the mean of
+    the rows picked, the average row of one block's model matrix that orthogonal blocking compares.
+    ``check["set"]`` changes some elements of the runs first (see :func:`_changed`).
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
     settings = _changed(settings, check.get("set"))
@@ -3064,8 +3108,10 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
     }[check["key"]]()
     if "rows" in check:
         found = found[check["rows"]]
+    if check.get("average"):
+        found = found.mean(axis=0)
     if "columns" in check:
-        found = found[:, check["columns"]]
+        found = found[..., check["columns"]]
     found = np.diag(found) if check.get("diagonal") else found
     return np.abs(np.asarray(found, dtype=float)) if check.get("abs") else np.asarray(found, dtype=float)
 

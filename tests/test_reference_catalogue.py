@@ -1197,6 +1197,44 @@ def test_a_best_corner_some_runs_of_a_design_and_a_relative_efficiency_are_check
     assert report["agrees"].tolist() == [True] * 6, report[["found", "reason"]].to_string()
 
 
+def test_blocking_variances_counts_and_average_rows_are_checked(monkeypatch, tmp_path):
+    """A 2^2 factorial in two blocks split by AB: the main effects are orthogonal to the blocks, A B is not."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    info = {"kind": "design_metric", "metric": "information_matrix", "key": "coefficient_variances"}
+    blocked, plain = "A + B + C(block)", "A + B"
+    rows = {"kind": "normal_equations", "model": "A + B", "key": "model_matrix", "average": True}
+    split_by_ab = [[1, 1, -1], [1, -1, 1], [2, -1, -1], [2, 1, 1]]
+    expected = [
+        item("100", info | {"model": plain, "key": "coefficient_variances.A", "relative_to": blocked, "percent": True}),
+        item("1", info | {"model": blocked, "terms": "A|B", "relative_to": plain, "reduce": "max"}),
+        item("2", info | {"model": blocked, "terms": "A|B", "times_runs": True, "count": {"below": 1.5}}),
+        item("0", info | {"model": blocked, "terms": "A|B", "times_runs": True, "count": {"above": 1.5}}),
+        item(["1", "0", "0"], rows | {"rows": [0, 1]}),
+        item(["0", "0"], rows | {"rows": [2, 3], "columns": [1, 2]}),
+        item("0", {"kind": "blocks_orthogonal", "block": "block"}),  # the blocks confound A B, a second-order term
+    ]
+    experiment = {
+        "name": "two-blocks",
+        "factors": [
+            {"name": "A", "type": "numeric", "low": -1, "high": 1},
+            {"name": "B", "type": "numeric", "low": -1, "high": 1},
+            {"name": "block", "type": "categorical", "low": 1, "high": 2, "levels": [1, 2], "coding": "name"},
+        ],
+        "responses": [],
+        "runs": {"columns": ["block", "A", "B"], "rows": split_by_ab, "coded": True},
+        "expected": expected,
+    }
+    source = {"key": "two-blocks", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    catalogue = {"source": source, "experiments": [experiment]}
+    (tmp_path / "two-blocks.json").write_text(json.dumps(catalogue), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("two-blocks")
+    assert report["agrees"].tolist() == [True] * 7, report[["found", "reason"]].to_string()
+
+
 def test_a_run_count_keeps_the_runs_above_or_at_least_a_value():
     from process_improve.experiments.reference_catalogue import _run_count
 
