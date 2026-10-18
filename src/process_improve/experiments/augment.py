@@ -32,7 +32,7 @@ from patsy import dmatrix
 
 from process_improve._random import check_random_state
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
-from process_improve.experiments.designs_response_surface import orthogonal_alpha
+from process_improve.experiments.designs_response_surface import blocking_alpha, orthogonal_alpha
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
@@ -661,8 +661,24 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     }
 
 
-#: upgrade_to_rsm tops the centre runs up to this many, the usual three to five for a CCD.
+#: upgrade_to_rsm tops the centre runs up to this many, the usual three to five for a CCD, unless
+#: n_additional_runs sets the second stage's centre runs.
 _RSM_CENTER_RUNS = 5
+
+
+def _second_stage_blocks(existing: pd.DataFrame) -> tuple[list[Any], Any]:
+    """Return the block of every existing run and the one block of the second stage's runs.
+
+    An existing ``Block`` column keeps its labels, and the second stage is the next whole
+    number after them (or after the count of blocks, for labels that are not whole numbers);
+    without one, the existing runs are block 1 and the new runs block 2.
+    """
+    if "Block" not in existing.columns:
+        return [1] * len(existing), 2
+    labels = existing["Block"]
+    if pd.api.types.is_integer_dtype(labels):
+        return labels.tolist(), int(labels.max()) + 1
+    return labels.tolist(), int(labels.nunique()) + 1
 
 
 def _model_support(design: pd.DataFrame, factor_names: list[str], model: str) -> tuple[int, int, list[str]]:
@@ -688,20 +704,25 @@ def _model_support(design: pd.DataFrame, factor_names: list[str], model: str) ->
 def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     """Upgrade a screening/factorial design to an RSM (CCD) design.
 
-    Adds 2k axial runs and tops the centre runs up to five, then checks that the
-    target model (default quadratic) can be estimated. It cannot when the cube is
-    a resolution III or IV fraction, whose aliased two-factor interactions are zero
-    on every axial and centre run; that is reported, with a warning, rather than
-    claimed away.
+    Adds 2k axial runs and ``n_additional_runs`` centre runs as a second stage (by
+    default, enough to bring the centre runs to five), then checks that the target
+    model (default quadratic) can be estimated. It cannot when the cube is a
+    resolution III or IV fraction, whose aliased two-factor interactions are zero on
+    every axial and centre run; that is reported, with a warning, rather than claimed
+    away. A ``Block`` column marks the two stages, which are run at different times,
+    and the result gives the axial distance at which they block orthogonally.
     """
     df = ctx.existing_design[ctx.factor_names].copy()
     k = len(ctx.factor_names)
     model = ctx.target_model or "quadratic"
 
-    # Detect existing center points, and top them up to a fixed total
+    # Detect existing center points; the second stage adds the centre runs asked for, or tops them up to five
     center_mask = (df.abs() < 1e-10).all(axis=1)
     n_existing_centers = int(center_mask.sum())
-    n_new_centers = max(0, _RSM_CENTER_RUNS - n_existing_centers)
+    if ctx.n_additional_runs is not None:
+        n_new_centers = ctx.n_additional_runs
+    else:
+        n_new_centers = max(0, _RSM_CENTER_RUNS - n_existing_centers)
 
     # Add axial points
     alpha_val = ctx.alpha if ctx.alpha is not None else "rotatable"
@@ -716,6 +737,10 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
 
     new_runs = pd.concat([axial_df, center_df], ignore_index=True)
     augmented = pd.concat([df, new_runs], ignore_index=True)
+    if "Block" not in ctx.factor_names:
+        first, second = _second_stage_blocks(ctx.existing_design)
+        augmented["Block"] = [*first, *[second] * len(new_runs)]
+        new_runs["Block"] = second
 
     notes = [
         f"Upgraded to Central Composite Design (CCD) with alpha = {alpha_numeric:.4f}.",
@@ -723,6 +748,15 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     ]
     if n_existing_centers > 0:
         notes.append(f"Existing {n_existing_centers} center point(s) were preserved.")
+    n_cube = int((~center_mask).sum())
+    orthogonal = blocking_alpha(n_cube, n_existing_centers, k, n_new_centers)
+    if abs(alpha_numeric - orthogonal) <= 1e-6 * orthogonal:
+        notes.append(f"At alpha = {alpha_numeric:.4f} the two stages block orthogonally.")
+    else:
+        notes.append(
+            f"The two stages block orthogonally at alpha = {orthogonal:.4f} with these centre runs; at "
+            f"alpha = {alpha_numeric:.4f} the block effect is correlated with the estimates of the squared terms."
+        )
     n_coefficients, rank, aliased = _model_support(augmented, ctx.factor_names, model)
     if rank == n_coefficients:
         notes.append(f"The design now supports the {model} model: all {n_coefficients} coefficients are estimable.")
@@ -747,6 +781,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
         "n_runs_before": len(ctx.existing_design),
         "n_runs_after": len(augmented),
         "alpha": float(alpha_numeric),
+        "orthogonal_blocking_alpha": orthogonal,
         "n_estimable": rank,
         "n_coefficients": n_coefficients,
         "explanation": explanation,
@@ -885,7 +920,9 @@ def augment_design(  # noqa: PLR0913
     n_additional_runs : int or None
         Budget for additional runs, a positive whole number. Interpretation
         depends on the augmentation type (number of center points, number of
-        D-optimal runs, number of blocks, ...). A regular two-level design
+        D-optimal runs, number of blocks, ...). For ``"upgrade_to_rsm"`` it is
+        the number of centre runs in the second stage, beside the axial runs;
+        the default of ``None`` brings the centre runs to five. A regular two-level design
         splits into 2, 4, 8, ... blocks; another count raises. For ``"replicate"``, this is the
         number of complete copies of the existing design that are appended
         (each copy adds ``len(existing_design)`` runs); the default of
