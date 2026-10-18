@@ -1783,6 +1783,24 @@ def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
     return runs["columns"], runs["rows"]
 
 
+def _with_whole_plots(settings: pd.DataFrame, experiment: dict, check: dict) -> pd.DataFrame:
+    """Return the settings with each run's whole plot, when ``check["whole_plot"]`` names the columns that hold it.
+
+    The columns of the runs listed in ``check["whole_plot"]`` are joined into the label of a run's whole
+    plot, in a ``WholePlot`` column, which :func:`~process_improve.experiments.evaluate_design` reads for a
+    split-plot evaluation (``"whole_plot_variance_ratio"`` in ``check["options"]``). ``check["runs"]``
+    keeps the runs at these 1-based positions, as it keeps the settings.
+    """
+    if not check.get("whole_plot"):
+        return settings
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    if check.get("runs"):
+        table = table.iloc[[p - 1 for p in check["runs"]]]
+    labels = table[list(check["whole_plot"])].astype(str).agg(":".join, axis=1).to_numpy()
+    return settings.assign(WholePlot=labels)
+
+
 def _relative_efficiency(experiment: dict, check: dict) -> float:
     """Return the efficiency of the entry's runs relative to another entry's, for the model ``check["model"]``.
 
@@ -1790,19 +1808,25 @@ def _relative_efficiency(experiment: dict, check: dict) -> float:
     ``check["criterion"]`` is ``"d"``: (|X'X| / |X0'X0|)^(1/p) for p model terms, the two designs'
     determinants compared per parameter; or ``"i"``: the other design's average prediction variance
     over this one's (``check["options"]`` as :func:`~process_improve.experiments.evaluate_design`
-    takes them). Above one, the entry's runs are the better.
+    takes them). Above one, the entry's runs are the better. ``check["whole_plot"]`` names the runs'
+    columns that hold their whole plots, in both entries, for split-plot designs (see
+    :func:`_with_whole_plots`). ``"percent": true`` returns the efficiency in percent, and ``"gain":
+    true`` the percent by which it exceeds one: how much more information the entry's runs carry.
     """
     other = _entry(str(_CATALOGUE_DIR), check["versus"])
-    sources = [
-        json.dumps({"columns": list(s.columns), "runs": s.to_dict("list")}, sort_keys=True)
-        for s in (_coded_runs(experiment, None)[0], _coded_runs(other, None)[0])
-    ]
+    every_run = check | {"runs": None}
+    settings = [_with_whole_plots(_coded_runs(entry, None)[0], entry, every_run) for entry in (experiment, other)]
+    sources = [json.dumps({"columns": list(s.columns), "runs": s.to_dict("list")}, sort_keys=True) for s in settings]
     metric = "information_matrix" if check["criterion"] == "d" else "average_prediction_variance"
     asked = json.dumps({"model": check["model"], "metric": metric, "options": check.get("options")}, sort_keys=True)
     mine, theirs = (_evaluated(source, asked)[metric] for source in sources)
     if check["criterion"] == "d":
-        return math.exp((mine["log_determinant"] - theirs["log_determinant"]) / mine["n_parameters"])
-    return float(theirs) / float(mine)
+        value = math.exp((mine["log_determinant"] - theirs["log_determinant"]) / mine["n_parameters"])
+    else:
+        value = float(theirs) / float(mine)
+    if check.get("gain"):
+        return 100 * (value - 1)
+    return 100 * value if check.get("percent") else value
 
 
 def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
@@ -1969,12 +1993,16 @@ def _design_metric(experiment: dict, check: dict) -> float:
     them is its variance inflation from the blocking, and the reverse its efficiency factor.
     ``"percent": true`` returns the number times 100. ``check["count"]``, ``{"above": v}`` or
     ``{"below": v}``, counts the terms whose number is above or below v in place of ``reduce``.
+    ``check["whole_plot"]`` names the runs' columns that hold their whole plots, for a split-plot
+    design evaluated with ``"whole_plot_variance_ratio"`` in ``check["options"]`` (see
+    :func:`_with_whole_plots`).
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
         n_runs = len(_made(json.dumps(check["design"], sort_keys=True)).design)
     else:
         settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
+        settings = _with_whole_plots(settings, experiment, check)
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
         n_runs = len(settings)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
@@ -2447,7 +2475,10 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     ``check["point"]``, the variance of the prediction there in units of σ² (JMP's prediction
     variance profile), N times it with ``"scaled": true``; and ``"relative_d"``, the D-efficiency of these
     runs relative to the runs
-    ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms. ``check["set"]`` changes
+    ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms. ``"trend_robustness"``
+    is (|X'X - X'Z(Z'Z)^-1 Z'X| / |X'X|)^(1/p), with ``Z`` the columns ``check["covariates"]`` of the
+    runs: the share of the model's information a time trend (or another covariate) leaves, 1 when the
+    model's columns are orthogonal to it, in percent with ``"percent": true``. ``check["set"]`` changes
     some elements of the runs first (see :func:`_changed`).
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
@@ -2455,6 +2486,12 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     model = dmatrix(check["model"], settings, return_type="dataframe")
     matrix = model.to_numpy()
     kind, *place = check["key"].split(".")
+    if kind == "trend_robustness":
+        z = settings[check["covariates"]].to_numpy(dtype=float)
+        information = matrix.T @ matrix
+        adjusted = information - matrix.T @ z @ np.linalg.solve(z.T @ z, z.T @ matrix)
+        share = float((np.linalg.det(adjusted) / np.linalg.det(information)) ** (1 / matrix.shape[1]))
+        return 100 * share if check.get("percent") else share
     if kind == "relative_d":
         other = dmatrix(check["model"], _coded_runs(experiment, check["versus"])[0], return_type="dataframe").to_numpy()
         ratio = np.linalg.det(np.linalg.inv(other.T @ other)) / np.linalg.det(np.linalg.inv(matrix.T @ matrix))
@@ -3083,6 +3120,7 @@ def _design_metric_array(experiment: dict, check: dict) -> np.ndarray:
         source = json.dumps({"design": check["design"]}, sort_keys=True)
     else:
         settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
+        settings = _with_whole_plots(settings, experiment, check)
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     return np.asarray(_walk(_evaluated(source, asked)[check["metric"]], check.get("key")), dtype=float)

@@ -1197,6 +1197,58 @@ def test_a_best_corner_some_runs_of_a_design_and_a_relative_efficiency_are_check
     assert report["agrees"].tolist() == [True] * 6, report[["found", "reason"]].to_string()
 
 
+def test_split_plot_designs_are_evaluated_and_compared_through_their_whole_plots(monkeypatch, tmp_path):
+    """Four whole plots of two runs, V = I + J in each: a whole-plot column has variance 3/8, a sub-plot column 1/8.
+
+    With a set in the whole plots, the intercept and a carry 2/3 of a run's information per whole plot and b
+    carries 2; with a varied inside them as b is, |X'V^-1 X| is three times larger, (1/3)^(1/3) = 69.3% per
+    parameter, 30.7% less.
+    """
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    factors = [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("a", "b")]
+    gls = {"kind": "design_metric", "metric": "information_matrix", "model": "a + b", "whole_plot": ["plot"]}
+    gls |= {"options": {"whole_plot_variance_ratio": 1.0}}
+    versus = {"kind": "relative_efficiency", "criterion": "d", "model": "a + b", "whole_plot": ["plot"]}
+    versus |= {"options": {"whole_plot_variance_ratio": 1.0}}
+    split = [[plot, a, b] for plot, a in ((1, -1), (2, 1), (3, -1), (4, 1)) for b in (-1, 1)]
+    within = [[plot, a * s, a] for plot, s in ((1, 1), (2, -1), (3, 1), (4, -1)) for a in (-1, 1)]
+    expected = [
+        item("0.375", gls | {"key": "coefficient_variances.Intercept"}),
+        item("0.375", gls | {"key": "coefficient_variances.a"}),
+        item("0.125", gls | {"key": "coefficient_variances.b"}),
+        item("0.125", gls | {"key": "coefficient_variances.a", "options": None}),  # least squares ignores the plots
+        item("69.3", versus | {"versus": "within", "percent": True}),
+        item("-30.7", versus | {"versus": "within", "gain": True}),
+    ]
+    catalogue = {
+        "source": {"key": "plots", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"},
+        "experiments": [],
+        "designs": [
+            {
+                "name": "split",
+                "factors": factors,
+                "responses": [],
+                "expected": expected,
+                "runs": {"columns": ["plot", "a", "b"], "rows": split, "coded": True},
+            },
+            {
+                "name": "within",
+                "factors": factors,
+                "responses": [],
+                "expected": [],
+                "runs": {"columns": ["plot", "a", "b"], "rows": within, "coded": True},
+            },
+        ],
+    }
+    (tmp_path / "plots.json").write_text(json.dumps(catalogue), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("plots")
+    assert report["agrees"].tolist() == [True] * 6, report[["found", "reason"]].to_string()
+
+
 def test_blocking_variances_counts_and_average_rows_are_checked(monkeypatch, tmp_path):
     """A 2^2 factorial in two blocks split by AB: the main effects are orthogonal to the blocks, A B is not."""
 
@@ -1651,6 +1703,25 @@ def test_a_design_is_compared_on_its_inverse_as_a_whole():
         entry, {"model": model, "key": "relative_d", "runs": [1, 2, 3, 4], "versus": [1, 2, 3, 4, 5]}
     )
     assert relative == pytest.approx((64 / 80) ** (1 / 3))
+
+
+def test_trend_robustness_is_the_share_of_information_a_time_trend_leaves():
+    """A 2^2 whose A is orthogonal to the linear trend and whose B is not: B keeps 0.8 of its 4, (0.8 / 4)^(1/3)."""
+    from process_improve.experiments.reference_catalogue import _normal_equations
+
+    entry = {
+        "name": "trend",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("A", "B", "t")],
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["A", "B", "t", "y"],
+            "rows": [[1, -1, -3, 0], [-1, -1, -1, 0], [-1, 1, 1, 0], [1, 1, 3, 0]],
+            "coded": True,
+        },
+    }
+    check = {"model": "A + B", "key": "trend_robustness", "covariates": ["t"]}
+    assert _normal_equations(entry, check) == pytest.approx(0.2 ** (1 / 3))
+    assert _normal_equations(entry, check | {"model": "A"}) == pytest.approx(1.0)
 
 
 def test_settings_printed_rounded_are_fitted_exactly_unless_asked_as_printed():
