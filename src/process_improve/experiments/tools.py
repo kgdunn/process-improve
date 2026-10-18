@@ -29,6 +29,7 @@ from process_improve.experiments._tools.fit_linear_model import fit_linear_model
 from process_improve.experiments._tools.generate_design import generate_design_tool
 from process_improve.experiments._tools.evaluate_design import evaluate_design_tool
 from process_improve.experiments._tools.analyze_experiment import analyze_experiment_tool
+from process_improve.experiments._tools.analyze_omars import analyze_omars_tool
 from process_improve.experiments._tools.optimize_responses import optimize_responses_tool
 from process_improve.experiments._tools.augment_design import augment_design_tool
 from process_improve.experiments._tools.visualize_doe import visualize_doe_tool
@@ -39,6 +40,7 @@ from process_improve.experiments._tools.search_design_catalog import search_desi
 
 __all__ = [
     "analyze_experiment_tool",
+    "analyze_omars_tool",
     "augment_design_tool",
     "create_factorial_design",
     "doe_knowledge_tool",
