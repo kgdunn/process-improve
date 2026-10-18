@@ -74,6 +74,9 @@ _METHODS = {
 # ---------------------------------------------------------------------------
 
 
+_POWER = re.compile(r"I\((\w+)\s*\*\*\s*(\d+)\)|(?:np\.)?power\((\w+)\s*,\s*(\d+)\)")
+
+
 def _parse_term(term: str) -> tuple[str, ...]:
     """Classify a coefficient term name into its components.
 
@@ -82,29 +85,26 @@ def _parse_term(term: str) -> tuple[str, ...]:
     tuple[str, ...]
         Empty tuple for ``"Intercept"``, single-element for linear,
         ``("A", "B")`` for interaction ``"A:B"``, ``("A", "A")`` for
-        quadratic ``"I(A ** 2)"``.
+        quadratic ``"I(A ** 2)"``, and each factor of a product of powers
+        repeated as often as the power multiplies it: ``("A", "A", "A")`` for
+        ``"I(A ** 3)"``, ``("A", "B", "B")`` for ``"A:I(B ** 2)"``.
     """
     if term == "Intercept":
         return ()
 
-    # Quadratic: ``I(A ** 2)`` (older statsmodels) or
-    # ``np.power(A, 2)`` / ``power(A, 2)`` (newer). Both spellings
-    # appear in the wild depending on the installed statsmodels /
-    # patsy version. SEC-27 (#276): if either is missed, the term
-    # silently falls through to the linear branch and the
+    # A power is ``I(A ** 2)`` (older statsmodels) or ``np.power(A, 2)`` /
+    # ``power(A, 2)`` (newer). Both spellings appear in the wild depending on
+    # the installed statsmodels / patsy version. SEC-27 (#276): if either is
+    # missed, the term silently falls through to the linear branch and the
     # downstream surface / optimisation produces wrong results.
-    m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(r"(?:np\.)?power\((\w+)\s*,\s*2\)", term)
-    if m:
-        name = m.group(1)
-        return (name, name)
-
-    # Interaction: A:B
-    if ":" in term:
-        parts = term.split(":")
-        return tuple(parts)
-
-    # Linear: plain factor name
-    return (term,)
+    components: list[str] = []
+    for part in term.split(":"):
+        m = _POWER.fullmatch(part.strip())
+        if m:
+            components += [m.group(1) or m.group(3)] * int(m.group(2) or m.group(4))
+        else:
+            components.append(part)
+    return tuple(components)
 
 
 def _parsed_terms(
@@ -134,18 +134,20 @@ def _parsed_terms(
     Raises
     ------
     ValueError
-        If a term names something other than a product of factors (a cubic
-        ``I(A ** 3)``, a categorical ``C(A)[T.1]``, a misspelt factor), or has more
-        than *max_order* components (``A:B:C`` in a second-order analysis, which
-        would otherwise be dropped and the analysis run on a truncated model).
+        If a term names something other than a product of whole powers of the
+        factors (a categorical ``C(A)[T.1]``, a misspelt factor), or has more than
+        *max_order* components (``A:B:C`` or ``I(A ** 3)`` in a second-order
+        analysis, which would otherwise be dropped and the analysis run on a
+        truncated model).
     """
     parsed = [(_parse_term(entry["term"]), float(entry["coefficient"])) for entry in coefficients]
     known = set(factor_names)
     unknown = [e["term"] for e, (parts, _) in zip(coefficients, parsed, strict=True) if not set(parts) <= known]
     if unknown:
         msg = (
-            f"Cannot evaluate the model term(s) {unknown}: a term must be the intercept, a factor, a product of "
-            f"factors such as 'A:B', or a square such as 'I(A ** 2)', over the factors {factor_names}."
+            f"Cannot evaluate the model term(s) {unknown}: a term must be the intercept, a factor, or a product of "
+            "factors and their whole powers such as 'A:B', 'I(A ** 2)' or 'A:I(B ** 2)', over the factors "
+            f"{factor_names}."
         )
         raise ValueError(msg)
     if max_order is not None:

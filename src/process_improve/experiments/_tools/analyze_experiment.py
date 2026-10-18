@@ -80,11 +80,13 @@ class AnalyzeExperimentInput(BaseModel):
         None,
         description="Observed values at new_points (for confirmation testing).",
     )
-    whole_plot: str | None = Field(
+    whole_plot: str | list[str] | None = Field(
         None,
         description=(
             "Column labelling each run's whole plot, for analysis_type='split_plot'. "
-            "Default: the 'WholePlot' column that generate_design adds to a split-plot design."
+            "Default: the 'WholePlot' column that generate_design adds to a split-plot design. "
+            "A list of columns gives crossed random effects, as the rows and the columns of a two-way "
+            "split-plot (strip-plot) design."
         ),
     )
     family: Literal["binomial", "poisson", "gamma", "gaussian", "inverse_gaussian"] | None = Field(
@@ -115,7 +117,17 @@ class AnalyzeExperimentInput(BaseModel):
         "expected",
         description=(
             "For analysis_type='glm': invert the expected information (R's glm) or the observed information "
-            "(SAS GENMOD) for the covariance of the coefficients. They agree under the canonical link."
+            "(SAS GENMOD) for the covariance of the coefficients. They agree under the canonical link. For "
+            "analysis_type='split_plot': the REML information the degrees of freedom use, expected (SAS) or "
+            "observed (JMP)."
+        ),
+    )
+    df_method: Literal["satterthwaite", "kenward_roger"] = Field(
+        "satterthwaite",
+        description=(
+            "For analysis_type='split_plot' (or a design in random blocks, named as the whole plots): "
+            "'kenward_roger' adjusts the standard errors for the uncertainty in the variance components and "
+            "scales the F tests, as JMP and SAS do; with information='observed' it is JMP's analysis."
         ),
     )
 
@@ -192,6 +204,7 @@ def analyze_experiment_tool(spec: AnalyzeExperimentInput) -> dict[str, Any]:
             trials=spec.trials,
             dispersion=spec.dispersion,
             information=spec.information,
+            df_method=spec.df_method,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

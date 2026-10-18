@@ -84,6 +84,8 @@ let errata = null;
 const shards = new Map();
 /** The limit whose outcome each design carries now (limit_outside), and the outcomes by design. */
 let judgedLimit = "";
+/** The judging of the limit under way, which a detail waits for, so it opens with the limit's outcome. */
+let judging = Promise.resolve();
 let outcomes = new Map();
 
 // ---------------------------------------------------------------- small pieces of the document
@@ -333,7 +335,8 @@ function render() {
   $("#limit-error").textContent = limit.error ? `${limit.error[0].toUpperCase()}${limit.error.slice(1)}.` : "";
   if (limit.ok && judgedLimit !== limit.text) {
     $("#count").textContent = "Reading every design's runs to judge the limit...";
-    judgeLimit(limit).then(render, (err) => toast(`The limit could not be judged: ${err.message}.`, "error"));
+    judging = judgeLimit(limit);
+    judging.then(render, (err) => toast(`The limit could not be judged: ${err.message}.`, "error"));
     return;
   }
   const list = results(catalog, state);
@@ -1007,6 +1010,7 @@ function steps(design) {
 async function openDetail(id) {
   const dialog = $("#detail");
   try {
+    await judging.catch(() => {}); // a limit that cannot be judged says so in its own toast
     const { design, detail } = await detailOf(id);
     $("#detail-title").textContent = design.title;
     $("#detail-body").replaceChildren(...detailBody(design, detail));
