@@ -112,8 +112,9 @@ _GROSS_MISS = 3.0
 #: Steps along the path of steepest ascent beyond the best settings, in coded units of the factor moving most.
 _PATH_STEPS = (0.5, 1.0, 1.5, 2.0)
 
-#: The search for the optimum starts from every corner of up to this many factors.
+#: The search for the optimum starts from every corner of up to this many factors, and from this many random points.
 _ALL_CORNERS = 6
+_RANDOM_STARTS = 8
 
 #: Centre runs added to a two-level design that has none.
 _CENTER_RUNS = 3
@@ -822,7 +823,7 @@ def _optimum(study: _Study, model: _Model, goal: Goal, target: float | None, see
     """Return the coded settings inside the ranges at which the model best meets the goal.
 
     A polynomial of at most second order is searched from the centre, the corner its linear
-    terms point to, every corner up to six factors, and twenty random starts. A categorical
+    terms point to, every corner up to six factors, and eight random starts. A categorical
     factor is searched at each of its two levels; a factor the model leaves out is set at
     the end it favours (:func:`_favoured_ends`). Many settings can meet a target; the search
     then prefers the one nearest the middle of the ranges.
@@ -832,11 +833,13 @@ def _optimum(study: _Study, model: _Model, goal: Goal, target: float | None, see
     categorical = [j for j, name in enumerate(study.names) if name in in_model and not study.numeric[j]]
     nearest = 1e-6 * float(study.data["y"].var())  # the weight that breaks ties among settings that meet a target
 
-    def loss(x: np.ndarray) -> float:
-        value = float(model.value(x)[0])
+    def loss(x: np.ndarray) -> tuple[float, np.ndarray]:
+        """Return the loss at ``x`` and its gradient, exact for a polynomial of second order."""
+        value, slope = float(model.value(x)[0]), model.gradient(x)
         if goal == "target":
-            return (value - float(target)) ** 2 + nearest * float(x @ x)  # type: ignore[arg-type]
-        return -value if goal == "maximize" else value
+            miss = value - float(target)  # type: ignore[arg-type]
+            return miss**2 + nearest * float(x @ x), 2 * miss * slope + 2 * nearest * x
+        return (-value, -slope) if goal == "maximize" else (value, slope)
 
     rng = check_random_state(seed)
     base = _favoured_ends(study, _sense(goal, target, float(model.b0)))
@@ -846,16 +849,17 @@ def _optimum(study: _Study, model: _Model, goal: Goal, target: float | None, see
         start[categorical] = levels
         for s in _starts(model, free, goal, rng) if free else [np.zeros(0)]:
 
-            def partial(z: np.ndarray, start: np.ndarray = start) -> float:
+            def partial(z: np.ndarray, start: np.ndarray = start) -> tuple[float, np.ndarray]:
                 x = start.copy()
                 x[free] = z
-                return loss(x)
+                value, slope = loss(x)
+                return value, slope[free]
 
             if free:
-                found = optimize.minimize(partial, s, bounds=[(-1.0, 1.0)] * len(free), method="L-BFGS-B")
+                found = optimize.minimize(partial, s, jac=True, bounds=[(-1.0, 1.0)] * len(free), method="L-BFGS-B")
                 z, value = np.clip(found.x, -1.0, 1.0), float(found.fun)
             else:  # the model holds no numeric factor: nothing to search
-                z, value = s, partial(s)
+                z, value = s, partial(s)[0]
             if value < best_loss - 1e-12:
                 best_loss, best_x = value, start.copy()
                 best_x[free] = z
@@ -867,7 +871,7 @@ def _starts(model: _Model, free: list[int], goal: Goal, rng: np.random.Generator
     starts = [np.zeros(len(free)), np.sign(model.b[free] * (-1 if goal == "minimize" else 1))]
     if len(free) <= _ALL_CORNERS:
         starts += [np.array(v, dtype=float) for v in itertools.product((-1.0, 1.0), repeat=len(free))]
-    return starts + list(rng.uniform(-1, 1, size=(20, len(free))))
+    return starts + list(rng.uniform(-1, 1, size=(_RANDOM_STARTS, len(free))))
 
 
 def _curvature(study: _Study, design: _Design, model: _Model, alpha: float) -> dict[str, Any]:
@@ -1367,7 +1371,10 @@ def _move_region(ctx: _Context) -> _Step | None:
         "Make the runs in order and stop at the first one that does worse than the run before it. Then centre a "
         "new study on the best run, with ranges as wide as these, and start again with its screening or "
         "response surface design.",
-        {"path_predictions": [float(v) for v in predicted]},
+        {
+            "path_predictions": [float(v) for v in predicted],
+            "direction": {ctx.name(j): float(direction[j]) for j in moving},
+        },
     )
 
 
@@ -1627,7 +1634,9 @@ def recommend_next_step(  # noqa: PLR0913
         p-values of the model the decision read, in the factors' names), ``evidence`` (active
         factors, curvature, lack of fit, aliasing, the optimum with its prediction and the edges
         it sits on, the confirmation runs' verdict), ``alternatives`` (other actions that apply,
-        with their run counts) and, for some actions, ``new_ranges`` or ``path_predictions``.
+        with their run counts) and, for some actions, ``new_ranges`` (``widen_ranges``), or
+        ``path_predictions`` and ``direction``, each moving factor's step in coded units per unit
+        of the factor that moves most (``move_region``).
 
     Raises
     ------
