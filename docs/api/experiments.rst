@@ -142,6 +142,12 @@ Strategy Recommender
    :members: recommend_strategy
    :show-inheritance:
 
+The Next Round
+~~~~~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.next_step
+   :members: recommend_next_step, ACTIONS
+
 .. automodule:: process_improve.experiments.strategy.models
    :members:
    :undoc-members:

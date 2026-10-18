@@ -627,9 +627,7 @@ class TestAddRunsOptimal:
         names = list("ABCDEFGH")
         factors = [Factor(name=n, low=-1, high=1) for n in names]
         dsd = generate_design(factors, design_type="dsd", n_center_points=5).design[names]
-        model = (
-            "A + B + D + G + H + A:B + I(D ** 2) + I(H ** 2) + A:D + A:G + A:H + B:D + B:G + B:H + D:G + D:H + G:H"
-        )
+        model = "A + B + D + G + H + A:B + I(D ** 2) + I(H ** 2) + A:D + A:G + A:H + B:D + B:G + B:H + D:G + D:H + G:H"
         result = augment_design(dsd, "add_runs_optimal", target_model=model, n_additional_runs=6, random_state=0)
         assert result["n_runs_after"] == 27
 

@@ -13,20 +13,34 @@ The decision is deterministic and follows the evidence in this order:
 
 1. **Confirmation runs** at the predicted optimum are judged by their mean against the
    prediction interval for a mean of that many runs. Confirmed, the study **stops**, unless
-   the goal still improves past an edge of a range that may move. Not confirmed, the model
-   missed something, and the next round must add the information that shows what.
+   the goal still improves past an edge of a range that may move. Missed, the next round adds
+   what the design could not show (axial runs, a fold-over); else, when the model chosen
+   again with the missed runs as data puts its optimum elsewhere, that optimum is confirmed;
+   else a miss that may be chance is confirmed again, judged on the new runs alone, and a
+   gross or repeated miss calls for a look at the process (**investigate**).
 2. A model that leaves fewer than two **degrees of freedom for error** cannot be judged: add
    centre runs to a two-level design of numeric factors, else replicate the runs.
-3. **Nothing stands out from the noise**: widen the ranges, or check the measurement.
+3. **Nothing stands out from the noise**: with fewer than four degrees of freedom for error,
+   add runs first; else widen the ranges, or replicate when they cannot move; and when that
+   was done before (``history``), stop: no factor moves the response by more than the noise.
 4. An active effect is **aliased with a plausible interaction**, so the data cannot say which
-   of the two is real: fold the design over, fold it over on one factor, or add runs chosen
-   for the model that holds both.
+   of the two is real: fold the design over, or add runs chosen for the model that holds both.
 5. **Curvature** (centre runs off the plane of the corners, lack of fit, or a square in the
-   model) that the design cannot model in the active factors: add axial runs, which make a
-   face-centred central composite design, or runs chosen for the full quadratic model.
+   model) that the design cannot model: add axial runs, which make a face-centred central
+   composite design, or runs chosen for the full quadratic model. Curvature the centre runs
+   show could be any factor's, so the axial runs go in every numeric factor (up to six).
 6. The best settings sit at an **edge of a range** and the goal improves past it by more than
    twice the noise: when the ranges may move, run the path of steepest ascent beyond it.
 7. Otherwise, **confirm** at the predicted optimum.
+
+How the terms are judged matters as much as the rules. Each term is tested in the largest
+standard model the runs estimate with two degrees of freedom for error (one column per chain of
+exact aliases), or by Lenth's method, with simulated critical values, on every contrast of a
+saturated two-level design, or by the staged analysis of a definitive screening design. Whether
+anything stands out at all is one test at ``alpha`` whose critical value is simulated for the
+design (:func:`_stands_out`), so pure noise raises a false alarm in one study in twenty, not in
+most of them. Interactions of the active factors (strong heredity) that the judging could not
+test are then tested in the model of the active terms.
 
 A factor the selected model leaves out does not change the prediction, so any setting in its
 range will do. The runs recommended set it at the end its small, not significant, effect
@@ -45,6 +59,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
+from patsy import dmatrix
 from scipy import optimize, stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
@@ -313,27 +328,20 @@ def _ols(data: pd.DataFrame, terms: list[str]) -> RegressionResultsWrapper:
     return smf.ols("y ~ " + (" + ".join(terms) if terms else "1"), data=data).fit()
 
 
-def _chain_leaders(data: pd.DataFrame, rhs: str) -> list[str] | None:
-    """One term per chain of exact aliases in a model; None when even those cannot all be estimated."""
-    from patsy import dmatrix  # noqa: PLC0415 - patsy comes with statsmodels; imported where the matrix is built
+def _matrix(data: pd.DataFrame, terms: list[str]) -> tuple[np.ndarray, list[str]]:
+    """Return the model matrix of the terms, with the intercept first, and its column names; no fit."""
+    matrix = dmatrix(" + ".join(terms) if terms else "1", data, return_type="dataframe")
+    return matrix.to_numpy(dtype=float), [str(c) for c in matrix.columns]
 
-    matrix = dmatrix(rhs, data, return_type="dataframe")
-    names = [str(c) for c in matrix.columns]
-    exog = matrix.to_numpy(dtype=float)
+
+def _chain_leaders(data: pd.DataFrame, rhs: str) -> list[str] | None:
+    """Return one term per chain of exact aliases in a model; None when even those cannot all be estimated."""
+    exog, names = _matrix(data, [rhs])
     leaders = [chain[0][0] for chain in alias_chains_of(exog, names)]
     kept = exog[:, [names.index(t) for t in leaders]]
     if int(np.linalg.matrix_rank(kept)) < kept.shape[1]:
         return None
     return [t for t in leaders if t != "Intercept"]
-
-
-def _orthogonal(data: pd.DataFrame, terms: list[str]) -> bool:
-    """Whether the terms' columns, centred, are mutually orthogonal: Lenth's method needs independent effects."""
-    x = np.asarray(_ols(data, terms).model.exog[:, 1:], dtype=float)
-    x = x - x.mean(axis=0)
-    gram = x.T @ x
-    off = gram - np.diag(np.diag(gram))
-    return bool(np.all(np.abs(off) <= 1e-8 * np.abs(np.diag(gram)).max()))
 
 
 def _t_tests(data: pd.DataFrame, terms: list[str], extra: list[str], method: str, alpha: float) -> dict[str, Any]:
@@ -431,8 +439,8 @@ def _lenth(data: pd.DataFrame, terms: list[str], alpha: float) -> dict[str, Any]
     variance): a Plackett-Burman design's unused columns, or a full factorial's three-factor
     interaction. None when the terms are not balanced and orthogonal, or the contrasts are too few.
     """
-    model = _ols(data, terms).model
-    x, names = np.asarray(model.exog, dtype=float), list(model.exog_names)[1:]  # patsy orders terms by degree
+    x, names = _matrix(data, terms)
+    names = names[1:]  # patsy orders terms by degree, so the names come from the matrix
     n, columns = len(x), x[:, 1:]
     if not np.allclose(columns.T @ columns, n * np.eye(columns.shape[1])) or not np.allclose(columns.sum(axis=0), 0):
         return None
@@ -497,7 +505,7 @@ def _omars_signal(data: pd.DataFrame, names: list[str], alpha: float) -> bool:
     that error too small and the test fire on noise.
     """
     mains = np.column_stack([np.ones(len(data)), data[names].to_numpy(dtype=float)])
-    second = np.asarray(_ols(data, _rhs_terms(names, [True] * len(names), "quadratic")).model.exog, dtype=float)
+    second = _matrix(data, _rhs_terms(names, [True] * len(names), "quadratic"))[0]
     second = second - mains @ np.linalg.lstsq(mains, second, rcond=None)[0]
     u, sv, _ = np.linalg.svd(second, full_matrices=False)
     basis = u[:, sv > 1e-8 * sv.max()]
@@ -575,11 +583,20 @@ def _interaction_candidates(study: _Study, active: list[str]) -> list[str]:
 
 
 def _separable(study: _Study, terms: list[str], candidates: list[str]) -> list[str]:
-    """Return the candidate interactions the runs can tell apart from the model's terms (see :func:`_aliasing`)."""
-    if not candidates:
-        return []
-    x = np.asarray(_ols(study.data, terms).model.exog, dtype=float)
-    return [c for c in candidates if _explained(x, _product(study, c)) < _ALIASED]
+    """Return the candidate interactions the runs can tell apart from the model's terms and from each other.
+
+    Each is kept when the model's columns, with those of the candidates kept before it, do not
+    reproduce its column (see :func:`_aliasing`): in a resolution IV fraction B:D and C:G can
+    each be told from the main effects, but not from each other.
+    """
+    x = _matrix(study.data, terms)[0]
+    kept = []
+    for candidate in candidates:
+        column = _product(study, candidate)
+        if _explained(x, column) < _ALIASED:
+            kept.append(candidate)
+            x = np.column_stack([x, column])
+    return kept
 
 
 def _product(study: _Study, interaction: str) -> np.ndarray:
@@ -1470,9 +1487,9 @@ def recommend_next_step(  # noqa: PLR0913
         Runs made to confirm a predicted optimum, judged against the model the other runs
         give, with the same columns as ``runs``.
     model_terms : list[str] or None
-        The model to use, as terms (``"A"``, ``"A:B"``, ``"I(A ** 2)"``); ``None`` selects one by
-        stepwise search with heredity (AICc), over the full quadratic model when the design can
-        tell the factors' squares apart and over the two-factor interactions otherwise.
+        The model to use, as terms (``"A"``, ``"A:B"``, ``"I(A ** 2)"``), its terms tested in it;
+        ``None`` judges every term the runs can test and keeps the active ones (see the module
+        documentation).
     budget : int or None
         Runs left. An action that needs more falls back to confirmation runs, or to stopping.
     ranges_can_move : bool
