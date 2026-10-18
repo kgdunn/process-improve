@@ -194,10 +194,13 @@ def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_
 
 
 def test_the_page_reads_only_what_the_manifest_holds():
-    """worker.js installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there."""
+    """worker.js installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there,
+    and a report from the Feedback dialog names the commit.
+    """
     read = set(re.findall(r"const \{ (\w+)(?:: \w+)? \} = await manifest", source("worker.js")))
-    read |= set(re.findall(r"\(await res\.json\(\)\)\.(\w+)", source("app.js")))
-    assert read == {"wheel", "plotly", "plotly_js"}
+    for names in re.findall(r"const \{ ([^}]+) \} = await res\.json\(\)", source("app.js")):
+        read |= {name.split(":")[0].strip() for name in names.split(",")}
+    assert read == {"wheel", "plotly", "plotly_js", "commit"}
 
 
 # --------------------------------------------------------------------------- the book's examples

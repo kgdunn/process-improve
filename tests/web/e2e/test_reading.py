@@ -37,13 +37,14 @@ PROSE = r"""
 
 #: The most words of running text each screen may show, in a desktop window or on a phone: about a tenth
 #: more than it shows now. On a desktop the brief stays beside Run and Learn, so a screen there reads a
-#: little more; on a phone the comparison says that its table scrolls sideways.
+#: little more; on a phone the comparison says that its table scrolls sideways. The footer's seven words
+#: on Feedback, the one report that reaches the server, are on every screen.
 BUDGET = {
-    "a first visit": 85,
+    "a first visit": 92,  # with the footer's words on Feedback
     "the designs for a brief": 155,  # with the sentence on why Design picked the design it holds
     "a brief with a limit": 240,
     "a limit proposed from a corner": 270,
-    "a new run sheet": 125,
+    "a new run sheet": 136,  # with the footer's words on Feedback
     "practising": 150,
     "the worked example's analysis": 270,  # with the best settings for its goal, which add some 55 words
     "the comparison in detail": 175,

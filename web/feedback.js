@@ -203,3 +203,209 @@ export function relayUrl(location) {
   if ((protocol === "http:" || protocol === "https:") && LOOPBACK.has(hostname)) return RELAY;
   return null;
 }
+
+/** How long a report may take to reach the relay and be answered, in milliseconds. */
+const SEND_TIMEOUT = 30_000;
+
+/** Why a report did not go, as the dialog says it: by the relay's answer, or with none (null) when it was never reached. */
+export function failureWords(status) {
+  if (status === null) return "The report could not be sent: the page could not reach factori.al.";
+  if (status === 429) return "The report could not be sent: your network has sent as many reports as the site takes in an hour.";
+  if (status === 413) return "The report could not be sent: it is larger than the site takes.";
+  if (status >= 500) return "The report could not be sent: the site's mail relay is busy or not running.";
+  return `The report could not be sent: the site refused it (HTTP ${status}).`;
+}
+
+/** Post a report to the relay; resolve to whether it went, and why not as a sentence. */
+async function post(url, report) {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report),
+      signal: AbortSignal.timeout(SEND_TIMEOUT),
+    });
+    return res.ok ? { ok: true } : { ok: false, why: failureWords(res.status) };
+  } catch {
+    return { ok: false, why: failureWords(null) }; // offline, refused, or too slow
+  }
+}
+
+/** The dialog's form: built once, from fixed text, the first time a Feedback button is pressed. */
+const FORM = `
+<form class="feedback__form" novalidate>
+  <div class="sheet__head">
+    <h2 id="h-feedback">Feedback</h2>
+    <button type="button" class="link" data-close aria-label="Close the feedback">✕</button>
+  </div>
+  <div data-part="write">
+    <p class="hint">A problem with a result, a change you would like to the page, or anything else: it goes to the
+      maintainer of Factorial.</p>
+    <fieldset class="feedback__topics">
+      <legend>Topic</legend>
+      ${Object.entries(TOPICS)
+        .map(([value, label]) => `<label class="check"><input type="radio" name="topic" value="${value}"> ${label}</label>`)
+        .join("\n      ")}
+    </fieldset>
+    <label class="feedback__field">Your message
+      <textarea id="feedback-message" name="message" rows="6" maxlength="${MESSAGE_MAX}"
+        aria-describedby="feedback-count"></textarea></label>
+    <p id="feedback-count" class="hint"></p>
+    <label class="feedback__field">Your email address, if you would like a reply
+      <input id="feedback-email" name="email" type="email" maxlength="${EMAIL_MAX}" autocomplete="email"
+        spellcheck="false"></label>
+    <div class="feedback__extras" data-part="extras">
+      <label class="check"><input type="checkbox" id="feedback-study" name="study"> Include my study, so the result
+        can be reproduced</label>
+      <p class="hint" data-note="study"></p>
+    </div>
+    <details class="feedback__sent"><summary>What will be sent</summary><ul id="feedback-sent"></ul></details>
+    <p class="hint" data-note="status" role="status" hidden></p>
+    <p class="actions">
+      <button type="submit" id="feedback-send" class="primary">Send</button>
+      <button type="button" class="link" data-close>Cancel</button>
+    </p>
+  </div>
+  <div data-part="sent" hidden>
+    <p data-note="thanks" role="status"></p>
+    <p class="actions"><button type="button" class="primary" data-close>Close</button></p>
+  </div>
+</form>`;
+
+/** What the box under the study's checkbox says, with a study on the page and without one. */
+const STUDY_NOTE = "It goes as a link that opens your study, with its results, in Factorial.";
+const NO_STUDY = "There is no run sheet yet, so there is no study to send.";
+
+/**
+ * Make the Feedback dialog, and open it from every button with a ``data-feedback`` attribute, on the topic that names
+ * (General when it names none). The page lends it ``context()``, which resolves to what the page sends of itself (the
+ * keys of CONTEXT), ``study()``, which resolves to the study's packed text, and ``hasStudy()``, whether there is one.
+ * Returns ``open(topic)``.
+ */
+export function installFeedback({ context, study, hasStudy }) {
+  let dialog = null;
+  let form = null;
+  let about = {}; // the page's context, as it was when the dialog opened
+  let sending = false;
+  const relay = relayUrl(location);
+
+  const field = (name) => form.elements[name];
+  const part = (name) => dialog.querySelector(`[data-part="${name}"]`);
+  const note = (name) => dialog.querySelector(`[data-note="${name}"]`);
+  const topic = () => field("topic").value || "general";
+
+  /** Say what is happening, or what is wrong, under the form; "" says nothing. */
+  function say(text, problem = false) {
+    note("status").textContent = text;
+    note("status").classList.toggle("error", problem);
+    note("status").hidden = !text;
+  }
+
+  /** The count under the message, and the list of what will be sent, as the form now stands. */
+  function render() {
+    dialog.querySelector("#feedback-count").textContent = messageCount(field("message").value);
+    const lines = sentLines({
+      topic: topic(),
+      message: field("message").value,
+      email: field("email").value,
+      studied: field("study").checked,
+      context: about,
+    });
+    dialog.querySelector("#feedback-sent").replaceChildren(
+      ...lines.map((line) => Object.assign(document.createElement("li"), { textContent: line })),
+    );
+  }
+
+  function build() {
+    dialog = document.createElement("dialog");
+    dialog.id = "feedback-dialog";
+    dialog.className = "sheet feedback";
+    dialog.setAttribute("aria-labelledby", "h-feedback");
+    dialog.innerHTML = FORM;
+    document.body.append(dialog);
+    form = dialog.querySelector("form");
+    form.addEventListener("input", () => {
+      say("");
+      render();
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      send();
+    });
+    for (const button of dialog.querySelectorAll("[data-close]")) button.onclick = () => dialog.close();
+  }
+
+  /** Open the dialog on ``chosen``, a topic; a message written before and not sent is kept. */
+  async function open(chosen) {
+    if (!dialog) build();
+    if (!part("sent").hidden) {
+      part("sent").hidden = true;
+      part("write").hidden = false;
+    }
+    field("topic").value = chosen in TOPICS ? chosen : "general";
+    const can = hasStudy();
+    field("study").disabled = !can;
+    if (!can) field("study").checked = false;
+    note("study").textContent = can ? STUDY_NOTE : NO_STUDY;
+    say("");
+    about = {};
+    render();
+    if (!dialog.open) dialog.showModal();
+    field("message").focus();
+    about = (await context()) ?? {};
+    render();
+  }
+
+  /** Send the report: check it, add the study if the reader asked for it, and post it. */
+  async function send() {
+    if (sending) return;
+    const problem = messageProblem(field("message").value) || emailProblem(field("email").value);
+    if (problem) {
+      say(problem, true);
+      field(messageProblem(field("message").value) ? "message" : "email").focus();
+      return;
+    }
+    sending = true;
+    dialog.querySelector("#feedback-send").disabled = true;
+    say("Sending...");
+    const left = []; // what the reader asked for that cannot go, as sentences
+    let packed = null;
+    if (field("study").checked) {
+      packed = await study().catch(() => null);
+      const why = packed ? studyProblem(packed) : "Your study could not be packed, so the report goes without it.";
+      if (why) {
+        left.push(why);
+        packed = null;
+      }
+    }
+    const report = buildReport({
+      topic: topic(),
+      message: field("message").value,
+      email: field("email").value,
+      study: packed,
+      context: about,
+    });
+    const sent = relay
+      ? await post(relay, report)
+      : { ok: false, why: "This copy of Factorial is not at factori.al, so it sends no report itself." };
+    sending = false;
+    dialog.querySelector("#feedback-send").disabled = false;
+    if (!sent.ok) {
+      say(sent.why, true);
+      return;
+    }
+    say("");
+    field("message").value = "";
+    field("study").checked = false;
+    note("thanks").textContent = ["Thank you: your report is on its way to the maintainer.", ...left].join(" ");
+    part("write").hidden = true;
+    part("sent").hidden = false;
+    render();
+  }
+
+  document.addEventListener("click", (event) => {
+    const opener = event.target.closest?.("[data-feedback]");
+    if (opener && !dialog?.contains(opener)) open(opener.dataset.feedback);
+  });
+  return { open };
+}

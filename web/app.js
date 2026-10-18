@@ -207,6 +207,7 @@ import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
+import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -232,16 +233,21 @@ const worker = new Worker("worker.js", { type: "module" });
 
 // ---------------------------------------------------------------- worker RPC
 let nextId = 0;
-const pending = new Map();
+const pending = new Map(); // each call waiting for its reply, by its id: the entry point, and who waits
+
+/** The last Python errors, newest last, each with the entry point it came from: a report of a problem carries them. */
+let pythonErrors = [];
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
     if (!pythonFailure) setStatus(data.status, data.state);
     return;
   }
-  const resolve = pending.get(data.id);
+  const { fn, resolve } = pending.get(data.id);
   pending.delete(data.id);
-  resolve(JSON.parse(data.reply));
+  const reply = JSON.parse(data.reply);
+  if (!reply.ok) pythonErrors = keepError(pythonErrors, `${fn}: ${reply.error}`);
+  resolve(reply);
 };
 
 // worker.js itself did not load or run: nothing will answer, so say so rather than wait.
@@ -255,7 +261,7 @@ function call(fn, payload = {}) {
   if (pythonFailure) return Promise.resolve({ ok: false, error: pythonFailure, warnings: [] });
   const id = nextId++;
   return new Promise((resolve) => {
-    pending.set(id, resolve);
+    pending.set(id, { fn, resolve });
     worker.postMessage({ id, fn, payload: JSON.stringify(payload) });
   });
 }
@@ -267,9 +273,10 @@ function call(fn, payload = {}) {
 function pythonFailed(reason) {
   if (pythonFailure) return;
   pythonFailure = reason;
+  if (!pythonErrors.at(-1)?.endsWith(reason)) pythonErrors = keepError(pythonErrors, reason); // a reply may have said it
   setStatus(reason, "error");
   $("#run-example").disabled = true;
-  for (const resolve of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
+  for (const { resolve } of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
   pending.clear();
   rejectReady(new Error(reason));
   renderCandidates();
@@ -347,6 +354,7 @@ const state = {
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
   plotlyJs: null, // the Plotly.js version the Python plotly package names
+  commit: null, // the commit the app was built from, as its manifest names it
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
   example: false, // the worked example is on the page, as the build made it or as run again here
   version: null, // the process-improve release Python runs, once it has started
@@ -2384,6 +2392,54 @@ async function viewReport() {
   setStatus("The report is open in a tab of its own: print it to PDF from there, or download it to keep.");
 }
 
+// ---------------------------------------------------------------- feedback
+/** The phases by the names their tabs give them, as a report of a problem names the one on show. */
+const PHASE_NAMES = { plan: "Design", run: "Run", learn: "Learn" };
+
+/** Learn's model as its form names it: the choice, or for terms ticked, how many. */
+function modelWords() {
+  if ($("#model").value === CHOSEN_TERMS) return `Terms you choose: ${tickedTerms().length} terms`;
+  return $("#model").selectedOptions[0]?.textContent ?? "";
+}
+
+/**
+ * What a report of a problem carries of the page beside the reader's words, which feedback.js lists before it is sent:
+ * the commit the app was built from and the Plotly.js release; the stamp a report of the study has (when, with what,
+ * the run order's seed, where the results came from, the SHA-256 of the inputs), never the link that holds the study;
+ * the tab, Learn's model and the charts on show; the last Python errors; and the browser and the size of its window.
+ */
+async function feedbackContext() {
+  const { design } = state;
+  const pane = $(PANES[state.phase]);
+  const stamp = stampRows({
+    made: new Date(),
+    version: state.version,
+    runtime: state.runtime,
+    url: `${location.origin}${location.pathname}`,
+    spec: design?.spec ?? null,
+    runs: runCount(),
+    results: state.results,
+    marks: state.marks,
+    simulation: design && someSimulated() ? state.simulation : null,
+    sha: design ? await sha256(canonicalJson(reportedInputs())) : null,
+    link: null,
+  });
+  return {
+    commit: state.commit,
+    plotly_js: state.plotlyJs,
+    tab: PHASE_NAMES[state.phase],
+    model: state.analysis ? modelWords() : null,
+    charts: [...pane.querySelectorAll("figure.chart")]
+      .filter((card) => shownWithin(card, pane))
+      .map((card) => card.querySelector("h3, h4")?.textContent.trim())
+      .filter(Boolean),
+    stamp: stamp.map(([label, text]) => `${label}: ${text}`),
+    errors: pythonErrors,
+    browser: navigator.userAgent,
+    window: `${window.innerWidth} x ${window.innerHeight}`,
+  };
+}
+
 async function readUpload(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = "";
@@ -2511,6 +2567,16 @@ async function analyseRuns() {
   await findBalance();
 }
 
+/** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
+function reportResult() {
+  const button = el("button", "link", "Report this result");
+  button.type = "button";
+  button.dataset.feedback = "algorithm";
+  const actions = el("p", "actions", "");
+  actions.append(button);
+  return actions;
+}
+
 function renderAnalysis(reply) {
   const out = $("#analysis");
   out.hidden = false;
@@ -2520,7 +2586,7 @@ function renderAnalysis(reply) {
   renderBadges();
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
-    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
+    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
     clearBest();
@@ -4067,11 +4133,18 @@ function showResultsCode() {
   showPython("run", resultsCode(state.design, state.results, simulated ? state.simulation : null));
 }
 
-/** The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one. */
+/**
+ * The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one, and the
+ * commit the app was built from, which a report of a problem names.
+ */
 async function readManifest() {
   try {
     const res = await fetch("wheels/manifest.json", { cache: "no-store" });
-    if (res.ok) state.plotlyJs ??= (await res.json()).plotly_js ?? null;
+    if (res.ok) {
+      const { plotly_js: plotlyJs, commit } = await res.json();
+      state.plotlyJs ??= plotlyJs ?? null;
+      state.commit = commit ?? null;
+    }
   } catch {
     /* a plain local preview has no manifest */
   }
@@ -4406,6 +4479,12 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") flushSave();
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
+// A report of a problem: the study goes only when the reader ticks it, with its results, as a link to it packs it.
+installFeedback({
+  context: feedbackContext,
+  study: () => packCampaign(shareable(currentCampaign(), true)),
+  hasStudy: () => Boolean(state.design),
+});
 addFactor();
 addFactor();
 setAim(defaultAim(0));
