@@ -32,6 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.config import settings
 from process_improve.tool_safety import (
+    _DEFAULT_MP_CONTEXT,
     ToolInputInvalidError,
     ToolInputTooLargeError,
     ToolMemoryExceededError,
@@ -53,10 +54,10 @@ from process_improve.tool_spec import _TOOL_REGISTRY, tool_spec
 
 # Subprocess tests in this file register @tool_spec tools inline; those
 # registrations only survive into the worker when the pool is forked.
-# ``tool_safety`` only opts into fork on Linux, so skip elsewhere.
+# ``tool_safety`` forks only on Linux builds with the GIL, so skip elsewhere.
 _skip_if_not_linux = pytest.mark.skipif(
-    not sys.platform.startswith("linux"),
-    reason="Subprocess safety tests require a fork-based pool (Linux only)",
+    _DEFAULT_MP_CONTEXT is None or _DEFAULT_MP_CONTEXT.get_start_method() != "fork",
+    reason="Subprocess safety tests require a fork-based pool (Linux, with the GIL)",
 )
 
 
@@ -694,12 +695,26 @@ class TestDefaultMpContext:
         assert _default_mp_context(platform) is None
 
     def test_linux_forks_where_fork_exists(self) -> None:
-        context = _default_mp_context("linux")
+        context = _default_mp_context("linux", free_threaded=False)
         if "fork" in multiprocessing.get_all_start_methods():
             assert context is not None
             assert context.get_start_method() == "fork"
         else:
             assert context is None
+
+    def test_a_free_threaded_build_forks_from_a_server(self) -> None:
+        """Forking a free-threaded process from one thread deadlocked the child on another thread's lock."""
+        context = _default_mp_context("linux", free_threaded=True)
+        if "forkserver" in multiprocessing.get_all_start_methods():
+            assert context is not None
+            assert context.get_start_method() == "forkserver"
+        else:
+            assert context is None
+
+    def test_the_build_decides_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sys, "_is_gil_enabled", lambda: False, raising=False)
+        context = _default_mp_context("linux")
+        assert context is None or context.get_start_method() == "forkserver"
 
     def test_linux_without_fork_falls_back_to_the_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def no_fork(method: str | None = None) -> object:
