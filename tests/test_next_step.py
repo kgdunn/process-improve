@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import warnings
 
@@ -10,13 +11,14 @@ import pandas as pd
 import pytest
 
 import process_improve.experiments.tools  # noqa: F401 - registers the experiments tools
-from process_improve.experiments import Factor, TrueProcess, generate_design, recommend_next_step
+from process_improve.experiments import Factor, TrueProcess, generate_design, omars, recommend_next_step
 from process_improve.experiments.next_step import (
     _CURVATURE,
     ACTIONS,
     _code,
     _design,
     _lenth_null,
+    _omars,
     _select,
     _stands_out,
     _Study,
@@ -173,6 +175,29 @@ class TestSquaresAliasedWithEachOther:
         )
         assert {"A", "I(A ** 2)", "I(C ** 2)"} <= set(after["evidence"]["active_terms"])
         assert after["action"] == "confirm"
+
+
+class TestTheStagedAnalysis:
+    """The staged analysis of a definitive screening design judges only runs with the structure it needs."""
+
+    def test_it_judges_a_definitive_screening_design(self, dsd_study: tuple) -> None:
+        factors, runs = dsd_study
+        judged = _omars(runs, [f.name for f in factors], 0.05)
+        assert judged is not None
+        assert "analyze_omars" in judged["method"]
+
+    def test_other_three_level_runs_never_reach_its_search(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The structure is checked first: after a D-optimal round on 10 factors, its search ran for hours."""
+
+        def refuse(*_args: object, **_kwargs: object) -> None:
+            msg = "analyze_omars ran on runs without the OMARS structure"
+            raise AssertionError(msg)
+
+        monkeypatch.setattr(omars, "analyze_omars", refuse)
+        grid = np.array(list(itertools.product([-1, 0, 1], repeat=3)), dtype=float)
+        x = grid[~((grid[:, 0] == -1) & (grid[:, 1] != 0))]  # runs missing: A no longer balanced
+        data = pd.DataFrame(x, columns=list("ABC")).assign(y=5 + 4 * x[:, 0] ** 2)
+        assert _omars(data, list("ABC"), 0.05) is None
 
 
 class TestNothingStandsOut:

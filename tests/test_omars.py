@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import OmarsResult, analyze_omars
+from process_improve.experiments import Factor, OmarsResult, analyze_omars, generate_design, omars
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -424,3 +424,76 @@ def test_options_outside_their_range_raise(options: dict) -> None:
     design = _fccd()
     with pytest.raises(ValueError, match="must"):
         analyze_omars(design, _response(design), **options)
+
+
+# ---------------------------------------------------------------------------
+# The subset search stays bounded when the candidates are many
+# ---------------------------------------------------------------------------
+
+
+def _dsd(n_factors: int) -> pd.DataFrame:
+    """Return a definitive screening design with four centre runs, one column per factor, levels -1, 0 and +1."""
+    factors = [Factor(name=f"X{i:02d}", low=-1, high=1) for i in range(1, n_factors + 1)]
+    design = generate_design(factors, design_type="dsd", n_center_points=4).design_actual
+    return design[[f.name for f in factors]].astype(float)
+
+
+def _sparse_second_order(design: pd.DataFrame, seed: int) -> np.ndarray:
+    """Return three main effects, two interactions and a quadratic, picked at random, with unit noise."""
+    x = design.to_numpy()
+    rng = np.random.default_rng(seed)
+    pairs = rng.choice(x.shape[1], (2, 2), replace=False)
+    y = x[:, :3] @ rng.normal(0, 3, 3) + 4 * x[:, rng.integers(x.shape[1])] ** 2
+    return y + sum(rng.normal(0, 3) * x[:, a] * x[:, b] for a, b in pairs) + rng.normal(0, 1, len(x))
+
+
+def test_a_design_with_many_factors_is_searched_in_seconds() -> None:
+    """Ten factors and no heredity give 55 candidates: C(55, 6) = 29 million subsets of six, hours one by one."""
+    design = _dsd(10)
+    x = design.to_numpy()
+    y = 3 * x[:, :6].sum(axis=1) + 4 * (x[:, :3] ** 2).sum(axis=1) - 3 * x[:, 3] * x[:, 4] + 2 * x[:, 2] * x[:, 5]
+    y = y + np.random.default_rng(1).normal(0, 1, len(x))
+
+    result = analyze_omars(design, y)
+
+    assert result.details["candidate_terms"] == 55
+    assert result.details["subset_search"].startswith(
+        "exhaustive up to 3 terms, then a beam search"
+    )  # C(55, 4) > 200,000
+    assert len(result.active_quadratics) + len(result.active_interactions) <= result.subset_limit
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_the_beam_search_finds_the_terms_the_exhaustive_search_finds(
+    seed: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a DSD, whose second-order terms are partly aliased, so that one greedy path can go astray."""
+    design = _dsd(6)
+    y = _sparse_second_order(design, seed)
+    exhaustive = analyze_omars(design, y)
+    monkeypatch.setattr(omars, "_EXHAUSTIVE_SUBSETS", 1)  # every size by the beam
+
+    beam = analyze_omars(design, y)
+
+    assert exhaustive.details["subset_search"] == "exhaustive"
+    assert "beam search" in beam.details["subset_search"]
+    assert beam.active_quadratics == exhaustive.active_quadratics
+    assert beam.active_interactions == exhaustive.active_interactions
+    assert beam.final_p_value == exhaustive.final_p_value
+
+
+def test_swapping_terms_recovers_the_pair_a_greedy_start_misses() -> None:
+    """x3 lies between x1 and x2, so it explains y = x1 + x2 best alone; the best pair is x1 and x2."""
+    rng = np.random.default_rng(0)
+    x1, x2 = rng.normal(size=(2, 30))
+    candidate = np.column_stack((x1, x2, (x1 + x2) / np.sqrt(2) + rng.normal(0, 0.1, 30)))
+    y = (x1 + x2).reshape(-1, 1)
+
+    def rss(combo: tuple[int, ...]) -> float:
+        return omars._residual_ss(np.hstack((np.ones((30, 1)), candidate[:, combo])), y)
+
+    greedy = min((rss((2, j)), (2, j)) for j in (0, 1))
+    swapped_rss, swapped = omars._swap_terms(rss, 3, *greedy)
+
+    assert swapped == (0, 1)
+    assert swapped_rss < 1e-20 < greedy[0]
