@@ -4,8 +4,10 @@ A pull request with a user-facing change adds its changelog entry here, as a fil
 does not edit `CHANGELOG.md`. Two open pull requests then never touch the same lines, so they do
 not conflict with each other on the changelog.
 
-Name the file `<slug>.<type>.md`:
+Name the file `<yyyy-mm-dd>-<slug>.<type>.md`:
 
+- `<yyyy-mm-dd>` is the day you write the fragment, such as `2026-10-18`. The fragments then list in
+  the order they were written, and at release each heading files them in that order.
 - `<slug>` is any short name in lower case, digits and hyphens, such as the branch name.
 - `<type>` is the heading the entry belongs under: `added` for new public surface, `removed` for a
   removal, otherwise `changed`, `fixed`, `deprecated`, `security` or `documentation`. The type
@@ -13,7 +15,7 @@ Name the file `<slug>.<type>.md`:
   [`CONTRIBUTING.md`](../CONTRIBUTING.md#choosing-the-level-at-release)).
 
 The file holds the entry as one or more Markdown bullets, written as they will read in the
-changelog, with no heading. For example, `changelog.d/glm-analysis.added.md`:
+changelog, with no heading. For example, `changelog.d/2026-10-18-glm-analysis.added.md`:
 
 ```markdown
 - **Generalized linear models in `analyze_experiment`.** `analysis_type="glm"` fits a count, a
