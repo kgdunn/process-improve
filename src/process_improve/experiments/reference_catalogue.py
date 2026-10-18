@@ -1866,13 +1866,17 @@ def _design_metric(experiment: dict, check: dict) -> float:
     terms (``"coefficient_variances"``) whose names it matches; ``"root": true`` takes the square
     root of each, a standard error from a variance, and ``check["reduce"]`` (``"mean"``, ``"min"``,
     ``"max"``) reduces them to one number. ``check["result"]`` names another number the metric
-    returns beside its own, ``"max_prediction_variance"`` beside ``"g_efficiency"``.
+    returns beside its own, ``"max_prediction_variance"`` beside ``"g_efficiency"``, and
+    ``"times_runs": true`` multiplies the number by the design's run count, as a source prints the
+    scaled prediction variance G, the run count times the largest prediction variance.
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
+        n_runs = len(_made(json.dumps(check["design"], sort_keys=True)).design)
     else:
         settings = _coded_runs(experiment, check.get("runs"))[0]
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
+        n_runs = len(settings)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     found = _evaluated(source, asked)[check.get("result", check["metric"])]
     if check.get("terms"):  # the entries of a dict of terms whose names match, each as it is or its root
@@ -1885,6 +1889,7 @@ def _design_metric(experiment: dict, check: dict) -> float:
         value = _read(found, check.get("key"))
         value = math.sqrt(value) if check.get("root") else value
     value = value**2 if check.get("squared") else value
+    value = value * n_runs if check.get("times_runs") else value
     value = 1 / value if check.get("reciprocal") else value
     return 1 - value if check.get("complement") else value
 
