@@ -78,6 +78,8 @@ class _EvalRequest:
     categorical_coding: str = "effect"
     integration: str = "sample"
     max_search: str = "sample"
+    whole_plots: np.ndarray | None = None  # each run's whole plot, for the split-plot (GLS) information
+    whole_plot_variance_ratio: float | None = None
 
 
 @dataclass
@@ -249,13 +251,35 @@ def _unit_length_columns(X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return X / lengths, lengths
 
 
+def _split_plot_information(X: np.ndarray, whole_plots: np.ndarray, ratio: float) -> np.ndarray:
+    """Return the generalized least squares information ``X' V^-1 X`` of a split-plot design.
+
+    ``V = I + ratio * Z Z'`` is the runs' covariance in units of the run (sub-plot) variance,
+    with ``Z`` the runs' whole-plot indicators and ``ratio`` the whole-plot variance over the
+    run variance. ``V`` is block diagonal, and a whole plot of ``n`` runs has the inverse
+    ``I - ratio / (1 + ratio * n) J``, so ``X' V^-1 X = X'X - sum_i w_i s_i s_i'`` with ``s_i``
+    the column sums of ``X`` over whole plot ``i`` and ``w_i = ratio / (1 + ratio * n_i)``.
+    """
+    codes, _ = pd.factorize(whole_plots)
+    Z = np.eye(int(codes.max()) + 1)[codes]
+    sums = Z.T @ X
+    weights = ratio / (1.0 + ratio * Z.sum(axis=0))
+    return X.T @ X - sums.T @ (weights[:, None] * sums)
+
+
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
     X, column_names, design_info = _build_model_matrix(
         req.design_df, req.model, req.factor_names, req.categorical_coding
     )
     N, p = X.shape
-    XtX = X.T @ X
+
+    def information(Xs: np.ndarray) -> np.ndarray:
+        if req.whole_plots is None or req.whole_plot_variance_ratio is None:
+            return Xs.T @ Xs
+        return _split_plot_information(Xs, req.whole_plots, req.whole_plot_variance_ratio)
+
+    XtX = information(X)
 
     # The rank and (X'X)^-1 are worked on X with unit-length columns, which changes neither. In
     # the factors' own units the columns' lengths can differ by many orders (x1 beside x1^2 x2);
@@ -265,7 +289,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
     is_singular = rank < p
     XtX_inv: np.ndarray | None = None
     if not is_singular:
-        XtX_inv = np.linalg.inv(scaled.T @ scaled) / np.outer(lengths, lengths)
+        XtX_inv = np.linalg.inv(information(scaled)) / np.outer(lengths, lengths)
 
     return _EvalContext(
         X=X,
@@ -1545,6 +1569,30 @@ def _resolve_metrics(metric: str | list[str]) -> list[str]:
     return metrics
 
 
+def _whole_plots(design_df: pd.DataFrame, ratio: float | None) -> tuple[np.ndarray | None, str | None]:
+    """Return each run's whole plot and a note when *ratio* asks for the split-plot information.
+
+    ``None`` for both when *ratio* is ``None``; raise when it is negative or the design
+    has no ``WholePlot`` column.
+    """
+    if ratio is None:
+        return None, None
+    if not np.isfinite(ratio) or ratio < 0:
+        raise ValueError(f"whole_plot_variance_ratio must be a finite number of at least 0; got {ratio!r}.")
+    if WHOLE_PLOT_COL not in design_df.columns:
+        raise ValueError(
+            f"whole_plot_variance_ratio needs each run's whole plot: a {WHOLE_PLOT_COL!r} column in the design."
+        )
+    whole_plots = design_df[WHOLE_PLOT_COL].to_numpy()
+    n_plots = len(pd.unique(whole_plots))
+    note = (
+        f"The metrics use the generalized least squares information X' V^-1 X of a split-plot design, with "
+        f"V = I + {ratio:g} Z Z' over the {n_plots} whole plots: variances are in units of the run variance. "
+        "The degrees of freedom and the power keep the run-level residual degrees of freedom."
+    )
+    return whole_plots, note
+
+
 def _separate_run_columns(
     design_df: pd.DataFrame, factor_names: list[str], model: str | None
 ) -> tuple[pd.DataFrame, list[str], str | None]:
@@ -1638,6 +1686,7 @@ def evaluate_design(  # noqa: PLR0913
     categorical_coding: str = "effect",
     integration: str = "sample",
     max_search: str = "sample",
+    whole_plot_variance_ratio: float | None = None,
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1747,6 +1796,16 @@ def evaluate_design(  # noqa: PLR0913
         search inside the cube, so a maximum between the vertices is found rather than
         missed: the variance of a design's projection often peaks inside a face or an
         edge. Over a :class:`DesignRegion` it is the sample's maximum.
+    whole_plot_variance_ratio : float or None
+        For a split-plot design, the whole-plot variance over the run (sub-plot) variance,
+        ``eta = sigma_gamma^2 / sigma_epsilon^2``, at least 0. The design must carry each
+        run's whole plot in a ``WholePlot`` column. Every metric then uses the generalized
+        least squares information ``X' V^-1 X``, with ``V = I + eta Z Z'`` and ``Z`` the
+        whole-plot indicators, in place of ``X'X``: the variances are in units of the run
+        variance, as JMP reports them for a split-plot design, and ``0`` gives back the
+        ordinary least squares metrics. The degrees of freedom and the power keep the
+        run-level residual degrees of freedom ``N - p``. ``None`` (default) ignores the
+        whole plots.
 
     Returns
     -------
@@ -1760,7 +1819,9 @@ def evaluate_design(  # noqa: PLR0913
     ------
     ValueError
         If *alpha* is not in (0, 1), *sigma* is not positive, *n_samples* is
-        below 1, a factor setting is missing, or *categorical_coding* is unknown.
+        below 1, a factor setting is missing, *categorical_coding* is unknown, or
+        *whole_plot_variance_ratio* is negative or given for a design without a
+        ``WholePlot`` column.
 
     Examples
     --------
@@ -1788,6 +1849,7 @@ def evaluate_design(  # noqa: PLR0913
         design_df = pd.DataFrame(design_matrix)
         factor_names = list(design_df.columns)
 
+    whole_plots, whole_plot_note = _whole_plots(design_df, whole_plot_variance_ratio)
     design_df, factor_names, block_note = _separate_run_columns(design_df, factor_names, model)
     _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
     if integration not in _INTEGRATIONS:
@@ -1823,6 +1885,8 @@ def evaluate_design(  # noqa: PLR0913
             categorical_coding=categorical_coding,
             integration=integration,
             max_search=max_search,
+            whole_plots=whole_plots,
+            whole_plot_variance_ratio=whole_plot_variance_ratio,
         )
     )
 
@@ -1837,6 +1901,8 @@ def evaluate_design(  # noqa: PLR0913
         results.update(result)
     if block_note:
         notes["blocks"] = block_note
+    if whole_plot_note:
+        notes["whole_plots"] = whole_plot_note
     if notes:
         results["notes"] = notes
 
@@ -1857,6 +1923,7 @@ def evaluate_all(  # noqa: PLR0913
     categorical_coding: str = "effect",
     integration: str = "sample",
     max_search: str = "sample",
+    whole_plot_variance_ratio: float | None = None,
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1888,4 +1955,5 @@ def evaluate_all(  # noqa: PLR0913
         categorical_coding=categorical_coding,
         integration=integration,
         max_search=max_search,
+        whole_plot_variance_ratio=whole_plot_variance_ratio,
     )

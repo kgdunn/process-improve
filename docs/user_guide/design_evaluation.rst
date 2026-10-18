@@ -87,6 +87,27 @@ These summarise the information matrix :math:`X^\top X` for the fitted model.
   model the design can estimate beside it: the rank the omitted interaction columns add
   to :math:`X`.
 
+Split-plot designs
+~~~~~~~~~~~~~~~~~~
+
+In a split-plot design the runs that share a setting of the hard-to-change factors (a
+whole plot) are correlated, so ordinary least squares misstates the variances. Pass
+``whole_plot_variance_ratio``, the whole-plot variance over the run variance
+:math:`\eta = \sigma_\gamma^2 / \sigma_\varepsilon^2`, and give each run's whole plot
+in a ``WholePlot`` column. Every metric then uses the generalized least squares
+information :math:`X^\top V^{-1} X`, with :math:`V = I + \eta Z Z^\top` and :math:`Z`
+the whole-plot indicators, in place of :math:`X^\top X`. The variances are in units of
+the run variance, as JMP reports them for a split-plot design.
+
+.. code-block:: python
+
+   evaluate_design(
+       design,  # with a WholePlot column
+       model="quadratic",
+       metric=["information_matrix", "average_prediction_variance"],
+       whole_plot_variance_ratio=1.0,
+   )
+
 Term correlation
 ~~~~~~~~~~~~~~~~~
 
