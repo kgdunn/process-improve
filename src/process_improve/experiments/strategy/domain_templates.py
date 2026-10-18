@@ -132,15 +132,19 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
                 "co-solvent percentage, and particle size."
             ),
             "intermediate": (
-                "CCD with rotatable alpha provides uniform prediction variance across the "
-                "design region, which is important when the optimum may be near the region "
-                "boundary. Extraction yield curves are often strongly quadratic."
+                "The plan's CCD is face-centred, so every run stays inside the factor ranges. Where the "
+                "ranges are not hard limits, a rotatable CCD (alpha='rotatable') gives uniform prediction "
+                "variance across the region, which matters when the optimum may be near its boundary. "
+                "Extraction yield curves are often strongly quadratic."
             ),
         },
         "extra_stages": [],
         "special_considerations": [
             "Extraction processes often have strongly quadratic responses.",
-            "CCD with rotatable alpha provides good prediction at region boundaries.",
+            (
+                "Where the factor ranges are not hard limits, a rotatable CCD predicts better at the region "
+                "boundaries than the face-centred one the plan uses; its axial runs go beyond the ranges."
+            ),
         ],
     },
     "analytical_method": {

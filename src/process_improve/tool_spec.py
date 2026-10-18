@@ -29,8 +29,12 @@ Import the decorated tools and pass the specs to the Anthropic client::
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
+import sys
+import threading
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -38,6 +42,12 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
+
+#: Serialises ``warnings.catch_warnings``, which swaps module-global state and is not
+#: thread-safe: two tool calls on different threads could otherwise restore each other's
+#: filters. A build with context-aware warnings (``sys.flags.context_aware_warnings``,
+#: Python 3.14) keeps that state per thread and needs no lock.
+_WARNINGS_LOCK = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -327,6 +337,35 @@ def get_tool_specs(
     return specs
 
 
+#: Packages whose own warnings are numerical noise to a caller of the tools, such as a saturated
+#: fit's division by zero; the library says what they mean in its own warnings. The browser app
+#: leaves out the same packages (``web/bootstrap.py``).
+_FOREIGN_PACKAGES = ("numpy", "scipy", "statsmodels", "pandas", "patsy", "sklearn")
+
+
+def _foreign(filename: str) -> bool:
+    """Say whether a warning was raised inside one of the numerical packages."""
+    path = filename.replace("\\", "/")
+    return any(f"/{package}/" in path for package in _FOREIGN_PACKAGES)
+
+
+def _call_recording_warnings(func: Callable[..., Any], parsed: BaseModel) -> tuple[Any, list[warnings.WarningMessage]]:
+    """Run ``func(parsed)``; return its result and each warning it raised, once, in the order raised.
+
+    Warnings raised inside numpy, scipy, statsmodels, pandas, patsy or scikit-learn are left out.
+    """
+    context_aware = getattr(sys.flags, "context_aware_warnings", False)
+    guard = contextlib.nullcontext() if context_aware else _WARNINGS_LOCK
+    with guard, warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = func(parsed)
+    unique: dict[tuple[type[Warning], str], warnings.WarningMessage] = {}
+    for record in caught:
+        if not _foreign(record.filename):
+            unique.setdefault((record.category, str(record.message)), record)
+    return result, list(unique.values())
+
+
 def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noqa: ANN401
     """Dispatch a single tool call from an Anthropic ``tool_use`` content block.
 
@@ -335,6 +374,14 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     ``ToolInputInvalidError`` (closes the SEC-15 ``confirmed=True``
     kwarg-injection at the schema layer). The parsed pydantic model is
     passed to the tool function as a single positional argument.
+
+    A warning the tool raises would otherwise reach only the server's stderr, which a
+    model calling the tool never reads. Each one is returned in the result instead,
+    under ``library_warnings`` as ``{"category", "message"}`` records, once each; the
+    numerical packages' own warnings, such as a division by zero, are left out. A
+    tool whose result is not a dict has its warnings raised again, as they were. The
+    warnings are recorded under a lock, so tool calls on different threads run one at
+    a time, except on a build with context-aware warnings.
 
     Parameters
     ----------
@@ -347,7 +394,8 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     -------
     Any
         Whatever the tool function returns (typically a JSON-serialisable
-        ``dict``).
+        ``dict``), with ``library_warnings`` added to a dict when the tool
+        raised any warning.
 
     Raises
     ------
@@ -369,7 +417,13 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
             f"Input to tool {tool_name!r} failed validation: {exc}",
             details={"tool_name": tool_name, "errors": exc.errors()},
         ) from exc
-    return func(parsed)
+    result, raised = _call_recording_warnings(func, parsed)
+    if raised and isinstance(result, dict):
+        records = [{"category": w.category.__name__, "message": str(w.message)} for w in raised]
+        return {**result, "library_warnings": records}
+    for w in raised:
+        warnings.warn_explicit(w.message, w.category, w.filename, w.lineno)
+    return result
 
 
 # ---------------------------------------------------------------------------

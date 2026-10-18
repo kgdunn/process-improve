@@ -13,9 +13,11 @@ import hashlib
 import json
 import math
 import re
+import warnings
 from typing import Any, Literal, cast
 
 from process_improve.experiments.designs_response_surface import dsd_run_count
+from process_improve.experiments.designs_screening import plackett_burman_runs
 from process_improve.experiments.factor import Constraint, Factor, Response
 from process_improve.experiments.strategy.budget import (
     allocate_budget,
@@ -219,7 +221,11 @@ def _built_runs(factors: list[Factor], design_type: str, params: dict[str, Any])
         return int(params["budget"])
     from process_improve.experiments.designs import generate_design  # noqa: PLC0415
 
-    return generate_design(factors, design_type=design_type, **params).n_runs
+    # Only the size is wanted: a warning about a design the planner merely tries, such as a
+    # smaller variant it then rejects, would only mislead the caller.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return generate_design(factors, design_type=design_type, **params).n_runs
 
 
 def _factors_named(spec: DOEProblemSpec, names: list[str]) -> list[Factor]:
@@ -317,22 +323,33 @@ def _large_factor_screening_choice(n: int, classification: dict[str, Any], templ
     """Choose (design_type, estimated_runs) when the factorial/mixture rules do not apply.
 
     A budget below ``n + 1`` gets a supersaturated design when one exists for it.
-    Otherwise the original ordered decision chain holds: definitive screening (very
-    tight budget, curvature preference, or moderate prior confidence) takes
-    precedence, then Plackett-Burman (explicit preference or 6+ factors with adequate
-    budget), then an explicit fractional-factorial preference, with Plackett-Burman as
-    the default. The returned key is a ``generate_design`` design type.
+    Otherwise the ordered decision chain holds: definitive screening (very tight
+    budget, curvature preference, moderate prior confidence, or continuous factors
+    with room in the budget and no domain preference) takes precedence, then
+    Plackett-Burman (explicit preference or 6+ factors with adequate budget), then an
+    explicit fractional-factorial preference, with Plackett-Burman as the default.
+    The returned key is a ``generate_design`` design type.
+
+    A DSD is the default for continuous factors because its main effects are
+    orthogonal to every two-factor interaction and square. In a 12-run Plackett-Burman
+    design each interaction biases the main effects of the factors outside it by a
+    third of its size, which can shrink a real factor to the size of the biased
+    inactive ones, so the analysis misses it.
     """
     if (runs := _supersaturated_runs(n, classification)) is not None:
         return "supersaturated", runs
     prefer_curvature = template.get("prefer_curvature_detection", False)
     domain_pref = template.get("screening_preference")
+    roomy_continuous = (
+        domain_pref is None and classification["n_continuous"] == n and not classification["is_tight_budget"]
+    )
 
     if (
         classification["is_very_tight_budget"]
         or prefer_curvature
         or domain_pref == "dsd"
         or classification["prior_confidence"] >= 0.6
+        or roomy_continuous
     ):
         return "dsd", estimate_screening_runs(n, "dsd")
     if domain_pref == "plackett_burman" or (n >= 6 and not classification["is_tight_budget"]):
@@ -342,16 +359,49 @@ def _large_factor_screening_choice(n: int, classification: dict[str, Any], templ
     return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
 
 
-def _screening_design_params(design_type: str, runs: int) -> dict[str, Any]:
+#: Degrees of freedom for error a planned DSD leaves :func:`analyze_omars`. With two, its
+#: t-tests' critical value is 4.3 and a simulated 8-factor study missed an active factor 6%
+#: of the time; with four it is 2.8, and it missed none.
+_DSD_ERROR_DF = 4
+
+
+def _dsd_params(n_factors: int) -> dict[str, Any]:
+    """Return the ``generate_design`` keyword arguments for a DSD of ``n_factors`` continuous factors.
+
+    The staged analysis (:func:`analyze_omars`) estimates the error from what the full
+    second-order model cannot fit. The DSD of an even number of factors leaves it nothing,
+    and of an odd number one degree of freedom less than its centre runs; each centre run
+    added gives one more. Centre runs are added until :data:`_DSD_ERROR_DF` are left: five
+    in all for an even number of factors, four for an odd number.
+    """
+    return {"n_center_points": _DSD_ERROR_DF + 1 if n_factors % 2 == 0 else _DSD_ERROR_DF}
+
+
+def _dsd_error_df(n_factors: int, params: dict[str, Any]) -> int:
+    """Return the degrees of freedom for error a DSD built with ``params`` leaves :func:`analyze_omars`."""
+    centres = max(int(params.get("n_center_points") or 1), 1)
+    return centres - 1 if n_factors % 2 == 0 else centres
+
+
+def _screening_design_params(
+    design_type: str, runs: int, *, all_continuous: bool = True, n_factors: int | None = None
+) -> dict[str, Any]:
     """Build the ``generate_design`` keyword arguments for a large-factor screening stage.
 
-    A definitive screening design needs none: ``generate_design`` handles an even
-    number of factors itself.
+    A definitive screening design takes the centre runs that leave its analysis four
+    degrees of freedom for error (see :func:`_dsd_params`). A Plackett-Burman design gets three centre runs when
+    every factor is continuous, for two reasons: they test for curvature, which is
+    what decides whether the optimisation stage is needed at all, and the extra
+    degrees of freedom let a stepwise search hold an interaction beside the main
+    effects, which removes the bias that interaction puts on them. A categorical
+    factor has no centre, so then it gets none.
     """
     if design_type == "fractional_factorial":
         return {"resolution": 4, "n_center_points": 3}
     if design_type == "plackett_burman":
-        return {"n_center_points": 0}  # PB typically without center points
+        return {"n_center_points": 3 if all_continuous else 0}
+    if design_type == "dsd" and n_factors is not None and all_continuous:
+        return _dsd_params(n_factors)
     if design_type == "supersaturated":
         return {"budget": runs}
     return {}
@@ -383,7 +433,7 @@ def _select_screening_design(
 
     # Remaining cases (typically 6+ factors): Plackett-Burman, DSD, or fractional factorial.
     design_type, runs = _large_factor_screening_choice(n, classification, template)
-    params = _screening_design_params(design_type, runs)
+    params = _screening_design_params(design_type, runs, all_continuous=spec.n_continuous == n, n_factors=n)
     return ExperimentalStage(
         stage_number=1,
         stage_name="Screening",
@@ -497,7 +547,13 @@ def _rsm_design(
     template: dict[str, Any],
     has_screening: bool,
 ) -> tuple[str, dict[str, Any], str]:
-    """Choose the optimisation design over ``factors``: (design_type, design_params, reason)."""
+    """Choose the optimisation design over ``factors``: (design_type, design_params, reason).
+
+    A CCD is face-centred. The factors' low and high settings are all the planner knows
+    of the region, which makes it a cube, and a rotatable CCD's axial runs leave that
+    cube (by 1.68 times the half-range for three factors), at settings that may not
+    be possible to run, such as a negative concentration.
+    """
     n_rsm = len(factors)
     if spec.has_constraints or n_rsm == 1 or any(f.type.value == "categorical" for f in factors):
         return _optimal_rsm_design(spec, factors)
@@ -506,19 +562,15 @@ def _rsm_design(
     params: dict[str, Any] = {"n_center_points": template.get("min_center_points", 3)}
     # Box-Behnken designs exist for 3 to 7 factors.
     if has_screening and domain_pref in ("ccd", "ccd_face_centered", None):
-        face_centered = domain_pref == "ccd_face_centered"
-        reason = "CCD augments the factorial base from screening with axial + center points."
+        reason = (
+            "A face-centred CCD adds axial and centre runs to a two-level base, with every run inside the factor "
+            "ranges."
+        )
     elif 3 <= n_rsm <= 7 and (domain_pref == "box_behnken" or not has_screening):
         return "box_behnken", params, "BBD for response surface modeling - fewer runs, avoids extreme corners."
     else:
-        # A domain that prefers Box-Behnken avoids settings beyond the factor ranges.
-        face_centered = domain_pref in ("ccd_face_centered", "box_behnken")
-        reason = (
-            "Face-centred CCD keeps every run within the factor ranges."
-            if face_centered
-            else "CCD for full quadratic model with rotatability."
-        )
-    params["alpha"] = "face_centered" if face_centered else "rotatable"
+        reason = "Face-centred CCD keeps every run within the factor ranges."
+    params["alpha"] = "face_centered"
     if n_rsm >= 6:
         params["cube"] = "fractional"  # a resolution V half fraction, not the full 2^k cube
     return "ccd", params, reason
@@ -594,7 +646,8 @@ def _build_confirmation_stage(
         estimated_runs=n_runs,
         purpose=(
             "Run replicates at the predicted optimum to verify the model predictions. "
-            "Compare observed vs. predicted using a confirmation test (prediction interval check)."
+            "Compare their mean with the prediction interval for the mean of that many runs (analyze_experiment "
+            "with analysis_type='confirmation_test' reports the verdict as 'confirmed')."
         ),
         success_criteria={"observed_within_prediction_interval": True},
         transition_rules=[
@@ -605,6 +658,67 @@ def _build_confirmation_stage(
             ),
         ],
     )
+
+
+# ---------------------------------------------------------------------------
+# Conditional stages
+# ---------------------------------------------------------------------------
+
+#: Two-level screening designs whose centre runs, when they have some, test for curvature.
+_TWO_LEVEL_SCREENING = frozenset({"full_factorial", "fractional_factorial", "plackett_burman"})
+
+
+def _curvature_gate(screening: ExperimentalStage, spec: DOEProblemSpec) -> str:
+    """Say what ``screening`` must show for the optimisation stage after it to be run; "" if it cannot show it.
+
+    A DSD runs every factor at three levels, and a two-level design with centre runs
+    compares its centre with its corners, so either can show whether a response
+    surface is needed. Any other screening design cannot, and the optimisation stage
+    after it is planned unconditionally.
+    """
+    if screening.design_type == "dsd":
+        error_df = _dsd_error_df(spec.n_factors, screening.design_params)
+        if error_df >= _DSD_ERROR_DF:
+            analysis = "analyze_omars"
+        elif error_df:
+            analysis = (
+                f"analyze_omars, whose {error_df} degree(s) of freedom for error can miss a smaller active effect"
+            )
+        else:
+            analysis = (
+                "analyze_experiment with analysis_type='model_selection', since without extra centre runs "
+                "analyze_omars has no degrees of freedom for error"
+            )
+        return (
+            f"the analysis of the definitive screening design ({analysis}) finds more than three active "
+            "factors, or active second-order terms it cannot separate. A DSD already fits the full quadratic "
+            "model in any three factors, so with three or fewer active factors the study goes straight to "
+            "confirmation at that model's optimum."
+        )
+    has_centre = bool(screening.design_params.get("n_center_points"))
+    if screening.design_type in _TWO_LEVEL_SCREENING and has_centre and spec.n_continuous == spec.n_factors:
+        return (
+            "the centre runs show curvature (analyze_experiment with analysis_type='curvature_test'). Without "
+            "it, the screening model of main effects and interactions puts the best settings at a corner of "
+            "the region, so the study goes straight to confirmation there."
+        )
+    return ""
+
+
+def _mark_conditional_stages(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> list[ExperimentalStage]:
+    """Make an optimisation stage conditional when the screening stage before it can test for curvature.
+
+    Run last, on the stages as the budget left them: a tight budget can take the
+    centre runs out of a screening design, and then there is nothing to decide with.
+    """
+    marked = list(stages)
+    for i in range(1, len(marked)):
+        if marked[i - 1].stage_name != "Screening" or marked[i].stage_name != "Optimization":
+            continue
+        gate = _curvature_gate(marked[i - 1], spec)
+        if gate:
+            marked[i] = marked[i].model_copy(update={"conditional": True, "run_if": gate})
+    return marked
 
 
 # ---------------------------------------------------------------------------
@@ -694,6 +808,10 @@ def _apply_prior_knowledge(
 #: Stage name to the key ``allocate_budget`` uses for its share.
 _STAGE_BUDGET_KEYS = {"Screening": "screening", "Optimization": "optimization", "Confirmation": "confirmation"}
 
+#: Fewest factors for which a DSD fits the full quadratic model in any three of them
+#: (Jones and Nachtsheim 2011).
+_DSD_PROJECTS_TO_QUADRATIC = 6
+
 #: Classical screening designs a tight budget may replace with a saturated Plackett-Burman design.
 _SHRINKABLE_SCREENING = frozenset({"full_factorial", "fractional_factorial", "plackett_burman", "dsd"})
 
@@ -739,11 +857,15 @@ def _variant_runs(stage: ExperimentalStage, spec: DOEProblemSpec) -> list[tuple[
     return out
 
 
-def _single_dsd_plan(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> list[ExperimentalStage] | None:
+def _single_dsd_plan(
+    stages: list[ExperimentalStage], spec: DOEProblemSpec, *, extra_centres: bool = True
+) -> list[ExperimentalStage] | None:
     """One definitive screening design in place of separate screening and optimisation stages.
 
-    Returns None when the plan has no such pair, or when a DSD cannot take the factors
-    (fewer than three, any not continuous, or hard-to-change factors needing a split plot).
+    The DSD has the centre runs that leave its analysis :data:`_DSD_ERROR_DF` degrees of
+    freedom for error, or, with ``extra_centres=False``, only its own. Returns None when the
+    plan has no such pair, or when a DSD cannot take the factors (fewer than three, any not
+    continuous, or hard-to-change factors needing a split plot).
     """
     names = {s.stage_name for s in stages}
     if (
@@ -753,17 +875,20 @@ def _single_dsd_plan(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> l
         or spec.has_hard_to_change
     ):
         return None
+    params = _dsd_params(spec.n_factors) if extra_centres else {}
+    fits = (
+        "it estimates the full quadratic model in up to three active factors"
+        if spec.n_factors >= _DSD_PROJECTS_TO_QUADRATIC
+        else "it estimates every main effect clear of the second-order terms"
+    )
     dsd = ExperimentalStage(
         stage_number=1,
         stage_name="Screening and optimization",
         design_type="dsd",
-        design_params={},
+        design_params=params,
         factors=spec.factor_names,
-        estimated_runs=_built_runs(spec.factors, "dsd", {}),
-        purpose=(
-            f"Screen all {spec.n_factors} factors and detect curvature in one definitive screening design; "
-            "it estimates the full quadratic model in up to three active factors."
-        ),
+        estimated_runs=_built_runs(spec.factors, "dsd", params),
+        purpose=f"Screen all {spec.n_factors} factors and detect curvature in one definitive screening design; {fits}.",
         success_criteria={"min_significant_factors": 1, "max_significant_factors": 3},
         transition_rules=_screening_transition_rules(),
     )
@@ -772,24 +897,38 @@ def _single_dsd_plan(stages: list[ExperimentalStage], spec: DOEProblemSpec) -> l
     return [dsd, smallest]
 
 
-def _apply_budget_constraints(
-    stages: list[ExperimentalStage],
-    spec: DOEProblemSpec,
-    budget_alloc: dict[str, Any],
-) -> tuple[list[ExperimentalStage], list[str]]:
-    """Change the stages' designs until the plan fits the budget. Returns (stages, warnings).
+def _few_error_df_note(spec: DOEProblemSpec) -> str:
+    """Say what a DSD without its extra centre runs leaves its analysis."""
+    error_df = _dsd_error_df(spec.n_factors, {})
+    return (
+        f" To fit the budget it has no extra centre runs, so its analysis has {error_df} degree(s) of freedom for "
+        "error and can miss a smaller active effect."
+    )
 
-    Each step takes the stage furthest over its share of the budget (from
-    ``allocate_budget``) to its next smaller design, so ``estimated_runs`` is always what
-    the stage's ``design_params`` build. When every stage is as small as it goes and the
-    plan still does not fit, one definitive screening design replaces the screening and
-    optimisation stages if that fits; otherwise the warning says the budget is too small.
+
+def _lost_curvature_test(ideal: list[ExperimentalStage], fitted: list[ExperimentalStage], spec: DOEProblemSpec) -> bool:
+    """Whether reducing the plan took away its screening design's test for curvature.
+
+    Asked only for six or more factors, where the DSD that would replace the plan fits
+    a full quadratic model in any three of them; a smaller DSD cannot.
     """
-    budget = spec.budget
-    ideal_total = sum(s.estimated_runs for s in stages)
-    if budget is None or ideal_total <= budget:
-        return stages, []
+    if spec.n_factors < _DSD_PROJECTS_TO_QUADRATIC:
+        return False
+    screening = [
+        (before, after)
+        for before, after in zip(ideal, fitted, strict=True)
+        if before.stage_name == "Screening" and any(s.stage_name == "Optimization" for s in ideal)
+    ]
+    return any(_curvature_gate(before, spec) and not _curvature_gate(after, spec) for before, after in screening)
 
+
+def _shrink_to_budget(
+    stages: list[ExperimentalStage], spec: DOEProblemSpec, budget_alloc: dict[str, Any], budget: int
+) -> tuple[list[ExperimentalStage], list[str]]:
+    """Take stages to smaller designs, the one furthest over its share first, until they fit or none can shrink.
+
+    Returns the stages as reduced and a description of each change.
+    """
     options = [_variant_runs(stage, spec) for stage in stages]
     level = [0] * len(stages)
 
@@ -815,7 +954,43 @@ def _apply_budget_constraints(
         fitted.append(
             stage.model_copy(update={"design_type": design_type, "design_params": params, "estimated_runs": n_runs})
         )
+    return fitted, changes
+
+
+def _apply_budget_constraints(
+    stages: list[ExperimentalStage],
+    spec: DOEProblemSpec,
+    budget_alloc: dict[str, Any],
+) -> tuple[list[ExperimentalStage], list[str]]:
+    """Change the stages' designs until the plan fits the budget. Returns (stages, warnings).
+
+    Each step takes the stage furthest over its share of the budget (from
+    ``allocate_budget``) to its next smaller design, so ``estimated_runs`` is always what
+    the stage's ``design_params`` build. One definitive screening design replaces the
+    screening and optimisation stages, if it fits, in two cases: when every stage is as
+    small as it goes and the plan still does not fit, and when the reduction took away
+    the screening design's test for curvature, which would leave the optimisation stage
+    to be run whatever the screening shows. Otherwise the warning says the budget is too
+    small.
+    """
+    budget = spec.budget
+    ideal_total = sum(s.estimated_runs for s in stages)
+    if budget is None or ideal_total <= budget:
+        return stages, []
+
+    fitted, changes = _shrink_to_budget(stages, spec, budget_alloc, budget)
     smallest_total = sum(s.estimated_runs for s in fitted)
+    single = _single_dsd_plan(stages, spec)
+    single_total = sum(s.estimated_runs for s in single) if single is not None else smallest_total
+    if single is not None and single_total <= budget and _lost_curvature_test(stages, fitted, spec):
+        return single, [
+            (
+                f"Budget of {budget} runs is below the {ideal_total} runs of the ideal plan, and reducing it would "
+                "leave a screening design that cannot test for curvature followed by an optimisation stage that "
+                "must then always be run. One definitive screening design instead screens the factors and tests "
+                "for curvature; it fits a full quadratic model if at most three factors are active."
+            )
+        ]
     if smallest_total <= budget:
         return fitted, [
             (
@@ -824,18 +999,18 @@ def _apply_budget_constraints(
             )
         ]
 
-    single = _single_dsd_plan(stages, spec)
-    single_total = sum(s.estimated_runs for s in single) if single is not None else smallest_total
-    if single is not None and single_total <= budget:
-        return single, [
-            (
-                f"Budget of {budget} runs cannot hold separate screening and optimisation stages (at least "
-                f"{smallest_total} runs), so one definitive screening design screens the factors and detects "
-                "curvature; it fits a full quadratic model only if at most three factors are active."
-            )
-        ]
-    if single is not None and single_total < smallest_total:
-        fitted, smallest_total = single, single_total
+    bare = _single_dsd_plan(stages, spec, extra_centres=False)
+    for plan, note in ((single, ""), (bare, _few_error_df_note(spec))):
+        if plan is not None and sum(s.estimated_runs for s in plan) <= budget:
+            return plan, [
+                (
+                    f"Budget of {budget} runs cannot hold separate screening and optimisation stages (at least "
+                    f"{smallest_total} runs), so one definitive screening design screens the factors and detects "
+                    f"curvature; it fits a full quadratic model only if at most three factors are active.{note}"
+                )
+            ]
+    if bare is not None and sum(s.estimated_runs for s in bare) < smallest_total:
+        fitted, smallest_total = bare, sum(s.estimated_runs for s in bare)
     return fitted, [
         (
             f"Budget of {budget} runs is below the smallest plan the rules give ({smallest_total} runs, with "
@@ -922,14 +1097,23 @@ def _build_risks(
     return risks
 
 
-def _build_alternatives(spec: DOEProblemSpec, classification: dict[str, Any]) -> list[str]:
-    """Suggest alternative strategies."""
+def _build_alternatives(
+    spec: DOEProblemSpec, classification: dict[str, Any], stages: list[ExperimentalStage]
+) -> list[str]:
+    """Suggest alternative strategies, other than the designs the plan already uses."""
     alternatives: list[str] = []
     n = classification["n_factors"]
+    planned = {s.design_type for s in stages}
 
-    if n >= 6:
+    if n >= 6 and "dsd" not in planned:
         alternatives.append(
             f"Definitive Screening Design ({dsd_run_count(n)} runs) to combine screening and curvature detection."
+        )
+    elif n >= 6 and spec.n_continuous == n:
+        alternatives.append(
+            f"Plackett-Burman design with 3 centre runs ({plackett_burman_runs(n) + 3} runs) if runs are scarcer "
+            "than the DSD allows: each two-factor interaction then biases the main effects of the factors "
+            "outside it, so analyse it with a stepwise search that can take interactions in."
         )
     if n <= 5:
         alternatives.append(f"Full factorial 2^{n} ({2**n} runs) if budget allows complete information.")
@@ -972,8 +1156,16 @@ def _build_reasoning(
     reasoning.extend(
         f"Stage {stage.stage_number} ({stage.stage_name}): "
         f"{stage.design_type}, {stage.estimated_runs} runs. {stage.purpose}"
+        + (f" Conditional: run this stage only if {stage.run_if}" if stage.conditional else "")
         for stage in stages
     )
+    conditional_runs = sum(s.estimated_runs for s in stages if s.conditional)
+    if conditional_runs:
+        total = sum(s.estimated_runs for s in stages)
+        reasoning.append(
+            f"The plan needs {total - conditional_runs} runs when the screening shows no conditional stage is "
+            f"called for, and {total} when it is."
+        )
 
     domain_notes = template.get("notes", {}).get(spec.detail_level, "")
     if domain_notes:
@@ -1159,9 +1351,10 @@ def recommend_strategy(  # noqa: C901, PLR0913
 
     stages, budget_warnings = _apply_budget_constraints(stages, spec, budget_alloc)
 
-    # --- Re-number stages ---
+    # --- Re-number stages; mark the ones the screening decides on ---
     for i, stage in enumerate(stages):
         stages[i] = stage.model_copy(update={"stage_number": i + 1})
+    stages = _mark_conditional_stages(stages, spec)
 
     # --- Assemble strategy ---
     total_runs = sum(s.estimated_runs for s in stages)
@@ -1171,10 +1364,11 @@ def recommend_strategy(  # noqa: C901, PLR0913
         strategy_id=_compute_strategy_id(spec),
         stages=stages,
         total_estimated_runs=total_runs,
+        minimum_total_runs=sum(s.estimated_runs for s in stages if not s.conditional),
         budget_allocation=budget_dict,
         assumptions=_build_assumptions(spec, has_screening),
         risks=_build_risks(spec, classification, budget_warnings, template),
-        alternative_strategies=_build_alternatives(spec, classification),
+        alternative_strategies=_build_alternatives(spec, classification, stages),
         domain=domain_enum.value,
         detail_level=detail_level,
         reasoning=_build_reasoning(spec, classification, stages, template),

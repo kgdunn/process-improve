@@ -37,8 +37,12 @@ from process_improve.experiments._tools.recommend_strategy import recommend_stra
 from process_improve.experiments._tools.trade_off_table import trade_off_table_tool
 from process_improve.experiments._tools.search_design_catalog import search_design_catalog_tool
 
+# Tools added since the split, appended so the tools before keep their place in the spec order.
+from process_improve.experiments._tools.analyze_omars import analyze_omars_tool
+
 __all__ = [
     "analyze_experiment_tool",
+    "analyze_omars_tool",
     "augment_design_tool",
     "create_factorial_design",
     "doe_knowledge_tool",

@@ -163,6 +163,7 @@ calling, rather than guessing at field names.
 | `create_factorial_design` | Quick 2^k full factorial |
 | `evaluate_design` | Resolution, aliasing, moment aberration, D/I/G-efficiency, VIF, power |
 | `analyze_experiment` | ANOVA, effects, diagnostics, Lenth, Box-Cox, confirmation |
+| `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
 | `fit_linear_model` | Explicit model formula when you need control |
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |
 | `optimize_responses` | Multi-response desirability optimisation |

@@ -112,9 +112,11 @@ Three cautions worth passing to the user every time:
 - **Never extrapolate** beyond the factor ranges studied. The model has no
   information there and will happily produce a confident number anyway.
 - **Confirm.** Run the predicted optimum, at least in triplicate, and check it
-  with `confirmation_test`. If the confirmation runs fall outside the
-  prediction interval, the model is wrong somewhere and the result should not
-  be used until that is understood.
+  with `confirmation_test`. Read its `confirmed` verdict, which compares the
+  mean of the runs with the prediction interval for a mean of that many runs;
+  `all_within_PI` checks each run separately and fails a correct model about
+  one time in seven with three runs. If `confirmed` is false, the model is
+  wrong somewhere and the result should not be used until that is understood.
 
 ## Analysing a design you did not generate
 

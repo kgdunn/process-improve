@@ -324,6 +324,30 @@ class TestPower:
         # Pick any factor - power should be higher with 2x runs
         assert p2["power"]["A"] >= p1["power"]["A"] - 0.01
 
+    def test_power_says_when_interactions_would_bias_the_tested_coefficients(self) -> None:
+        """A 12-run Plackett-Burman design reported 99% power for a factor it found 0.2% of the time.
+
+        Each main effect carries a third of every interaction among the other factors, so an
+        active interaction outside the main-effects model shrinks or inflates it.
+        """
+        design = generate_design(_continuous_factors(8), design_type="plackett_burman", n_center_points=0)
+        result = evaluate_design(design, model="main_effects", metric="power", effect_size=6.0, sigma=3.0)
+        assert result["power"]["X7"] > 0.95  # what the main-effects model alone promises
+        exposure = result["alias_exposure"]
+        assert set(exposure) == {f"X{i}" for i in range(1, 9)}
+        assert exposure["X7"] == {"aliased_interactions": 21, "max_abs_weight": pytest.approx(1 / 3)}
+        assert "real power can be much lower" in result["power_assumes"]
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{"design_type": "dsd", "n_center_points": 3}, {"design_type": "fractional_factorial", "resolution": 4}],
+    )
+    def test_power_has_no_alias_caveat_when_main_effects_are_clear_of_interactions(self, kwargs: dict) -> None:
+        design = generate_design(_continuous_factors(8), **kwargs)
+        result = evaluate_design(design, model="main_effects", metric="power", effect_size=6.0, sigma=3.0)
+        assert "alias_exposure" not in result
+        assert "power_assumes" not in result
+
     def test_power_curve_when_no_effect_size(self) -> None:
         """When effect_size is None, return power curves."""
         df = _full_factorial_df(3)

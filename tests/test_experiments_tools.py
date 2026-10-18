@@ -292,6 +292,64 @@ class TestEvaluateDesign:
 # ---------------------------------------------------------------------------
 
 
+def _dsd_rows(n_center_points: int | None, sigma: float = 0.5, seed: int = 5) -> list[dict]:
+    """Eight-factor DSD runs, coded, with a response in which A, C, F and A:C are active."""
+    from process_improve.experiments import Factor, TrueProcess, generate_design
+
+    factors = [Factor(name=name, low=-1, high=1) for name in "ABCDEFGH"]
+    kwargs = {} if n_center_points is None else {"n_center_points": n_center_points}
+    design = generate_design(factors, design_type="dsd", **kwargs).design.drop(columns="RunOrder")
+    truth = TrueProcess({"Intercept": 50, "A": 6, "C": -4, "F": 5, "A:C": 4}, sigma=sigma)
+    return design.assign(y=truth.simulate(design, random_state=seed)).to_dict("records")
+
+
+class TestAnalyzeOmars:
+    """The staged DSD / OMARS analysis, reachable as a tool."""
+
+    def test_finds_the_active_main_effects_and_interaction_of_a_dsd(self) -> None:
+        result = execute_tool_call("analyze_omars", {"design_matrix": _dsd_rows(3), "response_column": "y"})
+        assert result["success"] is True
+        assert sorted(result["active_main_effects"]) == ["A", "C", "F"]
+        assert result["active_interactions"] == ["A:C"]
+        assert result["active_quadratics"] == []
+        assert result["model_formula"] == "y ~ A + C + F + A:C"
+
+    def test_its_model_formula_fits_and_optimises_through_the_other_tools(self) -> None:
+        rows = _dsd_rows(3)
+        formula = execute_tool_call("analyze_omars", {"design_matrix": rows, "response_column": "y"})["model_formula"]
+        fit = execute_tool_call(
+            "analyze_experiment",
+            {"design_matrix": rows, "response_column": "y", "model": formula, "analysis_type": "coefficients"},
+        )
+        best = execute_tool_call(
+            "optimize_responses",
+            {"fitted_models": [fit], "goals": [{"response": "y", "goal": "maximize", "low": 30, "high": 80}]},
+        )
+        assert best["desirability"]["optimal_coded"] == pytest.approx({"A": 1, "C": 1, "F": 1}, abs=1e-6)
+
+    def test_a_dsd_without_error_degrees_of_freedom_reports_failure(self) -> None:
+        """The 17-run DSD of eight factors fills every degree of freedom of the full second-order model."""
+        result = execute_tool_call("analyze_omars", {"design_matrix": _dsd_rows(None), "response_column": "y"})
+        assert result["success"] is False
+        assert result["initial_error_df"] == 0
+        assert result["model_formula"] is None
+
+    def test_run_order_and_block_columns_are_not_factors(self) -> None:
+        rows = [dict(row, RunOrder=i, Block=1) for i, row in enumerate(_dsd_rows(3))]
+        result = execute_tool_call("analyze_omars", {"design_matrix": rows, "response_column": "y"})
+        assert result["factor_names"] == list("ABCDEFGH")
+
+    def test_an_unknown_response_column_is_an_error(self) -> None:
+        result = execute_tool_call("analyze_omars", {"design_matrix": _dsd_rows(3), "response_column": "z"})
+        assert "response_column 'z'" in result["error"]
+
+    def test_an_unknown_factor_name_is_an_error(self) -> None:
+        result = execute_tool_call(
+            "analyze_omars", {"design_matrix": _dsd_rows(3), "response_column": "y", "factor_names": ["A", "Q"]}
+        )
+        assert "['Q']" in result["error"]
+
+
 class TestAnalyzeExperiment:
     def test_anova_on_factorial(self) -> None:
         """ANOVA on a replicated 2^2 design should succeed."""
