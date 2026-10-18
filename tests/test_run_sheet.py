@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import process_improve.experiments.tools  # noqa: F401 - registers the experiments tools
 from process_improve.experiments import Factor, generate_design, read_run_sheet, run_sheet
 from process_improve.tool_safety import ToolInputInvalidError
 from process_improve.tool_spec import execute_tool_call
