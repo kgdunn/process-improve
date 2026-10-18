@@ -372,9 +372,35 @@ def _ols(data: pd.DataFrame, terms: list[str]) -> RegressionResultsWrapper:
 
 
 def _matrix(data: pd.DataFrame, terms: list[str]) -> tuple[np.ndarray, list[str]]:
-    """Return the model matrix of the terms (and the block contrasts), the intercept first, and its column names."""
-    matrix = dmatrix(_rhs_of(data, terms), data, return_type="dataframe")
-    return matrix.to_numpy(dtype=float), [str(c) for c in matrix.columns]
+    """Return the model matrix of the terms (and the block contrasts), the intercept first, and its column names.
+
+    The matrix is read-only: it is built once for each set of runs and kept (see :func:`_built`).
+    """
+    settings = data.drop(columns="y", errors="ignore")
+    key = (tuple(map(str, settings.columns)), pd.util.hash_pandas_object(settings, index=False).to_numpy().tobytes())
+    matrix, names = _built(_rhs_of(data, terms), _Settings(key, settings))
+    return matrix, list(names)
+
+
+@dataclass(frozen=True)
+class _Settings:
+    """The runs' settings, without the response, compared and hashed by their columns and values alone."""
+
+    key: tuple[tuple[str, ...], bytes]
+    frame: pd.DataFrame = field(compare=False, hash=False)
+
+
+@functools.lru_cache(maxsize=64)
+def _built(rhs: str, settings: _Settings) -> tuple[np.ndarray, tuple[str, ...]]:
+    """Build a model matrix once for each set of runs.
+
+    Judging one study builds the same matrices several times, and so do the simulated studies
+    of one design (see :mod:`process_improve.experiments.simulate`): only the response differs.
+    """
+    matrix = dmatrix(rhs, settings.frame, return_type="dataframe")
+    values = matrix.to_numpy(dtype=float)
+    values.flags.writeable = False
+    return values, tuple(str(c) for c in matrix.columns)
 
 
 def _chain_leaders(data: pd.DataFrame, rhs: str) -> list[str] | None:
