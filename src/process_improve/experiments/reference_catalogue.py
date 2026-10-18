@@ -449,6 +449,20 @@ def _coded_runs(
     return pd.DataFrame(settings), table[names].astype(float)
 
 
+def _changed(settings: pd.DataFrame, changes: list | None) -> pd.DataFrame:
+    """Return coded settings with some elements replaced, each change ``[run, factor, value]``, the run 1-based.
+
+    A source can work a design element by element from a printed one, as a coordinate exchange
+    changes one setting at a time: each design it considers is the printed runs with its changes.
+    """
+    if not changes:
+        return settings
+    changed = settings.copy()
+    for run, factor, value in changes:
+        changed.loc[run - 1, factor] = float(value)
+    return changed
+
+
 _ANALYSES = ["coefficients", "anova", "residual_diagnostics", "lack_of_fit", "lenth_method", "curvature_test"]
 
 
@@ -727,6 +741,29 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     return float(prediction[bound])
 
 
+def _best_corner(out: dict, check: dict, experiment: dict) -> float:
+    """Return a factor's setting, -1 or +1, at the corner of the cube where the fitted model predicts the most.
+
+    The corners are the two-level combinations of ``check["factors"]``, every other factor at its
+    centre, and each is scored by the library's prediction; ``"goal": "minimize"`` takes the least.
+    ``check["factor"]`` names the setting returned, as a source tabulates the settings that each of
+    several fitted models recommends.
+    """
+    names = [f["name"] for f in experiment["factors"]]
+    chosen = list(check["factors"])
+    corners = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=len(chosen))), columns=chosen)
+    points = pd.DataFrame(0.0, index=corners.index, columns=names)
+    points[chosen] = corners
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = analyze_experiment(
+            out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=points
+        )
+    predicted = np.array([float(p["predicted"]) for p in found["predictions"]])
+    best = int(np.argmin(predicted) if check.get("goal") == "minimize" else np.argmax(predicted))
+    return float(corners.iloc[best][check["factor"]])
+
+
 def _target_setting(out: dict, check: dict, experiment: dict) -> float:
     """Return the setting of one factor at which the fitted model predicts a target, the others held fixed.
 
@@ -944,32 +981,92 @@ def _split_plot(out: dict, check: dict, experiment: dict) -> float:
     """Return a number of the library's split-plot analysis: REML with the whole plots as a random effect.
 
     ``check["whole_plot"]`` lists the columns whose combination is a run's whole plot (the replicate
-    and the hard-to-change factor, say), and the model is ``check["model"]``, a formula; categorical
-    factors written ``C(name, Sum)`` are coded to sum to zero, as their main effects' tests need.
-    ``check["key"]`` is ``"whole_plot"`` or ``"residual"``, a variance; ``"whole_plot_error_df"`` or
-    ``"subplot_error_df"``; or ``"f.<term>"``, ``"p.<term>"``, ``"df.<term>"`` or ``"df_den.<term>"``
-    for a term's F test on Satterthwaite's degrees of freedom, the term named as the library names it.
+    and the hard-to-change factor, say, or the block of a design in random blocks), and the model is
+    ``check["model"]``, a formula; categorical factors written ``C(name, Sum)`` are coded to sum to
+    zero, as their main effects' tests need. ``check["df_method"]`` and ``check["information"]`` are
+    the analysis's (``"kenward_roger"`` and ``"observed"`` together are JMP's). ``check["key"]`` is
+    ``"whole_plot"``, ``"residual"`` or ``"eta"``, a variance or their ratio; ``"whole_plot_error_df"``
+    or ``"subplot_error_df"``; ``"f.<term>"``, ``"p.<term>"``, ``"df.<term>"`` or ``"df_den.<term>"``
+    for a term's F test; ``"coefficient.<term>"``, ``"std_error.<term>"``, ``"t_value.<term>"``,
+    ``"p_value.<term>"`` or ``"df_t.<term>"`` for a coefficient's t-test, the term named as the
+    library names it; ``"prediction"``, the generalized least-squares fit at the coded point
+    ``check["point"]``; or ``"best_corner.<factor>"``, the factor's setting at the corner of
+    ``check["factors"]`` (the others at zero) where that fit predicts the most, or the least with
+    ``"goal": "minimize"``.
+
+    With ``"crossed": true`` each column of ``check["whole_plot"]`` is a random effect of its own,
+    crossed with the others, as the rows and the columns of a two-way split-plot design are; a
+    variance component, ``"<column>_error_df"`` and ``"blup.<column>.<label>"``, the best linear
+    unbiased prediction of one group's effect, are then named by the column.
     """
-    runs = experiment["runs"]
-    whole_plots = tuple(check["whole_plot"])
-    cache = out.setdefault("split_plot_fits", {})
-    if whole_plots not in cache:
-        table = pd.DataFrame(runs["rows"], columns=runs["columns"])
-        labels = table[list(whole_plots)].astype(str).agg(":".join, axis=1).to_numpy()
-        settings = out["settings"].assign(WholePlot=labels)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            cache[whole_plots] = analyze_experiment(
-                settings, out["y"], model=check["model"], analysis_type="split_plot", whole_plot="WholePlot"
-            )["split_plot"]
-    fit = cache[whole_plots]
+    fit = _split_plot_fit(out, check, experiment)
     kind, _, term = check["key"].partition(".")
+    if kind in ("prediction", "best_corner"):
+        return _split_plot_prediction(fit, out, check, term)
+    if kind == "blup":
+        name, _, level = term.partition(".")
+        return float(fit["blups"][name][level])
     if kind in fit["variance_components"]:
         return float(fit["variance_components"][kind])
     if kind.endswith("_error_df"):
         return float(fit["error_df"][kind.removesuffix("_error_df")])
+    if kind in ("coefficient", "std_error", "t_value", "p_value", "df_t"):
+        rows = {row["term"]: row for row in fit["coefficients"]}
+        return float(rows[term]["df" if kind == "df_t" else kind])
     test = next(row for row in fit["tests"] if row["source"] == term)
     return float({"f": test["F"], "p": test["p_value"], "df": test["df"], "df_den": test["df_denominator"]}[kind])
+
+
+def _split_plot_fit(out: dict, check: dict, experiment: dict) -> dict[str, Any]:
+    """Return the library's split-plot analysis a check asks for, worked once per fit and set of options."""
+    whole_plots = tuple(check["whole_plot"])
+    crossed = bool(check.get("crossed"))
+    options = {k: check[k] for k in ("df_method", "information") if k in check}
+    cache = out.setdefault("split_plot_fits", {})
+    cached = (whole_plots, crossed, tuple(sorted(options.items())))
+    if cached not in cache:
+        table = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])
+        whole_plot: str | list[str] = "WholePlot"
+        if crossed:
+            settings = out["settings"].assign(**{name: table[name].astype(str).to_numpy() for name in whole_plots})
+            whole_plot = list(whole_plots)
+        else:
+            labels = table[list(whole_plots)].astype(str).agg(":".join, axis=1).to_numpy()
+            settings = out["settings"].assign(WholePlot=labels)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            cache[cached] = analyze_experiment(
+                settings,
+                out["y"],
+                model=check["model"],
+                analysis_type="split_plot",
+                whole_plot=whole_plot,
+                **options,
+            )["split_plot"]
+    return cache[cached]
+
+
+def _split_plot_prediction(fit: dict, out: dict, check: dict, factor: str) -> float:
+    """Return the split-plot fit's prediction at ``check["point"]``, or a factor's setting at its best corner.
+
+    The corners are those of ``check["factors"]``, every other factor at zero; the best is where the
+    fit predicts the most, or the least with ``"goal": "minimize"``.
+    """
+    rows = {row["term"]: row for row in fit["coefficients"]}
+    names = list(out["settings"].columns)
+
+    def fitted(points: list[dict]) -> np.ndarray:
+        frame = pd.DataFrame([dict.fromkeys(names, 0.0) | point for point in points])[names]
+        model = dmatrix(check["model"], frame, return_type="dataframe")
+        return model.to_numpy() @ np.array([rows[column]["coefficient"] for column in model.columns])
+
+    if "point" in check:
+        return float(fitted([check["point"]])[0])
+    levels = itertools.product([-1.0, 1.0], repeat=len(check["factors"]))
+    corners = [dict(zip(check["factors"], c, strict=True)) for c in levels]
+    values = fitted(corners)
+    best = int(np.argmin(values) if check.get("goal") == "minimize" else np.argmax(values))
+    return corners[best][factor]
 
 
 def _transmitted_variance(out: dict, check: dict, experiment: dict) -> float:
@@ -1147,6 +1244,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "f_uncorrected_p": lambda out, _c, _e: _f_uncorrected(out)[1],
     "log_likelihood": lambda out, _c, _e: out["model_summary"]["log_likelihood"],
     "aic": lambda out, _c, _e: out["model_summary"]["aic"],
+    "aicc": lambda out, _c, _e: out["model_summary"]["aicc"],
     "aic_step": lambda out, _c, _e: out["model_summary"]["aic_step"],
     "bic": lambda out, _c, _e: out["model_summary"]["bic"],
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
@@ -1177,6 +1275,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
     "curvature": lambda out, c, _e: float(out["curvature_test"][c["key"]]),
     "prediction": _prediction,
+    "best_corner": _best_corner,
     "target_setting": _target_setting,
     "optimum": _optimum,
     "box_cox": _box_cox,
@@ -1457,6 +1556,7 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
     (``"columns and signs"``), as two constructions of the same design may differ. A printed
     number of runs, when the text is one, must be the number compared. ``check["round"]`` rounds
     both matrices to that many decimals first, for an axial distance printed as 1.414.
+    ``check["runs"]`` keeps the printed runs at these 1-based positions, as one supplier's runs of a design.
     """
     if "array" in check:
         library, alpha = _array_runs(check), None
@@ -1464,10 +1564,11 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
         made = _made(json.dumps(check["design"], sort_keys=True))
         library, alpha = made.design[made.factor_names].to_numpy(dtype=float), made.alpha
     columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
+    positions = check.get("runs")
     if experiment["runs"].get("coded", True):
-        matrix = _printed_matrix(experiment, columns, alpha)
+        matrix = _printed_matrix(experiment, columns, alpha, positions)
     else:  # a matrix printed in the factors' own units is compared in coded units
-        matrix = _coded_runs(experiment, None)[0][columns].to_numpy(dtype=float)
+        matrix = _coded_runs(experiment, positions)[0][columns].to_numpy(dtype=float)
     if "round" in check:
         library, matrix = np.round(library, check["round"]), np.round(matrix, check["round"])
     count_agrees = not str(printed).strip().isdigit() or int(printed) == len(matrix)
@@ -1503,9 +1604,11 @@ def _same_projections(experiment: dict, check: dict, printed: str) -> tuple[str,
     size (see :func:`_j_counts`). Agreement in all three shows the printed columns are as balanced
     and as orthogonal as the library's, and their products of three as strongly aliased. It is the
     test of :func:`_same_runs` with its relabelling, without the search over relabellings.
+    ``check["design_columns"]`` keeps that many of the library's columns, the first, as a source
+    uses six columns of the 12-run design for eleven factors.
     """
     made = _made(json.dumps(check["design"], sort_keys=True))
-    library = made.design[made.factor_names].to_numpy(dtype=float)
+    library = made.design[made.factor_names[: check.get("design_columns")]].to_numpy(dtype=float)
     columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
     matrix = _printed_matrix(experiment, columns, None)
     same = matrix.shape == library.shape and all(_j_counts(matrix, r) == _j_counts(library, r) for r in (1, 2, 3))
@@ -1536,15 +1639,18 @@ def _product_column(experiment: dict, check: dict, printed: str) -> tuple[str, b
 
     A table of signs heads a column with an effect and its aliases, ``AB = CE``; the column
     ``check["column"]`` holds, in every run, the product of the A and B settings and that of C and
-    E. A word with a minus sign, ``-ABD``, is the negated product.
+    E. A word with a minus sign, ``-ABD``, is the negated product. Columns not named by single
+    letters, ``x2`` and ``x3``, are listed in ``check["of"]``, whose product the column holds.
     """
     column = np.asarray(
         [row[experiment["runs"]["columns"].index(check["column"])] for row in experiment["runs"]["rows"]]
     )
+    words = [check["of"]] if check.get("of") else _words(str(check.get("printed", printed)))
     failing = set()
-    for word in _words(str(check.get("printed", printed))):
-        sign = -1.0 if word.startswith("-") else 1.0
-        product = sign * _printed_matrix(experiment, list(word.lstrip("-")), None).prod(axis=1)
+    for word in words:
+        sign = -1.0 if isinstance(word, str) and word.startswith("-") else 1.0
+        names = list(word.lstrip("-")) if isinstance(word, str) else word
+        product = sign * _printed_matrix(experiment, names, None).prod(axis=1)
         failing |= {i + 1 for i in np.flatnonzero(~np.isclose(product, column.astype(float)))}
     found = "every run" if not failing else f"not in runs {', '.join(map(str, sorted(failing)))}"
     return found, not failing
@@ -1701,14 +1807,66 @@ def _mod3_sum(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
 
 
 @functools.cache
-def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
-    """Return the runs of the catalogue's entry ``name``: its columns and its rows."""
+def _entry(directory: str, name: str) -> dict[str, Any]:
+    """Return the catalogue's entry ``name``, an experiment or a design."""
     for path in sorted(Path(directory).glob("*.json")):
         found = json.loads(path.read_text(encoding="utf-8"))
         for entry in [*found.get("experiments", []), *found.get("designs", [])]:
             if entry.get("name") == name:
-                return entry["runs"]["columns"], entry["runs"]["rows"]
+                return entry
     raise KeyError(f"The catalogue has no entry {name!r}.")
+
+
+def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
+    """Return the runs of the catalogue's entry ``name``: its columns and its rows."""
+    runs = _entry(directory, name)["runs"]
+    return runs["columns"], runs["rows"]
+
+
+def _with_groups(settings: pd.DataFrame, experiment: dict, check: dict) -> pd.DataFrame:
+    """Return the settings with the runs' columns ``check["groups"]`` beside them, each run's group as text.
+
+    A column of the runs that labels a random effect's groups (a split-plot design's whole plots, a
+    two-way split-plot design's rows and columns) is not a factor, so the settings lack it;
+    :func:`~process_improve.experiments.evaluate_design` reads it under the name its
+    ``random_effects`` option (in ``check["options"]``) gives it. ``check["runs"]`` keeps the runs at
+    these 1-based positions, as it keeps the settings.
+    """
+    if not check.get("groups"):
+        return settings
+    runs = experiment["runs"]
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    if check.get("runs"):
+        table = table.iloc[[p - 1 for p in check["runs"]]]
+    return settings.assign(**{name: table[name].astype(str).to_numpy() for name in check["groups"]})
+
+
+def _relative_efficiency(experiment: dict, check: dict) -> float:
+    """Return the efficiency of the entry's runs relative to another entry's, for the model ``check["model"]``.
+
+    ``check["versus"]`` names the other entry, a design of the catalogue with the same factors.
+    ``check["criterion"]`` is ``"d"``: (|X'X| / |X0'X0|)^(1/p) for p model terms, the two designs'
+    determinants compared per parameter; or ``"i"``: the other design's average prediction variance
+    over this one's (``check["options"]`` as :func:`~process_improve.experiments.evaluate_design`
+    takes them). Above one, the entry's runs are the better. ``check["groups"]`` names the runs'
+    columns that label random effects' groups, in both entries, for split-plot designs (see
+    :func:`_with_groups`). ``"percent": true`` returns the efficiency in percent, and ``"gain":
+    true`` the percent by which it exceeds one: how much more information the entry's runs carry.
+    """
+    other = _entry(str(_CATALOGUE_DIR), check["versus"])
+    every_run = check | {"runs": None}
+    settings = [_with_groups(_coded_runs(entry, None)[0], entry, every_run) for entry in (experiment, other)]
+    sources = [json.dumps({"columns": list(s.columns), "runs": s.to_dict("list")}, sort_keys=True) for s in settings]
+    metric = "information_matrix" if check["criterion"] == "d" else "average_prediction_variance"
+    asked = json.dumps({"model": check["model"], "metric": metric, "options": check.get("options")}, sort_keys=True)
+    mine, theirs = (_evaluated(source, asked)[metric] for source in sources)
+    if check["criterion"] == "d":
+        value = math.exp((mine["log_determinant"] - theirs["log_determinant"]) / mine["n_parameters"])
+    else:
+        value = float(theirs) / float(mine)
+    if check.get("gain"):
+        return 100 * (value - 1)
+    return 100 * value if check.get("percent") else value
 
 
 def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
@@ -1868,26 +2026,53 @@ def _design_metric(experiment: dict, check: dict) -> float:
     ``"max"``) reduces them to one number. ``check["result"]`` names another number the metric
     returns beside its own, ``"max_prediction_variance"`` beside ``"g_efficiency"``, and
     ``"times_runs": true`` multiplies the number by the design's run count, as a source prints the
-    scaled prediction variance G, the run count times the largest prediction variance.
+    scaled prediction variance G, the run count times the largest prediction variance. ``check["set"]``
+    changes some elements of the runs first (see :func:`_changed`). ``check["relative_to"]`` names a
+    second model whose number, read the same way, divides this one's, term by term before
+    ``reduce``: a coefficient's variance with the blocks in the model over its variance without
+    them is its variance inflation from the blocking, and the reverse its efficiency factor.
+    ``"percent": true`` returns the number times 100. ``check["count"]``, ``{"above": v}`` or
+    ``{"below": v}``, counts the terms whose number is above or below v in place of ``reduce``.
+    ``check["groups"]`` names the runs' columns that label random effects' groups, for a split-plot
+    or two-way split-plot design evaluated with ``"random_effects"`` in ``check["options"]`` (see
+    :func:`_with_groups`).
     """
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
         n_runs = len(_made(json.dumps(check["design"], sort_keys=True)).design)
     else:
-        settings = _coded_runs(experiment, check.get("runs"))[0]
+        settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
+        settings = _with_groups(settings, experiment, check)
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
         n_runs = len(settings)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     found = _evaluated(source, asked)[check.get("result", check["metric"])]
+    other = None
+    if check.get("relative_to"):
+        asked_other = json.dumps(
+            {"model": check["relative_to"], "metric": check["metric"], "options": check.get("options")}, sort_keys=True
+        )
+        other = _evaluated(source, asked_other)[check.get("result", check["metric"])]
     if check.get("terms"):  # the entries of a dict of terms whose names match, each as it is or its root
         table = _walk(found, check.get("key"))
         if not isinstance(table, dict):
             raise ValueError(f"the library gives no table of terms for {check['metric']}, but {table!r}")
-        picked = [v for t, v in table.items() if re.fullmatch(check["terms"], t)]
-        value = _REDUCE[check.get("reduce", "mean")]([math.sqrt(v) if check.get("root") else v for v in picked])
+        if other is not None:
+            below = _walk(other, check.get("key"))
+            table = {t: v / below[t] for t, v in table.items() if t in below}
+        picked = [math.sqrt(v) if check.get("root") else v for t, v in table.items() if re.fullmatch(check["terms"], t)]
+        picked = [100 * v if check.get("percent") else v for v in picked]
+        if check.get("count"):  # each term's number, times the runs where asked, against the limit
+            limit, scale = check["count"], n_runs if check.get("times_runs") else 1
+            return float(
+                sum(scale * v > limit["above"] if "above" in limit else scale * v < limit["below"] for v in picked)
+            )
+        value = _REDUCE[check.get("reduce", "mean")](picked)
     else:
         value = _read(found, check.get("key"))
+        value = value / _read(other, check.get("key")) if other is not None else value
         value = math.sqrt(value) if check.get("root") else value
+        value = 100 * value if check.get("percent") else value
     value = value**2 if check.get("squared") else value
     value = value * n_runs if check.get("times_runs") else value
     value = 1 / value if check.get("reciprocal") else value
@@ -1954,9 +2139,11 @@ def _library_value(check: dict) -> float:
 
     For a number the library computes directly, such as the run count of the OMARS estimability
     frontier, without building a design to read it from, or the canonical analysis of a fitted
-    equation a source prints without its data. ``"squared": true`` returns the square of the number read.
+    equation a source prints without its data. ``"squared": true`` returns the square of the number read,
+    and ``"root": true`` its square root, a standard deviation from a variance.
     """
     found = _read(_library_result(check), check.get("key"))
+    found = math.sqrt(found) if check.get("root") else found
     return found**2 if check.get("squared") else found
 
 
@@ -2310,8 +2497,10 @@ def _dot_product(experiment: dict, check: dict) -> float:
     """Return the sum over the runs of the product of the printed columns ``check["columns"]``: zero when orthogonal.
 
     ``check["runs"]`` keeps the runs at these 1-based positions, as the runs of a design before it is augmented.
+    ``"mean": true`` divides the sum by the number of runs, as a source prints the average of a product column.
     """
-    return float(_printed_matrix(experiment, check["columns"], None, check.get("runs")).prod(axis=1).sum())
+    products = _printed_matrix(experiment, check["columns"], None, check.get("runs")).prod(axis=1)
+    return float(products.mean() if check.get("mean") else products.sum())
 
 
 def _normal_equations(experiment: dict, check: dict) -> float:
@@ -2326,12 +2515,23 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     ``check["point"]``, the variance of the prediction there in units of σ² (JMP's prediction
     variance profile), N times it with ``"scaled": true``; and ``"relative_d"``, the D-efficiency of these
     runs relative to the runs
-    ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms.
+    ``check["versus"]``, (|(X2'X2)^-1| / |(X1'X1)^-1|)^(1/p) for p model terms. ``"trend_robustness"``
+    is (|X'X - X'Z(Z'Z)^-1 Z'X| / |X'X|)^(1/p), with ``Z`` the columns ``check["covariates"]`` of the
+    runs: the share of the model's information a time trend (or another covariate) leaves, 1 when the
+    model's columns are orthogonal to it, in percent with ``"percent": true``. ``check["set"]`` changes
+    some elements of the runs first (see :func:`_changed`).
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings = _changed(settings, check.get("set"))
     model = dmatrix(check["model"], settings, return_type="dataframe")
     matrix = model.to_numpy()
     kind, *place = check["key"].split(".")
+    if kind == "trend_robustness":
+        z = settings[check["covariates"]].to_numpy(dtype=float)
+        information = matrix.T @ matrix
+        adjusted = information - matrix.T @ z @ np.linalg.solve(z.T @ z, z.T @ matrix)
+        share = float((np.linalg.det(adjusted) / np.linalg.det(information)) ** (1 / matrix.shape[1]))
+        return 100 * share if check.get("percent") else share
     if kind == "relative_d":
         other = dmatrix(check["model"], _coded_runs(experiment, check["versus"])[0], return_type="dataframe").to_numpy()
         ratio = np.linalg.det(np.linalg.inv(other.T @ other)) / np.linalg.det(np.linalg.inv(matrix.T @ matrix))
@@ -2412,12 +2612,20 @@ def _distinct_runs(experiment: dict, check: dict) -> float:
 
 
 def _run_count(experiment: dict, check: dict) -> float:
-    """Return how many runs have the settings ``check["at"]``, a column and its printed level each."""
+    """Return how many runs have the settings ``check["at"]``, a column and its printed level each.
+
+    ``check["above"]`` and ``check["at_least"]`` keep the runs whose column exceeds, or reaches, a
+    value: the runs whose response passes a specification, say.
+    """
     runs = experiment["runs"]
-    table = pd.DataFrame(runs["rows"], columns=runs["columns"]).astype(str)
+    table = pd.DataFrame(runs["rows"], columns=runs["columns"])
     kept = np.ones(len(table), dtype=bool)
-    for column, level in check["at"].items():
-        kept &= (table[column] == str(level)).to_numpy()
+    for column, level in check.get("at", {}).items():
+        kept &= (table[column].astype(str) == str(level)).to_numpy()
+    for column, value in check.get("above", {}).items():
+        kept &= (table[column].astype(float) > float(value)).to_numpy()
+    for column, value in check.get("at_least", {}).items():
+        kept &= (table[column].astype(float) >= float(value)).to_numpy()
     return float(kept.sum())
 
 
@@ -2554,9 +2762,10 @@ def _blocks_orthogonal(experiment: dict, check: dict) -> float:
     every product of two summing to zero within it; and each block holds the same share of every
     factor's sum of squares as of the runs, which the library's
     :func:`~process_improve.experiments._blocking.squares_orthogonal_to_blocks` tests.
-    ``check["block"]`` names the column of block labels.
+    ``check["block"]`` names the column of block labels; ``check["set"]`` changes some elements of
+    the runs first (see :func:`_changed`).
     """
-    settings, _ = _coded_runs(experiment, None)
+    settings = _changed(_coded_runs(experiment, None)[0], check.get("set"))
     runs = experiment["runs"]
     labels = pd.DataFrame(runs["rows"], columns=runs["columns"])[check["block"]].astype(str).to_numpy()
     design = settings.drop(columns=[check["block"]], errors="ignore").to_numpy(dtype=float)
@@ -2901,6 +3110,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "interaction_columns": _interaction_columns,
     "log_variance_ratio": _log_variance_ratio,
     "normal_equations": _normal_equations,
+    "relative_efficiency": _relative_efficiency,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "design_measure": _design_measure,
@@ -2949,7 +3159,8 @@ def _design_metric_array(experiment: dict, check: dict) -> np.ndarray:
     if check.get("design"):
         source = json.dumps({"design": check["design"]}, sort_keys=True)
     else:
-        settings = _coded_runs(experiment, check.get("runs"))[0]
+        settings = _changed(_coded_runs(experiment, check.get("runs"))[0], check.get("set"))
+        settings = _with_groups(settings, experiment, check)
         source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
     asked = json.dumps({k: check.get(k) for k in ("model", "metric", "options")}, sort_keys=True)
     return np.asarray(_walk(_evaluated(source, asked)[check["metric"]], check.get("key")), dtype=float)
@@ -2960,9 +3171,12 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
 
     ``check["key"]`` is ``"xtx"``, ``"xty"``, ``"inverse"`` or ``"model_matrix"``; ``"rows"`` and
     ``"columns"`` (0-based) pick part of it, ``"diagonal": true`` its diagonal, and ``"abs": true``
-    compares its entries' sizes, as a source prints them ±2.
+    compares its entries' sizes, as a source prints them ±2. ``"average": true`` returns the mean of
+    the rows picked, the average row of one block's model matrix that orthogonal blocking compares.
+    ``check["set"]`` changes some elements of the runs first (see :func:`_changed`).
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings = _changed(settings, check.get("set"))
     matrix = dmatrix(check["model"], settings, return_type="dataframe").to_numpy()
     found = {
         "model_matrix": lambda: matrix,
@@ -2972,8 +3186,10 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
     }[check["key"]]()
     if "rows" in check:
         found = found[check["rows"]]
+    if check.get("average"):
+        found = found.mean(axis=0)
     if "columns" in check:
-        found = found[:, check["columns"]]
+        found = found[..., check["columns"]]
     found = np.diag(found) if check.get("diagonal") else found
     return np.abs(np.asarray(found, dtype=float)) if check.get("abs") else np.asarray(found, dtype=float)
 
@@ -2985,14 +3201,19 @@ _ARRAY_KINDS: dict[str, Callable[[dict, dict], np.ndarray]] = {
 
 
 def _array_agreement(found: np.ndarray, printed: list, check: dict) -> tuple[str, bool]:
-    """Compare a printed vector or matrix with the one found, entry by entry, each to its own printed digits."""
+    """Compare a printed vector or matrix with the one found, entry by entry, each to its own printed digits.
+
+    With ``"expression": true`` each entry is arithmetic, worked exactly, as a source prints an alias matrix in thirds.
+    """
     wanted = np.asarray(printed, dtype=object)
     shown = np.array2string(np.round(found, 6), separator=", ")
     if found.shape != wanted.shape:
         return f"{shown} (shape {found.shape}, printed {wanted.shape})", False
     decimals = check.get("decimals")
+    expression = bool(check.get("expression"))
     agree = all(
-        _agrees(float(f), str(w), decimals=decimals) for f, w in zip(found.ravel(), wanted.ravel(), strict=True)
+        _agrees(float(f), str(w), expression=expression, decimals=decimals)
+        for f, w in zip(found.ravel(), wanted.ravel(), strict=True)
     )
     return shown, agree
 
