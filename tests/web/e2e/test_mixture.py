@@ -197,8 +197,10 @@ def test_a_mixture_measures_two_responses_and_says_its_best_blend_is_not_searche
         "The charts below show the fitted Hardness over the blends."
     )
     assert page.is_hidden("#best-chart")
-    assert page.is_hidden("#balance"), "two goals, and no balance searched over a mixture's blends"
+    # The balance is asked for once the charts are drawn, which can be after the page reads as settled.
+    page.wait_for_function("window.__pi.count('api_balance') > 0")
     assert calls(page, "api_balance"), "the page asked, and was told it is a mixture"
+    assert page.is_hidden("#balance"), "two goals, and no balance searched over a mixture's blends"
     pick(page, "Cost")
     assert page.text_content("#analysis .equation").startswith("Cost = ")
     assert "Fitted response over the blends" in charts(page)
