@@ -313,6 +313,42 @@ class TestStationaryPoint:
         result = _find_stationary_point(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
         assert len(result["eigenvalues"]) == 2
 
+    def test_eigenvalues_come_in_the_order_canonical_analysis_gives_them(self) -> None:
+        """Davies 11.73's eigenvalues were (-3.190, -0.069, 0.780) here and (-3.190, 0.780, -0.069) there (#796)."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 50.0},
+            *({"term": name, "coefficient": 1.0} for name in ("x1", "x2", "x3")),
+            {"term": "I(x1 ** 2)", "coefficient": -3.190},
+            {"term": "I(x2 ** 2)", "coefficient": 0.780},
+            {"term": "I(x3 ** 2)", "coefficient": -0.069},
+        ]
+        names = ["x1", "x2", "x3"]
+        found = _find_stationary_point(coefficients, names)["eigenvalues"]
+        assert found == pytest.approx(_canonical_analysis(coefficients, names)["eigenvalues"])
+        assert found == pytest.approx([-3.190, 0.780, -0.069])
+
+    @pytest.mark.parametrize("method", ["stationary_point", "canonical_analysis"])
+    def test_a_factor_name_no_term_uses_is_refused(self, method: str) -> None:
+        """A block column among the names added a zero eigenvalue, and this maximum read as a ridge (#796)."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 80.0},
+            {"term": "x1", "coefficient": 2.0},
+            {"term": "x2", "coefficient": 3.0},
+            {"term": "I(x1 ** 2)", "coefficient": -4.0},
+            {"term": "I(x2 ** 2)", "coefficient": -3.0},
+            {"term": "x1:x2", "coefficient": 1.0},
+        ]
+        found = optimize_responses(
+            [{"response_name": "y", "coefficients": coefficients, "factor_names": ["x1", "x2"]}], method=method
+        )["stationary_point"]
+        assert found["classification"] == "maximum"
+        assert found["eigenvalues"] == pytest.approx([-4.2071, -2.7929], abs=5e-5)
+        with pytest.raises(ValueError, match=r"No term of the model uses \['Block'\]"):
+            optimize_responses(
+                [{"response_name": "y", "coefficients": coefficients, "factor_names": ["x1", "x2", "Block"]}],
+                method=method,
+            )
+
 
 # ---------------------------------------------------------------------------
 # Canonical analysis
@@ -450,6 +486,25 @@ class TestRidgeSystems:
         out = optimize_responses([self._model(2.0, 0.0, -0.01)], method="stationary_point")["stationary_point"]
         assert out["classification"] == "maximum"
         assert out["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
+
+    def test_a_small_eigenvalue_is_noted_and_read_as_flat_under_a_tolerance(self) -> None:
+        """BHH read an eigenvalue of 0.0017 beside -9.02 as zero (#789 B3); -0.001 beside -1 is the same case."""
+        model = [self._model(2.0, 0.0, -0.001)]
+        default = optimize_responses(model, method="canonical_analysis")
+        assert default["canonical_analysis"]["classification"] == "maximum"
+        note = default["stationary_point"]["classification_note"]
+        assert "-0.001 (0.1% of the largest)" in note
+        assert "flat_tolerance=0.05" in note
+        tolerant = optimize_responses(model, method="canonical_analysis", flat_tolerance=0.05)
+        assert tolerant["canonical_analysis"]["classification"] == "stationary_ridge"
+        assert tolerant["canonical_analysis"]["ridge_of"] == "maxima"
+        assert "classification_note" not in tolerant["stationary_point"]
+        assert tolerant["stationary_point"]["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
+
+    @pytest.mark.parametrize("flat_tolerance", [-0.1, 1.0])
+    def test_flat_tolerance_is_a_share_of_the_largest_eigenvalue(self, flat_tolerance: float) -> None:
+        with pytest.raises(ValueError, match="flat_tolerance must be at least 0 and below 1"):
+            optimize_responses([self._model(2.0, 0.0, -1.0)], method="stationary_point", flat_tolerance=flat_tolerance)
 
 
 # ---------------------------------------------------------------------------
