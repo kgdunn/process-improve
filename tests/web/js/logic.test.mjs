@@ -40,6 +40,7 @@ import {
   aimTerms,
   analysisModel,
   candidateRows,
+  comparisonOrder,
   changeWords,
   defaultAim,
   describeResponse,
@@ -632,6 +633,12 @@ describe("the designs that can learn the brief", () => {
     { design_type: "box_behnken", label: "Box-Behnken" },
     { design_type: "d_optimal", label: "D-optimal" },
   ];
+
+  test("the detailed comparison puts the designs that cannot fit the model at its right, each group as scored", () => {
+    assert.deepEqual(comparisonOrder(result), [1, 2, 3, 0], "the full factorial cannot fit, and goes last");
+    const none = { designs: ["A", "B"], values: { A: value(4, false, 0, null), B: value(4, false, 0, null) } };
+    assert.deepEqual(comparisonOrder(none), [0, 1], "with none that fits, the order is kept");
+  });
 
   test("are listed by their runs, those that fit first, with their spare runs and power", () => {
     const rows = candidateRows(result, made);

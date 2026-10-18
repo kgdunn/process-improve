@@ -619,6 +619,16 @@ export function candidateRows(result, made) {
 }
 
 /**
+ * The order of the detailed comparison's columns: the designs that can fit the model first, then those that cannot,
+ * whose measures are mostly blank, each group in the order scored. Each is the design's place in ``result.designs``.
+ */
+export function comparisonOrder(result) {
+  const places = result.designs.map((_, i) => i);
+  const fits = (i) => Boolean(result.values[result.designs[i]]?.fits);
+  return [...places.filter(fits), ...places.filter((i) => !fits(i))];
+}
+
+/**
  * The design picked when the reader has not chosen one: of those that can fit the model, the fewest
  * runs that leave SPARE_FOR_NOISE to estimate the noise, else the fewest runs; null when none fits.
  */
