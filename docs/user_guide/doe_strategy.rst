@@ -33,11 +33,11 @@ Multi-stage workflows
 Most experimental programs follow a three-stage sequence:
 
 1. **Screening** - Identify the vital few factors from many candidates.
-   Typical designs: Plackett-Burman, Definitive Screening Design (DSD), or
+   Typical designs: Definitive Screening Design (DSD), Plackett-Burman, or
    fractional factorial.
 2. **Optimization** - Fit a response surface model for the significant
-   factors.  Typical designs: Central Composite Design (CCD), Box-Behnken,
-   or D-optimal.
+   factors.  Typical designs: face-centred Central Composite Design (CCD),
+   Box-Behnken, or D-optimal.
 3. **Confirmation** - Run replicates at the predicted optimum to verify
    that the model predictions hold.
 
@@ -49,6 +49,25 @@ the results.  For example, after screening:
 - 2–5 significant factors: proceed to optimization.
 - 6+ significant factors: sub-group factors or run additional screening.
 - Curvature detected at center points: augment the factorial to a CCD.
+
+Six or more continuous factors are screened with a DSD by default. Its main
+effects are orthogonal to every two-factor interaction and square, whereas in a
+12-run Plackett-Burman design each interaction biases the main effects of the
+factors outside it by a third of its size, which can hide a real factor.
+
+Conditional stages
+~~~~~~~~~~~~~~~~~~
+
+An optimisation stage is often not needed. When the screening design can test
+for curvature (a DSD, or a two-level design with centre runs), the optimisation
+stage after it is *conditional*: ``stage["conditional"]`` is ``True`` and
+``stage["run_if"]`` names the evidence that calls for it and the analysis that
+gives that evidence. Without that evidence, the screening model already locates
+the best settings and the study goes straight to confirmation.
+``minimum_total_runs`` counts the runs when no conditional stage is called for,
+and ``total_estimated_runs`` counts them all. A screening design that cannot
+test for curvature, such as a Plackett-Burman design with a categorical factor,
+is followed by an optimisation stage that is always run.
 
 Budget allocation
 ~~~~~~~~~~~~~~~~~
@@ -100,7 +119,7 @@ A 7-factor fermentation problem with a budget of 40 runs:
 This outputs::
 
    Stage 1: Screening
-     Design: plackett_burman, Runs: 8
+     Design: plackett_burman, Runs: 11
      Purpose: Screen 7 candidate factors to identify the vital few.
    Stage 2: Optimization
      Design: ccd, Runs: 19
@@ -110,8 +129,10 @@ This outputs::
      Purpose: Run replicates at the predicted optimum to verify the model predictions. ...
 
 The engine selected Plackett-Burman screening (the fermentation domain
-default), a CCD for response surface optimization, and 3 confirmation
-replicates - all within the 40-run budget.
+default) with 3 centre runs, a face-centred CCD for response surface
+optimization, and 3 confirmation replicates - all within the 40-run budget.
+The CCD is conditional on the centre runs showing curvature, so the study needs
+14 runs when they do not and 33 when they do.
 
 Interpreting the Output
 -----------------------
@@ -128,14 +149,17 @@ Interpreting the Output
      - Ordered list of experimental stages.  Each stage contains
        ``stage_number``, ``stage_name``, ``design_type``, ``design_params``,
        ``factors``, ``estimated_runs``, ``purpose``, ``success_criteria``,
-       and ``transition_rules``.  ``design_type`` and ``design_params`` are a
+       ``transition_rules``, ``conditional`` and ``run_if`` (see
+       `Conditional stages`_).  ``design_type`` and ``design_params`` are a
        ``generate_design`` call: ``generate_design(factors,
        design_type=stage["design_type"], **stage["design_params"])`` builds the
        stage.  The confirmation stage (``"replicates_at_optimum"``) is the
        exception: its runs are replicates at the optimum that
        ``optimize_responses`` finds.
    * - ``total_estimated_runs``
-     - Sum of estimated runs across all stages.
+     - Sum of estimated runs across all stages, the conditional ones included.
+   * - ``minimum_total_runs``
+     - Sum of estimated runs across the stages that are not conditional.
    * - ``budget_allocation``
      - Dictionary mapping stage names to allocated run counts.
    * - ``reasoning``
@@ -182,16 +206,20 @@ adjusts stage complexity accordingly:
 
 ::
 
-   Budget=  60: 30 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
-   Budget=  25: 24 runs, ['plackett_burman', 'd_optimal', 'replicates_at_optimum']
+   Budget=  60: 33 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
+   Budget=  25: 20 runs, ['dsd', 'replicates_at_optimum']
    Budget=  20: 20 runs, ['dsd', 'replicates_at_optimum']
-   Budget=None: 30 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
+   Budget=None: 33 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
 
 With a tight budget, the engine changes the designs, not only their run
 counts: it drops center points, replaces a stage's design with a smaller one
-(a Plackett-Burman screen, a D-optimal quadratic design), and, when separate
-screening and optimization stages cannot fit, plans a single Definitive
-Screening Design. ``estimated_runs`` is always the size of the design the
+(a Plackett-Burman screen, a D-optimal quadratic design), and plans a single
+Definitive Screening Design when separate screening and optimization stages
+cannot fit. It plans that DSD too, for six or more factors, when the reduction
+would take the centre runs out of the screening design: the optimisation stage
+would then have to be run whatever the screening showed, and one DSD both
+screens and tests for curvature. The budget must hold the conditional stages
+too, since the screening may call for them. ``estimated_runs`` is always the size of the design the
 stage's ``design_params`` build, and ``result["risks"]`` says what was
 reduced, or that the budget is below the smallest plan. When ``budget=None``,
 the ideal designs are used without constraint.
@@ -241,9 +269,11 @@ entirely:
 
 ::
 
-   No prior: 3 stages
-   Low confidence: 3 stages
+   No prior: 2 stages
+   Low confidence: 2 stages
    High confidence: 1 stages
+
+(With no response to optimise, seven factors get no optimisation stage.)
 
 Domain-Specific Strategies
 --------------------------
@@ -273,7 +303,7 @@ weights.  Eight domains are available:
      - Mixture handling; avoids extreme factor combinations.
    * - ``"extraction"``
      - Fractional factorial / CCD
-     - Rotatable CCD for good boundary prediction.
+     - Strongly quadratic responses; a rotatable CCD where the ranges are not hard limits.
    * - ``"analytical_method"``
      - Fractional factorial / CCD
      - AQbD / ICH Q2/Q14; includes robustness study stage.
@@ -298,10 +328,11 @@ Comparing two domains on the same factors shows how design choices differ:
 
 ::
 
-   fermentation: plackett_burman, 8 screening runs
+   fermentation: plackett_burman, 11 screening runs
    cell_culture: dsd, 17 screening runs
 
-Fermentation uses Plackett-Burman (efficient, many-factor screening), while
+Fermentation uses Plackett-Burman (efficient, many-factor screening, here with
+3 centre runs), while
 cell culture uses a Definitive Screening Design because it combines screening
 and curvature detection in a single stage - saving an entire experimental
 cycle when each run takes 2–3 weeks.

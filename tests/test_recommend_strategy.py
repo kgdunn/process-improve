@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 
 import pytest
 
@@ -691,12 +692,19 @@ class TestScreeningDesignParams:
             "n_center_points": 3,
         }
 
-    def test_plackett_burman_has_no_centre_points(self):
-        assert _screening_design_params("plackett_burman", 6) == {"n_center_points": 0}
+    def test_plackett_burman_has_centre_runs_to_test_for_curvature(self):
+        assert _screening_design_params("plackett_burman", 6) == {"n_center_points": 3}
+
+    def test_plackett_burman_with_a_categorical_factor_has_no_centre_runs(self):
+        assert _screening_design_params("plackett_burman", 6, all_continuous=False) == {"n_center_points": 0}
 
     def test_definitive_screening_needs_no_parameters(self):
         """``fake_factor`` is not a generate_design argument; the DSD handles an even count itself (#638)."""
         assert _screening_design_params("dsd", 16) == {}
+
+    def test_an_even_factor_dsd_gets_centre_runs_for_error_degrees_of_freedom(self):
+        assert _screening_design_params("dsd", 17, n_factors=8) == {"n_center_points": 3}
+        assert _screening_design_params("dsd", 17, n_factors=7) == {}
 
     def test_supersaturated_carries_its_run_count(self):
         assert _screening_design_params("supersaturated", 6) == {"budget": 6}
@@ -933,3 +941,108 @@ def test_domain_considerations_and_extra_stages_reach_the_output() -> None:
         assert consideration in strategy["risks"]
     assert any("design space" in line and "not scheduled" in line for line in strategy["reasoning"])
     assert not any("strategy includes a design space" in line for line in strategy["reasoning"])
+
+
+# ---------------------------------------------------------------------------
+# Screening that can decide whether the optimisation stage is needed
+# ---------------------------------------------------------------------------
+
+
+def _stage(strategy: dict, name: str) -> dict:
+    return next(s for s in strategy["stages"] if s["stage_name"] == name)
+
+
+def test_eight_continuous_factors_screen_with_a_dsd_that_leaves_error_degrees_of_freedom() -> None:
+    """A 12-run Plackett-Burman design hid an active factor behind an interaction; a DSD keeps them apart."""
+    factors = _continuous(8)
+    screening = _stage(recommend_strategy(factors=factors, responses=_maximise()), "Screening")
+    assert screening["design_type"] == "dsd"
+    assert screening["design_params"] == {"n_center_points": 3}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # no "analyze_omars cannot test any effect" warning
+        assert _build(factors, screening).n_runs == screening["estimated_runs"] == 19
+
+
+def test_an_odd_number_of_factors_needs_no_extra_centre_runs_in_its_dsd() -> None:
+    screening = _stage(recommend_strategy(factors=_continuous(7), responses=_maximise()), "Screening")
+    assert (screening["design_type"], screening["design_params"], screening["estimated_runs"]) == ("dsd", {}, 17)
+
+
+def test_the_optimisation_stage_after_a_dsd_is_conditional_on_its_analysis() -> None:
+    strategy = recommend_strategy(factors=_continuous(8), responses=_maximise())
+    optimisation = _stage(strategy, "Optimization")
+    assert optimisation["conditional"] is True
+    assert "analyze_omars" in optimisation["run_if"]
+    assert strategy["minimum_total_runs"] == 19 + 3
+    assert strategy["total_estimated_runs"] == 19 + optimisation["estimated_runs"] + 3
+    assert any("Conditional: run this stage only if" in line for line in strategy["reasoning"])
+
+
+def test_the_optimisation_stage_after_a_factorial_with_centre_runs_waits_for_the_curvature_test() -> None:
+    strategy = recommend_strategy(factors=_continuous(5), responses=_maximise())
+    assert _stage(strategy, "Screening")["design_params"]["n_center_points"] == 3
+    optimisation = _stage(strategy, "Optimization")
+    assert optimisation["conditional"] is True
+    assert "curvature_test" in optimisation["run_if"]
+
+
+def test_a_domain_preferring_plackett_burman_gets_centre_runs_and_a_conditional_optimisation() -> None:
+    strategy = recommend_strategy(factors=_continuous(8), responses=_maximise(), domain="fermentation")
+    screening = _stage(strategy, "Screening")
+    assert (screening["design_type"], screening["design_params"]) == ("plackett_burman", {"n_center_points": 3})
+    assert _stage(strategy, "Optimization")["conditional"] is True
+
+
+def test_without_a_test_for_curvature_the_optimisation_stage_is_unconditional() -> None:
+    """A categorical factor has no centre, so a Plackett-Burman screen cannot test for curvature."""
+    factors = [Factor(name="Supplier", type="categorical", levels=["a", "b"]), *_continuous(7)]
+    strategy = recommend_strategy(factors=factors, responses=_maximise())
+    assert _stage(strategy, "Screening")["design_params"] == {"n_center_points": 0}
+    optimisation = _stage(strategy, "Optimization")
+    assert (optimisation["conditional"], optimisation["run_if"]) == (False, "")
+    assert strategy["minimum_total_runs"] == strategy["total_estimated_runs"]
+
+
+@pytest.mark.parametrize("k", [3, 5, 6, 8])
+@pytest.mark.parametrize("domain", [None, "fermentation", "pharma_formulation", "analytical_method"])
+def test_every_ccd_the_plan_recommends_stays_inside_the_factor_ranges(k: int, domain: str | None) -> None:
+    """A rotatable CCD asked for settings beyond the ranges, such as a negative concentration."""
+    factors = _continuous(k)
+    for stage in recommend_strategy(factors=factors, responses=_maximise(), domain=domain)["stages"]:
+        if stage["design_type"] != "ccd":
+            continue
+        assert stage["design_params"]["alpha"] == "face_centered"
+        actual = _build(factors, stage).design_actual
+        assert actual[stage["factors"]].min().min() >= 0 - 1e-9
+        assert actual[stage["factors"]].max().max() <= 10 + 1e-9
+
+
+def test_a_budget_that_would_strip_the_curvature_test_gets_one_dsd_instead() -> None:
+    """Reducing the plan to fit 30 runs gave a 12-run Plackett-Burman design and an optimisation always run."""
+    strategy = recommend_strategy(factors=_continuous(8), responses=_maximise(), budget=30)
+    assert [s["design_type"] for s in strategy["stages"]] == ["dsd", "replicates_at_optimum"]
+    assert strategy["total_estimated_runs"] == 22
+    assert any("cannot test for curvature" in risk for risk in strategy["risks"])
+
+
+def test_a_small_problem_keeps_its_factorial_when_the_budget_is_tight() -> None:
+    """A DSD of fewer than six factors cannot fit the full quadratic, so it replaces nothing here."""
+    strategy = recommend_strategy(factors=_continuous(3), responses=_maximise(), budget=30)
+    assert _stage(strategy, "Screening")["design_type"] == "full_factorial"
+
+
+def test_the_plan_raises_no_warning_about_designs_it_only_tried() -> None:
+    """Counting the runs of a smaller variant the planner then rejects warned about a design never proposed."""
+    from process_improve.tool_spec import execute_tool_call
+
+    factors = [{"name": f"X{i}", "low": 0, "high": 10} for i in range(8)]
+    result = execute_tool_call("recommend_strategy", {"factors": factors, "budget": 15})
+    assert "library_warnings" not in result
+
+
+def test_a_dsd_plan_is_offered_plackett_burman_as_the_alternative() -> None:
+    strategy = recommend_strategy(factors=_continuous(8), responses=_maximise())
+    assert not any(alt.startswith("Definitive Screening Design") for alt in strategy["alternative_strategies"])
+    assert any(
+        alt.startswith("Plackett-Burman design with 3 centre runs") for alt in strategy["alternative_strategies"]
+    )

@@ -32,22 +32,27 @@ Returned a three-stage plan:
 
 | Stage | Design | Runs | Purpose |
 |---|---|---|---|
-| 1. Screening | Plackett-Burman | 8 | Find the vital few among 7 factors |
-| 2. Optimisation | CCD, 3 center points, rotatable | 17 | Quadratic surface on the survivors |
+| 1. Screening | Definitive screening design | 17 | Find the vital few among 7 factors, and test for curvature |
+| 2. Optimisation (conditional) | CCD, 3 center points, face-centred | 17 | Quadratic surface on the survivors, only if screening calls for it |
 | 3. Confirmation | 3 replicates at the optimum | 3 | Check the prediction holds |
 
+Stage 2 comes back with `conditional: true` and a `run_if` saying when it is
+needed: a DSD already fits the full quadratic in any three factors, so with
+three or fewer active factors the study goes straight to confirmation. The
+plan therefore needs 20 runs (`minimum_total_runs`) or 37 (`total_estimated_runs`).
 It also returned transition rules worth quoting to the user, because they say
 in advance what to do with each outcome: 0-1 significant factors means the
 ranges were too narrow (or the measurement system is the problem); 2-5 means
 proceed to optimisation; 6+ means split the factors into subgroups; curvature
 detected at the center points means augment to a CCD.
 
-We chose to spend a little more than the plan's 8 runs on stage 1, taking a
-16-run resolution IV fractional factorial instead of the 8-run
-Plackett-Burman. The reason: at 8 runs every main effect is aliased with
-two-factor interactions, and this process is one where a
-temperature-by-catalyst interaction is chemically plausible. 16 runs is still
-well inside budget and buys main effects clear of all two-factor interactions.
+We chose a 16-run resolution IV fractional factorial for stage 1 instead of
+the plan's 17-run DSD. Both keep every main effect clear of the two-factor
+interactions. The fraction also estimates the two-factor interactions, in
+alias chains, and this process is one where a temperature-by-catalyst
+interaction is chemically plausible; the DSD's extra strength, a curvature
+test factor by factor, matters less at this stage. Either choice is well
+inside budget.
 
 ## 3. Generate
 
