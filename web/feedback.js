@@ -231,6 +231,25 @@ async function post(url, report) {
   }
 }
 
+/**
+ * A screenshot of ``root``, the page's main element, as a JPEG data: URL. modern-screenshot, imported only now, draws
+ * the page through SVG's foreignObject, so the browser itself applies the page's CSS, color-mix() among it. A dialog is
+ * left out, the page's own background fills what is transparent, and a page longer than MAX_PIXELS allows is scaled
+ * down whole. No font is fetched: the page's are the system's.
+ */
+async function takeScreenshot(root) {
+  const { domToJpeg } = await import("./vendor/modern-screenshot.mjs");
+  const { width, height } = root.getBoundingClientRect();
+  return domToJpeg(root, {
+    scale: screenshotScale(width, height),
+    quality: JPEG_QUALITY,
+    backgroundColor: getComputedStyle(document.body).backgroundColor,
+    filter: (node) => node.nodeName !== "DIALOG",
+    font: false,
+    timeout: 10_000,
+  });
+}
+
 /** The dialog's form: built once, from fixed text, the first time a Feedback button is pressed. */
 const FORM = `
 <form class="feedback__form" novalidate>
@@ -255,6 +274,11 @@ const FORM = `
       <input id="feedback-email" name="email" type="email" maxlength="${EMAIL_MAX}" autocomplete="email"
         spellcheck="false"></label>
     <div class="feedback__extras" data-part="extras">
+      <label class="check"><input type="checkbox" id="feedback-screenshot" name="screenshot" checked> Include a
+        screenshot of this tab</label>
+      <p class="hint">The screenshot shows what is on screen, including your study's data.</p>
+      <p class="hint" data-note="shot" role="status" hidden></p>
+      <img id="feedback-shot" class="feedback__shot" alt="The screenshot that goes with the report" hidden>
       <label class="check"><input type="checkbox" id="feedback-study" name="study"> Include my study, so the result
         can be reproduced</label>
       <p class="hint" data-note="study"></p>
@@ -286,6 +310,8 @@ export function installFeedback({ context, study, hasStudy }) {
   let dialog = null;
   let form = null;
   let about = {}; // the page's context, as it was when the dialog opened
+  let shot = null; // the screenshot's data: URL, once taken and fit to go
+  let taking = null; // the screenshot being taken: a promise, replaced by a newer one, and null once it is done
   let sending = false;
   const relay = relayUrl(location);
 
@@ -308,12 +334,41 @@ export function installFeedback({ context, study, hasStudy }) {
       topic: topic(),
       message: field("message").value,
       email: field("email").value,
+      screenshot: field("screenshot").checked ? shot : null,
       studied: field("study").checked,
       context: about,
     });
     dialog.querySelector("#feedback-sent").replaceChildren(
       ...lines.map((line) => Object.assign(document.createElement("li"), { textContent: line })),
     );
+  }
+
+  /** Show the screenshot under its box, and say what is happening to it; "" says nothing. */
+  function showShot(text = "") {
+    const image = dialog.querySelector("#feedback-shot");
+    if (shot) image.src = shot;
+    else image.removeAttribute("src");
+    image.hidden = !shot;
+    note("shot").textContent = text;
+    note("shot").hidden = !text;
+  }
+
+  /** Take the screenshot of the page and show it; or say why there is none, and the report goes without it. */
+  function capture() {
+    shot = null;
+    showShot("Taking the screenshot...");
+    const mine = takeScreenshot(document.querySelector("main")).then(
+      (dataUrl) => ({ dataUrl, why: screenshotProblem(dataUrl) }),
+      () => ({ dataUrl: null, why: "The screenshot could not be taken, so the report goes without it." }),
+    );
+    taking = mine;
+    mine.then(({ dataUrl, why }) => {
+      if (taking !== mine) return; // unticked, or taken again, meanwhile
+      taking = null;
+      shot = why ? null : dataUrl;
+      showShot(why);
+      render();
+    });
   }
 
   function build() {
@@ -331,6 +386,15 @@ export function installFeedback({ context, study, hasStudy }) {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       send();
+    });
+    field("screenshot").addEventListener("change", () => {
+      if (field("screenshot").checked) {
+        capture();
+        return;
+      }
+      taking = null;
+      shot = null;
+      showShot();
     });
     for (const button of dialog.querySelectorAll("[data-close]")) button.onclick = () => dialog.close();
   }
@@ -352,7 +416,8 @@ export function installFeedback({ context, study, hasStudy }) {
     render();
     if (!dialog.open) dialog.showModal();
     field("message").focus();
-    about = (await context()) ?? {};
+    if (relay && field("screenshot").checked) capture();
+    about = (await Promise.resolve().then(context).catch(() => null)) ?? {};
     render();
   }
 
@@ -367,11 +432,15 @@ export function installFeedback({ context, study, hasStudy }) {
     }
     sending = true;
     dialog.querySelector("#feedback-send").disabled = true;
+    while (taking) {
+      say("Waiting for the screenshot...");
+      await taking;
+    }
     say("Sending...");
     const left = []; // what the reader asked for that cannot go, as sentences
     let packed = null;
     if (field("study").checked) {
-      packed = await study().catch(() => null);
+      packed = await Promise.resolve().then(study).catch(() => null);
       const why = packed ? studyProblem(packed) : "Your study could not be packed, so the report goes without it.";
       if (why) {
         left.push(why);
@@ -382,6 +451,7 @@ export function installFeedback({ context, study, hasStudy }) {
       topic: topic(),
       message: field("message").value,
       email: field("email").value,
+      screenshot: field("screenshot").checked ? shot : null,
       study: packed,
       context: about,
     });
@@ -397,6 +467,9 @@ export function installFeedback({ context, study, hasStudy }) {
     say("");
     field("message").value = "";
     field("study").checked = false;
+    field("screenshot").checked = true;
+    shot = null;
+    showShot();
     note("thanks").textContent = ["Thank you: your report is on its way to the maintainer.", ...left].join(" ");
     part("write").hidden = true;
     part("sent").hidden = false;

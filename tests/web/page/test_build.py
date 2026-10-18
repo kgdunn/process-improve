@@ -81,12 +81,17 @@ def _local(references: list[str]) -> set[str]:
 
 
 def test_every_file_the_page_loads_is_published(build_script):
-    """What index.html, app.js and worker.js load must be copied by the build, or written by it."""
+    """What index.html, app.js and worker.js load must be copied by the build, or written by it.
+
+    feedback.js imports the screenshot's module only when a reader asks for a screenshot: it is published all the same.
+    """
     loaded = _local(re.findall(r'(?:href|src)="([^"]+)"', source("index.html")))
     loaded |= _local(re.findall(r'from "\./([^"]+)"', source("app.js")))
     for name in ("app.js", "worker.js"):
         loaded |= _local(re.findall(r'(?:fetch|new Worker)\("([^"]+)"', source(name)))
+    loaded |= _local(re.findall(r'import\("\./([^"]+)"\)', source("feedback.js")))
     assert {"style.css", "app.js", "worker.js", "bootstrap.py", "demo.json"} <= loaded, "the search found the loads"
+    assert "vendor/modern-screenshot.mjs" in loaded
     assert loaded - BUILT <= set(build_script.APP_FILES)
     assert all((WEB / name).is_file() for name in build_script.APP_FILES)
 

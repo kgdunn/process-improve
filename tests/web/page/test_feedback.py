@@ -9,8 +9,10 @@ the page builds must pass the relay's own checks.
 from __future__ import annotations
 
 import base64
+import hashlib
 import importlib.util
 import json
+import re
 import sys
 
 import pytest
@@ -70,6 +72,21 @@ def test_every_report_the_page_builds_passes_the_relay_s_checks(node, relay):
         checked = relay.read_report(json.dumps(report).encode())
         assert checked.topic == report["topic"]
     assert relay.read_report(json.dumps(built[2]).encode()).screenshot == jpeg
+
+
+def test_the_screenshot_s_module_is_the_published_release_with_its_licence():
+    """``web/vendor/modern-screenshot.mjs`` is npm's file unchanged after a header naming its release and its digest."""
+    vendored = (ROOT / "web" / "vendor" / "modern-screenshot.mjs").read_bytes()
+    header, _, published = vendored.partition(b" */\n")
+    words = header.decode("ascii")
+    release = re.search(r"modern-screenshot (\d+\.\d+\.\d+), https://github\.com/qq15725/modern-screenshot", words)
+    assert release
+    assert f"/modern-screenshot-{release[1]}.tgz" in words
+    assert re.search(r"SHA-256 of dist/index\.mjs: ([0-9a-f]{64})", words)[1] == hashlib.sha256(published).hexdigest()
+    assert "The MIT License (MIT)" in words
+    assert "Copyright (c) 2021-present wxm" in words
+    assert 'import("./vendor/modern-screenshot.mjs")' in source("feedback.js"), "imported when it is asked for"
+    assert "modern-screenshot" not in source("app.js"), "never at the page's first load"
 
 
 @pytest.mark.parametrize(
