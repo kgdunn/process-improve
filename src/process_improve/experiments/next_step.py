@@ -580,7 +580,7 @@ def _omars_signal(data: pd.DataFrame, names: list[str], alpha: float) -> bool:
     return _stands_out(x, y, list(range(1, len(names) + 1)), alpha, together=list(range(1, x.shape[1])))
 
 
-def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any] | None:  # noqa: C901, PLR0911 - one return per way of judging, in the order they are tried
+def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any] | None:
     """Judge every term the runs can test, in the largest standard model they estimate.
 
     Testing the terms a stepwise search picked, on the data that picked them, makes them look
@@ -596,26 +596,58 @@ def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any]
     in the error, where it hides the effects. Returns None when the runs are too few to judge
     anything.
     """
-    data, names, numeric = study.data, study.names, study.numeric
-    extra = _extra(data, design, numeric)
-    n = len(data) - len(_nuisance(data))  # each block contrast takes a run
-
-    def enough(n_terms: int) -> bool:
-        return n - n_terms - 1 - len(extra) >= _MIN_ERROR_DF
-
+    data, names = study.data, study.names
+    extra = _extra(data, design, study.numeric)
+    error_runs = len(data) - len(_nuisance(data)) - 1 - len(extra)  # each block contrast takes a run
     saturated = design.two_level and not extra  # judged by Lenth's method when no model leaves error
+    judged, aliased = _judge_in_standard_models(study, design, alpha, extra, error_runs)
+    if not aliased:
+        return judged
+    judged = _judge_proposed_terms(study, design, alpha, extra, error_runs)
+    if judged is None and saturated:  # the main effects, and the columns the design leaves for error
+        judged = _lenth(data, names, alpha)
+    if judged is not None:
+        return judged
+    mains = _chain_leaders(data, _rhs(names, study.numeric, "main_effects"))
+    if mains is not None and error_runs - len(mains) >= _MIN_ERROR_DF:
+        return _t_tests(data, mains, extra, "t-tests in the main effects model", alpha)
+    return None
+
+
+def _judge_in_standard_models(
+    study: _Study, design: _Design, alpha: float, extra: list[str], error_runs: int
+) -> tuple[dict[str, Any] | None, bool]:
+    """Judge the terms in the largest standard model the runs estimate, or by Lenth's method on all the contrasts.
+
+    Returns the judgement, None when even the main effects leave too few runs, and whether the
+    terms are partly aliased with each other, which no standard model separates (the judgement
+    is then None, and the caller judges them another way). ``error_runs`` is the number of runs
+    left for error once the intercept, the block contrasts and ``extra`` are fitted.
+    """
+    data, names, numeric = study.data, study.names, study.numeric
     models = (["quadratic"] if design.three_level else []) + ["interactions", "main_effects"]
     for model in models:
         leaders = _chain_leaders(data, _rhs(names, numeric, model))
         if leaders is None:
-            break  # terms partly aliased with each other: judged below
-        if enough(len(leaders)):
-            return _t_tests(data, leaders, extra, f"t-tests in the {model.replace('_', ' ')} model", alpha)
-        judged = _lenth(data, leaders, alpha) if saturated and model == "interactions" else None
-        if judged is not None:
-            return judged
-    else:
-        return None  # even the main effects leave too few runs to judge them
+            return None, True
+        if error_runs - len(leaders) >= _MIN_ERROR_DF:
+            return _t_tests(data, leaders, extra, f"t-tests in the {model.replace('_', ' ')} model", alpha), False
+        if design.two_level and not extra and model == "interactions":
+            judged = _lenth(data, leaders, alpha)
+            if judged is not None:
+                return judged, False
+    return None, False
+
+
+def _judge_proposed_terms(
+    study: _Study, design: _Design, alpha: float, extra: list[str], error_runs: int
+) -> dict[str, Any] | None:
+    """Judge partly aliased terms: by the staged analysis of a definitive screening design, or the AICc proposal.
+
+    The search proposes second-order terms, which are then tested beside every main effect.
+    None when neither applies, or the proposal leaves too few runs for error.
+    """
+    data, names = study.data, study.names
     if design.three_level:
         judged = _omars(data, names, alpha)
         if judged is not None:
@@ -623,19 +655,12 @@ def _judge_terms(study: _Study, design: _Design, alpha: float) -> dict[str, Any]
     searched = "quadratic" if design.three_level else "interactions"
     proposed = _run_model_selection(_less_blocks(data), "y", names, model=searched)["model_selection"]["selected_terms"]
     second = [t for t in proposed if t not in names]
-    if enough(len(names) + len(second)):
-        method = f"t-tests of every main effect and the {searched} terms a stepwise search (AICc) proposed"
-        judged = _t_tests(data, [*names, *second], extra, method, alpha)
-        judged["considered"] = set(_rhs_terms(names, numeric, searched))  # the search weighed every term
-        return judged
-    if saturated:  # the main effects, and the columns the design leaves for error
-        judged = _lenth(data, names, alpha)
-        if judged is not None:
-            return judged
-    mains = _chain_leaders(data, _rhs(names, numeric, "main_effects"))
-    if mains is not None and enough(len(mains)):
-        return _t_tests(data, mains, extra, "t-tests in the main effects model", alpha)
-    return None
+    if error_runs - len(names) - len(second) < _MIN_ERROR_DF:
+        return None
+    method = f"t-tests of every main effect and the {searched} terms a stepwise search (AICc) proposed"
+    judged = _t_tests(data, [*names, *second], extra, method, alpha)
+    judged["considered"] = set(_rhs_terms(names, study.numeric, searched))  # the search weighed every term
+    return judged
 
 
 def _extra(data: pd.DataFrame, design: _Design, numeric: list[bool]) -> list[str]:
@@ -1532,19 +1557,36 @@ def _full_quadratic_fits(ctx: _Context) -> bool:
     return bool(numeric) and _quadratic_fits(ctx, numeric)
 
 
-def _decide(ctx: _Context) -> _Step:  # noqa: C901, PLR0911 - one return per rule, in the order the rules are read
+def _decide(ctx: _Context) -> _Step:
     """Apply the rules of the module docstring, in order, to a study without confirmation runs to judge."""
     if ctx.model.error_df < _MIN_ERROR_DF and ctx.design.pure_error_df < _MIN_ERROR_DF:
         return _add_center_points(ctx) or _replicate(ctx)
     if not ctx.model.signal:
-        if ctx.model.error_df < _FEW_ERROR_DF:
-            return _more_error_df(ctx)
-        if "widen_ranges" in ctx.history or (not ctx.ranges_can_move and "replicate" in ctx.history):
-            return _no_effect(ctx)
-        return _widen_ranges(ctx)
-    de_alias = _de_alias(ctx)
-    if de_alias is not None:
-        return de_alias
+        return _nothing_stands_out(ctx)
+    step = _de_alias(ctx) or _curvature_step(ctx)
+    if step is not None:
+        return step
+    step = _move_region(ctx) or _confirm(ctx)
+    if ctx.lack_of_fit.get("significant"):
+        step.reasons.append(
+            f"The lack-of-fit test is significant (p = {_g(ctx.lack_of_fit['p_value'])}), though the runs fit the full "
+            "quadratic model: the model is off somewhere in the region, or the repeats agree more closely than the "
+            "noise usually allows. Runs at the optimum test it where it matters; look for an outlying run if they miss."
+        )
+    return step
+
+
+def _nothing_stands_out(ctx: _Context) -> _Step:
+    """More error degrees of freedom, wider ranges, or a stop, when no effect stands out from the noise."""
+    if ctx.model.error_df < _FEW_ERROR_DF:
+        return _more_error_df(ctx)
+    if "widen_ranges" in ctx.history or (not ctx.ranges_can_move and "replicate" in ctx.history):
+        return _no_effect(ctx)
+    return _widen_ranges(ctx)
+
+
+def _curvature_step(ctx: _Context) -> _Step | None:
+    """Return the runs a curved response needs before its optimum can be located, or None when the runs suffice."""
     if _curved(ctx):
         why = (
             f"The centre runs are off the plane of the corners (curvature test p = {_g(ctx.curvature['p_value'])})."
@@ -1564,14 +1606,7 @@ def _decide(ctx: _Context) -> _Step:  # noqa: C901, PLR0911 - one return per rul
         if step is not None:
             step.action = "add_runs_for_model"
             return step
-    step = _move_region(ctx) or _confirm(ctx)
-    if ctx.lack_of_fit.get("significant"):
-        step.reasons.append(
-            f"The lack-of-fit test is significant (p = {_g(ctx.lack_of_fit['p_value'])}), though the runs fit the full "
-            "quadratic model: the model is off somewhere in the region, or the repeats agree more closely than the "
-            "noise usually allows. Runs at the optimum test it where it matters; look for an outlying run if they miss."
-        )
-    return step
+    return None
 
 
 def _learn_more(ctx: _Context, why: str) -> _Step | None:
@@ -1603,7 +1638,7 @@ def _judge(ctx: _Context, confirmation: pd.DataFrame, raw: pd.Series) -> dict[st
 
 
 # --------------------------------------------------------------------------- the public function
-def recommend_next_step(  # noqa: PLR0913
+def recommend_next_step(  # noqa: PLR0913 - each setting is a separate input to the decision
     factors: list[Factor],
     runs: pd.DataFrame,
     response: str,
@@ -1701,11 +1736,11 @@ def recommend_next_step(  # noqa: PLR0913
     >>> step["action"], step["evidence"]["active_terms"]
     ('confirm', ['A', 'C', 'G', 'A:C'])
     """
-    _check_choices(factors, runs, goal, target, n_confirmation_runs, history, block)
+    choices = _Choices(goal, target, alpha, n_confirmation_runs, ranges_can_move, random_state, tuple(history or ()))
+    _check_choices(factors, runs, choices, block)
     data = _with_blocks(_code(factors, runs, response, block).dropna(subset=["y"]).reset_index(drop=True))
     if len(data) < 2:
         raise ValueError("At least two runs with a response are needed to recommend the next step.")
-    choices = _Choices(goal, target, alpha, n_confirmation_runs, ranges_can_move, random_state, tuple(history or ()))
     ctx = _context(_Study(factors, data, response), model_terms, choices)
     judged = None
     if confirmation_runs is not None and len(confirmation_runs):
@@ -1718,24 +1753,16 @@ def recommend_next_step(  # noqa: PLR0913
     return _reply(ctx, step, judged)
 
 
-def _check_choices(  # noqa: PLR0913
-    factors: list[Factor],
-    runs: pd.DataFrame,
-    goal: str,
-    target: float | None,
-    n_confirmation_runs: int,
-    history: list[str] | None,
-    block: str | None,
-) -> None:
+def _check_choices(factors: list[Factor], runs: pd.DataFrame, choices: _Choices, block: str | None) -> None:
     """Refuse choices :func:`recommend_next_step` cannot act on, with what is wrong."""
     _check_factors(factors)
-    if goal not in ("maximize", "minimize", "target"):
-        raise ValueError(f"goal must be 'maximize', 'minimize' or 'target', not {goal!r}.")
-    if goal == "target" and target is None:
+    if choices.goal not in ("maximize", "minimize", "target"):
+        raise ValueError(f"goal must be 'maximize', 'minimize' or 'target', not {choices.goal!r}.")
+    if choices.goal == "target" and choices.target is None:
         raise ValueError("A target goal needs its target.")
-    if n_confirmation_runs < 1:
-        raise ValueError(f"n_confirmation_runs must be at least 1, not {n_confirmation_runs}.")
-    unknown = sorted(set(history or []) - set(ACTIONS))
+    if choices.n_confirmation_runs < 1:
+        raise ValueError(f"n_confirmation_runs must be at least 1, not {choices.n_confirmation_runs}.")
+    unknown = sorted(set(choices.history) - set(ACTIONS))
     if unknown:
         raise ValueError(f"history holds {unknown}, which are not actions recommend_next_step returns: {ACTIONS}.")
     if block is not None and block not in runs.columns:
