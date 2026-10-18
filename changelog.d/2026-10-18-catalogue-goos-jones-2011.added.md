@@ -1,5 +1,5 @@
 - **The reference catalogue reads Goos and Jones, *Optimal Design of Experiments: A Case Study Approach*
-  (2011), chapters 1 to 6.** It holds:
+  (2011), chapters 1 to 8.** It holds:
   - the splits of a two-machine comparison's runs (Tables 1.1 to 1.4), checked with `allocate_runs`;
   - the GeneBe extraction experiment, with its fits, predictions, alias matrix (Table 2.7) and variance
     inflation factors;
@@ -16,9 +16,15 @@
     predicted yield;
   - the rolling mill (chapter 6), a mixture with two process variables: its design's balance and
     prediction variance, its first-order Scheffé fit in pseudocomponents, and the half fraction of the
-    2^5 factorial that the mixture constraint rules out.
+    2^5 factorial that the mixture constraint rules out;
+  - the pastry dough experiment (chapter 7), a D-optimal response surface design in seven days of four
+    runs: its efficiency factors and the average row of each day's model matrix, and REML fits with
+    the days as random effects, beside the orthogonally blocked central composite design it replaces;
+  - the stability of riboflavin (chapter 8), a D-optimal screening design in eight days of four: its
+    blocking VIFs beside a random design's and Dr. Xu's blocked half fraction, the 64-run
+    alternatives, and the fixed and random block effects analyses.
 
-  949 printed numbers give 1048 checks, all agreeing or explained. The 24 explained disagreements are
+  1380 printed numbers give 1478 checks, all agreeing or explained. The 27 explained disagreements are
   misprints or numbers read off a figure:
   - two t ratios in Table 2.5 and two in Table 3.7;
   - the time coefficient of Equation 2.1;
@@ -28,7 +34,10 @@
   - an RMSE "more than one and a half" for the reduced model of the 20 runs, whose RMSE is 1.07;
   - chapter 4's two determinants, whose ratio gives a relative D-efficiency of 0.952, not 93%;
   - supplier 3's speed coefficient, -0.0079 to the four decimals printed as -0.0080;
-  - three quantiles of chapter 4's FDS plot, read off Figure 4.1.
+  - three quantiles of chapter 4's FDS plot, read off Figure 4.1;
+  - Figure 7.1's two predictions at the settings it shows, which Table 7.9's models do not give;
+  - the "about 3% better" of the 64-run design printed as D-optimal (Table 8.7), which holds the same
+    runs as Table 8.6, blocked the same way.
 
   New check kinds: the corner of the cube where a model predicts the most (`best_corner`), a model's
   AICc (`aicc`), and one design's D- or I-efficiency relative to another entry's
@@ -36,5 +45,8 @@
   alias matrix printed in thirds), a product column named by its columns (`of`), the mean of a
   product column (`mean`), the square root of a library value (`root`), the first columns of a
   library design (`design_columns`), and some of the printed runs compared with a library design
-  (`runs`, for one supplier's runs), and the runs whose column is above or at least a value
-  (`above` and `at_least` on `run_count`).
+  (`runs`, for one supplier's runs), the runs whose column is above or at least a value
+  (`above` and `at_least` on `run_count`), a metric over the same metric of a second model
+  (`relative_to`, for a VIF or efficiency factor due to blocking), in percent (`percent`) or counted
+  (`count`), a block's average model row (`average`), and the split-plot analysis's coefficients,
+  variance ratio and predictions, by Kenward and Roger's method (`df_method`, `information`).
