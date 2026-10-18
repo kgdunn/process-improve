@@ -684,6 +684,14 @@ table.compare td:first-child { white-space: normal; min-width: 9rem; }
 table.compare th:first-child, table.compare tr:not(.group) td:first-child {
   position: sticky; left: 0; z-index: 1; background: var(--panel);
 }
+/* So do the arrows: their column starts where the names end, a width the page measures (--measure-width). */
+table.compare th:nth-child(2), table.compare tr:not(.group) td:nth-child(2) {
+  position: sticky; left: var(--measure-width, 9rem); z-index: 1; background: var(--panel);
+  box-shadow: inset -1px 0 0 var(--line);
+}
+/* The designs that cannot fit the model, at the right: muted, and set apart from those that can. */
+table.compare .unfit { color: var(--muted); }
+table.compare .unfit.first { border-left: 1px dashed var(--line); }
 table.compare tr.group span { position: sticky; left: 10px; display: inline-block; }
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
 

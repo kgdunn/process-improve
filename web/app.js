@@ -107,6 +107,7 @@ import {
   cellText,
   changeWords,
   compareCells,
+  comparisonOrder,
   completeRuns,
   componentProblem,
   defaultAim,
@@ -1757,15 +1758,22 @@ function renderComparison(result, made, notes) {
   out.hidden = false;
   const t = el("table", "data compare", "");
   const head = el("tr", "", "");
-  head.append(el("th", "", "Measure"), el("th", "", "Better"));
-  result.designs.forEach((label, i) => {
-    const th = el("th", "", label);
+  const measureHead = el("th", "", "Measure");
+  head.append(measureHead, el("th", "", "Better"));
+  // The designs that can fit the model come first; those that cannot, their columns mostly blank, go to the right.
+  const order = comparisonOrder(result);
+  const fits = (label) => Boolean(result.values[label]?.fits);
+  const firstUnfit = result.designs[order.find((i) => !fits(result.designs[i]))];
+  const cellClass = (label) => (fits(label) ? "" : label === firstUnfit ? "unfit first" : "unfit");
+  for (const i of order) {
+    const label = result.designs[i];
+    const th = el("th", cellClass(label), label);
     const use = el("button", "link", "Use this design");
     use.type = "button";
     use.onclick = () => useDesign(made[i]);
     th.append(el("br", "", ""), use);
     head.append(th);
-  });
+  }
   const thead = el("thead", "", "");
   thead.append(head);
   const tbody = el("tbody", "", "");
@@ -1792,7 +1800,10 @@ function renderComparison(result, made, notes) {
       name.append(to);
     }
     tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
-    for (const label of result.designs) tr.append(el("td", "", result.display[label][row]));
+    for (const i of order) {
+      const label = result.designs[i];
+      tr.append(el("td", cellClass(label), result.display[label][row]));
+    }
     tbody.append(tr);
   });
   t.append(thead, tbody);
@@ -1804,8 +1815,11 @@ function renderComparison(result, made, notes) {
   comparisonFit?.disconnect();
   comparisonFit = new ResizeObserver(() => {
     more.hidden = wrap.scrollWidth <= wrap.clientWidth + 1;
+    // The arrows stay in view beside the measure names as the designs scroll: their column starts where the names end.
+    t.style.setProperty("--measure-width", `${measureHead.getBoundingClientRect().width}px`);
   });
   comparisonFit.observe(wrap);
+  comparisonFit.observe(measureHead);
   // A note several designs share, such as the same terms they cannot tell apart, is said once for all of them.
   const shared = new Map();
   for (const label of result.designs) for (const n of result.notes[label]) shared.set(n, [...(shared.get(n) ?? []), label]);

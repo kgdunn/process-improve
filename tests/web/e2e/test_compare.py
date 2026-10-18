@@ -211,12 +211,18 @@ def test_with_five_factors_the_optimal_designs_wait_to_be_searched_for(fresh_pag
     assert page.is_hidden("#search")
 
 
+def order_of(compared: dict) -> list[int]:
+    """Return the order of the comparison's columns: the designs that fit the model, then those that cannot."""
+    fits = [compared["values"][d]["fits"] for d in compared["designs"]]
+    return [i for i, ok in enumerate(fits) if ok] + [i for i, ok in enumerate(fits) if not ok]
+
+
 def test_the_comparison_in_detail_has_a_column_per_design_and_a_row_per_measure(page, first_paint):
     reveal(page, "#compare")
     page.click("#compare")
     page.wait_for_function("document.querySelectorAll('#compare-charts .js-plotly-plot').length > 1")
     compared = first_paint["comparison"]["result"]
-    assert design_columns(page) == compared["designs"]
+    assert design_columns(page) == [compared["designs"][i] for i in order_of(compared)]
     shown = [
         m for row, m in enumerate(compared["measures"]) if any(compared["display"][d][row] for d in compared["designs"])
     ]
@@ -226,6 +232,46 @@ def test_the_comparison_in_detail_has_a_column_per_design_and_a_row_per_measure(
     charts = 1 + len(compared["designs"])  # the FDS plot and a correlation map per design
     page.wait_for_function(f"document.querySelectorAll('#compare-charts .js-plotly-plot').length === {charts}")
     assert [c["fn"] for c in calls(page)] == ["api_catalogue"], "the build compared them"
+
+
+def test_the_designs_that_cannot_fit_the_model_are_compared_at_the_right(page, first_paint):
+    compared = first_paint["comparison"]["result"]
+    fitting = [d for d in compared["designs"] if compared["values"][d]["fits"]]
+    unfit = [d for d in compared["designs"] if not compared["values"][d]["fits"]]
+    assert fitting, "the worked example compares designs that fit its model"
+    assert unfit, "and designs that cannot"
+    reveal(page, "#compare")
+    page.click("#compare")
+    assert design_columns(page) == fitting + unfit
+    muted = page.locator("#comparison thead th.unfit").all_text_contents()
+    assert [head.removesuffix("Use this design") for head in muted] == unfit
+    assert page.locator("#comparison thead th.unfit.first").count() == 1, "one line sets them apart"
+    fit_row = page.locator("#comparison tbody tr", has_text="Fits the model?").locator("td").all_text_contents()
+    assert all(cell.startswith("no") for cell in fit_row[-len(unfit) :])
+
+
+def test_the_arrows_stay_beside_the_measures_as_the_designs_scroll(page):
+    page.set_viewport_size({"width": 600, "height": 900})
+    reveal(page, "#compare")
+    page.click("#compare")
+    box = page.locator("#comparison .scroll")
+    row = page.locator("#comparison tbody tr:not(.group)").first
+    cells = row.locator("td")
+
+    def lefts() -> list[float]:
+        return [cells.nth(i).evaluate("(td) => td.getBoundingClientRect().left") for i in range(3)]
+
+    def right_of_name() -> float:
+        return cells.nth(0).evaluate("(td) => td.getBoundingClientRect().right")
+
+    before = lefts()
+    assert before[1] == pytest.approx(right_of_name(), abs=1), "the arrows start where the names end"
+    assert box.evaluate("(div) => div.scrollWidth > div.clientWidth"), "the designs do not all fit at this width"
+    box.evaluate("(div) => { div.scrollLeft = 200; }")
+    page.wait_for_function("document.querySelector('#comparison .scroll').scrollLeft > 0")
+    after = lefts()
+    assert after[:2] == pytest.approx(before[:2], abs=1), "the names and the arrows stay in view"
+    assert after[2] < before[2] - 50, "the designs scroll past them"
 
 
 def test_a_design_taken_from_the_detailed_comparison_reaches_the_run_sheet_as_made(page, first_paint):
