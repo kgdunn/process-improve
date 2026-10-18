@@ -1156,6 +1156,47 @@ def test_an_alias_matrix_in_thirds_product_columns_a_changed_run_and_some_column
     assert report["found"].iloc[4] == "not in runs 1, 3"  # x1 x3 is x2, which differs from x1 x2 where x1 = -1
 
 
+def test_a_best_corner_some_runs_of_a_design_and_a_relative_efficiency_are_checked(monkeypatch, tmp_path):
+    """A 2^2 factorial with a centre run, y = 3 + 2a - b: its best corner, its corner runs, its efficiency."""
+
+    def item(value, check):
+        return {"what": "x", "term": None, "value": value, "where": {"page": 1, "quote": "x"}, "check": check}
+
+    corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+    factors = [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in ("a", "b")]
+    best = {"kind": "best_corner", "model": "a + b", "factors": ["a", "b"]}
+    versus = {"kind": "relative_efficiency", "model": "a + b", "versus": "corners"}
+    factorial = {"design_type": "full_factorial", "k": 2, "options": {"n_center_points": 0}}
+    expected = [
+        item("1", best | {"factor": "a"}),
+        item("-1", best | {"factor": "b"}),
+        item("-1", best | {"factor": "a", "goal": "minimize"}),
+        item("x", {"kind": "same_runs", "runs": [1, 2, 3, 4], "design": factorial}),
+        item("1.08", versus | {"criterion": "d"}),  # |X'X| 80 against 64, per parameter: (80/64)^(1/3)
+        item("1.14", versus | {"criterion": "i"}),  # 1/n + 1/6 over the square: (1/4 + 1/6) / (1/5 + 1/6)
+    ]
+    rows = [[a, b, 3 + 2 * a - b] for a, b in [*corners, [0, 0]]]
+    with_centre = {
+        "name": "with-centre",
+        "factors": factors,
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["a", "b", "y"], "rows": rows, "coded": True},
+        "expected": expected,
+    }
+    corner_runs = {
+        "name": "corners",
+        "factors": factors,
+        "responses": [],
+        "runs": {"columns": ["a", "b"], "rows": corners, "coded": True},
+    }
+    source = {"key": "two", "authors": ["A"], "title": "t", "url": "u", "year": 2026, "read": "r"}
+    catalogue = {"source": source, "experiments": [with_centre], "designs": [corner_runs | {"expected": []}]}
+    (tmp_path / "two.json").write_text(json.dumps(catalogue), encoding="utf-8")
+    monkeypatch.setattr(reference_catalogue, "_CATALOGUE_DIR", tmp_path)
+    report = reproduce_reference_catalogue("two")
+    assert report["agrees"].tolist() == [True] * 6, report[["found", "reason"]].to_string()
+
+
 def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
     from process_improve.experiments.reference_catalogue import _library_text
 

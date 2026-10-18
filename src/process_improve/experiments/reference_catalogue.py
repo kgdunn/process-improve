@@ -741,6 +741,29 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     return float(prediction[bound])
 
 
+def _best_corner(out: dict, check: dict, experiment: dict) -> float:
+    """Return a factor's setting, -1 or +1, at the corner of the cube where the fitted model predicts the most.
+
+    The corners are the two-level combinations of ``check["factors"]``, every other factor at its
+    centre, and each is scored by the library's prediction; ``"goal": "minimize"`` takes the least.
+    ``check["factor"]`` names the setting returned, as a source tabulates the settings that each of
+    several fitted models recommends.
+    """
+    names = [f["name"] for f in experiment["factors"]]
+    chosen = list(check["factors"])
+    corners = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=len(chosen))), columns=chosen)
+    points = pd.DataFrame(0.0, index=corners.index, columns=names)
+    points[chosen] = corners
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        found = analyze_experiment(
+            out["settings"], out["y"], model=check["model"], analysis_type="prediction", new_points=points
+        )
+    predicted = np.array([float(p["predicted"]) for p in found["predictions"]])
+    best = int(np.argmin(predicted) if check.get("goal") == "minimize" else np.argmax(predicted))
+    return float(corners.iloc[best][check["factor"]])
+
+
 def _target_setting(out: dict, check: dict, experiment: dict) -> float:
     """Return the setting of one factor at which the fitted model predicts a target, the others held fixed.
 
@@ -1161,6 +1184,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "f_uncorrected_p": lambda out, _c, _e: _f_uncorrected(out)[1],
     "log_likelihood": lambda out, _c, _e: out["model_summary"]["log_likelihood"],
     "aic": lambda out, _c, _e: out["model_summary"]["aic"],
+    "aicc": lambda out, _c, _e: out["model_summary"]["aicc"],
     "aic_step": lambda out, _c, _e: out["model_summary"]["aic_step"],
     "bic": lambda out, _c, _e: out["model_summary"]["bic"],
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
@@ -1191,6 +1215,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "curvature_difference": lambda out, _c, _e: out["curvature_test"]["difference"],
     "curvature": lambda out, c, _e: float(out["curvature_test"][c["key"]]),
     "prediction": _prediction,
+    "best_corner": _best_corner,
     "target_setting": _target_setting,
     "optimum": _optimum,
     "box_cox": _box_cox,
@@ -1471,6 +1496,7 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
     (``"columns and signs"``), as two constructions of the same design may differ. A printed
     number of runs, when the text is one, must be the number compared. ``check["round"]`` rounds
     both matrices to that many decimals first, for an axial distance printed as 1.414.
+    ``check["runs"]`` keeps the printed runs at these 1-based positions, as one supplier's runs of a design.
     """
     if "array" in check:
         library, alpha = _array_runs(check), None
@@ -1478,10 +1504,11 @@ def _same_runs(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
         made = _made(json.dumps(check["design"], sort_keys=True))
         library, alpha = made.design[made.factor_names].to_numpy(dtype=float), made.alpha
     columns = check.get("columns") or [f["name"] for f in experiment["factors"]]
+    positions = check.get("runs")
     if experiment["runs"].get("coded", True):
-        matrix = _printed_matrix(experiment, columns, alpha)
+        matrix = _printed_matrix(experiment, columns, alpha, positions)
     else:  # a matrix printed in the factors' own units is compared in coded units
-        matrix = _coded_runs(experiment, None)[0][columns].to_numpy(dtype=float)
+        matrix = _coded_runs(experiment, positions)[0][columns].to_numpy(dtype=float)
     if "round" in check:
         library, matrix = np.round(library, check["round"]), np.round(matrix, check["round"])
     count_agrees = not str(printed).strip().isdigit() or int(printed) == len(matrix)
@@ -1720,14 +1747,42 @@ def _mod3_sum(_experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
 
 
 @functools.cache
-def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
-    """Return the runs of the catalogue's entry ``name``: its columns and its rows."""
+def _entry(directory: str, name: str) -> dict[str, Any]:
+    """Return the catalogue's entry ``name``, an experiment or a design."""
     for path in sorted(Path(directory).glob("*.json")):
         found = json.loads(path.read_text(encoding="utf-8"))
         for entry in [*found.get("experiments", []), *found.get("designs", [])]:
             if entry.get("name") == name:
-                return entry["runs"]["columns"], entry["runs"]["rows"]
+                return entry
     raise KeyError(f"The catalogue has no entry {name!r}.")
+
+
+def _entry_runs(directory: str, name: str) -> tuple[list[str], list[list[Any]]]:
+    """Return the runs of the catalogue's entry ``name``: its columns and its rows."""
+    runs = _entry(directory, name)["runs"]
+    return runs["columns"], runs["rows"]
+
+
+def _relative_efficiency(experiment: dict, check: dict) -> float:
+    """Return the efficiency of the entry's runs relative to another entry's, for the model ``check["model"]``.
+
+    ``check["versus"]`` names the other entry, a design of the catalogue with the same factors.
+    ``check["criterion"]`` is ``"d"``: (|X'X| / |X0'X0|)^(1/p) for p model terms, the two designs'
+    determinants compared per parameter; or ``"i"``: the other design's average prediction variance
+    over this one's (``check["options"]`` as :func:`~process_improve.experiments.evaluate_design`
+    takes them). Above one, the entry's runs are the better.
+    """
+    other = _entry(str(_CATALOGUE_DIR), check["versus"])
+    sources = [
+        json.dumps({"columns": list(s.columns), "runs": s.to_dict("list")}, sort_keys=True)
+        for s in (_coded_runs(experiment, None)[0], _coded_runs(other, None)[0])
+    ]
+    metric = "information_matrix" if check["criterion"] == "d" else "average_prediction_variance"
+    asked = json.dumps({"model": check["model"], "metric": metric, "options": check.get("options")}, sort_keys=True)
+    mine, theirs = (_evaluated(source, asked)[metric] for source in sources)
+    if check["criterion"] == "d":
+        return math.exp((mine["log_determinant"] - theirs["log_determinant"]) / mine["n_parameters"])
+    return float(theirs) / float(mine)
 
 
 def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
@@ -2927,6 +2982,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "interaction_columns": _interaction_columns,
     "log_variance_ratio": _log_variance_ratio,
     "normal_equations": _normal_equations,
+    "relative_efficiency": _relative_efficiency,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "design_measure": _design_measure,
