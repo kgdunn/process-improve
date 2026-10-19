@@ -244,6 +244,38 @@ def box_share(a: np.ndarray, b: np.ndarray) -> float | None:
     return float(round_significant(np.array([share]))[0])
 
 
+def simplex_share(vertices: np.ndarray, whole: np.ndarray) -> float:
+    """Return the volume of the hull of ``vertices`` over that of ``whole``: blends on the plane where they sum to 1.
+
+    Each is a convex polytope of mixtures, given by its vertices (one blend a row). Dropping the
+    last proportion maps the plane onto the first ``q - 1`` proportions, which scales every volume
+    alike, so the ratio is that of the hulls there. A polytope with no volume (empty, or flat)
+    has a share of 0.
+
+    Raises
+    ------
+    ValueError
+        If ``whole`` has no volume, so no share of it can be taken.
+    """
+    total = _blend_volume(whole)
+    if total <= 0:
+        raise ValueError("The components' ranges leave the mixtures no volume, so no share of them can be taken.")
+    return min(1.0, _blend_volume(vertices) / total)
+
+
+def _blend_volume(vertices: np.ndarray) -> float:
+    """Return the volume of the hull of blends, in their first ``q - 1`` proportions; 0 when empty or flat."""
+    if len(vertices) == 0:
+        return 0.0
+    flat = np.asarray(vertices, dtype=float)[:, :-1]
+    d = flat.shape[1]
+    if d == 0:
+        return 1.0  # one component: the single blend
+    if len(flat) <= d or np.linalg.matrix_rank(flat - flat[0], tol=1e-9) < d:
+        return 0.0
+    return float(flat.max() - flat.min()) if d == 1 else float(ConvexHull(flat).volume)
+
+
 def _groups(a: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
     """Return the groups of columns that rows tie together, each with its rows; a column no row names is in none."""
     parent = list(range(a.shape[1]))

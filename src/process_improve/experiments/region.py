@@ -54,6 +54,7 @@ from process_improve.experiments._region_geometry import (
     convex_polygon,
     points_inside,
     round_significant,
+    simplex_share,
 )
 from process_improve.experiments._uniform_sampling import (
     _TOL,
@@ -454,6 +455,11 @@ class DesignRegion:
         points it is within about 0.005 of the exact share for the regions of a few factors
         that limits describe.
 
+        For a mixture region the share is of the blends the components' ranges allow (the
+        whole simplex when every range is 0 to 1), and it is exact: a mixture's constraints
+        are straight, so it is the volume of the polytope they leave over that of the
+        polytope the ranges leave, each the hull of its extreme vertices (#810).
+
         Parameters
         ----------
         n_samples : int
@@ -463,24 +469,28 @@ class DesignRegion:
         Returns
         -------
         float
-            The share of the box, between 0 and 1.
+            The share of the box, or of the mixtures, between 0 and 1.
 
         Raises
         ------
         ValueError
-            For a mixture region, or ``n_samples`` below 1.
+            If ``n_samples`` is below 1, or a mixture's vertices are too many to list.
 
         Examples
         --------
         >>> T, D = Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)
         >>> round(DesignRegion([T, D], ["3*T + 5*D <= 600"]).volume_fraction(), 3)  # exactly 0.625
         0.625
+        >>> blends = [Factor(name=name, type="mixture") for name in ("A", "B", "C")]
+        >>> DesignRegion(blends, ["A <= 0.5"]).volume_fraction()  # all but the corner where A > 0.5, 1/4
+        0.75
         """
-        self._require_box("volume_fraction")
         if n_samples < 1:
             raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
         if not self.constraints:
             return 1.0
+        if self.kind == "mixture":
+            return self._mixture_share()
         exact = self._exact_share()
         if exact is not None:
             return exact
@@ -492,6 +502,20 @@ class DesignRegion:
         if straight is None or not inside.any():
             return float(np.mean(allowed))
         return straight * float(np.mean(allowed[inside]))
+
+    def _mixture_share(self) -> float:
+        """Return the share of the blends the components' ranges allow that the constraints leave, exactly (#810).
+
+        A mixture's constraints are straight, so both are polytopes, each the hull of its extreme vertices.
+        """
+        from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
+            extreme_vertices,
+            mixture_inequalities,
+        )
+
+        return simplex_share(
+            extreme_vertices(self._a, self._b), extreme_vertices(*mixture_inequalities(self.factors, []))
+        )
 
     def _exact_share(self) -> float | None:
         """Return the exact share of the box with straight constraints only, or None when it is sampled."""

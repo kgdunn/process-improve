@@ -1445,7 +1445,6 @@ class TestSliceSlack:
 @pytest.mark.parametrize(
     ("method", "args"),
     [
-        ("volume_fraction", ()),
         ("centroid", ()),
         ("is_empty", ()),
         ("implied_bounds", ()),
@@ -1461,6 +1460,35 @@ class TestSliceSlack:
 def test_box_diagnostics_refuse_a_mixture(method, args):
     with pytest.raises(ValueError, match="mixture proportions"):
         getattr(DesignRegion(MIXTURE, ["x0 <= 0.5"]), method)(*args)
+
+
+@pytest.mark.parametrize(
+    ("factors", "constraints", "share"),
+    [
+        pytest.param(MIXTURE, ["x0 <= 0.5"], 0.75, id="a-corner-cut-off"),
+        pytest.param(MIXTURE, ["x0 + x1 <= 0.6"], 0.6**2, id="a-smaller-simplex"),
+        pytest.param([Factor(name=f"x{i}", type="mixture") for i in range(4)], ["x0 <= 0.5"], 1 - 0.5**3, id="four"),
+        pytest.param(MIXTURE[:2], ["x0 <= 0.3"], 0.3, id="two-components"),
+        pytest.param(MIXTURE, [], 1.0, id="no-limits"),
+        pytest.param(MIXTURE, ["x0 >= 0.7", "x1 >= 0.7"], 0.0, id="empty"),
+        pytest.param(MIXTURE, ["x0 >= 0.5", "x0 <= 0.5"], 0.0, id="flat"),
+    ],
+)
+def test_a_mixture_s_share_is_the_volume_its_limits_leave_of_the_simplex(factors, constraints, share):
+    """#810 item 3: exact, from the polytopes' hulls; a mixture region used to raise."""
+    assert DesignRegion(factors, constraints).volume_fraction() == pytest.approx(share, abs=1e-12)
+
+
+def test_a_mixture_s_share_is_of_the_blends_its_ranges_allow():
+    """x0 at most 0.5 leaves 3/4 of the simplex; within that, x0 <= 0.25 leaves (1 - 0.75^2) / 0.75."""
+    factors = [Factor(name="x0", type="mixture", low=0.0, high=0.5), *MIXTURE[1:]]
+    assert DesignRegion(factors, ["x0 <= 0.25"]).volume_fraction() == pytest.approx((1 - 0.75**2) / 0.75)
+
+
+def test_a_share_of_mixtures_with_no_volume_is_refused():
+    one_blend = np.array([[1.0, 0.0, 0.0]])
+    with pytest.raises(ValueError, match="no volume"):
+        geometry.simplex_share(one_blend, one_blend)
 
 
 @pytest.mark.parametrize("module", ["_region_geometry", "region", "compare", "separating", "designs_constrained"])
