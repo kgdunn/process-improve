@@ -150309,7 +150309,9 @@
       "quote": "Table 9.4 ... Total 145.56 8"
      },
      "check": {
-      "manual": "nine runs less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "C(block) + C(A) + C(B)"
      }
     }
    ]
@@ -157798,7 +157800,9 @@
       "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
      },
      "check": {
-      "manual": "16 observations less one; the regression's and the residual's degrees of freedom are checked"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "temperature + feed"
      }
     },
     {
@@ -162537,7 +162541,9 @@
       "quote": "Table 11.2 Analysis of Variance for the First-Order Model ... Total 3.0022 8"
      },
      "check": {
-      "manual": "nine runs less one; the model's and the residual's degrees of freedom are checked"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "time + temp"
      }
     },
     {
@@ -171265,7 +171271,10 @@
       "quote": "Table 11.21 Model Fitting for the Hardness Response ... ANOVA for Mixture Quadratic Model ... Cor Total 468.36 13"
      },
      "check": {
-      "manual": "fourteen runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "scheffe_quadratic",
+      "response": "hardness"
      }
     },
     {
@@ -172421,7 +172430,10 @@
       "quote": "Table 11.22 Model Fitting for the Solids Response ... ANOVA for Mixture Quadratic Model ... Cor Total 4564.73 13"
      },
      "check": {
-      "manual": "fourteen runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "scheffe_quadratic",
+      "response": "solids"
      }
     },
     {
@@ -184018,7 +184030,9 @@
       "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Total 119 1274.592"
      },
      "check": {
-      "manual": "120 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "part * operator"
      }
     },
     {
@@ -192399,7 +192413,9 @@
       "quote": "Table 14.4 Analysis of Variance for the Data in Example 14.1 ... Total 148.31 35"
      },
      "check": {
-      "manual": "36 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "supplier + supplier:batch"
      }
     },
     {
@@ -192844,7 +192860,9 @@
       "quote": "Table 14.5 Incorrect Analysis of the Two-Stage Nested Design in Example 14.1 as a Factorial (Suppliers Fixed, Batches Random) ... Total 148.31 35"
      },
      "check": {
-      "manual": "36 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "supplier * batch"
      }
     },
     {
@@ -197417,7 +197435,9 @@
       "quote": "Table 14.12 Analysis of Variance for Example 14.2 ... Total 299.67 47"
      },
      "check": {
-      "manual": "48 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "fixture * layout + layout:operator + fixture:layout:operator"
      }
     },
     {
@@ -200948,7 +200968,9 @@
       "quote": "Factorial Analysis ... SSF 2 SSL 1 SSFL 2 SSO 3 SSLO 3 SSFO 6 SSFOL 6 SSE 24 SST 47 ... Nested–Factorial Analysis ... SSO(L) = SSO + SSLO 6 SSFO(L) = SSFO + SSFOL 12"
      },
      "check": {
-      "manual": "48 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "fixture * layout + layout:operator + fixture:layout:operator"
      }
     },
     {
@@ -221992,7 +222014,9 @@
       "quote": "Table 15.7 Analysis of Variance for Battery Design Data in Table 15.6 ... Total 39,150.0 19"
      },
      "check": {
-      "manual": "20 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "material * temperature"
      }
     },
     {
@@ -222739,7 +222763,9 @@
       "quote": "Table 15.13 Analysis of Covariance for the Breaking Strength Data ... Total 14"
      },
      "check": {
-      "manual": "15 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "strength ~ diameter + C(machine, Sum)"
      }
     },
     {
@@ -224299,7 +224325,9 @@
       "quote": "Table 15.14 Incorrect Analysis of the Breaking Strength Data as a Single-Factor Experiment ... Total 346.40 14"
      },
      "check": {
-      "manual": "15 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "machine"
      }
     },
     {
@@ -224571,7 +224599,9 @@
       "quote": "Table 15.15 Minitab Output (Analysis of Covariance) for Example 15.5 ... Total 14 346.40"
      },
      "check": {
-      "manual": "15 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "strength ~ diameter + C(machine, Sum)"
      }
     },
     {
@@ -225559,7 +225589,9 @@
       "quote": "Table 15.17 JMP Analysis of Covariance for the Experiment in Table 15.16, Assuming a Common Slope ... Analysis of Variance ... Model 8 21363.834 2670.48 29.7595 Error 7 628.147 89.74 C. Total 15 21991.981 Prob > F <.0001"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {
@@ -226786,7 +226818,9 @@
       "quote": "Table 15.18 JMP Analysis of Covariance, Reduced Model for the Experiment in Table 15.16 ... Analysis of Variance ... Model 4 21228.644 5307.16 76.4783 Error 11 763.337 69.39 C. Total 15 21991.981 Prob > F <.0001"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {
@@ -227293,7 +227327,9 @@
       "quote": "Table 15.19 JMP Output for the Experiment in Table 15.16 ... Analysis of Variance ... Model 13 21989.177 1691.48 1206.292 Error 2 2.804 1.40 C. Total 15 21991.981 Prob > F 0.0008"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {
@@ -229120,7 +229156,9 @@
       "quote": "Table 15.20 JMP Output for the Experiment in Table 15.16, Reduced Model ... Analysis of Variance ... Model 8 21986.334 2748.29 3406.688 Error 7 5.647 0.81 C. Total 15 21991.981 Prob > F <.0001"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {

@@ -649,6 +649,16 @@ def _anova_row(out: dict, term: str) -> dict:
     )
 
 
+def _anova_df(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a row's degrees of freedom in the analysis of variance.
+
+    The ``Total`` row, which the library's table does not hold, has the observations less one.
+    """
+    if check["term"] == "Total":
+        return float(out["y"].notna().sum() - 1)
+    return _anova_row(out, check["term"])["df"]
+
+
 def _percent_of_total(out: dict, check: dict, _experiment: dict) -> float:
     """Return a row's sum of squares (a term's, or the ``Residual``) as a percentage of the total about the mean."""
     return 100 * _anova_row(out, check["term"])["sum_sq"] / sum(_anova_sums(out)[:2])
@@ -1282,7 +1292,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "anova_mean_sq": lambda out, c, _e: _anova_row(out, c["term"])["mean_sq"],
     "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],
     "anova_p": lambda out, c, _e: _anova_row(out, c["term"])["p_value"],
-    "anova_df": lambda out, c, _e: _anova_row(out, c["term"])["df"],
+    "anova_df": _anova_df,
     "percent_of_total": _percent_of_total,
     "percent_contribution": _percent_contribution,
     "extra_ss": lambda out, c, _e: _extra_sums(out, c)["sum_sq"],

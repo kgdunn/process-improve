@@ -1015,6 +1015,19 @@ def test_a_normal_plot_ranks_the_effects_ties_averaged_at_100_i_less_a_half_over
     assert plot(out, {**check, "rank": 1, "key": "position"}, entry) == pytest.approx(100 * 0.5 / 7)
 
 
+def test_the_total_row_of_degrees_of_freedom_is_the_observations_less_one():
+    """The library's table has no Total row: a source's is the observations less one, a blank reading left out."""
+    anova_df = reference_catalogue._FIT_KINDS["anova_df"]
+    fits = reference_catalogue._Fits()
+    entry = _factorial(4, FILTRATION)
+    check = {"model": "A * B * C * D - A:B:C:D", "term": "Total"}
+    assert anova_df(fits(entry, check), check, entry) == 15
+    entry = _replicated_2x2([[1, 3], [2, None], [4, 4], [6, 9]])
+    check = {"model": "A * B", "term": "Total", "summary": {"of": ["y1", "y2"], "statistic": "each"}}
+    assert anova_df(fits(entry, check), check, entry) == 6
+    assert anova_df(fits(entry, check), {**check, "term": "A"}, entry) == 1
+
+
 def test_a_percent_of_total_is_a_term_s_share_of_the_total_sum_of_squares():
     """Montgomery's percent contribution: a term's sum of squares as a percentage of the total, not Taguchi's."""
     entry = _factorial(4, FILTRATION)

@@ -24137,7 +24137,9 @@
       "quote": "Total .4760 9"
      },
      "check": {
-      "manual": "the ten setups less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "bake"
      }
     }
    ]
@@ -25055,7 +25057,16 @@
       "quote": "5. a) Source SS df MS F0 ... Total 1.669 17"
      },
      "check": {
-      "manual": "the 18 readings less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "T * acid",
+      "summary": {
+       "of": [
+        "k1",
+        "k2"
+       ],
+       "statistic": "each"
+      }
      }
     }
    ]
@@ -62968,7 +62979,9 @@
       "quote": "Table 2 ... Total 21"
      },
      "check": {
-      "manual": "the 22 readings less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "months"
      }
     }
    ]
@@ -66625,7 +66638,10 @@
       "quote": "Table 2 Regression Models ... DEP VARIABLE: MPD ... C TOTAL 42"
      },
      "check": {
-      "manual": "the 43 observations less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "CS + PS + SERV + SLOTS + I(CS ** 2) + CS:PS + CS:SERV + CS:SLOTS + PS:SLOTS + I(SLOTS ** 2)",
+      "response": "MPD"
      }
     },
     {
@@ -67551,7 +67567,10 @@
       "quote": "Table 2 Regression Models ... DEP VARIABLE: ALU ... C TOTAL 42"
      },
      "check": {
-      "manual": "the 43 observations less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "CS + PS + SERV + SLOTS + I(CS ** 2) + CS:SERV + CS:SLOTS + PS:SLOTS + I(SERV ** 2) + SERV:SLOTS + I(SLOTS ** 2)",
+      "response": "ALU"
      }
     },
     {
@@ -68551,7 +68570,10 @@
       "quote": "Table 2 Regression Models ... DEP VARIABLE: BLK ... C TOTAL 42"
      },
      "check": {
-      "manual": "the 43 observations less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "CS + PS + SERV + SLOTS + I(CS ** 2) + CS:PS + CS:SERV + CS:SLOTS + I(PS ** 2) + PS:SLOTS + SERV:SLOTS + I(SLOTS ** 2)",
+      "response": "BLK"
      }
     },
     {
@@ -70948,7 +70970,16 @@
       "quote": "Table 1 ANOVA Table ... Total ... 15"
      },
      "check": {
-      "manual": "the 16 readings less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -75423,7 +75454,16 @@
       "quote": "Source ... SS ... DOF ... MS ... F0 ... n - 1 = 7"
      },
      "check": {
-      "manual": "the 8 readings less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "A + B + C",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -78104,7 +78144,9 @@
       "quote": "Table 4 ANOVA TABLE ... Total 15"
      },
      "check": {
-      "manual": "the 16 runs less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "W + X + X:XL + ZL + B + W:WL + WL + X:Z"
      }
     },
     {
@@ -101282,7 +101324,16 @@
       "quote": "Table 2 ANOVA ... Total ... 15"
      },
      "check": {
-      "manual": "the 16 readings less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "A * B * C",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -101986,7 +102037,16 @@
       "quote": "Table 4 ANOVA ... Total ... 7"
      },
      "check": {
-      "manual": "the 8 readings less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "A * B",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     }
    ]
@@ -108143,7 +108203,17 @@
       "quote": "Table 3 Analysis of Variance Table ... Corr. Total 53"
      },
      "check": {
-      "manual": "the 54 boards less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "IP + LOC + EXT + INT + TEMP + CONV + IP:LOC",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -109822,7 +109892,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... Total (corr.) 741419830 17"
      },
      "check": {
-      "manual": "the 18 runs less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
