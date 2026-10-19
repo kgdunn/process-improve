@@ -25,6 +25,11 @@ is kept. :math:`V^{-1}` is block diagonal, so :math:`M` is a sum over the whole 
     c_w = \frac{\eta}{1 + m_w \eta},
 
 for a whole plot of :math:`m_w` runs, and a change replaces one whole plot's term.
+
+A two-way split-plot (strip-plot) design has two such groupings, crossed: rows, whose factors are
+set once for the runs of a row, and columns, whose factors are set once for the runs of a column
+(:func:`strip_plot_design`). Then :math:`V = I + \eta_r Z_r Z_r^T + \eta_c Z_c Z_c^T`, and the
+search updates :math:`M` by the runs a change touches.
 """
 
 from __future__ import annotations
@@ -345,3 +350,237 @@ def _settings(model: _Model, levels: np.ndarray, factors: list[Factor]) -> np.nd
     if all(f.type != FactorType.categorical for f in factors):
         return design.astype(float)
     return design
+
+
+# --------------------------------------------------------------------------- two-way split-plot designs
+@dataclass(frozen=True)
+class StripPlotLayout:
+    """The structure of a two-way split-plot (strip-plot) design.
+
+    Attributes
+    ----------
+    row_factors, column_factors : tuple of str
+        The factors set once for each row and once for each column of the grid, as the two
+        stages of a process set them (lots, then curing cycles, say). Any other factor is set
+        for each run.
+    cells : tuple of (int, int)
+        Each run's row and column, from 0.
+    """
+
+    row_factors: tuple[str, ...]
+    column_factors: tuple[str, ...]
+    cells: tuple[tuple[int, int], ...]
+
+
+@dataclass(frozen=True)
+class StripPlotOptions:
+    r"""How a two-way split-plot design is searched for.
+
+    Attributes
+    ----------
+    criterion : str
+        One of :data:`CRITERIA`.
+    model_type : str
+        ``"main_effects"``, ``"interactions"`` or ``"quadratic"``.
+    row_variance_ratio, column_variance_ratio : float
+        :math:`\eta_r` and :math:`\eta_c`: the row and the column variance over the run-to-run
+        variance.
+    n_starts : int
+        Random starts; the best design of them is kept.
+    """
+
+    criterion: str = "d_optimal"
+    model_type: str = "main_effects"
+    row_variance_ratio: float = 1.0
+    column_variance_ratio: float = 1.0
+    n_starts: int = 10
+
+
+@dataclass(frozen=True)
+class _Grid:
+    """For each factor, the groups of runs that share its setting; and the inverse of the runs' covariance."""
+
+    groups: tuple[tuple[np.ndarray, ...], ...]
+    weight: np.ndarray
+
+
+def strip_plot_design(
+    factors: list[Factor],
+    layout: StripPlotLayout,
+    options: StripPlotOptions,
+    random_state: int | np.random.Generator | None = None,
+) -> tuple[np.ndarray, dict]:
+    r"""Search for a two-way split-plot (strip-plot) design that is optimal on :math:`X^T V^{-1} X`.
+
+    The runs sit in the cells of a grid. A row's factors are set once for all its runs and a
+    column's once for all of its runs; any other factor is set for each run. The rows and the
+    columns are crossed random effects, :math:`V = I + \eta_r Z_r Z_r^T + \eta_c Z_c Z_c^T` in
+    units of the run-to-run variance (Goos and Jones, chapter 11). The search is the coordinate
+    exchange of :func:`split_plot_design`: each row's setting of each row factor, each column's
+    setting of each column factor and each run's setting of the other factors is replaced by the
+    level that improves the criterion most, until a pass changes nothing.
+
+    Parameters
+    ----------
+    factors : list[Factor]
+        Continuous factors (coded from -1 to +1) and categorical factors.
+    layout : StripPlotLayout
+        The row factors, the column factors and the cell of each run.
+    options : StripPlotOptions
+        The criterion, the model, the two variance ratios and the number of starts.
+    random_state : int, numpy.random.Generator or None
+        Seeds the random starts.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, dict]
+        The design, one run per row in the order of ``layout.cells`` (continuous factors coded,
+        categorical factors as their labels), and metadata: ``optimality_criterion``,
+        ``model_type``, ``backend`` (``"strip_plot_exchange"``), ``row_factors``,
+        ``column_factors``, ``row`` and ``column`` (each run's), ``row_variance_ratio``,
+        ``column_variance_ratio``, ``n_starts``, and ``log_det_information`` for D or
+        ``trace_criterion`` for A and I, on :math:`M = X^T V^{-1} X`.
+
+    Raises
+    ------
+    ValueError
+        If the criterion is not one of :data:`CRITERIA`, a variance ratio is not a finite number of
+        at least 0, a row or column factor is not a factor or is both, a cell is not a pair of
+        whole numbers from 0, there are fewer runs than model terms, or no design on this grid can
+        estimate the model.
+
+    Examples
+    --------
+    Goos and Jones's twelve runs in four rows and four columns (Table 11.9), each row in three
+    columns: x1 and x2 set by row, x3 by column.
+
+    >>> from process_improve.experiments import Factor
+    >>> cells = tuple((r, (r + c) % 4) for r in range(4) for c in range(3))
+    >>> layout = StripPlotLayout(("x1", "x2"), ("x3",), cells)
+    >>> design, meta = strip_plot_design(
+    ...     [Factor(name=n, low=-1, high=1) for n in ("x1", "x2", "x3")], layout, StripPlotOptions(), random_state=1
+    ... )
+    >>> design.shape, round(meta["log_det_information"], 3)
+    ((12, 3), 3.767)
+    """
+    cells = _check_strip(factors, layout, options)
+    model = _build_model(factors, options.model_type)
+    if len(cells) < len(model.parts):
+        msg = f"{len(cells)} runs cannot estimate the {len(model.parts)} terms of the {options.model_type} model."
+        raise ValueError(msg)
+    grid = _grid(factors, layout, cells, options)
+    rng = check_random_state(random_state)
+    best_levels, best_score = None, np.inf
+    for _ in range(options.n_starts):
+        levels, score = _climb_grid(model, _grid_start(model, grid, len(cells), rng), grid, options.criterion, rng)
+        if score < best_score:
+            best_levels, best_score = levels, score
+    assert best_levels is not None  # n_starts >= 1, checked above
+    rows = model.rows(best_levels)
+    information = rows.T @ grid.weight @ rows
+    if np.linalg.matrix_rank(information) < len(model.parts):
+        msg = f"No design on this grid of {len(cells)} runs estimates the {options.model_type} model."
+        raise ValueError(msg)
+    meta = {
+        "optimality_criterion": options.criterion,
+        "model_type": options.model_type,
+        "backend": "strip_plot_exchange",
+        "row_factors": list(layout.row_factors),
+        "column_factors": list(layout.column_factors),
+        "row": cells[:, 0].tolist(),
+        "column": cells[:, 1].tolist(),
+        "row_variance_ratio": options.row_variance_ratio,
+        "column_variance_ratio": options.column_variance_ratio,
+        "n_starts": options.n_starts,
+        **_criterion_value(information, model.moments, options.criterion),
+    }
+    return _settings(model, best_levels, factors), meta
+
+
+def _check_strip(factors: list[Factor], layout: StripPlotLayout, options: StripPlotOptions) -> np.ndarray:
+    """Refuse options, factors or cells the search cannot work with; return the cells as an array."""
+    if options.criterion not in CRITERIA:
+        msg = f"A two-way split-plot design is searched for on {list(CRITERIA)}; got criterion={options.criterion!r}."
+        raise ValueError(msg)
+    for ratio in (options.row_variance_ratio, options.column_variance_ratio):
+        if not isinstance(ratio, (int, float)) or not np.isfinite(ratio) or ratio < 0:
+            msg = f"A variance ratio must be a finite number of at least 0; got {ratio!r}."
+            raise ValueError(msg)
+    names = {f.name for f in factors}
+    staged = [*layout.row_factors, *layout.column_factors]
+    if not factors or options.n_starts < 1 or not set(staged) <= names or len(set(staged)) < len(staged):
+        msg = (
+            f"The row factors {list(layout.row_factors)} and the column factors {list(layout.column_factors)} must "
+            f"be different factors of {sorted(names)}, and the search needs at least one start."
+        )
+        raise ValueError(msg)
+    cells = np.asarray(layout.cells)
+    if cells.ndim != 2 or cells.shape[1:] != (2,) or len(cells) == 0 or cells.dtype.kind not in "iu" or cells.min() < 0:
+        msg = "The cells must be (row, column) pairs of whole numbers from 0, one for each run."
+        raise ValueError(msg)
+    return cells
+
+
+def _grid(factors: list[Factor], layout: StripPlotLayout, cells: np.ndarray, options: StripPlotOptions) -> _Grid:
+    """Return the runs that share each factor's setting, and V^-1 for the rows and columns as random effects."""
+
+    def by(column: int) -> tuple[np.ndarray, ...]:
+        return tuple(np.flatnonzero(cells[:, column] == value) for value in np.unique(cells[:, column]))
+
+    each_run = tuple(np.array([i]) for i in range(len(cells)))
+    groups = tuple(
+        by(0) if f.name in layout.row_factors else by(1) if f.name in layout.column_factors else each_run
+        for f in factors
+    )
+    same_row = (cells[:, 0][:, None] == cells[:, 0][None, :]).astype(float)
+    same_column = (cells[:, 1][:, None] == cells[:, 1][None, :]).astype(float)
+    covariance = (
+        np.eye(len(cells)) + options.row_variance_ratio * same_row + options.column_variance_ratio * same_column
+    )
+    return _Grid(groups, np.linalg.inv(covariance))
+
+
+def _grid_start(model: _Model, grid: _Grid, n_runs: int, rng: np.random.Generator) -> np.ndarray:
+    """Return random levels, one for each group of runs that shares a factor's setting."""
+    levels = np.zeros((n_runs, len(grid.groups)), dtype=int)
+    for j, groups in enumerate(grid.groups):
+        for runs in groups:
+            levels[runs, j] = rng.integers(len(model.tables[j]))
+    return levels
+
+
+def _climb_grid(
+    model: _Model, levels: np.ndarray, grid: _Grid, criterion: str, rng: np.random.Generator
+) -> tuple[np.ndarray, float]:
+    """Exchange coordinates on the grid until a pass improves nothing; return the levels and their criterion.
+
+    A change to the runs S changes the model rows by D there, and :math:`M = X^T W X` by
+    :math:`D^T (WX)_S + (WX)_S^T D + D^T W_{SS} D`, so a trial costs little more than the runs it
+    changes. M and WX are worked afresh at the start of each pass.
+    """
+    ridge = _RIDGE * len(levels)
+    coordinates = [(j, runs) for j, groups in enumerate(grid.groups) for runs in groups]
+    rows = model.rows(levels)
+    score = float(_scores(rows.T @ grid.weight @ rows, criterion, model.moments, ridge))
+    for _ in range(_MAX_PASSES):
+        weighted = grid.weight @ rows
+        information = rows.T @ weighted
+        improved = False
+        for i in rng.permutation(len(coordinates)):
+            j, runs = coordinates[i]
+            trial = np.repeat(levels[runs][None], len(model.tables[j]), axis=0)
+            trial[:, :, j] = np.arange(len(model.tables[j]))[:, None]
+            change = model.rows(trial) - rows[runs]
+            cross = np.einsum("lri,rj->lij", change, weighted[runs])
+            own = np.einsum("lri,rs,lsj->lij", change, grid.weight[np.ix_(runs, runs)], change)
+            candidates = information + cross + cross.transpose(0, 2, 1) + own
+            found = _scores(candidates, criterion, model.moments, ridge)
+            best = int(np.argmin(found))
+            if found[best] < score - _IMPROVEMENT * max(1.0, abs(score)):
+                levels[runs] = trial[best]
+                rows[runs] += change[best]
+                weighted += grid.weight[:, runs] @ change[best]
+                information, score, improved = candidates[best], float(found[best]), True
+        if not improved:
+            break
+    return levels, score
