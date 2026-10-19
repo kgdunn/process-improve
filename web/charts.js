@@ -399,9 +399,13 @@ export function ternaryRange(ternary) {
  * A mixture of three components over its triangle (``ternary``, as api_plots gives it): each blend of the grid
  * coloured by the response, the ``fitted`` one or the ``true`` one, and the runs marked on top. Each corner is
  * a pure component, labelled with its name; ``range`` is the colour scale's ends, shared by the fitted and the
- * true surface.
+ * true surface. ``best``, the best blend's proportions by component, puts a star there.
  */
-export function ternaryFigure(ternary, { response, units = "", values = "fitted", range = ternaryRange(ternary) }, colours = palette()) {
+export function ternaryFigure(
+  ternary,
+  { response, units = "", values = "fitted", range = ternaryRange(ternary), best = null },
+  colours = palette(),
+) {
   const [a, b, c] = ternary.components;
   const { grid, runs } = ternary;
   const axis = (title) => ({
@@ -447,6 +451,22 @@ export function ternaryFigure(ternary, { response, units = "", values = "fitted"
         hovertemplate: `${at}<br>${response}, run: %{customdata:.4g}<extra></extra>`,
         showlegend: false,
       },
+      ...(best
+        ? [
+            {
+              type: "scatterternary",
+              mode: "markers",
+              name: BEST_BLEND,
+              a: [best[a]],
+              b: [best[b]],
+              c: [best[c]],
+              marker: BEST_MARKER,
+              cliponaxis: false,
+              hovertemplate: `${BEST_BLEND}<br>${at}<extra></extra>`,
+              showlegend: false,
+            },
+          ]
+        : []),
     ],
     layout: {
       ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
@@ -459,12 +479,17 @@ export function ternaryFigure(ternary, { response, units = "", values = "fitted"
 /** Okabe and Ito's colourblind-safe colours, one per component of a Cox trace plot. */
 const COMPONENT_COLOURS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"];
 
+/** What the star on a mixture's pictures marks. */
+export const BEST_BLEND = "Best blend";
+
 /**
  * A mixture of four components or more, along each component's Cox direction (``cox``, as api_plots gives it):
  * the fitted response as the component's share moves from the reference blend, the others keeping their
  * proportions to each other, a line per component; with the true process, its response dotted in the same colour.
+ * Drawn through the best blend (``cox.through`` is "best"), the lines cross there, at its prediction ``best``,
+ * where a star marks it.
  */
-export function coxFigure(cox, { response, units = "" }, colours = palette()) {
+export function coxFigure(cox, { response, units = "", best = null }, colours = palette()) {
   const data = cox.traces.flatMap((trace, i) => {
     const color = COMPONENT_COLOURS[i % COMPONENT_COLOURS.length];
     const fitted = {
@@ -492,10 +517,24 @@ export function coxFigure(cox, { response, units = "" }, colours = palette()) {
     return [fitted, truth];
   });
   if (cox.traces.some((trace) => trace.true)) data.push(legendKey("True process", colours.muted, "dot"));
+  if (best !== null) {
+    data.push({
+      type: "scatter",
+      mode: "markers",
+      name: BEST_BLEND,
+      x: [0],
+      y: [best],
+      marker: BEST_MARKER,
+      cliponaxis: false,
+      showlegend: false,
+      hovertemplate: `${BEST_BLEND}: %{y:.4g}<extra></extra>`,
+    });
+  }
+  const from = cox.through === "best" ? "the best blend" : "the reference blend";
   return {
     data,
     layout: {
-      xaxis: { title: { text: "Change in the component's proportion from the reference blend" }, zeroline: true },
+      xaxis: { title: { text: `Change in the component's proportion from ${from}` }, zeroline: true },
       yaxis: { title: { text: withUnits(`Fitted ${response}`, units) } },
       legend: LEGEND_ABOVE,
       showlegend: true,

@@ -540,6 +540,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         },
         "Enter results first: the best blend is found on the model fitted to them.",
     ),
+    "a blend's charts drawn through a best blend the page did not write": (
+        "api_plots",
+        _mixed(best={"A": 0.5, "B": 0.6, "C": 0.0}),
+        "The page sent a best blend this page did not write.",
+    ),
     "a surface held at best settings the page did not write": (
         "api_plots",
         _runs(best={"T": 1.0, "P": -1.0, "F": 3.0}),

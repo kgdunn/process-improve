@@ -846,13 +846,18 @@ export const CAPTIONS = {
     return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}; the dots are the runs.`;
   },
   true_contour: "The process the results were simulated from, on the same scale.",
-  ternary:
+  /** With the best blend found, a star marks it (``starred``). */
+  ternary: (_, { starred = false } = {}) =>
     "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
-    "bounds allow; the white dots are the runs.",
+    `bounds allow; the white dots are the runs${starred ? ", and the star the best blend" : ""}.`,
   true_ternary: "The process the results were simulated from, on the same scale.",
-  cox:
-    "Each line changes one component's share of the reference blend, the centroid of the design's blends, while the " +
-    "others keep their proportions to each other; the lines cross at the reference blend.",
+  /** With the best blend found, the lines go through it and a star marks it (``starred``); else through the reference blend. */
+  cox: (_, { starred = false } = {}) =>
+    starred
+      ? "Each line changes one component's share of the best blend while the others keep their proportions to each " +
+        "other; the lines cross at the best blend, which the star marks."
+      : "Each line changes one component's share of the reference blend, the centroid of the design's blends, while " +
+        "the others keep their proportions to each other; the lines cross at the reference blend.",
   residuals: "A curve or a funnel points to a missing term or a changing noise level.",
   half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
 };

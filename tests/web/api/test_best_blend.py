@@ -291,3 +291,50 @@ def test_confirmation_runs_at_the_blend_are_judged_against_the_scheffe_model(api
     assert group["predicted"] == pytest.approx(predicted, abs=1e-9), "predicted at the blend as weighed out"
     assert group["mean"] == pytest.approx(predicted - 0.005)
     assert group["inside"] is True
+
+
+# --------------------------------------------------------------------------- the charts drawn through the best blend
+@pytest.fixture
+def plotly():
+    return pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
+
+
+def test_the_triangle_is_drawn_as_before_and_the_page_stars_the_best_blend(api, plotly):
+    held = lattice(api)
+    responses = results(held, SURFACE)
+    best = best_of(api, held, responses)
+    plain = api.ok("api_plots", {**held, "responses": responses})
+    starred = api.ok("api_plots", {**held, "responses": responses, "best": best["coded"]})
+    assert (plain["held_best"], starred["held_best"]) == (False, True)
+    assert starred["ternary"] == plain["ternary"], "the triangle shows every blend: the star is all that is added"
+
+
+def test_four_components_are_traced_through_the_best_blend(api, plotly):
+    held = lattice(api, 4)
+    terms = {"A": 20.0, "B": 23.0, "C": 26.0, "D": 29.0, "A:B": 25.0, "C:D": -20.0, "A:D": 30.0}
+    responses = results(held, terms)
+    best = best_of(api, held, responses)
+    plain = api.ok("api_plots", {**held, "responses": responses})["cox"]
+    cox = api.ok("api_plots", {**held, "responses": responses, "best": best["coded"]})["cox"]
+    assert "through" not in plain, "the reference blend, the centroid of the design's blends"
+    assert cox["through"] == "best"
+    assert cox["reference"] == best["coded"]
+    x = blend_of(best)
+    fitted = fitted_terms(api, held, responses)
+    for i, trace in enumerate(cox["traces"]):
+        at = trace["change"].index(0.0)
+        assert trace["fitted"][at] == pytest.approx(best["predicted"], rel=1e-5), "the traces cross at the best blend"
+        assert max(trace["fitted"]) <= best["predicted"] * (1 + 1e-5), "no blend along a trace does better"
+        for change, value in zip(trace["change"], trace["fitted"], strict=True):
+            moved = x * (1 - x[i] - change) / (1 - x[i])
+            moved[i] = x[i] + change
+            assert (moved >= -1e-6).all(), (trace["component"], change)
+            assert value == pytest.approx(blended(pd.DataFrame([moved], columns=list("ABCD")), fitted)[0], rel=1e-5)
+
+
+def test_a_blend_that_is_no_blend_of_the_components_is_refused(api, plotly):
+    held = lattice(api)
+    responses = results(held, SURFACE)
+    for best in ({"A": 0.5, "B": 0.6, "C": 0.0}, {"A": 1.2, "B": -0.2, "C": 0.0}, {"A": 1.0, "B": 0.0}, ["A"]):
+        sent = {**held, "responses": responses, "best": best}
+        assert api.error("api_plots", sent) == "The page sent a best blend this page did not write.", best

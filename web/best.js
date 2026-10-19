@@ -201,24 +201,26 @@ export function sensitivityCaption(best) {
 export const UNCLEAR =
   "No term of the model is clearly larger than the noise (every p-value is 0.05 or above), so these settings may follow the noise.";
 
-/** What the panel says for a goal of learning, or a target not yet typed. */
-export function noGoalSentence(best, { label }) {
-  if (best.goal === "target") return `Type the target for ${label} in the brief, and the page finds the settings that reach it.`;
-  return `Set a goal for ${label} in the brief, to maximise, minimise or hit a target, and the page finds the best settings here.`;
+/** What the panel says for a goal of learning, or a target not yet typed; of a mixture's best blend with ``blend``. */
+export function noGoalSentence(best, { label }, { blend = false } = {}) {
+  if (best.goal === "target") {
+    return `Type the target for ${label} in the brief, and the page finds the ${blend ? "blend that reaches" : "settings that reach"} it.`;
+  }
+  return `Set a goal for ${label} in the brief, to maximise, minimise or hit a target, and the page finds the best ${blend ? "blend" : "settings"} here.`;
 }
 
-/** What the panel says for a mixture: the search keeps each factor to its range, and a blend's proportions to no sum. */
-export const mixtureSentence = ({ label }) =>
-  `The page does not yet search a mixture's blends for the one that best meets the goal for ${label}. The charts below show the fitted ${label} over the blends.`;
-
-/** What the panel says when no term of the model changes the response. */
-export const flatSentence = ({ label }) => `No term of the model changes ${label}, so no setting is better than another.`;
+/** What the panel says when no term of the model changes the response; of a mixture's blends with ``blend``. */
+export const flatSentence = ({ label }, { blend = false } = {}) =>
+  blend
+    ? `The model predicts the same ${label} for every blend, so no blend is better than another.`
+    : `No term of the model changes ${label}, so no setting is better than another.`;
 
 /**
  * What the page says of one group of confirmation runs: where they are, and once their results are in, whether
  * their average falls inside the prediction interval for an average of that many runs, and what that means.
+ * ``where`` names the place the runs test: "these settings", or "this blend" for a mixture's.
  */
-export function confirmationSentences(group, factors, { label, units }) {
+export function confirmationSentences(group, factors, { label, units }, where = "these settings") {
   const unitsOf = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = listed(
     factors.map((f) => (typeof group.at[f.name] === "string" ? `${f.name} at ${group.at[f.name]}` : `${f.name} = ${withUnit(group.at[f.name], unitsOf[f.name])}`)),
@@ -238,11 +240,67 @@ export function confirmationSentences(group, factors, { label, units }) {
   const average = `The average of ${group.done === 1 ? "the one result" : `their ${runs(group.done)}`}, ${withUnit(group.mean, units)},`;
   const interval = `the 95% prediction interval for the average of ${runs(group.done)}, ${range}`;
   return group.inside
-    ? [`${head}${some}`, `${average} is inside ${interval}: the model holds at these settings.`]
+    ? [`${head}${some}`, `${average} is inside ${interval}: the model holds at ${where}.`]
     : [
         `${head}${some}`,
-        `${average} is outside ${interval}: the process differs from the model at these settings, so the model misses something there. Look for a term it lacks, or a change in the process.`,
+        `${average} is outside ${interval}: the process differs from the model at ${where}, so the model misses something there. Look for a term it lacks, or a change in the process.`,
       ];
+}
+
+// ---------------------------------------------------------------- a mixture's best blend
+/**
+ * What the panel says first of a mixture's best blend: the prediction it gives, and that it is the goal's best. The
+ * proportions follow in a table. ``words`` is the response's {label, units}.
+ */
+export function blendLead(best, { label, units }) {
+  const predicted = withUnit(best.predicted, units);
+  if (best.goal !== "target") return `This blend gives the ${SUPERLATIVE[best.goal]} ${label} the model predicts: ${predicted}.`;
+  if (best.reached) return `This blend gives ${label} on its target, ${withUnit(best.target, units)}, as the model predicts.`;
+  return `No blend within your bounds reaches the target of ${withUnit(best.target, units)}. This one comes closest: ${predicted}.`;
+}
+
+/**
+ * Where a component's proportion lies, as the table of the best blend says it: at its lower or upper bound, and
+ * whether the goal may be better past a bound you set, or between its bounds.
+ */
+export function blendWhere(setting, best = null, { label = "" } = {}) {
+  if (!setting.end) return "between its bounds";
+  const [which, bound, past] = setting.end === "high" ? ["upper", setting.high, "above"] : ["lower", setting.low, "below"];
+  const at = `at its ${which} bound, ${num(bound)}`;
+  return setting.beyond ? `${at}; ${better(best, label)} may lie ${past}` : at;
+}
+
+/**
+ * What the table of the best blend cannot say, a sentence each: a target that other blends reach too, or a blend with
+ * every component between its bounds, which is then the top (or the bottom) of the fitted surface.
+ */
+export function blendSentences(best) {
+  if (best.goal === "target") return best.reached ? ["Other blends reach the target too."] : [];
+  if ((best.settings ?? []).some((s) => s.end)) return [];
+  return [`Every component is between its bounds: this blend is the ${best.goal === "maximize" ? "top" : "bottom"} of the fitted surface.`];
+}
+
+/** What the panel says when the best blend leans on the model beyond the runs; else nothing. */
+export const blendExtrapolation = (best) =>
+  best.extrapolating ? "This blend lies beyond the runs, so the prediction leans on the model there: confirm it with a run." : "";
+
+/** The caution when no test of a mixture's model finds anything clearly larger than the noise. */
+export const BLEND_UNCLEAR =
+  "No test of the model finds the blends differ by more than the noise (every p-value is 0.05 or above), so this blend may follow the noise.";
+
+/** What the chart of how tightly to weigh out each component moves: each along its Cox direction. */
+export const BLEND_SENSITIVITY =
+  "Each component is moved with the others keeping their proportions to each other, so the blend still sums to 1.";
+
+/**
+ * How the confirmation runs weigh out the best blend: each proportion rounded, and the component that takes what the
+ * rounding leaves, so the blend still sums to 1 (bootstrap._weighed).
+ */
+export function weighingSentence(best) {
+  const { decimals = null, adjusted = null } = best.rounding ?? {};
+  if (decimals === null) return "The confirmation runs use the blend as the search found it.";
+  const each = `The confirmation runs weigh out each proportion to ${(10 ** -decimals).toFixed(decimals)}`;
+  return adjusted ? `${each}, and ${adjusted} takes what the rounding leaves, so the blend still sums to 1.` : `${each}; the blend still sums to 1.`;
 }
 
 /**

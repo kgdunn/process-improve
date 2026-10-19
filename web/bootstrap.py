@@ -3208,6 +3208,10 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
     ``cox`` holds the fitted response along each component's Cox direction through the reference
     blend, for a trace plot (``coxFigure``). With the true process the results were simulated from,
     each also holds the true response, on the same blends.
+
+    With the best blend (``best``, as :func:`_best_blend` gives it), ``held_best`` is true: the page
+    stars the blend on the triangle, and the Cox directions go through the best blend instead (see
+    :func:`_cox_through`), so they cross at its prediction, where the page puts the star.
     """
     from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
     from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
@@ -3216,6 +3220,7 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
 
     names = [f["name"] for f in spec["factors"]]
     model = _mixture_model(request.get("model") or spec["model"])
+    best = _blend_sent(request.get("best"), spec)
     runs = _design_runs(_runs_frame(request, spec))
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
@@ -3238,13 +3243,37 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
         "contour_factors": [],
         "shaded": False,
         "held": [],
+        "held_best": best is not None,
         "plotly_js": get_plotlyjs_version(),
     }
     if len(names) == 3:
         reply["ternary"] = _ternary(spec, blends, y, fitted, true)
-    else:
+    elif best is None:
         reply["cox"] = _cox_traces(names, out, fitted, true)
+    else:
+        reply["cox"] = _cox_through(spec, best, fitted, true)
     return reply
+
+
+def _blend_sent(raw: object, spec: dict) -> np.ndarray | None:
+    """Return the best blend the page sends with its charts, checked as a blend of the components; None without one.
+
+    ``raw`` is the blend as :func:`_best_blend` gives it, ``coded``: each component's proportion,
+    within its bounds, the proportions summing to 1.
+    """
+    if raw is None:
+        return None
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    values = [_number(raw.get(n)) for n in names] if isinstance(raw, dict) and set(raw) == set(names) else [None]
+    blend = np.array(values, dtype=float) if None not in values else np.full(len(names), np.nan)
+    if not (
+        np.all(blend >= low - PROPORTION_TOLERANCE)
+        and np.all(blend <= high + PROPORTION_TOLERANCE)
+        and abs(blend.sum() - 1.0) <= 1e-6
+    ):
+        raise ValueError("The page sent a best blend this page did not write.")
+    return blend
 
 
 def _blended(coefficients: dict[str, float], blends: pd.DataFrame) -> list[float]:
@@ -3322,6 +3351,46 @@ def _cox_traces(names: list[str], out: dict, fitted: dict[str, float], true: dic
             }
         )
     return {"components": names, "reference": dict(zip(names, reference.tolist(), strict=True)), "traces": traces}
+
+
+def _cox_through(spec: dict, blend: np.ndarray, fitted: dict[str, float], true: dict[str, float] | None) -> dict:
+    """Return the fitted response along each component's Cox direction through the best blend.
+
+    As :func:`_cox_traces`, with the best blend in place of the reference blend: each trace moves one
+    component from the best blend, the others keeping their proportions to each other (see
+    :func:`_cox_moved`), over the span every component's bounds allow, and holds the best blend
+    itself, a change of 0. So the traces cross at the best blend's prediction. ``through`` says
+    which blend they go through.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    traces = []
+    for i, name in enumerate(names):
+        direction = _cox_moved(blend, i, 1.0) - blend  # a change of 1 in component i, the others moving with it
+        start, stop = _span_along(blend, direction, low, high)
+        change = np.unique(np.append(np.linspace(start, stop, COX_POINTS), 0.0))
+        frame = pd.DataFrame(blend[None, :] + change[:, None] * direction[None, :], columns=names)
+        traces.append(
+            {
+                "component": name,
+                "change": [float(f"{v:.6g}") for v in change],
+                "fitted": _blended(fitted, frame),
+                "true": None if true is None else _blended(true, frame),
+            }
+        )
+    reference = dict(zip(names, blend.tolist(), strict=True))
+    return {"components": names, "reference": reference, "through": "best", "traces": traces}
+
+
+def _span_along(blend: np.ndarray, direction: np.ndarray, low: np.ndarray, high: np.ndarray) -> tuple[float, float]:
+    """Return how far a blend can move along a direction, either way, with every component within its bounds."""
+    start, stop = -np.inf, np.inf
+    for d, x, lo, hi in zip(direction, blend, low, high, strict=True):
+        if d > 0:
+            start, stop = max(start, (lo - x) / d), min(stop, (hi - x) / d)
+        elif d < 0:
+            start, stop = max(start, (hi - x) / d), min(stop, (lo - x) / d)
+    return min(start, 0.0), max(stop, 0.0)  # the blend itself is inside, to rounding
 
 
 # --------------------------------------------------------------------------- renaming the factors

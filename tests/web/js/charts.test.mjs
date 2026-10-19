@@ -6,6 +6,7 @@ import { describe, test } from "node:test";
 
 import {
   BALANCED,
+  BEST_BLEND,
   BEST_MARKER,
   LIGHT,
   GREYED,
@@ -376,6 +377,15 @@ describe("a mixture's pictures", () => {
     assert.deepEqual([truth.marker.cmin, truth.marker.cmax], [0, 40]);
   });
 
+  test("the best blend starred on the triangle", () => {
+    assert.equal(ternaryFigure(ternary, { response: "Hardness" }, COLOURS).data.length, 2, "no star without a best blend");
+    const best = { Water: 0.938, Oil: 0.062, Wax: 0 };
+    const star = ternaryFigure(ternary, { response: "Hardness", best }, COLOURS).data.at(-1);
+    assert.equal(star.name, BEST_BLEND);
+    assert.deepEqual([star.a, star.b, star.c], [[0.938], [0.062], [0]]);
+    assert.equal(star.marker, BEST_MARKER);
+  });
+
   test("a line per component along its Cox direction, the true process dotted in the same colour", () => {
     const traces = ["A", "B", "C", "D"].map((component, i) => ({ component, change: [-0.25, 0, 0.75], fitted: [1, 2, 3 + i], true: null }));
     const plain = coxFigure({ components: ["A", "B", "C", "D"], traces }, { response: "y" }, COLOURS);
@@ -387,6 +397,18 @@ describe("a mixture's pictures", () => {
     assert.equal(data[1].line.dash, "dot");
     assert.equal(data[1].line.color, data[0].line.color);
     assert.equal(data.at(-1).name, "True process");
+  });
+
+  test("drawn through the best blend, the lines cross at the star", () => {
+    const traces = ["A", "B", "C", "D"].map((component) => ({ component, change: [-0.25, 0, 0.75], fitted: [1, 2, 1.5], true: null }));
+    const through = coxFigure({ components: ["A", "B", "C", "D"], traces, through: "best" }, { response: "y", best: 2 }, COLOURS);
+    const star = through.data.at(-1);
+    assert.equal(star.name, BEST_BLEND);
+    assert.deepEqual([star.x, star.y], [[0], [2]]);
+    assert.equal(through.layout.xaxis.title.text, "Change in the component's proportion from the best blend");
+    const plain = coxFigure({ components: ["A", "B", "C", "D"], traces }, { response: "y" }, COLOURS);
+    assert.equal(plain.layout.xaxis.title.text, "Change in the component's proportion from the reference blend");
+    assert.ok(!plain.data.some((t) => t.name === BEST_BLEND));
   });
 
   test("a mixture's coefficients are in the response's units, not coded ones", () => {

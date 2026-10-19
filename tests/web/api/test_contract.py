@@ -327,6 +327,7 @@ READS: dict[str, list[str]] = {
     "mixture charts": [
         "plotly_js: str",
         "figures{}: str",
+        "held_best: bool",
         "ternary.components[]: str",
         "ternary.grid.a[]: number",
         "ternary.grid.b[]: number",
@@ -343,6 +344,13 @@ READS: dict[str, list[str]] = {
         "cox.traces[].change[]: number",
         "cox.traces[].fitted[]: number",
         "cox.traces[].true[]: number",
+    ],
+    "mixture traces through the best blend": [
+        "held_best: bool",
+        "cox.through: str",
+        "cox.traces[].component: str",
+        "cox.traces[].change[]: number",
+        "cox.traces[].fitted[]: number",
     ],
     "mixture best blend": [
         "goal: str",
@@ -635,6 +643,7 @@ ENTRY_POINTS = {
     "mixture charts": "api_plots",
     "mixture traces": "api_plots",
     "mixture best blend": "api_best_settings",
+    "mixture traces through the best blend": "api_plots",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -789,6 +798,16 @@ def aimed_at(api, worked_example: dict[str, Any], target: float) -> dict:
     return {**made, "responses": api.ok("api_simulate", {**made, **drawn})["responses"]}
 
 
+def aimed_blend(request: dict) -> dict:
+    """Return a request about a blend's runs with a hardness to maximise: its best blend is searched for."""
+    return {**request, "spec": {**request["spec"], "response_info": {"label": "Hardness", "goal": "maximize"}}}
+
+
+def through_best_blend(api, request: dict) -> dict:
+    """Return a request for a blend's charts drawn through its best blend, as the page asks for them."""
+    return {**request, "best": api.ok("api_best_settings", request)["coded"]}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -838,11 +857,6 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         simulation = api.ok("api_simulate", made)
         return {**made, "responses": simulation["responses"], "truth": simulation["truth"]}
 
-    def aimed_blend(q: int) -> dict:
-        """Return a blend's runs and results, with a hardness to maximise: its best blend is searched for."""
-        sent = blend(q)
-        return {**sent, "spec": {**sent["spec"], "response_info": {"label": "Hardness", "goal": "maximize"}}}
-
     def relabel() -> dict:
         design = worked_example["design"]
         sent = {**held, "facts": design["facts"], "outside_range": design["outside_range"]}
@@ -869,7 +883,8 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "mixture analysis": lambda: blend(3),
         "mixture charts": lambda: blend(3),
         "mixture traces": lambda: blend(4),
-        "mixture best blend": lambda: aimed_blend(3),
+        "mixture best blend": lambda: aimed_blend(blend(3)),
+        "mixture traces through the best blend": lambda: through_best_blend(api, aimed_blend(blend(4))),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,
