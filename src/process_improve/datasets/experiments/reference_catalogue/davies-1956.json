@@ -265,7 +265,7 @@
       "quote": "Estimated standard deviation of differences s = 1·127"
      },
      "check": {
-      "manual": "the standard deviation of the ten differences is the residual standard error of the paired fit times sqrt(2), 1.1265; the catalogue has no check of that form"
+      "manual": "the standard deviation of the ten differences, the residual standard error of the paired fit times √2: 1.126499, which rounds to 1.126; the book's 1.127 rounds 1.1265 a second time"
      }
     },
     {
@@ -1010,7 +1010,7 @@
     "coded": false,
     "notes": "Table 4C-1 (p. 133), which reprints Table 4-1 as x = % strength - 40; Table 4-1 itself is printed sideways"
    },
-   "notes": "Variance components: sigma0^2 (testing) = 0.75, sigma1^2 (sampling) = (1.41 - 0.75)/2 = 0.33, sigma2^2 (batches) = (99.11 - 1.41)/6 = 16.28. The library's REML variance components cover two strata (split plots), not three nested ones.",
+   "notes": "Variance components: sigma0^2 (testing) = 0.75, sigma1^2 (sampling) = (1.41 - 0.75)/2 = 0.33, sigma2^2 (batches) = (99.11 - 1.41)/6 = 16.28. The checks work them from the library's mean squares, as the book does; its REML fit with batches and samples within batches as random groups gives the same, 16.284 and 0.329.",
    "expected": [
     {
      "what": "anova_sum_sq",
@@ -1152,28 +1152,44 @@
     },
     {
      "what": "variance_component",
-     "term": "testing",
+     "term": "sampling",
      "value": "0.33",
+     "analysis": "the sampling component, σ1², from the library's mean squares: (MS samples - MS error)/2",
      "where": {
       "page": 110,
       "source_kind": "math",
       "quote": "(1·41 - 0·75)/2 = 0·33 is an estimate of sigma1^2"
      },
      "check": {
-      "manual": "a variance component worked by hand from two mean squares, both checked above; no check computes three nested strata"
+      "kind": "mean_squares",
+      "model": "Batch + Batch:Sample",
+      "key": "value",
+      "terms": {
+       "Batch:Sample": 1,
+       "Residual": -1
+      },
+      "divisor": 2
      }
     },
     {
      "what": "variance_component",
      "term": "batches",
      "value": "16.28",
+     "analysis": "the batch component, σ2², from the library's mean squares: (MS batches - MS samples)/6",
      "where": {
       "page": 110,
       "source_kind": "math",
       "quote": "(99·11 - 1·41)/6 = 16·28 is an estimate of sigma2^2"
      },
      "check": {
-      "manual": "a variance component worked by hand from two mean squares, both checked above; no check computes three nested strata"
+      "kind": "mean_squares",
+      "model": "Batch + Batch:Sample",
+      "key": "value",
+      "terms": {
+       "Batch": 1,
+       "Batch:Sample": -1
+      },
+      "divisor": 6
      }
     }
    ]
@@ -16516,59 +16532,147 @@
       "quote": "Unconfounded three-factor interactions (X) 6,191 (Z) 1,002 (W) 2,939 (Y) 664 10,796 8 1,350"
      },
      "check": {
-      "manual": "the sum of the X, Z, W and Y components, which no check computes"
+      "manual": "the sum of the X, Z, W and Y components, each checked: arithmetic"
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "X(CVN)",
      "value": "6191",
+     "analysis": "the component CV²N of the 54 runs (AB²C, the factors C, V and N lettered A, B and C), whose group totals are the 2148, 2620 and 2377 printed; the book subtracts two numbers it rounds",
      "where": {
       "page": 433,
       "source_kind": "table",
       "quote": "X = [2148^2 + 2620^2 + 2377^2]/18 - 7145^2/54 = 951,580 - 945,389 = 6191"
      },
      "check": {
-      "manual": "an I/J/W/X/Y/Z component of the three-factor interaction, which no check computes"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "AB²C",
+      "of_rounded": 2
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "Z(CVN)",
      "value": "1002",
+     "analysis": "the component CVN of the 54 runs (ABC), whose group totals are the 2342, 2490 and 2313 printed; the book subtracts two numbers it rounds",
      "where": {
       "page": 433,
       "source_kind": "table",
       "quote": "Z = [2342^2 + 2490^2 + 2313^2]/18 - 7145^2/54 ... = 1002"
      },
      "check": {
-      "manual": "a component of the three-factor interaction, which no check computes"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "ABC",
+      "of_rounded": 2
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "W(CVN), second replicate",
      "value": "2939",
+     "analysis": "the component CV²N² (AB²C²) of the second replicate's runs: the one confounded with the first replicate's blocks",
      "where": {
       "page": 434,
       "source_kind": "table",
       "quote": "(180^2 + 214^2 + 34^2)/27 = 2939"
      },
      "check": {
-      "manual": "a component of the three-factor interaction from the replicate in which it is not confounded"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "AB²C²",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20,
+       22,
+       24,
+       26,
+       28,
+       30,
+       32,
+       34,
+       36,
+       38,
+       40,
+       42,
+       44,
+       46,
+       48,
+       50,
+       52,
+       54
+      ]
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "Y(CVN), first replicate",
      "value": "664",
+     "analysis": "the component CVN² (ABC²) of the first replicate's runs: the one confounded with the second replicate's blocks",
      "where": {
       "page": 434,
       "source_kind": "table",
       "quote": "(47^2 + 109^2 + 62^2)/27 = 664"
      },
      "check": {
-      "manual": "a component of the three-factor interaction from the replicate in which it is not confounded"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "ABC²",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19,
+       21,
+       23,
+       25,
+       27,
+       29,
+       31,
+       33,
+       35,
+       37,
+       39,
+       41,
+       43,
+       45,
+       47,
+       49,
+       51,
+       53
+      ]
      }
     }
    ]

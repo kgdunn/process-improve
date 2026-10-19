@@ -1761,13 +1761,17 @@ def _component_relation(_experiment: dict, check: dict, printed: str) -> tuple[s
 
 
 def _levels_of(experiment: dict, names: list[str], positions: list[int] | None = None) -> np.ndarray:
-    """Return the runs' levels of three-level factors as 0, 1 and 2: each value's place in its factor's ``levels``."""
+    """Return the runs' levels of three-level factors as 0, 1 and 2: each value's place in its factor's ``levels``.
+
+    A factor that lists no levels takes its settings in increasing order, as -1, 0 and +1 are in coded units.
+    """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    listed = {f["name"]: f.get("levels") for f in experiment["factors"]}
+    levels = {name: [str(level) for level in listed[name] or sorted(table[name].unique())] for name in names}
     if positions is not None:
         table = table.iloc[[p - 1 for p in positions]]
-    factors = {f["name"]: [str(level) for level in f["levels"]] for f in experiment["factors"]}
-    return np.column_stack([table[name].map(lambda v, n=name: factors[n].index(str(v))) for name in names])
+    return np.column_stack([table[name].map(lambda v, n=name: levels[n].index(str(v))) for name in names])
 
 
 def _contrast_values(experiment: dict, check: dict, positions: list[int] | None = None) -> np.ndarray:

@@ -1589,6 +1589,21 @@ def test_a_3k_component_groups_the_runs_by_its_defining_contrast_modulo_3():
     assert interaction == pytest.approx(61 + 1 / 3)
 
 
+def test_a_3k_component_of_runs_printed_in_coded_units_takes_their_settings_in_order():
+    """The same tool life data with the levels coded -1, 0 and +1, and no levels listed: the same components."""
+    from process_improve.experiments.reference_catalogue import _component_ss
+
+    coded = {15: -1, 20: 0, 25: 1, 125: -1, 150: 0, 175: 1}
+    rows = [[coded[a], coded[s], y] for (a, s), ys in TOOL_LIFE.items() for y in ys]
+    entry = {
+        "factors": [{"name": n, "type": "numeric", "low": 0, "high": 2} for n in "AB"],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["A", "B", "y"], "rows": rows, "coded": True},
+    }
+    assert _component_ss(entry, {"word": "AB"}) == pytest.approx(100 / 3)
+    assert [_component_ss(entry, {"word": "AB2", "key": f"total.{u}"}) for u in range(3)] == [0, 18, 6]
+
+
 def test_3k_words_multiply_modulo_3_into_aliases_and_a_defining_relation():
     from process_improve.experiments.reference_catalogue import _component_product, _component_relation
 
