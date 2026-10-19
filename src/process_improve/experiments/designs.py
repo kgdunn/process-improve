@@ -359,6 +359,17 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
 _DEFAULT_CENTER_POINTS = 3
 
 
+def _default_center_points(factors: list[Factor]) -> int:
+    """Return the centre runs a design gets when none are asked for: none when every factor is categorical.
+
+    A categorical factor has no centre, so a "centre run" of a design with only categorical factors
+    repeats one of its cells: a 3 x 3 factorial would get three of its diagonal cells twice.
+    """
+    if factors and all(f.type == FactorType.categorical for f in factors):
+        return 0
+    return _DEFAULT_CENTER_POINTS
+
+
 class _RunOverhead(NamedTuple):
     """Runs a design gains beyond its own structure: appended centre points, and replicates."""
 
@@ -575,7 +586,7 @@ def _extra_center_points(
 ) -> int:
     """Centre runs to append to the dispatched design."""
     if design_type in _ADDS_CENTER_POINTS:
-        return _DEFAULT_CENTER_POINTS if n_center_points is None else n_center_points
+        return _default_center_points(factors) if n_center_points is None else n_center_points
     if design_type in _OWN_CENTER_RUNS and n_center_points is not None:
         return max(n_center_points - _center_runs_built_in(coded_matrix, factors), 0)
     return 0
@@ -740,7 +751,9 @@ def generate_design(  # noqa: PLR0913
         Number of centre runs in the whole design: they are not replicated with
         *n_replicates*. ``None`` (the default) means 3 for the full and
         fractional factorials, Plackett-Burman, CCD and Box-Behnken designs, and the
-        design's own centre runs for the others. CCD and Box-Behnken designs place
+        design's own centre runs for the others. A design whose factors are all
+        categorical has no centre, so ``None`` gives it none: a 3 x 3 factorial has
+        9 runs. Give a number to add runs to it anyway. CCD and Box-Behnken designs place
         them within the design structure. For a DSD or OMARS design it is the total
         number of centre runs, at least the one the design has (two for a DSD with
         categorical factors). A DSD or OMARS design that leaves the full second-order
@@ -891,7 +904,7 @@ def generate_design(  # noqa: PLR0913
                 "generators": generators,
                 "model_type": model_type,
                 "overhead": _RunOverhead(
-                    _DEFAULT_CENTER_POINTS if n_center_points is None else n_center_points, n_replicates
+                    _default_center_points(factors) if n_center_points is None else n_center_points, n_replicates
                 ),
             },
         )
@@ -918,7 +931,7 @@ def generate_design(  # noqa: PLR0913
     # Build kwargs for the dispatch handler
     dispatch_kwargs: dict[str, Any] = {
         "budget": budget,
-        "n_center_points": _DEFAULT_CENTER_POINTS if n_center_points is None else n_center_points,
+        "n_center_points": _default_center_points(factors) if n_center_points is None else n_center_points,
         "center_runs": max(n_center_points or 1, 1),
         "resolution": resolution,
         "generators": generators,
