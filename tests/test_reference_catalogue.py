@@ -990,6 +990,19 @@ def test_lenth_pseudo_t_is_an_effect_over_the_pse_on_a_third_as_many_degrees_of_
     assert reference_catalogue._FIT_KINDS["lenth_p"](out, check, entry) == pytest.approx(2 * stats.t.sf(t, 5))
 
 
+def test_lenth_s0_is_one_and_a_half_times_the_median_absolute_effect():
+    """Lenth's first estimate, from which the PSE is trimmed: 1.5 x 2.625 = 3.9375 for the filtration rate's effects."""
+    entry = _factorial(4, FILTRATION)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C * D"}
+    out = fits(entry, check)
+    s0 = reference_catalogue._FIT_KINDS["lenth_s0"]
+    effects = [abs(e["effect"]) for e in out["lenth_method"]["effects"]]
+    assert s0(out, check, entry) == pytest.approx(1.5 * np.median(effects))
+    assert s0(out, check, entry) == pytest.approx(3.9375)
+    assert s0(out, {**check, "scale": "coefficient"}, entry) == pytest.approx(3.9375 / 2)
+
+
 def test_a_percent_of_total_is_a_term_s_share_of_the_total_sum_of_squares():
     """Montgomery's percent contribution: a term's sum of squares as a percentage of the total, not Taguchi's."""
     entry = _factorial(4, FILTRATION)

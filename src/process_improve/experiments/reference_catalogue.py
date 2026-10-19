@@ -691,8 +691,13 @@ def _extra_sums(out: dict, check: dict) -> dict[str, float]:
 
 
 def _lenth(out: dict, key: str, check: dict) -> float:
-    """Return one of Lenth's margins, on the effects' scale or, when the source works with coefficients, on theirs."""
-    return float(out["lenth_method"][key]) / (2.0 if check.get("scale") == "coefficient" else 1.0)
+    """Return one of Lenth's margins, on the effects' scale or, when the source works with coefficients, on theirs.
+
+    ``"s0"`` is Lenth's first estimate, 1.5 times the median absolute effect, from which the PSE is trimmed.
+    """
+    lenth = out["lenth_method"]
+    value = 1.5 * statistics.median(abs(e["effect"]) for e in lenth["effects"]) if key == "s0" else lenth[key]
+    return float(value) / (2.0 if check.get("scale") == "coefficient" else 1.0)
 
 
 def _lenth_ratio(out: dict, check: dict) -> tuple[float, float]:
@@ -1247,6 +1252,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "aicc": lambda out, _c, _e: out["model_summary"]["aicc"],
     "aic_step": lambda out, _c, _e: out["model_summary"]["aic_step"],
     "bic": lambda out, _c, _e: out["model_summary"]["bic"],
+    "lenth_s0": lambda out, c, _e: _lenth(out, "s0", c),
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
     "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
     "lenth_sme": lambda out, c, _e: _lenth(out, "SME", c),

@@ -66085,7 +66085,8 @@
       "quote": "The calculations result in s0 = 1.5 × |−2.625| = 3.9375 and 2.5 × 3.9375 = 9.84375"
      },
      "check": {
-      "manual": "Lenth's first estimate, 1.5 times the median absolute effect, which the library computes on the way to its PSE but does not report; the PSE it leads to is checked"
+      "kind": "lenth_s0",
+      "model": "A * B * C * D"
      }
     },
     {
