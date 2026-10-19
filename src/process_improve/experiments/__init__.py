@@ -16,6 +16,7 @@ from process_improve.experiments.designs_omars import is_omars, omars_properties
 from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
+from process_improve.experiments.incomplete_blocks import bibd_analysis
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
@@ -85,6 +86,7 @@ __all__ = [
     "analyze_experiment",
     "analyze_omars",
     "augment_design",
+    "bibd_analysis",
     "box_behnken_runs",
     "c",
     "compare_designs",

@@ -83,6 +83,9 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.incomplete_blocks
+   :members: bibd_analysis
+
 .. automodule:: process_improve.experiments.true_process
    :members:
    :show-inheritance:
