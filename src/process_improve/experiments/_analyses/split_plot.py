@@ -53,7 +53,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import EvalEnvironment, dmatrices
+from patsy import EvalEnvironment, build_design_matrices, dmatrices
 from patsy.builtins import C, Sum
 from scipy import optimize, stats
 
@@ -86,6 +86,22 @@ class _WaldTests:
     cov_beta_kr: np.ndarray
     dcov: np.ndarray
     vc_cov: np.ndarray
+
+    @property
+    def variance_parameters(self) -> np.ndarray:
+        """The variance parameters, in the order of ``dcov``; a subclass gives them."""
+        raise NotImplementedError
+
+    def new_run_df(self, contrast: np.ndarray) -> float:
+        """Satterthwaite's degrees of freedom of the variance of one new run at ``contrast``.
+
+        That variance is the estimate's, ``contrast' cov_beta contrast``, plus every variance
+        parameter, since a new run falls in a new whole plot; its gradient with respect to
+        each parameter is the estimate's plus 1.
+        """
+        variance = float(contrast @ self.cov_beta @ contrast) + float(np.sum(self.variance_parameters))
+        gradient = np.einsum("i,kij,j->k", contrast, self.dcov, contrast) + 1.0
+        return 2.0 * variance**2 / float(gradient @ self.vc_cov @ gradient)
 
     def satterthwaite_df(self, contrast: np.ndarray) -> float:
         """Denominator degrees of freedom of the t-test of ``contrast @ beta`` (Satterthwaite, 1946).
@@ -186,6 +202,11 @@ class RemlFit(_WaldTests):
     whole_plot_error_df: int
     subplot_error_df: int
     cov_beta_kr: np.ndarray
+
+    @property
+    def variance_parameters(self) -> np.ndarray:
+        """The whole-plot and the residual variance, in the order of ``dcov``."""
+        return np.array([self.sigma2_wp, self.sigma2])
 
 
 def _gls(
@@ -397,6 +418,11 @@ class CrossedFit(_WaldTests):
     blups: list[np.ndarray]
     error_df: np.ndarray
 
+    @property
+    def variance_parameters(self) -> np.ndarray:
+        """Each variance not estimated as zero, then the residual's, in the order of ``dcov``."""
+        return np.append(self.variances[self.variances > 0], self.sigma2)
+
 
 def _crossed_error_df(X: np.ndarray, indicators: list[np.ndarray]) -> np.ndarray:
     """Return each grouping's and the residual's error df, raising when one of them has none."""
@@ -603,6 +629,52 @@ def _term_tests(
     return records
 
 
+def _predictions(fit: _WaldTests, rows: np.ndarray, alpha: float, *, kenward_roger: bool = False) -> list[dict]:
+    """Return the fitted mean at each model row with its interval, and the interval for one new run there.
+
+    The mean's standard error is from the estimates' covariance (Kenward and Roger's adjusted
+    one with ``kenward_roger``), on Satterthwaite's degrees of freedom. A new run falls in a new
+    whole plot (a new row and a new column of a two-way design), so its variance adds every
+    variance component to the mean's, on the Satterthwaite degrees of freedom of that sum.
+    """
+    cov = fit.cov_beta_kr if kenward_roger else fit.cov_beta
+    components = float(np.sum(fit.variance_parameters))
+    records = []
+    for row in rows:
+        estimate = float(row @ fit.beta)
+        std_error = float(np.sqrt(row @ cov @ row))
+        dof = fit.satterthwaite_df(row)
+        run_std_error = float(np.sqrt(std_error**2 + components))
+        run_dof = fit.new_run_df(row)
+        half_width = float(stats.t.ppf(1.0 - alpha / 2.0, dof)) * std_error
+        run_half_width = float(stats.t.ppf(1.0 - alpha / 2.0, run_dof)) * run_std_error
+        records.append(
+            {
+                "predicted": estimate,
+                "std_error": std_error,
+                "df": dof,
+                "ci_low": estimate - half_width,
+                "ci_high": estimate + half_width,
+                "pi_std_error": run_std_error,
+                "pi_df": run_dof,
+                "pi_low": estimate - run_half_width,
+                "pi_high": estimate + run_half_width,
+            }
+        )
+    return records
+
+
+def _add_predictions(
+    result: dict[str, Any], fit: _WaldTests, X: pd.DataFrame, new_points: pd.DataFrame | None, spec: SplitPlotSpec
+) -> dict[str, Any]:
+    """Add the predictions at ``new_points``, in the units of the runs, to a split-plot result."""
+    if new_points is not None:
+        rows = np.asarray(build_design_matrices([X.design_info], new_points)[0], dtype=float)
+        kenward_roger = spec.df_method == "kenward_roger"
+        result["split_plot"]["predictions"] = _predictions(fit, rows, spec.alpha, kenward_roger=kenward_roger)
+    return result
+
+
 @dataclass(frozen=True)
 class SplitPlotSpec:
     """How :func:`run_split_plot` analyses the runs.
@@ -631,7 +703,9 @@ class SplitPlotSpec:
     information: str = "expected"
 
 
-def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[str, Any]:
+def run_split_plot(
+    df: pd.DataFrame, formula: str, spec: SplitPlotSpec, new_points: pd.DataFrame | None = None
+) -> dict[str, Any]:
     """Analyse a split-plot experiment by REML, with Satterthwaite's or Kenward and Roger's degrees of freedom.
 
     Parameters
@@ -642,6 +716,9 @@ def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[
         The model, as a patsy formula; see :func:`sum_coded` for categorical factors.
     spec : SplitPlotSpec
         The whole-plot column, the significance level, the block terms and the method.
+    new_points : pd.DataFrame or None
+        Settings, in the units of *df*, at which to predict from the generalized least-squares
+        fit; see :func:`_predictions`.
 
     Returns
     -------
@@ -653,7 +730,7 @@ def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[
     y, X = dmatrices(formula, df, eval_env=sum_coding_env(), NA_action="raise", return_type="dataframe")
     if not isinstance(whole_plot, str):
         if len(whole_plot) > 1:
-            return _run_crossed(df, y.to_numpy(dtype=float).ravel(), X, spec)
+            return _run_crossed(df, y.to_numpy(dtype=float).ravel(), X, spec, new_points)
         whole_plot = whole_plot[0]
     labels = df[whole_plot].to_numpy()  # by position: NA_action="raise" keeps every row, in order
     fit = fit_reml(y.to_numpy(dtype=float).ravel(), X.to_numpy(dtype=float), labels, information)
@@ -689,7 +766,7 @@ def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[
             "squares. The tests still allow for the uncertainty in that estimate, so whole-plot terms are "
             "judged on fewer degrees of freedom than ordinary least squares would give them."
         )
-    return result
+    return _add_predictions(result, fit, X, new_points, spec)
 
 
 def _whole_plot_blups(fit: RemlFit, y: np.ndarray, X: np.ndarray, labels: np.ndarray) -> dict[str, float]:
@@ -706,7 +783,9 @@ def _whole_plot_blups(fit: RemlFit, y: np.ndarray, X: np.ndarray, labels: np.nda
     return {str(name): float(value) for name, value in zip(names, predicted, strict=True)}
 
 
-def _run_crossed(df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPlotSpec) -> dict[str, Any]:
+def _run_crossed(
+    df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPlotSpec, new_points: pd.DataFrame | None
+) -> dict[str, Any]:
     """Analyse runs with several crossed random effects, as :func:`run_split_plot` does with one.
 
     The result has one variance component, one error df and one set of BLUPs per grouping,
@@ -750,4 +829,4 @@ def _run_crossed(df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPl
             f"The variance of {', '.join(map(repr, zero))} is estimated as zero; the tests leave it out of the "
             "variance parameters whose uncertainty they allow for."
         )
-    return result
+    return _add_predictions(result, fit, X, new_points, spec)
