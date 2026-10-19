@@ -44,10 +44,16 @@ class Factor(BaseModel):
         continuous factors with more than 2 levels.
     units : str
         Engineering units (e.g. "degC", "bar", "g/L").
+    hard_limits : bool
+        Whether ``low`` and ``high`` are limits of the process, not only the range studied: no run
+        may set the factor past them (a safety limit, an instrument's range, a rule of a lab).
+        Designs and augmentations then keep every run inside them, a strategy plans none that
+        steps outside, and the next round never moves or widens the range. Default False.
 
     Examples
     --------
     >>> Factor(name="Temperature", low=150, high=200, units="degC")
+    >>> Factor(name="Pressure", low=1, high=3, units="bar", hard_limits=True)
     >>> Factor(name="Catalyst", type="categorical", levels=["A", "B", "C"])
     >>> Factor(name="x1", type="mixture", low=0.0, high=1.0)
     """
@@ -58,6 +64,7 @@ class Factor(BaseModel):
     high: float | None = None
     levels: list[Any] | None = None
     units: str = ""
+    hard_limits: bool = False
 
     @model_validator(mode="after")
     def _validate_factor(self) -> Factor:

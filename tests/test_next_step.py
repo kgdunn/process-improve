@@ -465,6 +465,51 @@ class TestConfirmation:
         assert after["reasons"][0].startswith("The confirmation runs' mean")
 
 
+class TestHardLimits:
+    """A range that is a limit of the process is never moved or widened."""
+
+    def test_the_path_moves_only_the_factors_without_hard_limits(self, dsd_study: tuple) -> None:
+        """G would improve past its low end, as A and C past their high ends."""
+        _, runs = dsd_study
+        factors = [Factor(name=n, low=-1, high=1, hard_limits=n == "G") for n in "ABCDEFGH"]
+        step = recommend_next_step(factors, runs, "y")
+        assert step["action"] == "move_region"
+        assert set(step["direction"]) == {"A", "C"}
+        assert (pd.DataFrame(step["runs"])["G"] == -1).all()
+        assert {"factor": "G", "end": "low", "improves_beyond": True, "hard_limit": True} in step["evidence"][
+            "optimum"
+        ]["edges"]
+        assert "past the end of G, but its range is a hard limit: it stays at that end." in step["reasons"][-1]
+
+    def test_with_every_edge_at_a_hard_limit_the_optimum_is_confirmed(self, dsd_study: tuple) -> None:
+        _, runs = dsd_study
+        factors = [Factor(name=n, low=-1, high=1, hard_limits=n in "ACG") for n in "ABCDEFGH"]
+        step = recommend_next_step(factors, runs, "y")
+        assert step["action"] == "confirm"
+        assert step["reasons"][-1].startswith("The response would improve past the ends of A, C, G")
+
+    def test_noise_widens_only_the_ranges_without_hard_limits(self) -> None:
+        factors = [Factor(name=n, low=-1, high=1, hard_limits=n == "B") for n in "ABCD"]
+        noise = TrueProcess({"Intercept": 20, "A": 0.1}, sigma=2)
+        runs = _runs(factors, noise, 5, design_type="full_factorial", n_center_points=0)
+        step = recommend_next_step(factors, runs, "y")
+        assert step["action"] == "widen_ranges"
+        assert step["new_ranges"] == {name: [-1.5, 1.5] for name in "ACD"}
+        assert pd.DataFrame(step["runs"]).abs().max().to_dict() == {"A": 1.5, "B": 1.0, "C": 1.5, "D": 1.5}
+        assert "The range of B is a hard limit, and stays as it is." in step["reasons"]
+        held = [Factor(name=n, low=-1, high=1, hard_limits=True) for n in "ABCD"]
+        assert recommend_next_step(held, runs, "y")["action"] == "replicate"
+
+    def test_the_tool_takes_hard_limits_in_the_factors(self, dsd_study: tuple) -> None:
+        _, runs = dsd_study
+        factors = [{"name": n, "low": -1, "high": 1, "hard_limits": n == "G"} for n in "ABCDEFGH"]
+        reply = execute_tool_call(
+            "recommend_next_step",
+            {"factors": factors, "runs": runs.to_dict(orient="records"), "response_column": "y"},
+        )
+        assert set(reply["direction"]) == {"A", "C"}
+
+
 class TestOtherGoals:
     def test_a_target_is_met_nearest_the_middle_of_the_ranges(self) -> None:
         factors = _factors("ABC")
