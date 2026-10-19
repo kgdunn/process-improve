@@ -8,8 +8,7 @@ is ``f_value(0.95, 3, 16)``.
 The tests are the ones a first course in designed experiments uses before any model is fitted:
 a mean against a stated value, by :math:`t` or with :math:`\sigma` known by :math:`z`; two groups by
 Wilcoxon's rank sum; and two groups, or pairs, by a randomization test that enumerates every way
-the labels could have fallen, which is what Fisher's argument for randomization rests on. Inverting
-that test gives a confidence interval for the difference that assumes no distribution. The
+the labels could have fallen, which is what Fisher's argument for randomization rests on. The
 autocorrelation of a record in time order says whether its observations can be treated as
 independent.
 
