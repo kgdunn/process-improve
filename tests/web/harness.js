@@ -11,7 +11,7 @@
 (() => {
   const post = Worker.prototype.postMessage; // the browser's own, before Worker is replaced below
   const pi = {
-    calls: [], // {fn, payload} for each call, in the order the page made it
+    calls: [], // {fn, payload} for each call, in the order the page made it, with its seeds' stand-ins
     replies: [], // {fn, reply} for each reply delivered to the page
     pending: 0, // calls made and not yet answered
     held: new Set(), // entry points whose replies wait for release()
@@ -99,7 +99,7 @@
 
     postMessage({ id, fn, payload: sent }) {
       const { payload, unpin } = pinSeeds(sent);
-      pi.calls.push({ fn, payload: JSON.parse(sent) });
+      pi.calls.push({ fn, payload: JSON.parse(payload) }); // as Python was asked, so asking again gives the same reply
       pi.pending += 1;
       const reply = fn in pi.fakes ? Promise.resolve(JSON.stringify(pi.fakes[fn])) : window.__piNative(fn, payload).then(unpin);
       reply.then((text) =>
