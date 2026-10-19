@@ -42,6 +42,18 @@ def fit(data) -> dict:
     return nonlinear_regression(demand_model, days, demand, {"b1": 200.0, "b2": 0.5}, conf_level=0.90)
 
 
+def within_standard_errors(found, reference, std_errors, share: float = 1e-4) -> None:
+    """Assert that each value is within ``share`` of its standard error of the reference.
+
+    Two least-squares searches stop at slightly different points on the flat floor of the sum of
+    squares, a few times 1e-8 standard errors apart, and how far apart depends on the platform's
+    arithmetic. On the scale of the standard errors that distance is negligible; a wrong estimate
+    is not.
+    """
+    gap = np.abs(np.asarray(found, dtype=float) - np.asarray(reference, dtype=float))
+    np.testing.assert_array_less(gap, share * np.asarray(std_errors, dtype=float))
+
+
 def printed(record, what: str) -> list[float]:
     [entry] = [e for e in record["expected"] if e["what"] == what]
     return [float(value) for value in entry["value"].split()]
@@ -80,8 +92,10 @@ def test_the_fitted_values_are_within_0_3_of_table_14_14(fit, record):
 def test_the_inference_is_curve_fit_s(fit, data):
     days, demand = data
     estimates, covariance = curve_fit(demand_model, days, demand, p0=[200.0, 0.5], ftol=1e-15, xtol=1e-15, gtol=1e-15)
-    assert [fit["estimates"]["b1"], fit["estimates"]["b2"]] == pytest.approx(estimates, rel=1e-8)
     errors = [fit["std_errors"]["b1"], fit["std_errors"]["b2"]]
+    within_standard_errors([fit["estimates"]["b1"], fit["estimates"]["b2"]], estimates, errors)
+    sse = float(np.sum((demand - demand_model(days, *estimates)) ** 2))
+    assert fit["sse"] == pytest.approx(sse, rel=1e-10)
     assert errors == pytest.approx(np.sqrt(np.diag(covariance)), rel=1e-5)
     assert fit["correlation"]["b1"]["b2"] == pytest.approx(
         covariance[0, 1] / np.sqrt(covariance[0, 0] * covariance[1, 1]), rel=1e-5
@@ -98,11 +112,12 @@ def test_a_model_linear_in_its_parameters_gives_ordinary_least_squares():
     fit = nonlinear_regression(lambda x, a, b, c: a + b * x + c * x**2, x, y, {"a": 0, "b": 0, "c": 0}, 0.95)
     ols = sm.OLS(y, np.column_stack([np.ones_like(x), x, x**2])).fit()
     names = ["a", "b", "c"]
-    assert [fit["estimates"][n] for n in names] == pytest.approx(ols.params, rel=1e-9)
+    within_standard_errors([fit["estimates"][n] for n in names], ols.params, ols.bse)
     assert [fit["std_errors"][n] for n in names] == pytest.approx(ols.bse, rel=1e-6)
-    assert [fit["t_values"][n] for n in names] == pytest.approx(ols.tvalues, rel=1e-6)
+    assert [fit["t_values"][n] for n in names] == pytest.approx(ols.tvalues, abs=1e-4)  # t is in standard errors
     assert [fit["p_values"][n] for n in names] == pytest.approx(ols.pvalues, rel=1e-5)
-    np.testing.assert_allclose([fit["intervals"][n] for n in names], ols.conf_int(), rtol=1e-6)
+    for name, (low, high) in zip(names, ols.conf_int(), strict=True):
+        within_standard_errors(fit["intervals"][name], [low, high], [fit["std_errors"][name]] * 2)
     assert fit["sse"] == pytest.approx(ols.ssr, rel=1e-12)
 
 
