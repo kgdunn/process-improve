@@ -57,6 +57,10 @@ SERIES = 1e-6
 #: The most times a step is halved in search of a lower residual sum of squares.
 HALVINGS = 40
 
+#: A regressor whose straight-line part of the fit is below this share of the spread of y has no
+#: slope at its trial power: its power cannot be moved, whatever rounding leaves in its coefficient.
+FLAT = float(np.sqrt(np.finfo(float).eps))
+
 
 def box_tidwell(
     X: pd.DataFrame | np.ndarray | Sequence[float],
@@ -227,7 +231,8 @@ def _step(y: np.ndarray, linear: np.ndarray, x: np.ndarray, powers: np.ndarray) 
     model = np.column_stack([linear, columns])
     beta = _fit(model, y)[0][-len(powers) :]
     gamma = _fit(np.column_stack([model, derivatives]), y)[0][-len(powers) :]
-    if np.any(beta == 0):
+    effect = np.abs(beta) * np.linalg.norm(columns - columns.mean(axis=0), axis=0)
+    if np.any(effect <= FLAT * np.linalg.norm(y - y.mean())):
         msg = "A regressor has no straight-line effect on y at a trial power, so its power cannot be moved."
         raise ValueError(msg)
     return gamma / beta

@@ -9,6 +9,8 @@ least-squares fit of the same model, and to responses whose power is known.
 
 from __future__ import annotations
 
+import importlib
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,7 +18,10 @@ import statsmodels.api as sm
 from scipy.optimize import curve_fit
 
 from process_improve.regression import box_tidwell
-from process_improve.regression.box_tidwell import SERIES, _power_columns
+from process_improve.regression.box_tidwell import SERIES, _iterate, _power_columns, _std_errors
+
+# The package exports the function under the module's name, so the module is fetched by its path.
+box_tidwell_module = importlib.import_module("process_improve.regression.box_tidwell")
 
 # fmt: off
 WIND = np.array([
@@ -180,15 +185,47 @@ def test_bad_settings_are_refused(max_iter, tol):
 @pytest.mark.parametrize(
     ("y", "message"),
     [
-        ([1.0, 0.5, 0.5, 1.0], "no step from \\[1.0\\] lowers the residual sum of squares"),
-        ([1.0, 0.0, 0.0, 1.0], "derivative columns are linearly dependent"),
+        ([1.0, 0.5, 0.5, 1.0], "has no straight-line effect on y at a trial power"),
+        ([1.0, 0.0, 0.0, 1.0], "has no straight-line effect on y at a trial power"),
         ([3.0, 1.0, 2.0, 2.5, 0.5, 2.0], "did not settle in max_iter=100 steps"),
     ],
 )
 def test_a_regressor_with_no_clear_straight_line_effect_has_no_power(y, message):
-    """Symmetric responses have no slope to move a power by; on the last, the power runs off to -infinity."""
+    """Symmetric responses have no slope to move a power by; on the last, the power runs off to -infinity.
+
+    The slope of a symmetric response is zero only to rounding, so it is judged against the spread of
+    y: the same refusal on every platform, whatever rounding leaves in it.
+    """
     with pytest.raises(ValueError, match=message):
         box_tidwell(np.arange(1.0, len(y) + 1), y)
+
+
+def rises_away_from_one(*args: np.ndarray) -> float:
+    """Return a residual sum of squares that every step away from the power 1 raises (``args[-1]`` holds the powers)."""
+    return 1.0 if args[-1][0] == 1 else 2.0
+
+
+def test_a_step_that_never_lowers_the_sum_of_squares_is_refused(monkeypatch):
+    """Halving stops at a step still larger than ``tol``: the powers cannot be estimated."""
+    monkeypatch.setattr(box_tidwell_module, "_sse", rises_away_from_one)
+    x, linear = WIND[:, None], np.ones((len(WIND), 1))
+    with pytest.raises(ValueError, match=r"no step from \[1.0\] lowers the residual sum of squares"):
+        _iterate(OUTPUT, linear, x, max_iter=10, tol=1e-300)
+
+
+def test_a_step_halved_below_tol_leaves_the_powers_where_they_are(monkeypatch):
+    """At a minimum to rounding, a step that only raises the sum of squares is halved to nothing."""
+    monkeypatch.setattr(box_tidwell_module, "_sse", rises_away_from_one)
+    powers, history = _iterate(OUTPUT, np.ones((len(WIND), 1)), WIND[:, None], max_iter=10, tol=1e-8)
+    assert powers.tolist() == [1.0]
+    assert len(history) == 1
+
+
+def test_powers_whose_derivative_columns_vanish_have_no_standard_error():
+    """With no slope, the derivative column is zero and the powers cannot be told from the intercept."""
+    x = np.arange(1.0, 5.0)[:, None]
+    with pytest.raises(ValueError, match="derivative columns are linearly dependent"):
+        _std_errors(np.array([1.0, 0.5, 0.5, 1.0]), np.ones((4, 1)), x, np.array([1.0]), df_resid=1)
 
 
 def test_powers_still_settling_are_refused_with_a_hint():
