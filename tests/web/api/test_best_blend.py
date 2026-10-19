@@ -240,6 +240,14 @@ def test_the_sensitivity_moves_each_component_along_its_cox_direction(api):
     assert by_name["C"]["up_runnable"]
 
 
+def test_a_proportion_the_search_leaves_a_hair_from_its_bound_is_put_on_it(bootstrap):
+    low, high = np.array([0.0, 0.1, 0.0]), np.array([1.0, 0.6, 1.0])
+    found = {"A": 0.5999999999999999, "B": 0.4 + 3e-17, "C": 3.2e-17}
+    x = bootstrap._on_bounds(found, ["A", "B", "C"], low, high)
+    assert x.tolist() == [0.5999999999999999, 0.4 + 3e-17, 0.0], "C on 0, as the page shows it; A is no bound"
+    assert bootstrap._on_bounds({"A": 0.3, "B": 0.6000000001, "C": 0.1}, ["A", "B", "C"], low, high)[1] == 0.6
+
+
 def test_a_pure_component_s_blend_shares_its_change_among_the_others(bootstrap):
     moved = bootstrap._cox_moved(np.array([1.0, 0.0, 0.0]), 0, -0.1)
     np.testing.assert_allclose(moved, [0.9, 0.05, 0.05])

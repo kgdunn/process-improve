@@ -5097,7 +5097,7 @@ def _best_blend(request: dict, whole: dict, spec: dict, goal: str, target: float
         )["desirability"]
     _relay(heard)
     low, high = _bounds(spec)
-    x = np.clip([found["optimal_coded"][n] for n in names], low, high)  # SLSQP keeps to the bounds, to rounding
+    x = _on_bounds(found["optimal_coded"], names, low, high)
     point = dict(zip(names, x.tolist(), strict=True))
     predicted, confidence, prediction, leverage = fitted.at(point)
     spread = sum(abs(c["coefficient"]) for c in coefficients)
@@ -5147,6 +5147,17 @@ def _blend_fit(runs: pd.DataFrame, spec: dict, model: str) -> _FittedModel:
     return _FittedModel(
         {"out": _mixture_fit(blends, y, model, ["coefficients", "anova"]), "formula": model}, blends, names
     )
+
+
+def _on_bounds(found: dict[str, float], names: list[str], low: np.ndarray, high: np.ndarray) -> np.ndarray:
+    """Return the optimiser's blend, each proportion within :data:`PROPORTION_TOLERANCE` of a bound put on it.
+
+    SLSQP keeps to the bounds, and stops on one to rounding (3e-17 for a component a blend leaves
+    out), so a proportion at its bound is the bound itself, as the page shows it.
+    """
+    x = np.clip([found[n] for n in names], low, high)
+    x = np.where(x <= low + PROPORTION_TOLERANCE, low, x)
+    return np.where(x >= high - PROPORTION_TOLERANCE, high, x)
 
 
 def _bounds(spec: dict) -> tuple[np.ndarray, np.ndarray]:
@@ -5686,7 +5697,7 @@ def _balanced_blend(
         )["desirability"]
     _relay(heard)
     low, high = _bounds(whole)
-    x = np.clip([found["optimal_coded"][n] for n in names], low, high)  # SLSQP keeps to the bounds, to rounding
+    x = _on_bounds(found["optimal_coded"], names, low, high)
     confirm_at, rounding = _weighed(whole, x)
     return {
         **_balanced_at(aimed, goals, fits, dict(zip(names, x.tolist(), strict=True))),
