@@ -93,6 +93,14 @@ setting is left at all, and
 :meth:`~process_improve.experiments.region.DesignRegion.centroid` gives a central setting
 that can be run: where to hold the factors a plot does not show.
 
+For a mixture, the share is of the blends the components' ranges allow (the whole simplex
+when every range is 0 to 1). A mixture's limits are straight, so the share is exact:
+
+.. code-block:: python
+
+   blends = [Factor(name=name, type="mixture") for name in ("A", "B", "C")]
+   print(DesignRegion(blends, ["A <= 0.5"]).volume_fraction())  # 0.75, all but the corner where A > 0.5
+
 A limit can also narrow a factor's range everywhere, which the ranges then overstate:
 
 .. code-block:: python
