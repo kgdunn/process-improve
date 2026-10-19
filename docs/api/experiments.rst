@@ -92,6 +92,10 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.gaussian_process
+   :members:
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.augment
    :members:
    :undoc-members:

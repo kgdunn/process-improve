@@ -16,6 +16,7 @@ from process_improve.experiments.designs_omars import is_omars, omars_properties
 from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
+from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
@@ -71,6 +72,7 @@ __all__ = [
     "DesignResult",
     "Expt",
     "Factor",
+    "GaussianProcessFit",
     "Model",
     "MomentAberrationResult",
     "NotSeparableError",
@@ -96,6 +98,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "fit_gaussian_process",
     "full_factorial",
     "gather",
     "generate_design",
