@@ -5,3 +5,10 @@ Univariate Statistics
    :members:
    :undoc-members:
    :show-inheritance:
+
+Error transmission
+------------------
+
+.. automodule:: process_improve.univariate.error_transmission
+   :members:
+   :undoc-members:
