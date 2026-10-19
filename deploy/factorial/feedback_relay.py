@@ -16,13 +16,19 @@ no others:
 
 It sends one plain-text email to ``FEEDBACK_TO``, through SMTP with STARTTLS, and keeps nothing:
 no copy, no queue, and no log line that holds anything a request sent. The reader's text goes in
-the body only: the subject names the topic from a fixed list, and ``Reply-To`` is an address that
-parsed as one. Nothing a request says can name a recipient, so the relay mails the maintainer
-and nobody else.
+the body only: the subject names the topic from a fixed list and the report's reference, and
+``Reply-To`` is an address that parsed as one.
 
-Each network (a /24 of IPv4, a /48 of IPv6) may send ``PER_NETWORK`` reports an hour, and
-everyone together ``PER_DAY`` a day, counted in memory: the relay is one process. At most
-``IN_FLIGHT`` requests are worked on at once. Standard library only.
+Each report gets a reference, such as ``FB-7K3Q2M``, which the page shows the reader. When the
+reader gave an address, the relay also sends it a receipt: the fixed text ``RECEIPT``, which
+holds the reference, the topic and the day, and nothing the reader wrote. So the maintainer is
+the only one who gets a reader's words, and nobody can use the relay to send their own text to
+someone else. A mailbox gets at most one receipt a day.
+
+Each network (a /24 of IPv4, a /48 of IPv6) may send ``PER_NETWORK`` reports an hour, and the
+relay sends at most ``PER_DAY`` emails a day, reports and receipts together, counted in memory:
+the relay is one process. At most ``IN_FLIGHT`` requests are worked on at once. Standard library
+only.
 
 Its settings come from the environment, which systemd reads from ``/etc/factorial/feedback.env``:
 ``SMTP_HOST``, ``SMTP_PORT`` (587 if unset), ``SMTP_USER``, ``SMTP_FROM_EMAIL`` and
@@ -41,6 +47,7 @@ import ipaddress
 import json
 import os
 import re
+import secrets
 import smtplib
 import socket
 import ssl
@@ -117,12 +124,15 @@ SMTP_SECONDS = 30
 #: After its reply, how long a connection waits for the client to finish sending, and how much it reads and drops.
 LINGER_SECONDS = 2
 LINGER_BYTES = 2**23
-#: How many reports one network may send in an hour, and everyone together in a day (UTC); how many networks the
-#: count holds at once.
+#: How many reports one network may send in an hour, and how many emails the relay sends in a day (UTC), reports and
+#: receipts together; how many networks the count holds at once.
 PER_NETWORK = 10
 HOUR = 3600
 PER_DAY = 200
 NETWORKS = 10_000
+#: How long a mailbox waits after a receipt before it gets another, and how many mailboxes the count holds at once.
+DAY = 24 * HOUR
+MAILBOXES = 10_000
 #: How many requests are worked on at once; one more is refused, to try again a minute later.
 IN_FLIGHT = 8
 #: A screenshot as the page sends it: a JPEG, whose bytes start with these, in a data: URL that starts with this.
@@ -139,6 +149,19 @@ CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 LINE_BREAK = re.compile(r"[\t\n\r]")
 #: The name the email comes from, beside the site's sending address.
 SENDER_NAME = "Factorial feedback"
+#: A report's reference: ``FB-`` and six characters of Crockford's base32, which leaves out I, L, O and U, so that a
+#: reader who copies one out by hand cannot take one character for another.
+REFERENCE = "FB-"
+REFERENCE_CHARACTERS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+REFERENCE_LENGTH = 6
+#: The receipt's text: fixed but for the reference, the topic and the day (UTC), so it carries nothing a reader typed.
+RECEIPT = """\
+Your report {reference} reached the maintainer of Factorial, {site}, on {day} (UTC).
+Topic: {topic}
+
+This receipt was sent automatically, and holds nothing of what you wrote. If you sent no
+report, you can ignore this email: someone else gave your address.
+"""
 
 
 class RefusedError(Exception):
@@ -330,12 +353,19 @@ def body(report: Report) -> str:
     return "\n".join(lines) + "\n"
 
 
-def compose(report: Report, mail: Mail) -> EmailMessage:
-    """Write one report's email: plain text to the maintainer, the screenshot attached as ``screenshot.jpg``."""
+def reference() -> str:
+    """Return a new report's reference: ``REFERENCE`` and ``REFERENCE_LENGTH`` characters drawn by ``secrets``."""
+    return REFERENCE + "".join(secrets.choice(REFERENCE_CHARACTERS) for _ in range(REFERENCE_LENGTH))
+
+
+def compose(report: Report, mail: Mail, mark: str) -> EmailMessage:
+    """Write one report's email: plain text to the maintainer, its reference ``mark`` in the subject, and the
+    screenshot attached as ``screenshot.jpg``.
+    """
     message = EmailMessage()
     message["From"] = Address(SENDER_NAME, addr_spec=mail.sender)
     message["To"] = mail.to
-    message["Subject"] = f"[Factorial feedback: {TOPICS[report.topic]}]"
+    message["Subject"] = f"[Factorial feedback: {TOPICS[report.topic]}] {mark}"
     if report.email:
         message["Reply-To"] = Address(addr_spec=report.email)
     message["Date"] = email.utils.formatdate(usegmt=True)
@@ -346,13 +376,27 @@ def compose(report: Report, mail: Mail) -> EmailMessage:
     return message
 
 
-def send(message: EmailMessage, mail: Mail) -> None:
-    """Hand the email to the SMTP server over STARTTLS, addressed to the maintainer whatever its headers say."""
+def receipt(topic: str, address: str, mail: Mail, mark: str, now: float) -> EmailMessage:
+    """Write the receipt for the report ``mark`` to the reader's ``address``: ``RECEIPT``, with nothing they wrote."""
+    message = EmailMessage()
+    message["From"] = Address(SENDER_NAME, addr_spec=mail.sender)
+    message["To"] = Address(addr_spec=address)
+    message["Subject"] = f"Your Factorial report {mark}"
+    message["Auto-Submitted"] = "auto-generated"  # RFC 3834: an auto-responder does not answer it
+    message["Date"] = email.utils.formatdate(now, usegmt=True)
+    message["Message-ID"] = email.utils.make_msgid(domain=mail.sender.rpartition("@")[2])
+    day = time.strftime("%Y-%m-%d", time.gmtime(now))
+    message.set_content(RECEIPT.format(reference=mark, site=ORIGIN, day=day, topic=TOPICS[topic]))
+    return message
+
+
+def send(message: EmailMessage, mail: Mail, to: str) -> None:
+    """Hand one email to the SMTP server over STARTTLS, addressed to ``to`` alone, whatever its headers say."""
     with smtplib.SMTP(mail.host, mail.port, timeout=SMTP_SECONDS) as smtp:
         smtp.starttls(context=ssl.create_default_context())
         if mail.user:
             smtp.login(mail.user, mail.password)
-        smtp.send_message(message, from_addr=mail.sender, to_addrs=[mail.to])
+        smtp.send_message(message, from_addr=mail.sender, to_addrs=[to])
 
 
 # --------------------------------------------------------------------------- the limits
@@ -368,28 +412,43 @@ def network(address: str) -> str:
     return str(ipaddress.ip_network(f"{ip}/{prefix}", strict=False))
 
 
-class Limits:
-    """How many reports each network sent in the last hour, and everyone today, held in memory.
+def mailbox(address: str) -> str:
+    """Return the mailbox an address's receipts are counted for: the address in lower case, without a ``+tag``.
 
-    The table holds at most ``NETWORKS`` networks. When it is full, a network with no report in the
-    last hour is forgotten to make room; when none is, a new network is refused until one is.
+    Most mail services deliver ``Name+anything@example.com`` to ``name@example.com``, so neither gets a second receipt.
+    """
+    name, _, domain = address.lower().rpartition("@")
+    return f"{name.partition('+')[0]}@{domain}"
+
+
+class Limits:
+    """How many reports each network sent in the last hour, which mailboxes had a receipt in the last day, and how
+    many emails went today, held in memory.
+
+    The tables hold at most ``NETWORKS`` networks and ``MAILBOXES`` mailboxes. When one is full, an entry older than
+    its window is forgotten to make room; when none is, a newcomer is refused until one is.
     """
 
     def __init__(self, clock: Callable[[], float] = time.time) -> None:
         self.clock = clock
         self.lock = threading.Lock()
         self.sent: dict[str, list[float]] = {}  # each network's reports within the hour, by when they came
+        self.receipts: dict[str, float] = {}  # when each mailbox had its last receipt
         self.day = ""  # the day (UTC) that ``today`` counts
-        self.today = 0
+        self.today = 0  # the emails sent that day, reports and receipts
+
+    def spent(self, now: float) -> bool:
+        """Say whether the day's emails are all sent, counting afresh from midnight (UTC). Call it holding the lock."""
+        day = time.strftime("%Y-%m-%d", time.gmtime(now))
+        if day != self.day:
+            self.day, self.today = day, 0
+        return self.today >= PER_DAY
 
     def admit(self, where: str) -> str | None:
         """Count one report from the network ``where``; return why it is refused, or None to go ahead."""
         now = self.clock()
         with self.lock:
-            day = time.strftime("%Y-%m-%d", time.gmtime(now))
-            if day != self.day:
-                self.day, self.today = day, 0
-            if self.today >= PER_DAY:
+            if self.spent(now):
                 return "the relay has sent all the reports it sends in a day: try again tomorrow"
             recent = [when for when in self.sent.get(where, []) if now - when < HOUR]
             if len(recent) >= PER_NETWORK:
@@ -408,6 +467,24 @@ class Limits:
         for where in [where for where, times in self.sent.items() if all(now - when >= HOUR for when in times)]:
             del self.sent[where]
 
+    def receipt(self, address: str) -> str | None:
+        """Count one receipt to ``address``; return why it does not go, or None to send it."""
+        now = self.clock()
+        box = mailbox(address)
+        with self.lock:
+            if self.spent(now):
+                return "the relay has sent all the emails it sends in a day"
+            last = self.receipts.get(box)
+            if last is not None and now - last < DAY:
+                return "the address had one in the last day"
+            if last is None and len(self.receipts) >= MAILBOXES:
+                self.receipts = {kept: when for kept, when in self.receipts.items() if now - when < DAY}
+                if len(self.receipts) >= MAILBOXES:
+                    return "too many addresses had one in the last day"
+            self.receipts[box] = now
+            self.today += 1
+            return None
+
 
 # --------------------------------------------------------------------------- the request
 class Relay(http.server.BaseHTTPRequestHandler):
@@ -420,12 +497,18 @@ class Relay(http.server.BaseHTTPRequestHandler):
     server: Server
 
     def do_POST(self) -> None:
-        """Take one report: check the request, count it against its network, read and check it, and email it."""
+        """Take one report: check the request, count it against its network, read and check it, and email it.
+
+        Then send the reader a receipt, if they gave an address. A receipt that does not go is noted in the log, and
+        changes nothing else: the report has gone, and the page says so, with its reference.
+        """
         if not self.server.slots.acquire(blocking=False):
             self.reply(503, "the relay is busy: try again in a minute")
             return
         try:
-            send(compose(self.report(), self.server.mail), self.server.mail)
+            report = self.report()
+            mark = reference()
+            send(compose(report, self.server.mail, mark), self.server.mail, self.server.mail.to)
         except RefusedError as refusal:
             self.reply(refusal.status, str(refusal))
         except OSError as error:  # smtplib's errors, TLS's and the network's
@@ -433,9 +516,27 @@ class Relay(http.server.BaseHTTPRequestHandler):
         except Exception as error:  # noqa: BLE001 - whatever it was, its message could hold what the request sent
             self.reply(500, "the relay failed", cause=type(error).__name__)
         else:
-            self.reply(200, None)
+            receipted, note = self.receipt(report, mark)
+            self.reply(200, None, cause=note, sent={"reference": mark, "receipt": receipted})
         finally:
             self.server.slots.release()
+
+    def receipt(self, report: Report, mark: str) -> tuple[bool, str]:
+        """Send the reader a receipt for the report ``mark``, if they gave an address and their mailbox is due one.
+
+        Return whether it went, and a note for the log in the relay's own words.
+        """
+        if report.email is None:
+            return False, ""
+        refused = self.server.limits.receipt(report.email)
+        if refused:
+            return False, f"no receipt: {refused}"
+        mail = self.server.mail
+        try:
+            send(receipt(report.topic, report.email, mail, mark, self.server.limits.clock()), mail, report.email)
+        except Exception as error:  # noqa: BLE001 - a receipt that cannot go leaves the report sent
+            return False, f"the receipt could not be sent: {type(error).__name__}"
+        return True, "with a receipt"
 
     def report(self) -> Report:
         """Check the request's address and headers, count it, then read its body and check the report in it."""
@@ -484,9 +585,12 @@ class Relay(http.server.BaseHTTPRequestHandler):
             got += len(chunk)
         return b"".join(chunks)
 
-    def reply(self, status: int, refusal: str | None, cause: str = "") -> None:
-        """Answer ``{"ok": true}``, or ``{"ok": false, "error": refusal}``, and log the status and the reason alone."""
-        data = json.dumps({"ok": True} if refusal is None else {"ok": False, "error": refusal}).encode()
+    def reply(self, status: int, refusal: str | None, cause: str = "", sent: dict[str, object] | None = None) -> None:
+        """Answer ``{"ok": true}`` with what ``sent`` adds, or ``{"ok": false, "error": refusal}``; log the status, the
+        reason and the cause alone.
+        """
+        answer = {"ok": True, **(sent or {})} if refusal is None else {"ok": False, "error": refusal}
+        data = json.dumps(answer).encode()
         log(f"{status} {refusal or 'sent'}" + (f" ({cause})" if cause else ""))
         with contextlib.suppress(OSError):  # the client left: nobody to tell
             self.connection.settimeout(REPLY_SECONDS)

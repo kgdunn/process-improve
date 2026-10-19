@@ -3,8 +3,8 @@
 Each test runs the relay on a free local port and sends it what a reader's browser, behind Caddy,
 would send, or what anyone else could. The SMTP server is a stand-in that keeps each email it is
 handed, as the wire carries it, so a test reads the headers and the attachment the maintainer
-would get. The relay must email the maintainer and nobody else, keep nothing, and log nothing of
-what a request held.
+would get. The relay must email the reader's words to the maintainer alone, send the reader no
+more than a receipt of fixed text, keep nothing, and log nothing of what a request held.
 """
 
 from __future__ import annotations
@@ -67,6 +67,8 @@ CONTEXT = {
 MESSAGE = "The contour plot of the reactor example shows a ridge, and the summary calls it a maximum."
 READER = "reader@example.com"
 ADDRESS = "203.0.113.7"
+#: A report's reference: FB- and six characters of Crockford's base32, which has no I, L, O or U.
+REFERENCE = re.compile(r"FB-[0-9A-HJKMNP-TV-Z]{6}")
 JSON = "application/json"
 #: What Caddy sends with a report from the app.
 HEADERS = {"Origin": "https://factori.al", "Content-Type": JSON, "X-Real-IP": ADDRESS}
@@ -89,6 +91,11 @@ class Outbox:
         self.emails: list[Any] = []
         self.steps: list[tuple] = []
         self.fail: Exception | None = None
+        self.fail_for: str | None = None  # the one recipient the error is for, or None for every one
+
+    def to(self, address: str) -> list[Any]:
+        """Return the emails sent to ``address``."""
+        return [mail for mail in self.emails if mail["To"] == address]
 
 
 @pytest.fixture
@@ -113,7 +120,7 @@ def outbox(monkeypatch) -> Outbox:
             box.steps.append(("login", user, password))
 
         def send_message(self, message: Any, from_addr: str, to_addrs: list[str]) -> None:  # noqa: ANN401
-            if box.fail:
+            if box.fail and box.fail_for in {None, *to_addrs}:
                 raise box.fail
             box.steps.append(("send", from_addr, to_addrs))
             box.emails.append(email.message_from_bytes(message.as_bytes(), policy=email.policy.default))
@@ -178,12 +185,13 @@ def ask(
 
 
 # --------------------------------------------------------------------------- a report, emailed
-def test_a_report_is_emailed_to_the_maintainer_alone(server, outbox):
-    assert ask(server, report())[::2] == (200, {"ok": True})
-    [mail] = outbox.emails
+def test_a_report_is_emailed_to_the_maintainer(server, outbox):
+    status, _, reply = ask(server, report())
+    assert (status, reply) == (200, {"ok": True, "reference": reply["reference"], "receipt": True})
+    assert REFERENCE.fullmatch(reply["reference"])
+    [mail] = outbox.to("kevin@example.org")
     assert mail["From"] == "Factorial feedback <feedback@factori.al>"
-    assert mail["To"] == "kevin@example.org"
-    assert mail["Subject"] == "[Factorial feedback: Algorithm or model]"
+    assert mail["Subject"] == f"[Factorial feedback: Algorithm or model] {reply['reference']}"
     assert mail["Reply-To"] == READER
     assert mail["Message-ID"].endswith("@factori.al>")
     assert outbox.steps[:3] == [("connect", "smtp.example.net", 587, relay.SMTP_SECONDS), ("starttls", True),
@@ -203,9 +211,10 @@ def test_a_report_is_emailed_to_the_maintainer_alone(server, outbox):
 
 
 def test_a_report_of_a_message_alone_says_what_it_lacks(server, outbox):
-    assert ask(server, {"topic": "general", "message": "  Ça marche: ∑ and é read well.  "})[0] == 200
+    status, _, reply = ask(server, {"topic": "general", "message": "  Ça marche: ∑ and é read well.  "})
+    assert (status, reply["receipt"]) == (200, False), "no address, so no receipt"
     [mail] = outbox.emails
-    assert mail["Subject"] == "[Factorial feedback: General]"
+    assert mail["Subject"] == f"[Factorial feedback: General] {reply['reference']}"
     assert mail["Reply-To"] is None
     assert not list(mail.iter_attachments())
     text = mail.get_body(("plain",)).get_content()
@@ -218,12 +227,14 @@ def test_a_report_of_a_message_alone_says_what_it_lacks(server, outbox):
 def test_a_message_s_line_breaks_stay_in_the_body(server, outbox):
     """A header-injection attempt: the reader's text is the email's body, and never one of its headers."""
     attempt = "Hello\r\nBcc: victim@example.com\r\nSubject: You won\r\n\r\nand more"
-    assert ask(server, report(message=attempt))[0] == 200
-    [mail] = outbox.emails
+    status, _, reply = ask(server, report(message=attempt))
+    assert status == 200
+    [mail] = outbox.to("kevin@example.org")
     assert mail["Bcc"] is None
-    assert mail.get_all("Subject") == ["[Factorial feedback: Algorithm or model]"]
+    assert mail.get_all("Subject") == [f"[Factorial feedback: Algorithm or model] {reply['reference']}"]
     assert ("send", "feedback@factori.al", ["kevin@example.org"]) in outbox.steps
     assert "Bcc: victim@example.com" in mail.get_body(("plain",)).get_content()
+    assert not any("victim" in step for step in map(str, outbox.steps)), "nobody else is sent anything"
 
 
 @pytest.mark.parametrize(
@@ -239,6 +250,90 @@ def test_a_header_injection_attempt_in_a_one_line_field_is_refused(server, outbo
     status, _, reply = ask(server, report(**{field: value}))
     assert status == 400, reply
     assert outbox.emails == []
+
+
+# --------------------------------------------------------------------------- the reference and the receipt
+def test_each_report_gets_a_reference_of_its_own(server, outbox):
+    first = ask(server, report())[2]["reference"]
+    second = ask(server, report(email=None))[2]["reference"]
+    assert REFERENCE.fullmatch(first)
+    assert REFERENCE.fullmatch(second)
+    assert first != second
+    assert [mail["Subject"].rsplit(" ", 1)[1] for mail in outbox.to("kevin@example.org")] == [first, second]
+
+
+def test_the_reader_gets_a_receipt_that_holds_none_of_their_words(server, outbox):
+    """A receipt is fixed text: anyone may type anyone's address, so it must carry nothing a request chose."""
+    status, _, reply = ask(server, report())
+    assert (status, reply["receipt"]) == (200, True)
+    [note] = outbox.to(READER)
+    assert ("send", "feedback@factori.al", [READER]) in outbox.steps, "addressed to the reader alone"
+    assert note["From"] == "Factorial feedback <feedback@factori.al>"
+    assert note["Subject"] == f"Your Factorial report {reply['reference']}"
+    assert note["Auto-Submitted"] == "auto-generated"
+    assert note["Reply-To"] is None
+    assert not list(note.iter_attachments()), "no screenshot"
+    text = note.get_body(("plain",)).get_content()
+    day = "2026-10-18"  # the test's clock: noon, UTC
+    words = {"reference": reply["reference"], "site": relay.ORIGIN, "topic": "Algorithm or model"}
+    assert text == relay.RECEIPT.format(**words, day=day)
+    for sent in (MESSAGE, STUDY, *CONTEXT["stamp"], CONTEXT["errors"][0], CONTEXT["browser"]):
+        assert sent not in note.as_string()
+
+
+def test_a_mailbox_gets_one_receipt_a_day(server, outbox, clock):
+    assert ask(server, report())[2]["receipt"] is True
+    again = ask(server, report(email="Reader+again@EXAMPLE.com"), {"X-Real-IP": "198.51.100.7"})
+    assert again[:3:2] == (200, {"ok": True, "reference": again[2]["reference"], "receipt": False})
+    assert len(outbox.to(READER)) == 1
+    assert len(outbox.to("kevin@example.org")) == 2, "the report still goes to the maintainer"
+    clock.now += relay.DAY - 1
+    assert ask(server, report())[2]["receipt"] is False
+    clock.now += 1
+    assert ask(server, report())[2]["receipt"] is True, "a day after the first"
+
+
+def test_a_receipt_that_cannot_go_leaves_the_report_sent(server, outbox, capsys):
+    outbox.fail = OSError("Connection refused for reader@example.com")
+    outbox.fail_for = READER
+    status, _, reply = ask(server, report())
+    assert (status, reply["ok"], reply["receipt"]) == (200, True, False)
+    assert len(outbox.to("kevin@example.org")) == 1
+    assert capsys.readouterr().err == "200 sent (the receipt could not be sent: OSError)\n"
+
+
+@pytest.mark.parametrize(
+    ("address", "box"),
+    [
+        ("reader@example.com", "reader@example.com"),
+        ("Reader@Example.COM", "reader@example.com"),
+        ("reader+feedback@example.com", "reader@example.com"),
+        ("first.last+a+b@example.com", "first.last@example.com"),
+    ],
+)
+def test_a_mailbox_is_an_address_in_lower_case_without_its_tag(address, box):
+    assert relay.mailbox(address) == box
+
+
+def test_receipts_count_toward_the_day_s_emails(clock, monkeypatch):
+    monkeypatch.setattr(relay, "PER_DAY", 3)
+    limits = relay.Limits(clock=clock)
+    assert limits.admit("net-0") is None
+    assert limits.receipt("one@example.com") is None
+    assert limits.admit("net-1") is None
+    assert limits.receipt("two@example.com") == "the relay has sent all the emails it sends in a day"
+    assert limits.admit("net-2") == "the relay has sent all the reports it sends in a day: try again tomorrow"
+
+
+def test_the_receipt_count_is_kept_for_at_most_so_many_mailboxes(clock, monkeypatch):
+    monkeypatch.setattr(relay, "MAILBOXES", 2)
+    limits = relay.Limits(clock=clock)
+    assert limits.receipt("one@example.com") is None
+    assert limits.receipt("two@example.com") is None
+    assert limits.receipt("three@example.com") == "too many addresses had one in the last day"
+    clock.now += relay.DAY
+    assert limits.receipt("three@example.com") is None
+    assert set(limits.receipts) == {"three@example.com"}, "the mailboxes a day past their receipt are forgotten"
 
 
 # --------------------------------------------------------------------------- what the relay refuses before the body
@@ -405,7 +500,7 @@ def test_the_depth_is_counted_outside_strings_and_no_further_than_a_report(body,
 def test_brackets_in_a_message_nest_nothing(server, outbox):
     message = 'A model of [[[[A]]]] and {"B": [C]}, which reads "{{{{" as text.'
     assert ask(server, report(message=message))[0] == 200
-    [mail] = outbox.emails
+    [mail] = outbox.to("kevin@example.org")
     assert message in mail.get_body(("plain",)).get_content()
 
 
@@ -435,7 +530,7 @@ def test_a_network_sends_ten_reports_an_hour(server, outbox, clock):
     assert ask(server, report(), {"X-Real-IP": "198.51.100.7"})[0] == 200, "another network"
     clock.now += relay.HOUR
     assert ask(server, report())[0] == 200, "an hour later"
-    assert len(outbox.emails) == relay.PER_NETWORK + 2
+    assert len(outbox.to("kevin@example.org")) == relay.PER_NETWORK + 2
 
 
 @pytest.mark.parametrize(
@@ -487,7 +582,7 @@ def test_a_ninth_request_in_flight_is_refused(server, outbox):
     assert (status, headers["Retry-After"], reply["error"]) == (503, "60", "the relay is busy: try again in a minute")
     server.slots.release()
     assert ask(server, report())[0] == 200
-    assert len(outbox.emails) == 1
+    assert len(outbox.to("kevin@example.org")) == 1
 
 
 # --------------------------------------------------------------------------- when the email cannot go
@@ -510,7 +605,7 @@ def test_nothing_a_request_held_is_logged(server, outbox, capsys):
     logged = capsys.readouterr()
     assert logged.out == ""
     assert logged.err.splitlines() == [
-        "200 sent",
+        "200 sent (with a receipt)",
         "400 the reply address is not one email address",
         "502 the email could not be sent (OSError)",
     ]
