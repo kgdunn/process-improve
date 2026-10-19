@@ -59,6 +59,9 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.model_comparison
+   :members: compare_models, group_test
+
 .. automodule:: process_improve.experiments.omars
    :members: analyze_omars, OmarsResult
 
