@@ -4479,7 +4479,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") flushSave();
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
-// A report of a problem: the study goes only when the reader ticks it, with its results, as a link to it packs it.
+// A report of a problem: the study goes only when the reader ticks it, with its results, packed as a link carries it.
 installFeedback({
   context: feedbackContext,
   study: () => packCampaign(shareable(currentCampaign(), true)),
