@@ -77,11 +77,17 @@ def test_alternatives_keep_to_an_in_range_limit():
 
 
 def test_without_alternatives_the_search_is_as_it_was():
-    saddle = model(I_A_sq=1.0, I_B_sq=-1.0)
-    goal = [{"response": "y", "goal": "maximize", "low": 0, "high": 1}]
+    """A saddle tilted toward +A, so its best corner is unique: y is 1.25 at (1, 0) and 0.75 at (-1, 0).
+
+    The untilted saddle ties its two corners exactly, and which one a platform reports is
+    decided by rounding in SLSQP's first steps (free-threaded Python reported (-1, 0)).
+    """
+    saddle = model(A=0.25, I_A_sq=1.0, I_B_sq=-1.0)
+    goal = [{"response": "y", "goal": "maximize", "low": 0, "high": 2}]
     found = optimize_responses([saddle], goals=goal, method="desirability")["desirability"]
     assert "alternatives" not in found
     assert coded(found).round(6).tolist() == [1.0, 0.0]
+    assert found["composite_desirability"] == pytest.approx(0.625, abs=1e-9)
 
 
 @pytest.mark.parametrize("n_alternatives", [-1, 1.5, True])
