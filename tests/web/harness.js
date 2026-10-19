@@ -4,7 +4,8 @@
 // wait until the page has nothing in flight, hold a reply back to stage a race, or give a
 // reply of its own to reach an error path. With window.__piTransport = "native" (set by the
 // test before this script runs) the worker is never started: each call is answered in the
-// test process, by web/bootstrap.py run natively, through the binding window.__piNative.
+// test process, by web/bootstrap.py run natively, through the binding window.__piNative, with a
+// fixed stand-in for each study seed (see pinSeeds).
 // Otherwise the page's own worker runs, Pyodide and all, and is only watched.
 
 (() => {
@@ -18,6 +19,7 @@
     fakes: {}, // entry point -> the reply to give instead of asking Python
     asked: new Map(), // id -> resolve, for each call a test makes through ask()
     worker: null, // the page's own worker, once it has made one
+    seeds: new Map(), // each study seed the page sent -> the stand-in Python was given for it
   };
   pi.idle = () => pi.pending === 0 && pi.queue.length === 0;
   pi.hold = (fn) => pi.held.add(fn);
@@ -41,6 +43,35 @@
     });
   };
   window.__pi = pi;
+
+  /**
+   * A study's seed is the second it began (app.js's studySeed), so a test's runs would come in another order on
+   * each run of it. Python is given a stand-in for each such seed instead: 42 for the first the page sends, 43 for
+   * the next, and so on. A test's runs are then the same on every run, a seed the page keeps is still kept, and a
+   * new one is still new. The reply gives the page its own seed back, wherever Python wrote the stand-in, so the
+   * page sees the seeds it drew. A seed below SECONDS, such as the worked example's 42, goes as it is.
+   */
+  const SECONDS = 1e9;
+
+  /** A copy of ``value`` with each random_state that ``swap`` holds replaced by its image there. */
+  function swapSeeds(value, swap) {
+    if (Array.isArray(value)) return value.map((v) => swapSeeds(v, swap));
+    if (value === null || typeof value !== "object") return value;
+    const entries = Object.entries(value).map(([k, v]) => [k, k === "random_state" && swap.has(v) ? swap.get(v) : swapSeeds(v, swap)]);
+    return Object.fromEntries(entries);
+  }
+
+  /** The payload Python is given for the page's, and a way to give the page its seeds back in the reply. */
+  function pinSeeds(sent) {
+    const drawn = [...sent.matchAll(/"random_state":\s*(\d+)/g)].map((m) => Number(m[1])).filter((v) => v > SECONDS);
+    if (!drawn.length) return { payload: sent, unpin: (text) => text };
+    for (const seed of drawn) if (!pi.seeds.has(seed)) pi.seeds.set(seed, 42 + pi.seeds.size);
+    const back = new Map(drawn.map((seed) => [pi.seeds.get(seed), seed]));
+    return {
+      payload: JSON.stringify(swapSeeds(JSON.parse(sent), pi.seeds)),
+      unpin: (text) => JSON.stringify(swapSeeds(JSON.parse(text), back)),
+    };
+  }
 
   /** Route one reply to the page, now or when its entry point is released. */
   function answer(fn, deliverNow) {
@@ -66,10 +97,11 @@
       this.started = false;
     }
 
-    postMessage({ id, fn, payload }) {
-      pi.calls.push({ fn, payload: JSON.parse(payload) });
+    postMessage({ id, fn, payload: sent }) {
+      const { payload, unpin } = pinSeeds(sent);
+      pi.calls.push({ fn, payload: JSON.parse(sent) });
       pi.pending += 1;
-      const reply = fn in pi.fakes ? Promise.resolve(JSON.stringify(pi.fakes[fn])) : window.__piNative(fn, payload);
+      const reply = fn in pi.fakes ? Promise.resolve(JSON.stringify(pi.fakes[fn])) : window.__piNative(fn, payload).then(unpin);
       reply.then((text) =>
         answer(fn, () => {
           if (!this.started) {

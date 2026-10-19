@@ -111,14 +111,14 @@ def test_a_study_s_runs_are_ordered_with_the_moment_it_began_kept_for_its_life(b
         (found,) = re.findall(r"random_state=(\d+)", page.text_content("#py-design code"))
         return int(found)
 
-    began = page.evaluate("Math.floor(Date.now() / 1000)")
     generate(page, design_type="full_factorial", n_center_points=0)
     first = seed()
-    assert began <= first <= page.evaluate("Math.floor(Date.now() / 1000)")
+    now = page.evaluate("Math.floor(Date.now() / 1000)")
+    assert now - 600 <= first <= now, "the second the study began, when its brief was first compared"
     generate(page, design_type="box_behnken")
     assert seed() == first, "the design tried in its place keeps the study's seed"
-    page.fill("#design-table input[data-index='0']", "12.5")
     page.wait_for_timeout(1100)  # the next study begins in a later second
+    page.fill("#design-table input[data-index='0']", "12.5")
     generate(page, design_type="ccd")
     assert seed() > first, "a study with a typed result is kept, and the next one has a seed of its own"
 
