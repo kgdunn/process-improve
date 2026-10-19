@@ -2289,3 +2289,17 @@ def test_the_adjusted_mean_of_an_analysis_of_covariance_is_a_prediction_with_its
     assert _prediction(out, {**at, "bound": "std_error"}, entry) == pytest.approx(
         0.7236, abs=5e-5
     )  # Minitab's Table 15.15
+
+
+def test_the_total_row_of_a_multistratum_analysis_adds_every_stratum():
+    """A split plot in two replicates of a 2^4: 1 + 6 + 24 degrees of freedom, the runs less one, and the total SS."""
+    from process_improve.experiments.reference_catalogue import _multistratum
+
+    layout = {"levels": {"rep": 2, "A": 2, "B": 2, "C": 2, "D": 2}, "model": "A * B * C * D", "strata": "rep/A:B"}
+    assert _multistratum({}, {**layout, "key": "df", "term": "Total"}) == 31
+    assert _multistratum({}, {**layout, "key": "df", "term": "Residual", "stratum": "rep:A:B"}) == 3
+    entry = _factorial(4, FILTRATION)
+    check = {"model": "C * D", "strata": "A/B", "term": "Total"}
+    total = np.sum((np.array(FILTRATION) - np.mean(FILTRATION)) ** 2)
+    assert _multistratum(entry, {**check, "key": "ss"}) == pytest.approx(total)
+    assert _multistratum(entry, {**check, "key": "df"}) == 15

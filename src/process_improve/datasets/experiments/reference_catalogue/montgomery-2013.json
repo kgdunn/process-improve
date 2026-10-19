@@ -188949,14 +188949,94 @@
      "what": "expected mean squares",
      "term": "restricted mixed model",
      "value": "σ² + bnσ²τγ + cnσ²τβ + nσ²τβγ + bcnΣτ²i/(a − 1) ...",
+     "analysis": "the temperature row of the library's expected_mean_squares under the restricted model, with b = 4 operators, c = 3 gauges and n = 2 replicates: the coefficients of σ², σ²τγ, σ²τβ, σ²τβγ and Στ²/(a - 1)",
      "where": {
       "page": 594,
       "source_kind": "table",
       "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Expected Mean Squares"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.Error",
+       "printed": "1",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp:gauge",
+       "printed": "4 * 2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp:operator",
+       "printed": "3 * 2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp:operator:gauge",
+       "printed": "2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp",
+       "printed": "4 * 3 * 2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      }
+     ]
     },
     {
      "what": "ss_total",
@@ -189638,7 +189718,7 @@
       "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Expected Mean Square for Each Term (using restricted model)"
      },
      "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+      "manual": "the catalogue holds only the start of Minitab's rows, (8) + 2(7) + ..., not the rows; expected_mean_squares(restricted=True) derives them, and Table 13.10's temperature row is checked"
      }
     },
     {
@@ -190234,7 +190314,7 @@
       "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Expected Mean Square for Each Term (using unrestricted model)"
      },
      "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+      "manual": "the catalogue holds only the start of Minitab's rows, (8) + 2(7) + ..., not the rows; expected_mean_squares(restricted=False) derives them, and Table 13.10's temperature row is checked"
      }
     },
     {
@@ -198003,14 +198083,86 @@
      "what": "error term",
      "term": "restricted model",
      "value": "6, 6, 5, 5, 6",
+     "analysis": "the library's expected_mean_squares, restricted mixed model: the term whose mean square tests each term, numbered as Minitab numbers the terms, the error last",
      "where": {
       "page": 618,
       "source_kind": "table",
       "quote": "Table 14.13 Minitab Balanced ANOVA Analysis of Example 14.2 Using the Restricted Model ... Error term 6 6 5 5 6"
      },
-     "check": {
-      "manual": "the term whose expected mean square differs only by the effect tested: the F tests above use them"
-     }
+     "check": [
+      {
+       "manual": "the error term of layouts: the library's is 2, operators within layouts, by whose mean square the table's F of 0.34 for layouts divides (checked); the 6 printed would test them against the error",
+       "printed": "6"
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.fixture",
+       "printed": "5",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.layout:fixture",
+       "printed": "5",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.operator:fixture(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      }
+     ]
     },
     {
      "what": "expected mean squares",
@@ -277319,14 +277471,317 @@
      "what": "degrees of freedom",
      "term": "Table 14.21",
      "value": "1, 1, 1, 1, 3, 1 (×12), 12, 31",
+     "analysis": "the skeleton analysis of the library's multistratum_anova: replicates, the whole plots of A and B within them, and the subplots of C and D; the replicates' row is their stratum's residual",
      "where": {
       "page": 628,
       "source_kind": "table",
       "quote": "Table 14.21 An Abbreviated Analysis for a Split-Plot Design with Factors A and B in the Whole Plots and Factors C and D in the Subplots"
      },
-     "check": {
-      "manual": "the degrees of freedom and expected mean squares of an analysis with no response, in symbols"
-     }
+     "check": [
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "rep",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A",
+       "stratum": "rep:A:B",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B",
+       "stratum": "rep:A:B",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B",
+       "stratum": "rep:A:B",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "rep:A:B",
+       "printed": "3"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B:C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B:C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B:C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B:C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "Within",
+       "printed": "12"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Total",
+       "printed": "31"
+      }
+     ]
     }
    ],
    "notes": "Figure 14.7 draws, for each replicate (block), the settings of A and B in its four whole plots and of C and D in each whole plot's four subplots; the order of the runs within a whole plot is as drawn, not a run order."

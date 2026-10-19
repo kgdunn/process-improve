@@ -2920,7 +2920,8 @@ def _multistratum(experiment: dict, check: dict) -> float:
     ``"df"``, ``"ss"``, ``"ms"``, ``"f"`` or ``"p_value"`` of ``check["term"]`` in ``check["stratum"]``
     (``"Residual"`` for the stratum's residual; a term's factors may be written in any order);
     ``"units"``, the units the stratum holds; or ``"n_terms"``, the count of treatment terms estimated
-    in the stratum, or in a list of strata.
+    in the stratum, or in a list of strata. The term ``"Total"`` adds the ``"df"`` or ``"ss"`` of every
+    row of every stratum: the runs less one, and their sum of squares about the mean.
     """
     if "levels" in check:
         names = list(check["levels"])
@@ -2931,6 +2932,8 @@ def _multistratum(experiment: dict, check: dict) -> float:
         response = check.get("response") or responses.columns[0]
         table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
     strata = {s["stratum"]: s for s in multistratum_anova(table, check["model"], check["strata"], response)["strata"]}
+    if check.get("term") == "Total":  # the strata split the contrasts among the runs between them
+        return float(sum(row[check["key"]] for s in strata.values() for row in [*s["terms"], s["residual"]]))
     key, wanted = check["key"], check["stratum"]
     if key == "n_terms":
         return float(sum(len(strata[name]["terms"]) for name in (wanted if isinstance(wanted, list) else [wanted])))
