@@ -17,6 +17,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
+from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
@@ -89,6 +90,7 @@ __all__ = [
     "constraint_through_cuts",
     "definitive_screening_runs",
     "doe_knowledge",
+    "estimate_missing",
     "evaluate_all",
     "evaluate_design",
     "evaluate_projections",
@@ -128,6 +130,7 @@ __all__ = [
     "time_trends",
     "trade_off_table",
     "trend_robust_run_order",
+    "tukey_nonadditivity",
     "variance_components",
     "visualize_doe",
 ]
