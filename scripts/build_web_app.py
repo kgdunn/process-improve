@@ -65,6 +65,7 @@ APP_FILES = (
     "store.js",
     "glossary.js",
     "terms.js",
+    "dialogs.js",
     "worker.js",
     "runtime.json",
     "bootstrap.py",

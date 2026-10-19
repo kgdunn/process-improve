@@ -207,6 +207,7 @@ import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
+import { closeOnBackdrop } from "./dialogs.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -4360,6 +4361,7 @@ $("#restore-plan").onclick = () => {
 $("#search").onclick = () => findCandidates({ search: true });
 $("#compare").onclick = showComparison;
 $("#compare-close").onclick = () => $("#compare-dialog").close();
+closeOnBackdrop($("#compare-dialog"));
 $("#run-example").onclick = runExample;
 $("#simulate").onclick = simulateResults;
 $("#reroll").onclick = () => {

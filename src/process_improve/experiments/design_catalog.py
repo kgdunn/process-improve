@@ -1050,15 +1050,18 @@ def catalog_topics() -> dict[str, dict[str, str]]:
 
 
 def catalog_families() -> dict[str, dict[str, Any]]:
-    """Return each family's name on the page, the year and work that first published it, and where it can lead.
+    """Return each family's name on the page, what it is, the work that first published it, and where it can lead.
 
+    ``description`` says what a design of the family is in plain words, as the knowledge base of design
+    types describes it to a newcomer (its ``description["novice"]``), or ``""`` where it has none.
     ``next`` lists the families a design of this one can be augmented to, each with how (``how``), as
-    the knowledge base of design types records them (its ``can_augment_to``).
+    the knowledge base records them (its ``can_augment_to``).
     """
     types = load_knowledge_graph().design_types
     return {
         key: {
             "label": f.label,
+            "description": " ".join(types[key].description.get("novice", "").split()) if key in types else "",
             "year": f.year,
             "reference": f.reference,
             "next": [

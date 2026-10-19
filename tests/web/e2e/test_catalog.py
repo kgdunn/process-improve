@@ -81,19 +81,46 @@ def test_a_family_s_count_is_what_ticking_it_shows(context, site):
     assert "fam=full_factorial" in page.url
 
 
-def test_a_design_s_detail_shows_its_source_and_its_checks(context, site):
+def test_a_design_s_detail_opens_on_the_design_its_source_and_its_use(context, site):
+    """The same three cells for every design, each about this design; its family's history folds away."""
     page = open_catalog(context, site)
     page.click(f".result__title[data-id='{PILOT}']")
     page.wait_for_selector("#detail[open]")
+    cells = page.locator("#detail-body .detail__head .detail__cell h3").all_text_contents()
+    assert cells == ["This design", "Where it comes from", "Use it"]
+    facts = page.locator("#detail-body .detail__facts li").all_text_contents()
+    assert facts == ["3 factors (1 categorical)", "8 runs", "Estimates two-factor interactions"]
     text = " ".join(page.text_content("#detail-body").split())
     assert "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978)" in text
-    assert "recomputed numbers agree" in text
-    assert "The library makes this design" in text
+    assert "recomputed" not in text, "how the catalogue checks an entry is not the reader's concern"
+    assert "The library makes this design" not in text
+    family = page.locator("#detail-body details.detail__family")
+    assert family.locator("summary").text_content() == "About this design type: Full factorial"
+    assert family.get_attribute("open") is None
+    assert "Full factorial designs were first published by Fisher, R. A. (1926)" in family.text_content()
     assert page.get_attribute("#detail-body .detail__cite a", "target") == "_blank", "the source opens in a new tab"
     stray = "a => [...a.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('')"
     assert page.eval_on_selector("#detail-body .actions", stray).strip() == "", "no text between the buttons"
     assert "d=bhh-pilot-plant-2-3" in page.url
     page.keyboard.press("Escape")
+    page.wait_for_selector("#detail:not([open])", state="attached")
+    assert "d=" not in page.url
+
+
+def test_a_click_outside_a_design_s_detail_closes_it_but_a_selection_dragged_out_does_not(context, site):
+    page = open_catalog(context, site, f"#d={PILOT}")
+    page.wait_for_selector("#detail[open]")
+    box = page.locator("#detail").bounding_box()
+    line = page.locator("#detail-body .detail__application").bounding_box()
+    y = line["y"] + 8
+    page.mouse.move(line["x"] + 1, y)
+    page.mouse.down()
+    for x in range(int(line["x"]) + 20, int(box["x"] + box["width"]) + 20, 20):  # out past the dialog's right edge
+        page.mouse.move(x, y)
+    page.mouse.up()
+    assert page.evaluate("document.querySelector('#detail').open"), "text selected to copy keeps the detail open"
+    assert page.evaluate("getSelection().toString()") != ""
+    page.mouse.click(box["x"] + box["width"] + 8, box["y"] + 8)
     page.wait_for_selector("#detail:not([open])", state="attached")
     assert "d=" not in page.url
 
@@ -372,10 +399,10 @@ def test_a_design_s_projections_say_what_any_two_or_three_factors_estimate(conte
     assert text.text_content() == (
         "In A, B and C, the runs sit at 15 distinct settings and estimate the full quadratic in them (10 terms). "
         "They hold all 8 corners: a full 2^3 factorial in these factors. "
-        "A label such as 3× counts the runs at a point; a point with no label holds one run."
+        "A label such as 3\u00d7 counts the runs at a point; a point with no label holds one run."
     )
     assert page.locator(".projection__point").count() == 15
-    assert page.locator(".projection__count").all_text_contents() == ["3×"], "the centre's runs, as a count"
+    assert page.locator(".projection__count").all_text_contents() == ["3\u00d7"], "the centre's runs, as a count"
     page.click(".explorer__picks [data-column='2']")
     assert text.text_content().startswith(
         "In A and B, the runs sit at 9 distinct settings and estimate the full quadratic"

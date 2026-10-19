@@ -471,7 +471,17 @@ export function largestModel(models) {
 
 /** One line of facts about a design: its family, its size, its factors and the largest model it estimates. */
 export function factLine(design, catalog) {
-  const parts = [catalog.families?.[design.family]?.label ?? design.family];
+  return [catalog.families?.[design.family]?.label ?? design.family, ...sizeFacts(design)].join(" · ");
+}
+
+/** The facts of factLine that are this design's own, not its family's, each as a sentence's start: "48 runs". */
+export function caseFacts(design) {
+  return sizeFacts(design).map((fact) => fact[0].toUpperCase() + fact.slice(1));
+}
+
+/** A design's factors, runs, the largest model it estimates, and its blocks, in words. */
+function sizeFacts(design) {
+  const parts = [];
   if (design.n_factors) {
     const kinds = [];
     if (design.n_categorical) kinds.push(`${design.n_categorical} categorical`);
@@ -484,7 +494,7 @@ export function factLine(design, catalog) {
   else if (model === "") parts.push("estimates fewer coefficients than it has factors");
   if (design.blocked) parts.push(design.n_blocks ? `${design.n_blocks} blocks` : "in blocks");
   if (design.split_plot) parts.push("split plot");
-  return parts.join(" · ");
+  return parts;
 }
 
 /** What the catalog can say of a published design's printed numbers. */

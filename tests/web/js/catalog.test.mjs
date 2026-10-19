@@ -9,6 +9,7 @@ import {
   DEFAULT_STATE,
   applicationLine,
   applications,
+  caseFacts,
   topicCounts,
   topicOrder,
   placesAfter,
@@ -435,6 +436,7 @@ describe("the picture and the words", () => {
   test("a design's facts, its checks and its source in a line each", () => {
     const pilot = CATALOG.designs[0];
     assert.equal(factLine(pilot, CATALOG), "Full factorial · 3 factors (1 categorical) · 8 runs · estimates two-factor interactions");
+    assert.deepEqual(caseFacts(pilot), ["3 factors (1 categorical)", "8 runs", "Estimates two-factor interactions"], "its own, not its family's");
     assert.equal(checkLine(CATALOG.designs[1].checks), "8 of 9 recomputed numbers agree; 1 known to differ, with the reason");
     assert.equal(checkLine({ printed: 2, checked: 0, agree: 0, explained: 0 }), "2 printed numbers, none recomputed");
     assert.equal(sourceLine(pilot, CATALOG), "Box, Hunter and Hunter (1978), pp. 307-324; Table 10.1");
