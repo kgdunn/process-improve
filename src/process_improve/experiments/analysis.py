@@ -36,6 +36,9 @@ from process_improve.experiments._analyses._shared import (
     WHOLE_PLOT_COL,
     _compute_adequate_precision,
     _compute_pred_r_squared,
+    _no_intercept_note,
+    _sums_of_squares,
+    _without_blocks,
 )
 from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
 from process_improve.experiments._analyses.box_cox import _run_box_cox
@@ -707,7 +710,7 @@ def _split_plot(fit: _Fit) -> dict[str, Any]:
 def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     """Analyses that differ for a Scheffe mixture model, keyed by analysis type."""
     return {
-        "anova": lambda: run_mixture_anova(fit.ols, fit.factor_cols),
+        "anova": lambda: _noted(run_mixture_anova(fit.ols, fit.factor_cols), _no_intercept_note(fit.ols)),
         "significance": lambda: run_mixture_significance(fit.ols, fit.factor_cols, fit.alpha),
         "effects": lambda: run_mixture_effects(fit.ols, fit.factor_cols),
         "lenth_method": run_mixture_lenth,
@@ -739,7 +742,9 @@ def _handlers(
         return _run_box_cox(raw, fit.response_col, exog=fit.ols.model.exog, alpha=fit.alpha)
 
     handlers: dict[str, Callable[[], dict[str, Any]]] = {
-        "anova": lambda: _run_anova(fit.reduced()[0], labels=fit.reduced()[1], blocks=fit.blocks),
+        "anova": lambda: _noted(
+            _run_anova(fit.reduced()[0], labels=fit.reduced()[1], blocks=fit.blocks), _no_intercept_note(fit.ols)
+        ),
         "effects": lambda: _effects(fit, lenth=False),
         "coefficients": lambda: _coefficients(fit, "coefficients"),
         "significance": lambda: _run_significance(
@@ -1012,6 +1017,19 @@ def analyze_experiment(  # noqa: PLR0913
         - ``log_likelihood``, ``aic`` and ``bic`` - the Gaussian log-likelihood and the criteria
           that count the error variance as a parameter, as R's ``AIC`` does; ``aic_step``,
           n ln(RSS/n) + 2p, as R's ``step`` prints it.
+        - ``ss_total``, ``ss_mean`` and ``ss_total_uncorrected`` - the total sum of squares
+          about the mean, the correction for the mean (n times the mean squared), and the
+          crude total, the sum of the squared responses, which is the other two added.
+        - ``ss_model`` - the model's sum of squares on the basis of ``r_squared`` and
+          ``f_statistic``: about the mean, or about zero for a model whose terms do not span
+          a constant; ``ss_model_uncorrected`` - the sum of the squared fitted values, the
+          model's sum about zero; ``ss_residual`` - the residual sum of squares.
+        - ``coefficient_of_variation`` - 100 times the residual standard deviation over the
+          mean response, Design-Expert's "C.V. %"; ``None`` when the mean is zero.
+        - With blocks in the model, ``ss_blocks`` (the blocks' sum of squares, fitted first)
+          and ``r_squared_without_blocks``, ``r_squared_adj_without_blocks`` and
+          ``r_squared_pred_without_blocks``: the three R-squared values over the total less
+          the blocks' sum of squares, as Design-Expert reports them.
 
         Notes from individual analyses are kept apart, as ``anova_note``,
         ``effects_note``, ``lenth_note``, ``significance_note`` and
@@ -1112,7 +1130,7 @@ def analyze_experiment(  # noqa: PLR0913
         # So the result can be passed to optimize_responses as a fitted model as it is.
         "response_name": reported_response,
         "factor_names": list(factor_cols),
-        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
+        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info, blocks)
         | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
         | ({"model_note": model_note} if model_note else {}),
     }
@@ -1253,12 +1271,13 @@ def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dic
     }
 
 
-def _model_summary(
+def _model_summary(  # noqa: PLR0913
     ols_result: RegressionResultsWrapper,
     formula: str,
     reported_response: str,
     model: str,
     transform_info: dict[str, Any],
+    blocks: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Fit statistics of the fitted model."""
     return {
@@ -1274,8 +1293,17 @@ def _model_summary(
         "df_model": int(ols_result.df_model),
         "df_residual": int(ols_result.df_resid),
         "mse_residual": float(ols_result.mse_resid),
+        **_sums_of_squares(ols_result),
+        **_without_blocks(ols_result, blocks),
         **_fit_criteria(ols_result),
     }
+
+
+def _noted(anova: dict[str, Any], note: str | None) -> dict[str, Any]:
+    """Return an ANOVA result with ``note`` added to its ``anova_note``, when there is a note and a table."""
+    if note is None or not anova.get("anova_table"):
+        return anova
+    return anova | {"anova_note": f"{anova['anova_note']} {note}" if anova.get("anova_note") else note}
 
 
 def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float | None]:

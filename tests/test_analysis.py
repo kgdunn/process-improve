@@ -1865,3 +1865,88 @@ class TestStandardisedCoefficients:
             warnings.simplefilter("ignore")
             result = analyze_experiment(data, response_column="y", model="y ~ A + B", analysis_type="coefficients")
         assert all(np.isnan(row["standardised_coefficient"]) for row in result["coefficients"])
+
+
+#: BHH's blood coagulation times (Table 6.1): four diets, in seconds.
+_BLOOD = {
+    "A": [62, 60, 63, 59],
+    "B": [63, 67, 71, 64, 65, 66],
+    "C": [68, 66, 71, 67, 68, 68],
+    "D": [56, 62, 60, 61, 63, 64, 63, 59],
+}
+
+#: NIST 5.5.4.2, yarn elongation of three-component blends (proportions X1, X2, X3).
+_ELONGATION = [
+    (0.0, 0.0, 1.0, 16.8), (0.0, 0.0, 1.0, 16.0), (0.0, 0.5, 0.5, 10.0), (0.0, 0.5, 0.5, 9.7),
+    (0.0, 0.5, 0.5, 11.8), (0.0, 1.0, 0.0, 8.8), (0.0, 1.0, 0.0, 10.0), (0.5, 0.0, 0.5, 17.7),
+    (0.5, 0.0, 0.5, 16.4), (0.5, 0.0, 0.5, 16.6), (0.5, 0.5, 0.0, 15.0), (0.5, 0.5, 0.0, 14.8),
+    (0.5, 0.5, 0.0, 16.1), (1.0, 0.0, 0.0, 11.0), (1.0, 0.0, 0.0, 12.4),
+]  # fmt: skip
+
+#: Montgomery's vascular graft (Example 4.1): yield at four extrusion pressures, in six batches of resin.
+_GRAFT = {
+    "8500": [90.3, 89.2, 98.2, 93.9, 87.4, 97.9],
+    "8700": [92.5, 89.5, 90.6, 94.7, 87.0, 95.8],
+    "8900": [85.5, 90.8, 89.6, 86.2, 88.0, 93.4],
+    "9100": [82.5, 89.5, 85.6, 87.4, 78.9, 90.7],
+}
+
+
+class TestSumsOfSquaresConventions:
+    """The sums and R-squared values in the conventions sources print (#789 B1)."""
+
+    def test_the_crude_total_is_the_correction_for_the_mean_plus_the_corrected_total(self) -> None:
+        """BHH Table 6.4: 98,644 = 98,304 + 228 + 112."""
+        rows = [(diet, y) for diet, values in _BLOOD.items() for y in values]
+        data = pd.DataFrame(rows, columns=["diet", "y"])
+        summary = analyze_experiment(data, response_column="y", model="y ~ diet")["model_summary"]
+        assert summary["ss_total_uncorrected"] == pytest.approx(98644)
+        assert summary["ss_mean"] == pytest.approx(98304)
+        assert summary["ss_model"] == pytest.approx(228)
+        assert summary["ss_residual"] == pytest.approx(112)
+        assert summary["ss_total"] == pytest.approx(340)
+        assert summary["coefficient_of_variation"] == pytest.approx(100 * np.sqrt(112 / 20) / 64)
+
+    def test_a_model_without_an_intercept_gives_its_sums_about_zero_and_says_its_rows_do_not_add_up(self) -> None:
+        """NIST 5.5.4.2 prints the uncorrected model and total sums, 2878.27 and 2884.83.
+
+        The Type II rows of the library's ANOVA add to 1952.33, neither of the model's sums.
+        """
+        data = pd.DataFrame(_ELONGATION, columns=["X1", "X2", "X3", "y"])
+        model = "y ~ X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1"
+        result = analyze_experiment(data, response_column="y", model=model)
+        summary = result["model_summary"]
+        assert summary["ss_model_uncorrected"] == pytest.approx(2878.27, abs=0.005)
+        assert summary["ss_total_uncorrected"] == pytest.approx(2884.83, abs=0.005)
+        assert summary["ss_model"] == pytest.approx(128.30, abs=0.005)  # about the mean: the blends span a constant
+        assert summary["ss_residual"] == pytest.approx(6.56, abs=0.005)
+        assert "do not add up to a model sum of squares" in result["anova_note"]
+        rows = sum(row["sum_sq"] for row in result["anova_table"] if row["source"] != "Residual")
+        assert rows == pytest.approx(1952.33, abs=0.005)
+
+    def test_a_model_with_an_intercept_has_no_such_note(self) -> None:
+        rows = [(diet, y) for diet, values in _BLOOD.items() for y in values]
+        data = pd.DataFrame(rows, columns=["diet", "y"])
+        assert "anova_note" not in analyze_experiment(data, response_column="y", model="y ~ diet")
+
+    def test_r_squared_without_the_blocks_as_design_expert_reports_it(self) -> None:
+        """Montgomery Example 4.1: R² 0.6185, adjusted 0.5422 and predicted 0.0234, and C.V. 3.01%."""
+        rows = [(p, str(b), y) for p, values in _GRAFT.items() for b, y in enumerate(values, start=1)]
+        data = pd.DataFrame(rows, columns=["pressure", "Block", "y"])
+        summary = analyze_experiment(data, response_column="y", model="main_effects")["model_summary"]
+        assert summary["r_squared_without_blocks"] == pytest.approx(0.6185, abs=5e-5)
+        assert summary["r_squared_adj_without_blocks"] == pytest.approx(0.5422, abs=5e-5)
+        assert summary["r_squared_pred_without_blocks"] == pytest.approx(0.0234, abs=5e-5)
+        assert summary["ss_blocks"] == pytest.approx(192.25, abs=0.005)
+        assert summary["coefficient_of_variation"] == pytest.approx(3.01, abs=0.005)
+        assert summary["ss_total_uncorrected"] == pytest.approx(193999.31, abs=0.005)
+        unblocked = analyze_experiment(data.drop(columns="Block"), response_column="y", model="main_effects")
+        assert "r_squared_without_blocks" not in unblocked["model_summary"]
+
+    def test_with_nothing_left_to_test_the_values_without_blocks_are_none(self) -> None:
+        data = pd.DataFrame({"x": [-1, 1, -1, 1], "Block": ["1", "1", "2", "2"], "y": [1.0, 3.0, 2.0, 5.0]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            summary = analyze_experiment(data, response_column="y", model="y ~ x + Block + x:Block")["model_summary"]
+        assert summary["r_squared_without_blocks"] is None
+        assert summary["coefficient_of_variation"] is None
