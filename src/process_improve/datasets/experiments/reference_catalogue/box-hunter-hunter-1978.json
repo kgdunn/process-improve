@@ -18007,9 +18007,44 @@
       "source_kind": "table",
       "quote": "just 25 out of the 1024 possible averages (i.e., 2.4%) ... just 19 out of 1024"
      },
-     "check": {
-      "manual": "randomization tests at the two limits, which no check computes"
-     }
+     "check": [
+      {
+       "kind": "classical_test",
+       "function": "randomization_test",
+       "x": {
+        "material": "A"
+       },
+       "y": {
+        "material": "B"
+       },
+       "kwargs": {
+        "paired": true
+       },
+       "subtract": 0.14,
+       "key": "p_value",
+       "printed": "25/1024",
+       "expression": true,
+       "disagreement": "less 0.14, 29 of the 1024 averages are at least the observed 0.27 (2.8%): 28 above it, and the observed pattern itself; the book counts 25"
+      },
+      {
+       "kind": "classical_test",
+       "function": "randomization_test",
+       "x": {
+        "material": "A"
+       },
+       "y": {
+        "material": "B"
+       },
+       "kwargs": {
+        "paired": true
+       },
+       "subtract": 0.68,
+       "key": "p_value_less",
+       "printed": "19/1024",
+       "expression": true,
+       "disagreement": "less 0.68, 27 of the 1024 averages are at most the observed -0.27 (2.6%): 26 below it, and the observed pattern itself; the book counts 19"
+      }
+     ]
     }
    ]
   },
