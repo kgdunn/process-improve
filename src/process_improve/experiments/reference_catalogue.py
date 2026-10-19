@@ -3322,6 +3322,7 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     if kind not in _FIT_KINDS:
         raise KeyError(f"No check of the kind {kind!r}.")
     found = float(_FIT_KINDS[kind](out, check, experiment))
+    found = found**2 if check.get("squared") else found  # a variance, from the standard error read
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     found = math.exp(found) if check.get("exp") else found  # a model of ln(s²) read back as a variance
     found = found / math.log(10) if check.get("log10") else found  # a natural log printed as a common one

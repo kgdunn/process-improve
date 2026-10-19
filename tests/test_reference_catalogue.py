@@ -1967,6 +1967,15 @@ def test_a_library_value_or_design_property_may_be_squared():
     )
 
 
+def test_a_number_read_from_a_fit_may_be_squared_as_a_variance_from_a_standard_error():
+    """The variance of an effect, its standard error squared: of a 2^4 with its four-factor term as error, 4 MSE/16."""
+    entry = _factorial(4, FILTRATION)
+    check = {"kind": "effect_std_error", "term": "A", "model": "A * B * C * D - A:B:C:D"}
+    out = reference_catalogue._Fits()(entry, check)
+    found, _ = reference_catalogue._fit_check(entry, {**check, "squared": True}, "1", reference_catalogue._Fits())
+    assert float(found) == pytest.approx(4 * out["model_summary"]["mse_residual"] / 16, rel=1e-5)
+
+
 def test_a_response_model_transmits_the_variance_of_its_noise_factor():
     """Montgomery's Example 12.1: temperature (A) a noise factor of Example 6.2's filtration 2^4.
 

@@ -17164,7 +17164,10 @@
       "quote": "The estimated variance of yB - yA is s²(1/nB + 1/nA) = 39.73(1/6 + 1/5) = 14.57"
      },
      "check": {
-      "manual": "the square of the standard error of the difference, which is checked as 3.82"
+      "kind": "effect_std_error",
+      "term": "fertilizer",
+      "model": "fertilizer",
+      "squared": true
      }
     },
     {
@@ -31099,7 +31102,10 @@
       "quote": "the estimated variance of an effect is (1/8 + 1/8)8 = 2"
      },
      "check": {
-      "manual": "the square of the standard error of an effect, 1.4, which is checked (it reproduces: 2)"
+      "kind": "effect_std_error",
+      "term": "T",
+      "model": "T * C * K",
+      "squared": true
      }
     },
     {
@@ -33087,7 +33093,10 @@
       "quote": "an estimated value for the variance of an effect, having five degrees of freedom, is 1.50/5 = 0.30"
      },
      "check": {
-      "manual": "the square of the standard error of an effect, 0.55, which is checked (it reproduces: 0.30)"
+      "kind": "effect_std_error",
+      "term": "catalyst",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2",
+      "squared": true
      }
     },
     {
@@ -36592,7 +36601,10 @@
       "quote": "Estimated variance of effect = 4.19/4 = 1.05."
      },
      "check": {
-      "manual": "the square of the standard error of an effect, 4.19/4, which no check reads (the standard error 1.023 is the library's)"
+      "kind": "effect_std_error",
+      "term": "seat",
+      "model": "seat * generator * pressure",
+      "squared": true
      }
     },
     {
@@ -46719,7 +46731,10 @@
       "quote": "V(b) = s²/Σx² = 8.0837/35208 = 0.0002296 (14.15)"
      },
      "check": {
-      "manual": "the square of the standard error of b, which is checked (it reproduces)"
+      "kind": "std_error",
+      "term": "x",
+      "model": "x - 1",
+      "squared": true
      }
     },
     {
@@ -47565,7 +47580,7 @@
       "quote": "V(b2) = 1/(1 - ρ²) s²/Σx2² = (1/0.3193)(0.3309/3.635) = 0.2851"
      },
      "check": {
-      "manual": "the square of the standard error of b2, which is checked (it reproduces)"
+      "manual": "the square of b2's standard error: the data give 0.2866 (0.5353², std_error squared); the book's 0.2851 is 0.534², from its residual mean square of 0.3309, recorded as a disagreement beside it"
      }
     },
     {
