@@ -57,6 +57,7 @@ from process_improve.experiments._region_geometry import (
     simplex_share,
     uniform_points_inside,
 )
+from process_improve.experiments._region_quadrature import columns_named, curved_share
 from process_improve.experiments._uniform_sampling import (
     _TOL,
     UniformSampler,
@@ -70,6 +71,8 @@ from process_improve.experiments.factor import Constraint, Factor, FactorType, a
 
 #: Sobol points behind :meth:`DesignRegion.volume_fraction` and the searches of a curved region.
 _N_SAMPLES = 2**14
+#: Sobol points on which a curved limit is evaluated to find the factors it names.
+_PROBE_POINTS = 2**8
 #: Points spread inside the polytope of the linear constraints, to search a curved region with.
 _N_INSIDE = 2**12
 #: Cells per axis of a shadow mask, and grid points per axis of a slice mask.
@@ -444,9 +447,19 @@ class DesignRegion:
         of up to five factors under several (see
         :func:`~process_improve.experiments._region_geometry.box_share`).
 
-        Otherwise (a curved constraint, or six factors or more that several constraints tie
-        together), the share is counted over ``n_samples`` points of the unscrambled Sobol
-        sequence (moved to the midpoints of their cells). Beside a curved constraint, the
+        With a curved constraint, the share is integrated when, in each group of factors a
+        curved constraint ties, one factor is named by every constraint that names two, and
+        none names three: a constraint on one or two factors, or one beside a straight one that
+        shares a factor with it, as ``"T*F <= 3600"`` beside ``"T + 25*P <= 250"``. At each
+        value of that factor, each other one's allowed length is found along a line across the
+        box, and their product is integrated by adaptive quadrature, to about 1e-10 (see
+        :func:`~process_improve.experiments._region_quadrature.curved_share`). A stretch a
+        curved constraint allows, or removes, narrower than 1/128 of such a line can be missed.
+
+        Otherwise (a curved constraint on three factors, a chain of them that no one factor
+        runs through, or six factors or more that several straight constraints tie together),
+        the share is counted over ``n_samples`` points of the unscrambled Sobol sequence
+        (moved to the midpoints of their cells). Beside a curved constraint, the
         share the straight ones leave is still exact, and the points count only what the
         curved ones take from it: the share is that exact share times the fraction of the
         points inside the straight constraints that meet every constraint. When the straight
@@ -493,9 +506,11 @@ class DesignRegion:
             return 1.0
         if self.kind == "mixture":
             return self._mixture_share()
-        exact = self._exact_share()
-        if exact is not None:
-            return exact
+        share = self._exact_share()
+        if share is None:
+            share = self._integrated_share()
+        if share is not None:
+            return share
         sample = self._unit_sample(n_samples)
         allowed = self._sample_allowed() if n_samples == _N_SAMPLES else self.feasible(sample)
         rows = self._linear()
@@ -539,6 +554,18 @@ class DesignRegion:
     def _exact_share(self) -> float | None:
         """Return the exact share of the box with straight constraints only, or None when it is sampled."""
         return None if self._linear().nonlinear else self._straight_share()
+
+    def _integrated_share(self) -> float | None:
+        """Return the share by quadrature, when each curved limit's group of factors has a hub (#810 item 1; cached).
+
+        See :func:`~process_improve.experiments._region_quadrature.curved_share`. None when a
+        group has none, and the share is sampled.
+        """
+        if "integrated_share" not in self._cache:
+            rows, probe = self._linear(), self._unit_sample(_PROBE_POINTS)
+            curved = [(g, columns_named(g, probe)) for g in rows.nonlinear]
+            self._cache["integrated_share"] = curved_share(rows.a, rows.b, curved)
+        return self._cache["integrated_share"]
 
     def _straight_share(self) -> float | None:
         """Return the exact share of the box its straight constraints leave, or None when not had fast (cached)."""
