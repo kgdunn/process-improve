@@ -66,6 +66,7 @@ class _AugmentContext:
     alpha: str | float | None
     generators: list[str] | None
     random_state: int | np.random.Generator | None = 42
+    hard_limits: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -454,8 +455,7 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
     df = ctx.existing_design[ctx.factor_names].copy()
     k = len(ctx.factor_names)
 
-    # Determine alpha value
-    alpha_value = _compute_alpha(df, ctx.factor_names, ctx.alpha)
+    alpha_value = _axial_distance(ctx, df)
 
     # Generate 2k axial points
     axial = np.zeros((2 * k, k))
@@ -468,6 +468,7 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
 
     notes = [
         f"Added {2 * k} axial (star) points with alpha = {alpha_value:.4f}.",
+        *_hard_limit_notes(ctx),
         "The design now supports estimation of quadratic (second-order) effects.",
         "Consider adding center points if not already present.",
     ]
@@ -485,6 +486,33 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
         "before_metrics": before_m,
         "after_metrics": after_m,
     }
+
+
+def _axial_distance(ctx: _AugmentContext, design: pd.DataFrame, n_new_centers: int = 0) -> float:
+    """Return the axial distance for *ctx*: face-centred by default when a factor has hard limits.
+
+    Raises
+    ------
+    ValueError
+        If the axial distance asked for is above 1 while a factor has hard limits: those axial
+        runs would set it past them.
+    """
+    default = "face_centered" if ctx.hard_limits else "rotatable"
+    alpha = _compute_alpha(design, ctx.factor_names, ctx.alpha if ctx.alpha is not None else default, n_new_centers)
+    if ctx.hard_limits and alpha > 1 + _ALIAS_TOL:
+        msg = (
+            f"alpha = {alpha:.4g} puts axial runs past the hard limits of {', '.join(ctx.hard_limits)}; "
+            "use alpha='face_centered' (alpha = 1) to keep them on the faces of the cube."
+        )
+        raise ValueError(msg)
+    return alpha
+
+
+def _hard_limit_notes(ctx: _AugmentContext) -> list[str]:
+    """Say why the axial runs sit on the faces of the cube, when hard limits put them there."""
+    if not ctx.hard_limits or ctx.alpha is not None:
+        return []
+    return [f"The axial runs sit on the faces of the cube: the ranges of {', '.join(ctx.hard_limits)} are hard limits."]
 
 
 def _compute_alpha(
@@ -735,9 +763,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     n_existing_centers = int(center_mask.sum())
     n_new_centers = max(0, _RSM_CENTER_RUNS - n_existing_centers)
 
-    # Add axial points
-    alpha_val = ctx.alpha if ctx.alpha is not None else "rotatable"
-    alpha_numeric = _compute_alpha(df, ctx.factor_names, alpha_val, n_new_centers)
+    alpha_numeric = _axial_distance(ctx, df, n_new_centers)
 
     axial = np.zeros((2 * k, k))
     for i in range(k):
@@ -752,6 +778,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     notes = [
         f"Upgraded to Central Composite Design (CCD) with alpha = {alpha_numeric:.4f}.",
         f"Added {2 * k} axial points and {n_new_centers} center point(s).",
+        *_hard_limit_notes(ctx),
     ]
     if n_existing_centers > 0:
         notes.append(f"Existing {n_existing_centers} center point(s) were preserved.")
@@ -896,6 +923,7 @@ def augment_design(  # noqa: PLR0913
     generators: list[str] | None = None,
     random_state: int | np.random.Generator | None = 42,
     factor_names: list[str] | None = None,
+    hard_limits: list[str] | None = None,
 ) -> dict[str, Any]:
     """Extend or modify an existing experimental design.
 
@@ -942,6 +970,12 @@ def augment_design(  # noqa: PLR0913
         as a response measured on the runs: augmenting it as a factor would add
         axial runs on it or negate it in a foldover. Name the factors to keep
         other columns out.
+    hard_limits : list[str] or None
+        The factors whose coded -1 and +1 are limits of the process (see
+        ``Factor.hard_limits``): no new run may set them past those levels. With any
+        named, ``"add_axial_points"`` and ``"upgrade_to_rsm"`` put their axial runs on
+        the faces of the cube (alpha = 1) unless *alpha* is given, and refuse an alpha
+        above 1. Every other augmentation keeps its new runs inside -1 to +1 anyway.
 
     Returns
     -------
@@ -956,8 +990,10 @@ def augment_design(  # noqa: PLR0913
     ------
     ValueError
         If *augmentation_type* is unknown, if required parameters are missing
-        for the requested augmentation, or if a column would be treated as a
-        factor without looking like one (see *factor_names*).
+        for the requested augmentation, if a column would be treated as a
+        factor without looking like one (see *factor_names*), if *hard_limits*
+        names a column that is not a factor, or if axial runs would pass a hard
+        limit.
 
     Examples
     --------
@@ -985,6 +1021,9 @@ def augment_design(  # noqa: PLR0913
         )
         raise ValueError(msg)
     factor_names = _resolve_factor_names(existing_design, factor_names)
+    unknown = sorted(set(hard_limits or []) - set(factor_names))
+    if unknown:
+        raise ValueError(f"hard_limits names {unknown}, which are not factors of the design: {factor_names}.")
 
     ctx = _AugmentContext(
         existing_design=existing_design,
@@ -996,6 +1035,7 @@ def augment_design(  # noqa: PLR0913
         alpha=alpha,
         generators=generators,
         random_state=random_state,
+        hard_limits=tuple(n for n in factor_names if n in set(hard_limits or [])),
     )
 
     handler = _AUGMENT_REGISTRY[augmentation_type]

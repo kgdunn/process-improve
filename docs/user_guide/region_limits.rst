@@ -31,6 +31,42 @@ rejection (under 1% for the 20000 points of the comparison of designs), they com
 chains of random steps, which magnify those last-bit differences: in 6 or more factors,
 such averages agree across platforms to about 7 to 11 figures.
 
+.. _region-limits-hard:
+
+When a factor's own range is a limit
+------------------------------------
+
+The simplest limit is a factor's own range: a vessel rated to 3 bar, a dose a protocol caps, an
+instrument that reads nothing below 1 bar. ``Factor(..., hard_limits=True)`` says that ``low``
+and ``high`` are such limits, not only the range studied, and every tool then keeps runs inside
+them:
+
+.. code-block:: python
+
+   from process_improve.experiments import Factor, generate_design
+
+   factors = [
+       Factor(name="T", low=150, high=200, units="degC"),
+       Factor(name="P", low=1, high=3, units="bar", hard_limits=True),
+   ]
+   ccd = generate_design(factors, design_type="ccd")
+   print(ccd.alpha, ccd.design_actual["P"].min(), ccd.design_actual["P"].max())
+   # 1.0 1.0 3.0
+
+* ``generate_design`` makes a CCD face-centred unless an ``alpha`` is given, and refuses a
+  design that would set the factor past its limits. A rotatable CCD here would ask for
+  0.59 bar to 3.41 bar.
+* ``augment_design`` takes the names in ``hard_limits=[...]``, since its design is in coded
+  units. Its axial runs then sit on the faces of the cube, and an ``alpha`` above 1 is
+  refused.
+* ``recommend_strategy`` names the limits in its assumptions, and plans no stage past them.
+* ``recommend_next_step`` never widens or moves such a range. The path of steepest ascent
+  moves only the other factors, and the reasons say which factors would improve past their
+  limits (see :ref:`next-step-hard-limits`).
+
+A range that is not marked keeps the old behaviour: a design may step past it, with a warning
+that names the settings it asks for.
+
 Writing limits as text
 ----------------------
 
