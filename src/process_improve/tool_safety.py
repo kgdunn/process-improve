@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing
+import os
 import sys
 import threading
 import warnings
@@ -64,6 +65,41 @@ def _default_mp_context(platform: str = sys.platform) -> multiprocessing.context
 
 
 _DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = _default_mp_context()
+
+#: True on a thread while it submits a tool call to a worker pool: a ``fork`` pool forks its
+#: worker inside ``submit``. The fork hooks below act on those forks only.
+_forking_a_worker = threading.local()
+
+
+def _hold_warnings_lock() -> None:
+    """Hold the warnings module's lock while this module forks a worker, so no other thread holds it.
+
+    From Python 3.14 every warning, and ``warnings.catch_warnings``, takes one lock for the
+    whole process. A worker forked while another thread holds that lock inherits it held by a
+    thread the worker does not have, so the worker's first warning waits forever. A parent
+    with threads warns at each ``fork()``, so two threads forking at once is enough, and
+    ``execute_tool_call`` records warnings on every call: on the free-threaded build about one
+    worker in five hung. Python 3.13 and earlier have no such lock.
+    """
+    lock = getattr(warnings, "_lock", None)
+    if lock is not None and getattr(_forking_a_worker, "active", False):
+        lock.__enter__()
+
+
+def _release_warnings_lock() -> None:
+    """Release the lock :func:`_hold_warnings_lock` took, in the parent and in the worker.
+
+    The worker's one thread is the thread that forked it, so it owns the lock it inherited.
+    """
+    lock = getattr(warnings, "_lock", None)
+    if lock is not None and getattr(_forking_a_worker, "active", False):
+        lock.__exit__(None, None, None)
+
+
+if hasattr(os, "register_at_fork"):  # POSIX
+    os.register_at_fork(
+        before=_hold_warnings_lock, after_in_parent=_release_warnings_lock, after_in_child=_release_warnings_lock
+    )
 
 # ---------------------------------------------------------------------------
 # Legacy default-name compatibility shims (ENG-22: deprecated since 2.0.0,
@@ -529,7 +565,11 @@ def safe_execute_tool_call(  # noqa: PLR0913
     # process-global state, reclaimed memory) with no cross-thread coupling,
     # at the same cost as the old create-per-call recycling.
     pool = executor if executor is not None else _create_pool(memory_mb)
-    future = pool.submit(_worker_run, tool_name, tool_input)
+    _forking_a_worker.active = True
+    try:
+        future = pool.submit(_worker_run, tool_name, tool_input)
+    finally:
+        _forking_a_worker.active = False
 
     try:
         return future.result(timeout=timeout)
