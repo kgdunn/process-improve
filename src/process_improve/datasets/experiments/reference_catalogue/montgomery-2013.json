@@ -166072,27 +166072,75 @@
      "what": "lack_of_fit",
      "term": "Lack of Fit",
      "value": "0.28 3 0.094 1.78 0.2897",
+     "analysis": "the quadratic model's row of the library's lack-of-fit test",
      "where": {
       "page": 491,
       "source_kind": "table",
       "quote": "Table 11.7 Computer Output from Design-Expert for Fitting a Model to the Yield Response in Example 11.2 ... ANOVA for Response Surface Quadratic Model ... Lack of Fit 0.28 3 0.094 1.78 0.2897"
      },
-     "check": {
-      "manual": "the quadratic model's row of the lack-of-fit tests above, which is checked"
-     }
+     "check": [
+      {
+       "kind": "lack_of_fit_ss",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.28"
+      },
+      {
+       "kind": "lack_of_fit_df",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "3"
+      },
+      {
+       "kind": "lack_of_fit_ms",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.094"
+      },
+      {
+       "kind": "lack_of_fit_f",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "1.78"
+      },
+      {
+       "kind": "lack_of_fit_p",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.2897"
+      }
+     ]
     },
     {
      "what": "pure_error",
      "term": "Pure Error",
      "value": "0.21 4 0.053",
+     "analysis": "the pure-error row of the library's lack-of-fit test of the quadratic model",
      "where": {
       "page": 491,
       "source_kind": "table",
       "quote": "Table 11.7 Computer Output from Design-Expert for Fitting a Model to the Yield Response in Example 11.2 ... ANOVA for Response Surface Quadratic Model ... Pure Error 0.21 4 0.053"
      },
-     "check": {
-      "manual": "the row of the lack-of-fit tests above, which is checked"
-     }
+     "check": [
+      {
+       "kind": "pure_error_ss",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.21"
+      },
+      {
+       "kind": "pure_error_df",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "4"
+      },
+      {
+       "kind": "pure_error_ms",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.053"
+      }
+     ]
     },
     {
      "what": "ss_total",

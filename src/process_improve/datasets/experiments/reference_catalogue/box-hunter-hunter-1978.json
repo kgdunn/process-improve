@@ -22422,14 +22422,78 @@
      "what": "ss",
      "term": "S_lambda table",
      "value": "1.333 0.664 0.463 0.401 0.359 0.333 0.323 0.326 0.343 0.375 0.424 0.635 1.051",
+     "analysis": "the residual sum of squares of the scaled power transform after fitting poisons and treatments, at the table's powers -2.5, -2.0, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0, 0.5 and 1.0",
      "where": {
       "page": 239,
       "source_kind": "table",
       "quote": "λ -2.5 -2.0 ... 1.00; Sλ 1.333 0.664 ... 1.051"
      },
-     "check": {
-      "manual": "the residual sums of squares of the scaled power transforms after fitting rows and columns, which no check reads; they reproduce except at λ = -2.5 (1.136, not 1.333) and to 0.001 at λ = 0 and 0.5 (0.423, 0.634)"
-     }
+     "check": [
+      {
+       "manual": "the table's S at λ = -2.5, 0 and 0.5: the data give 1.136, 0.4230 and 0.6340 (box_cox, keys sse.-2.5, sse.0 and sse.0.5); 1.333 is a misprint, and 0.424 and 0.635 are each 0.001 above the data's",
+       "printed": "1.333 0.424 0.635"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-2",
+       "printed": "0.664"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1.6",
+       "printed": "0.463"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1.4",
+       "printed": "0.401"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1.2",
+       "printed": "0.359"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1",
+       "printed": "0.333"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.8",
+       "printed": "0.323"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.6",
+       "printed": "0.326"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.4",
+       "printed": "0.343"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.2",
+       "printed": "0.375"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.1",
+       "printed": "1.051"
+      }
+     ]
     },
     {
      "what": "ss",
@@ -34162,7 +34226,7 @@
       "quote": "Sλ̂ = 2.59 ... S = 3.73 (Figure 10.10 b)"
      },
      "check": {
-      "manual": "the residual sum of squares of the scaled power transform at its minimum, and the book's critical value, which no check reads"
+      "manual": "2.59 is the profile's value at λ = 0 (2.5875, box_cox key sse.0), the log the analysis goes on with, not its least value, 2.539 at λ = -0.052; 3.73 is the critical value 2.59(1 + t²/11), with t read from a table"
      }
     },
     {
@@ -47243,14 +47307,24 @@
      "what": "ss",
      "term": "pure error, lack of fit",
      "value": "SE = 0.59, SL = 0.74",
+     "analysis": "the pure-error and lack-of-fit sums of squares of the library's lack-of-fit test",
      "where": {
       "page": 466,
       "source_kind": "table",
       "quote": "(5.75 - 4.79)² + (9.09 - 8.59)² = 0.59 = SE (14.37) ... SL = SR - SE = 1.33 - 0.59 = 0.74 (14.38)"
      },
-     "check": {
-      "manual": "the sums of squares for pure error and lack of fit, whose mean squares are checked"
-     }
+     "check": [
+      {
+       "kind": "pure_error_ss",
+       "model": "x1 + x2 - 1",
+       "printed": "0.59"
+      },
+      {
+       "kind": "lack_of_fit_ss",
+       "model": "x1 + x2 - 1",
+       "printed": "0.74"
+      }
+     ]
     },
     {
      "what": "lack_of_fit_f",
@@ -47828,13 +47902,19 @@
      "what": "std_error",
      "term": "a = ȳ",
      "value": "1.12",
+     "analysis": "the standard error of the fitted line at the average velocity, x̄ = 2.679: s/√7",
      "where": {
       "page": 478,
       "source_kind": "prose",
       "quote": "S.E.(a) = s/√n = 1.12"
      },
      "check": {
-      "manual": "the standard error of the fitted line at x̄, s/√7, which no check reads (it reproduces)"
+      "kind": "prediction",
+      "model": "x",
+      "point": {
+       "x": 2.679
+      },
+      "bound": "std_error"
      }
     },
     {
@@ -48050,14 +48130,24 @@
      "what": "ss",
      "term": "lack of fit, straight line",
      "value": "SL = 659.40, MS 164.85",
+     "analysis": "the lack-of-fit sum of squares and mean square of the straight line, from the library's lack-of-fit test",
      "where": {
       "page": 481,
       "source_kind": "table",
       "quote": "Table 14.11 ... lack of fit SL = 659.40 4 164.85"
      },
-     "check": {
-      "manual": "the lack-of-fit sum of squares and mean square, whose ratio to pure error is checked"
-     }
+     "check": [
+      {
+       "kind": "lack_of_fit_ss",
+       "model": "x",
+       "printed": "659.40"
+      },
+      {
+       "kind": "lack_of_fit_ms",
+       "model": "x",
+       "printed": "164.85"
+      }
+     ]
     },
     {
      "what": "lack_of_fit_f",
