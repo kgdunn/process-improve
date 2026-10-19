@@ -15,6 +15,7 @@ import email.policy
 import importlib.util
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -536,3 +537,66 @@ def test_the_relay_runs_as_systemd_runs_it_and_stops_at_a_missing_setting(tmp_pa
         "factorial-feedback: SMTP_HOST, SMTP_FROM_EMAIL and FEEDBACK_TO must be set, in /etc/factorial/feedback.env\n"
     )
     assert relay.main(["--port", "1"]) == 2
+
+
+def test_the_relay_listens_on_its_address_with_the_settings_in_the_environment(monkeypatch, tmp_path, capsys):
+    """As systemd starts it: the settings in the environment, the password in the credential, no argument."""
+    started = []
+
+    class Listening:
+        def __init__(self, address: tuple[str, int], mail: Any) -> None:  # noqa: ANN401 - the relay's Mail
+            started.append((address, mail))
+
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            pass
+
+        def serve_forever(self) -> None:
+            pass
+
+    (tmp_path / "smtp-password").write_text("the password\n", encoding="utf-8")
+    for name, value in {**ENVIRONMENT, "CREDENTIALS_DIRECTORY": str(tmp_path)}.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("SMTP_PORT", raising=False)
+    monkeypatch.setattr(relay, "Server", Listening)
+    assert relay.main([]) == 0
+    assert started == [(("127.0.0.1", 8790), MAIL)]
+    assert capsys.readouterr().err == "taking reports on 127.0.0.1:8790/api/feedback\n"
+
+
+# --------------------------------------------------------------------------- how the server runs it
+DEPLOY = SCRIPT.parent
+
+
+def test_caddy_passes_the_relay_its_path_on_its_address_with_the_reader_s_address():
+    caddy = (DEPLOY / "factorial.caddy").read_text(encoding="utf-8")
+    host, port = relay.ADDRESS
+    block = re.search(rf"handle {re.escape(relay.PATH)} \{{(.+?)\n\t\}}", caddy, flags=re.DOTALL)[1]
+    assert f"reverse_proxy {host}:{port} {{" in block
+    assert "header_up X-Real-IP {remote_host}" in block, "set by Caddy, whatever the request says"
+    capped = int(re.search(r"max_size (\d+)MB", block)[1]) * 10**6
+    assert capped > relay.MAX_BODY, "Caddy lets through every report the relay takes"
+    assert f"request_buffers {capped // 10**6}MB" in block
+
+
+def test_systemd_runs_the_copy_setup_installs_with_its_settings_and_its_password():
+    unit = (DEPLOY / "factorial-feedback.service").read_text(encoding="utf-8")
+    setup = (DEPLOY / "setup.sh").read_text(encoding="utf-8")
+    assert '"$here/feedback_relay.py" /usr/local/bin/factorial-feedback' in setup
+    assert "\nExecStart=/usr/local/bin/factorial-feedback\n" in unit
+    assert "\nEnvironmentFile=/etc/factorial/feedback.env\n" in unit
+    assert "\nLoadCredential=smtp-password:/etc/factorial/smtp-password\n" in unit
+    assert "[ -e /etc/factorial/feedback.env ] ||" in setup, "the settings are made once, and kept after"
+    for line in ("DynamicUser=yes", "ProtectSystem=strict", "NoNewPrivileges=yes", "TasksMax=32", "MemoryMax=128M"):
+        assert f"\n{line}\n" in unit, line
+
+
+def test_the_settings_file_names_what_the_relay_reads(tmp_path):
+    example = (DEPLOY / "feedback.env.example").read_text(encoding="utf-8")
+    names = re.findall(r"^([A-Z_]+)=", example, flags=re.MULTILINE)
+    assert names == ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_FROM_EMAIL", "FEEDBACK_TO"]
+    (tmp_path / "smtp-password").write_text("the password", encoding="utf-8")
+    filled = {**dict.fromkeys(names, ""), **ENVIRONMENT, "SMTP_PORT": "587", "CREDENTIALS_DIRECTORY": str(tmp_path)}
+    assert relay.settings(filled) == MAIL, "filled in, it is all the relay needs"
