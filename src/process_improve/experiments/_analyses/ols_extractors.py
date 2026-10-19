@@ -15,7 +15,6 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from scipy import stats
-from statsmodels.formula._manager import FormulaManager
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 from ._shared import is_block_term
@@ -62,15 +61,15 @@ def _term_columns(ols_result: RegressionResultsWrapper) -> dict[str, tuple[froze
     The columns are found by name, so a fit with columns dropped (one per alias chain, as
     :func:`~.aliasing.chain_reduced_fit` leaves) keeps only the columns it has.
     """
-    manager = FormulaManager()
-    spec = ols_result.model.data.model_spec
+    data = ols_result.model.data
+    # The formula's patsy DesignInfo: statsmodels 0.15 holds it as model_spec, 0.14 (Pyodide's) as design_info.
+    info = getattr(data, "model_spec", None) or data.design_info
     exog = np.asarray(ols_result.model.exog, dtype=float)
     position = {str(name): k for k, name in enumerate(ols_result.model.exog_names)}
-    names = manager.get_column_names(spec)
     terms = {}
-    for term in spec.terms:
-        found = [position[name] for name in names[manager.get_slice(spec, term)] if name in position]
-        terms[manager.get_term_name(term)] = (frozenset(term.factors), exog[:, found])
+    for term in info.terms:
+        found = [position[name] for name in info.column_names[info.slice(term)] if name in position]
+        terms[term.name()] = (frozenset(term.factors), exog[:, found])
     return terms
 
 
