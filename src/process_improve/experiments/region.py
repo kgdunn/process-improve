@@ -55,6 +55,7 @@ from process_improve.experiments._region_geometry import (
     points_inside,
     round_significant,
     simplex_share,
+    uniform_points_inside,
 )
 from process_improve.experiments._uniform_sampling import (
     _TOL,
@@ -448,12 +449,13 @@ class DesignRegion:
         sequence (moved to the midpoints of their cells). Beside a curved constraint, the
         share the straight ones leave is still exact, and the points count only what the
         curved ones take from it: the share is that exact share times the fraction of the
-        points inside the straight constraints that meet every constraint. Else (or when the
-        straight constraints leave too thin a region for any point to lie in it) it is the
-        fraction of all the points that meet every constraint. The points are fixed, so the
-        result is the same on every run and on every platform; with the default ``2**14``
-        points it is within about 0.005 of the exact share for the regions of a few factors
-        that limits describe.
+        points inside the straight constraints that meet every constraint. When the straight
+        constraints leave too thin a region for any of the points to lie in it, ``n_samples``
+        points uniform on that region take their place, for up to five factors. In every other
+        case the share is the fraction of all the points that meet every constraint. The
+        points are fixed, so the result is the same on every run and on every platform; with
+        the default ``2**14`` points it is within about 0.005 of the exact share for the
+        regions of a few factors that limits describe.
 
         For a mixture region the share is of the blends the components' ranges allow (the
         whole simplex when every range is 0 to 1), and it is exact: a mixture's constraints
@@ -499,9 +501,26 @@ class DesignRegion:
         rows = self._linear()
         straight = self._straight_share()
         inside = np.all(sample @ rows.a.T <= rows.b + _TOL, axis=1)
-        if straight is None or not inside.any():
+        if straight is None:
             return float(np.mean(allowed))
-        return straight * float(np.mean(allowed[inside]))
+        if inside.any():
+            return straight * float(np.mean(allowed[inside]))
+        thin = self._thin_fraction(n_samples)
+        return float(np.mean(allowed)) if thin is None else straight * thin
+
+    def _thin_fraction(self, n_samples: int) -> float | None:
+        """Return the fraction of the straight constraints' polytope that the curved ones leave (#810 item 2).
+
+        It is for a polytope too thin for any point of the box's sample. Its own ``n_samples``
+        points are uniform on it (see
+        :func:`~process_improve.experiments._region_geometry.uniform_points_inside`), so the
+        fraction of them that meet every constraint estimates the share. None when its
+        vertices are too many to list, it has no volume, or the region has more than five
+        factors.
+        """
+        vertices = self._vertices_coded()
+        points = None if vertices is None else uniform_points_inside(vertices, n_samples)
+        return None if points is None else float(np.mean(self.feasible(points)))
 
     def _mixture_share(self) -> float:
         """Return the share of the blends the components' ranges allow that the constraints leave, exactly (#810).

@@ -445,6 +445,48 @@ def _segment(points: np.ndarray, direction: np.ndarray) -> np.ndarray:
     return ends[np.lexsort((ends[:, 1], ends[:, 0]))]
 
 
+def uniform_points_inside(vertices: np.ndarray, n_points: int) -> np.ndarray | None:
+    """Return ``n_points`` fixed points uniform on the convex hull of ``vertices``; None when not had fast.
+
+    The hull is cut into simplices, one from the vertices' centroid to each of its facets. A
+    point picks a simplex in proportion to its volume, and lies in it with weights that are the
+    gaps between sorted coordinates, which is uniform on a simplex. Every number is read off the
+    unscrambled Sobol sequence, so the points are the same from run to run. Unlike
+    :func:`points_inside`, they are uniform on the hull, so a share can be counted over them.
+
+    Parameters
+    ----------
+    vertices : np.ndarray
+        ``(n, k)`` points.
+    n_points : int
+        Number of points to return.
+
+    Returns
+    -------
+    np.ndarray or None
+        ``(n_points, k)`` points; None when the hull is flat, or has more than
+        :data:`HULL_FACTORS` dimensions (cutting it into simplices takes seconds with eight).
+    """
+    count, k = vertices.shape
+    if k > HULL_FACTORS or count <= k or np.linalg.matrix_rank(vertices - vertices[0], tol=1e-9) < k:
+        return None
+    power = max(0, int(np.ceil(np.log2(max(n_points, 1)))))
+    unit = qmc.Sobol(d=k + 1, scramble=False).random_base2(power)[:n_points] + 0.5 / 2**power
+    if k == 1:
+        low, high = vertices.min(), vertices.max()
+        return low + (high - low) * unit[:, 1:]
+    try:
+        facets = ConvexHull(vertices).simplices
+    except QhullError:  # a precision failure the rank test did not foresee
+        return None
+    corners = np.stack([np.vstack([vertices.mean(axis=0), vertices[facet]]) for facet in facets])
+    volumes = np.abs(np.linalg.det(corners[:, 1:] - corners[:, :1]))
+    which = np.minimum(np.searchsorted(np.cumsum(volumes) / volumes.sum(), unit[:, 0]), len(corners) - 1)
+    ends = np.ones((len(unit), 1))
+    weights = np.diff(np.hstack([0 * ends, np.sort(unit[:, 1:], axis=1), ends]), axis=1)
+    return np.einsum("nj,njk->nk", weights, corners[which])
+
+
 def points_inside(vertices: np.ndarray, n_points: int) -> np.ndarray:
     """Return ``n_points`` fixed points spread through the convex hull of ``vertices``.
 

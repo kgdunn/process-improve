@@ -87,7 +87,9 @@ together by several. A curved limit's share is counted over a fixed Sobol sample
 points instead, so it is the same on every run and within about 0.005 of the exact value
 (0.042 here, against 0.041 exactly). Beside straight limits, the sample counts only what
 the curved limit takes from the exact share the straight ones leave, so the two limits
-together keep 0.849, as they do exactly.
+together keep 0.849, as they do exactly. When the straight limits leave too thin a region
+for any of the 16384 points, points spread uniformly through that region take their place,
+so its share does not read as 0.
 :meth:`~process_improve.experiments.region.DesignRegion.is_empty` says whether any
 setting is left at all, and
 :meth:`~process_improve.experiments.region.DesignRegion.centroid` gives a central setting
