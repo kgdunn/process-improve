@@ -14312,7 +14312,7 @@
       "quote": "Lack-of-fit 5 0.032405 0.00065 0.58 0.73"
      },
      "check": {
-      "manual": "the library's lack-of-fit mean square is 0.0064811 (lack_of_fit_ms), from the sum of squares and degrees of freedom checked beside it; the page drops a zero (see the note)"
+      "manual": "the library's lack-of-fit mean square is 0.0064811 (lack_of_fit_ms), from the sum of squares and degrees of freedom checked beside it; the page prints 0.00065 for 0.0065, ten times too small (see the note)"
      },
      "note": "0.032405 / 5 = 0.006481: the page drops a zero, printing 0.00065 for 0.0065"
     },
