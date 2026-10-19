@@ -15,16 +15,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from process_improve.experiments.designs_mixture_constrained import scheffe_model
+from process_improve.experiments.designs_mixture_constrained import SCHEFFE_DEGREE, scheffe_model
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor
 
 
-#: Most components blended in one run of the default design, by Scheffé model: the blends
-#: each model's terms need (pure components, binary and ternary blends).
-_BLEND_SIZE = {"scheffe_linear": 1, "scheffe_quadratic": 2, "scheffe_special_cubic": 3}
 #: Default design names, by largest blend; the full simplex centroid is named as such.
 _DEFAULT_METHOD = {
     1: "simplex_vertices_plus_centroid",
@@ -47,7 +44,9 @@ def dispatch_mixture(
     for a quadratic model, and the ternary 1/3 blends for a special cubic one, each
     plus the overall centroid (Cornell 2002). These are the simplex-centroid points
     that blend at most one, two or three components; with three components the
-    quadratic and special cubic designs are the full 7-run simplex centroid. A
+    quadratic and special cubic designs are the full 7-run simplex centroid. A full
+    cubic model is sized by the {q, 3} simplex lattice, every blend in thirds, plus
+    the overall centroid when it is not one of them (four or more components). A
     *budget* smaller than that design gives a D-optimal subset of the candidate
     blends instead (see below), so the design never exceeds the budget unless the
     budget is below the number of model terms; that budget is raised to the term
@@ -70,7 +69,7 @@ def dispatch_mixture(
     model_type : str
         Scheffé model the design is built for: ``"scheffe_linear"`` (``"main_effects"``
         maps here), ``"scheffe_quadratic"`` (``"interactions"`` and ``"quadratic"`` map
-        here) or ``"scheffe_special_cubic"``.
+        here), ``"scheffe_special_cubic"`` or ``"scheffe_cubic"`` (``"cubic"`` maps here).
     random_state : int, numpy.random.Generator or None
         Seed for the exchange of a D-optimal design.
 
@@ -87,8 +86,11 @@ def dispatch_mixture(
         raise ValueError("A mixture design needs every factor to be a mixture component (type='mixture').")
     model = scheffe_model(model_type)
     bounded = any((f.low or 0.0) > 0.0 or (f.high if f.high is not None else 1.0) < 1.0 for f in factors)
-    blend_size = _BLEND_SIZE[model]
-    n_default = sum(math.comb(k, r) for r in range(1, min(blend_size, k) + 1)) + (blend_size < k)
+    blend_size = SCHEFFE_DEGREE[model]
+    if model == "scheffe_cubic":
+        n_default = math.comb(k + 2, 3) + (k > 3)
+    else:
+        n_default = sum(math.comb(k, r) for r in range(1, min(blend_size, k) + 1)) + (blend_size < k)
     if bounded or constraints or (budget is not None and budget < n_default):
         from process_improve.experiments.designs_constrained import ConstrainedOptions  # noqa: PLC0415
         from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
@@ -97,6 +99,14 @@ def dispatch_mixture(
 
         return constrained_mixture_design(factors, budget, constraints, ConstrainedOptions(model), random_state)
 
+    if model == "scheffe_cubic":
+        lattice = _simplex_lattice(k, 3)
+        if k > 3:  # the centroid, 1/k of each, is not a blend in thirds
+            return np.vstack([lattice, np.full((1, k), 1.0 / k)]), {
+                "method": "simplex_lattice_degree_3_plus_centroid",
+                "model_type": model,
+            }
+        return lattice, {"method": "simplex_lattice_degree_3", "model_type": model}
     matrix = _simplex_centroid(k, max_components=blend_size)
     method = "simplex_centroid" if blend_size >= k - 1 else _DEFAULT_METHOD[blend_size]
     return matrix, {"method": method, "model_type": model}
