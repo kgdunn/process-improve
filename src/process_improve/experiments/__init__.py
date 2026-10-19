@@ -45,6 +45,7 @@ from process_improve.experiments.separating import (
     constraint_through_cuts,
     separating_constraint,
 )
+from process_improve.experiments.sequential import NoSteepestDirectionError, next_design, steepest_path
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
@@ -70,6 +71,7 @@ __all__ = [
     "Factor",
     "Model",
     "MomentAberrationResult",
+    "NoSteepestDirectionError",
     "NotSeparableError",
     "NotTwoLevelError",
     "OmarsResult",
@@ -109,6 +111,7 @@ __all__ = [
     "marginal_means_prediction",
     "moment_aberration",
     "multistratum_anova",
+    "next_design",
     "omars_anchor_entry",
     "omars_minimum_runs",
     "omars_properties",
@@ -120,6 +123,7 @@ __all__ = [
     "rename_factors",
     "run_order_trends",
     "separating_constraint",
+    "steepest_path",
     "summary",
     "supplement",
     "time_trends",
