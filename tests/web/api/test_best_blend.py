@@ -271,6 +271,9 @@ def test_rounding_keeps_each_component_within_its_bounds(bootstrap):
     assert sum(round(v * 1000) for v in at.values()) == 1000
     assert at["A"] <= 0.7
     assert rounding["adjusted"] in {"B", "C", None}
+    at, rounding = bootstrap._weighed(spec, np.array([0.19, 0.5, 0.31]))  # A below its bound, however it is rounded
+    assert at == {"A": 0.19, "B": 0.5, "C": 0.31}, "given as found"
+    assert rounding == {"decimals": None, "adjusted": None}
 
 
 def test_confirmation_runs_at_the_blend_are_judged_against_the_scheffe_model(api):
