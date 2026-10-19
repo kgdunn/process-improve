@@ -235,6 +235,57 @@ class DesignRegion:
             ok &= g(x) <= tol * widen
         return ok
 
+    def broken_limits(self, x: np.ndarray, tol: float = _TOL) -> list[list[str]]:
+        """Return, for each point, the limits it breaks: the factor ranges it leaves, then the constraints it fails.
+
+        A range is written in actual units, ``"100 <= T <= 150"``, and a constraint as its
+        expression, each once. A point that :meth:`feasible` accepts with the same ``tol``
+        breaks none, so this says why a setting cannot be run.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points ``(n, k)`` in coded units.
+        tol : float
+            How far a point may lie outside, as for :meth:`feasible`.
+
+        Returns
+        -------
+        list[list[str]]
+            One list per row of ``x``, empty for a feasible point.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+
+        Examples
+        --------
+        >>> region = DesignRegion(
+        ...     [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)],
+        ...     ["3*T + 5*D <= 600"],
+        ... )
+        >>> region.broken_limits(np.array([[1.0, 1.0], [-1.0, -1.0], [1.5, -1.0]]))
+        [['3*T + 5*D <= 600'], [], ['100 <= T <= 150']]
+        """
+        self._require_box("broken_limits")
+        x = np.atleast_2d(np.asarray(x, dtype=float))
+        ranges = [
+            f"{low:g} <= {name} <= {high:g}" for name, low, high in zip(self.names, self._low, self._high, strict=True)
+        ]
+        outside = (x < -1.0 - tol) | (x > 1.0 + tol)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            fails = [~(g(x) <= tol * widen) for g, widen in zip(self._inequalities, self._widen(), strict=True)]
+        broken = []
+        for row in range(len(x)):
+            found = [ranges[j] for j in np.flatnonzero(outside[row])]
+            for fail, limit in zip(fails, self._limit_of, strict=True):
+                expression = self.constraints[limit].expression
+                if fail[row] and expression not in found:
+                    found.append(expression)
+            broken.append(found)
+        return broken
+
     def _widen(self) -> np.ndarray:
         """Return, per inequality, what the tolerance on its value is multiplied by (cached).
 
