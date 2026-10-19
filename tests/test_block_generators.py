@@ -2,9 +2,9 @@
 
 Montgomery's chapters 7 and 8 block factorials and fractions by named words: a 2^5 in four blocks
 by ADE and BCE (p. 314), a 2^6 in eight blocks by ABEF, ABCD and ACE (p. 315), the arrangements
-of Table 7.9, and the photoresist half fraction blocked by ABCE (p. 371). These tests build each
-from its printed words and check what is confounded with the blocks, the aliases that go with
-them, and the runs themselves.
+of Table 7.9, and the photoresist half fraction blocked by ABCE (p. 371). Box, Hunter and Hunter
+(12.7) run a 2^(8-4) in eight blocks of two. These tests build each from its words and check what
+is confounded with the blocks, the aliases that go with them, and the runs themselves.
 """
 
 from __future__ import annotations
@@ -81,6 +81,26 @@ def test_the_photoresist_half_fraction_blocked_by_abce():
     product = word_column(design, "ABCE")
     assert all(len(set(product[design.design["Block"] == b])) == 1 for b in (1, 2))
     assert np.array_equal(product, word_column(design, "ADEF"))
+
+
+def test_a_2_to_the_8_minus_4_in_eight_blocks_of_two():
+    """BHH 12.7: the resolution IV 2^(8-4) in eight blocks of two, each block a run and its mirror image.
+
+    The seven words confounded with blocks, with their aliases, hold all 28 two-factor interactions,
+    so the main effects stay clear of the blocks.
+    """
+    design = factorial("ABCDEFGH", generators=["E=BCD", "F=ACD", "G=ABC", "H=ABD"], block_generators=["AB", "AC", "AD"])
+    blocking = design.metadata["blocking"]
+    assert len(blocking["confounded_with"]) == 7
+    with_blocks = set(blocking["confounded_with"]).union(*blocking["aliases"].values())
+    assert {word for word in with_blocks if len(word) == 2} == {
+        "".join(pair) for pair in itertools.combinations("ABCDEFGH", 2)
+    }
+    runs = design.design[list("ABCDEFGH")].to_numpy(dtype=float)
+    blocks = design.design["Block"].to_numpy()
+    for block in range(1, 9):
+        first, second = runs[blocks == block]
+        assert np.array_equal(first, -second), block
 
 
 def test_the_library_s_own_blocking_of_a_fraction_reports_the_aliases_too():
