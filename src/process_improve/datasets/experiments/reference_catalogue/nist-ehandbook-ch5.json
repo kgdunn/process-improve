@@ -14006,7 +14006,11 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "df"
      }
     },
     {
@@ -14021,7 +14025,7 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "manual": "a number of the page's comparison, whose full model squares H2/WF6 in natural units (see the notes); with the coded square the table names, nested_test gives 0.024907"
      }
     },
     {
@@ -14036,7 +14040,7 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "manual": "a number of the page's comparison, whose full model squares H2/WF6 in natural units (see the notes); with the coded square the table names, nested_test gives 0.012454"
      }
     },
     {
@@ -14051,7 +14055,7 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "manual": "a number of the page's comparison, whose full model squares H2/WF6 in natural units (see the notes); with the coded square the table names, nested_test gives 2.097"
      }
     },
     {
@@ -14066,7 +14070,11 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "p"
      }
     },
     {
@@ -15981,7 +15989,11 @@
       "quote": "##> 1 7 0.054435 ##> 2 5 0.029203 2 0.025232 2.1601 0.2108"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "ss"
      },
      "note": "the page prints 0.024802, 2.08 and 0.22 for its coded fits"
     },
@@ -15997,7 +16009,11 @@
       "quote": "##> 1 7 0.054435 ##> 2 5 0.029203 2 0.025232 2.1601 0.2108"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "f"
      },
      "note": "the page prints 0.024802, 2.08 and 0.22 for its coded fits"
     },
@@ -16013,7 +16029,11 @@
       "quote": "##> 1 7 0.054435 ##> 2 5 0.029203 2 0.025232 2.1601 0.2108"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "p"
      },
      "note": "the page prints 0.024802, 2.08 and 0.22 for its coded fits"
     },

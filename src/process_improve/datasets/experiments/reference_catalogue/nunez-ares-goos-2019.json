@@ -3432,7 +3432,16 @@
       "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
      },
      "check": {
-      "manual": "a small CCD (Hartley 1959) with a 4-run resolution III cube, 6 axial runs and 7 centre runs: 4 + 6 + 7 = 17; generate_design refuses a CCD cube below resolution V (it raises ValueError), so no check kind makes this design"
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "cube": "fractional",
+        "n_center_points": 7
+       }
+      }
      }
     },
     {
@@ -3447,7 +3456,17 @@
       "quote": "Figure 3. Response surface designs with a run order for which the main effects are orthogonal to linear and quadratic time trend components."
      },
      "check": {
-      "manual": "a small CCD (Hartley 1959) with a 8-run resolution III cube, 8 axial runs and 4 centre runs: 8 + 8 + 4 = 20; generate_design refuses a CCD cube below resolution V (it raises ValueError), so no check kind makes this design"
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 4,
+       "options": {
+        "cube": "fractional",
+        "n_center_points": 4,
+        "generators": ["D=AB"]
+       }
+      }
      }
     },
     {
@@ -3900,7 +3919,7 @@
      "what": "n_runs",
      "term": "definitive screening design in four factors",
      "value": "13",
-     "analysis": "the run count of the standard definitive screening design for four factors",
+     "analysis": "the run count of the standard definitive screening design for four factors; the library builds it within a budget of 13 runs, folded from a conference matrix of order 6 whose two spare columns are fake factors",
      "where": {
       "page": 39,
       "pdf_page": 4,
@@ -3911,17 +3930,19 @@
       "kind": "design_property",
       "design": {
        "design_type": "dsd",
-       "k": 4
+       "k": 4,
+       "options": {
+        "budget": 13
+       }
       },
-      "property": "n_runs",
-      "disagreement": "generate_design's DSD for four factors folds a conference matrix of order 4: 2·4 + 1 = 9 runs (definitive_screening_runs(4) = 9). The paper's 13-run four-factor DSD is the size of a design folded from a conference matrix of order 6 (2·6 + 1 = 13); a different, larger construction for four factors, not a copying error; found 9"
+      "property": "n_runs"
      }
     },
     {
      "what": "n_runs",
      "term": "three columns of the four-factor definitive screening design",
      "value": "13",
-     "analysis": "the run count of the three-factor design made of the first three columns of the four-factor DSD",
+     "analysis": "the run count of the three-factor design made of the first three columns of the four-factor DSD; the library builds it within a budget of 13 runs, folded from a conference matrix of order 6 whose two spare columns are fake factors",
      "where": {
       "page": 39,
       "pdf_page": 4,
@@ -3932,10 +3953,12 @@
       "kind": "design_property",
       "design": {
        "design_type": "dsd",
-       "k": 4
+       "k": 4,
+       "options": {
+        "budget": 13
+       }
       },
-      "property": "n_runs",
-      "disagreement": "generate_design's DSD for four factors folds a conference matrix of order 4: 2·4 + 1 = 9 runs (definitive_screening_runs(4) = 9). The paper's 13-run four-factor DSD is the size of a design folded from a conference matrix of order 6 (2·6 + 1 = 13); a different, larger construction for four factors, not a copying error; found 9"
+      "property": "n_runs"
      }
     },
     {
@@ -4030,7 +4053,7 @@
       "quote": "We need seven center points to obtain a run order for which the main effects are orthogonal to linear and quadratic time trend"
      },
      "check": {
-      "manual": "a result of the paper's integer-programming search over run orders; process_improve has no run-order or time-trend function, so nothing here runs that search; the size, 17 runs, is in Figure 3"
+      "manual": "the least number of centre runs for which the paper's integer program finds a run order with the main effects orthogonal to the linear and quadratic trends, which proves that fewer admit none; the library's trend_robust_run_order is a heuristic search, which cannot prove that; the size, 17 runs, is in Figure 3"
      }
     },
     {
@@ -4045,7 +4068,7 @@
       "quote": "We found a trend-robust run order for the four-factor sCCD with four center points."
      },
      "check": {
-      "manual": "a result of the paper's integer-programming search over run orders; process_improve has no run-order or time-trend function, so nothing here runs that search; the size, 20 runs, is in Figure 3"
+      "manual": "the centre runs of the sCCD for which the paper's integer program found a trend-robust run order: the design searched, not a number the library recomputes (its trend_robust_run_order is a heuristic search); the size, 20 runs, is in Figure 3"
      }
     }
    ]
