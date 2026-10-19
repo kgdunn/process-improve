@@ -1784,12 +1784,13 @@ def evaluate_design(  # noqa: PLR0913
     model : str or None
         Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a
         Scheffé mixture model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
-        ``"scheffe_special_cubic"``), or an explicit patsy formula.  Over a
+        ``"scheffe_special_cubic"``, ``"scheffe_cubic"``), or an explicit patsy formula.  Over a
         mixture region the process-model names map to Scheffé models as in
         :func:`generate_design` (``"interactions"`` and ``"quadratic"`` to
         ``"scheffe_quadratic"``, ``"special_cubic"`` to
-        ``"scheffe_special_cubic"``), and ``None`` means the model the design was
-        generated for, else ``"scheffe_quadratic"``; otherwise ``None`` means
+        ``"scheffe_special_cubic"``, ``"cubic"`` to ``"scheffe_cubic"``), and
+        ``None`` means the model the design was generated for, else
+        ``"scheffe_quadratic"``; otherwise ``None`` means
         ``"interactions"``.  A formula may name a ``Block`` column (``"A + B +
         Block"``) to include the blocks as a categorical factor; otherwise the
         blocks are left out and a note says so.

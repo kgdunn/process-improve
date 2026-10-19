@@ -33,6 +33,7 @@ class EvaluateDesignInput(BaseModel):
             "scheffe_linear",
             "scheffe_quadratic",
             "scheffe_special_cubic",
+            "scheffe_cubic",
         ]
         | None
     ) = Field(
