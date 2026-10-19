@@ -100,6 +100,11 @@ CONTEXT_LABELS = {
 #: Every key a report may hold, and those it must.
 KEYS = frozenset({"topic", "message", "email", "screenshot", "study", "context"})
 REQUIRED = frozenset({"topic", "message"})
+#: How deeply a report nests: the report, its context, and a list in the context. A deeper body is refused before
+#: it is parsed, so the answer does not depend on how deep the Python build and its stack let ``json`` go.
+MAX_DEPTH = 3
+#: A JSON string, escapes and all: a bracket inside one nests nothing, so the depth is counted without them.
+JSON_STRING = re.compile(rb'"[^"\\]*(?:\\.[^"\\]*)*"', re.DOTALL)
 #: The most a request's body may hold: a screenshot and a study at their largest, and the rest. Caddy refuses a
 #: body of more than 4 MB before it gets here.
 MAX_BODY = 3 * 2**20 + 2**19
@@ -250,8 +255,24 @@ def context(value: object) -> dict[str, str | list[str]]:
     return checked
 
 
+def depth(body: bytes) -> int:
+    """Return how deeply the body's arrays and objects nest outside its strings, counting to one past ``MAX_DEPTH``."""
+    level = deepest = 0
+    for byte in JSON_STRING.sub(b"", body):
+        if byte in b"[{":
+            level += 1
+            deepest = max(deepest, level)
+            if deepest > MAX_DEPTH:
+                break
+        elif byte in b"]}":
+            level -= 1
+    return deepest
+
+
 def read_report(body: bytes) -> Report:
     """Check a request's body, and return the report it holds; refuse anything else."""
+    if depth(body) > MAX_DEPTH:
+        raise RefusedError(400, "the body nests deeper than a report")
     try:
         data = json.loads(body.decode("utf-8"))
     except (ValueError, RecursionError) as error:  # RecursionError: arrays nested past Python's stack

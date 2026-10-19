@@ -327,8 +327,11 @@ def test_only_post_is_answered(server, outbox):
     [
         (b"not json", "the body is not JSON"),
         (b"\xff\xfe{}", "the body is not JSON"),
-        (b"[" * 100_000 + b"]" * 100_000, "the body is not JSON"),
-        (b'{"topic": "algorithm", "message": ' + b"9" * 5000 + b"}", "the body is not JSON"),
+        # Short ids: pytest puts a test's id in an environment variable, which Windows caps at 32,767 characters.
+        pytest.param(b"[" * 100_000 + b"]" * 100_000, "the body nests deeper than a report", id="100000-deep"),
+        pytest.param(
+            b'{"topic": "algorithm", "message": ' + b"9" * 5000 + b"}", "the body is not JSON", id="5000-digits"
+        ),
         (b"[]", "the body is not a JSON object"),
         (b'"a report"', "the body is not a JSON object"),
         (report(admin=True), "the report holds a key the relay does not know"),
@@ -383,6 +386,27 @@ def test_a_report_that_is_not_one_is_refused(server, outbox, body, reason):
     assert (status, reply) == (400, {"ok": False, "error": reply["error"]})
     assert reason in reply["error"]
     assert outbox.emails == []
+
+
+@pytest.mark.parametrize(
+    ("body", "deepest"),
+    [
+        pytest.param(json.dumps(report()).encode(), 3, id="a-whole-report"),
+        pytest.param(b'{"message": "[[[[ {{{{ \\" ]]]] \\\\"}', 1, id="brackets-and-escapes-in-a-string"),
+        pytest.param(b"[[[[[[", 4, id="unclosed"),
+        pytest.param(b"[" * 100_000 + b"]" * 100_000, 4, id="100000-deep"),
+    ],
+)
+def test_the_depth_is_counted_outside_strings_and_no_further_than_a_report(body, deepest):
+    """The depth is read before ``json`` parses, whose own limit moves with the Python build and its stack."""
+    assert relay.depth(body) == deepest
+
+
+def test_brackets_in_a_message_nest_nothing(server, outbox):
+    message = 'A model of [[[[A]]]] and {"B": [C]}, which reads "{{{{" as text.'
+    assert ask(server, report(message=message))[0] == 200
+    [mail] = outbox.emails
+    assert message in mail.get_body(("plain",)).get_content()
 
 
 def test_a_screenshot_larger_than_its_limit_is_refused(server, outbox, monkeypatch):
