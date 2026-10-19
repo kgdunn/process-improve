@@ -31,7 +31,9 @@ travels after the `#`, which a browser never sends, so no design reaches the log
 
 The one exception is a report a reader sends with the app's Feedback button, and only when they
 press Send: the relay emails it to the maintainer, and keeps no copy and no line of it
-([Feedback](#feedback)). Its request is logged as any other, without its body.
+([Feedback](#feedback)). Its request is logged as any other, without its body. A reader who gives
+an address gets a receipt of fixed text; to send an address at most one a day, the relay holds a
+keyed hash of it in memory for a day.
 
 ```bash
 sudo factorial-usage            # visits, catalog visits, readers, Python sessions and link previews per day
@@ -123,10 +125,14 @@ internet, as it is now.
 
 The app's Feedback dialog sends a reader's report to `https://factori.al/api/feedback`, and
 Caddy passes it to [`feedback_relay.py`](feedback_relay.py), which emails it to the maintainer
-through the email provider that sends the site's mail. The relay listens on `127.0.0.1:8790`
+through the email provider that sends the site's mail. Each report gets a reference, such as
+`FB-7K3Q2M`, in the email's subject and on the reader's screen. When the reader gives an address,
+the relay also sends it a receipt: fixed text with the reference, the topic and the day, and
+nothing the reader wrote, at most one a day to an address. The relay listens on `127.0.0.1:8790`
 only, as an account systemd makes for it at each start
 ([`factorial-feedback.service`](factorial-feedback.service)). It keeps nothing and logs no part
-of a report, and it takes at most 10 reports an hour from one network and 200 a day in all.
+of a report, and it takes at most 10 reports an hour from one network, and sends at most 200
+emails a day in all, reports and receipts together.
 
 **Setting it up**, once, on the server, before the old app is retired: its mail settings are the
 ones the relay needs, under the same names, in `/home/deploy/factorial/.env`. `setup.sh` made

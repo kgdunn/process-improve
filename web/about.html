@@ -83,8 +83,11 @@
         the dialog lists under "What will be sent": the topic, your message, your email address if you give one, a
         screenshot of the tab unless you untick it, your study only if you tick it, and the page's build, versions, tab
         and last Python errors. The site's relay emails it to the maintainer's mailbox through the email provider that
-        sends the site's mail, and keeps nothing of it, in a file or in its log. A copy of Factorial at another address
-        sends nothing itself.
+        sends the site's mail, and keeps nothing of it, in a file or in its log. The dialog then shows the report's
+        reference, such as FB-7K3Q2M. If you give an address, the relay also sends it a receipt: the reference, the
+        topic and the day, and nothing you wrote. An address gets at most one receipt a day; to count them, the relay
+        holds a keyed hash of each address, in memory only, for a day. A copy of Factorial at another address sends
+        nothing itself.
         <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/feedback_relay.py" target="_blank" rel="noopener">Read the code</a>.</li>
     </ul>
   </section>
