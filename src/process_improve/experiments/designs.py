@@ -144,7 +144,9 @@ def _dispatch_dsd(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
-    return dispatch_dsd(factors, budget=kwargs.get("budget"))
+    return dispatch_dsd(
+        factors, budget=kwargs.get("budget"), categorical_method=kwargs.get("categorical_method", "dsd")
+    )
 
 
 def _dispatch_omars(
@@ -539,6 +541,15 @@ def _refuse_unused_arguments(
         )
 
 
+def _refuse_categorical_method(design_type: str, categorical_method: str) -> None:
+    """Raise when ``categorical_method`` asks a design type other than a DSD for ORTH-augment, which only a DSD has."""
+    if categorical_method != "dsd" and design_type != "dsd":
+        raise ValueError(
+            f"categorical_method={categorical_method!r} chooses how a DSD adds two-level categorical factors; "
+            f"design_type={design_type!r} does not use it."
+        )
+
+
 def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
     """Mark the runs with every non-categorical factor at its centre (0 in coded units)."""
     columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
@@ -694,6 +705,7 @@ def generate_design(  # noqa: PLR0913
     generators: list[str] | None = None,
     alpha: str | float | None = None,
     cube: str = "full",
+    categorical_method: str = "dsd",
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
     model_type: str = "interactions",
@@ -795,6 +807,14 @@ def generate_design(  # noqa: PLR0913
         three factors Hartley's small composite design). A cube given that aliases
         two-factor interactions in pairs is built with a warning, for a model with
         one interaction of each pair; ``metadata["aliased_interactions"]`` lists the pairs.
+    categorical_method : {"dsd", "orth"}
+        For a DSD with two-level categorical factors, how they are added (Jones and
+        Nachtsheim 2013): ``"dsd"`` (default), the DSD-augment method, two centre runs
+        and a little correlation between a categorical and the other main effects; or
+        ``"orth"``, the ORTH-augment method, every main effect orthogonal to every other
+        (up to four categorical factors) but partly aliased with some second-order
+        effects, in the same runs for one categorical factor and two more centre runs
+        for more. Any other design type refuses ``"orth"``.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
         ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
@@ -910,6 +930,7 @@ def generate_design(  # noqa: PLR0913
     _refuse_mixture_in_box_family(factors, design_type)
     _refuse_unsupported_categorical(factors, design_type)
     _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)
+    _refuse_categorical_method(design_type, categorical_method)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
@@ -924,6 +945,7 @@ def generate_design(  # noqa: PLR0913
         "generators": generators,
         "alpha": alpha,
         "cube": cube,
+        "categorical_method": categorical_method,
         "hard_to_change": hard_to_change,
         "constraints": constraints,
         "model_type": model_type,
