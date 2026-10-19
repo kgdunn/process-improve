@@ -15441,14 +15441,42 @@
      "what": "autocorrelation",
      "term": "lags 1 and 2",
      "value": "-0.29, -0.13; numerator -231.11",
+     "analysis": "the library's autocorrelation of the 210 yields at lags 1 and 2",
      "where": {
       "page": 585,
       "source_kind": "prose",
       "quote": "For example, for k = 2 ... = -231.11/1734.6 = -0.13 ... the value of r1 is -0.29"
      },
-     "check": {
-      "manual": "time-series quantities, which no check computes (they reproduce)"
-     }
+     "check": [
+      {
+       "kind": "classical_test",
+       "function": "autocorrelation",
+       "kwargs": {
+        "lags": [
+         1,
+         2
+        ]
+       },
+       "key": "autocorrelation.0",
+       "printed": "-0.29"
+      },
+      {
+       "kind": "classical_test",
+       "function": "autocorrelation",
+       "kwargs": {
+        "lags": [
+         1,
+         2
+        ]
+       },
+       "key": "autocorrelation.1",
+       "printed": "-0.13"
+      },
+      {
+       "manual": "the numerator of r2, the sum of (yt - ȳ)(yt+2 - ȳ), which autocorrelation does not return; the 210 yields give -231.10, and r2 = -231.10/1734.59",
+       "printed": "-231.11"
+      }
+     ]
     },
     {
      "what": "std_error",
@@ -20027,14 +20055,26 @@
      "what": "nonadditivity",
      "term": "Tukey",
      "value": "SNA = 2.00, F = 0.10",
+     "analysis": "Tukey's one degree of freedom for nonadditivity in the library's fit of blends and treatments",
      "where": {
       "page": 222,
       "source_kind": "table",
       "quote": "an associated sum of squares SNA for transformable nonadditivity having one degree of freedom is given by P²/Q = 2.00 ... F = 0.10"
      },
-     "check": {
-      "manual": "Tukey's one degree of freedom for nonadditivity (P = 86, Q = 3696, θ = 0.023, remainder 224 on 11 df), which no check computes"
-     }
+     "check": [
+      {
+       "kind": "nonadditivity",
+       "model": "blend + treatment",
+       "key": "ss",
+       "printed": "2.00"
+      },
+      {
+       "kind": "nonadditivity",
+       "model": "blend + treatment",
+       "key": "f",
+       "printed": "0.10"
+      }
+     ]
     },
     {
      "what": "coefficient",
@@ -22287,7 +22327,7 @@
       "quote": "P = 4Σ(...) = 0.1104, Q = 4Σ(...)² = 0.0793, SNA = P²/Q = 0.1537 ... F = 6.9"
      },
      "check": {
-      "manual": "Tukey's one degree of freedom for nonadditivity on the cell averages, which no check computes"
+      "manual": "Tukey's SNA is 0.1537 (nonadditivity, key ss) and the remainder 0.0964, which the table prints in thousandths; its F of 6.9 tests SNA against the within-cell mean square, 0.0222 on 36 degrees of freedom, not the residual the nonadditivity check pools over all 48 runs"
      }
     },
     {
@@ -22367,7 +22407,7 @@
       "quote": "26.2 {45.4 22.3"
      },
      "check": {
-      "manual": "Tukey's split of the reciprocal-scale interaction, which no check computes"
+      "manual": "the reciprocal scale's interaction mean square, 0.262, split into SNA, 0.4543 (nonadditivity on the rate, key ss), and the remainder's mean square, 0.2233, all printed in hundredths; no check scales a number so"
      }
     },
     {
@@ -25601,7 +25641,7 @@
       "quote": "doffs within reps 30.7169 8 sB² = 3.8396 0.7"
      },
      "check": {
-      "manual": "the doffs' sum of squares less the replicates', 63.8844 - 33.1675, both checked; a model with doffs nested in replicates is the aliased case the library cannot yet separate"
+      "manual": "multistratum_anova with the strata replicate/doff gives 30.7179, the doffs' 63.8844 (checked) less the replicates' 33.1665; the book subtracts its replicates' 33.1675, a recorded disagreement"
      }
     }
    ]
@@ -26926,26 +26966,38 @@
      "what": "ss",
      "term": "runs within replicates",
      "value": "14,770.44",
+     "analysis": "the stratum of runs within replicates in the library's multistratum_anova",
      "where": {
       "page": 257,
       "source_kind": "table",
       "quote": "runs 6 14,770.44 2461.74 23.35"
      },
      "check": {
-      "manual": "the runs' sum of squares within replicates, on 6 df; runs and emery papers are both nested in replicates, the aliased case the library cannot yet separate"
+      "kind": "multistratum",
+      "model": "position + holder + treatment",
+      "strata": "replicate/run + replicate/paper",
+      "key": "ss",
+      "term": "Residual",
+      "stratum": "replicate:run"
      }
     },
     {
      "what": "ss",
      "term": "emery papers within replicates",
      "value": "6,108.94",
+     "analysis": "the stratum of emery papers within replicates in the library's multistratum_anova",
      "where": {
       "page": 257,
       "source_kind": "table",
       "quote": "emery papers 6 6,108.94 1018.16 9.66"
      },
      "check": {
-      "manual": "the papers' sum of squares within replicates, on 6 df; nested in replicates like the runs"
+      "kind": "multistratum",
+      "model": "position + holder + treatment",
+      "strata": "replicate/run + replicate/paper",
+      "key": "ss",
+      "term": "Residual",
+      "stratum": "replicate:paper"
      }
     },
     {
@@ -51633,14 +51685,41 @@
      "what": "ss",
      "term": "samples",
      "value": "869.7, 15, 58.0",
+     "analysis": "the stratum of samples within batches in the library's multistratum_anova, batch/sample",
      "where": {
       "page": 582,
       "source_kind": "table",
       "quote": "Table 17A.2 ... samples 869.7 15 58.0"
      },
-     "check": {
-      "manual": "the samples-within-batches sum of squares and mean square, the nested term the library's Type II analysis cannot separate from batches (they reproduce: 869.75 and 57.98)"
-     }
+     "check": [
+      {
+       "kind": "multistratum",
+       "model": "1",
+       "strata": "batch/sample",
+       "term": "Residual",
+       "stratum": "batch:sample",
+       "key": "ss",
+       "printed": "869.7"
+      },
+      {
+       "kind": "multistratum",
+       "model": "1",
+       "strata": "batch/sample",
+       "term": "Residual",
+       "stratum": "batch:sample",
+       "key": "df",
+       "printed": "15"
+      },
+      {
+       "kind": "multistratum",
+       "model": "1",
+       "strata": "batch/sample",
+       "term": "Residual",
+       "stratum": "batch:sample",
+       "key": "ms",
+       "printed": "58.0"
+      }
+     ]
     },
     {
      "what": "ss_residual",
