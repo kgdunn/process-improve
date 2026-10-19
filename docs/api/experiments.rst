@@ -54,6 +54,9 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.crossed_arrays
+   :members: cross_arrays
+
 .. automodule:: process_improve.experiments.models
    :members:
    :undoc-members:
