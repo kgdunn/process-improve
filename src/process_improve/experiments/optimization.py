@@ -1699,7 +1699,8 @@ def _ranges_from_coding(
             msg = (
                 f"The coefficients of {name!r} are in actual units ({spans}), but optimize_responses evaluates "
                 "models at coded settings, -1 to +1. Fit it with analyze_experiment(..., coding='coded'), or with "
-                "coding set to the factor ranges, and pass that result."
+                "coding set to the factor ranges, and pass that result. A split-plot fit is made on the runs as "
+                "given: code its factors to -1 and +1 before fitting it."
             )
             raise ValueError(msg)
         for factor, how in coding.items():

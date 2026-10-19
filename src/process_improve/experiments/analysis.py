@@ -544,6 +544,8 @@ class _Fit:
     #: The largest model model_selection may reach: the model asked for, which is ``model`` unless the
     #: default interactions model was not estimable and main effects were fitted instead.
     searched_model: str | None = None
+    #: The response's name as the caller gave it; ``response_col`` can be a stand-in for a keyword.
+    response_name: str = ""
 
     @property
     def group_cols(self) -> list[str]:
@@ -689,8 +691,13 @@ def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
     return result
 
 
-def _split_plot(fit: _Fit) -> dict[str, Any]:
-    """REML analysis with the whole plots as a random effect; categorical factors sum-coded in a named model."""
+def _split_plot(fit: _Fit, points: pd.DataFrame | None) -> dict[str, Any]:
+    """REML analysis with the whole plots as a random effect; categorical factors sum-coded in a named model.
+
+    The result carries the names and the scale of its coefficients, as ``"coefficients"`` does, so
+    it can be passed to ``optimize_responses`` as a fitted model. The fit is on the runs as given:
+    its coefficients are coded when the factors are already coded, and in actual units otherwise.
+    """
     formula = fit.ols.model.formula
     if fit.model in _NAMED_MODELS and fit.model not in SCHEFFE_MODELS:
         formula = sum_coded(formula, [c for c in fit.factor_cols if not _is_numeric(fit.df[c])])
@@ -701,7 +708,16 @@ def _split_plot(fit: _Fit) -> dict[str, Any]:
         df_method=fit.df_method,
         information=fit.glm["information"],
     )
-    return run_split_plot(fit.df, formula, spec)
+    result = run_split_plot(fit.df, formula, spec, new_points=points)
+    coding = fit.factor_coding()[1] if fit.model not in SCHEFFE_MODELS else {}
+    result["split_plot"] = {
+        "response_name": fit.response_name or fit.response_col,
+        "factor_names": list(fit.factor_cols),
+        "coding": "actual" if coding else "coded",
+        **({"factor_coding": coding} if coding else {}),
+        **result["split_plot"],
+    }
+    return result
 
 
 def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
@@ -758,7 +774,7 @@ def _handlers(
         "confidence_intervals": lambda: _coefficients(fit, "confidence_intervals"),
         "prediction": prediction,
         "confirmation_test": confirmation,
-        "split_plot": lambda: _split_plot(fit),
+        "split_plot": lambda: _split_plot(fit, points),
         "glm": lambda: {
             "glm": run_glm(fit.df, fit.ols.model.formula, GlmSpec(**fit.glm), alpha=fit.alpha, new_points=points)
         },
@@ -883,7 +899,15 @@ def analyze_experiment(  # noqa: PLR0913
         ``information="observed"`` computes the df from the observed information: the
         two together are JMP's analysis. In a balanced design all of these agree. A
         design run in random blocks is analysed the same way, the blocks named as the
-        whole plots.
+        whole plots. With ``new_points``, the result also has ``predictions`` from the
+        generalized least-squares fit: the ``predicted`` mean with its ``std_error``,
+        ``df`` and interval (``ci_low``, ``ci_high``), and the interval for one new
+        run there (``pi_low``, ``pi_high``, with ``pi_std_error`` and ``pi_df``), which
+        falls in a new whole plot, so its variance adds every variance component. The
+        result carries ``response_name``, ``factor_names`` and ``coding`` as
+        ``"coefficients"`` does, so it can be passed to ``optimize_responses`` as a
+        fitted model. The fit is made on the runs as given: its coefficients are coded
+        when the factors are already coded, and in actual units otherwise.
         ``"glm"`` fits a generalized linear model of the ``family`` given, for a response that
         is a count of defects (``"poisson"``), a number of successes out of a number of
         ``trials`` (``"binomial"``) or a positive amount whose spread grows with its size
@@ -935,8 +959,9 @@ def analyze_experiment(  # noqa: PLR0913
         coefficients. The result reports the scale as ``coding``, and, as ``factor_coding``,
         the ``low`` and ``high`` that map to -1 and +1 for each factor not already coded.
     new_points : DataFrame or None
-        For prediction or confirmation testing. In a blocked model, points without
-        the block contrast columns are predicted for the average block.
+        For prediction or confirmation testing, and for the predictions of
+        ``"split_plot"`` and ``"glm"``. In a blocked model, points without the block
+        contrast columns are predicted for the average block.
     observed_at_new : list[float] or None
         Observed values at *new_points* (for confirmation testing), one per row.
     response_column : str or None
@@ -1132,6 +1157,7 @@ def analyze_experiment(  # noqa: PLR0913
         coding=coding,
         glm=glm,
         searched_model=searched_model,
+        response_name=reported_response,
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:
