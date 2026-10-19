@@ -6221,7 +6221,12 @@
       "quote": "Between positions 14 1,313·1 93·8"
      },
      "check": {
-      "manual": "the rows and columns of the jig together: 543.2 + 769.9, each checked above"
+      "kind": "anova_pooled",
+      "terms": [
+       "Row",
+       "Column"
+      ],
+      "model": "Row + Column + Lot + Number"
      }
     },
     {
@@ -13366,7 +13371,13 @@
       "quote": "Between plates 346·24 35 9·89"
      },
      "check": {
-      "manual": "the 36 plates (sites, alloys and their interaction together): 128.74 + 128.18 + 89.32, each checked"
+      "kind": "anova_pooled",
+      "terms": [
+       "Site",
+       "Alloy",
+       "Site·Alloy"
+      ],
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
      }
     },
     {
@@ -14121,13 +14132,16 @@
      "what": "anova_sum_sq",
      "term": "B, all four components",
      "value": "132.25",
+     "analysis": "what the four polynomial terms of B explain beyond A: their components together",
      "where": {
       "page": 310,
       "source_kind": "table",
       "quote": "Total for factor B 132·25 4"
      },
      "check": {
-      "manual": "the sum of the four polynomial components, each checked"
+      "kind": "extra_ss",
+      "model": "A + B + I(B**2) + I(B**3) + I(B**4)",
+      "after": "A"
      }
     },
     {
@@ -14615,13 +14629,16 @@
      "what": "anova_sum_sq",
      "term": "concentrations",
      "value": "0.3000",
+     "analysis": "what the three polynomial terms of concentration explain beyond sugar: their components together",
      "where": {
       "page": 314,
       "source_kind": "table",
       "quote": "Between concentrations 0·3000 3 0·1000"
      },
      "check": {
-      "manual": "the three polynomial components together, each checked (Table 8-39 adds them to 0.3001)"
+      "kind": "extra_ss",
+      "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)",
+      "after": "Sugar"
      }
     },
     {
@@ -15678,7 +15695,18 @@
       "quote": "C x V x N 9,746 8 1,218"
      },
      "check": {
-      "manual": "the eight three-factor components together; the library reports each of them as its own row"
+      "kind": "anova_pooled",
+      "terms": [
+       "C·V·N",
+       "C·V·N²",
+       "C·V²·N",
+       "C·V²·N²",
+       "C²·V·N",
+       "C²·V·N²",
+       "C²·V²·N",
+       "C²·V²·N²"
+      ],
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
      }
     },
     {
@@ -16506,20 +16534,37 @@
       "quote": "Main effects.. 165,383 6"
      },
      "check": {
-      "manual": "the six main-effect components together, each checked under Table 8-62"
+      "manual": "the six main-effect components as the book prints them add to 165,383; the data's add to 165,382.0, the difference carried by C's 14,241 and N's 1,723, each recorded as a disagreement"
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "two-factor interactions",
      "value": "43881",
+     "analysis": "the twelve two-factor components together; the book adds them as Table 8-62 prints them, each rounded to units",
      "where": {
       "page": 435,
       "source_kind": "table",
       "quote": "Two-factor interactions 43,881 12"
      },
      "check": {
-      "manual": "the twelve two-factor components together, each checked under Table 8-62"
+      "kind": "anova_pooled",
+      "terms": [
+       "C·V",
+       "C·V²",
+       "C²·V",
+       "C²·V²",
+       "C·N",
+       "C·N²",
+       "C²·N",
+       "C²·N²",
+       "V·N",
+       "V·N²",
+       "V²·N",
+       "V²·N²"
+      ],
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
+      "of_rounded": 12
      }
     },
     {
@@ -18220,13 +18265,28 @@
      "what": "anova_mean_sq",
      "term": "remaining two-factor interactions",
      "value": "0.0051",
+     "analysis": "the nine two-factor interactions other than C·E pooled: their sums of squares over their degrees of freedom",
      "where": {
       "page": 385,
       "source_kind": "table",
       "quote": "Remaining two-factor interactions 9 0·0051"
      },
      "check": {
-      "manual": "the nine two-factor interactions other than CE pooled; each is a row of the library's ANOVA"
+      "kind": "anova_pooled",
+      "terms": [
+       "A·B",
+       "A·C",
+       "A·D",
+       "A·E",
+       "B·C",
+       "B·D",
+       "B·E",
+       "C·D",
+       "D·E"
+      ],
+      "key": "mean_sq",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
      }
     },
     {
@@ -18239,7 +18299,7 @@
       "quote": "Three-factor interactions 0·0020"
      },
      "check": {
-      "manual": "the ten three-factor interactions pooled; each is a row of the library's ANOVA"
+      "manual": "the ten three-factor rows of the library's fit of (A + B + C + D + E)**3 + Week pool to a mean square of 0.0029 (anova_pooled); the table prints 0.0020"
      }
     },
     {
@@ -18533,7 +18593,16 @@
       "quote": "Main effects 0·3424 5 0·0685"
      },
      "check": {
-      "manual": "the five main effects together; each is checked above through its mean square"
+      "kind": "anova_pooled",
+      "terms": [
+       "A",
+       "B",
+       "C",
+       "D",
+       "E"
+      ],
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
      }
     },
     {
@@ -18546,7 +18615,7 @@
       "quote": "Two-factor 0·0727 10 0·0073"
      },
      "check": {
-      "manual": "the ten two-factor interactions together; each is a row of the library's ANOVA"
+      "manual": "the ten two-factor rows of the library's analysis add to 0.0728 (anova_pooled); the table prints 0.0727"
      }
     },
     {

@@ -1028,6 +1028,21 @@ def test_the_total_row_of_degrees_of_freedom_is_the_observations_less_one():
     assert anova_df(fits(entry, check), {**check, "term": "A"}, entry) == 1
 
 
+def test_rows_of_the_analysis_of_variance_add_into_one_or_pool_into_a_mean_square():
+    """The filtration rate's A and C added, and two interactions pooled: their sums over their degrees of freedom."""
+    entry = _factorial(4, FILTRATION)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C * D - A:B:C:D"}
+    out = fits(entry, check)
+    pooled = reference_catalogue._FIT_KINDS["anova_pooled"]
+    rows = {r["source"]: r for r in out["anova_table"]}
+    a_c = rows["A"]["sum_sq"] + rows["C"]["sum_sq"]
+    assert pooled(out, {**check, "terms": ["A", "C"]}, entry) == pytest.approx(a_c)
+    assert pooled(out, {**check, "terms": ["A", "C"], "key": "df"}, entry) == 2
+    two = rows["A:B"]["sum_sq"] + rows["B:D"]["sum_sq"]
+    assert pooled(out, {**check, "terms": ["A·B", "D·B"], "key": "mean_sq"}, entry) == pytest.approx(two / 2)
+
+
 def test_a_percent_of_total_is_a_term_s_share_of_the_total_sum_of_squares():
     """Montgomery's percent contribution: a term's sum of squares as a percentage of the total, not Taguchi's."""
     entry = _factorial(4, FILTRATION)

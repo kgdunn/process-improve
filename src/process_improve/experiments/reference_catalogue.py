@@ -676,6 +676,18 @@ def _percent_contribution(out: dict, check: dict, _experiment: dict) -> float:
     return 100 * (row["sum_sq"] - df * error) / sum(_anova_sums(out)[:2])
 
 
+def _pooled_rows(out: dict, check: dict, _experiment: dict) -> float:
+    """Return rows of the analysis of variance added into one: their sum of squares, degrees of freedom or mean square.
+
+    ``check["terms"]`` names the rows, each as ``anova_sum_sq`` names a term, as a source adds the main effects into
+    one line or pools interactions; ``check["key"]`` is ``"sum_sq"`` (the default), ``"df"``, or ``"mean_sq"``, the
+    sum of squares over the degrees of freedom.
+    """
+    rows = [_anova_row(out, term) for term in check["terms"]]
+    sum_sq, df = math.fsum(row["sum_sq"] for row in rows), sum(row["df"] for row in rows)
+    return {"sum_sq": sum_sq, "df": float(df), "mean_sq": sum_sq / df}[check.get("key", "sum_sq")]
+
+
 def _extra_sums(out: dict, check: dict) -> dict[str, float]:
     """Return what model ``check["part"]`` explains beyond ``check["after"]``: its sum of squares, mean square, F and p.
 
@@ -1293,6 +1305,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],
     "anova_p": lambda out, c, _e: _anova_row(out, c["term"])["p_value"],
     "anova_df": _anova_df,
+    "anova_pooled": _pooled_rows,
     "percent_of_total": _percent_of_total,
     "percent_contribution": _percent_contribution,
     "extra_ss": lambda out, c, _e: _extra_sums(out, c)["sum_sq"],
