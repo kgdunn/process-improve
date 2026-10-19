@@ -22,7 +22,7 @@ class AugmentDesignInput(BaseModel):
         min_length=2,
         description=(
             "Current design matrix as list of dicts with factor names as keys "
-            "and coded values (-1/+1) as values. "
+            "and coded values (-1/+1) as values, or proportions for a mixture design. "
             "Example: [{'A': -1, 'B': -1}, {'A': 1, 'B': -1}, ...]"
         ),
     )
@@ -107,6 +107,10 @@ class AugmentDesignInput(BaseModel):
         "upgrade to RSM (convert screening design to response surface design), add blocks "
         "(retroactively confound block effects with high-order interactions), and replication "
         "(improve precision estimates). "
+        "A mixture design, whose runs are blends with proportions that sum to 1, takes three of these: "
+        "add_axial_points adds its axial check blends (each midway between the centroid of the simplex "
+        "and a vertex), add_center_points adds runs at the centroid, and replicate copies the runs; the "
+        "others are refused. "
         "Always returns the augmented design matrix plus an explanation of what changed in the "
         "alias structure (which effects are now uncorrelated, which only partially de-aliased, and "
         "which still fully aliased) and in the design properties."
@@ -128,6 +132,9 @@ class AugmentDesignInput(BaseModel):
     # "Make it a response surface design, but pressure cannot go past 3 bar (coded +1)"
         -> ``augment_design(existing_design=[...], augmentation_type="upgrade_to_rsm",
                 hard_limits=["Pressure"])``
+
+    # "Add axial check blends to my simplex-centroid mixture design"
+        -> ``augment_design(existing_design=[...], augmentation_type="add_axial_points")``
 
     # "Add 6 D-optimal runs to improve my design"
         -> ``augment_design(existing_design=[...], augmentation_type="add_runs_optimal",
