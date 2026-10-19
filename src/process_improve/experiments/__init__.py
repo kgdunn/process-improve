@@ -55,6 +55,7 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
+from process_improve.experiments.surface_checks import pooled_pure_error, third_order_contrasts
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
@@ -114,6 +115,7 @@ __all__ = [
     "omars_properties",
     "omars_trade_off_table",
     "optimize_responses",
+    "pooled_pure_error",
     "popcorn",
     "predict",
     "recommend_strategy",
@@ -122,6 +124,7 @@ __all__ = [
     "separating_constraint",
     "summary",
     "supplement",
+    "third_order_contrasts",
     "time_trends",
     "trade_off_table",
     "trend_robust_run_order",
