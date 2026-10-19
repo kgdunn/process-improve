@@ -47,6 +47,7 @@ from process_improve.experiments.separating import (
     constraint_through_cuts,
     separating_constraint,
 )
+from process_improve.experiments.simulate import simulate_design_performance
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
@@ -125,6 +126,7 @@ __all__ = [
     "run_order_trends",
     "run_sheet",
     "separating_constraint",
+    "simulate_design_performance",
     "summary",
     "supplement",
     "time_trends",

@@ -180,6 +180,8 @@ calling, rather than guessing at field names.
 | `read_run_sheet` | A filled sheet back into the factors' names and actual units, whichever units and labels it was written in |
 | `create_factorial_design` | Quick 2^k full factorial |
 | `evaluate_design` | Resolution, aliasing, moment aberration, D/I/G-efficiency, VIF, power |
+| `compare_designs` | Several designs side by side for one model: A, D, E, G, I, max correlation, power |
+| `simulate_design_performance` | "Would this design find what I expect?" Designs run many times on the process you expect and analysed as the next step analyses them: the share that finds each term, false alarms, distance from the best settings |
 | `analyze_experiment` | ANOVA, effects, diagnostics, Lenth, Box-Cox, confirmation |
 | `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
 | `recommend_next_step` | "What do I run next?" After every round: confirm, axial runs, fold-over, the path of steepest ascent, or stop, with the runs in real units |

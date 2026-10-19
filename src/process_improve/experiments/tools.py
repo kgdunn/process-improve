@@ -41,11 +41,14 @@ from process_improve.experiments._tools.search_design_catalog import search_desi
 from process_improve.experiments._tools.analyze_omars import analyze_omars_tool
 from process_improve.experiments._tools.recommend_next_step import recommend_next_step_tool
 from process_improve.experiments._tools.run_sheet import read_run_sheet_tool, write_run_sheet_tool
+from process_improve.experiments._tools.simulate_design_performance import simulate_design_performance_tool
+from process_improve.experiments._tools.compare_designs import compare_designs_tool
 
 __all__ = [
     "analyze_experiment_tool",
     "analyze_omars_tool",
     "augment_design_tool",
+    "compare_designs_tool",
     "create_factorial_design",
     "doe_knowledge_tool",
     "evaluate_design_tool",
@@ -57,6 +60,7 @@ __all__ = [
     "recommend_next_step_tool",
     "recommend_strategy_tool",
     "search_design_catalog_tool",
+    "simulate_design_performance_tool",
     "trade_off_table_tool",
     "visualize_doe_tool",
     "write_run_sheet_tool",
