@@ -1287,7 +1287,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
 
 
 # --------------------------------------------------------------------------- what a source says of a design
-_ROMAN = {"III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8}
+_ROMAN = {"III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9}
 _LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
 
 
