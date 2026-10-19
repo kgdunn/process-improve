@@ -2111,17 +2111,18 @@ def test_pls_entry_points_read_arrays_as_their_dataframes(entry_point: str, y_fo
 
 
 def test_pls_nested_cv_refuses_when_no_held_out_row_is_predicted() -> None:
-    """With a missing cell in every row, no held-out row gets a prediction, and nested CV says so.
+    """When no held-out row gets a prediction, nested CV says so.
 
-    A held-out row with a missing X cell is scored by a plain product with the direct
-    weights, so its prediction is NaN (#676). Once that is fixed these rows are predicted,
-    and this guard needs another way to leave every row uncovered.
+    One outer fold holds out the two rows with no observed X, which no projection can score,
+    and the other eight rows are never held out. Before #676 a missing cell in every row did
+    this, since a held-out row with a gap was scored NaN; such rows are now projected over
+    their observed columns.
     """
     X, y = _pls_ten_rows()
-    for row in range(10):
-        X.iloc[row, row % 4] = np.nan
+    X.iloc[8:] = np.nan
+    one_fold = PredefinedSplit([-1] * 8 + [0, 0])
     with pytest.raises(RuntimeError, match=r"^Nested CV produced no covered observations; check the outer splitter\.$"):
-        PLS.nested_cv(X, y, outer_cv=5, **_PLS_QUICK_NESTED)
+        PLS.nested_cv(X, y, outer_cv=one_fold, **_PLS_QUICK_NESTED)
 
 
 class _TrainsOnEverythingTestsNothing(BaseCrossValidator):
