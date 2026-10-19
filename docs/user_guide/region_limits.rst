@@ -73,7 +73,7 @@ each one removes:
        alone = DesignRegion(factors, [constraint])
        print(constraint.expression, f"{1 - alone.volume_fraction():.3f}")
    # T + 25*P <= 250 0.125
-   # T*F <= 3600 0.042
+   # T*F <= 3600 0.041
 
    print(region.is_empty())  # False
    middle = region.centroid()
@@ -83,13 +83,16 @@ The straight limit removes the corner where temperature and pressure are both hi
 prism whose share is 0.125, and the curved one a sliver at high temperature and high flow.
 With straight limits only, the share is exact: in closed form for factors one limit ties
 together, and from the volume of the polytope the limits leave for up to five factors tied
-together by several. A curved limit's share is counted over a fixed Sobol sample of 16384
-points instead, so it is the same on every run and within about 0.005 of the exact value
-(0.042 here, against 0.041 exactly). Beside straight limits, the sample counts only what
-the curved limit takes from the exact share the straight ones leave, so the two limits
-together keep 0.849, as they do exactly. When the straight limits leave too thin a region
-for any of the 16384 points, points spread uniformly through that region take their place,
-so its share does not read as 0.
+together by several. A curved limit's share is integrated when one factor runs through
+every limit that ties the others to it, as the temperature does here. At each temperature,
+the pressure and the flow each have an allowed range, and the product of the two is
+integrated over the temperature, to about 1e-10: the heat load removes 0.041404. A curved
+limit on three factors is counted over a fixed Sobol sample of 16384 points instead, the
+same on every run and within about 0.005 of the exact share. Beside straight limits, the
+sample counts only what the curved limit takes from the exact share the straight ones
+leave, and when the straight limits leave too thin a region for any of the 16384 points,
+points spread uniformly through that region take their place, so its share does not read
+as 0.
 :meth:`~process_improve.experiments.region.DesignRegion.is_empty` says whether any
 setting is left at all, and
 :meth:`~process_improve.experiments.region.DesignRegion.centroid` gives a central setting
