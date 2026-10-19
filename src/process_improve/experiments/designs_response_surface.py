@@ -481,24 +481,42 @@ def dsd_conference_order(n_factors: int) -> int:
     return conference_order_at_least(n_factors + n_factors % 2)
 
 
-def dsd_run_count(n_factors: int, n_categorical: int = 0) -> int:
+def dsd_run_count(n_factors: int, n_categorical: int = 0, categorical_method: str = "dsd") -> int:
     """Return the number of runs in the definitive screening design for ``n_factors`` factors.
 
     ``2m + 1`` for the conference order ``m`` of :func:`dsd_conference_order`: the familiar
     ``2k + 1`` for even ``k`` and ``2k + 3`` for odd ``k``, except where the order steps up.
     Two-level categorical factors (counted in ``n_factors``) need two centre runs instead
-    of one (Jones and Nachtsheim 2013).
+    of one (Jones and Nachtsheim 2013), and four with the ORTH-augment method
+    (``categorical_method="orth"``) when there are two or more of them.
 
     Examples
     --------
     >>> dsd_run_count(6), dsd_run_count(7), dsd_run_count(22), dsd_run_count(6, n_categorical=2)
     (13, 17, 49, 14)
+    >>> dsd_run_count(6, n_categorical=2, categorical_method="orth")
+    16
     """
-    return 2 * dsd_conference_order(n_factors) + (2 if n_categorical else 1)
+    return 2 * dsd_conference_order(n_factors) + _dsd_centre_runs(n_categorical, categorical_method)
 
 
-def _dsd_order_for_budget(k: int, n_categorical: int, budget: int | None) -> int:
-    """Conference order for ``k`` factors: the minimal one, or the largest that fits ``budget`` runs.
+#: How a DSD takes two-level categorical factors (Jones and Nachtsheim 2013): ``"dsd"``, the
+#: DSD-augment method, or ``"orth"``, the ORTH-augment method.
+CATEGORICAL_METHODS = ("dsd", "orth")
+
+
+def _dsd_centre_runs(n_categorical: int, categorical_method: str) -> int:
+    """Return a DSD's centre runs: one, two with categorical factors, four for ORTH-augment's two or more."""
+    if categorical_method not in CATEGORICAL_METHODS:
+        msg = f"categorical_method must be one of {CATEGORICAL_METHODS}; got {categorical_method!r}."
+        raise ValueError(msg)
+    if not n_categorical:
+        return 1
+    return 4 if categorical_method == "orth" and n_categorical > 1 else 2
+
+
+def _dsd_order_for_budget(k: int, extra: int, budget: int | None) -> int:
+    """Conference order for ``k`` factors and ``extra`` centre runs: the minimal one, or the largest within ``budget``.
 
     Columns beyond ``k`` are fake factors (Jones and Nachtsheim 2017): they are not run as
     factors, but the foldover keeps them orthogonal to everything, so they give the
@@ -507,7 +525,6 @@ def _dsd_order_for_budget(k: int, n_categorical: int, budget: int | None) -> int
     minimal = dsd_conference_order(k)
     if budget is None:
         return minimal
-    extra = 2 if n_categorical else 1
     if budget < 2 * minimal + extra:
         raise ValueError(
             f"A definitive screening design for {k} factors needs at least {2 * minimal + extra} runs; "
@@ -521,7 +538,9 @@ def _dsd_order_for_budget(k: int, n_categorical: int, budget: int | None) -> int
     return order
 
 
-def dispatch_dsd(factors: list[Factor], budget: int | None = None) -> tuple[np.ndarray, dict]:
+def dispatch_dsd(
+    factors: list[Factor], budget: int | None = None, categorical_method: str = "dsd"
+) -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
     The conference-matrix construction of Jones and Nachtsheim (2011), as given by
@@ -550,6 +569,20 @@ def dispatch_dsd(factors: list[Factor], budget: int | None = None) -> tuple[np.n
     four continuous factors and one categorical factor in 14 runs) and with the other
     categorical main effects.
 
+    The ORTH-augment method (``categorical_method="orth"``, Jones and Nachtsheim 2013,
+    Section 3) keeps every main effect orthogonal to every other instead, in the same
+    runs for one categorical factor and two more runs for two to four. The price is
+    that the main effects are no longer clear of the second-order effects: each is
+    partly aliased with some quadratic effects and two-factor interactions (the
+    paper's Table 5). A categorical factor's two zeros both become ``+1``, which leaves
+    it orthogonal to the other columns of the foldover but adds 2 to its sum; centre
+    runs balance it. One categorical factor takes two centre runs at ``-1``. Two to
+    four take four, whose categorical settings are the columns of a 4 x 4 block with
+    one ``+1`` in each column and each row, orthogonal to each other. More than four
+    reuse the block's columns in turn, so a categorical factor is correlated only with
+    those that share its column: ``2 n_B (c - 2 n_B - 2)`` nonzero off-diagonal entries
+    of the main-effects information matrix for ``c`` categorical factors, ``n_B = c // 4``.
+
     A ``budget`` larger than the minimal design adds fake factors: the conference
     matrix of the largest buildable order whose design fits the budget is used, and its
     extra columns are left out. Jones and Nachtsheim (2017) recommend this, because the
@@ -562,13 +595,16 @@ def dispatch_dsd(factors: list[Factor], budget: int | None = None) -> tuple[np.n
         At least three factors: continuous, or categorical with exactly two levels.
     budget : int or None
         Largest number of runs. ``None`` gives the minimal design.
+    categorical_method : {"dsd", "orth"}
+        How two-level categorical factors are added: DSD-augment (the default) or
+        ORTH-augment.
 
     Returns
     -------
     tuple[np.ndarray, dict]
         Coded design matrix (categorical factors at -1 / +1) and metadata:
         ``construction``, ``conference_order``, ``fake_factors`` and, with categorical
-        factors, ``n_categorical``.
+        factors, ``n_categorical`` and ``categorical_method``.
 
     References
     ----------
@@ -593,14 +629,15 @@ def dispatch_dsd(factors: list[Factor], budget: int | None = None) -> tuple[np.n
                 "designs take two-level categorical factors only (Jones and Nachtsheim 2013). Use "
                 'design_type="d_optimal" or "i_optimal" for a factor with more levels.'
             )
-    m = _dsd_order_for_budget(k, len(categorical), budget)
+    m = _dsd_order_for_budget(k, _dsd_centre_runs(len(categorical), categorical_method), budget)
     conference, construction = conference_matrix(m)
     folded = np.vstack([conference, -conference]).astype(float)[:, :k]
     meta: dict = {"construction": construction, "conference_order": m, "fake_factors": m - k}
     if not categorical:
         return np.vstack([folded, np.zeros((1, k))]), meta
-    meta["n_categorical"] = len(categorical)
-    return _dsd_augment(folded, categorical), meta
+    meta["n_categorical"], meta["categorical_method"] = len(categorical), categorical_method
+    augment = _orth_augment if categorical_method == "orth" else _dsd_augment
+    return augment(folded, categorical), meta
 
 
 #: Up to this many categorical factors, every sign choice of the DSD-augment method is tried.
@@ -628,3 +665,21 @@ def _dsd_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
         if value > best_value + 1e-12:
             best, best_value = design, value
     return best
+
+
+#: The categorical settings of ORTH-augment's four centre runs, a column per categorical factor
+#: in turn: each column sums to -2 and the columns are orthogonal.
+_ORTH_CENTRE_BLOCK = np.array([[-1, -1, -1, 1], [-1, -1, 1, -1], [-1, 1, -1, -1], [1, -1, -1, -1]], dtype=float)
+
+
+def _orth_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
+    """Jones and Nachtsheim's (2013) ORTH-augment: categorical zeros set to +1, and centre runs to balance them."""
+    n_half, k = folded.shape[0] // 2, folded.shape[1]
+    design = folded.copy()
+    for j in categorical:
+        row = int(np.flatnonzero(folded[:n_half, j] == 0)[0])
+        design[row, j] = design[row + n_half, j] = 1.0  # the same sign in both halves: orthogonal to the rest
+    centre = np.zeros((2 if len(categorical) == 1 else 4, k))
+    for i, j in enumerate(categorical):
+        centre[:, j] = -1.0 if len(categorical) == 1 else _ORTH_CENTRE_BLOCK[:, i % 4]
+    return np.vstack([design, centre])
