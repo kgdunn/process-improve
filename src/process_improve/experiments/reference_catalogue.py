@@ -1356,8 +1356,8 @@ def _word(word: str) -> str:
 
 
 def _words(printed: str) -> list[str]:
-    """Return the words of a printed list, such as ``I = ABD = ACE``, ``AD and CDE`` or ``BCD, ACD``."""
-    parts = re.split(r"[,=]|\band\b", printed.replace("\u2212", "-"))
+    """Return the words of a printed list, such as ``I = ABD = ACE``, ``AD and CDE``, ``BCD, ACD`` or ``A + BCD``."""
+    parts = re.split(r"[,=+]|\band\b", printed.replace("\u2212", "-"))
     return [w for w in (_word(p) for p in parts) if w]
 
 
@@ -1461,15 +1461,20 @@ def _block_effects(words: list[str], check: dict, printed: str) -> tuple[str, bo
 
 
 def _alias_check(words: list[str], check: dict, printed: str) -> tuple[str, bool]:
-    """Check a term's aliases, as a fraction's defining relation ``words`` gives them, or that it is clear."""
-    aliases = sorted({_multiply(_word(check["term"]), word) for word in words})
+    """Check a term's aliases, as a fraction's defining relation ``words`` gives them, or that it is clear.
+
+    The term's own word, printed at the head of its chain as in ``A + BCD``, is not one of its aliases.
+    """
+    term = _word(check["term"])
+    aliases = sorted({_multiply(term, word) for word in words})
     if check["kind"] == "clear":  # aliased with no main effect or two-factor interaction
         short = [a for a in aliases if len(a.lstrip("-")) <= 2]
         return ", ".join(short) or "no main effect or two-factor interaction", not short
+    listed = set(_words(printed)) - {term}
     if "up_to" in check:  # every alias of up to that many factors, and only those
         short = sorted((a for a in aliases if len(a.lstrip("-")) <= check["up_to"]), key=lambda w: (len(w), w))
-        return ", ".join(short) or "none", set(_words(printed)) == set(short)
-    return ", ".join(aliases), bool(_words(printed)) and set(_words(printed)) <= set(aliases)  # kind == "aliases"
+        return ", ".join(short) or "none", listed == set(short)
+    return ", ".join(aliases), bool(listed) and listed <= set(aliases)  # kind == "aliases"
 
 
 _DESIGN_KINDS = {

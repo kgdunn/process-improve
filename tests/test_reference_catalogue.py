@@ -1451,6 +1451,17 @@ def test_an_alias_chain_up_to_an_order_must_list_every_alias_that_short():
     assert not _design_check({**design_j, "term": "AB"}, "CDF", 7)[1]  # AB = CDF = DEG: one alias left out
 
 
+def test_an_alias_chain_may_be_printed_with_plus_signs_between_its_words():
+    """BHH print a column's chain as 1 + 234, a sum of the effects it estimates: the same words as with commas."""
+    from process_improve.experiments.reference_catalogue import _design_check, _words
+
+    assert _words("A + BCD") == _words("A, BCD") == ["A", "BCD"]
+    assert _words("12 + 37 + 48 + 56") == ["12", "37", "48", "56"]
+    half = {"kind": "aliases", "generators": ["D=ABC"], "term": "AB"}
+    assert _design_check(half, "CD", 4) == ("CD", True)
+    assert _design_check({**half, "term": "A"}, "A + BCD", 4)[1]
+
+
 def test_blocks_confound_the_chosen_effects_and_their_products_read_as_alias_chains():
     """Table X, design (q): four blocks from CFG and AGJ also confound ADE, an alias of their product ACFJ."""
     from process_improve.experiments.reference_catalogue import _design_check
