@@ -17220,7 +17220,7 @@
       "quote": "0.9770 ≤ σ² ≤ 5.1775"
      },
      "check": {
-      "manual": "the chi-square interval for the error variance, which the library does not compute: 12 × 1.90/23.3367 = 0.97700, from the rounded MSE; from the unrounded 22.75 it is 0.97486, as JMP's REML table prints"
+      "manual": "the chi-square interval for the error variance worked from the mean square rounded to 1.90: 12 × 1.90/23.3367 = 0.97700; from the unrounded 22.75 it is 0.97486 (mean_squares, key chi2_low), as JMP's REML table prints it (checked)"
      }
     },
     {
@@ -17233,7 +17233,7 @@
       "quote": "0.9770 ≤ σ² ≤ 5.1775"
      },
      "check": {
-      "manual": "the same interval's upper limit: 22.8/4.4038 = 5.17735 from the rounded MSE; 5.16601 from the unrounded 22.75, as JMP prints"
+      "manual": "the same interval's upper limit: 22.8/4.4038 = 5.17735 from the rounded mean square; 5.16601 from the unrounded 22.75 (mean_squares, key chi2_high), as JMP prints it (checked)"
      }
     },
     {
@@ -17681,7 +17681,12 @@
       "quote": "Residual ... 0.9748608 5.1660065"
      },
      "check": {
-      "manual": "the chi-square interval for the residual variance on 12 degrees of freedom, which the library does not compute (it reproduces: 22.75/23.3367 = 0.974861)"
+      "kind": "mean_squares",
+      "model": "loom",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_low"
      }
     },
     {
@@ -17694,7 +17699,12 @@
       "quote": "Residual ... 0.9748608 5.1660065"
      },
      "check": {
-      "manual": "the same interval's upper limit (22.75/4.4038 = 5.16601)"
+      "kind": "mean_squares",
+      "model": "loom",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_high"
      }
     },
     {
@@ -27136,7 +27146,12 @@
       "quote": "Residual ... 3.9975509 17.547721"
      },
      "check": {
-      "manual": "the chi-square interval for the residual variance on 15 degrees of freedom, which the library does not compute (it reproduces: 109.886/27.4884 = 3.99755)"
+      "kind": "mean_squares",
+      "model": "pressure + batch",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_low"
      }
     },
     {
@@ -27149,7 +27164,12 @@
       "quote": "Residual ... 3.9975509 17.547721"
      },
      "check": {
-      "manual": "the same interval's upper limit (109.886/6.26214 = 17.5477)"
+      "kind": "mean_squares",
+      "model": "pressure + batch",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_high"
      }
     },
     {
@@ -48722,7 +48742,12 @@
       "quote": "Residual ... 6.0510389 26.561749"
      },
      "check": {
-      "manual": "the chi-square interval for the residual variance on 15 degrees of freedom, which the library does not compute (it reproduces: 166.333/27.4884 = 6.05104)"
+      "kind": "mean_squares",
+      "model": "clutter * filter + operator",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_low"
      }
     },
     {
@@ -48735,7 +48760,12 @@
       "quote": "Residual ... 26.561749"
      },
      "check": {
-      "manual": "the same interval's upper limit (166.333/6.26214 = 26.5617)"
+      "kind": "mean_squares",
+      "model": "clutter * filter + operator",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_high"
      }
     },
     {
@@ -190361,14 +190391,32 @@
      "what": "chi-square points",
      "term": "χ²0.025,r and χ²0.975,r",
      "value": "13.14 0.90",
+     "analysis": "the library's chi-square percentage points on the r = 5.19 degrees of freedom the text works with",
      "where": {
       "page": 599,
       "source_kind": "prose",
       "quote": "(5.19)(31.36)/13.14 ≤ σ²τβ ≤ (5.19)(31.36)/0.90 12.39 ≤ σ²τβ ≤ 180.84"
      },
-     "check": {
-      "manual": "a percentage point of the chi-square distribution on fractional degrees of freedom, which the library does not compute"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "chi2_value",
+       "args": [
+        0.975,
+        5.19
+       ],
+       "printed": "13.14"
+      },
+      {
+       "kind": "library_value",
+       "function": "chi2_value",
+       "args": [
+        0.025,
+        5.19
+       ],
+       "printed": "0.90"
+      }
+     ]
     },
     {
      "what": "interval low",
