@@ -267,4 +267,15 @@ describe("a mixture", () => {
     assert.match(code, / {8}"A": runs\["A"\],/);
     assert.doesNotMatch(code, /- 0.5/);
   });
+
+  test("its best blend, searched over the region of blends step 1's components make", () => {
+    const goal = { response: "y", goal: "maximize", low: -300, high: 300 };
+    const code = bestCode({ coded: { A: 0.5, B: 0.5, C: 0 }, search: { held: {}, goal } }, spec, "scheffe_quadratic");
+    assert.match(code, /^import pandas as pd\nfrom process_improve\.experiments import DesignRegion, analyze_experiment, optimize_responses\n/);
+    assert.match(code, /goal = \{"response": "y", "goal": "maximize", "low": -300, "high": 300\}/);
+    assert.match(code, /"factor_names": \["A", "B", "C"\],/);
+    assert.match(code, /region=DesignRegion\(factors\), {2}# the blends: each component between its bounds/);
+    assert.doesNotMatch(code, /factor_ranges/, "a component's bounds are the region's, not a range to code from");
+    assert.match(code, /analysis_type="prediction", coding="actual", new_points=at/);
+  });
 });

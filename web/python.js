@@ -339,6 +339,7 @@ function heldComment(held, factors) {
  * model step 3 fitted, and ``complete`` says every run of the design has its result, as for step 3.
  */
 export function bestCode(best, spec, model, complete = true) {
+  if (isMixture(spec)) return blendCode(best, spec, model, complete);
   const numeric = spec.factors.filter((f) => !labelled(f));
   const held = best.search?.held ?? {};
   const holds = Object.keys(held).length > 0;
@@ -392,6 +393,44 @@ export function bestCode(best, spec, model, complete = true) {
     `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
     "",
     ...prediction,
+  ].join("\n");
+}
+
+/**
+ * Step 4 for a mixture: the best blend for the response's goal, found on step 3's Scheffé model with the library's
+ * optimiser over the region of blends, a ``DesignRegion`` of step 1's components (each between its bounds, the
+ * proportions summing to 1), and the prediction there with its intervals. ``best`` is what bootstrap.best_settings
+ * answered: its ``search`` holds the desirability goal it searched with.
+ */
+function blendCode(best, spec, model, complete) {
+  const response = spec.response || "y";
+  const fitted = complete ? "X, y" : "X[done], y[done]";
+  return [
+    "import pandas as pd",
+    "from process_improve.experiments import DesignRegion, analyze_experiment, optimize_responses",
+    "",
+    "# The goal as a desirability, its limits beyond every prediction over the blends: a straight line in the prediction.",
+    `goal = ${repr(best.search.goal)}`,
+    "best = optimize_responses(",
+    "    [",
+    "        {",
+    `            "response_name": ${repr(response)},`,
+    '            "coefficients": analysis["coefficients"],',
+    `            "factor_names": ${repr(spec.factors.map((f) => f.name))},`,
+    "        }",
+    "    ],",
+    "    goals=[goal],",
+    "    region=DesignRegion(factors),  # the blends: each component between its bounds, the proportions summing to 1",
+    ')["desirability"]',
+    'print(best["optimal_coded"])  # the best blend: each component\'s proportion',
+    `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
+    "",
+    "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
+    'at = pd.DataFrame([best["optimal_coded"]])',
+    "prediction = analyze_experiment(",
+    `    ${fitted}, model=${repr(model)}, analysis_type="prediction", coding="actual", new_points=at`,
+    ")",
+    'print(prediction["predictions"][0])',
   ].join("\n");
 }
 

@@ -444,6 +444,8 @@ def assert_same_best(namespace: dict, best: dict, spec: dict) -> None:
         if setting["kind"] == "numeric":
             tolerance = 1e-6 * (factor["high"] - factor["low"])
             assert found["optimal_actual"][setting["name"]] == pytest.approx(setting["value"], abs=tolerance)
+        elif setting["kind"] == "component":  # a mixture's proportions, which its Scheffé model is fitted on
+            assert found["optimal_coded"][setting["name"]] == pytest.approx(setting["value"], abs=1e-6)
     assert found["predicted_responses"][spec["response"]] == pytest.approx(best["predicted"], abs=1e-6)
     shown = namespace["prediction"]["predictions"][0]
     assert shown["predicted"] == pytest.approx(best["predicted"], abs=1e-6)
@@ -545,6 +547,29 @@ def test_the_best_settings_code_leaves_the_confirmation_runs_out_of_the_fit(api,
     assert len(namespace["y"]) == 15, "the design's runs only"
     assert_same_fit(namespace, analysis)
     assert_same_best(namespace, again, held["spec"])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("request_", "goal", "target"),
+    [(MIXTURES[1], "maximize", None), (MIXTURES[2], "target", 50.0), (MIXTURES[4], "minimize", None)],
+    ids=["lattice", "centroid-target", "vertices"],
+)
+def test_the_best_blend_code_finds_the_page_s_best_blend(api, node, request_, goal, target):
+    """A mixture's code searches the region of blends: each component within its bounds, the proportions sum to 1."""
+    made = held_of(api.ok("api_make_design", {**request_, "factors": components(request_["design_type"])}))
+    simulation = api.ok("api_simulate", {**made, "seed": 5})
+    held = aimed(made, goal, target)
+    request = {**held, "responses": simulation["responses"]}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    assert {s["kind"] for s in best["settings"]} == {"component"}
+    code = best_panel(node, held, simulation["responses"], (analysis, best), simulation)
+    assert "region=DesignRegion(factors)" in code
+    namespace = run(code)
+    assert_same_fit(namespace, analysis)
+    assert_same_best(namespace, best, held["spec"])
+    assert sum(namespace["best"]["optimal_coded"].values()) == pytest.approx(1.0)
 
 
 # --------------------------------------------------------------------------- several responses
