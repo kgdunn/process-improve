@@ -184,6 +184,63 @@ class TestWhatKeepsTheResidual:
         assert row["pi_high"] - row["predicted"] == pytest.approx(z * 1.5 * math.sqrt(1 + 1 / 7))
 
 
+class TestTheFittedValuesAverageVariance:
+    """Box and Wetz: p sigma²/n, whatever the design (#797 R1)."""
+
+    def test_bhh_exercise_15_8_the_first_order_design(self, first_order: pd.DataFrame) -> None:
+        """3(1.5²)/7 = 0.964, which BHH print as 0.965."""
+        result = analyze_experiment(
+            first_order, response_column="y", model="main_effects", analysis_type="coefficients", sigma=1.5
+        )
+        average = result["model_summary"]["average_fitted_variance"]
+        assert average == pytest.approx(3 * 1.5**2 / 7)
+        assert average == pytest.approx(0.965, abs=1e-3)
+
+    def test_bhh_15_the_composite_design(self) -> None:
+        """6(1.5)²/12 = 1.125, so the fitted values' average standard error is 1.06."""
+        runs = _runs("box-hunter-hunter-1978.json", "bhh-rsm-composite-design")[["time", "temperature", "y"]]
+        result = analyze_experiment(
+            runs, response_column="y", model="quadratic", analysis_type="coefficients", sigma=1.5
+        )
+        average = result["model_summary"]["average_fitted_variance"]
+        assert average == pytest.approx(1.125)
+        assert round(math.sqrt(average), 2) == 1.06
+
+    def test_it_is_the_mean_of_each_runs_fitted_variance(self, first_order: pd.DataFrame) -> None:
+        known = analyze_experiment(
+            first_order,
+            response_column="y",
+            model="main_effects",
+            analysis_type="prediction",
+            new_points=first_order[["time", "temperature"]],
+            sigma=1.5,
+        )
+        z = stats.norm.ppf(0.975)
+        variances = [((row["ci_high"] - row["predicted"]) / z) ** 2 for row in known["predictions"]]
+        assert known["model_summary"]["average_fitted_variance"] == pytest.approx(np.mean(variances))
+
+    def test_adequate_precision_is_the_range_over_the_average_standard_error(self, first_order: pd.DataFrame) -> None:
+        """The fitted values span 2(2.35 + 4.50) = 13.7 over the corners; the noise is s, or sigma when given."""
+        options = {"response_column": "y", "model": "main_effects", "analysis_type": "coefficients"}
+        given = analyze_experiment(first_order, **options)["model_summary"]
+        known = analyze_experiment(first_order, **options, sigma=1.5)["model_summary"]
+        assert given["average_fitted_variance"] == pytest.approx(3 * given["mse_residual"] / 7)
+        for summary in (given, known):
+            expected = 13.7 / math.sqrt(summary["average_fitted_variance"])
+            assert summary["adequate_precision"] == pytest.approx(expected)
+        assert known["adequate_precision"] == pytest.approx(13.7 / math.sqrt(3 * 1.5**2 / 7))
+
+    def test_a_model_without_a_constant_counts_its_own_terms(self) -> None:
+        """P is the model's rank: two terms for ``y ~ A + B - 1``, where df_model + 1 would count three."""
+        runs = pd.DataFrame(
+            {"A": [1.0, 2.0, 3.0, 4.0, 5.0], "B": [2.0, 1.0, 4.0, 3.0, 6.0], "y": [3.1, 2.9, 7.2, 6.8, 11.1]}
+        )
+        summary = analyze_experiment(runs, response_column="y", model="y ~ A + B - 1", analysis_type="coefficients")[
+            "model_summary"
+        ]
+        assert summary["average_fitted_variance"] == pytest.approx(2 * summary["mse_residual"] / 5)
+
+
 @pytest.mark.parametrize("sigma", [0, -1.5, float("nan"), float("inf"), "1.5", True])
 def test_sigma_must_be_a_positive_number(first_order: pd.DataFrame, sigma: object) -> None:
     with pytest.raises(ValueError, match="sigma must be a positive number"):

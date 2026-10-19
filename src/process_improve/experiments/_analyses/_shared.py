@@ -18,24 +18,27 @@ def _compute_pred_r_squared(ols_result: RegressionResultsWrapper) -> float:
     return 1.0 - ss_press / ss_total
 
 
-def _compute_adequate_precision(ols_result: RegressionResultsWrapper) -> float:
-    """Adequate precision: signal-to-noise ratio (~10 lines)."""
-    predicted = ols_result.fittedvalues.values
-    mse = float(ols_result.mse_resid)
-    n = len(predicted)
-    p = ols_result.df_model + 1
+def average_fitted_variance(ols_result: RegressionResultsWrapper, variance: float | None = None) -> float:
+    """Return the average variance of the fitted values over the runs, p variance/n (#797 R1).
 
-    max_pred = float(np.max(predicted))
-    min_pred = float(np.min(predicted))
-    signal = max_pred - min_pred
+    The leverages of the runs sum to p, the number of terms the model estimates (the rank of
+    its matrix), so the average is p variance/n whatever the design (Box and Wetz).
+    ``variance`` is the error variance: the residual mean square unless one is given.
+    """
+    error = float(ols_result.mse_resid) if variance is None else variance
+    return int(ols_result.model.rank) * error / int(ols_result.nobs)
 
-    # Average variance of prediction
-    avg_var = p * mse / n
-    noise = np.sqrt(avg_var)
 
+def _compute_adequate_precision(ols_result: RegressionResultsWrapper, variance: float | None = None) -> float:
+    """Return adequate precision: the range of the fitted values over their average standard error.
+
+    The average standard error is the square root of :func:`average_fitted_variance`, with
+    the same ``variance``. Infinite when the fit leaves no error at all.
+    """
+    noise = np.sqrt(average_fitted_variance(ols_result, variance))
     if noise == 0:
         return float("inf")
-    return signal / noise
+    return float(np.ptp(np.asarray(ols_result.fittedvalues, dtype=float)) / noise)
 
 
 def with_prior_sigma(ols_result: RegressionResultsWrapper, sigma: float | None) -> RegressionResultsWrapper:

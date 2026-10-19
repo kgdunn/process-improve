@@ -36,6 +36,7 @@ from process_improve.experiments._analyses._shared import (
     WHOLE_PLOT_COL,
     _compute_adequate_precision,
     _compute_pred_r_squared,
+    average_fitted_variance,
     with_prior_sigma,
 )
 from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
@@ -1013,7 +1014,12 @@ def analyze_experiment(  # noqa: PLR0913
         - ``r_squared_adj`` - adjusted R^2.
         - ``r_squared_pred`` - prediction R^2 (leave-one-out style).
         - ``adequate_precision`` - signal-to-noise ratio (>= 4 is
-          considered adequate).
+          considered adequate): the range of the fitted values over the square root of
+          ``average_fitted_variance``.
+        - ``average_fitted_variance`` - the average variance of the fitted values over the
+          runs, p s²/n with s² the residual mean square (p sigma²/n with a ``sigma``): the
+          runs' leverages sum to p, the number of terms the model estimates, whatever the
+          design (Box and Wetz). Its square root is the fitted values' average standard error.
         - ``n_obs`` - number of observations used to fit.
         - ``n_terms`` - number of columns in the model matrix.
         - ``model_rank`` - rank of the model matrix with the numeric
@@ -1027,8 +1033,9 @@ def analyze_experiment(  # noqa: PLR0913
         - ``df_model`` - model degrees of freedom.
         - ``df_residual`` - residual degrees of freedom.
         - ``mse_residual`` - mean squared error of the residuals.
-        - ``prior_sigma`` - the ``sigma`` given, when one is: the standard errors use it, not
-          the square root of ``mse_residual``.
+        - ``prior_sigma`` - the ``sigma`` given, when one is: the standard errors,
+          ``adequate_precision`` and ``average_fitted_variance`` use it, not the square root of
+          ``mse_residual``.
         - ``f_statistic`` and ``f_p_value`` - the overall F test of the model against the
           intercept alone (against zero, on uncorrected sums of squares, with no intercept).
         - ``log_likelihood``, ``aic`` and ``bic`` - the Gaussian log-likelihood and the criteria
@@ -1144,7 +1151,7 @@ def analyze_experiment(  # noqa: PLR0913
         "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
         | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
         | ({"model_note": model_note} if model_note else {})
-        | ({"prior_sigma": float(sigma)} if sigma is not None else {}),
+        | _fitted_noise(ols_result, sigma),
     }
 
     fit = _Fit(
@@ -1189,6 +1196,22 @@ def _side_columns(
             f"information must be one of {', '.join(map(repr, INFORMATIONS))}; got {glm['information']!r}."
         )
     return _whole_plot_columns(df, whole_plot, types), _trials_column(df, glm, types, transform)
+
+
+def _fitted_noise(ols_result: RegressionResultsWrapper, sigma: float | None) -> dict[str, Any]:
+    """Return the fitted values' average variance, and with a prior ``sigma`` adequate precision read against it.
+
+    Both are worked from the residual mean square unless ``sigma`` is given (#797 R1);
+    ``adequate_precision`` then replaces the one ``_model_summary`` worked from the residual.
+    """
+    if sigma is None:
+        return {"average_fitted_variance": average_fitted_variance(ols_result)}
+    variance = float(sigma) ** 2
+    return {
+        "prior_sigma": float(sigma),
+        "adequate_precision": _compute_adequate_precision(ols_result, variance),
+        "average_fitted_variance": average_fitted_variance(ols_result, variance),
+    }
 
 
 def _check_options(df_method: str, sigma: float | None) -> None:
