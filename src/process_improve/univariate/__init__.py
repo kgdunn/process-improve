@@ -32,6 +32,7 @@ from process_improve.univariate.metrics import (
     ttest_paired_from_df,
     variance_decomposition,
 )
+from process_improve.univariate.reference_distribution import reference_distribution
 from process_improve.univariate.tools import (
     confidence_interval_tool,
     detect_outliers,
@@ -67,6 +68,7 @@ __all__ = [
     "normality_test",
     "randomization_test",
     "rank_sum_test",
+    "reference_distribution",
     "robust_scale_sn",
     "robust_summary_stats",
     "studentized_range_value",
