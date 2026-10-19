@@ -39,6 +39,7 @@ from process_improve.experiments._tools.search_design_catalog import search_desi
 
 # Tools added since the split, appended so the tools before keep their place in the spec order.
 from process_improve.experiments._tools.analyze_omars import analyze_omars_tool
+from process_improve.experiments._tools.recommend_next_step import recommend_next_step_tool
 from process_improve.experiments._tools.run_sheet import read_run_sheet_tool, write_run_sheet_tool
 
 __all__ = [
@@ -53,6 +54,7 @@ __all__ = [
     "get_experiments_tool_specs",
     "optimize_responses_tool",
     "read_run_sheet_tool",
+    "recommend_next_step_tool",
     "recommend_strategy_tool",
     "search_design_catalog_tool",
     "trade_off_table_tool",

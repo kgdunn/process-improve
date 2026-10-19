@@ -148,6 +148,22 @@ desirability. Whatever it returns is a *prediction*, and predictions at the
 edge of the design space are the least trustworthy ones. Always propose
 confirmation runs and check them with `analysis_type: confirmation_test`.
 
+### 9. Decide the next round
+
+```bash
+python scripts/doe_tool.py call recommend_next_step --input study.json
+```
+
+After every round, pass every run made so far and do what `action` says,
+rather than choosing the next design by hand. It judges the terms, tests
+whether anything stands out at all, and returns the next runs in real units,
+the reasons with their numbers, and what to do with the runs once made:
+append them to `runs` and call again; for `confirm`, pass them as
+`confirmation_runs`; for `widen_ranges` and `move_region`, change the ranges
+as the reply says and start the runs afresh. Pass `history`, the actions so
+far, and `ranges_can_move: false` when a range is a hard limit. Quote its
+`reasons` to the user: they are the evidence, not a paraphrase of it.
+
 ## Tools
 
 Every tool below is reachable through `scripts/doe_tool.py call <name>`, and
@@ -166,6 +182,7 @@ calling, rather than guessing at field names.
 | `evaluate_design` | Resolution, aliasing, moment aberration, D/I/G-efficiency, VIF, power |
 | `analyze_experiment` | ANOVA, effects, diagnostics, Lenth, Box-Cox, confirmation |
 | `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
+| `recommend_next_step` | "What do I run next?" After every round: confirm, axial runs, fold-over, the path of steepest ascent, or stop, with the runs in real units |
 | `fit_linear_model` | Explicit model formula when you need control |
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |
 | `optimize_responses` | Multi-response desirability optimisation |

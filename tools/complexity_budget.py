@@ -61,6 +61,13 @@ BUDGET: dict[str, int] = {
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
     "PLR0912": 21,
+    # 86: #787 adds `recommend_next_step`, the public entry point that decides a
+    # study's next round. Each of its keyword-only settings is a separate input to
+    # that decision (goal and target, the confirmation runs, a given model, the
+    # run budget, whether the ranges may move, the confirmation size, the
+    # significance level, the seed, the actions so far, the block column), as
+    # `generate_design`'s are to a design; its private helpers stay under every
+    # threshold, and take the settings as one `_Choices` record.
     # 85: 2.0.0 removed the deprecated `discriminate_observational` alias of
     # `find_predictive_descriptors`, and its PLR0913 suppression went with it.
     # 83, and none of the five moves is a regression any one branch introduced.
@@ -87,7 +94,7 @@ BUDGET: dict[str, int] = {
     # `select_n_components`' own. The width stops there: the function forms forward
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
-    "PLR0913": 85,
+    "PLR0913": 86,
     # 28: #513 (see C901). 29 before that.
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
