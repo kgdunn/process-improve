@@ -4303,8 +4303,8 @@ def best_settings(request: dict) -> dict:
     """Find the settings that best meet the response's goal on the fitted model, and say how well they are known.
 
     The goal is the brief's (``response_info.goal``): ``maximize``, ``minimize``, or ``target`` with its
-    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else; so
-    does it for a mixture (``mixture``), whose blends this search does not keep to a sum of 1.
+    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else. A
+    mixture's best blend is found by :func:`_best_blend`, whose reply follows this one's.
 
     The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
     and one response, over the numeric factors' ranges and inside the limits on the settings. Its
@@ -4334,8 +4334,8 @@ def best_settings(request: dict) -> dict:
     target = info.get("target")
     if goal == "target" and target is None:
         return {"goal": goal, "target": None}
-    if _mixture(spec):  # a blend's proportions sum to 1, which the search over each factor's range does not keep
-        return {"goal": goal, "target": target, "mixture": True}
+    if _mixture(spec):  # a blend's proportions sum to 1: the search keeps to the blends, not to each factor's range
+        return _best_blend(request, whole, spec, goal, target)
     every_run = _runs_frame(request, whole)
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
@@ -4388,10 +4388,10 @@ def best_settings(request: dict) -> dict:
 class _FittedModel:
     """A least-squares fit as the page made it, with what a prediction at new settings needs.
 
-    The model matrix is built from the fitted terms over the coded runs, so the covariance of the
-    coefficients is the fit's own: ``mse_residual`` times the inverse of ``X'X``. A new point's
-    row holds its coded settings in the same terms, and zero in each block contrast, which is the
-    average block, as the equation is written.
+    The model matrix is built from the fitted terms over the coded runs (a mixture's over its
+    proportions, see :func:`_blend_fit`), so the covariance of the coefficients is the fit's own:
+    ``mse_residual`` times the inverse of ``X'X``. A new point's row holds its coded settings in the
+    same terms, and zero in each block contrast, which is the average block, as the equation is written.
     """
 
     def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str]) -> None:
@@ -4559,7 +4559,9 @@ def _goal(goal: str, target: float | None, model: list[dict], response: str) -> 
     """Return the desirability goal whose best is the goal's best, for one response on this model.
 
     In the ranges, every term of a coded model is between -1 and +1, so no prediction is further
-    from the intercept than the sum of the other coefficients' sizes, the model's ``spread``.
+    from the intercept than the sum of the other coefficients' sizes, the model's ``spread``. Over
+    the blends, every term of a Scheffé model is between 0 and 1, and its intercept is 0, so the same
+    holds of it.
     Limits twice that far out leave every prediction strictly inside them, where the desirability
     is a straight line: rising with the prediction to maximise it, falling to minimise it, and for
     a target, with limits as far out on each side, falling with the distance from the target.
@@ -4932,14 +4934,15 @@ def _confirmation(runs: pd.DataFrame, spec: dict, fitted: _FittedModel) -> list[
     Each group's ``rows`` are its places on the run sheet; ``runs`` how many it has and ``done``
     how many have a result; ``mean`` their average; ``predicted`` the model's prediction there; and
     ``interval`` the prediction interval for the average of ``done`` new runs there (of ``runs``
-    while none has a result), which the average falls ``inside`` when the model holds there.
+    while none has a result), which the average falls ``inside`` when the model holds there. The
+    settings are coded, or a mixture's proportions as they are, as each model is fitted.
     """
     confirming = _confirming(runs).to_numpy()
     if not confirming.any():
         return []
     names = [f["name"] for f in spec["factors"]]
     values = pd.to_numeric(runs[spec["response"]], errors="coerce")
-    coded = _coded(runs, spec["factors"])
+    coded = runs[names].astype(float) if _mixture(spec) else _coded(runs, spec["factors"])  # as the model is fitted
     groups: dict[tuple, list[int]] = {}
     for i in np.flatnonzero(confirming).tolist():
         groups.setdefault(tuple(runs.loc[i, names].tolist()), []).append(i)
@@ -4964,6 +4967,241 @@ def _confirmation(runs: pd.DataFrame, spec: dict, fitted: _FittedModel) -> list[
             }
         )
     return out
+
+
+# --------------------------------------------------------------------------- a mixture's best blend
+#: How many decimals each proportion of the best blend is weighed out to for a confirmation run: a thousandth of
+#: the blend, 1 g in 1 kg.
+BLEND_DECIMALS = 3
+
+#: A Scheffé model whose predictions over the design's blends span less than this share of the results' size predicts
+#: the same at every blend. Its fit leaves more round-off than a coded fit, as its proportions sum to 1 in every run.
+FLAT_BLEND = 1e-9
+
+
+def _best_blend(request: dict, whole: dict, spec: dict, goal: str, target: float | None) -> dict:
+    """Find the blend that best meets the response's goal on its Scheffé model, and say how well it is known.
+
+    The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
+    over the region of blends, a ``DesignRegion`` of the components (see :func:`_components`): each
+    component between its bounds, and the proportions summing to 1. The model is the analysis's, on
+    the proportions as they are, and the goal is a straight line in the prediction, as for factors
+    with ranges (see :func:`_goal`).
+
+    The reply holds what :func:`best_settings` holds wherever it applies to a blend. ``settings`` gives
+    each component's proportion, of ``kind`` ``component`` (see :func:`_blend_settings`), and ``coded``
+    the blend, the scale the model is fitted on. The prediction, its intervals and the leverage are as
+    for factors with ranges. ``sensitivity`` moves each component along its Cox direction (see
+    :func:`_blend_sensitivity`). ``confirm_at`` is the blend as it is weighed out, and ``rounding`` says
+    how it was rounded (see :func:`_weighed`). A way to move on, a stationary point and the limits on
+    the settings do not apply to a blend: ``ascent`` and ``stationary`` are None, and ``limits`` empty.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a goal asks for it
+
+    every_run = _runs_frame(request, whole)
+    design = _design_runs(every_run)
+    names = [f["name"] for f in spec["factors"]]
+    fitted = _blend_fit(design, spec, _mixture_model(request.get("model") or spec["model"]))
+    size = float(pd.to_numeric(design[spec["response"]], errors="coerce").abs().max())
+    coefficients = [  # as the analysis shows them: a coefficient within the fit's round-off of 0 is 0
+        {"term": c["term"], "coefficient": _snapped(c["coefficient"], ROUND_OFF * size)}
+        for c in fitted.out["coefficients"]
+    ]
+    if np.ptp(_predict(coefficients, names, design[names].to_numpy(dtype=float))) <= FLAT_BLEND * size:
+        return {"goal": goal, "target": target, "flat": True, "confirmation": []}  # every blend predicts the same
+    sought = _goal(goal, target, coefficients, spec["response"])
+    with _listening() as heard:
+        found = optimize_responses(
+            [{"response_name": spec["response"], "coefficients": coefficients, "factor_names": names}],
+            goals=[sought],
+            region=DesignRegion(_components(whole)),
+        )["desirability"]
+    _relay(heard)
+    low, high = _bounds(spec)
+    x = np.clip([found["optimal_coded"][n] for n in names], low, high)  # SLSQP keeps to the bounds, to rounding
+    point = dict(zip(names, x.tolist(), strict=True))
+    predicted, confidence, prediction, leverage = fitted.at(point)
+    spread = sum(abs(c["coefficient"]) for c in coefficients)
+    reached = None if goal != "target" else abs(predicted - target) <= 1e-4 * max(spread, 1e-12)  # type: ignore[operator]
+    ascent = _sense(goal, target, predicted, reached=bool(reached)) * _gradient(coefficients, names, x)
+    confirm_at, rounding = _weighed(spec, x)
+    return {
+        "goal": goal,
+        "target": target,
+        "flat": False,
+        "predicted": predicted,
+        "reached": reached,
+        "level": LEVEL,
+        "confidence": confidence,
+        "prediction": prediction,
+        "leverage": leverage,
+        "max_leverage": fitted.max_leverage,
+        "extrapolating": leverage > fitted.max_leverage * (1 + 1e-9) + 1e-12,
+        "settings": _blend_settings(spec, x, ascent, 1e-9 * max(spread, 1.0)),
+        "coded": point,
+        "limits": [],
+        "stationary": None,
+        "ascent": None,
+        "unclear": _unclear_blend(fitted.out),
+        "sensitivity": _blend_sensitivity(coefficients, spec, x),
+        "confirm_at": confirm_at,
+        "rounding": rounding,
+        "confirmation": _confirmation(every_run, spec, fitted),
+        "search": {"held": {}, "goal": sought},
+    }
+
+
+def _blend_fit(runs: pd.DataFrame, spec: dict, model: str) -> _FittedModel:
+    """Fit a mixture's Scheffé model to the runs with results, as its analysis does, and return it with its covariance.
+
+    A Scheffé model is fitted on the proportions as they are, with no intercept, so a blend's row of
+    the model matrix is its proportions and their products: :class:`_FittedModel` builds it from the
+    terms, as it does a coded row.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    y = pd.to_numeric(runs[spec["response"]], errors="coerce")
+    done = y.notna().to_numpy()
+    if not done.any():
+        raise ValueError("Enter results first: the best blend is found on the model fitted to them.")
+    blends = runs.loc[done, names].astype(float).reset_index(drop=True)
+    y = y[done].reset_index(drop=True).rename(spec["response"])
+    return _FittedModel(
+        {"out": _mixture_fit(blends, y, model, ["coefficients", "anova"]), "formula": model}, blends, names
+    )
+
+
+def _bounds(spec: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Return a mixture's lower and upper proportions, a component each, as its checked specification holds them."""
+    return (
+        np.array([f["low"] for f in spec["factors"]], dtype=float),
+        np.array([f["high"] for f in spec["factors"]], dtype=float),
+    )
+
+
+def _unclear_blend(out: dict[str, Any]) -> bool:
+    """Say whether no test of a mixture's ANOVA finds anything clearly larger than the noise: no p-value below 0.05.
+
+    The mixture ANOVA tests whether the components blend alike, and each blending term on its own (a
+    component's own coefficient is not tested against 0). With no runs left to estimate the noise it
+    tests nothing, and nothing is said.
+    """
+    p_values = [row.get("p_value") for row in out.get("anova_table") or []]
+    known = [p for p in p_values if p is not None and math.isfinite(p)]
+    return bool(known) and all(p >= CLEAR for p in known)
+
+
+def _blend_settings(spec: dict, x: np.ndarray, ascent: np.ndarray, tiny: float) -> list[dict[str, Any]]:
+    """Describe each component's proportion in the best blend, and where it lies between its bounds.
+
+    ``end`` is ``low`` or ``high`` for a component at that bound, to :data:`AT_EDGE` of half its range,
+    as for a factor at an end of its range. ``beyond`` says whether the goal improves past a bound the
+    reader set, by the prediction's gradient there (``ascent``, signed the way the prediction should
+    move). Moving a component past its bound takes the difference from another component, or gives it
+    to one, that its own bounds leave free to move that way; the goal improves past the bound when it
+    does for one such component. No proportion passes 0 or 1, so a bound at either has no ``beyond``.
+    """
+    low, high = _bounds(spec)
+    edge = AT_EDGE * (high - low) / 2
+    at_low, at_high = x <= low + edge, x >= high - edge
+    others = [[k for k in range(len(x)) if k != i] for i in range(len(x))]
+    settings = []
+    for i, f in enumerate(spec["factors"]):
+        end = "low" if at_low[i] else "high" if at_high[i] else None
+        gain = 0.0
+        if end == "low" and low[i] > PROPORTION_TOLERANCE:  # less of it: another, not at its upper bound, takes more
+            gain = max((ascent[k] - ascent[i] for k in others[i] if not at_high[k]), default=0.0)
+        elif end == "high" and high[i] < 1 - PROPORTION_TOLERANCE:  # more of it: another, not at its lower, takes less
+            gain = max((ascent[i] - ascent[k] for k in others[i] if not at_low[k]), default=0.0)
+        settings.append(
+            {
+                "name": f["name"],
+                "kind": "component",
+                "value": float(x[i]),
+                "coded": float(x[i]),
+                "units": f["units"],
+                "low": f["low"],
+                "high": f["high"],
+                "in_model": True,
+                "end": end,
+                "beyond": bool(gain > tiny),
+            }
+        )
+    return settings
+
+
+def _cox_moved(blend: np.ndarray, i: int, change: float) -> np.ndarray:
+    """Return a blend with component ``i`` moved by ``change`` along its Cox direction, so it still sums to 1.
+
+    On the Cox direction the other components keep their proportions to each other, as along the
+    direction the analysis takes each component's effect: each is scaled by ``(1 - x_i - change) /
+    (1 - x_i)``. A blend of component ``i`` alone leaves the others no proportions to keep, and they
+    share the change equally.
+    """
+    moved = blend.copy()
+    rest = 1.0 - blend[i]
+    others = np.arange(len(blend)) != i
+    if rest > PROPORTION_TOLERANCE:
+        moved[others] *= (rest - change) / rest
+    else:
+        moved[others] = (rest - change) / others.sum()
+    moved[i] = blend[i] + change
+    return moved
+
+
+def _blend_sensitivity(model: list[dict], spec: dict, x: np.ndarray) -> list[dict[str, Any]]:
+    """Return how much the prediction changes when each component moves :data:`NUDGE` of its range, along its Cox line.
+
+    ``step`` is the change in the component's proportion; ``down`` and ``up`` are the changes from the
+    prediction at the best blend; ``down_runnable`` and ``up_runnable`` say whether the blend moved to
+    keeps every component within its bounds. Every component is in a Scheffé model.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    at = float(_predict(model, names, x[None, :])[0])
+    out = []
+    for i, name in enumerate(names):
+        step = NUDGE * (high[i] - low[i])
+        moved = np.vstack([_cox_moved(x, i, -step), _cox_moved(x, i, step)])
+        down, up = (_predict(model, names, moved) - at).tolist()
+        inside = np.all((moved >= low - PROPORTION_TOLERANCE) & (moved <= high + PROPORTION_TOLERANCE), axis=1)
+        out.append(
+            {
+                "name": name,
+                "step": float(step),
+                "down": down,
+                "up": up,
+                "down_runnable": bool(inside[0]),
+                "up_runnable": bool(inside[1]),
+                "in_model": True,
+            }
+        )
+    return out
+
+
+def _weighed(spec: dict, x: np.ndarray) -> tuple[dict[str, float], dict[str, Any]]:
+    """Return the best blend as it is weighed out for a confirmation run, and how it was rounded.
+
+    Each proportion is rounded to :data:`BLEND_DECIMALS` decimals, and what the rounding leaves over,
+    or short, goes on the largest component whose bounds leave it room (``adjusted``; None when the
+    rounding leaves nothing), so the proportions still sum to 1, as decimals. When no component has the
+    room, or the rounding takes one outside its bounds, it is done again a decimal finer, up to 12
+    decimals; past that the blend is given as found, with ``decimals`` None.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    largest_first = np.argsort(-x, kind="stable")
+    for decimals in range(BLEND_DECIMALS, 13):
+        scale = 10**decimals
+        units = np.rint(x * scale).astype(np.int64)
+        short = scale - int(units.sum())
+        for k in largest_first:
+            weighed = units.copy()
+            weighed[k] += short
+            blend = weighed / scale
+            if np.all(blend >= low - PROPORTION_TOLERANCE) and np.all(blend <= high + PROPORTION_TOLERANCE):
+                adjusted = names[k] if short else None
+                return dict(zip(names, blend.tolist(), strict=True)), {"decimals": decimals, "adjusted": adjusted}
+    return dict(zip(names, x.tolist(), strict=True)), {"decimals": None, "adjusted": None}
 
 
 # --------------------------------------------------------------------------- the settings that balance the responses

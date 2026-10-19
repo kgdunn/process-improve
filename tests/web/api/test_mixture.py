@@ -400,13 +400,24 @@ def test_each_response_of_a_mixture_is_fitted_and_drawn_on_its_own(api, plotly):
     assert "ternary" in api.ok("api_plots", cost)
 
 
-def test_a_mixture_s_best_blend_and_balance_are_not_searched_yet(api):
+def test_each_response_of_a_mixture_has_its_own_best_blend(api):
+    """Each response's best blend is the peak of its own fitted model: Hardness's without C, Cost's without B."""
     held, simulation = two_responses(api)
     results = {
         "responses": simulation["responses"],
         "more_responses": {"Cost": simulation["more"]["Cost"]["responses"]},
     }
-    best = api.ok("api_best_settings", {**held, **results})
-    assert best == {"goal": "maximize", "target": None, "mixture": True}, "the search keeps no sum of 1"
+    for response, (kept, left_out) in {"Hardness": ("AB", "C"), "Cost": ("AC", "B")}.items():
+        sent = {**held, **results, "response": response}
+        best = api.ok("api_best_settings", sent)
+        blend = {s["name"]: s["value"] for s in best["settings"]}
+        assert sum(blend.values()) == pytest.approx(1.0), response
+        assert blend[left_out] == 0.0, response
+        fitted = {c["term"]: c["coefficient"] for c in api.ok("api_analyze_runs", sent)["coefficients"]}
+        first, second, both = fitted[kept[0]], fitted[kept[1]], fitted[f"{kept[0]}:{kept[1]}"]
+        # Along the edge, the response is second + (first - second + both) x - both x^2, at x of the first component.
+        sign = 1 if best["goal"] == "maximize" else -1
+        assert sign * both > 0, "the fitted edge curves the way that puts its best inside the edge"
+        assert blend[kept[0]] == pytest.approx((first - second + both) / (2 * both), abs=1e-4), response
     balance = api.ok("api_balance", {**held, **results})
     assert balance == {"balanced": False, "aimed": ["Hardness", "Cost"], "mixture": True}

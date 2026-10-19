@@ -1,0 +1,293 @@
+"""A mixture's best blend: ``api_best_settings`` for a study whose factors are the components of a blend.
+
+The search keeps to the blends: each component between its bounds, and the proportions summing to
+1. These tests hold the best blend to what can be checked another way: a dense lattice of blends
+over the same Scheffé model, the intervals ``analyze_experiment`` gives at the same blend, and the
+model's own predictions along each component's Cox direction.
+"""
+
+from __future__ import annotations
+
+import itertools
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from process_improve.experiments import analyze_experiment
+from tests.web._support import held_of, run_sheet
+
+#: Where the confirmation runs are marked on the run sheet, and how: as ``web/app.js`` adds them.
+CONFIRMATION = "Confirmation run"
+
+#: A blend of three components with a synergy between A and B and an antagonism between B and C: its highest
+#: response is on the edge without C, at A = 2/3, and its lowest on the edge without A, at B = 7/24.
+SURFACE = {"A": 30.0, "B": 25.0, "C": 20.0, "A:B": 15.0, "B:C": -12.0}
+
+#: Three components that blend better than any of them alone, and alike: the centroid gives the most.
+CENTRED = {"A": 10.0, "B": 10.0, "C": 10.0, "A:B": 30.0, "A:C": 30.0, "B:C": 30.0}
+
+#: Bounds that cut the triangle down to a hexagon, as extreme vertices need.
+BOUNDS = {"A": (0.2, 0.7), "B": (0.1, 0.6), "C": (0.0, 0.5)}
+
+
+# --------------------------------------------------------------------------- helpers
+def components(names: str = "ABC", bounds: dict[str, tuple[float, float]] | None = None) -> list[dict]:
+    """Return a mixture's components as the brief sends them: blank bounds, 0 and 1, unless ``bounds`` gives some."""
+    bounds = bounds or {}
+    return [{"name": n, "low": bounds.get(n, (None,))[0], "high": bounds.get(n, (None, None))[1]} for n in names]
+
+
+def lattice(api, q: int = 3, **change: object) -> dict:
+    """Make a simplex lattice of degree 2, its centroid added, in ``q`` components, as the page holds it."""
+    request = {"design_type": "simplex_lattice", "factors": components("ABCDEF"[:q]), "lattice_degree": 2, **change}
+    return held_of(api.ok("api_make_design", request))
+
+
+def vertices(api, **change: object) -> dict:
+    """Make extreme vertices for the bounded components, for the quadratic Scheffé model."""
+    request = {"design_type": "extreme_vertices", "factors": components(bounds=BOUNDS), **change}
+    return held_of(api.ok("api_make_design", {"mixture_model": "scheffe_quadratic", **request}))
+
+
+def blends_of(held: dict) -> pd.DataFrame:
+    """Return the run sheet's blends, a column per component."""
+    return run_sheet(held)[[f["name"] for f in held["spec"]["factors"]]].astype(float)
+
+
+def blended(blends: pd.DataFrame, terms: dict[str, float]) -> np.ndarray:
+    """Return a Scheffé model's response at each blend."""
+    return sum(value * blends[term.split(":")].prod(axis=1) for term, value in terms.items()).to_numpy()
+
+
+def results(held: dict, terms: dict[str, float], noise: float = 0.05, seed: int = 0) -> list[float]:
+    """Return each run's result from a known blend, plus a little noise."""
+    y = blended(blends_of(held), terms)
+    return (y + np.random.default_rng(seed).normal(0.0, noise, len(y))).tolist()
+
+
+def aimed(held: dict, goal: str, target: float | None = None) -> dict:
+    """Give the run sheet's response a goal, as the brief does."""
+    info = {"label": "Hardness", "units": "HV", "goal": goal, **({"target": target} if target is not None else {})}
+    return {**held, "spec": {**held["spec"], "response_info": info}}
+
+
+def best_of(api, held: dict, responses: list, goal: str = "maximize", target: float | None = None) -> dict:
+    """Return the best blend the page finds for a goal."""
+    return api.ok("api_best_settings", {**aimed(held, goal, target), "responses": responses})
+
+
+def fitted_terms(api, held: dict, responses: list) -> dict[str, float]:
+    """Return the Scheffé model the page fits, as its analysis shows it."""
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    return {c["term"]: c["coefficient"] for c in analysis["coefficients"]}
+
+
+def simplex_grid(q: int, steps: int) -> pd.DataFrame:
+    """Return every blend of ``q`` components whose proportions are whole multiples of ``1 / steps``."""
+    names = list("ABCDEF"[:q])
+    points = [p for p in itertools.product(range(steps + 1), repeat=q - 1) if sum(p) <= steps]
+    return pd.DataFrame([[*p, steps - sum(p)] for p in points], columns=names) / steps
+
+
+def blend_of(best: dict) -> np.ndarray:
+    """Return the best blend's proportions, in the components' order."""
+    return np.array([s["value"] for s in best["settings"]])
+
+
+# --------------------------------------------------------------------------- the search
+@pytest.mark.parametrize(("goal", "sign"), [("maximize", 1.0), ("minimize", -1.0)])
+def test_the_best_blend_is_the_best_of_a_dense_lattice_of_blends(api, goal, sign):
+    held = lattice(api)
+    responses = results(held, SURFACE)
+    best = best_of(api, held, responses, goal)
+    terms = fitted_terms(api, held, responses)
+    grid = simplex_grid(3, 300)
+    predicted = blended(grid, terms)
+    top = int(np.argmax(sign * predicted))
+    assert sign * best["predicted"] >= sign * predicted[top] - 1e-9, "no blend of the lattice does better"
+    np.testing.assert_allclose(blend_of(best), grid.iloc[top], atol=2 / 300)
+    assert best["predicted"] == pytest.approx(blended(pd.DataFrame([best["coded"]]), terms)[0], abs=1e-9)
+    assert best["coded"] == {s["name"]: s["value"] for s in best["settings"]}, "the blend, as the model is fitted"
+
+
+def test_the_best_blend_on_an_edge_is_at_the_lower_bound_of_the_component_it_leaves_out(api):
+    held = lattice(api)
+    best = best_of(api, held, results(held, SURFACE))
+    settings = {s["name"]: s for s in best["settings"]}
+    assert [s["kind"] for s in best["settings"]] == ["component"] * 3
+    assert settings["C"]["value"] == 0.0
+    assert settings["C"]["end"] == "low"
+    assert not settings["C"]["beyond"], "no proportion is below 0"
+    assert settings["A"]["value"] == pytest.approx(2 / 3, abs=0.01), "the synergy's peak along the edge"
+    assert settings["A"]["end"] is None
+    assert settings["B"]["end"] is None
+    assert best["ascent"] is None, "no way to move on from a blend"
+    assert best["stationary"] is None
+    assert best["limits"] == []
+
+
+def test_a_best_blend_inside_every_bound_is_found_where_the_blending_peaks(api):
+    held = lattice(api)
+    best = best_of(api, held, results(held, CENTRED, noise=0.01))
+    np.testing.assert_allclose(blend_of(best), [1 / 3] * 3, atol=0.01)
+    assert all(s["end"] is None for s in best["settings"])
+
+
+@pytest.mark.parametrize("q", [4, 5])
+def test_the_best_blend_of_more_components_sums_to_1_within_its_bounds(api, q):
+    held = lattice(api, q)
+    terms = {n: 20.0 + 3 * i for i, n in enumerate("ABCDEF"[:q])} | {"A:B": 25.0, "C:D": -20.0}
+    responses = results(held, terms)
+    best = best_of(api, held, responses)
+    x = blend_of(best)
+    assert x.sum() == pytest.approx(1.0, abs=1e-9)
+    assert (x >= -1e-12).all()
+    fitted = fitted_terms(api, held, responses)
+    grid = simplex_grid(q, 40)
+    assert best["predicted"] >= blended(grid, fitted).max() - 1e-9
+
+
+def test_the_best_blend_keeps_to_the_bounds_the_reader_sets(api):
+    held = vertices(api)
+    terms = {"A": 40.0, "B": 20.0, "C": 10.0}  # more A is better, then more B: A stops at its upper bound
+    responses = results(held, terms)
+    best = best_of(api, held, responses)
+    x = blend_of(best)
+    assert x.sum() == pytest.approx(1.0, abs=1e-9)
+    for s, (low, high) in zip(best["settings"], BOUNDS.values(), strict=True):
+        assert low - 1e-12 <= s["value"] <= high + 1e-12, s["name"]
+        assert (s["low"], s["high"]) == (low, high)
+    settings = {s["name"]: s for s in best["settings"]}
+    assert settings["A"]["value"] == pytest.approx(0.7, abs=1e-9)
+    assert settings["A"]["end"] == "high"
+    assert settings["A"]["beyond"], "more A, for less B, predicts a higher Hardness: the bound stands in the way"
+    assert settings["C"]["end"] == "low"
+    assert not settings["C"]["beyond"], "C's bound is 0: no proportion passes it"
+    assert settings["B"]["end"] is None
+    grid = simplex_grid(3, 200)
+    inside = np.all([(grid[n] >= lo) & (grid[n] <= hi) for n, (lo, hi) in BOUNDS.items()], axis=0)
+    assert best["predicted"] >= blended(grid[inside], fitted_terms(api, held, responses)).max() - 1e-9
+
+
+def test_a_target_the_blends_reach_is_reached(api):
+    held = lattice(api)
+    best = best_of(api, held, results(held, SURFACE), "target", 27.0)
+    assert best["reached"] is True
+    assert best["predicted"] == pytest.approx(27.0, abs=1e-3)
+    assert not any(s["beyond"] for s in best["settings"])
+
+
+def test_a_target_beyond_every_blend_comes_as_close_as_a_blend_can(api):
+    held = lattice(api)
+    best = best_of(api, held, results(held, SURFACE), "target", 40.0)
+    assert best["reached"] is False
+    highest = best_of(api, held, results(held, SURFACE))
+    assert best["predicted"] == pytest.approx(highest["predicted"], abs=1e-6), "the highest blend is the nearest"
+
+
+def test_a_model_no_blend_changes_finds_no_best_blend(api):
+    held = lattice(api)
+    best = best_of(api, held, [5.0] * len(held["rows"]))
+    assert best == {"goal": "maximize", "target": None, "flat": True, "confirmation": []}
+
+
+def test_a_goal_of_learning_asks_for_no_blend(api):
+    held = lattice(api)
+    assert best_of(api, held, results(held, SURFACE), "learn") == {"goal": "learn"}
+
+
+# --------------------------------------------------------------------------- what is known at the best blend
+def test_the_intervals_and_leverage_are_the_scheffe_fit_s_at_the_blend(api):
+    held = lattice(api, n_replicates=2)
+    responses = results(held, SURFACE, noise=0.5, seed=3)
+    best = best_of(api, held, responses)
+    blends = blends_of(held)
+    y = pd.Series(responses, name="y")
+    at = pd.DataFrame([best["coded"]])
+    shown = analyze_experiment(
+        blends, y, model="scheffe_quadratic", analysis_type="prediction", coding="actual", new_points=at
+    )["predictions"][0]
+    assert best["predicted"] == pytest.approx(shown["predicted"], abs=1e-9)
+    assert best["confidence"] == pytest.approx([shown["ci_low"], shown["ci_high"]], abs=1e-9)
+    assert best["prediction"] == pytest.approx([shown["pi_low"], shown["pi_high"]], abs=1e-9)
+    x = np.column_stack([blends[t.split(":")].prod(axis=1) for t in ["A", "B", "C", "A:B", "A:C", "B:C"]])
+    row = np.array([at[t.split(":")].prod(axis=1).iloc[0] for t in ["A", "B", "C", "A:B", "A:C", "B:C"]])
+    inverse = np.linalg.inv(x.T @ x)
+    assert best["leverage"] == pytest.approx(float(row @ inverse @ row), rel=1e-9)
+    assert best["max_leverage"] == pytest.approx(float(np.einsum("ij,jk,ik->i", x, inverse, x).max()), rel=1e-9)
+    assert best["extrapolating"] is False, "on the edge the lattice's runs lie along"
+
+
+def test_the_sensitivity_moves_each_component_along_its_cox_direction(api):
+    held = lattice(api)
+    responses = results(held, SURFACE)
+    best = best_of(api, held, responses)
+    terms = fitted_terms(api, held, responses)
+    x = blend_of(best)
+    for i, s in enumerate(best["sensitivity"]):
+        assert s["step"] == pytest.approx(0.05), "a twentieth of the component's range, 0 to 1"
+        for sign, change, runnable in ((-1, s["down"], s["down_runnable"]), (1, s["up"], s["up_runnable"])):
+            moved = x * (1 - x[i] - sign * s["step"]) / (1 - x[i])  # the others keep their proportions to each other
+            moved[i] = x[i] + sign * s["step"]
+            assert moved.sum() == pytest.approx(1.0)
+            expected = blended(pd.DataFrame([moved], columns=list("ABC")), terms)[0] - best["predicted"]
+            assert change == pytest.approx(expected, abs=1e-9), (s["name"], sign)
+            assert runnable == bool((moved >= -1e-12).all() and (moved <= 1 + 1e-12).all()), (s["name"], sign)
+    by_name = {s["name"]: s for s in best["sensitivity"]}
+    assert not by_name["C"]["down_runnable"], "C is at 0 already"
+    assert by_name["C"]["up_runnable"]
+
+
+def test_a_pure_component_s_blend_shares_its_change_among_the_others(bootstrap):
+    moved = bootstrap._cox_moved(np.array([1.0, 0.0, 0.0]), 0, -0.1)
+    np.testing.assert_allclose(moved, [0.9, 0.05, 0.05])
+    moved = bootstrap._cox_moved(np.array([0.5, 0.3, 0.2]), 0, 0.1)
+    np.testing.assert_allclose(moved, [0.6, 0.24, 0.16])
+
+
+# --------------------------------------------------------------------------- the confirmation runs
+def test_the_blend_is_weighed_out_to_a_thousandth_and_still_sums_to_1(api):
+    held = lattice(api)
+    best = best_of(api, held, results(held, CENTRED, noise=0.01))
+    at = best["confirm_at"]
+    thousandths = {name: round(value * 1000) for name, value in at.items()}
+    assert sum(thousandths.values()) == 1000, "the proportions sum to 1, as decimals"
+    for name, value in at.items():
+        assert value == thousandths[name] / 1000, name
+    assert best["rounding"]["decimals"] == 3
+    adjusted = best["rounding"]["adjusted"]
+    assert adjusted in at, "a third each rounds to 0.333 three times, 0.999 in all: one component takes the rest"
+    assert at[adjusted] == 0.334
+
+
+def test_rounding_keeps_each_component_within_its_bounds(bootstrap):
+    spec = {"factors": [{"name": n, "low": lo, "high": hi, "units": ""} for n, (lo, hi) in BOUNDS.items()]}
+    at, rounding = bootstrap._weighed(spec, np.array([0.7, 0.2996, 0.0004]))
+    assert at == {"A": 0.7, "B": 0.3, "C": 0.0}
+    assert rounding == {"decimals": 3, "adjusted": None}
+    at, rounding = bootstrap._weighed(spec, np.array([0.7, 0.29955, 0.00045]))  # 0.7 + 0.300 + 0.000: A is full
+    assert sum(round(v * 1000) for v in at.values()) == 1000
+    assert at["A"] <= 0.7
+    assert rounding["adjusted"] in {"B", "C", None}
+
+
+def test_confirmation_runs_at_the_blend_are_judged_against_the_scheffe_model(api):
+    held = lattice(api)
+    responses = results(held, SURFACE)
+    best = best_of(api, held, responses)
+    at = best["confirm_at"]
+    n = len(held["rows"])
+    columns = [*held["columns"], CONFIRMATION]
+    extra = [[{"Run order": n + 1 + i, CONFIRMATION: "yes", **at}.get(c) for c in columns] for i in range(3)]
+    sheet = {**held, "columns": columns, "rows": [*[[*row, None] for row in held["rows"]], *extra]}
+    predicted = blended(pd.DataFrame([at]), fitted_terms(api, held, responses))[0]
+    again = best_of(api, sheet, [*responses, predicted + 0.01, predicted - 0.02, None])
+    assert again["predicted"] == pytest.approx(best["predicted"], abs=1e-9), "the confirmation runs are not fitted"
+    [group] = again["confirmation"]
+    assert group["rows"] == [n, n + 1, n + 2]
+    assert group["at"] == at
+    assert (group["runs"], group["done"]) == (3, 2)
+    assert group["predicted"] == pytest.approx(predicted, abs=1e-9), "predicted at the blend as weighed out"
+    assert group["mean"] == pytest.approx(predicted - 0.005)
+    assert group["inside"] is True

@@ -344,6 +344,44 @@ READS: dict[str, list[str]] = {
         "cox.traces[].fitted[]: number",
         "cox.traces[].true[]: number",
     ],
+    "mixture best blend": [
+        "goal: str",
+        "flat: bool",
+        "predicted: number",
+        "reached: bool?",
+        "level: number",
+        "confidence[]: number",
+        "prediction[]: number",
+        "leverage: number",
+        "max_leverage: number",
+        "extrapolating: bool",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: number",
+        "settings[].low: number",
+        "settings[].high: number",
+        "settings[].in_model: bool",
+        "settings[].end: str?",
+        "settings[].beyond: bool",
+        "coded{}: number",
+        "limits: list",
+        "unclear: bool",
+        "sensitivity[].name: str",
+        "sensitivity[].step: number",
+        "sensitivity[].down: number",
+        "sensitivity[].up: number",
+        "sensitivity[].down_runnable: bool",
+        "sensitivity[].up_runnable: bool",
+        "sensitivity[].in_model: bool",
+        "confirm_at{}: number",
+        "rounding.decimals: int?",
+        "rounding.adjusted: str?",
+        "confirmation: list",
+        "search.held: dict",
+        "search.goal.goal: str",
+        "search.goal.low: number",
+        "search.goal.high: number",
+    ],
     "workbook": [
         "xlsx_base64: str",
     ],
@@ -596,6 +634,7 @@ ENTRY_POINTS = {
     "mixture analysis": "api_analyze_runs",
     "mixture charts": "api_plots",
     "mixture traces": "api_plots",
+    "mixture best blend": "api_best_settings",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -799,6 +838,11 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         simulation = api.ok("api_simulate", made)
         return {**made, "responses": simulation["responses"], "truth": simulation["truth"]}
 
+    def aimed_blend(q: int) -> dict:
+        """Return a blend's runs and results, with a hardness to maximise: its best blend is searched for."""
+        sent = blend(q)
+        return {**sent, "spec": {**sent["spec"], "response_info": {"label": "Hardness", "goal": "maximize"}}}
+
     def relabel() -> dict:
         design = worked_example["design"]
         sent = {**held, "facts": design["facts"], "outside_range": design["outside_range"]}
@@ -825,6 +869,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "mixture analysis": lambda: blend(3),
         "mixture charts": lambda: blend(3),
         "mixture traces": lambda: blend(4),
+        "mixture best blend": lambda: aimed_blend(3),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,
