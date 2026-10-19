@@ -49444,7 +49444,7 @@
       "quote": "CCF .999"
      },
      "check": {
-      "manual": "the squared correlation of the model's predictions with the simulator's noiseless values at the 27 points, arithmetic of Table 5.41"
+      "manual": "the squared correlation of the model's 27 predictions in Table 5.41 (each checked) with the simulator's noiseless values, 5.0(time)² - 2.3(temp) + 4.0(nickel), at the same points: 0.99974, which rounds to 1.000 (1 - SSE/SST is 0.99393); no check kind evaluates the simulator's equation"
      }
     }
    ]
@@ -51478,7 +51478,7 @@
       "quote": "D-Optimal .996"
      },
      "check": {
-      "manual": "the squared correlation of the model's predictions with the simulator's noiseless values at the 27 points"
+      "manual": "the squared correlation of the model's 27 predictions in Table 5.41 (each checked) with the simulator's noiseless values, 5.0(time)² - 2.3(temp) + 4.0(nickel), at the same points: 0.99528, which rounds to 0.995 (1 - SSE/SST is 0.99366); no check kind evaluates the simulator's equation"
      }
     }
    ]
@@ -53527,7 +53527,7 @@
       "quote": "Box-Behnken .998"
      },
      "check": {
-      "manual": "the squared correlation of the model's predictions with the simulator's noiseless values at the 27 points"
+      "manual": "the squared correlation of the model's 27 predictions in Table 5.41 (each checked) with the simulator's noiseless values, 5.0(time)² - 2.3(temp) + 4.0(nickel), at the same points: 0.98713, which rounds to 0.987 (1 - SSE/SST is 0.98418); no check kind evaluates the simulator's equation"
      }
     }
    ]
@@ -54819,7 +54819,7 @@
       "quote": "L27 .998"
      },
      "check": {
-      "manual": "the squared correlation of the model's predictions with the simulator's noiseless values at the 27 points"
+      "manual": "the squared correlation of the model's 27 predictions in Table 5.41 (each checked) with the simulator's noiseless values, 5.0(time)² - 2.3(temp) + 4.0(nickel), at the same points: 0.99798, which agrees; no check kind evaluates the simulator's equation"
      }
     }
    ]
