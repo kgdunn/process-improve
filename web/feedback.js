@@ -186,7 +186,7 @@ export function sentLines({ topic, message, email = "", screenshot = null, studi
   return [
     `Topic: ${TOPICS[topic]}`,
     `Your message: ${characters(message.trim())} characters`,
-    address ? `Your email address, to reply to: ${address}` : "No email address: the maintainer cannot reply",
+    address ? `Your email address, for a reply and a receipt: ${address}` : "No email address: the maintainer cannot reply",
     screenshot ? `A screenshot of this tab: a JPEG of ${size} KB` : "No screenshot",
     studied ? "Your study, as a link that opens it with its results" : "Not your study",
     ...contextLines(context),
@@ -269,7 +269,21 @@ export function failureWords(status) {
   return `The report could not be sent: the site refused it (HTTP ${status}).`;
 }
 
-/** Post a report to the relay; resolve to whether it went, and why not as a sentence. */
+/** A report's reference as the relay makes one: FB- and six characters of Crockford's base32, which has no I, L, O or U. */
+const REFERENCE = /^FB-[0-9A-HJKMNP-TV-Z]{6}$/;
+
+/**
+ * What the dialog says once a report has gone: its reference, when the relay gave one, and the receipt, when one went to
+ * the reader's ``email``.
+ */
+export function thanksWords({ reference = null, receipt = false, email = "" } = {}) {
+  const named = typeof reference === "string" && REFERENCE.test(reference) ? ` ${reference}` : "";
+  const words = [`Thank you: your report${named} is on its way to the maintainer.`];
+  if (receipt === true && email) words.push(`A receipt is on its way to ${email}.`);
+  return words.join(" ");
+}
+
+/** Post a report to the relay; resolve to whether it went, with its reference and whether a receipt went, or why not. */
 async function post(url, report) {
   try {
     const res = await fetch(url, {
@@ -278,7 +292,9 @@ async function post(url, report) {
       body: JSON.stringify(report),
       signal: AbortSignal.timeout(SEND_TIMEOUT),
     });
-    return res.ok ? { ok: true } : { ok: false, why: failureWords(res.status) };
+    if (!res.ok) return { ok: false, why: failureWords(res.status) };
+    const answer = await res.json().catch(() => ({}));
+    return { ok: true, reference: answer?.reference ?? null, receipt: answer?.receipt === true };
   } catch {
     return { ok: false, why: failureWords(null) }; // offline, refused, or too slow
   }
@@ -571,7 +587,7 @@ export function installFeedback({ context, study, hasStudy }) {
     field("screenshot").checked = true;
     shot = null;
     showShot();
-    note("thanks").textContent = ["Thank you: your report is on its way to the maintainer.", ...left].join(" ");
+    note("thanks").textContent = [thanksWords({ ...sent, email: report.email }), ...left].join(" ");
     part("write").hidden = true;
     part("sent").hidden = false;
     render();

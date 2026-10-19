@@ -33,6 +33,7 @@ import {
   screenshotScale,
   sentLines,
   studyProblem,
+  thanksWords,
 } from "../../../web/feedback.js";
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Array(100).fill(0), 0xff, 0xd9]);
@@ -194,7 +195,7 @@ describe("what the dialog says will be sent", () => {
     assert.deepEqual(all, [
       "Topic: Algorithm or model",
       `Your message: ${MESSAGE.length} characters`,
-      "Your email address, to reply to: reader@example.com",
+      "Your email address, for a reply and a receipt: reader@example.com",
       "A screenshot of this tab: a JPEG of 1 KB",
       "Your study, as a link that opens it with its results",
       "Last Python errors: none",
@@ -207,6 +208,28 @@ describe("what the dialog says will be sent", () => {
       "Tab on show: Run",
       "Last Python errors: none",
     ]);
+  });
+});
+
+describe("what the dialog says once a report has gone", () => {
+  test("its reference, and the receipt when one went to the reader's address", () => {
+    assert.equal(
+      thanksWords({ reference: "FB-7K3Q2M", receipt: true, email: "reader@example.com" }),
+      "Thank you: your report FB-7K3Q2M is on its way to the maintainer. A receipt is on its way to reader@example.com.",
+    );
+    assert.equal(
+      thanksWords({ reference: "FB-7K3Q2M", receipt: false, email: "reader@example.com" }),
+      "Thank you: your report FB-7K3Q2M is on its way to the maintainer.",
+      "no receipt went: the address had one today, or it could not go",
+    );
+    assert.equal(thanksWords({ reference: "FB-7K3Q2M", receipt: true }), "Thank you: your report FB-7K3Q2M is on its way to the maintainer.");
+  });
+
+  test("no reference but one as the relay makes it", () => {
+    for (const reference of [null, undefined, "", "FB-7K3Q2", "FB-7K3Q2MX", "FB-7K3QIL", "fb-7k3q2m", "<b>FB-7K3Q2M</b>", 42]) {
+      assert.equal(thanksWords({ reference }), "Thank you: your report is on its way to the maintainer.", String(reference));
+    }
+    assert.equal(thanksWords(), "Thank you: your report is on its way to the maintainer.");
   });
 });
 

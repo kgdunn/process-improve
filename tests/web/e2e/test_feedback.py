@@ -34,6 +34,8 @@ ANSWERED = f"""() => {{
   return shown('{SENT}') || shown('{FALLBACK}') || document.querySelector('{STATUS}').classList.contains('error');
 }}"""
 MESSAGE = "The surface on Learn reads as a maximum, but the canonical analysis shows a ridge along T."
+#: The reference the relay gives a report, as it makes one.
+REFERENCE = "FB-7K3Q2M"
 PACKED = re.compile(r"[A-Za-z0-9_-]+")
 #: A copy of the app at another address than factori.al, as GitHub Pages or a reader's own server serves it.
 MIRROR = "http://mirror.test/"
@@ -57,8 +59,11 @@ def relay(context: Any, site: str) -> Relay:  # noqa: ANN401 - a Playwright Brow
         if answering.status is None:
             route.abort("internetdisconnected")
             return
-        ok = answering.status == 200
-        route.fulfill(status=answering.status, json={"ok": True} if ok else {"ok": False, "error": "refused"})
+        if answering.status == 200:
+            receipt = "email" in answering.reports[-1]  # as the relay does: a receipt to the address a report gives
+            route.fulfill(status=200, json={"ok": True, "reference": REFERENCE, "receipt": receipt})
+        else:
+            route.fulfill(status=answering.status, json={"ok": False, "error": "refused"})
 
     context.route(f"{site}api/feedback", answer)
     return answering
@@ -118,7 +123,9 @@ def test_the_header_s_button_sends_the_report_and_what_goes_with_it(page, relay,
     assert topic(page) == "general"
     assert not page.is_checked("#feedback-study"), "the study goes only when the reader ticks it"
     send(page, email="reader@example.com")
-    assert page.text_content(SENT).strip().startswith("Thank you: your report is on its way to the maintainer.")
+    thanks = page.text_content(SENT).strip()
+    assert thanks.startswith(f"Thank you: your report {REFERENCE} is on its way to the maintainer.")
+    assert "A receipt is on its way to reader@example.com." in thanks
     [report] = relay.reports
     assert set(report) == {"topic", "message", "email", "screenshot", "context"}
     assert (report["topic"], report["message"], report["email"]) == ("general", MESSAGE, "reader@example.com")
@@ -151,7 +158,7 @@ def test_what_the_dialog_lists_is_what_is_sent(page, relay):
     assert shown[:3] == [
         "Topic: General",
         f"Your message: {len(MESSAGE)} characters",
-        "Your email address, to reply to: reader@example.com",
+        "Your email address, for a reply and a receipt: reader@example.com",
     ]
     assert shown[4] == "Your study, as a link that opens it with its results"
     assert "Tab on show: Learn" in shown
