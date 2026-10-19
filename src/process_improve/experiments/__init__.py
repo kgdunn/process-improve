@@ -61,6 +61,7 @@ from process_improve.experiments.structures import (
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
+from process_improve.experiments.yates import reverse_yates, yates_table
 
 __all__ = [
     "Column",
@@ -123,6 +124,7 @@ __all__ = [
     "recommend_next_step",
     "recommend_strategy",
     "rename_factors",
+    "reverse_yates",
     "run_order_trends",
     "run_sheet",
     "separating_constraint",
@@ -134,4 +136,5 @@ __all__ = [
     "trend_robust_run_order",
     "variance_components",
     "visualize_doe",
+    "yates_table",
 ]
