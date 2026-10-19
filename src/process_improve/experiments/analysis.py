@@ -1130,7 +1130,8 @@ def analyze_experiment(  # noqa: PLR0913
         # So the result can be passed to optimize_responses as a fitted model as it is.
         "response_name": reported_response,
         "factor_names": list(factor_cols),
-        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info, blocks)
+        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
+        | _without_blocks(ols_result, blocks)
         | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
         | ({"model_note": model_note} if model_note else {}),
     }
@@ -1271,13 +1272,12 @@ def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dic
     }
 
 
-def _model_summary(  # noqa: PLR0913
+def _model_summary(
     ols_result: RegressionResultsWrapper,
     formula: str,
     reported_response: str,
     model: str,
     transform_info: dict[str, Any],
-    blocks: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Fit statistics of the fitted model."""
     return {
@@ -1294,7 +1294,6 @@ def _model_summary(  # noqa: PLR0913
         "df_residual": int(ols_result.df_resid),
         "mse_residual": float(ols_result.mse_resid),
         **_sums_of_squares(ols_result),
-        **_without_blocks(ols_result, blocks),
         **_fit_criteria(ols_result),
     }
 
