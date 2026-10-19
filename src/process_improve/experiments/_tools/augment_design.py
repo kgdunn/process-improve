@@ -85,6 +85,14 @@ class AugmentDesignInput(BaseModel):
         ge=0,
         description="Seed for the exchange's random starts (add_runs_optimal). Default 42, for reproducible runs.",
     )
+    hard_limits: list[str] | None = Field(
+        None,
+        description=(
+            "Factors whose coded -1 and +1 are limits of the process (a safety limit, an instrument's range): "
+            "no new run may set them past those levels. With any named, add_axial_points and upgrade_to_rsm put "
+            "the axial runs on the faces (alpha = 1) unless alpha is given, and refuse an alpha above 1."
+        ),
+    )
 
 
 @tool_spec(
@@ -117,6 +125,10 @@ class AugmentDesignInput(BaseModel):
         -> ``augment_design(existing_design=[...], augmentation_type="upgrade_to_rsm",
                 alpha="rotatable", target_model="quadratic")``
 
+    # "Make it a response surface design, but pressure cannot go past 3 bar (coded +1)"
+        -> ``augment_design(existing_design=[...], augmentation_type="upgrade_to_rsm",
+                hard_limits=["Pressure"])``
+
     # "Add 6 D-optimal runs to improve my design"
         -> ``augment_design(existing_design=[...], augmentation_type="add_runs_optimal",
                 n_additional_runs=6, target_model="interactions")``
@@ -140,6 +152,7 @@ def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
             generators=spec.generators,
             random_state=spec.random_state,
             factor_names=spec.factor_names,
+            hard_limits=spec.hard_limits,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
