@@ -42,7 +42,12 @@ from scipy.stats import qmc
 
 from process_improve._random import check_random_state
 from process_improve.experiments._region_geometry import box_vertices
-from process_improve.experiments._uniform_sampling import UniformSampler, _affine_form
+from process_improve.experiments._uniform_sampling import (
+    UniformSampler,
+    _affine_form,
+    _compares_numbers_only,
+    _spread,
+)
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -176,9 +181,10 @@ def parse_constraint(expression: str, names: set[str]) -> list[_Evaluator]:
     if compare is None:
         raise ValueError(f"Constraint {expression!r} must be an inequality, e.g. 'A + B <= 10'.")
     terms = [_compile(compare.left, names)] + [_compile(c, names) for c in compare.comparators]
+    sides = [compare.left, *compare.comparators]
 
     inequalities = []
-    for op, lhs, rhs in zip(compare.ops, terms[:-1], terms[1:], strict=True):
+    for op, lhs, rhs, left, right in zip(compare.ops, terms[:-1], terms[1:], sides[:-1], sides[1:], strict=True):
         flip = _FLIP.get(type(op))
         if flip is None:
             raise ValueError(
@@ -186,8 +192,26 @@ def parse_constraint(expression: str, names: set[str]) -> list[_Evaluator]:
                 "a region with no volume to place runs in; for proportions summing to 1, use "
                 "mixture factors."
             )
-        inequalities.append(_difference(rhs, lhs) if flip else _difference(lhs, rhs))
+        constant = _cancelled(right, left, names) if flip else _cancelled(left, right, names)
+        inequalities.append(constant or (_difference(rhs, lhs) if flip else _difference(lhs, rhs)))
     return inequalities
+
+
+def _cancelled(first: ast.expr, second: ast.expr, names: set[str]) -> _Evaluator | None:
+    """Return ``g = first - second`` as its exact value when its factors cancel, as in ``0.1*A + 0.2*A <= 0.3*A``.
+
+    Evaluated term by term in floating point, that difference is rounding noise in
+    ``A``, which the tests of the region and the design engines would read as a limit
+    with a gradient. Read in exact arithmetic it compares numbers only. None unless both
+    sides are affine by their syntax and every factor's coefficient is exactly zero.
+    """
+    from process_improve.experiments.region import _exact_difference  # noqa: PLC0415  region imports this module
+
+    exact = _exact_difference(first, second, sorted(names))
+    if exact is None or exact[0].any():
+        return None
+    value = -exact[1]
+    return lambda _env: np.float64(value)
 
 
 def _factor_names(tree: ast.AST) -> list[str]:
@@ -291,34 +315,52 @@ class _Region:
             for j, f in enumerate(self.continuous)
         }
 
+    def offsets(self) -> np.ndarray:
+        """Return ``centre / half-range`` per continuous factor: where its actual values sit next to its coded ones."""
+        low = np.array([f.low for f in self.continuous], dtype=float)
+        high = np.array([f.high for f in self.continuous], dtype=float)
+        return (low + high) / (high - low)
+
     def slack(self, coded: np.ndarray) -> np.ndarray:
         """Return the largest ``g`` per row: the point is feasible where this is ``<= 0``.
 
-        A straight constraint whose gradient in coded units is longer than 1 has its value
-        divided by that length, a distance in coded units; a gentler one keeps its own units,
-        where ``_FEASIBILITY_TOL`` reaches further. So a point within ``_FEASIBILITY_TOL`` of a
-        straight boundary, in coded units, passes however the constraint is scaled, as in
-        :meth:`~process_improve.experiments.region.DesignRegion.feasible`. In the
-        constraint's own units, ``1e-9`` dropped vertices that lie ``1e-12`` (coded) from a
-        steep boundary such as ``120*T + 33*D + 450*F <= 17000``.
+        A straight constraint has its value divided by the length of its gradient in coded
+        units, which makes it a distance in coded units. So a point within
+        ``_FEASIBILITY_TOL`` of a straight boundary passes, and one further out fails,
+        however the constraint is scaled and whatever its units, as in
+        :meth:`~process_improve.experiments.region.DesignRegion.feasible`. A curved one has
+        its value divided by the largest size it takes over the box. In the constraint's own
+        units, ``1e-9`` dropped vertices that lie ``1e-12`` (coded) from a steep boundary
+        such as ``120*T + 33*D + 450*F <= 17000``, and let every setting pass a gentle one,
+        such as ``X <= 0.5e-9`` on a factor whose range is ``1e-9``.
         """
         env = self.actual(coded)
         rows = coded.shape[0]
         g = [
             np.broadcast_to(ineq(env), (rows,)) / size
-            for ineq, size in zip(self.inequalities, self._gradient_lengths(), strict=True)
+            for ineq, size in zip(self.inequalities, self._value_scales(), strict=True)
         ]
         return np.max(g, axis=0) if g else np.full(coded.shape[0], -np.inf)
 
-    def _gradient_lengths(self) -> np.ndarray:
-        """Return per constraint its coded gradient's length when straight and longer than 1, else 1 (cached)."""
+    def _value_scales(self) -> np.ndarray:
+        """Return per constraint what :meth:`slack` divides its value by (cached).
+
+        The length of a straight constraint's gradient in coded units; the largest size a
+        curved one takes over the box (see :func:`_spread`); and 1 for one that compares
+        numbers only, as :meth:`~process_improve.experiments.region.DesignRegion.feasible`
+        widens its tolerance.
+        """
         if self._lengths is None:
             k = len(self.continuous)
             ones = np.ones(k)
             lengths = []
             for g in self.inequalities:
-                form = _affine_form(_coded_inequality(self, g), -ones, ones) if k else None
-                lengths.append(max(math.hypot(*form[0]), 1.0) if form is not None else 1.0)
+                coded = _coded_inequality(self, g)
+                form = _affine_form(coded, -ones, ones, self.offsets()) if k else None
+                if form is None:
+                    lengths.append(_spread(coded, -ones, ones) if k else 1.0)
+                else:
+                    lengths.append(1.0 if _compares_numbers_only(*form) else math.hypot(*form[0]))
             self._lengths = np.array(lengths, dtype=float)
         return self._lengths
 
@@ -467,7 +509,7 @@ def _polytope_vertices(region: _Region) -> np.ndarray:
     """
     k = len(region.continuous)
     ones = np.ones(k)
-    forms = [_affine_form(_coded_inequality(region, g), -ones, ones) for g in region.inequalities]
+    forms = [_affine_form(_coded_inequality(region, g), -ones, ones, region.offsets()) for g in region.inequalities]
     rows = [f for f in forms if f is not None]
     if not rows or k == 0:
         return np.empty((0, k))
@@ -1848,6 +1890,7 @@ def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator, se
         (np.full(k, -1.0), np.full(k, 1.0)),
         lambda m: rng.uniform(-1.0, 1.0, size=(m, k)),
         seeds=lambda: seeds,
+        tolerances=region._value_scales(),  # so a drawn point passes slack(), as the runs must
     )
     coded = sampler.draw(_N_MOMENT_SAMPLES, rng)
     cats = np.empty((len(coded), 0), dtype=int)

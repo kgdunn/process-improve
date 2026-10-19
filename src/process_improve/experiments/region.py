@@ -55,7 +55,15 @@ from process_improve.experiments._region_geometry import (
     points_inside,
     round_significant,
 )
-from process_improve.experiments._uniform_sampling import _TOL, UniformSampler, _affine_form, _Inequality, _linear_row
+from process_improve.experiments._uniform_sampling import (
+    _TOL,
+    UniformSampler,
+    _affine_form,
+    _compares_numbers_only,
+    _Inequality,
+    _linear_row,
+    _spread,
+)
 from process_improve.experiments.factor import Constraint, Factor, FactorType, as_constraints
 
 #: Sobol points behind :meth:`DesignRegion.volume_fraction` and the searches of a curved region.
@@ -211,15 +219,17 @@ class DesignRegion:
         x : np.ndarray
             Points ``(n, k)`` in design units (coded for a box, proportions for a mixture).
         tol : float
-            How far a point may lie outside. For a straight limit of a box region whose
-            coded gradient is longer than 1 it is a distance in coded units (the limit's
-            value divided by that length); otherwise it is in the limit's own units, as for
-            a curved limit. Either way a point within ``tol`` of a straight limit's
-            boundary, in coded units, passes, however the limit is scaled. So do the
-            corners the region reports (:meth:`vertices`, :meth:`shadow`,
-            :meth:`slice_polygon`), whose rounding (see :meth:`vertices`) moves a
-            coordinate by at most ``1e-10`` in coded units, or a few times that for a
-            factor whose values pass 100000 times its range.
+            How far a point may lie outside. For a straight limit of a box region it is a
+            distance in coded units (the limit's value divided by the length of its coded
+            gradient), so a point within ``tol`` of the boundary passes and one further out
+            fails, however the limit is scaled and whatever its units: ``X <= 0.5e-9`` on a
+            range of ``1e-9`` is judged as ``X <= 0.5`` on a range of 1. For a curved
+            limit it is ``tol`` times the largest size the limit takes over the box, at its
+            corners and its centre; for one that compares numbers only, and for a mixture,
+            ``tol`` in the limit's own units. The corners the region reports
+            (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`) pass, whose rounding
+            (see :meth:`vertices`) moves a coordinate by at most ``1e-10`` in coded units,
+            or a few times that for a factor whose values pass 100000 times its range.
 
         Returns
         -------
@@ -238,13 +248,16 @@ class DesignRegion:
     def _widen(self) -> np.ndarray:
         """Return, per inequality, what the tolerance on its value is multiplied by (cached).
 
-        For a straight limit of a box region it is the length of its coded gradient when
-        above 1, which turns the tolerance into a distance; else 1, which keeps the
-        tolerance of a gently sloped or curved limit in its own units.
+        For a straight limit of a box region it is the length of its coded gradient, which
+        turns the tolerance into a distance in coded units, and for a curved one the
+        largest size it takes over the box (see :class:`_Rows`). It used to be at least 1,
+        which kept the tolerance of a gentle limit in its own units: on a factor whose
+        range is ``1e-9`` of its units, that was as wide as the range, and every setting
+        passed.
         """
         if "widen" not in self._cache:
-            scale = self._linear().scale if self.kind == "box" else [1.0] * len(self._inequalities)
-            self._cache["widen"] = np.maximum(np.asarray(scale, dtype=float), 1.0).reshape(len(self._inequalities))
+            widen = self._linear().widen if self.kind == "box" else [1.0] * len(self._inequalities)
+            self._cache["widen"] = np.asarray(widen, dtype=float).reshape(len(self._inequalities))
         return self._cache["widen"]
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
@@ -277,7 +290,12 @@ class DesignRegion:
 
         bounds = tuple(np.array(self.bounds, dtype=float).T)
         sampler = UniformSampler(
-            self._inequalities, bounds, propose, self.seed_points, on_simplex=self.kind == "mixture"
+            self._inequalities,
+            bounds,
+            propose,
+            self.seed_points,
+            on_simplex=self.kind == "mixture",
+            tolerances=self._widen(),  # so a sampled point passes feasible()
         )
         return sampler.draw(n, rng)
 
@@ -319,7 +337,7 @@ class DesignRegion:
     def _linear(self) -> _Rows:
         """Return the inequalities in coded units, split into unit-length affine rows and the rest (cached)."""
         if "rows" not in self._cache:
-            self._cache["rows"] = _Rows.of(self._inequalities, self._limit_of, len(self.names))
+            self._cache["rows"] = _Rows.of(self._inequalities, self._limit_of, self._centre / self._half)
         return self._cache["rows"]
 
     def _vertices_coded(self) -> np.ndarray | None:
@@ -749,7 +767,7 @@ class DesignRegion:
             return np.broadcast_to(value, (actual.shape[0],))
 
         ones = np.ones(len(self.names))
-        form = _affine_form(coded, -ones, ones)
+        form = _affine_form(coded, -ones, ones, centre / half)
         if form is None:
             return None
         exact = None if written is None else _exact_difference(*written, self.names)
@@ -984,8 +1002,8 @@ class DesignRegion:
         a contour of it at zero draws a straight limit straight; a curved constraint's
         slack is its own value (the left side minus the right), and ``+inf`` where it cannot
         be evaluated. A value within the default tolerance of :meth:`feasible` (``1e-9``,
-        as a coded distance for a steep straight limit) is returned as zero, so ``<= 0``
-        here agrees with :meth:`feasible` at every point.
+        as a coded distance for a straight limit) is returned as zero, so ``<= 0`` here
+        agrees with :meth:`feasible` at every point.
 
         Parameters
         ----------
@@ -1061,6 +1079,11 @@ class _Rows:
     scale : list[float]
         For each inequality (affine or not, in order), the length of its coded gradient
         (1 for a curved or constant one): dividing by it turns a value into a distance.
+    widen : list[float]
+        For each inequality, what the tolerance on its value is multiplied by: the length of
+        a straight one's coded gradient, which makes the tolerance a distance in coded
+        units; the largest size a curved one takes over the box (see :func:`_spread`); and
+        1 for one that compares numbers only.
     nonlinear, nonlinear_limit : list
         The inequalities that are not affine over the box, and their constraints' indices.
     """
@@ -1069,16 +1092,21 @@ class _Rows:
     b: np.ndarray
     limit: np.ndarray
     scale: list[float]
+    widen: list[float]
     nonlinear: list[_Inequality]
     nonlinear_limit: list[int]
 
     @classmethod
-    def of(cls, inequalities: list[_Inequality], limit_of: list[int], k: int) -> _Rows:
-        """Classify ``inequalities`` (coded functions) with the test the design engines use."""
+    def of(cls, inequalities: list[_Inequality], limit_of: list[int], offsets: np.ndarray) -> _Rows:
+        """Classify ``inequalities`` (coded functions) with the test the design engines use.
+
+        ``offsets`` holds each factor's ``centre / half-range`` (see :func:`_affine_form`).
+        """
+        k = len(offsets)
         ones = np.ones(k)
-        a_rows, b_rows, limits, scale, nonlinear, nonlinear_limit = [], [], [], [], [], []
+        a_rows, b_rows, limits, scale, widen, nonlinear, nonlinear_limit = [], [], [], [], [], [], []
         for g, limit in zip(inequalities, limit_of, strict=True):
-            form = _affine_form(g, -ones, ones) if k else (np.zeros(0), -float(g(np.zeros((1, 0)))[0]))
+            form = _affine_form(g, -ones, ones, offsets) if k else (np.zeros(0), -float(g(np.zeros((1, 0)))[0]))
             # The length without squaring: np.linalg.norm squares, which overflows from a length of 1e154, so
             # T <= 1e200 (whose fit carries noise near 1e184) and 1e200*T <= 1.2e202 were taken for curved.
             size = math.hypot(*form[0]) if form is not None else math.inf
@@ -1086,10 +1114,12 @@ class _Rows:
                 nonlinear.append(g)
                 nonlinear_limit.append(limit)
                 scale.append(1.0)
+                widen.append(_spread(g, -ones, ones))
                 continue
             a, b = cast("tuple[np.ndarray, float]", form)
-            if size <= _SNAP * (1.0 + abs(b)):  # compares numbers only
+            if _compares_numbers_only(a, b):
                 scale.append(1.0)
+                widen.append(1.0)
                 if b < -_TOL:
                     a_rows.append(np.zeros(k))
                     b_rows.append(-1.0)
@@ -1098,11 +1128,13 @@ class _Rows:
             a = np.where(np.abs(a) <= _SNAP * size, 0.0, a)
             size = math.hypot(*a)
             scale.append(size)
+            widen.append(size)
             a_rows.append(a / size)
             b_rows.append(b / size)
             limits.append(limit)
         a_mat = np.array(a_rows, dtype=float).reshape(len(a_rows), k)
-        return cls(a_mat, np.array(b_rows, dtype=float), np.array(limits, dtype=int), scale, nonlinear, nonlinear_limit)
+        b_vec, limit_vec = np.array(b_rows, dtype=float), np.array(limits, dtype=int)
+        return cls(a_mat, b_vec, limit_vec, scale, widen, nonlinear, nonlinear_limit)
 
 
 _Exact = tuple[dict[str, Fraction], Fraction]
