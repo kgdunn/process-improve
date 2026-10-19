@@ -16,11 +16,14 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+from scipy import integrate
 from scipy.spatial import ConvexHull, QhullError
 
 from process_improve.experiments import Constraint, DesignRegion, Factor, rename_factors
 from process_improve.experiments import _region_geometry as geometry
+from process_improve.experiments import _region_quadrature as quadrature
 from process_improve.experiments._region_geometry import box_share, uniform_points_inside
+from process_improve.experiments._region_quadrature import _integral, columns_named, curved_share
 from process_improve.experiments.designs import _as_constraints
 from process_improve.experiments.factor import as_constraints
 
@@ -394,11 +397,11 @@ class TestExactShare:
             (3990, 0.875 - (2247.5 - 897750 * math.log(400 / 399)) / 25 / 1000),
         ],
     )
-    def test_beside_a_curved_limit_the_straight_share_stays_exact(self, ceiling, exact):
-        """The points count only what ``T*F <= ceiling`` takes from the heat limit's exact 7/8.
+    def test_beside_a_straight_limit_a_curved_one_is_integrated_over_their_shared_factor(self, ceiling, exact):
+        """Both limits name ``T``, so the share is integrated over it, to 10 figures (#810 item 1).
 
-        Counted over all of them, the share is off by about 2e-3 in both cases; the sliver
-        ``T*F <= 3990`` takes 1.3e-5, which the points miss altogether.
+        Counted over a fixed sample, it was within 1e-4 only once the straight 7/8 was exact,
+        and the sliver ``T*F <= 3990`` takes 1.3e-5, which the sample missed altogether.
         """
         factors = [
             Factor(name="T", low=150, high=200),
@@ -407,32 +410,57 @@ class TestExactShare:
         ]
         region = DesignRegion(factors, ["T + 25*P <= 250", f"T*F <= {ceiling}"])
         assert region._exact_share() is None
-        assert region.volume_fraction() == pytest.approx(exact, abs=1e-4)
+        assert region.volume_fraction() == pytest.approx(exact, abs=1e-9)
+
+    def test_beside_a_straight_limit_a_curved_one_on_three_factors_is_sampled(self):
+        """``T*F*P`` names three factors, so there is no factor to integrate over: the points count what it takes.
+
+        They count it from the heat limit's exact 7/8, so the share is within 1e-3 of the
+        integral in closed form over ``T`` and ``P``.
+        """
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=3),
+            Factor(name="F", low=10, high=20),
+        ]
+        region = DesignRegion(factors, ["T + 25*P <= 250", "T*F*P <= 6000"])
+        exact = integrate.dblquad(
+            lambda p, t: max(0.0, min(20.0, 6000 / (t * p)) - 10.0), 150, 200, 1.0, lambda t: min(3.0, (250 - t) / 25)
+        )[0]
+        assert region._integrated_share() is None
+        assert region.volume_fraction() == pytest.approx(exact / 1000, abs=1e-3)
 
     @pytest.mark.parametrize(
         ("ceiling", "fraction"),
         [
-            pytest.param(9000, 1.0, id="T*D <= 9000 takes nothing"),
-            pytest.param(6000, 0.5, id="T*D <= 6000 takes D above 40"),
-            pytest.param(4000, 1 / 6, id="T*D <= 4000 leaves D up to 26.7"),
+            pytest.param(27000, 1.0, id="T*D*P <= 27000 takes nothing"),
+            pytest.param(12000, math.log(9 / 4) - 1 / 4, id="T*D*P <= 12000 leaves D*P up to 80"),
+            pytest.param(6000, math.log(2) / 2 - 1 / 4, id="T*D*P <= 6000 leaves D*P up to 40"),
         ],
     )
     def test_a_straight_part_too_thin_for_the_sample_gets_points_of_its_own(self, ceiling, fraction):
         """T within 0.0001 of its top is 2e-6 of the box, and no point of the box's sample lies in it (#810 item 2).
 
-        Points uniform on that slab count what the curved limit takes from it. Counted over the
-        box's points, every share here read 0.
+        The curved limit names three factors, so the share is not integrated (see the
+        ``TestCurvedShareByQuadrature`` cases). Points uniform on that slab count what the
+        curved limit takes from it. Counted over the box's points, every share here read 0.
         """
-        region = DesignRegion(HEAT_FACTORS, ["T >= 149.9999", f"T * D <= {ceiling}"])
+        factors = [*HEAT_FACTORS, Factor(name="P", low=1, high=3)]
+        region = DesignRegion(factors, ["T >= 149.9999", f"T * D * P <= {ceiling}"])
+        assert region._integrated_share() is None
         assert not region._sample_allowed().any()
         straight = region._straight_share()
         assert straight == pytest.approx(2e-6, rel=1e-6)
-        assert region.volume_fraction() / straight == pytest.approx(fraction, abs=1e-3)
+        assert region.volume_fraction() / straight == pytest.approx(fraction, abs=2e-3)
 
     def test_a_thin_part_the_sampler_cannot_cover_keeps_the_share_of_all_the_points(self):
-        """The sampler stops at five factors: with six, the share stays the fraction of the box's points."""
+        """The sampler stops at five factors: with six, the share stays the fraction of the box's points.
+
+        ``A*B*C`` names three factors, so the share is not integrated either; beside ``A*C``,
+        it is (see ``TestCurvedShareByQuadrature``).
+        """
         factors = [Factor(name=name, low=-1, high=1) for name in "ABCDEF"]
-        region = DesignRegion(factors, ["A + B <= 0.0001", "A + B >= -0.0001", "A*C <= 0"])
+        region = DesignRegion(factors, ["A + B <= 0.0001", "A + B >= -0.0001", "A*B*C <= 0"])
         assert region._straight_share() == pytest.approx(1e-4, rel=1e-4), "the band |A + B| <= 0.0001"
         assert region.volume_fraction() == 0.0
 
@@ -536,6 +564,109 @@ class TestUniformPointsInside:
         monkeypatch.setattr(geometry, "ConvexHull", fail)
         assert uniform_points_inside(np.eye(3), 8) is None
         assert uniform_points_inside(np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]), 8) is None
+
+
+class TestCurvedShareByQuadrature:
+    """A curved limit's share is integrated over a factor every limit of its group names, the hub (#810 item 1).
+
+    Each case has its share in closed form, and a fixed sample of 16384 points was within
+    about 0.005 of it.
+    """
+
+    @staticmethod
+    def _square(low: float = -1.0, names: str = "AB") -> list[Factor]:
+        return [Factor(name=name, low=low, high=1) for name in names]
+
+    def test_the_guides_heat_load_limit(self):
+        """``T*F <= 3600`` leaves (100 + 3600 ln(10/9)) / 500: the sample read 0.958374 for its 0.958596."""
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=3),
+            Factor(name="F", low=10, high=20),
+        ]
+        exact = (100 + 3600 * math.log(10 / 9)) / 500
+        assert DesignRegion(factors, ["T*F <= 3600"]).volume_fraction() == pytest.approx(exact, abs=1e-9)
+
+    @pytest.mark.parametrize(
+        ("limits", "exact"),
+        [
+            pytest.param(["A**2 + B**2 <= 1"], math.pi / 4, id="a circle, two crossings a line"),
+            pytest.param(["A**2 + B**2 <= 1", "A**2 + B**2 >= 0.25"], 0.75 * math.pi / 4, id="a ring, four"),
+            pytest.param(["A**2 <= 0.25"], 0.5, id="one factor"),
+            pytest.param(["A**2 <= 0.25", "A*B <= 0"], 0.25, id="the hub limited on its own"),
+            pytest.param(["2 <= 1", "A*B <= 0"], 0.0, id="a limit no point meets"),
+            pytest.param(["A**2 <= -1", "A*B <= 0"], 0.0, id="the hub left no value"),
+        ],
+    )
+    def test_shares_in_closed_form(self, limits, exact):
+        region = DesignRegion(self._square(), limits)
+        assert region._integrated_share() is not None
+        assert region.volume_fraction() == pytest.approx(exact, abs=1e-9)
+
+    def test_groups_of_factors_the_limits_do_not_tie_multiply(self):
+        """``A*B`` and ``C*D`` each leave 1/4 + ln(4)/4 of their own square."""
+        region = DesignRegion(self._square(0.0, "ABCD"), ["A*B <= 0.25", "C*D <= 0.25"])
+        assert region.volume_fraction() == pytest.approx((0.25 + math.log(4) / 4) ** 2, abs=1e-9)
+
+    @pytest.mark.parametrize(
+        ("ceiling", "exact"),
+        [
+            pytest.param(9000, 1.0, id="T*D <= 9000 takes nothing"),
+            pytest.param(6000, (6000 * math.log(150 / 149.9999) - 20 * 1e-4) / 40e-4, id="T*D <= 6000"),
+            pytest.param(4000, (4000 * math.log(150 / 149.9999) - 20 * 1e-4) / 40e-4, id="T*D <= 4000"),
+        ],
+    )
+    def test_a_slab_too_thin_for_any_point_is_integrated_across(self, ceiling, exact):
+        """``T`` within 0.0001 of its top: the slab is an interval of the hub, and the curved limit is read in it."""
+        region = DesignRegion(HEAT_FACTORS, ["T >= 149.9999", f"T * D <= {ceiling}"])
+        assert not region._sample_allowed().any()
+        assert region.volume_fraction() / region._straight_share() == pytest.approx(exact, rel=1e-8)
+
+    def test_a_band_narrower_than_the_grid_is_read_exactly(self):
+        """``|A + B| <= e`` is a straight interval of B at each A, kinked where it meets the edge of the box.
+
+        Both are had exactly, and ``A*C <= 0`` halves the rest: e/2 - e**2/8, with e = 1e-4.
+        A grid across B (and the box's sample) would miss a band this narrow.
+        """
+        factors = self._square(names="ABCDEF")
+        region = DesignRegion(factors, ["A + B <= 0.0001", "A + B >= -0.0001", "A*C <= 0"])
+        assert region.volume_fraction() == pytest.approx(0.5e-4 - 1e-8 / 8, rel=1e-9)
+
+    def test_a_curved_limit_on_three_factors_is_sampled(self):
+        region = DesignRegion(self._square(names="ABC"), ["A*B*C <= 0"])
+        assert region._integrated_share() is None
+        assert region.volume_fraction() == pytest.approx(0.5, abs=0.005)
+
+    def test_a_chain_of_limits_with_no_factor_in_common_is_sampled(self):
+        """A and B, B and C, C and D: no factor is in every pair. Each sign fixes the next, so 1/8 is left."""
+        region = DesignRegion(self._square(names="ABCD"), ["A*B <= 0", "B*C <= 0", "C*D <= 0"])
+        assert region._integrated_share() is None
+        assert region.volume_fraction() == pytest.approx(0.125, abs=0.005)
+
+    def test_after_the_last_halving_the_panels_are_taken_as_they_are(self, monkeypatch):
+        """With three halvings allowed, the panel around the kink of ``|x - 0.3|`` is 1/32 wide, and close enough."""
+        monkeypatch.setattr(quadrature, "_MOST_HALVINGS", 3)
+        assert _integral(lambda x: np.abs(x - 0.3), [(-1.0, 1.0)]) == pytest.approx((1.3**2 + 0.7**2) / 2, abs=1e-4)
+
+    def test_an_integrand_that_bends_everywhere_stops_at_the_most_panels(self):
+        """``|sin(500 pi x)|`` has 1000 kinks: past 512 open panels they all settle, near its 4/pi."""
+        assert _integral(lambda x: np.abs(np.sin(500 * np.pi * x)), [(-1.0, 1.0)]) == pytest.approx(4 / np.pi, abs=0.01)
+
+    def test_a_limit_counts_the_factors_it_is_evaluated_on(self):
+        """The factors a curved limit names are found by moving each one: ``0*P`` names none."""
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=3),
+            Factor(name="F", low=10, high=20),
+        ]
+        region = DesignRegion(factors, ["T*F + 0*P <= 3600"])
+        probe = region._unit_sample(2**8)
+        assert [columns_named(g, probe).tolist() for g in region._linear().nonlinear] == [[0, 2]]
+
+    def test_a_curved_limit_that_names_no_factor_is_not_integrated(self):
+        assert (
+            curved_share(np.zeros((0, 2)), np.zeros(0), [(lambda x: np.zeros(len(x)), np.array([], dtype=int))]) is None
+        )
 
 
 class TestIsEmpty:
