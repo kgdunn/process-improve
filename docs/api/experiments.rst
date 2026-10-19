@@ -83,6 +83,9 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.variance_dispersion
+   :members: variance_dispersion
+
 .. automodule:: process_improve.experiments.true_process
    :members:
    :show-inheritance:
