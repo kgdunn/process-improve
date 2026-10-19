@@ -1003,6 +1003,18 @@ def test_lenth_s0_is_one_and_a_half_times_the_median_absolute_effect():
     assert s0(out, {**check, "scale": "coefficient"}, entry) == pytest.approx(3.9375 / 2)
 
 
+def test_a_normal_plot_ranks_the_effects_ties_averaged_at_100_i_less_a_half_over_m():
+    """A of 2, B of 1, and C and the four interactions of 0: ranks 7, 6 and 3 of seven, the five zeros tied."""
+    entry = _factorial(3, [1, 3, 2, 4, 1, 3, 2, 4])
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C"}
+    out = fits(entry, check)
+    plot = reference_catalogue._FIT_KINDS["normal_plot"]
+    assert [plot(out, {**check, "term": t, "key": "rank"}, entry) for t in ("A", "B", "C", "A·B·C")] == [7, 6, 3, 3]
+    assert plot(out, {**check, "term": "A", "key": "position"}, entry) == pytest.approx(100 * 6.5 / 7)
+    assert plot(out, {**check, "rank": 1, "key": "position"}, entry) == pytest.approx(100 * 0.5 / 7)
+
+
 def test_a_percent_of_total_is_a_term_s_share_of_the_total_sum_of_squares():
     """Montgomery's percent contribution: a term's sum of squares as a percentage of the total, not Taguchi's."""
     entry = _factorial(4, FILTRATION)

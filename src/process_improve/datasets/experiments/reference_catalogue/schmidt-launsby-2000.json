@@ -26127,7 +26127,10 @@
       "quote": "(2) Rank ... A 7"
      },
      "check": {
-      "manual": "the effect's rank among the seven, tied ranks averaged; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "A",
+      "key": "rank"
      }
     },
     {
@@ -26140,7 +26143,10 @@
       "quote": "(3) p ... A 92.9"
      },
      "check": {
-      "manual": "100(i - 0.5)/7 for the effect's rank i, arithmetic; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "A",
+      "key": "position"
      }
     },
     {
@@ -26168,7 +26174,10 @@
       "quote": "(2) Rank ... B 3"
      },
      "check": {
-      "manual": "the effect's rank among the seven, tied ranks averaged; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "B",
+      "key": "rank"
      }
     },
     {
@@ -26181,7 +26190,10 @@
       "quote": "(3) p ... B 35.7"
      },
      "check": {
-      "manual": "100(i - 0.5)/7 for the effect's rank i, arithmetic; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "B",
+      "key": "position"
      }
     },
     {
@@ -26209,7 +26221,10 @@
       "quote": "(2) Rank ... C 1"
      },
      "check": {
-      "manual": "the effect's rank among the seven, tied ranks averaged; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "C",
+      "key": "rank"
      }
     },
     {
@@ -26222,7 +26237,10 @@
       "quote": "(3) p ... C 7.1"
      },
      "check": {
-      "manual": "100(i - 0.5)/7 for the effect's rank i, arithmetic; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "C",
+      "key": "position"
      }
     },
     {
@@ -26250,7 +26268,10 @@
       "quote": "(2) Rank ... D 5"
      },
      "check": {
-      "manual": "the effect's rank among the seven, tied ranks averaged; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "D",
+      "key": "rank"
      }
     },
     {
@@ -26263,7 +26284,10 @@
       "quote": "(3) p ... D 64.3"
      },
      "check": {
-      "manual": "100(i - 0.5)/7 for the effect's rank i, arithmetic; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "D",
+      "key": "position"
      }
     },
     {
@@ -26291,7 +26315,10 @@
       "quote": "(2) Rank ... E 2"
      },
      "check": {
-      "manual": "the effect's rank among the seven, tied ranks averaged; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "E",
+      "key": "rank"
      }
     },
     {
@@ -26304,7 +26331,10 @@
       "quote": "(3) p ... E 21.4"
      },
      "check": {
-      "manual": "100(i - 0.5)/7 for the effect's rank i, arithmetic; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "E",
+      "key": "position"
      }
     },
     {
@@ -26332,7 +26362,10 @@
       "quote": "(2) Rank ... F 5"
      },
      "check": {
-      "manual": "the effect's rank among the seven, tied ranks averaged; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "F",
+      "key": "rank"
      }
     },
     {
@@ -26345,7 +26378,10 @@
       "quote": "(3) p ... F 64.3"
      },
      "check": {
-      "manual": "100(i - 0.5)/7 for the effect's rank i, arithmetic; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "F",
+      "key": "position"
      }
     },
     {
@@ -26373,7 +26409,10 @@
       "quote": "(2) Rank ... G 5"
      },
      "check": {
-      "manual": "the effect's rank among the seven, tied ranks averaged; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "G",
+      "key": "rank"
      }
     },
     {
@@ -26386,7 +26425,10 @@
       "quote": "(3) p ... G 64.3"
      },
      "check": {
-      "manual": "100(i - 0.5)/7 for the effect's rank i, arithmetic; the effects are checked"
+      "kind": "normal_plot",
+      "model": "A + B + C + D + E + F + G",
+      "term": "G",
+      "key": "position"
      }
     },
     {

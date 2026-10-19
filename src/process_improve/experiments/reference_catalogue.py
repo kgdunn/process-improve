@@ -713,6 +713,24 @@ def _lenth_ratio(out: dict, check: dict) -> tuple[float, float]:
     return ratio, 2 * float(t_value_cdf(-abs(ratio), len(lenth["effects"]) / 3))
 
 
+def _normal_plot(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a place on a normal plot of the fit's effects: a term's rank, or a plotting position in percent.
+
+    The effects are the library's, one for each estimable contrast (those Lenth's method judges), ranked from the most
+    negative, tied ranks averaged. ``check["key"]`` is ``"rank"``, the rank of ``check["term"]``, or ``"position"``,
+    100(i - 1/2)/m for the rank i of m effects: the term's, or ``check["rank"]`` itself, for a source that prints the
+    positions without naming the effects beside them.
+    """
+    effects = out["lenth_method"]["effects"]
+    rank = check.get("rank")
+    if rank is None:
+        values = pd.Series([e["effect"] for e in effects])
+        ranks = (values / values.abs().max()).round(9).rank()  # effects equal in exact arithmetic tie
+        wanted = set(_library_term(check["term"]).split(":"))
+        rank = next(r for e, r in zip(effects, ranks, strict=True) if set(e["term"].split(":")) == wanted)
+    return float(rank) if check["key"] == "rank" else 100 * (float(rank) - 0.5) / len(effects)
+
+
 def _prediction(out: dict, check: dict, experiment: dict) -> float:
     """Return the model's prediction at a point in coded units, as the library predicts new runs.
 
@@ -1258,6 +1276,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "lenth_sme": lambda out, c, _e: _lenth(out, "SME", c),
     "lenth_t": lambda out, c, _e: _lenth_ratio(out, c)[0],
     "lenth_p": lambda out, c, _e: _lenth_ratio(out, c)[1],
+    "normal_plot": _normal_plot,
     "anova_sum_sq": lambda out, c, _e: _anova_row(out, c["term"])["sum_sq"],
     "anova_mean_sq": lambda out, c, _e: _anova_row(out, c["term"])["mean_sq"],
     "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],

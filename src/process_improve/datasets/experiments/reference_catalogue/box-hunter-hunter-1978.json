@@ -33071,14 +33071,119 @@
      "what": "normal_plot",
      "term": "P",
      "value": "3.3 10.0 16.7 23.3 30.0 36.7 43.3 50.0 56.7 63.3 70.0 76.7 83.3 90.0 96.7",
+     "analysis": "the plotting positions 100(i - 1/2)/15 of the 15 effects of the library's fit, i their rank",
      "where": {
       "page": 331,
       "source_kind": "table",
       "quote": "Table 10.9 ... P = 100(i - 1/2)/15"
      },
-     "check": {
-      "manual": "plotting positions for a normal plot of 15 effects, 100(i - 1/2)/15, which no check computes; the effects ordered beside them are those of Table 10.8, checked there"
-     }
+     "check": [
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 1,
+       "printed": "3.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 2,
+       "printed": "10.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 3,
+       "printed": "16.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 4,
+       "printed": "23.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 5,
+       "printed": "30.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 6,
+       "printed": "36.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 7,
+       "printed": "43.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 8,
+       "printed": "50.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 9,
+       "printed": "56.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 10,
+       "printed": "63.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 11,
+       "printed": "70.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 12,
+       "printed": "76.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 13,
+       "printed": "83.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 14,
+       "printed": "90.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 15,
+       "printed": "96.7"
+      }
+     ]
     },
     {
      "what": "coefficient",
@@ -37559,14 +37664,28 @@
      "what": "normal_plot",
      "term": "P",
      "value": "1.6 ... 98.4",
+     "analysis": "the first and last plotting positions 100(i - 1/2)/31 of the 31 effects of the library's fit of the 2^5",
      "where": {
       "page": 375,
       "source_kind": "table",
       "quote": "Figure 12.1 ... P (%) 1.6 ... 98.4"
      },
-     "check": {
-      "manual": "plotting positions of the normal plots, 100(i - 1/2)/m, which no check computes"
-     }
+     "check": [
+      {
+       "kind": "normal_plot",
+       "model": "feed * catalyst * agitation * temperature * concentration",
+       "key": "position",
+       "rank": 1,
+       "printed": "1.6"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "feed * catalyst * agitation * temperature * concentration",
+       "key": "position",
+       "rank": 31,
+       "printed": "98.4"
+      }
+     ]
     },
     {
      "what": "fraction_runs",
