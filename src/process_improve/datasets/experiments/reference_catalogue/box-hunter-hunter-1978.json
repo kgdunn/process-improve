@@ -17562,7 +17562,7 @@
       "quote": "s²d = (3.030 - 1.681)/9 = 0.149"
      },
      "check": {
-      "manual": "the variance of the 10 differences, which no kind reads directly (it is 0.1499; the block model's residual mean square is half of it)"
+      "manual": "the variance of the 10 differences, (3.030 - 1.681)/9 = 0.14989, which rounds to 0.150; the book truncates it to 0.149 (half of it is the block model's residual mean square)"
      }
     },
     {
@@ -17575,7 +17575,7 @@
       "quote": "sd = √0.149 = 0.386"
      },
      "check": {
-      "manual": "the standard deviation of the 10 differences (it is 0.387)"
+      "manual": "the standard deviation of the 10 differences, the block model's residual standard error times √2: 0.38715, which rounds to 0.387; the book's 0.386 is the square root of its 0.149"
      }
     },
     {
@@ -17677,7 +17677,7 @@
       "quote": "t0 = (0.41 - 0.10)/0.12 = 2.6; Pr(t > 2.6) ≈ 0.014"
      },
      "check": {
-      "manual": "a test against a stated difference of 0.10, which no check computes (2.53 from the unrounded standard error)"
+      "manual": "the t of the 10 differences against a difference of 0.10: ttest_one_sample with mu = 0.10 gives 2.532 (classical_test, key t_value); the book divides by the standard error rounded to 0.12, (0.41 - 0.10)/0.12 = 2.58"
      }
     },
     {
@@ -17690,7 +17690,7 @@
       "quote": "Pr(t > 2.6) ≈ 0.014"
      },
      "check": {
-      "manual": "a test against a stated difference of 0.10, which no check computes (0.016 from the unrounded standard error)"
+      "manual": "the one-sided p of the same test: ttest_one_sample with mu = 0.10 gives 0.0161 (classical_test, key p_value_greater); the book's 0.014 is Pr(t > 2.6) on 9 degrees of freedom, 0.0144, for its t rounded to 2.6"
      }
     },
     {
