@@ -552,7 +552,9 @@ def test_a_setting_missing_or_wrong_is_named(changes, reason):
 
 def test_the_relay_runs_as_systemd_runs_it_and_stops_at_a_missing_setting(tmp_path):
     """Under ``python3 -I``, as its first line asks: nothing from the checkout is imported."""
-    environment = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)}
+    # SYSTEMROOT where there is one: Python 3.10 on Windows seeds its hashes through it, and stops without it
+    environment = {name: os.environ[name] for name in ("PATH", "SYSTEMROOT") if name in os.environ}
+    environment["HOME"] = str(tmp_path)
     stopped = subprocess.run(  # noqa: S603 - the script under test, with a fixed argument list
         [sys.executable, "-I", str(SCRIPT)], env=environment, capture_output=True, text=True, check=False, timeout=30
     )
