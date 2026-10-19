@@ -1330,6 +1330,23 @@ def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
     assert not _library_text({}, cell | {"key": "tag"}, "Full")[1]
 
 
+def test_a_printed_limit_is_the_library_limit_through_cut_points_on_the_factors():
+    """T and P cut at 190 and 2.5 from the corner (200, 3) give T + 20 P <= 250, however it is printed."""
+    from process_improve.experiments.reference_catalogue import _limit_through
+
+    entry = {
+        "factors": [
+            {"name": "T", "type": "numeric", "low": 150, "high": 200},
+            {"name": "P", "type": "numeric", "low": 1, "high": 3},
+        ]
+    }
+    check = {"corner": {"T": 200, "P": 3}, "cuts": {"T": 190, "P": 2.5}}
+    assert _limit_through(entry, check, "T + 20 P ≤ 250") == ("T + 20 * P <= 250", True)
+    assert _limit_through(entry, check, "t + 20*p <= 250")[1]
+    assert not _limit_through(entry, check, "T + 20 P ≥ 250")[1]
+    assert not _limit_through(entry, check, "T + 20 P ≤ 251")[1]
+
+
 def test_a_number_the_construction_records_is_a_design_property():
     from process_improve.experiments.reference_catalogue import _design_property
 

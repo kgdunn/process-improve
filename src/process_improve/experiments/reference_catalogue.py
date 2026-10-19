@@ -88,6 +88,7 @@ from process_improve.experiments.projections import evaluate_projections
 from process_improve.experiments.random_effects import expected_mean_squares
 from process_improve.experiments.random_effects import fixed_columns as _fixed_columns
 from process_improve.experiments.run_order import run_order_trends
+from process_improve.experiments.separating import constraint_through_cuts
 from process_improve.experiments.trade_off import minimum_aberration_generators
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
@@ -2203,6 +2204,26 @@ def _library_text(_experiment: dict, check: dict, printed: str) -> tuple[str, bo
     return text, " ".join(text.split()) == " ".join(str(printed).split())
 
 
+def _limit_through(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Compare a printed straight limit on the factors with the library's limit through cut points on them.
+
+    ``check["corner"]`` is a corner of the factors' box that cannot be run and ``check["cuts"]`` the value each limited
+    factor reaches from it, the others held at the corner, in actual units, as
+    :func:`~process_improve.experiments.separating.constraint_through_cuts` takes them; the box is the entry's numeric
+    factors' ranges. The two limits agree when they read the same without spaces or signs of multiplication, in
+    either case, with ≥ and ≤ written >= and <=.
+    """
+    factors = [
+        Factor(name=f["name"], low=f["low"], high=f["high"]) for f in experiment["factors"] if f["type"] == "numeric"
+    ]
+    found = constraint_through_cuts(factors, check["corner"], check["cuts"]).expression
+
+    def plain(limit: str) -> str:
+        return re.sub(r"[\s*]", "", limit.replace("\u2265", ">=").replace("\u2264", "<=")).lower()
+
+    return found, plain(found) == plain(printed)
+
+
 def _active(out: dict, check: dict) -> tuple[str, bool]:
     margin = "active_SME" if check.get("margin") == "SME" else "active_ME"
     found = {e["term"] for e in out["lenth_method"]["effects"] if e[margin]}
@@ -3172,6 +3193,7 @@ _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "same_runs": _same_runs,
     "generator_holds": _generator_holds,
     "library_text": _library_text,
+    "limit_through": _limit_through,
     "generalized_interactions": _generalized_interactions,
     "product_column": _product_column,
     "same_projections": _same_projections,
