@@ -8,6 +8,7 @@ confounded with the blocks. Montgomery (Example 9.1) names the syrup loss compon
 
 from __future__ import annotations
 
+import doctest
 import itertools
 
 import numpy as np
@@ -16,6 +17,7 @@ import pytest
 import statsmodels.formula.api as smf
 from statsmodels.stats.anova import anova_lm
 
+from process_improve.experiments import three_level_components
 from process_improve.experiments.reference_catalogue import reference_experiments
 from process_improve.experiments.three_level_components import interaction_components
 
@@ -117,6 +119,13 @@ def test_reversing_a_factor_s_levels_exchanges_the_i_and_j_components():
     backward_order = pd.CategoricalDtype(["hi", "mid", "lo"], ordered=True)
     backward = components(interaction_components(runs.astype({"A": order, "B": backward_order}), "y", ["A", "B"]))
     assert (backward["I(AB)"], backward["J(AB)"]) == pytest.approx((forward["J(AB)"], forward["I(AB)"]))
+
+
+def test_the_docstring_example_prints_what_it_shows():
+    """Montgomery's tool life (Example 5.5): AB = 33.333 and AB^2 = 28.000, as the docstring prints."""
+    result = doctest.testmod(three_level_components, report=False)
+    assert result.attempted > 0
+    assert result.failed == 0
 
 
 # --------------------------------------------------------------------------- what is refused
