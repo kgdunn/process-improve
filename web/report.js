@@ -8,7 +8,10 @@
 
 import { GOALS, escape, isCategorical, listNames, responsesOf } from "./logic.js";
 
-/** The seed a design's runs are put in random order with; mirrors bootstrap.RUN_ORDER_SEED. */
+/**
+ * The seed a design's runs are put in random order with when its specification names none: the worked example's,
+ * and the studies saved before each study had a seed of its own. Mirrors bootstrap.RUN_ORDER_SEED.
+ */
 export const RUN_ORDER_SEED = 42;
 
 /** The design type of runs as given, whose order is the reader's own; mirrors bootstrap.GIVEN. */
@@ -48,11 +51,17 @@ export function runtimeWords(runtime) {
   return packages.length ? `${python}, with ${listNames(packages)}` : python;
 }
 
-/** How the run order came about: drawn at random with the seed, or as the reader gave it. */
+/**
+ * How the run order came about: drawn at random with the study's seed, or as the reader gave it. The runs added to
+ * a study are drawn with its seed plus the number of runs before them; a study saved before studies had a seed of
+ * their own used RUN_ORDER_SEED for both.
+ */
 export function orderWords(spec) {
-  if (spec.design_type !== GIVEN) return `Drawn at random with seed ${RUN_ORDER_SEED}.`;
-  if (spec.options?.grown) return `As the study had them, then the runs added, drawn at random with seed ${RUN_ORDER_SEED}.`;
-  return "As given.";
+  const seed = spec.options?.random_state;
+  if (spec.design_type !== GIVEN) return `Drawn at random with seed ${seed ?? RUN_ORDER_SEED}.`;
+  if (!spec.options?.grown) return "As given.";
+  if (seed === undefined) return `As the study had them, then the runs added, drawn at random with seed ${RUN_ORDER_SEED}.`;
+  return `As the study had them, then each set of runs added, drawn at random with seed ${seed} plus the number of runs before it.`;
 }
 
 /**

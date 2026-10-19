@@ -202,7 +202,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
-import { briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
+import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
@@ -1321,13 +1321,28 @@ function picturedRuns() {
   return d.rows.map((row) => Object.fromEntries(d.columns.map((name, j) => [name, Number(row[j])])));
 }
 
-/** Make the run sheet the plan describes; resolves to true when it is on the page. */
-async function generate() {
+/** Whether the next run sheet made takes the place of the study on the page: one begun here, with no result typed in. */
+const replacesStudy = () => Boolean(state.campaign?.replaceable) && !Object.values(state.marks).some((marks) => marks.includes("entered"));
+
+/**
+ * The seed the next run sheet's runs are put in random order with: the study's own while the run sheet takes its
+ * place, so it is kept for the study's life; else a new study's, the moment it begins, in seconds.
+ */
+function studySeed() {
+  const kept = replacesStudy() ? state.design?.spec?.options?.random_state : undefined;
+  return Number.isInteger(kept) ? kept : Math.floor(Date.now() / 1000);
+}
+
+/**
+ * Make the run sheet the plan describes; resolves to true when it is on the page. ``randomState`` is the seed its
+ * runs are put in random order with, the study's unless it is given; a design taken from the comparison has its own.
+ */
+async function generate({ randomState } = {}) {
   cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
   let key = planKey();
   const factors = readFactors();
   const responses = readResponses({ fresh: true });
-  const picked = state.picked?.key === key ? state.picked : null;
+  const picked = randomState === undefined && state.picked?.key === key ? state.picked : null;
   const design = picked && (await pickedDesign(picked, factors));
   if (design) {
     // The design the Design tab made for this plan already: the same runs, with the brief's words on them, and a
@@ -1363,6 +1378,7 @@ async function generate() {
     constraints: currentLimits(),
     runs: $("#design-type").value === GIVEN ? givenRuns() : undefined,
     blocks: $("#design-type").value === GIVEN ? givenBlocks() : undefined,
+    random_state: randomState ?? studySeed(),
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
@@ -1436,7 +1452,7 @@ function madeRunSheet(design, warnings, key) {
  */
 function showDesign(design, warnings = [], { save = true } = {}) {
   flushSave();
-  const replaces = state.campaign?.replaceable && !Object.values(state.marks).some((marks) => marks.includes("entered"));
+  const replaces = replacesStudy();
   state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
   state.example = !save;
   state.design = design;
@@ -1496,7 +1512,7 @@ function candidateRequest() {
   const factors = readFactors();
   const info = readResponseInfo();
   const response = responseName(info.label, factors.map((f) => f.name));
-  return { factors, model: currentAim(), response, response_info: info, constraints: currentLimits() };
+  return { factors, model: currentAim(), response, response_info: info, constraints: currentLimits(), random_state: studySeed() };
 }
 
 /** What makes two briefs' designs the same: the factors, the aim, the limits, and the noise and change power is for. */
@@ -3534,7 +3550,7 @@ async function runExample() {
   showScenarioHint();
   seed = example.seed;
   selectTab("simulate");
-  if (!(await generate())) return;
+  if (!(await generate({ randomState: RUN_ORDER_SEED }))) return; // the worked example's runs, as the build made them
   state.campaign = null; // the worked example, run here, is not saved
   state.example = true;
   history.replaceState(null, "", `${location.pathname}?${EXAMPLE_PARAM}=${WORKED}`);
