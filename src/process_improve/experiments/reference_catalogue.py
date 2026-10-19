@@ -2618,9 +2618,11 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     is (|X'X - X'Z(Z'Z)^-1 Z'X| / |X'X|)^(1/p), with ``Z`` the columns ``check["covariates"]`` of the
     runs: the share of the model's information a time trend (or another covariate) leaves, 1 when the
     model's columns are orthogonal to it, in percent with ``"percent": true``. ``check["set"]`` changes
-    some elements of the runs first (see :func:`_changed`).
+    some elements of the runs first (see :func:`_changed`). ``check["summary"]`` reads a run's
+    readings as a fit does (see :func:`_coded_runs`): with ``"each"`` every reading is a row of X,
+    and X'y sums them all.
     """
-    settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
     settings = _changed(settings, check.get("set"))
     model = dmatrix(check["model"], settings, return_type="dataframe")
     matrix = model.to_numpy()
@@ -3276,9 +3278,10 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
     ``"columns"`` (0-based) pick part of it, ``"diagonal": true`` its diagonal, and ``"abs": true``
     compares its entries' sizes, as a source prints them ±2. ``"average": true`` returns the mean of
     the rows picked, the average row of one block's model matrix that orthogonal blocking compares.
-    ``check["set"]`` changes some elements of the runs first (see :func:`_changed`).
+    ``check["set"]`` changes some elements of the runs first (see :func:`_changed`), and ``check["summary"]``
+    reads a run's readings as :func:`_normal_equations` does.
     """
-    settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
     settings = _changed(settings, check.get("set"))
     matrix = dmatrix(check["model"], settings, return_type="dataframe").to_numpy()
     found = {

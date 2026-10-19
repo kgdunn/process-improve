@@ -75423,7 +75423,16 @@
       "quote": "BX'Y = [1.93 0.69 -0.33 0.89] [15.46, 5.54, -2.66, 7.14] = 40.892"
      },
      "check": {
-      "manual": "X'Y = 8 times the coefficient, which is checked"
+      "kind": "normal_equations",
+      "model": "A + B + C",
+      "key": "xty.0",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -75436,7 +75445,16 @@
       "quote": "BX'Y = [1.93 0.69 -0.33 0.89] [15.46, 5.54, -2.66, 7.14] = 40.892"
      },
      "check": {
-      "manual": "X'Y = 8 times the coefficient, which is checked"
+      "kind": "normal_equations",
+      "model": "A + B + C",
+      "key": "xty.1",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -75449,7 +75467,16 @@
       "quote": "BX'Y = [1.93 0.69 -0.33 0.89] [15.46, 5.54, -2.66, 7.14] = 40.892"
      },
      "check": {
-      "manual": "X'Y = 8 times the coefficient, which is checked"
+      "kind": "normal_equations",
+      "model": "A + B + C",
+      "key": "xty.2",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -75462,7 +75489,16 @@
       "quote": "BX'Y = [1.93 0.69 -0.33 0.89] [15.46, 5.54, -2.66, 7.14] = 40.892"
      },
      "check": {
-      "manual": "X'Y = 8 times the coefficient, which is checked"
+      "kind": "normal_equations",
+      "model": "A + B + C",
+      "key": "xty.3",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {

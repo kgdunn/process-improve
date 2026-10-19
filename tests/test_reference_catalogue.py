@@ -1763,6 +1763,18 @@ def test_the_normal_equations_are_read_entry_by_entry():
     assert _normal_equations(entry, {**without, "key": "inverse.0.1"}) == pytest.approx(1 / 52)
 
 
+def test_the_normal_equations_take_every_reading_of_a_run_as_a_row():
+    """Four runs read twice are eight rows of X, so X'y sums both readings: 1 + 3 + 2 + 4 + 4 + 4 + 6 + 9."""
+    from process_improve.experiments.reference_catalogue import _normal_equations, _normal_equations_array
+
+    entry = _replicated_2x2([[1, 3], [2, 4], [4, 4], [6, 9]])
+    check = {"model": "A + B", "summary": {"of": ["y1", "y2"], "statistic": "each"}}
+    assert _normal_equations(entry, {**check, "key": "xty.0"}) == 33
+    assert _normal_equations(entry, {**check, "key": "xtx.0.0"}) == 8
+    assert _normal_equations_array(entry, {**check, "key": "xty"}).tolist() == [33, 9, 13]
+    assert _normal_equations(entry, {"model": "A + B", "key": "xty.0"}) == 13  # the first reading alone
+
+
 def test_a_prediction_interval_is_read_as_its_half_width_and_the_point_s_leverage():
     """At a corner of the 2^4 fitted with A and B, x0'(X'X)^-1 x0 = 3/16; the interval is t s sqrt(1 + 3/16) wide."""
     from process_improve.experiments.reference_catalogue import _dot_product
