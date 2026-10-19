@@ -8,7 +8,8 @@ is ``f_value(0.95, 3, 16)``.
 The tests are the ones a first course in designed experiments uses before any model is fitted:
 a mean against a stated value, by :math:`t` or with :math:`\sigma` known by :math:`z`; two groups by
 Wilcoxon's rank sum; and two groups, or pairs, by a randomization test that enumerates every way
-the labels could have fallen, which is what Fisher's argument for randomization rests on. The
+the labels could have fallen, which is what Fisher's argument for randomization rests on. Inverting
+that test gives a confidence interval for the difference that assumes no distribution. The
 autocorrelation of a record in time order says whether its observations can be treated as
 independent.
 
@@ -194,18 +195,28 @@ def ztest(
     return {"difference": difference, "std_error": std_error, "z_value": z, **_p_values(z, stats.norm())}
 
 
-def _arrangement_sums(pooled: np.ndarray, size: int, limit: int, rng: np.random.Generator) -> tuple[np.ndarray, bool]:
-    """Return the sum of every subset of ``size`` of the pooled values, or of a random sample of subsets."""
-    total = math.comb(len(pooled), size)
+def _arrangements(n: int, size: int, limit: int, rng: np.random.Generator) -> tuple[np.ndarray, bool]:
+    """Return every subset of ``size`` of ``range(n)``, one per row, or a random sample of ``limit`` of them."""
+    total = math.comb(n, size)
     if total <= limit:
         combos = np.fromiter(
-            itertools.chain.from_iterable(itertools.combinations(range(len(pooled)), size)),
-            dtype=np.int64,
-            count=total * size,
+            itertools.chain.from_iterable(itertools.combinations(range(n), size)), dtype=np.int64, count=total * size
         ).reshape(total, size)
-        return pooled[combos].sum(axis=1), True
-    picks = np.argsort(rng.random((limit, len(pooled))), axis=1)[:, :size]
-    return pooled[picks].sum(axis=1), False
+        return combos, True
+    return np.argsort(rng.random((limit, n)), axis=1)[:, :size], False
+
+
+def _arrangement_sums(pooled: np.ndarray, size: int, limit: int, rng: np.random.Generator) -> tuple[np.ndarray, bool]:
+    """Return the sum of every subset of ``size`` of the pooled values, or of a random sample of subsets."""
+    subsets, exact = _arrangements(len(pooled), size, limit, rng)
+    return pooled[subsets].sum(axis=1), exact
+
+
+def _sign_patterns(n: int, limit: int, rng: np.random.Generator) -> tuple[np.ndarray, bool]:
+    """Return every pattern of n signs, one per row, or a random sample of ``limit`` of them."""
+    if 2**n <= limit:
+        return np.array(list(itertools.product((1.0, -1.0), repeat=n))).reshape(2**n, n), True
+    return rng.choice((1.0, -1.0), size=(limit, n)), False
 
 
 def _counts(found: np.ndarray, observed: float, scale: float) -> dict[str, Any]:
@@ -244,6 +255,8 @@ def randomization_test(
     mean difference, and the arrangements are every pattern of signs on the differences. Under the
     null hypothesis that the treatments do not differ, each arrangement was as likely as the one
     observed. When there are more than ``max_arrangements``, that many are drawn at random instead.
+    To test a stated difference, give the differences less it, or ``y`` less it for two groups;
+    :func:`randomization_interval` gives every difference this test does not reject.
 
     Returns
     -------
@@ -259,13 +272,7 @@ def randomization_test(
     first = np.asarray(x, dtype=float)
     if paired or y is None:
         differences = first if y is None else np.asarray(y, dtype=float) - first
-        n = len(differences)
-        if 2**n <= max_arrangements:
-            signs = np.array(list(itertools.product((1.0, -1.0), repeat=n)))
-            exact = True
-        else:
-            signs = rng.choice((1.0, -1.0), size=(max_arrangements, n))
-            exact = False
+        signs, exact = _sign_patterns(len(differences), max_arrangements, rng)
         found = (signs * np.abs(differences)).mean(axis=1)
         observed = float(differences.mean())
         scale = float(np.abs(differences).max(initial=0.0))
@@ -277,6 +284,107 @@ def randomization_test(
         observed = float(second.mean() - first.mean())
         scale = float(np.abs(pooled).max(initial=0.0))
     return {"statistic": observed, **_counts(found, observed, scale), "exact": exact}
+
+
+def randomization_interval(
+    x: Sequence[float],
+    y: Sequence[float] | None = None,
+    paired: bool = False,
+    confidence: float = 0.95,
+    random_state: int | np.random.Generator | None = None,
+) -> dict[str, Any]:
+    r"""Return the confidence interval for a difference that inverts the randomization test.
+
+    The test of a stated difference :math:`\delta` is :func:`randomization_test` of the
+    observations shifted by it: the differences less :math:`\delta` for pairs, or ``y`` less
+    :math:`\delta` for two groups. The interval holds every :math:`\delta` that neither one-sided
+    test rejects at level :math:`(1 - \text{confidence}) / 2`, counting an arrangement whose
+    statistic ties the observed one as at least as extreme, as ``p_value`` does.
+
+    Each arrangement other than the observed one passes the observed statistic at one value of
+    :math:`\delta`, its breakpoint. For pairs this is the mean of the differences whose signs it
+    changes; for two groups, the mean of the ``y`` it moves less the mean of the ``x`` it moves.
+    Of the :math:`M` arrangements, the number at least as large as the observed statistic is 1
+    plus the number of breakpoints at or below :math:`\delta`. So the limits are the
+    :math:`m`-th smallest and the :math:`m`-th largest breakpoint, with
+    :math:`m = \lfloor M (1 - \text{confidence}) / 2 \rfloor` (Hartigan, 1969, for pairs), and the
+    interval's own confidence, :math:`1 - 2m/M`, is the largest the arrangements allow that does
+    not exceed the one asked for. When there are more than
+    :data:`MOST_ARRANGEMENTS` arrangements, that many are drawn at random instead.
+
+    Parameters
+    ----------
+    x : sequence of float
+        The first group, or the first of each pair, or, with ``y=None``, the differences.
+    y : sequence of float or None
+        The second group, or the second of each pair.
+    paired : bool
+        Whether ``x`` and ``y`` are pairs.
+    confidence : float
+        The confidence asked for, between 0 and 1.
+    random_state : int, numpy.random.Generator or None
+        Seeds the sample of arrangements, when they are too many to enumerate.
+
+    Returns
+    -------
+    dict[str, Any]
+        ``statistic`` (the mean difference, or :math:`\bar y - \bar x`), ``ci_low`` and
+        ``ci_high``, ``confidence`` (the interval's own, :math:`1 - 2m/M`), ``n_arrangements``
+        and ``exact``, false when the arrangements were sampled.
+
+    Raises
+    ------
+    ValueError
+        If ``confidence`` is not between 0 and 1, a group is empty, or there are too few
+        arrangements for any interval at that confidence: a level of :math:`(1 - c)/2` needs at
+        least :math:`2/(1 - c)` of them.
+
+    Examples
+    --------
+    Box, Hunter and Hunter's boys' shoes (Section 4.2): ten differences in wear, B less A, give
+    1024 patterns of signs.
+
+    >>> from process_improve.univariate.classical import randomization_interval
+    >>> found = randomization_interval([0.8, 0.6, 0.3, -0.1, 1.1, -0.2, 0.3, 0.5, 0.5, 0.3])
+    >>> round(found["ci_low"], 3), round(found["ci_high"], 3), round(found["confidence"], 4)
+    (0.125, 0.7, 0.9512)
+    """
+    if not 0 < confidence < 1:
+        raise ValueError(f"confidence must be between 0 and 1; got {confidence!r}.")
+    rng = check_random_state(random_state)
+    first = np.asarray(x, dtype=float)
+    second = None if y is None else np.asarray(y, dtype=float)
+    if not all(len(v) and np.isfinite(v).all() for v in (first, second) if v is not None):
+        raise ValueError("Each group, or the differences, needs a value, and every value must be a finite number.")
+    if paired or second is None:
+        differences = first if second is None else second - first
+        signs, exact = _sign_patterns(len(differences), MOST_ARRANGEMENTS, rng)
+        moved, observed, n_arrangements = signs < 0, float(differences.mean()), len(signs)
+        breakpoints = _breakpoints(moved @ differences, moved.sum(axis=1))
+    else:
+        pooled = np.concatenate([first, second])
+        subsets, exact = _arrangements(len(pooled), len(second), MOST_ARRANGEMENTS, rng)
+        observed, n_arrangements = float(second.mean() - first.mean()), len(subsets)
+        breakpoints = _breakpoints(second.sum() - pooled[subsets].sum(axis=1), (subsets < len(first)).sum(axis=1))
+    m = math.floor(n_arrangements * (1 - confidence) / 2)
+    if m < 1:
+        most = 1 - 2 / n_arrangements
+        msg = f"{n_arrangements} arrangements allow no {confidence:.1%} interval: at most {most:.1%}."
+        raise ValueError(msg)
+    return {
+        "statistic": observed,
+        "ci_low": float(breakpoints[m - 1]),
+        "ci_high": float(breakpoints[len(breakpoints) - m]),
+        "confidence": 1 - 2 * m / n_arrangements,
+        "n_arrangements": n_arrangements,
+        "exact": exact,
+    }
+
+
+def _breakpoints(moved_sums: np.ndarray, moved_counts: np.ndarray) -> np.ndarray:
+    """Return, sorted, the difference at which each arrangement that moves something passes the observed one."""
+    moves = moved_counts > 0
+    return np.sort(moved_sums[moves] / moved_counts[moves])
 
 
 def rank_sum_test(
