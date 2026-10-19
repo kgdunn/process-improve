@@ -627,6 +627,16 @@ def test_a_factor_left_out_of_a_prediction_point_sits_at_its_centre():
     assert reference_catalogue._prediction(out, check, entry) == pytest.approx(12.0)
 
 
+def test_a_prediction_s_error_at_a_run_is_the_prediction_less_the_run_s_value():
+    """A 2^2's corners predict 3 at the centre, where the centre run reads 4: an error of -1, or -25%."""
+    entry = _factorial(2, [1, 3, 2, 6], centre=[4])
+    check = {"model": "A * B", "runs": [1, 2, 3, 4], "point": {}}
+    out = reference_catalogue._Fits()(entry, check)
+    assert reference_catalogue._prediction(out, check, entry) == pytest.approx(3)
+    assert reference_catalogue._prediction(out, {**check, "error": "difference", "run": 5}, entry) == pytest.approx(-1)
+    assert reference_catalogue._prediction(out, {**check, "error": "percent", "run": 5}, entry) == pytest.approx(-25)
+
+
 def test_a_statistic_can_be_worked_in_other_units_than_the_readings_are_printed_in():
     """Readings printed in units of 10^17: ln s in the readings' own units is ln s printed plus ln 10^17."""
     from process_improve.experiments.reference_catalogue import _summarised

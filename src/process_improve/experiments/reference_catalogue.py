@@ -763,7 +763,8 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     ``"pi_half_width"``, an interval's half-width, as a prediction profiler prints it beside the
     prediction. ``"leverage"`` is x0'(X'X)^-1 x0, the variance of the predicted mean in units of σ²,
     and ``"std_error"`` the standard error of the predicted mean: the adjusted mean's, at the
-    covariate's average, in an analysis of covariance.
+    covariate's average, in an analysis of covariance. ``check["error"]`` reads the prediction's
+    error at a run instead (see :func:`_prediction_error`).
     """
     names = [f["name"] for f in experiment["factors"]]
     point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
@@ -784,7 +785,23 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
         matrix = dmatrix(check["model"], out["settings"], return_type="dataframe")
         at = np.asarray(build_design_matrices([matrix.design_info], point)[0])[0]
         return float(at @ np.linalg.pinv(matrix.to_numpy().T @ matrix.to_numpy()) @ at)
-    return float(prediction[bound])
+    predicted = float(prediction[bound])
+    return _prediction_error(predicted, check, experiment) if "error" in check else predicted
+
+
+def _prediction_error(predicted: float, check: dict, experiment: dict) -> float:
+    """Return a prediction less a run's value, the run ``check["run"]`` (1-based), which need not be among those fitted.
+
+    The run's value is in the column ``check["observed"]``, the check's response by default. ``check["error"]`` is
+    ``"difference"``, or ``"percent"``: the difference over the run's value, times 100, as a source prints the percent
+    error of a model, or a simulator, against a run it is checked by. The sign is the opposite of a marginal-means
+    check's ``"deviation"``, the run's value less the prediction.
+    """
+    runs = experiment["runs"]
+    column = check.get("observed") or check.get("response") or experiment["responses"][0]["name"]
+    observed = float(runs["rows"][check["run"] - 1][runs["columns"].index(column)])
+    error = predicted - observed
+    return 100 * error / observed if check["error"] == "percent" else error
 
 
 def _best_corner(out: dict, check: dict, experiment: dict) -> float:

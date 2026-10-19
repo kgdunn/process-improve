@@ -106974,13 +106974,25 @@
      "what": "% error",
      "term": "YA",
      "value": "-2",
+     "analysis": "the percent error of the corners' model at the centre against the centre run, (Q-EDGE - PSPICE)/PSPICE x 100",
      "where": {
       "page": "8-256",
       "source_kind": "table",
       "quote": "Table 3 Initial Experiment Results ... % err ... -2"
      },
      "check": {
-      "manual": "(Q-EDGE - PSPICE)/PSPICE x 100, from the prediction, checked, and the centre run"
+      "kind": "prediction",
+      "model": "R * P",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "point": {},
+      "error": "percent",
+      "run": 5,
+      "response": "YA"
      }
     },
     {
@@ -107017,7 +107029,7 @@
       "quote": "Table 3 Initial Experiment Results ... % err ... -5"
      },
      "check": {
-      "manual": "(Q-EDGE - PSPICE)/PSPICE x 100, from the prediction, checked, and the centre run"
+      "manual": "(Q-EDGE - PSPICE)/PSPICE x 100 from the prediction of -18.9 the book prints, a recorded disagreement: the corners' -21.375 gives +8.0 (prediction, error percent)"
      }
     },
     {
@@ -107047,13 +107059,25 @@
      "what": "% error",
      "term": "YC",
      "value": "-33",
+     "analysis": "the percent error of the corners' model at the centre against the centre run, (Q-EDGE - PSPICE)/PSPICE x 100",
      "where": {
       "page": "8-256",
       "source_kind": "table",
       "quote": "Table 3 Initial Experiment Results ... % err ... -33"
      },
      "check": {
-      "manual": "(Q-EDGE - PSPICE)/PSPICE x 100, from the prediction, checked, and the centre run"
+      "kind": "prediction",
+      "model": "R * P",
+      "runs": [
+       1,
+       2,
+       3,
+       4
+      ],
+      "point": {},
+      "error": "percent",
+      "run": 5,
+      "response": "YC"
      }
     },
     {
@@ -107089,7 +107113,7 @@
       "quote": "Table 3 Initial Experiment Results ... % err ... +1"
      },
      "check": {
-      "manual": "(Q-EDGE - PSPICE)/PSPICE x 100, from the prediction, checked, and the centre run"
+      "manual": "(Q-EDGE - PSPICE)/PSPICE x 100 from the prediction rounded to 1.51: the unrounded 1.505 gives +0.33 (prediction, error percent)"
      }
     },
     {
