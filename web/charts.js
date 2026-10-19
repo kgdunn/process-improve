@@ -713,6 +713,9 @@ export const responseColours = (colours) => [colours.accent, colours.warn, colou
 /** The star on the overlay at the balanced settings: the best settings' marker, which reads on every shading. */
 export const BALANCED = "Balanced settings";
 
+/** The star on a mixture's overlay, at the balanced blend. */
+export const BALANCED_BLEND = "Balanced blend";
+
 /** What the overlay's shading means, as its legend says it. */
 export const SHADED = "Every response acceptable";
 export const GREYED = "Outside your limits";
@@ -842,5 +845,78 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
       margin: { t: 8 },
     },
     height: 420 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
+  };
+}
+
+/**
+ * The overlay of the responses' acceptable ranges over the triangle of a mixture's three components: the blends where
+ * every response is acceptable shaded, each response's acceptable boundary a line in its colour and dash, and a star
+ * at the balanced blend. ``overlay`` is bootstrap.balance's for a mixture: its grid of blends, each response's
+ * prediction there and its boundary as segments of line; ``responses`` are the reply's, for each response's words.
+ */
+export function blendOverlayFigure(overlay, responses, colours = palette()) {
+  const [a, b, c] = overlay.components;
+  const byName = Object.fromEntries(responses.map((r) => [r.name, r]));
+  const lineColours = responseColours(colours);
+  const kept = (values) => values.filter((_, k) => overlay.acceptable[k]);
+  const at = `${a} %{a:.3f}<br>${b} %{b:.3f}<br>${c} %{c:.3f}`;
+  const data = [
+    {
+      type: "scatterternary",
+      mode: "markers",
+      name: SHADED,
+      a: kept(overlay.a),
+      b: kept(overlay.b),
+      c: kept(overlay.c),
+      marker: { symbol: "circle", size: 7, color: withAlpha(colours.accent, 0.35), line: { width: 0 } },
+      hoverinfo: "skip",
+    },
+  ];
+  overlay.responses.forEach((surface, i) => {
+    const r = byName[surface.name];
+    const line = { color: lineColours[i % lineColours.length], width: 2.5, dash: RESPONSE_DASHES[i % RESPONSE_DASHES.length] };
+    // A boundary that misses the blends drawn has no line, so no key: the caption says why.
+    surface.lines.forEach((segments, j) => {
+      data.push({
+        type: "scatterternary",
+        mode: "lines",
+        name: boundaryName(r),
+        legendgroup: surface.name,
+        showlegend: j === 0 && boundaryDrawn(surface),
+        a: segments.a,
+        b: segments.b,
+        c: segments.c,
+        line,
+        hoverinfo: "skip",
+      });
+    });
+  });
+  data.push({
+    type: "scatterternary",
+    mode: "markers",
+    name: BALANCED_BLEND,
+    a: [overlay.at[0]],
+    b: [overlay.at[1]],
+    c: [overlay.at[2]],
+    marker: BEST_MARKER,
+    cliponaxis: false,
+    hovertemplate: `${BALANCED_BLEND}<br>${at}<extra></extra>`,
+  });
+  const axis = (title) => ({
+    title: { text: title, font: { size: 13 } },
+    min: 0,
+    linecolor: colours.muted,
+    gridcolor: colours.line,
+    tickfont: { color: colours.muted, size: 10 },
+  });
+  return {
+    data,
+    layout: {
+      ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+      margin: { l: 36, r: 36, t: 48, b: 36 },
+    },
+    height: 440 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
   };
 }

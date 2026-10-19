@@ -11,7 +11,6 @@ import pytest
 
 from tests.web._support import FACTORS
 from tests.web.e2e._page import (
-    calls,
     choose,
     factor_table,
     generate,
@@ -221,9 +220,25 @@ def test_a_mixture_measures_two_responses_and_finds_each_one_s_best_blend(fresh_
     assert caption.text_content().endswith("the white dots are the runs, and the star the best blend.")
     assert "DesignRegion(factors)" in page.text_content("#py-best code")
     # The balance is asked for once the charts are drawn, which can be after the page reads as settled.
-    page.wait_for_function("window.__pi.count('api_balance') > 0")
-    assert calls(page, "api_balance"), "the page asked, and was told it is a mixture"
-    assert page.is_hidden("#balance"), "two goals, and no balance searched over a mixture's blends"
+    page.wait_for_selector("#balance-chart .js-plotly-plot")
+    b = last_reply(page, "api_balance")["result"]
+    reveal(page, "#balance")
+    assert page.text_content("#balance .lead").startswith(
+        "This blend balances the responses best: an overall desirability"
+    )
+    assert headers(page, "#balance-out table")[:3] == ["Component", "Proportion", "Where it lies"]
+    traces = page.evaluate(
+        "() => document.querySelector('#balance-chart .js-plotly-plot').data.map((t) => ({name: t.name, type: t.type, "
+        "a: t.a, b: t.b, c: t.c}))"
+    )
+    assert {t["type"] for t in traces} == {"scatterternary"}, "the overlay is over the triangle"
+    star = next(t for t in traces if t["name"] == "Balanced blend")
+    assert [star["a"][0], star["b"][0], star["c"][0]] == b["overlay"]["at"]
+    shaded = next(t for t in traces if t["name"] == "Every response acceptable")
+    assert len(shaded["a"]) == sum(b["overlay"]["acceptable"])
+    assert page.text_content("#balance-chart figcaption").startswith("Each corner is a pure component and each point")
+    assert page.text_content("#add-balance-confirmation") == "Add 3 confirmation runs at this blend"
+    assert "region=DesignRegion(factors)" in page.text_content("#py-balance code")
     pick(page, "Cost")
     assert page.text_content("#analysis .equation").startswith("Cost = ")
     assert "Fitted response over the blends" in charts(page)

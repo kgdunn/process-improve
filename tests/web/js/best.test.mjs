@@ -8,6 +8,7 @@ import {
   BLEND_SENSITIVITY,
   BLEND_UNCLEAR,
   CONFIRMATION,
+  NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
   CONFIRMS,
   GOOD_END,
@@ -20,6 +21,7 @@ import {
   balanceLeverage,
   balanceRows,
   balanceWhere,
+  blendOverlayCaption,
   dWords,
   goalProblem,
   goalWords,
@@ -550,6 +552,30 @@ describe("the settings that balance the responses", () => {
     assert.equal(balanceLead(BALANCE), "These settings balance the responses best: an overall desirability of 0.73.");
     assert.equal(balanceLead({ ...BALANCE, composite: 1 }), "These settings make every response as good as it gets: an overall desirability of 1.");
     assert.match(balanceLead({ ...BALANCE, composite: 0 }), /^No setting in your ranges makes every response acceptable\./);
+    const blend = { blend: true };
+    assert.equal(balanceLead(BALANCE, blend), "This blend balances the responses best: an overall desirability of 0.73.");
+    assert.equal(balanceLead({ ...BALANCE, composite: 1 }, blend), "This blend makes every response as good as it gets: an overall desirability of 1.");
+    assert.match(balanceLead({ ...BALANCE, composite: 0 }, blend), /^No blend within your bounds makes every response acceptable\. This one comes closest/);
+    const none = { ...BALANCE, composite: 0, responses: [{ ...BALANCE.responses[0], d: 0 }, BALANCE.responses[1]] };
+    assert.match(limitingSentence(none, blend), /^At this blend Yield is not acceptable/);
+  });
+
+  test("a mixture's overlay is over its triangle, and four components or more have none", () => {
+    const overlay = {
+      kind: "ternary",
+      components: ["A", "B", "C"],
+      responses: [
+        { name: "Yield", z: [50, 56, 60], levels: [55] },
+        { name: "Purity", z: [98, 98.2, 98.4], levels: [97.5, 99.5] },
+      ],
+    };
+    assert.equal(
+      blendOverlayCaption(overlay, BALANCE.responses),
+      "Each corner is a pure component and each point a blend the bounds allow. Shaded where every response is " +
+        "acceptable; each line is a response's acceptable boundary; the star marks the balanced blend. No line for " +
+        "Purity: it is acceptable at every blend drawn. Narrow a range in the table to draw its boundary.",
+    );
+    assert.match(NO_BLEND_OVERLAY, /^With four components or more the blends fill a solid/);
   });
 
   test("the response that holds D down most is named, with its importance when they differ", () => {

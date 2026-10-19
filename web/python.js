@@ -571,9 +571,11 @@ const DESIRABILITY_KEYS = ["response", "goal", "target", "low", "high", "weight"
  * its goal as a desirability over its acceptable range, and the settings with the best overall desirability found
  * with the library's optimiser over every model. It builds on step 2's ``runs`` and ``X``. ``balance`` is what
  * bootstrap.balance answered: its ``search`` holds each response's fitted formula, its goal, and what the page held
- * each categorical factor and block at.
+ * each categorical factor and block at. A mixture's balance is searched over the region of blends that step 1's
+ * components make.
  */
 export function balanceCode(balance, spec) {
+  const mixture = isMixture(spec); // a mixture's components are searched over its blends, not each over a range
   const numeric = spec.factors.filter((f) => !labelled(f));
   const held = balance.search?.held ?? {};
   const holds = Object.keys(held).length > 0;
@@ -583,13 +585,19 @@ export function balanceCode(balance, spec) {
   const ranges = numeric.map((f) => `${repr(f.name)}: {"low": ${f.low}, "high": ${f.high}}`).join(", ");
   const imports = [
     ...(holds ? ["import math"] : []),
-    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment, optimize_responses`,
+    `from process_improve.experiments import ${limits.length || mixture ? "DesignRegion, " : ""}analyze_experiment, optimize_responses`,
     "",
   ];
+  const searched = mixture
+    ? ["    region=DesignRegion(factors),  # the blends: each component between its bounds, the proportions summing to 1"]
+    : [
+        `    factor_ranges={${ranges}},`,
+        ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+      ];
   return [
     ...imports,
     ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
-    "# Each response with a goal, fitted with its own model to the runs that have its result.",
+    `# Each response with a goal, fitted with its own ${mixture ? "Scheffé model" : "model"} to the runs that have its result.`,
     "models = []",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
@@ -605,10 +613,11 @@ export function balanceCode(balance, spec) {
     "balanced = optimize_responses(",
     "    models,",
     "    goals=goals,",
-    `    factor_ranges={${ranges}},`,
-    ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+    ...searched,
     ')["desirability"]',
-    'print(balanced["optimal_actual"])  # the balanced settings, in the factors\' own units',
+    mixture
+      ? 'print(balanced["optimal_coded"])  # the balanced blend: each component\'s proportion'
+      : 'print(balanced["optimal_actual"])  # the balanced settings, in the factors\' own units',
     'print(balanced["predicted_responses"])  # what each model predicts there',
     'print(balanced["individual_desirability"])  # each response\'s desirability, d',
     'print(balanced["composite_desirability"])  # the overall desirability, D',

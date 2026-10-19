@@ -13,6 +13,7 @@
 // the form's settings a run sheet was made from.
 
 import {
+  blendOverlayFigure,
   coefficientFigure,
   correlationFigure,
   coxFigure,
@@ -34,6 +35,7 @@ import {
   BLEND_SENSITIVITY,
   BLEND_UNCLEAR,
   CONFIRMATION,
+  NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
   IMPORTANCES,
   GOOD_END,
@@ -46,6 +48,7 @@ import {
   bestContourCaption,
   blendExtrapolation,
   blendLead,
+  blendOverlayCaption,
   blendSentences,
   blendWhere,
   confirmationRows,
@@ -3192,20 +3195,21 @@ function renderBalance(reply) {
   state.balance = b;
   const factors = state.design.spec.factors;
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const blend = blendStudy(); // a mixture's balance is a blend: each component's proportion, between its bounds
   renderGoals(b);
-  const settings = b.settings.map((s) => [
-    s.name,
-    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
-    whereWords(s, null, { label: "" }),
-  ]);
-  const cautions = [extrapolationSentence(b)].filter(Boolean);
+  const settings = b.settings.map((s) =>
+    blend
+      ? [s.name, num(s.value), blendWhere(s, null, { label: "" })]
+      : [s.name, s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]), whereWords(s, null, { label: "" })],
+  );
+  const cautions = [blend ? blendExtrapolation(b) : extrapolationSentence(b)].filter(Boolean);
   $("#balance-out").replaceChildren(
-    said("lead", balanceLead(b)),
-    table(["Factor", "Balanced setting", "Where it lies"], settings),
+    said("lead", balanceLead(b, { blend })),
+    table(blend ? ["Component", "Proportion", "Where it lies"] : ["Factor", "Balanced setting", "Where it lies"], settings),
     balanceTable(b),
-    ...[limitingSentence(b)].filter(Boolean).map((text) => said("", text)),
+    ...[limitingSentence(b, { blend })].filter(Boolean).map((text) => said("", text)),
     said("hint", balanceLeverage(b)),
-    ...noteList(balanceWhere(b)),
+    ...noteList([...balanceWhere(b), ...(blend && !b.overlay ? [NO_BLEND_OVERLAY] : [])]),
     ...noteList(cautions, "warnings"),
   );
   renderBalanceConfirmation(b);
@@ -3306,11 +3310,16 @@ function goalChanged(e) {
   else scheduleBalance();
 }
 
-/** Say what the confirmation runs show, response by response, and offer to add them at the balanced settings. */
+/**
+ * Say what the confirmation runs show, response by response, and offer to add them at the balanced settings: a
+ * mixture's at its balanced blend, weighed out, with no units on its proportions.
+ */
 function renderBalanceConfirmation(b) {
-  const factors = state.design.spec.factors;
+  const blend = blendStudy();
+  const factors = blend ? state.design.spec.factors.map((f) => ({ ...f, units: "" })) : state.design.spec.factors;
   $("#balance-confirm").hidden = false;
   $("#balance-confirm-out").replaceChildren(
+    ...(blend ? [said("hint", weighingSentence(b))] : []),
     ...b.confirmation.map((group) => {
       const { said: sentences, state: verdict } = balanceConfirmation(group, factors, b.responses);
       const box = el("div", "verdict", "");
@@ -3320,7 +3329,7 @@ function renderBalanceConfirmation(b) {
     }),
   );
   const add = $("#add-balance-confirmation");
-  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`;
+  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at ${blend ? "this blend" : "these settings"}`;
   add.hidden = confirmedAt(state.design, b.confirm_at); // runs there already: their results are what is wanted
   $("#remove-balance-confirmation").hidden = b.confirmation.length === 0;
 }
@@ -3333,11 +3342,15 @@ async function drawBalanceChart() {
     card.hidden = true;
     return;
   }
+  // A mixture's overlay is over its triangle of three components; a study's of factors, over two of them.
+  const triangle = b.overlay.kind === "ternary";
   const factors = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f]));
-  const axes = Object.fromEntries([b.overlay.x, b.overlay.y].map((name) => [name, withUnits(name, factors[name]?.units ?? "")]));
-  const figure = () => overlayFigure(b.overlay, b.responses, axes);
+  const axes = triangle ? {} : Object.fromEntries([b.overlay.x, b.overlay.y].map((name) => [name, withUnits(name, factors[name]?.units ?? "")]));
+  const figure = () => (triangle ? blendOverlayFigure(b.overlay, b.responses) : overlayFigure(b.overlay, b.responses, axes));
   card.hidden = false;
-  card.querySelector("figcaption").textContent = overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  card.querySelector("figcaption").textContent = triangle
+    ? blendOverlayCaption(b.overlay, b.responses)
+    : overlayCaption(b.overlay, state.design.spec.factors, b.responses);
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
   } catch {
@@ -4454,7 +4467,7 @@ $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
 $("#add-confirmation").onclick = () => addConfirmationRuns(state.best?.confirm_at, blendStudy() ? "the best blend" : "the best settings");
-$("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, "the balanced settings");
+$("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, blendStudy() ? "the balanced blend" : "the balanced settings");
 $("#remove-balance-confirmation").onclick = removeConfirmationRuns;
 $("#balance-goals").addEventListener("input", goalChanged);
 $("#balance-reset").onclick = () => {

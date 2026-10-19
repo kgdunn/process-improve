@@ -404,14 +404,18 @@ export function goalProblem(r, low, high) {
 
 /**
  * What the balance panel says first: how good the balance is, as the overall desirability D. With D of 0, no setting
- * makes every response acceptable, and the settings shown are those that come closest.
+ * makes every response acceptable, and the settings shown are those that come closest. Of a mixture's blend with
+ * ``blend``.
  */
-export function balanceLead(b) {
+export function balanceLead(b, { blend = false } = {}) {
   if (b.composite <= 0) {
-    return "No setting in your ranges makes every response acceptable. These settings come closest: widen an acceptable range to find a balance.";
+    return blend
+      ? "No blend within your bounds makes every response acceptable. This one comes closest: widen an acceptable range to find a balance."
+      : "No setting in your ranges makes every response acceptable. These settings come closest: widen an acceptable range to find a balance.";
   }
-  if (b.composite >= 1) return "These settings make every response as good as it gets: an overall desirability of 1.";
-  return `These settings balance the responses best: an overall desirability of ${dWords(b.composite)}.`;
+  const these = blend ? "This blend" : "These settings";
+  if (b.composite >= 1) return `${these} ${blend ? "makes" : "make"} every response as good as it gets: an overall desirability of 1.`;
+  return `${these} ${blend ? "balances" : "balance"} the responses best: an overall desirability of ${dWords(b.composite)}.`;
 }
 
 /**
@@ -419,11 +423,11 @@ export function balanceLead(b) {
  * importance, is lowest. Its importance is said when the importances differ. Nothing when every response is as good
  * as it gets; with D of 0, the responses not acceptable at these settings.
  */
-export function limitingSentence(b) {
+export function limitingSentence(b, { blend = false } = {}) {
   if (b.composite >= 1) return "";
   if (b.composite <= 0) {
     const out = b.responses.filter((r) => r.d <= 0).map((r) => r.label);
-    return `At these settings ${listed(out)} ${out.length === 1 ? "is" : "are"} not acceptable: a desirability of 0.`;
+    return `At ${blend ? "this blend" : "these settings"} ${listed(out)} ${out.length === 1 ? "is" : "are"} not acceptable: a desirability of 0.`;
   }
   const r = b.responses.find((one) => one.name === b.limiting);
   const differ = new Set(b.responses.map((one) => one.importance)).size > 1;
@@ -487,6 +491,27 @@ export function overlayCaption(overlay, factors = [], responses = []) {
     missed(nowhere, "not acceptable at any setting drawn")
   );
 }
+
+/**
+ * The caption of a mixture's overlay of the acceptable ranges over its triangle: what the shading, the lines and the
+ * star mean, and why a response has no line. ``responses`` are the balance's, for each one's label, goal and range.
+ */
+export function blendOverlayCaption(overlay, responses = []) {
+  const { everywhere, nowhere } = missedBoundaries(overlay, responses);
+  const missed = (labels, said) => (labels.length ? ` No line for ${listed(labels)}: ${labels.length === 1 ? "it is" : "they are"} ${said}.` : "");
+  const narrow = everywhere.length ? " Narrow a range in the table to draw its boundary." : "";
+  return (
+    "Each corner is a pure component and each point a blend the bounds allow. Shaded where every response is " +
+    "acceptable; each line is a response's acceptable boundary; the star marks the balanced blend." +
+    missed(everywhere, "acceptable at every blend drawn") +
+    narrow +
+    missed(nowhere, "not acceptable at any blend drawn")
+  );
+}
+
+/** Why a mixture of four components or more has no overlay of the acceptable ranges. */
+export const NO_BLEND_OVERLAY =
+  "With four components or more the blends fill a solid, which no picture of a triangle holds, so no overlay is drawn.";
 
 /**
  * The responses whose acceptable boundary misses the settings the overlay draws, by what that means: acceptable at

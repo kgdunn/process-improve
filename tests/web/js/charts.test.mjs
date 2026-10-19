@@ -6,6 +6,7 @@ import { describe, test } from "node:test";
 
 import {
   BALANCED,
+  BALANCED_BLEND,
   BEST_BLEND,
   BEST_MARKER,
   LIGHT,
@@ -14,6 +15,7 @@ import {
   RESPONSE_DASHES,
   SHADED,
   boundaryDrawn,
+  blendOverlayFigure,
   boundaryName,
   overlayFigure,
   withAlpha,
@@ -253,6 +255,45 @@ describe("a card's layout", () => {
     assert.equal(layout.title, undefined);
     assert.equal(layout.width, undefined);
     assert.equal(layout.xaxis.constrain, "domain", "equal axes keep their range and shrink the plot");
+  });
+});
+
+describe("a mixture's overlay of the acceptable ranges", () => {
+  const PAGE = { fg: "#1d1d1f", muted: "#5f6368", line: "#dcd8ce", accent: "#2c5f7c", warn: "#a35f00", ok: "#1e7b3a", error: "#b3261e" };
+  const OVERLAY = {
+    kind: "ternary",
+    components: ["A", "B", "C"],
+    a: [1, 0.5, 0, 0],
+    b: [0, 0.5, 1, 0],
+    c: [0, 0, 0, 1],
+    responses: [
+      { name: "Hardness", z: [30, 31, 25, 20], levels: [26], lines: [{ a: [0.6, 0.5, null], b: [0.4, 0.3, null], c: [0, 0.2, null] }] },
+      { name: "Cost", z: [20, 18, 10, 15], levels: [30], lines: [{ a: [], b: [], c: [] }] },
+    ],
+    acceptable: [1, 1, 0, 0],
+    at: [0.6, 0.35, 0.05],
+  };
+  const RESPONSES = [
+    { name: "Hardness", label: "Hardness", units: "HV", goal: "maximize", low: 26, high: 31 },
+    { name: "Cost", label: "Cost", units: "$/kg", goal: "minimize", low: 10, high: 30 },
+  ];
+
+  test("shaded at the blends where every response is acceptable, a line at each boundary, a star at the balanced blend", () => {
+    const { data, layout } = blendOverlayFigure(OVERLAY, RESPONSES, PAGE);
+    const [shade, hardness, cost] = data;
+    assert.equal(shade.type, "scatterternary");
+    assert.equal(shade.name, SHADED);
+    assert.deepEqual([shade.a, shade.b, shade.c], [[1, 0.5], [0, 0.5], [0, 0]], "the acceptable blends only");
+    assert.deepEqual([hardness.mode, hardness.a], ["lines", [0.6, 0.5, null]], "segments kept apart by a gap");
+    assert.equal(hardness.name, "Hardness: 26 HV and above");
+    assert.equal(hardness.showlegend, true);
+    assert.equal(cost.showlegend, false, "a boundary the blends do not reach has no key");
+    assert.notEqual(hardness.line.dash, cost.line.dash, "each line reads without its colour");
+    const star = data.at(-1);
+    assert.equal(star.name, BALANCED_BLEND);
+    assert.deepEqual([star.a, star.b, star.c], [[0.6], [0.35], [0.05]]);
+    assert.equal(star.marker, BEST_MARKER);
+    assert.deepEqual([layout.ternary.aaxis.title.text, layout.ternary.baxis.title.text, layout.ternary.caxis.title.text], ["A", "B", "C"]);
   });
 });
 

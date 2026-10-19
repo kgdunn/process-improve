@@ -760,6 +760,29 @@ def test_the_balance_code_holds_a_categorical_factor_and_keeps_to_the_limits(api
 
 
 @pytest.mark.slow
+def test_the_balance_code_finds_the_page_s_balanced_blend(api, node):
+    """A mixture's two responses are balanced over its blends, each with its own Scheffé model."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    request = {**MIXTURES[1], "factors": components("simplex_lattice"), "responses": responses}
+    held = held_of(api.ok("api_make_design", request))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    results = {"Hardness": simulation["responses"], "Cost": simulation["more"]["Cost"]["responses"]}
+    goals = {"Cost": {"importance": 5}}
+    sent = {"responses": results["Hardness"], "more_responses": {"Cost": results["Cost"]}}
+    balance = api.ok("api_balance", {**held, **sent, "models": {"Cost": "scheffe_linear"}, "goals": goals})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert "region=DesignRegion(factors)" in code
+    namespace = run(code)
+    assert_same_balance(namespace, balance, ["Water", "Oil", "Wax"])
+    assert sum(namespace["balanced"]["optimal_coded"].values()) == pytest.approx(1.0)
+
+
+@pytest.mark.slow
 def test_the_notebook_ends_with_the_balance_when_the_page_has_one(api, node):
     held, simulation = three_responses(api)
     results = by_name(simulation)
