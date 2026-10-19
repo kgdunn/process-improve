@@ -136,7 +136,7 @@ class GenerateDesignInput(BaseModel):
     hard_to_change: list[str] | None = Field(
         None,
         description=(
-            "Names of hard-to-change factors, for a split-plot design (needs the optional pyoptex package). "
+            "Names of hard-to-change factors, for a split-plot design: they are set once for each whole plot. "
             "Only the optimal design types build one; any other design_type raises an error."
         ),
     )
