@@ -539,6 +539,20 @@ def _refuse_unused_arguments(
         )
 
 
+def _blocks_from_generators(design_type: str, block_generators: list[str], n_blocks: int | None) -> int:
+    """Return the number of blocks the block generators make, refusing them on a design they cannot block."""
+    if design_type not in ("full_factorial", "fractional_factorial"):
+        raise ValueError(
+            "block_generators confound interaction words with blocks in a two-level full or fractional "
+            f"factorial; design_type={design_type!r} is blocked otherwise. Leave block_generators unset."
+        )
+    if isinstance(block_generators, str) or not block_generators:
+        raise ValueError(
+            f"block_generators must be a list of one or more words, such as ['ADE', 'BCE']; got {block_generators!r}."
+        )
+    return 2 ** len(block_generators) if n_blocks is None else n_blocks
+
+
 def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
     """Mark the runs with every non-categorical factor at its centre (0 in coded units)."""
     columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
@@ -701,6 +715,7 @@ def generate_design(  # noqa: PLR0913
     candidates: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = 42,
     backend: str = "auto",
+    block_generators: list[str] | None = None,
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -845,6 +860,15 @@ def generate_design(  # noqa: PLR0913
         candidate exchange, and the optional pyoptex package only for a split-plot
         design (``hard_to_change``), so the same call gives the same design whether or
         not pyoptex is installed. ``"pyoptex"`` asks for pyoptex's coordinate exchange.
+    block_generators : list[str] or None
+        The interaction words that define the blocks of a two-level full or fractional
+        factorial, in place of the words the library would choose: ``["ADE", "BCE"]``
+        makes four blocks, with ADE, BCE and their product ABCD confounded with them
+        (join names longer than one letter with ``*``). *n_blocks*, when given, must be
+        2 to the power of their number. Words that confound a main effect, depend on
+        each other, or lie in the fraction's defining relation are refused. For a
+        fraction, ``metadata["blocking"]["aliases"]`` lists each confounded word's
+        aliases, which go with it to the blocks.
 
     Returns
     -------
@@ -910,6 +934,8 @@ def generate_design(  # noqa: PLR0913
     _refuse_mixture_in_box_family(factors, design_type)
     _refuse_unsupported_categorical(factors, design_type)
     _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)
+    if block_generators is not None:
+        n_blocks = _blocks_from_generators(design_type, block_generators, n_blocks)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
@@ -988,6 +1014,7 @@ def generate_design(  # noqa: PLR0913
         is_actual=design_type == "mixture" or all_mixture,
         n_leading_fixed=int(meta.get("n_fixed_runs", 0)),
         randomize=not split_plot,
+        block_generators=block_generators,
     )
 
 
