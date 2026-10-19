@@ -345,6 +345,41 @@ READS: dict[str, list[str]] = {
         "cox.traces[].fitted[]: number",
         "cox.traces[].true[]: number",
     ],
+    "mixture balance": [
+        "balanced: bool",
+        "responses[].name: str",
+        "responses[].predicted: number",
+        "responses[].d: number",
+        "composite: number",
+        "limiting: str",
+        "coded{}: number",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: number",
+        "settings[].low: number",
+        "settings[].high: number",
+        "settings[].end: str?",
+        "settings[].beyond: bool",
+        "confirm_at{}: number",
+        "rounding.decimals: int?",
+        "rounding.adjusted: str?",
+        "overlay.kind: str",
+        "overlay.components[]: str",
+        "overlay.a[]: number",
+        "overlay.b[]: number",
+        "overlay.c[]: number",
+        "overlay.acceptable[]: int",
+        "overlay.at[]: number",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.responses[].lines[].a[]: number?",
+        "overlay.responses[].lines[].b[]: number?",
+        "overlay.responses[].lines[].c[]: number?",
+        "search.held: dict",
+        "search.goals[].response: str",
+        "search.formulas{}: str",
+    ],
     "mixture traces through the best blend": [
         "held_best: bool",
         "cox.through: str",
@@ -644,6 +679,7 @@ ENTRY_POINTS = {
     "mixture traces": "api_plots",
     "mixture best blend": "api_best_settings",
     "mixture traces through the best blend": "api_plots",
+    "mixture balance": "api_balance",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -808,6 +844,17 @@ def through_best_blend(api, request: dict) -> dict:
     return {**request, "best": api.ok("api_best_settings", request)["coded"]}
 
 
+def two_blends(api) -> dict:
+    """Return a simplex lattice measuring a hardness to maximise and a cost to minimise, with simulated results."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    factors = [{"name": n, "low": None, "high": None, "units": ""} for n in "ABC"]
+    spec = {"design_type": "simplex_lattice", "factors": factors, "n_replicates": 2, "responses": responses}
+    held = held_of(api.ok("api_make_design", spec))
+    simulation = api.ok("api_simulate", held)
+    more = {"Cost": simulation["more"]["Cost"]["responses"]}
+    return {**held, "responses": simulation["responses"], "more_responses": more}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -885,6 +932,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "mixture traces": lambda: blend(4),
         "mixture best blend": lambda: aimed_blend(blend(3)),
         "mixture traces through the best blend": lambda: through_best_blend(api, aimed_blend(blend(4))),
+        "mixture balance": lambda: two_blends(api),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,

@@ -16,6 +16,7 @@ import pytest
 
 from process_improve.experiments import analyze_experiment
 from tests.web._support import held_of, run_sheet
+from tests.web.api.test_balance import desirability
 
 #: Where the confirmation runs are marked on the run sheet, and how: as ``web/app.js`` adds them.
 CONFIRMATION = "Confirmation run"
@@ -338,3 +339,128 @@ def test_a_blend_that_is_no_blend_of_the_components_is_refused(api, plotly):
     for best in ({"A": 0.5, "B": 0.6, "C": 0.0}, {"A": 1.2, "B": -0.2, "C": 0.0}, {"A": 1.0, "B": 0.0}, ["A"]):
         sent = {**held, "responses": responses, "best": best}
         assert api.error("api_plots", sent) == "The page sent a best blend this page did not write.", best
+
+
+# --------------------------------------------------------------------------- the balance of several responses
+#: A cost to minimise beside the hardness of SURFACE: B is the cheapest component, and A with C costs less together.
+COST = {"A": 20.0, "B": 10.0, "C": 15.0, "A:B": 8.0, "A:C": -6.0}
+
+#: The two responses, as the brief describes them.
+TWO = [{"name": "Hardness", "goal": "maximize", "units": "HV"}, {"name": "Cost", "goal": "minimize"}]
+
+
+def two_blended(api, q: int = 3) -> tuple[dict, dict]:
+    """Make a simplex lattice measuring a hardness and a cost; return it and the request with both results."""
+    held = lattice(api, q, responses=TWO)
+    hardness = {t: v for t, v in SURFACE.items() if all(n in "ABCDEF"[:q] for n in t.split(":"))}
+    return held, {
+        **held,
+        "responses": results(held, hardness | ({"D": 22.0} if q > 3 else {})),
+        "more_responses": {"Cost": results(held, COST | ({"D": 12.0} if q > 3 else {}), seed=1)},
+    }
+
+
+def terms_of(api, sent: dict, response: str) -> dict[str, float]:
+    """Return the Scheffé model the page fits to one response."""
+    analysis = api.ok("api_analyze_runs", {**sent, "response": response})
+    return {c["term"]: c["coefficient"] for c in analysis["coefficients"]}
+
+
+def overall_d(goals: list[dict], predictions: dict[str, np.ndarray]) -> np.ndarray:
+    """Return D, the importance-weighted geometric mean of the d's, from the desirability's own definition."""
+    weights = np.array([g["importance"] for g in goals], dtype=float)
+    ds = np.array([desirability(predictions[g["response"]], g) for g in goals])
+    with np.errstate(divide="ignore"):
+        return np.exp((weights[:, None] * np.log(ds)).sum(axis=0) / weights.sum())
+
+
+def test_the_balanced_blend_has_the_best_overall_desirability_of_a_dense_lattice(api):
+    _, sent = two_blended(api)
+    b = api.ok("api_balance", sent)
+    assert b["balanced"] is True
+    goals = b["search"]["goals"]
+    fitted = {name: terms_of(api, sent, name) for name in ("Hardness", "Cost")}
+    grid = simplex_grid(3, 300)
+    d = overall_d(goals, {name: blended(grid, terms) for name, terms in fitted.items()})
+    assert b["composite"] >= d.max() - 1e-9, "no blend of the lattice balances them better"
+    np.testing.assert_allclose(blend_of(b), grid.iloc[int(np.argmax(d))], atol=0.02)
+    at = pd.DataFrame([b["coded"]])
+    for r in b["responses"]:
+        assert r["predicted"] == pytest.approx(blended(at, fitted[r["name"]])[0], abs=1e-9)
+    assert b["composite"] == pytest.approx(
+        overall_d(goals, {r["name"]: np.array([r["predicted"]]) for r in b["responses"]})[0]
+    )
+    assert [s["kind"] for s in b["settings"]] == ["component"] * 3
+    assert not any(s["beyond"] for s in b["settings"]), "no way to move on is said of a balance"
+    assert b["limits"] == []
+    assert b["search"]["formulas"] == {"Hardness": "scheffe_quadratic", "Cost": "scheffe_quadratic"}
+    assert sum(round(v * 1000) for v in b["confirm_at"].values()) == 1000
+    assert b["rounding"]["decimals"] == 3
+
+
+def test_the_overlay_shades_the_blends_where_every_response_is_acceptable(api):
+    _, sent = two_blended(api)
+    b = api.ok("api_balance", sent)
+    overlay = b["overlay"]
+    assert (overlay["kind"], overlay["components"]) == ("ternary", ["A", "B", "C"])
+    grid = pd.DataFrame({"A": overlay["a"], "B": overlay["b"], "C": overlay["c"]})
+    np.testing.assert_allclose(grid.sum(axis=1), 1.0)
+    goals = {g["response"]: g for g in b["search"]["goals"]}
+    acceptable = []
+    for surface in overlay["responses"]:
+        terms = terms_of(api, sent, surface["name"])
+        z = blended(grid, terms)
+        np.testing.assert_allclose(surface["z"], z, rtol=1e-5)
+        goal = goals[surface["name"]]
+        acceptable.append(z > goal["low"] if goal["goal"] == "maximize" else z < goal["high"])
+        [level] = surface["levels"]
+        assert level == (goal["low"] if goal["goal"] == "maximize" else goal["high"])
+        [line] = surface["lines"]
+        ends = pd.DataFrame(
+            {name: [v for v in line[axis] if v is not None] for axis, name in zip("abc", "ABC", strict=True)}
+        )
+        if z.min() < level < z.max():
+            assert len(ends) >= 2, "the boundary crosses the triangle"
+            np.testing.assert_allclose(blended(ends, terms), level, atol=0.01 * (z.max() - z.min()))
+        else:
+            assert ends.empty, "a boundary the blends do not reach is not drawn"
+        assert len(line["a"]) == len(line["b"]) == len(line["c"])
+    np.testing.assert_array_equal(overlay["acceptable"], np.all(acceptable, axis=0).astype(int))
+    assert overlay["at"] == pytest.approx(blend_of(b).tolist())
+
+
+def test_four_components_are_balanced_without_an_overlay(api):
+    _, sent = two_blended(api, 4)
+    b = api.ok("api_balance", sent)
+    assert b["balanced"] is True
+    assert b["overlay"] is None, "four components make a solid, which no triangle holds"
+    assert sum(s["value"] for s in b["settings"]) == pytest.approx(1.0)
+
+
+def test_confirmation_runs_at_the_balanced_blend_are_judged_response_by_response(api):
+    held, sent = two_blended(api)
+    b = api.ok("api_balance", sent)
+    at = b["confirm_at"]
+    n = len(held["rows"])
+    columns = [*held["columns"], CONFIRMATION]
+    extra = [[{"Run order": n + 1 + i, CONFIRMATION: "yes", **at}.get(c) for c in columns] for i in range(3)]
+    fitted = {name: terms_of(api, sent, name) for name in ("Hardness", "Cost")}
+    expected = {name: blended(pd.DataFrame([at]), terms)[0] for name, terms in fitted.items()}
+    again = api.ok(
+        "api_balance",
+        {
+            **sent,
+            "columns": columns,
+            "rows": [*[[*row, None] for row in held["rows"]], *extra],
+            "responses": [*sent["responses"], expected["Hardness"], expected["Hardness"], None],
+            "more_responses": {"Cost": [*sent["more_responses"]["Cost"], expected["Cost"], None, None]},
+        },
+    )
+    assert again["composite"] == pytest.approx(b["composite"]), "the confirmation runs are not fitted"
+    [group] = again["confirmation"]
+    assert group["at"] == at
+    verdicts = {v["name"]: v for v in group["responses"]}
+    assert (verdicts["Hardness"]["done"], verdicts["Cost"]["done"]) == (2, 1)
+    for name, value in expected.items():
+        assert verdicts[name]["predicted"] == pytest.approx(value, abs=1e-9), name
+        assert verdicts[name]["inside"] is True, name

@@ -3293,18 +3293,11 @@ def _ternary(
 ) -> dict:
     """Return the fitted response over a grid of blends of three components, and the runs, for a ternary plot.
 
-    The grid covers the smallest triangle holding the blends the lower proportions allow (the
-    whole triangle without lower bounds), in :data:`TERNARY_STEPS` steps a side, and keeps the
-    blends the upper proportions allow too, so the response is not drawn where the design has no
-    runs to support it.
+    The grid is :func:`_ternary_grid`'s, so the response is not drawn where the design has no runs
+    to support it.
     """
     names = [f["name"] for f in spec["factors"]]
-    low = np.array([f["low"] for f in spec["factors"]], dtype=float)
-    high = np.array([f["high"] for f in spec["factors"]], dtype=float)
-    n = TERNARY_STEPS
-    steps = np.array([(i, j, n - i - j) for i in range(n + 1) for j in range(n + 1 - i)], dtype=float) / n
-    grid = low + (1.0 - low.sum()) * steps
-    grid = grid[np.all(grid <= high + PROPORTION_TOLERANCE, axis=1)].round(9)
+    grid, _ = _ternary_grid(spec)
     frame = pd.DataFrame(grid, columns=names)
     return {
         "components": names,
@@ -3322,6 +3315,23 @@ def _ternary(
             "y": y.tolist(),
         },
     }
+
+
+def _ternary_grid(spec: dict) -> tuple[np.ndarray, list[tuple[int, int]]]:
+    """Return the blends of three components a triangle is drawn over, and each one's place ``(i, j)`` on its lattice.
+
+    The grid covers the smallest triangle holding the blends the lower proportions allow (the whole
+    triangle without lower bounds), in :data:`TERNARY_STEPS` steps a side: the blend at ``(i, j)`` has
+    ``i`` and ``j`` steps of the first two components. It keeps the blends the upper proportions
+    allow too.
+    """
+    low, high = _bounds(spec)
+    n = TERNARY_STEPS
+    places = [(i, j) for i in range(n + 1) for j in range(n + 1 - i)]
+    steps = np.array([(i, j, n - i - j) for i, j in places], dtype=float) / n
+    grid = low + (1.0 - low.sum()) * steps
+    kept = np.all(grid <= high + PROPORTION_TOLERANCE, axis=1)
+    return grid[kept].round(9), [place for place, keep in zip(places, kept, strict=True) if keep]
 
 
 def _cox_traces(names: list[str], out: dict, fitted: dict[str, float], true: dict[str, float] | None) -> dict:
@@ -5320,19 +5330,17 @@ def balance(request: dict) -> dict:
     down most (``limiting``); the leverage there against the runs' for the model that leans furthest;
     the limits the settings are on; the confirmation runs judged response by response; the
     ``overlay`` of the acceptable ranges over two factors (see :func:`_overlay`); and ``search``, what
-    the code the page shows needs. With fewer than two responses with a goal, or for a mixture (``mixture``),
-    it says so and holds no more.
+    the code the page shows needs. With fewer than two responses with a goal it says so and holds no
+    more. A mixture's responses are balanced over its blends, each fitted with its Scheffé model (see
+    :func:`_balanced_blend`).
     """
     whole = _checked_spec(request.get("spec") or {})
     every_run = _runs_frame(request, whole)
     design = _design_runs(every_run)
     aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
-    if len(aimed) < 2 or _mixture(whole):  # two responses or more are balanced; a mixture's blends are not searched
-        return {
-            "balanced": False,
-            "aimed": [r["name"] for r in aimed],
-            **({"mixture": True} if _mixture(whole) else {}),
-        }
+    if len(aimed) < 2:  # two responses or more are balanced
+        return {"balanced": False, "aimed": [r["name"] for r in aimed]}
+    mixture = _mixture(whole)
     names = [f["name"] for f in whole["factors"]]
     categorical = _categorical_names(whole)
     raw_goals = request.get("goals") or {}
@@ -5343,40 +5351,56 @@ def balance(request: dict) -> dict:
     goals: list[dict[str, Any]] = []
     for r in aimed:
         spec = _for_response(whole, r["name"])
-        model = _checked_model(raw_models.get(r["name"]) or spec["model"], names, categorical)
+        model = raw_models.get(r["name"]) or spec["model"]
+        model = _mixture_model(model) if mixture else _checked_model(model, names, categorical)
         results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
         if results.empty:
             raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
-        fits[r["name"]] = _fitted(design, spec, model)
+        fits[r["name"]] = _blend_fit(design, spec, model) if mixture else _fitted(design, spec, model)
         goals.append(_balance_goal(r, results, raw_goals.get(r["name"])))
+    if mixture:
+        return _balanced_blend(every_run, whole, aimed, fits, goals)
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
     point = _full_point(whole, found["x"], found["levels"])
-    responses = _balanced_responses(aimed, goals, fits, point)
-    weights = [g["importance"] for g in goals]
-    composite = float(composite_desirability([r["d"] for r in responses], weights))
-    share = [r["d"] ** (w / sum(weights)) for r, w in zip(responses, weights, strict=True)]
-    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
     in_model = set().union(*(_factors_in(fit.out["coefficients"], names) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
     still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
     return {
-        "balanced": True,
-        "aimed": [r["name"] for r in aimed],
-        "responses": responses,
-        "composite": composite,
-        "limiting": responses[int(np.argmin(share))]["name"],
-        "coded": point,
+        **_balanced_at(aimed, goals, fits, point),
         "settings": _settings_reply(whole, point, in_model, still, 1.0),
-        "leverage": leaning["leverage"],
-        "max_leverage": leaning["max_leverage"],
-        "leverage_of": leaning["name"],
-        "extrapolating": any(r["extrapolating"] for r in responses),
         "limits": _limits_on(whole, region, found["x"], still, 1.0),
         "confirm_at": _practical(whole, point, region),
         "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
         "overlay": _overlay(whole, found, goals, region),
         "search": {"held": found["held"], "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+    }
+
+
+def _balanced_at(
+    aimed: list[dict], goals: list[dict], fits: dict[str, _FittedModel], point: dict[str, float]
+) -> dict[str, Any]:
+    """Return what the balance says at the settings it found, or the blend: each response there, D and what holds it.
+
+    Each response's prediction, intervals, d and leverage (see :func:`_balanced_responses`); the overall
+    desirability D; the response that holds D down most (``limiting``), its d counted by its
+    importance; and the leverage there of the model that leans furthest on its runs.
+    """
+    responses = _balanced_responses(aimed, goals, fits, point)
+    weights = [g["importance"] for g in goals]
+    share = [r["d"] ** (w / sum(weights)) for r, w in zip(responses, weights, strict=True)]
+    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
+    return {
+        "balanced": True,
+        "aimed": [r["name"] for r in aimed],
+        "responses": responses,
+        "composite": float(composite_desirability([r["d"] for r in responses], weights)),
+        "limiting": responses[int(np.argmin(share))]["name"],
+        "coded": point,
+        "leverage": leaning["leverage"],
+        "max_leverage": leaning["max_leverage"],
+        "leverage_of": leaning["name"],
+        "extrapolating": any(r["extrapolating"] for r in responses),
     }
 
 
@@ -5634,6 +5658,119 @@ def _in_units(factor: dict, coded: float) -> float | str:
 def _grid(values: np.ndarray, shape: tuple[int, ...]) -> list[list[float]]:
     """Return a surface's values on its grid, rows of columns, each to six significant figures: enough to draw it."""
     return [[float(f"{v:.6g}") for v in row] for row in values.reshape(shape)]
+
+
+def _balanced_blend(
+    every_run: pd.DataFrame, whole: dict, aimed: list[dict], fits: dict[str, _FittedModel], goals: list[dict]
+) -> dict:
+    """Find the blend that balances the responses with a goal, by their overall desirability, on their Scheffé models.
+
+    The search is :func:`balance`'s, over the region of blends (see :func:`_best_blend`): every
+    response's model, fitted on the proportions, with its goal as a desirability. The reply is
+    :func:`balance`'s, with each component's proportion in ``settings`` (see :func:`_blend_settings`)
+    and the blend weighed out for the confirmation runs (see :func:`_weighed`). ``overlay`` is drawn
+    over the triangle of three components (see :func:`_blend_overlay`), and is None for more.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
+
+    names = [f["name"] for f in whole["factors"]]
+    models = {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+    with _listening() as heard:
+        found = optimize_responses(
+            [{"response_name": name, "coefficients": model, "factor_names": names} for name, model in models.items()],
+            goals=[_desirability_of(g) for g in goals],
+            region=DesignRegion(_components(whole)),
+        )["desirability"]
+    _relay(heard)
+    low, high = _bounds(whole)
+    x = np.clip([found["optimal_coded"][n] for n in names], low, high)  # SLSQP keeps to the bounds, to rounding
+    confirm_at, rounding = _weighed(whole, x)
+    return {
+        **_balanced_at(aimed, goals, fits, dict(zip(names, x.tolist(), strict=True))),
+        "settings": _blend_settings(whole, x, np.zeros(len(x)), 1.0),  # no way to move is said: no bound has a "beyond"
+        "limits": [],
+        "confirm_at": confirm_at,
+        "rounding": rounding,
+        "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
+        "overlay": _blend_overlay(whole, models, goals, x),
+        "search": {"held": {}, "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+    }
+
+
+def _blend_overlay(
+    spec: dict, models: dict[str, list[dict]], goals: list[dict], x: np.ndarray
+) -> dict[str, Any] | None:
+    """Return the overlay of the acceptable ranges over the triangle of three components; None for more.
+
+    Over the triangle's grid of blends (see :func:`_ternary_grid`), as ``a``, ``b`` and ``c``: each
+    response's prediction (``z``), the levels its acceptable boundary is at (``levels``, as
+    :func:`_acceptable` gives them) and where it crosses each (``lines``, see :func:`_crossings`);
+    ``acceptable``, 1 at a blend where every response has a desirability above 0; and ``at``, the
+    balanced blend. Four components or more make a solid, which no picture of the triangle holds.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    if len(names) != 3:  # the triangle of three components
+        return None
+    grid, places = _ternary_grid(spec)
+    acceptable = np.ones(len(grid), dtype=bool)
+    surfaces = []
+    for goal in goals:
+        z = _predict(models[goal["response"]], names, grid)
+        inside, levels = _acceptable(goal, z)
+        acceptable &= inside
+        surfaces.append(
+            {
+                "name": goal["response"],
+                "z": [float(f"{v:.6g}") for v in z],
+                "levels": levels,
+                "lines": [_crossings(grid, places, z, level) for level in levels],
+            }
+        )
+    return {
+        "kind": "ternary",
+        "components": names,
+        "a": grid[:, 0].tolist(),
+        "b": grid[:, 1].tolist(),
+        "c": grid[:, 2].tolist(),
+        "responses": surfaces,
+        "acceptable": acceptable.astype(int).tolist(),
+        "at": x.tolist(),
+    }
+
+
+def _crossings(
+    grid: np.ndarray, places: list[tuple[int, int]], z: np.ndarray, level: float
+) -> dict[str, list[float | None]]:
+    """Return where a response crosses a level over the triangle's grid, as segments of line for a ternary plot.
+
+    The grid's lattice splits the triangle into small triangles. One whose corners lie on both sides
+    of the level holds a segment of the line, from where it crosses one side to where it crosses
+    another, each found by straight-line interpolation along the side. The segments are listed end
+    to end in ``a``, ``b`` and ``c``, each followed by None, so a plot draws them apart.
+    """
+    at = {place: k for k, place in enumerate(places)}
+    ends: dict[str, list[float | None]] = {"a": [], "b": [], "c": []}
+    for i, j in places:
+        for corners in (((i, j), (i + 1, j), (i, j + 1)), ((i + 1, j), (i, j + 1), (i + 1, j + 1))):
+            if not all(c in at for c in corners):  # a corner past the triangle, or outside the bounds
+                continue
+            k = [at[c] for c in corners]
+            v = z[k] - level
+            crossed = [
+                grid[k[p]] + v[p] / (v[p] - v[q]) * (grid[k[q]] - grid[k[p]])
+                for p, q in ((0, 1), (1, 2), (2, 0))
+                if (v[p] >= 0) != (v[q] >= 0)
+            ]
+            if len(crossed) == 2:  # a straight line crosses two sides of a triangle, or none
+                for point in crossed:
+                    for axis, value in zip("abc", point, strict=True):
+                        ends[axis].append(round(float(value), 6))
+                for axis in "abc":
+                    ends[axis].append(None)
+    return ends
 
 
 # --------------------------------------------------------------------------- runs added to a study

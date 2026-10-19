@@ -400,7 +400,7 @@ def test_each_response_of_a_mixture_is_fitted_and_drawn_on_its_own(api, plotly):
     assert "ternary" in api.ok("api_plots", cost)
 
 
-def test_each_response_of_a_mixture_has_its_own_best_blend(api):
+def test_each_response_of_a_mixture_has_its_own_best_blend_and_they_are_balanced(api):
     """Each response's best blend is the peak of its own fitted model: Hardness's without C, Cost's without B."""
     held, simulation = two_responses(api)
     results = {
@@ -420,4 +420,6 @@ def test_each_response_of_a_mixture_has_its_own_best_blend(api):
         assert sign * both > 0, "the fitted edge curves the way that puts its best inside the edge"
         assert blend[kept[0]] == pytest.approx((first - second + both) / (2 * both), abs=1e-4), response
     balance = api.ok("api_balance", {**held, **results})
-    assert balance == {"balanced": False, "aimed": ["Hardness", "Cost"], "mixture": True}
+    assert balance["balanced"] is True, "the two goals are balanced over the blends"
+    assert balance["aimed"] == ["Hardness", "Cost"]
+    assert sum(s["value"] for s in balance["settings"]) == pytest.approx(1.0)
