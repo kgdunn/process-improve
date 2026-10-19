@@ -80,6 +80,7 @@ class _EvalRequest:
     max_search: str = "sample"
     # each random effect's group labels, one array per run, and its variance over the run variance (GLS)
     random_effects: dict[str, tuple[np.ndarray, float]] | None = None
+    alias_terms: str = "interactions"  # the terms outside the model the alias matrix is worked against
 
 
 @dataclass
@@ -113,6 +114,7 @@ class _EvalContext:
     categorical_coding: str = "effect"
     integration: str = "sample"  # the region average: "sample" or "exact" (quadrature over the cube)
     max_search: str = "sample"  # the region maximum: "sample" or "optimize" (a local search from the best points)
+    alias_terms: str = "interactions"  # "interactions", or "quadratic" for the squares too
 
     @property
     def patsy_data(self) -> dict[str, Any] | pd.DataFrame:
@@ -324,6 +326,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         categorical_coding=req.categorical_coding,
         integration=req.integration,
         max_search=req.max_search,
+        alias_terms=req.alias_terms,
     )
 
 
@@ -396,6 +399,17 @@ def _region_points(
 #: The ways of working out the region average and the region maximum of the prediction variance.
 _INTEGRATIONS = ("sample", "exact")
 _MAX_SEARCHES = ("sample", "optimize")
+_ALIAS_TERMS = ("interactions", "quadratic")
+#: The values each of evaluate_design's named options takes.
+_OPTIONS = {"integration": _INTEGRATIONS, "max_search": _MAX_SEARCHES, "alias_terms": _ALIAS_TERMS}
+
+
+def _check_options(**options: str) -> None:
+    """Refuse an option of :func:`evaluate_design` that is not one of its values, naming the option."""
+    for name, value in options.items():
+        if value not in _OPTIONS[name]:
+            raise ValueError(f"{name} must be one of {_OPTIONS[name]}; got {name}={value!r}.")
+
 
 #: Gauss-Legendre points per factor for the exact region average: exact for a model of degree up to
 #: four in each factor, whose prediction variance is then a polynomial of degree up to eight.
@@ -872,11 +886,34 @@ def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, lis
     return np.asarray(dm, dtype=float)[:, columns], [dm.columns[i] for i in columns]
 
 
+def _omitted_squares(ctx: _EvalContext) -> tuple[np.ndarray, list[str]]:
+    """Build the squared columns of the numeric factors whose square the model leaves out (#797 R4).
+
+    A first-order design run at two levels has every square equal to 1, so each square is
+    aliased with the intercept: Davies (11.33) writes b0 -> b0 + b11 + b22 + ... This is what
+    curvature does to the mean of such a design. A Scheffe mixture model has no squares.
+    """
+    if ctx.is_scheffe:
+        return np.empty((ctx.N, 0)), []
+    present = {factor.name() for term in ctx.design_info.terms for factor in term.factors}
+    squares = [
+        Term([EvalFactor(f"I({name} ** 2)")])
+        for name in ctx.factor_names
+        if pd.api.types.is_numeric_dtype(ctx.design_df[name]) and EvalFactor(f"I({name} ** 2)").name() not in present
+    ]
+    if not squares:
+        return np.empty((ctx.N, 0)), []
+    dm = dmatrix(ModelDesc([], [*ctx.design_info.terms, *squares]), ctx.patsy_data, return_type="dataframe")
+    columns = [dm.design_info.term_slices[term].start for term in squares]
+    return np.asarray(dm, dtype=float)[:, columns], [dm.columns[i] for i in columns]
+
+
 def _compute_alias_matrix(ctx: _EvalContext) -> dict[str, Any]:
     """General alias (bias) matrix ``A = (X1'X1)^-1 X1' X2``.
 
     With the fitted model ``X1`` and a set of potential extra terms ``X2``
-    (default: the two-factor interactions not already in the model), the least
+    (the two-factor interactions not already in the model, and with
+    ``alias_terms="quadratic"`` the squares of the numeric factors too), the least
     squares estimate of the fitted coefficients is biased by
     ``E[b1] = beta1 + A @ beta2``.  This generalises :func:`alias_structure`
     (which only handles two-level fractional factorials) to any design / model.
@@ -891,7 +928,11 @@ def _compute_alias_matrix(ctx: _EvalContext) -> dict[str, Any]:
 
     assert ctx.XtX_inv is not None
     X2, alias_terms = _omitted_two_factor_interactions(ctx)
+    if ctx.alias_terms == "quadratic":
+        squares, square_names = _omitted_squares(ctx)
+        X2, alias_terms = np.hstack([X2, squares]), [*alias_terms, *square_names]
     if X2.shape[1] == 0:
+        outside = "second-order terms" if ctx.alias_terms == "quadratic" else "two-factor interactions"
         return {
             "alias_matrix": {
                 "matrix": [],
@@ -900,7 +941,7 @@ def _compute_alias_matrix(ctx: _EvalContext) -> dict[str, Any]:
                 "max_abs": 0.0,
                 "max_abs_main_effect_rows": 0.0,
                 "frobenius_norm": 0.0,
-                "note": "No two-factor interactions outside the model to alias against.",
+                "note": f"No {outside} outside the model to alias against.",
             }
         }
 
@@ -1768,6 +1809,7 @@ def evaluate_design(  # noqa: PLR0913
     integration: str = "sample",
     max_search: str = "sample",
     random_effects: Mapping[str, float] | None = None,
+    alias_terms: str = "interactions",
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1889,6 +1931,12 @@ def evaluate_design(  # noqa: PLR0913
         ratios of 0 give back the ordinary least squares metrics. The degrees of freedom and
         the power keep the run-level residual degrees of freedom ``N - p``. ``None`` (default)
         treats the runs as independent.
+    alias_terms : {"interactions", "quadratic"}
+        The terms outside the model that ``alias_matrix`` works out the biases of.
+        ``"interactions"`` (default): the two-factor interactions the model leaves out.
+        ``"quadratic"``: those and the squares of the numeric factors, the terms of the full
+        second-order model, so the matrix shows how curvature biases a first-order design's
+        intercept (Davies, 11.33: b0 -> b0 + b11 + b22 + ...).
 
     Returns
     -------
@@ -1934,10 +1982,7 @@ def evaluate_design(  # noqa: PLR0913
     design_df, factor_names, groups, groups_note = _random_effect_groups(design_df, factor_names, random_effects)
     design_df, factor_names, block_note = _separate_run_columns(design_df, factor_names, model)
     _validate_inputs(design_df, factor_names, alpha, sigma, n_samples)
-    if integration not in _INTEGRATIONS:
-        raise ValueError(f"integration must be one of {_INTEGRATIONS}; got integration={integration!r}.")
-    if max_search not in _MAX_SEARCHES:
-        raise ValueError(f"max_search must be one of {_MAX_SEARCHES}; got max_search={max_search!r}.")
+    _check_options(integration=integration, max_search=max_search, alias_terms=alias_terms)
     metrics = _resolve_metrics(metric)
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
@@ -1968,6 +2013,7 @@ def evaluate_design(  # noqa: PLR0913
             integration=integration,
             max_search=max_search,
             random_effects=groups,
+            alias_terms=alias_terms,
         )
     )
 
