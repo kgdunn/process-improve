@@ -371,9 +371,11 @@ def test_a_design_s_projections_say_what_any_two_or_three_factors_estimate(conte
     text = page.locator(".explorer__text")
     assert text.text_content() == (
         "In A, B and C, the runs sit at 15 distinct settings and estimate the full quadratic in them (10 terms). "
-        "They hold all 8 corners: a full 2^3 factorial in these factors."
+        "They hold all 8 corners: a full 2^3 factorial in these factors. "
+        "A label such as 3× counts the runs at a point; a point with no label holds one run."
     )
     assert page.locator(".projection__point").count() == 15
+    assert page.locator(".projection__count").all_text_contents() == ["3×"], "the centre's runs, as a count"
     page.click(".explorer__picks [data-column='2']")
     assert text.text_content().startswith(
         "In A and B, the runs sit at 9 distinct settings and estimate the full quadratic"

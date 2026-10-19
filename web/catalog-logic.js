@@ -740,14 +740,29 @@ export function quadraticRows(runs, columns) {
     });
 }
 
-/** What a projection holds: its distinct settings, whether it estimates the full quadratic, its corners. */
+/**
+ * What a projection holds: its distinct settings, whether it estimates the full quadratic, its corners, and the runs
+ * on each point: ``even``, the number every point holds when they all hold the same, else null, and ``most``.
+ */
 export function projectionSummary(runs, columns) {
   const points = projected(runs, columns);
   const matrix = quadraticRows(runs, columns);
   const terms = ((columns.length + 1) * (columns.length + 2)) / 2;
   const found = rank(matrix);
   const corners = points.filter((p) => p.point.every((v) => Math.abs(Math.abs(v) - 1) < 1e-6)).length;
-  return { distinct: points.length, terms, rank: found, quadratic: found === terms, corners, allCorners: corners === 2 ** columns.length };
+  const counts = points.map((p) => p.count);
+  const even = counts.length && counts.every((c) => c === counts[0]) ? counts[0] : null;
+  return {
+    distinct: points.length,
+    terms,
+    rank: found,
+    quadratic: found === terms,
+    corners,
+    allCorners: corners === 2 ** columns.length,
+    even,
+    most: Math.max(0, ...counts),
+    single: counts.includes(1),
+  };
 }
 
 const joined = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
@@ -760,6 +775,11 @@ export function projectionText(summary, names) {
   const lines = [`In ${joined(names)}, the runs sit at ${plural(summary.distinct, "distinct setting")} and ${fits}.`];
   if (summary.allCorners) {
     lines.push(`They hold all ${summary.corners} corners: a full 2^${names.length} factorial in these factors.`);
+  }
+  // The plot labels a point with its runs only when the points differ; when they do not, one sentence says it.
+  if (summary.even > 1) lines.push(`Every point holds ${summary.even} runs.`);
+  else if (summary.even === null) {
+    lines.push(`A label such as ${summary.most}× counts the runs at a point${summary.single ? "; a point with no label holds one run" : ""}.`);
   }
   return lines.join(" ");
 }

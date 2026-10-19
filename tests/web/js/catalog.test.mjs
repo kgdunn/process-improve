@@ -598,9 +598,20 @@ describe("a design's projections", () => {
     assert.deepEqual([cube.distinct, cube.rank, cube.quadratic], [4, 4, false]);
     assert.equal(
       projectionText(cube, ["B", "C"]),
-      "In B and C, the runs sit at 4 distinct settings and do not estimate the full quadratic in them: its 6 terms have rank 4. They hold all 4 corners: a full 2^2 factorial in these factors.",
+      "In B and C, the runs sit at 4 distinct settings and do not estimate the full quadratic in them: its 6 terms have rank 4. They hold all 4 corners: a full 2^2 factorial in these factors. Every point holds 2 runs.",
     );
     assert.match(projectionText(projectionSummary(CCD, [0, 1, 2]), ["A", "B", "C"]), /15 distinct settings and estimate the full quadratic in them \(10 terms\)/);
+  });
+
+  test("the runs on each point: one sentence when every point holds the same, else what a label counts", () => {
+    const flat = projectionSummary(CCD, [0, 1]);
+    assert.deepEqual([flat.even, flat.most, flat.single], [null, 5, true]);
+    assert.match(projectionText(flat, ["A", "B"]), / A label such as 5× counts the runs at a point; a point with no label holds one run\.$/);
+    const twice = projectionSummary([...CUBE, ...CUBE], [0, 1, 2]);
+    assert.deepEqual([twice.even, twice.single], [2, false]);
+    assert.match(projectionText(twice, ["A", "B", "C"]), / Every point holds 2 runs\.$/);
+    const once = projectionText(projectionSummary(CUBE, [0, 1, 2]), ["A", "B", "C"]);
+    assert.doesNotMatch(once, /holds|label/, "one run on every point needs no word on it");
   });
 });
 
