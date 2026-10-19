@@ -130,6 +130,12 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+Run Sheets
+~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.run_sheet
+   :members: run_sheet, read_run_sheet
+
 Strategy Recommender
 ~~~~~~~~~~~~~~~~~~~~
 

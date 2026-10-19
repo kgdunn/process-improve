@@ -152,6 +152,16 @@ in:
        it hides them. A square may enter the search without its main effect: a factor whose best
        setting is in the middle of its range has a square and no main effect.
 
+The last row is the one place where the terms tested are the terms a search chose, and its
+p-values overstate the evidence when the search weighs many candidates. On pure noise, a false
+square or interaction passed its t-test in 87% of simulated 48-run studies of 12 factors (78
+candidates), but in 5% of 15-run Plackett-Burman studies of 8 factors, where the small-sample
+penalty of AICc keeps the search short. This is kept on purpose: confirmation runs catch a false
+term at the cost of a few runs. P-values simulated to allow for the search cut the false alarms
+to 3%, but they also missed weak real terms. Followed round by round on known processes, they
+saved runs on a 12-factor study and fell further short of the optimum on a 10-factor study with
+weak curvature (0.90 noise standard deviations against 0.72, on average).
+
 When something stands out but the model judged does not fit the repeated runs (its
 lack-of-fit test is significant at ``alpha``), its residual holds the effects it leaves out and
 overstates the noise: every term looks smaller than it is. The terms are then tested against
