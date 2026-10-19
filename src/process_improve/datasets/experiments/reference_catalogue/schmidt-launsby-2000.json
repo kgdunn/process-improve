@@ -24451,7 +24451,7 @@
       "quote": "The next step is to complete the Tukey pairwise comparison test, where d = 11.43."
      },
      "check": {
-      "manual": "the studentized range quantile times √(MSE/7), the quantile read from a table"
+      "manual": "the studentized range quantile times √(MSE/7): the tukey check gives 11.03, with q(0.95; 5, 30) = 4.10 on the 30 error degrees of freedom; the 11.43 printed implies q = 4.25"
      }
     }
    ]
@@ -28885,9 +28885,99 @@
       "source_kind": "table",
       "quote": "Table 5.3 Standard ANOVA Table for Table 5.2 Data Results ... df 1"
      },
-     "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
-     }
+     "check": [
+      {
+       "kind": "anova_df",
+       "term": "A",
+       "model": "A + B + C + D + E + F + G",
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "anova_df",
+       "term": "B",
+       "model": "A + B + C + D + E + F + G",
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "anova_df",
+       "term": "C",
+       "model": "A + B + C + D + E + F + G",
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "anova_df",
+       "term": "D",
+       "model": "A + B + C + D + E + F + G",
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "anova_df",
+       "term": "E",
+       "model": "A + B + C + D + E + F + G",
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "anova_df",
+       "term": "F",
+       "model": "A + B + C + D + E + F + G",
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "1"
+      },
+      {
+       "kind": "anova_df",
+       "term": "G",
+       "model": "A + B + C + D + E + F + G",
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "1"
+      }
+     ]
     },
     {
      "what": "coefficient",
@@ -31314,13 +31404,19 @@
      "what": "t statistic",
      "term": null,
      "value": "-7.06",
+     "analysis": "the library's one-sample t of the five confirmation runs against 9",
      "where": {
       "page": "5-15",
       "source_kind": "math",
       "quote": "t0 = (5.4 - 9) / (1.14/√5) = -7.06"
      },
      "check": {
-      "manual": "the one-sample t of the mean against 9, arithmetic of the mean and standard deviation, which are checked"
+      "kind": "classical_test",
+      "function": "ttest_one_sample",
+      "kwargs": {
+       "mu": 9
+      },
+      "key": "t_value"
      }
     },
     {
@@ -34830,7 +34926,11 @@
       "quote": "Table 5.12 Turbine Blade Casting Example ... Z(.975) = 1.96"
      },
      "check": {
-      "manual": "a value of the standard normal distribution read from Appendix D"
+      "kind": "library_value",
+      "function": "z_value",
+      "args": [
+       0.975
+      ]
      }
     },
     {
@@ -36912,7 +37012,11 @@
       "quote": "[Z(1 - α/2) = Z(.975) = 1.96] < 3.432"
      },
      "check": {
-      "manual": "a value of the standard normal distribution"
+      "kind": "library_value",
+      "function": "z_value",
+      "args": [
+       0.975
+      ]
      }
     }
    ]
@@ -70344,7 +70448,16 @@
       "quote": "Table 1 ANOVA Table ... Ratio ... df 1"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Ratio",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -70426,7 +70539,16 @@
       "quote": "Table 1 ANOVA Table ... Paper ... df 1"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Paper",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -70508,7 +70630,16 @@
       "quote": "Table 1 ANOVA Table ... Clip ... df 1"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Clip",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -70589,7 +70720,16 @@
       "quote": "Table 1 ANOVA Table ... R-P ... df 1"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Ratio·Paper",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -70669,7 +70809,16 @@
       "quote": "Table 1 ANOVA Table ... R-C ... df 1"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Ratio·Clip",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -70749,7 +70898,16 @@
       "quote": "Table 1 ANOVA Table ... P-C ... df 1"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Paper·Clip",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -70829,7 +70987,16 @@
       "quote": "Table 1 ANOVA Table ... R-P-C ... df 1"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "Ratio·Paper·Clip",
+      "model": "Ratio * Paper * Clip",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -98923,7 +99090,7 @@
       "quote": "The calculations use t = 2.848."
      },
      "check": {
-      "manual": "a value of the t distribution read from a table, not a result of the data"
+      "manual": "a value of the t distribution read from a table: t_value(1 - 0.05/12, 27) = 2.8469, for six comparisons on the 27 degrees of freedom of the entry's other t; the book does not say how many comparisons it counts"
      }
     },
     {
@@ -101684,7 +101851,16 @@
       "quote": "Table 4 ANOVA ... A(CHCL3) ... 0.0126 ... 0.040 ... 1 ... 12.651"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A",
+      "model": "A * B",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -101789,7 +101965,16 @@
       "quote": "Table 4 ANOVA ... B(Shake) ... 0.0000 ... -0.001 ... 1 ... 0.003"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "B",
+      "model": "A * B",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -101894,7 +102079,16 @@
       "quote": "Table 4 ANOVA ... AB ... 0.0064 ... -0.028 ... 1 ... 6.440"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A·B",
+      "model": "A * B",
+      "summary": {
+       "of": [
+        "y1",
+        "y2"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -108733,7 +108927,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... A: DTPA 210578 1 2.11E+05 0.04 0.8532"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -108813,7 +109010,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... B: H2O2 125272056 1 1.25E+08 24083 0.0155"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "B",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -108892,7 +109092,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... C: NaOH 88341201 1 8.83E+07 17.51 0.0249"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "C",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -108972,7 +109175,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... D: Pump Type 41652843 1 4.17E+07 8.25 0.0639"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "D",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109053,7 +109259,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... AB 135831506 1 1.37E+08 27.12 0.0138"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A·B",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109132,7 +109341,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... AC 10093329 1 1.01E+07 2.00 0.2522"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A·C",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109212,7 +109424,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... AD 201694 1 2.02E+05 0.04 0.8563"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A·D",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109292,7 +109507,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... BC 11029041 1 1.10E+07 2.19 0.2358"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "B·C",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109371,7 +109589,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... BD 120417702 1 1.20E+08 23.86 0.0164"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "B·D",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109450,7 +109671,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... CD 7507600 1 7.51E+06 1.49 0.3097"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "C·D",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109530,7 +109754,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... ABC 10126124 1 1.01E+07 2.01 0.2516"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A·B·C",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109609,7 +109836,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... ABD 152510150 1 1.53E+08 30.22 0.0118"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A·B·D",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109688,7 +109918,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... ACD 13468900 1 1.35E+07 2.67 0.2008"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "A·C·D",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -109767,7 +110000,10 @@
       "quote": "Table 2 Analysis of Variance (ANOVA) ... BCD 9000000 1 9.00E+06 1.78 0.2740"
      },
      "check": {
-      "manual": "each column of a two-level design has one degree of freedom"
+      "kind": "anova_df",
+      "term": "B·C·D",
+      "model": "A + B + C + D + A:B + A:C + A:D + B:C + B:D + C:D + A:B:C + A:B:D + A:C:D + B:C:D",
+      "response": "y"
      }
     },
     {
@@ -116687,13 +116923,23 @@
      "what": "n_runs",
      "term": null,
      "value": "13",
+     "analysis": "the library's composite design on the half fraction C = AB, with 3 centre runs",
      "where": {
       "page": "3-34",
       "source_kind": "table",
       "quote": "Table 3.22 ... b) Fractional Factorial 2-Level Portion ... Run 1 to 13"
      },
      "check": {
-      "manual": "the library builds a composite design's cube at resolution V or more, so a full quadratic model can be fitted, and refuses this resolution III half fraction; it cannot make these thirteen runs"
+      "kind": "design_property",
+      "property": "n_runs",
+      "design": {
+       "design_type": "ccd",
+       "k": 3,
+       "options": {
+        "cube": "fractional",
+        "n_center_points": 3
+       }
+      }
      }
     }
    ]
