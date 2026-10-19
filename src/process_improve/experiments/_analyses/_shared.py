@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import numpy as np
-from statsmodels.regression.linear_model import RegressionResultsWrapper
+from statsmodels.regression.linear_model import OLSResults, RegressionResultsWrapper
 
 
 def _compute_pred_r_squared(ols_result: RegressionResultsWrapper) -> float:
@@ -36,6 +36,28 @@ def _compute_adequate_precision(ols_result: RegressionResultsWrapper) -> float:
     if noise == 0:
         return float("inf")
     return signal / noise
+
+
+def with_prior_sigma(ols_result: RegressionResultsWrapper, sigma: float | None) -> RegressionResultsWrapper:
+    """Return ``ols_result`` with its standard errors from a prior ``sigma`` instead of the residual (#789 B6).
+
+    The coefficients do not change. Their covariance becomes sigma² (X'X)⁻¹, and the tests
+    and intervals read the normal distribution rather than the t, since sigma is not
+    estimated from these runs. A saturated fit, which has no residual, gets standard errors
+    too. ``ols_result`` itself is returned when ``sigma`` is None.
+    """
+    if sigma is None:
+        return ols_result
+    params, unscaled = np.asarray(ols_result.params), np.asarray(ols_result.normalized_cov_params)
+    known = OLSResults(ols_result.model, params, unscaled, use_t=False)
+    known.scale = float(sigma) ** 2  # set after construction, which clears the cache the scale is kept in
+    known.prior_sigma = float(sigma)
+    return RegressionResultsWrapper(known)
+
+
+def has_error_variance(ols_result: RegressionResultsWrapper) -> bool:
+    """Return whether the fit has an error variance to test its terms against: a prior sigma, or a residual."""
+    return getattr(ols_result, "prior_sigma", None) is not None or int(ols_result.df_resid) > 0
 
 
 #: The design column that names each run's block. Blocks enter a model as sum-coded
