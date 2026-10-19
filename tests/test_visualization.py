@@ -29,6 +29,7 @@ from process_improve.experiments.visualization.plots.registry import (
     create_plot,
     get_available_plot_types,
 )
+from process_improve.experiments.visualization.plots.surfaces import _clip_line
 from process_improve.visualization.adapters import EChartsAdapter, PlotlyAdapter
 from process_improve.visualization.colors import CANNOT_RUN_FILL
 from process_improve.visualization.spec import ChartSpec, LayerSpec, PanelSpec
@@ -863,6 +864,56 @@ class TestContourOverTheDesign:
         )
         with pytest.raises(ValueError, match="canonical analysis"):
             plot.to_spec()
+
+    def test_the_canonical_overlays_need_a_model_of_second_order_at_most(self) -> None:
+        cubic = [
+            {"term": "Intercept", "coefficient": 40.0},
+            {"term": "A", "coefficient": 5.25},
+            {"term": "B", "coefficient": -3.5},
+            {"term": "I(A ** 2)", "coefficient": -2.0},
+            {"term": "I(B ** 2)", "coefficient": -1.0},
+            {"term": "I(A ** 3)", "coefficient": 0.5},
+        ]
+        plot = create_plot(
+            "contour", analysis_results={"coefficients": cubic}, factors_to_plot=["A", "B"], overlays="stationary_point"
+        )
+        with pytest.raises(ValueError, match=r"canonical analysis of the model: .* needs a second-order model"):
+            plot.to_spec()
+
+    def test_an_axis_along_a_held_factor_is_not_drawn(self) -> None:
+        """C has no interaction, so one canonical axis is C alone: it crosses the plotted plane at one point."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 50.0},
+            {"term": "A", "coefficient": 2.0},
+            {"term": "B", "coefficient": -1.0},
+            {"term": "C", "coefficient": 0.5},
+            {"term": "A:B", "coefficient": 1.0},
+            {"term": "I(A ** 2)", "coefficient": -3.0},
+            {"term": "I(B ** 2)", "coefficient": -2.0},
+            {"term": "I(C ** 2)", "coefficient": -1.0},
+        ]
+        spec = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients},
+            factors_to_plot=["A", "B"],
+            hold_values={"C": 0.0},
+            overlays=["canonical_axes"],
+        ).to_spec()
+        drawn = sorted(round(axis["eigenvalue"], 3) for axis in spec.metadata["canonical_axes"])
+        assert drawn == [-3.207, -1.793], "the eigenvalues of A and B's 2 x 2 part, not C's -1"
+        assert sum(layer.name.startswith("Canonical axis") for layer in spec.panels[0].layers) == 2
+
+    @pytest.mark.parametrize(
+        ("point", "direction", "ends"),
+        [
+            pytest.param((0.0, 0.5), (1.0, 0.0), ((-1.0, 0.5), (1.0, 0.5)), id="along x, inside"),
+            pytest.param((0.0, 2.0), (1.0, 0.0), None, id="along x, above the box"),
+            pytest.param((3.0, 0.0), (1.0, 1.0), None, id="past the corner"),
+            pytest.param((0.0, 0.0), (0.0, 0.0), None, id="no direction in the plane"),
+        ],
+    )
+    def test_a_line_is_cut_to_the_plotted_box(self, point: tuple, direction: tuple, ends: tuple | None) -> None:
+        assert _clip_line(point, direction, (1.0, 1.0)) == ends
 
     @pytest.mark.parametrize(
         ("options", "message"), [({"units": "metric"}, "units must be"), ({"overlays": ["ridge"]}, "Unknown overlays")]
