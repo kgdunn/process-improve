@@ -126,7 +126,10 @@ What the sessions showed about the tools:
   of X04 and X05 active (p = 0.042 and 0.010). The agent's own fit gave them
   p = 0.65 and 0.22, and the truth has neither. Squares that the stepwise search
   proposes are then tested in the model that proposed them, which flatters them.
-  This is an open issue.
+  This is kept on purpose: p-values simulated to allow for the search missed weak
+  real terms and fell further short of the optimum on impact 03, while
+  confirmation runs catch a false term at the cost of a few runs. The
+  :doc:`next-step guide </user_guide/next_step>` gives the numbers.
 - **No agent read anything it was told not to.** Each listed only the toolkit's
   skill file, and the instruction files the session loads by itself.
 
