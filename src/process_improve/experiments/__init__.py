@@ -37,6 +37,7 @@ from process_improve.experiments.projections import evaluate_projections
 from process_improve.experiments.random_effects import (
     expected_mean_squares,
     intraclass_correlation_interval,
+    sampling_scheme_variance,
     variance_components,
 )
 from process_improve.experiments.region import DesignRegion
@@ -125,6 +126,7 @@ __all__ = [
     "rename_factors",
     "run_order_trends",
     "run_sheet",
+    "sampling_scheme_variance",
     "separating_constraint",
     "simulate_design_performance",
     "summary",
