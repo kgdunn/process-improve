@@ -176,6 +176,8 @@ calling, rather than guessing at field names.
 | `recommend_strategy` | "How should I plan this?" Staged plan from factors, budget, domain |
 | `doe_knowledge` | Definitions, design-type descriptions, diagnostics, decision logic |
 | `generate_design` | Build a design matrix |
+| `write_run_sheet` | The runs as a CSV or Excel sheet for the lab or an upload: actual or coded units, columns named or X01..Xnn, empty response columns |
+| `read_run_sheet` | A filled sheet back into the factors' names and actual units, whichever units and labels it was written in |
 | `create_factorial_design` | Quick 2^k full factorial |
 | `evaluate_design` | Resolution, aliasing, moment aberration, D/I/G-efficiency, VIF, power |
 | `compare_designs` | Several designs side by side for one model: A, D, E, G, I, max correlation, power |
