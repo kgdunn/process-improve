@@ -26,6 +26,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_mixture
    :members: dispatch_mixture
 
+.. automodule:: process_improve.experiments.pseudocomponents
+   :members: to_pseudocomponents, from_pseudocomponents
+
 .. automodule:: process_improve.experiments.designs_constrained
    :members: constrained_optimal_design, ConstrainedOptions, Criterion, parse_constraint, rename_factors, build_candidates, model_matrix, fedorov_exchange
 
