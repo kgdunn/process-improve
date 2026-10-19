@@ -24,7 +24,8 @@
   <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
   <h1>How Factorial works</h1>
   <p class="lede">Factorial runs the process-improve Python package inside your browser tab. The server sends the
-    app's files and nothing more: your factors, results and analyses stay on your machine.</p>
+    app's files and nothing more: your factors, results and analyses stay on your machine, unless you send them in a
+    report with Feedback.</p>
 
   <section aria-labelledby="h-where">
     <h2 id="h-where">What runs where</h2>
@@ -78,6 +79,13 @@
       <li><strong>jsDelivr and PyPI</strong> send Python and its packages, the first time and after a new version;
         your browser keeps them. They see an ordinary download, as for any web page that uses them, and nothing of
         your study.</li>
+      <li><strong>Feedback</strong> reaches factori.al only when you press Send in the Feedback dialog, and holds what
+        the dialog lists under "What will be sent": the topic, your message, your email address if you give one, a
+        screenshot of the tab unless you untick it, your study only if you tick it, and the page's build, versions, tab
+        and last Python errors. The site's relay emails it to the maintainer's mailbox through the email provider that
+        sends the site's mail, and keeps nothing of it, in a file or in its log. A copy of Factorial at another address
+        sends nothing itself.
+        <a href="https://github.com/kgdunn/process-improve/blob/main/deploy/factorial/feedback_relay.py" target="_blank" rel="noopener">Read the code</a>.</li>
     </ul>
   </section>
 
@@ -109,7 +117,8 @@
       <li><a href="https://github.com/kgdunn/process-improve/blob/main/scripts/build_web_app.py" target="_blank" rel="noopener"><code>scripts/build_web_app.py</code></a>:
         how this site is built from the repository;</li>
       <li><a href="https://github.com/kgdunn/process-improve/tree/main/deploy/factorial" target="_blank" rel="noopener"><code>deploy/factorial/</code></a>:
-        the server at factori.al, its configuration and what it logs;</li>
+        the server at factori.al, its configuration and what it logs, and the relay that emails a report sent with
+        Feedback;</li>
       <li><a href="https://github.com/kgdunn/process-improve/tree/main/tests/web" target="_blank" rel="noopener"><code>tests/web/</code></a>: the
         tests that check the page, in a real browser and under Pyodide, on every change.</li>
     </ul>

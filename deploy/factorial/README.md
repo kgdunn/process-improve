@@ -29,6 +29,10 @@ before the line is written (the first 24 bits of IPv4, 48 of IPv6), and lines ar
 90 days. There are no cookies, no tracking script and no database. A design shared by link
 travels after the `#`, which a browser never sends, so no design reaches the log.
 
+The one exception is a report a reader sends with the app's Feedback button, and only when they
+press Send: the relay emails it to the maintainer, and keeps no copy and no line of it
+([Feedback](#feedback)). Its request is logged as any other, without its body.
+
 ```bash
 sudo factorial-usage            # visits, catalog visits, readers, Python sessions and link previews per day
 sudo factorial-usage --days 90
