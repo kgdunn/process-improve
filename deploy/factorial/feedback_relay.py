@@ -42,6 +42,7 @@ import base64
 import binascii
 import contextlib
 import email.utils
+import hashlib
 import http.server
 import ipaddress
 import json
@@ -426,14 +427,17 @@ class Limits:
     many emails went today, held in memory.
 
     The tables hold at most ``NETWORKS`` networks and ``MAILBOXES`` mailboxes. When one is full, an entry older than
-    its window is forgotten to make room; when none is, a newcomer is refused until one is.
+    its window is forgotten to make room; when none is, a newcomer is refused until one is. A mailbox is held as a
+    hash keyed by a secret the relay makes at each start, so the table holds no address, and its hashes mean nothing
+    once the relay stops.
     """
 
     def __init__(self, clock: Callable[[], float] = time.time) -> None:
         self.clock = clock
         self.lock = threading.Lock()
         self.sent: dict[str, list[float]] = {}  # each network's reports within the hour, by when they came
-        self.receipts: dict[str, float] = {}  # when each mailbox had its last receipt
+        self.receipts: dict[str, float] = {}  # when each mailbox had its last receipt, by its keyed hash
+        self.key = secrets.token_bytes(16)
         self.day = ""  # the day (UTC) that ``today`` counts
         self.today = 0  # the emails sent that day, reports and receipts
 
@@ -470,7 +474,7 @@ class Limits:
     def receipt(self, address: str) -> str | None:
         """Count one receipt to ``address``; return why it does not go, or None to send it."""
         now = self.clock()
-        box = mailbox(address)
+        box = hashlib.blake2b(mailbox(address).encode(), key=self.key, digest_size=16).hexdigest()
         with self.lock:
             if self.spent(now):
                 return "the relay has sent all the emails it sends in a day"

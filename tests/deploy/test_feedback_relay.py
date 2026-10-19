@@ -333,7 +333,9 @@ def test_the_receipt_count_is_kept_for_at_most_so_many_mailboxes(clock, monkeypa
     assert limits.receipt("three@example.com") == "too many addresses had one in the last day"
     clock.now += relay.DAY
     assert limits.receipt("three@example.com") is None
-    assert set(limits.receipts) == {"three@example.com"}, "the mailboxes a day past their receipt are forgotten"
+    assert len(limits.receipts) == 1, "the mailboxes a day past their receipt are forgotten"
+    assert "example.com" not in repr(limits.receipts), "a mailbox is held as a keyed hash, not as an address"
+    assert limits.receipt("THREE+tag@example.com") is not None, "the same mailbox"
 
 
 # --------------------------------------------------------------------------- what the relay refuses before the body
