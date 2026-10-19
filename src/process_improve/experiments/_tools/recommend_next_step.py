@@ -36,7 +36,9 @@ class RecommendNextStepInput(BaseModel):
         description=(
             "The study's factors, as for generate_design: continuous ({'name', 'low', 'high', 'units'}) or "
             "categorical at two levels ({'name', 'type': 'categorical', 'levels': [a, b]}). low and high set "
-            "the region the optimum is sought in. After widen_ranges or move_region, pass the new ranges."
+            "the region the optimum is sought in. After widen_ranges or move_region, pass the new ranges. "
+            "Add 'hard_limits': true to a factor whose low and high are limits of the process: the next round "
+            "then never moves or widens its range, and the path of steepest ascent moves only the others."
         ),
     )
     runs: list[dict[str, Any]] = Field(
@@ -72,7 +74,7 @@ class RecommendNextStepInput(BaseModel):
         True,
         description=(
             "Whether the next round may set factors past their ranges (widen_ranges, move_region). False keeps "
-            "every run inside them, as when a range is a hard limit of the process."
+            "every run inside them; to hold only some factors, mark those with 'hard_limits': true instead."
         ),
     )
     n_confirmation_runs: int = Field(3, ge=1, description="Runs made to confirm an optimum.")

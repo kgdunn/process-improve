@@ -1019,6 +1019,22 @@ def test_every_ccd_the_plan_recommends_stays_inside_the_factor_ranges(k: int, do
         assert actual[stage["factors"]].max().max() <= 10 + 1e-9
 
 
+def test_hard_limits_are_named_and_every_stage_stays_inside_them() -> None:
+    """The extraction domain suggested a rotatable CCD, whose axial runs pass a range that is a limit."""
+    factors = [Factor(name="X0", low=0, high=10, hard_limits=True), *_continuous(5)[1:]]
+    strategy = recommend_strategy(factors=factors, responses=_maximise(), domain="extraction")
+    assert "The ranges of X0 are hard limits" in " ".join(strategy["assumptions"])
+    assert not any("rotatable" in risk for risk in strategy["risks"])
+    built = [s for s in strategy["stages"] if s["design_type"] not in {"replicates_at_optimum", *_OPTIMAL}]
+    assert any("X0" in stage["factors"] for stage in built)
+    for stage in built:
+        if "X0" in stage["factors"]:
+            assert _build(factors, stage).design_actual["X0"].between(0, 10).all()
+    soft = recommend_strategy(factors=_continuous(5), responses=_maximise(), domain="extraction")
+    assert any("rotatable" in risk for risk in soft["risks"])
+    assert not any("hard limits" in line for line in soft["assumptions"])
+
+
 def test_a_budget_that_would_strip_the_curvature_test_gets_one_dsd_instead() -> None:
     """Reducing the plan to fit 30 runs gave a 12-run Plackett-Burman design and an optimisation always run."""
     strategy = recommend_strategy(factors=_continuous(8), responses=_maximise(), budget=30)
