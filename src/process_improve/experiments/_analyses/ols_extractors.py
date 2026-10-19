@@ -9,11 +9,13 @@ leader to the chain, so exactly aliased terms are tested once, as in the effects
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 from ._shared import has_error_variance, is_block_term
@@ -165,6 +167,45 @@ def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
             }
         )
     return {"coefficients": records}
+
+
+def _joint_inference(
+    ols_result: RegressionResultsWrapper, alpha: float, rename: Callable[[str], str] = str
+) -> dict[str, Any]:
+    r"""Return the correlations of the estimates, and the contour of their joint confidence region (#789 B10).
+
+    The correlation of two estimates is their covariance over the product of their standard
+    errors, so it comes from :math:`(X'X)^{-1}` alone, whatever the error variance. The joint
+    :math:`1 - \alpha` confidence region of all :math:`p` coefficients is the set of values whose
+    residual sum of squares is at most :math:`S_R (1 + p F / (n - p))`, with :math:`F` the upper
+    :math:`\alpha` point on :math:`p` and :math:`n - p` degrees of freedom (Box, Hunter and Hunter,
+    eq. 14.45); with a prior sigma it is :math:`S_R + \sigma^2 \chi^2`, on :math:`p` degrees of
+    freedom. ``rename`` turns a model column's name into the name the coefficient table shows.
+    """
+    unscaled = np.asarray(ols_result.normalized_cov_params, dtype=float)
+    spread = np.sqrt(np.diag(unscaled))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        correlation = unscaled / np.outer(spread, spread)
+    correlation[np.diag_indices_from(correlation)] = np.where(spread > 0, 1.0, np.nan)
+    names = [rename(str(name)) for name in ols_result.model.exog_names]
+    p, n, ssr = int(ols_result.model.rank), int(ols_result.nobs), float(ols_result.ssr)
+    prior = getattr(ols_result, "prior_sigma", None)
+    if prior is not None:
+        bound = ssr + prior**2 * float(stats.chi2.ppf(1 - alpha, p))
+    elif n > p:
+        bound = ssr * (1 + p / (n - p) * float(stats.f.ppf(1 - alpha, p, n - p)))
+    else:  # no residual to scale the region by
+        bound = float("nan")
+    return {
+        "estimate_correlations": {
+            a: {b: float(correlation[i, j]) for j, b in enumerate(names)} for i, a in enumerate(names)
+        },
+        "joint_confidence_region": {
+            "sum_of_squares": bound,
+            "residual_sum_of_squares": ssr,
+            "confidence_level": 1 - alpha,
+        },
+    }
 
 
 def _run_significance(
