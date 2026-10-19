@@ -1110,6 +1110,22 @@ def test_the_signs_of_two_effects_pick_one_of_the_four_blocks_they_generate():
     assert _fraction_runs(entry, {"generator": "AB, -BC"}) == [4, 5]  # ab and c
 
 
+def test_a_generator_is_read_against_the_factor_names_however_long():
+    """The half fractions of a 2^3 whose factors are named time, temp and x1: the runs the letters A, B, C give."""
+    from process_improve.experiments.reference_catalogue import _fraction_runs
+
+    lettered = _factorial(3, [0] * 8)
+    named = _factorial(3, [0] * 8)
+    names = ["time", "temp", "x1"]
+    named["factors"] = [{**f, "name": n} for f, n in zip(named["factors"], names, strict=True)]
+    named["runs"] = {**named["runs"], "columns": [*names, "y"]}
+    plus, minus = (_fraction_runs(lettered, {"generator": g}) for g in ("C = AB", "C = -AB"))
+    assert _fraction_runs(named, {"generator": "x1 = time·temp"}) == plus
+    assert _fraction_runs(named, {"generator": "x1 = \u2212timetemp"}) == minus
+    with pytest.raises(ValueError, match="is not a product of the factors"):
+        _fraction_runs(named, {"generator": "x2 = time"})
+
+
 def test_a_path_into_a_library_result_may_hold_keys_with_a_dot():
     assert reference_catalogue._read({"quantiles": {"0.5": 0.42}}, ["quantiles", "0.5"]) == pytest.approx(0.42)
     assert reference_catalogue._read({"q": [1.0, 3.0]}, "q.max") == pytest.approx(3.0)

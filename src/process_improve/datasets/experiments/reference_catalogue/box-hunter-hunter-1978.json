@@ -37755,13 +37755,15 @@
      "what": "fraction_runs",
      "term": "5 = 1234",
      "value": "2, 3, 5, 8, 9, 12, 14, 15, 17, 20, 22, 23, 26, 27, 29, 32",
+     "analysis": "the runs whose settings make the half fraction 5 = 1234, the factors 1 to 5 by name",
      "where": {
       "page": 377,
       "source_kind": "table",
       "quote": "the 16 runs marked with asterisks in Table 12.1"
      },
      "check": {
-      "manual": "the runs of the half fraction 5 = 1234, whose settings give them; the half fraction's effects are checked on these runs below"
+      "kind": "fraction_runs",
+      "generator": "concentration = feed·catalyst·agitation·temperature"
      }
     },
     {

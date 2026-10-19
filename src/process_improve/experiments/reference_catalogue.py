@@ -1942,19 +1942,40 @@ def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]
     return ("every run" if not differ else f"not in runs {', '.join(map(str, differ))}"), not differ
 
 
+def _factor_word(side: str, names: list[str]) -> list[str]:
+    """Return the factors one side of a generator multiplies, read against the factor names, the longest first.
+
+    ``AB`` is A and B; ``x1x2`` (or ``x1\u00b7x2``) is x1 and x2, for factors so named; I, the intercept, is none.
+    """
+    text = _plain(side).replace("-", "")
+    if text in ("I", "Intercept"):
+        return []
+    by_length = sorted(names, key=len, reverse=True)
+    found = []
+    while text:
+        name = next((n for n in by_length if text.startswith(n)), None)
+        if name is None:
+            raise ValueError(f"{side!r} is not a product of the factors {names}.")
+        found.append(name)
+        text = text.removeprefix(name)
+    return found
+
+
 def _fraction_runs(experiment: dict, check: dict) -> list[int]:
     """Return the 1-based positions of the runs that make the fraction of a generator: C = AB, or C = \u2212AB.
 
     A run is in it when the product of its coded settings over the generator's word is the word's sign.
     Several generators, separated by commas, keep the runs that satisfy them all, as the signs of
-    two effects pick one of the four blocks they generate: ``-ADE, -BCE``.
+    two effects pick one of the four blocks they generate: ``-ADE, -BCE``. The words are read against
+    the factors' names, so a factor's name may be longer than a letter: ``time = temp\u00b7rate``.
     """
     settings, _ = _coded_runs(experiment, check.get("runs"))
     kept = np.ones(len(settings), dtype=bool)
-    for generator in str(check["generator"]).split(","):
-        word = _generator_word(generator)
-        sign = -1.0 if word.startswith("-") else 1.0
-        kept &= np.isclose(settings[list(word.lstrip("-"))].prod(axis=1).to_numpy(), sign)
+    for generator in str(check["generator"]).replace("\u2212", "-").split(","):
+        factors = [name for side in generator.split("=") for name in _factor_word(side, list(settings.columns))]
+        word = [name for name in dict.fromkeys(factors) if factors.count(name) % 2]  # a factor twice cancels
+        sign = -1.0 if generator.count("-") % 2 else 1.0
+        kept &= np.isclose(settings[word].prod(axis=1).to_numpy(), sign)
     return [int(i) + 1 for i in np.flatnonzero(kept)]
 
 
