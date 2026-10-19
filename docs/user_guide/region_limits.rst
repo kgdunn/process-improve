@@ -58,7 +58,8 @@ them:
   0.59 bar to 3.41 bar.
 * ``augment_design`` takes the names in ``hard_limits=[...]``, since its design is in coded
   units. Its axial runs then sit on the faces of the cube, and an ``alpha`` above 1 is
-  refused.
+  refused. A ``region`` makes every factor's range such a limit (see
+  :ref:`region-limits-augment`).
 * ``recommend_strategy`` names the limits in its assumptions, and plans no stage past them.
 * ``recommend_next_step`` never widens or moves such a range. The path of steepest ascent
   moves only the other factors, and the reasons say which factors would improve past their
@@ -262,6 +263,46 @@ With the pressure at 3 bar the temperature can go up to 190 degC, and with the t
 at 200 degC the pressure can go up to 2.5 bar; the limit passes through those two
 settings, whatever the flow. The arithmetic is exact, so round values give whole-number
 coefficients.
+
+.. _region-limits-augment:
+
+Adding runs inside the limits
+-----------------------------
+
+A limit often shows only after some runs are made, when a run that could not be made
+proposes it (:func:`~process_improve.experiments.separating.separating_constraint`).
+``augment_design`` then adds runs to the runs already made, inside the limit.
+Given the region, ``"add_runs_optimal"`` chooses its D-optimal runs among the settings the
+limits allow, with the runs already made held fixed:
+
+.. code-block:: python
+
+   import pandas as pd
+
+   from process_improve.experiments import augment_design
+
+   reactor = DesignRegion(factors[:2], ["T + 25*P <= 250"])  # T from 150 to 200 degC, P from 1 to 3 bar
+   made = pd.DataFrame({"T": [-1, 1, -1, 1], "P": [-1, -1, 1, 1]})  # the 2^2 factorial, coded
+   added = augment_design(made, "add_runs_optimal", n_additional_runs=5, target_model="quadratic", region=reactor)
+   print(added["existing_runs_outside_region"])  # [3]
+   print(reactor.feasible(pd.DataFrame(added["new_runs"]).to_numpy()).all())  # True
+   print(reactor.broken_limits([[1, 1]]))  # [['T + 25*P <= 250']]
+
+The run at 200 degC and 3 bar breaks the limit. It is kept as given, with a warning, and
+no new run joins it there. The region's factors give the coding: their low and high are
+the design's -1 and +1, and the region holds exactly the design's factors.
+
+The other kinds of augmentation keep to the region too:
+
+* ``"add_center_points"`` puts the centre runs at the region's central setting
+  (:meth:`~process_improve.experiments.region.DesignRegion.centroid`) when the centre of
+  the box breaks a limit, and says so.
+* The ranges are limits, so axial runs sit on the faces of the cube, as with
+  ``hard_limits``.
+* Any other new run that breaks a limit (a folded run, an axial or centre run, a copy) is
+  refused. The message names each such setting and the limits it breaks, which
+  :meth:`~process_improve.experiments.region.DesignRegion.broken_limits` lists for any
+  point.
 
 Pictures of the region
 ----------------------
