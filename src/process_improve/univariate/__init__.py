@@ -2,13 +2,19 @@
 
 from process_improve.univariate.classical import (
     autocorrelation,
+    bartlett_test,
     chi2_value,
     dunnett_value,
     f_value,
+    kruskal_wallis_test,
+    least_favourable_means,
+    one_way_power,
+    one_way_sample_size,
     randomization_test,
     rank_sum_test,
     studentized_range_value,
     ttest_one_sample,
+    variance_interval,
     z_value,
     ztest,
 )
@@ -33,6 +39,7 @@ from process_improve.univariate.metrics import (
     variance_decomposition,
 )
 from process_improve.univariate.reference_distribution import reference_distribution
+from process_improve.univariate.stated_values import grand_mean_test, ttest_new_observation, variance_about
 from process_improve.univariate.tools import (
     confidence_interval_tool,
     detect_outliers,
@@ -50,6 +57,7 @@ __all__ = [
     # Core metrics
     "Sn",
     "autocorrelation",
+    "bartlett_test",
     "benjamini_hochberg",
     "biweight_midvariance",
     "chi2_value",
@@ -62,10 +70,15 @@ __all__ = [
     "dunnett_value",
     "f_value",
     "get_univariate_tool_specs",
+    "grand_mean_test",
     "holm_bonferroni",
+    "kruskal_wallis_test",
+    "least_favourable_means",
     "median_absolute_deviation",
     "median_absolute_deviation_tool",
     "normality_test",
+    "one_way_power",
+    "one_way_sample_size",
     "randomization_test",
     "rank_sum_test",
     "reference_distribution",
@@ -79,12 +92,15 @@ __all__ = [
     "tietjen_moore_test",
     "ttest_independent",
     "ttest_independent_from_df",
+    "ttest_new_observation",
     "ttest_one_sample",
     "ttest_paired",
     "ttest_paired_from_df",
     "ttest_paired_samples",
     "ttest_two_samples",
+    "variance_about",
     "variance_decomposition",
+    "variance_interval",
     "within_between_variance",
     "z_value",
     "ztest",

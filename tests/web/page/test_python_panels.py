@@ -444,6 +444,8 @@ def assert_same_best(namespace: dict, best: dict, spec: dict) -> None:
         if setting["kind"] == "numeric":
             tolerance = 1e-6 * (factor["high"] - factor["low"])
             assert found["optimal_actual"][setting["name"]] == pytest.approx(setting["value"], abs=tolerance)
+        elif setting["kind"] == "component":  # a mixture's proportions, which its Scheffé model is fitted on
+            assert found["optimal_coded"][setting["name"]] == pytest.approx(setting["value"], abs=1e-6)
     assert found["predicted_responses"][spec["response"]] == pytest.approx(best["predicted"], abs=1e-6)
     shown = namespace["prediction"]["predictions"][0]
     assert shown["predicted"] == pytest.approx(best["predicted"], abs=1e-6)
@@ -545,6 +547,29 @@ def test_the_best_settings_code_leaves_the_confirmation_runs_out_of_the_fit(api,
     assert len(namespace["y"]) == 15, "the design's runs only"
     assert_same_fit(namespace, analysis)
     assert_same_best(namespace, again, held["spec"])
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("request_", "goal", "target"),
+    [(MIXTURES[1], "maximize", None), (MIXTURES[2], "target", 50.0), (MIXTURES[4], "minimize", None)],
+    ids=["lattice", "centroid-target", "vertices"],
+)
+def test_the_best_blend_code_finds_the_page_s_best_blend(api, node, request_, goal, target):
+    """A mixture's code searches the region of blends: each component within its bounds, the proportions sum to 1."""
+    made = held_of(api.ok("api_make_design", {**request_, "factors": components(request_["design_type"])}))
+    simulation = api.ok("api_simulate", {**made, "seed": 5})
+    held = aimed(made, goal, target)
+    request = {**held, "responses": simulation["responses"]}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    assert {s["kind"] for s in best["settings"]} == {"component"}
+    code = best_panel(node, held, simulation["responses"], (analysis, best), simulation)
+    assert "region=DesignRegion(factors)" in code
+    namespace = run(code)
+    assert_same_fit(namespace, analysis)
+    assert_same_best(namespace, best, held["spec"])
+    assert sum(namespace["best"]["optimal_coded"].values()) == pytest.approx(1.0)
 
 
 # --------------------------------------------------------------------------- several responses
@@ -732,6 +757,29 @@ def test_the_balance_code_holds_a_categorical_factor_and_keeps_to_the_limits(api
     )
     assert "region=DesignRegion(factors, constraints)" in code
     assert_same_balance(run(code), balance, ["T", "P"])
+
+
+@pytest.mark.slow
+def test_the_balance_code_finds_the_page_s_balanced_blend(api, node):
+    """A mixture's two responses are balanced over its blends, each with its own Scheffé model."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    request = {**MIXTURES[1], "factors": components("simplex_lattice"), "responses": responses}
+    held = held_of(api.ok("api_make_design", request))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    results = {"Hardness": simulation["responses"], "Cost": simulation["more"]["Cost"]["responses"]}
+    goals = {"Cost": {"importance": 5}}
+    sent = {"responses": results["Hardness"], "more_responses": {"Cost": results["Cost"]}}
+    balance = api.ok("api_balance", {**held, **sent, "models": {"Cost": "scheffe_linear"}, "goals": goals})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results, simulation]),
+        ("balanceCode", [balance, held["spec"]]),
+    )
+    assert "region=DesignRegion(factors)" in code
+    namespace = run(code)
+    assert_same_balance(namespace, balance, ["Water", "Oil", "Wax"])
+    assert sum(namespace["balanced"]["optimal_coded"].values()) == pytest.approx(1.0)
 
 
 @pytest.mark.slow

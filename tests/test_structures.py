@@ -234,7 +234,6 @@ def _result_or_type_error(call: Callable[[], Any]) -> tuple[Any, str | None]:
         return None, str(err)
 
 
-@pytest.mark.xfail(strict=True, reason="#677: gather() silently drops array and tuple inputs")
 @pytest.mark.parametrize(
     "values",
     [pytest.param(np.array([4.0, 5.0, 6.0]), id="numpy-array"), pytest.param((4.0, 5.0, 6.0), id="tuple")],
@@ -248,3 +247,25 @@ def test_gather_keeps_every_input_or_rejects_it_by_name(values: object) -> None:
     else:
         assert list(expt.columns) == ["A", "x"]
         assert list(expt["x"]) == [4.0, 5.0, 6.0]
+
+
+def test_gather_keeps_an_array_and_a_tuple_beside_the_columns() -> None:
+    """#677: the issue's call kept only A, dropping x and t without a word."""
+    a = c(-1, 1, -1, 1, name="A")
+    expt = gather(A=a, x=np.array([1.0, 2.0, 3.0, 4.0]), t=(5, 6, 7, 8))
+    assert list(expt.columns) == ["A", "x", "t"]
+    assert list(expt["t"]) == [5, 6, 7, 8]
+
+
+@pytest.mark.parametrize(
+    ("value", "kind"),
+    [
+        pytest.param(3.0, "a float", id="scalar"),
+        pytest.param(np.ones((3, 2)), "a 2-dimensional array", id="2-D-array"),
+        pytest.param({"a": 1}, "a dict", id="dict"),
+    ],
+)
+def test_gather_names_an_input_it_cannot_make_a_column_of(value: object, kind: str) -> None:
+    """#677: any other input raises by name, before the length check, which had no name to give."""
+    with pytest.raises(TypeError, match=rf"^gather\(\) cannot make a column of 'z', {kind}: pass a Column"):
+        gather(A=c(1, 2, 3, name="A"), z=value)

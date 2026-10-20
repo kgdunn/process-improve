@@ -13,6 +13,7 @@
 // the form's settings a run sheet was made from.
 
 import {
+  blendOverlayFigure,
   coefficientFigure,
   correlationFigure,
   coxFigure,
@@ -31,7 +32,10 @@ import {
   ternaryRange,
 } from "./charts.js";
 import {
+  BLEND_SENSITIVITY,
+  BLEND_UNCLEAR,
   CONFIRMATION,
+  NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
   IMPORTANCES,
   GOOD_END,
@@ -42,6 +46,11 @@ import {
   balanceRows,
   balanceWhere,
   bestContourCaption,
+  blendExtrapolation,
+  blendLead,
+  blendOverlayCaption,
+  blendSentences,
+  blendWhere,
   confirmationRows,
   confirmationSentences,
   confirmedAt,
@@ -55,7 +64,6 @@ import {
   leadSentence,
   limitingSentence,
   climb,
-  mixtureSentence,
   movesOn,
   nextRanges,
   noGoalSentence,
@@ -64,6 +72,7 @@ import {
   overlayCaption,
   sensitivityCaption,
   settingWords,
+  weighingSentence,
   whereSentences,
   whereWords,
   withConfirmationRuns,
@@ -202,11 +211,13 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
-import { briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
+import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
+import { closeOnBackdrop } from "./dialogs.js";
+import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -232,16 +243,21 @@ const worker = new Worker("worker.js", { type: "module" });
 
 // ---------------------------------------------------------------- worker RPC
 let nextId = 0;
-const pending = new Map();
+const pending = new Map(); // each call waiting for its reply, by its id: the entry point, and who waits
+
+/** The last Python errors, newest last, each with the entry point it came from: a report of a problem carries them. */
+let pythonErrors = [];
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
     if (!pythonFailure) setStatus(data.status, data.state);
     return;
   }
-  const resolve = pending.get(data.id);
+  const { fn, resolve } = pending.get(data.id);
   pending.delete(data.id);
-  resolve(JSON.parse(data.reply));
+  const reply = JSON.parse(data.reply);
+  if (!reply.ok) pythonErrors = keepError(pythonErrors, `${fn}: ${reply.error}`);
+  resolve(reply);
 };
 
 // worker.js itself did not load or run: nothing will answer, so say so rather than wait.
@@ -255,7 +271,7 @@ function call(fn, payload = {}) {
   if (pythonFailure) return Promise.resolve({ ok: false, error: pythonFailure, warnings: [] });
   const id = nextId++;
   return new Promise((resolve) => {
-    pending.set(id, resolve);
+    pending.set(id, { fn, resolve });
     worker.postMessage({ id, fn, payload: JSON.stringify(payload) });
   });
 }
@@ -267,9 +283,10 @@ function call(fn, payload = {}) {
 function pythonFailed(reason) {
   if (pythonFailure) return;
   pythonFailure = reason;
+  if (!pythonErrors.at(-1)?.endsWith(reason)) pythonErrors = keepError(pythonErrors, reason); // a reply may have said it
   setStatus(reason, "error");
   $("#run-example").disabled = true;
-  for (const resolve of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
+  for (const { resolve } of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
   pending.clear();
   rejectReady(new Error(reason));
   renderCandidates();
@@ -348,8 +365,10 @@ const state = {
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
   plotlyJs: null, // the Plotly.js version the Python plotly package names
+  commit: null, // the commit the app was built from, as its manifest names it
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
   example: false, // the worked example is on the page, as the build made it or as run again here
+  exampleBrief: null, // the worked example's brief, as briefKey gives it
   version: null, // the process-improve release Python runs, once it has started
   runtime: null, // the Python, packages and Pyodide it runs on, which a report names
 };
@@ -1322,13 +1341,38 @@ function picturedRuns() {
   return d.rows.map((row) => Object.fromEntries(d.columns.map((name, j) => [name, Number(row[j])])));
 }
 
-/** Make the run sheet the plan describes; resolves to true when it is on the page. */
-async function generate() {
+/** Whether the next run sheet made takes the place of the study on the page: one begun here, with no result typed in. */
+const replacesStudy = () => Boolean(state.campaign?.replaceable) && !Object.values(state.marks).some((marks) => marks.includes("entered"));
+
+/** A new study's seed, the moment it first needs one, in seconds; null until then, and again once a study takes it. */
+let draftSeed = null;
+
+/**
+ * The seed the next run sheet's runs are put in random order with, which the comparison's designs are made with too.
+ * The run sheet on the page keeps its own while the next takes its place: a study begun here, kept for its life,
+ * or the worked example, while its brief is as built, so its comparison's designs are the build's. Else it is a
+ * new study's, the moment it first needed one.
+ */
+function studySeed() {
+  const keeps = replacesStudy() || (state.example && briefKey() === state.exampleBrief);
+  const kept = keeps ? state.design?.spec?.options?.random_state : undefined;
+  if (Number.isInteger(kept)) return kept;
+  draftSeed ??= Math.floor(Date.now() / 1000);
+  return draftSeed;
+}
+
+/**
+ * Make the run sheet the plan describes; resolves to true when it is on the page. ``randomState`` is the seed its
+ * runs are put in random order with, the study's unless it is given. A design taken from the comparison is used as
+ * it was made only when it was made with that seed.
+ */
+async function generate({ randomState } = {}) {
   cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
   let key = planKey();
   const factors = readFactors();
   const responses = readResponses({ fresh: true });
-  const picked = state.picked?.key === key ? state.picked : null;
+  const seeded = randomState ?? studySeed();
+  const picked = state.picked?.key === key && state.picked.design.spec.options?.random_state === seeded ? state.picked : null;
   const design = picked && (await pickedDesign(picked, factors));
   if (design) {
     // The design the Design tab made for this plan already: the same runs, with the brief's words on them, and a
@@ -1364,6 +1408,7 @@ async function generate() {
     constraints: currentLimits(),
     runs: $("#design-type").value === GIVEN ? givenRuns() : undefined,
     blocks: $("#design-type").value === GIVEN ? givenBlocks() : undefined,
+    random_state: seeded,
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
@@ -1438,8 +1483,9 @@ function madeRunSheet(design, warnings, key) {
  */
 function showDesign(design, warnings = [], { save = true } = {}) {
   flushSave();
-  const replaces = state.campaign?.replaceable && !Object.values(state.marks).some((marks) => marks.includes("entered"));
+  const replaces = replacesStudy();
   state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
+  if (save && !replaces) draftSeed = null; // the new study took it: the next takes a seed of its own
   state.example = !save;
   state.design = design;
   $("#share-out").hidden = true;
@@ -1493,20 +1539,26 @@ let candidateTimer = null;
 let candidateTicket = 0;
 let candidatesRunning = false;
 
-/** What api_candidates is asked for the brief as it is now. */
-function candidateRequest() {
+/** The brief as the comparison reads it: the factors, the aim, the response and what is known of it, the limits. */
+function briefRequest() {
   const factors = readFactors();
   const info = readResponseInfo();
   const response = responseName(info.label, factors.map((f) => f.name));
   return { factors, model: currentAim(), response, response_info: info, constraints: currentLimits() };
 }
 
+/** What api_candidates is asked for the brief as it is now: its designs are made with the next run sheet's seed. */
+const candidateRequest = () => ({ ...briefRequest(), random_state: studySeed() });
+
 /** What makes two briefs' designs the same: the factors, the aim, the limits, and the noise and change power is for. */
-function candidateKey(request = candidateRequest()) {
+function briefKey(request = briefRequest()) {
   const { noise = null, smallest_change: change = null } = request.response_info;
   const limits = request.constraints.map((limit) => positional(limit.expression, request.factors.map((f) => f.name)));
   return JSON.stringify([request.factors, request.model, noise, change, limits]);
 }
+
+/** What makes two comparisons the same: the brief, and the seed their designs' runs are put in random order with. */
+const candidateKey = (request = candidateRequest()) => JSON.stringify([briefKey(request), request.random_state]);
 
 /** Whether the brief is ready for its designs: two factors or more, each as Python takes it. */
 const briefReady = () => factorCount() >= 2 && !factorsUnready && !limitsUnready();
@@ -2386,6 +2438,54 @@ async function viewReport() {
   setStatus("The report is open in a tab of its own: print it to PDF from there, or download it to keep.");
 }
 
+// ---------------------------------------------------------------- feedback
+/** The phases by the names their tabs give them, as a report of a problem names the one on show. */
+const PHASE_NAMES = { plan: "Design", run: "Run", learn: "Learn" };
+
+/** Learn's model as its form names it: the choice, or for terms ticked, how many. */
+function modelWords() {
+  if ($("#model").value === CHOSEN_TERMS) return `Terms you choose: ${tickedTerms().length} terms`;
+  return $("#model").selectedOptions[0]?.textContent ?? "";
+}
+
+/**
+ * What a report of a problem carries of the page beside the reader's words, which feedback.js lists before it is sent:
+ * the commit the app was built from and the Plotly.js release; the stamp a report of the study has (when, with what,
+ * the run order's seed, where the results came from, the SHA-256 of the inputs), never the link that holds the study;
+ * the tab, Learn's model and the charts on show; the last Python errors; and the browser and the size of its window.
+ */
+async function feedbackContext() {
+  const { design } = state;
+  const pane = $(PANES[state.phase]);
+  const stamp = stampRows({
+    made: new Date(),
+    version: state.version,
+    runtime: state.runtime,
+    url: `${location.origin}${location.pathname}`,
+    spec: design?.spec ?? null,
+    runs: runCount(),
+    results: state.results,
+    marks: state.marks,
+    simulation: design && someSimulated() ? state.simulation : null,
+    sha: design ? await sha256(canonicalJson(reportedInputs())) : null,
+    link: null,
+  });
+  return {
+    commit: state.commit,
+    plotly_js: state.plotlyJs,
+    tab: PHASE_NAMES[state.phase],
+    model: state.analysis ? modelWords() : null,
+    charts: [...pane.querySelectorAll("figure.chart")]
+      .filter((card) => shownWithin(card, pane))
+      .map((card) => card.querySelector("h3, h4")?.textContent.trim())
+      .filter(Boolean),
+    stamp: stamp.map(([label, text]) => `${label}: ${text}`),
+    errors: pythonErrors,
+    browser: navigator.userAgent,
+    window: `${window.innerWidth} x ${window.innerHeight}`,
+  };
+}
+
 async function readUpload(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = "";
@@ -2513,6 +2613,16 @@ async function analyseRuns() {
   await findBalance();
 }
 
+/** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
+function reportResult() {
+  const button = el("button", "link", "Report this result");
+  button.type = "button";
+  button.dataset.feedback = "algorithm";
+  const actions = el("p", "actions", "");
+  actions.append(button);
+  return actions;
+}
+
 function renderAnalysis(reply) {
   const out = $("#analysis");
   out.hidden = false;
@@ -2522,7 +2632,7 @@ function renderAnalysis(reply) {
   renderBadges();
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
-    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings));
+    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
     clearBest();
@@ -2854,17 +2964,19 @@ async function drawCharts(request, mine, given = null) {
     if (!plots) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
-    const starred = plots.held_best && starBest(figures, plots.contour_factors);
+    // A mixture's best blend is starred on its triangle, or where its Cox traces, drawn through it, cross.
+    const blend = plots.held_best && blendStudy() && state.best?.settings ? state.best : null;
+    const starred = plots.held_best && (blend !== null || starBest(figures, plots.contour_factors));
     // A mixture's response over its blends is drawn here, in the page's colours: a triangle for three components,
     // else the trace along each component's Cox direction.
     const words = { response: responseWords().label, units: responseWords().units };
     const { ternary, cox } = plots;
     if (ternary) {
       const range = ternaryRange(ternary);
-      figures.ternary = () => ternaryFigure(ternary, { ...words, range });
+      figures.ternary = () => ternaryFigure(ternary, { ...words, range, best: blend?.coded ?? null });
       if (ternary.grid.true) figures.true_ternary = () => ternaryFigure(ternary, { ...words, range, values: "true" });
     }
-    if (cox) figures.cox = () => coxFigure(cox, words);
+    if (cox) figures.cox = () => coxFigure(cox, { ...words, best: blend && cox.through === "best" ? blend.predicted : null });
     for (const key of ["contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
       const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
@@ -2915,10 +3027,14 @@ async function findBest(request, mine) {
   return state.best;
 }
 
+/** Whether the study on the page is a mixture's: its best settings are then a blend of its components. */
+const blendStudy = () => isMixture(state.design?.spec?.design_type);
+
 /**
  * Show the best settings: what the model predicts there, the settings and where each lies, the two intervals,
  * where the settings sit against the ranges and the limits, whether the runs support the prediction there, how
  * tightly to hold each factor, and the confirmation runs. A goal of learning, or a target not yet typed, gets one line.
+ * A mixture's are its best blend (see renderBlend).
  */
 function renderBest(reply) {
   if (!reply?.ok || !state.design) {
@@ -2929,13 +3045,20 @@ function renderBest(reply) {
   const best = reply.result;
   const words = wordsOf(state.shown);
   const factors = state.design.spec.factors;
+  const blend = blendStudy();
   $("#best").hidden = false;
   $("#best-chart").hidden = true;
   $("#confirm").hidden = true;
+  $("#h-best").textContent = blend ? "The best blend for your goal" : "The best settings for your goal";
+  $("#best-chart .term").textContent = blend ? "How tightly to weigh out each component" : "How tightly to hold each factor";
   if (!best.settings) {
     hidePython("best");
-    const text = best.mixture ? mixtureSentence(words) : best.flat ? flatSentence(words) : noGoalSentence(best, words);
+    const text = best.flat ? flatSentence(words, { blend }) : noGoalSentence(best, words, { blend });
     $("#best-out").replaceChildren(said("hint", text));
+    return;
+  }
+  if (blend) {
+    renderBlend(best, words);
     return;
   }
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
@@ -2951,6 +3074,27 @@ function renderBest(reply) {
     knownTable(intervalRows(best, words)),
     ...[noIntervalSentence(best)].filter(Boolean).map((text) => said("hint", text)),
     ...noteList(whereSentences(best, factors, words)),
+    ...noteList(cautions, "warnings"),
+  );
+  renderConfirmation(best, words);
+  const model = state.analysis?.formula ?? state.analysis?.model ?? "";
+  showPython("best", bestCode(best, shownSpec(), model, designComplete()));
+  drawBestChart();
+}
+
+/**
+ * Show a mixture's best blend: what the model predicts there, each component's proportion and where it lies between its
+ * bounds, the two intervals and the leverage, how tightly to weigh out each component, and the confirmation runs.
+ */
+function renderBlend(best, words) {
+  const rows = best.settings.map((s) => [s.name, num(s.value), blendWhere(s, best, words)]);
+  const cautions = [blendExtrapolation(best), best.unclear ? BLEND_UNCLEAR : ""].filter(Boolean);
+  $("#best-out").replaceChildren(
+    said("lead", blendLead(best, words)),
+    table(["Component", "Proportion", "Where it lies"], rows),
+    knownTable(intervalRows(best, words)),
+    ...[noIntervalSentence(best)].filter(Boolean).map((text) => said("hint", text)),
+    ...noteList(blendSentences(best)),
     ...noteList(cautions, "warnings"),
   );
   renderConfirmation(best, words);
@@ -2975,20 +3119,27 @@ function knownTable(rows) {
   return wrap;
 }
 
-/** Say what the confirmation runs on the run sheet show, and offer to add them at the best settings. */
+/**
+ * Say what the confirmation runs on the run sheet show, and offer to add them at the best settings. A mixture's are at
+ * its best blend, each proportion as it is weighed out, with no units: a proportion is a share of the blend.
+ */
 function renderConfirmation(best, words) {
   const groups = best.confirmation ?? [];
+  const blend = blendStudy();
+  const factors = blend ? state.design.spec.factors.map((f) => ({ ...f, units: "" })) : state.design.spec.factors;
+  const where = blend ? "this blend" : "these settings";
   $("#confirm").hidden = false;
   $("#confirm-out").replaceChildren(
+    ...(blend ? [said("hint", weighingSentence(best))] : []),
     ...groups.map((group) => {
       const box = el("div", "verdict", "");
       box.dataset.state = group.inside === null ? "waiting" : group.inside ? "inside" : "outside";
-      box.append(...confirmationSentences(group, state.design.spec.factors, words).map((text) => said("", text)));
+      box.append(...confirmationSentences(group, factors, words, where).map((text) => said("", text)));
       return box;
     }),
   );
   const add = $("#add-confirmation");
-  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`;
+  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at ${where}`;
   add.hidden = confirmedAt(state.design, best.confirm_at); // runs there already: their results are what is wanted
   $("#remove-confirmation").hidden = groups.length === 0;
 }
@@ -3002,12 +3153,13 @@ async function drawBestChart() {
     card.hidden = true;
     return;
   }
-  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const blend = blendStudy(); // a component's step is a share of the blend, with no units
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, blend ? "" : (f.units ?? "")]));
   const items = best.sensitivity.map((s) => ({ ...s, units: units[s.name] }));
   const figure = () => sensitivityFigure(items, wordsOf(state.shown));
   card.hidden = false;
   const caption = card.querySelector("figcaption");
-  caption.textContent = sensitivityCaption(best);
+  caption.textContent = blend ? BLEND_SENSITIVITY : sensitivityCaption(best);
   caption.hidden = !caption.textContent; // the legend, the axis and the heading's definition say the rest
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
@@ -3144,20 +3296,21 @@ function renderBalance(reply) {
   state.balance = b;
   const factors = state.design.spec.factors;
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const blend = blendStudy(); // a mixture's balance is a blend: each component's proportion, between its bounds
   renderGoals(b);
-  const settings = b.settings.map((s) => [
-    s.name,
-    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
-    whereWords(s, null, { label: "" }),
-  ]);
-  const cautions = [extrapolationSentence(b)].filter(Boolean);
+  const settings = b.settings.map((s) =>
+    blend
+      ? [s.name, num(s.value), blendWhere(s, null, { label: "" })]
+      : [s.name, s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]), whereWords(s, null, { label: "" })],
+  );
+  const cautions = [blend ? blendExtrapolation(b) : extrapolationSentence(b)].filter(Boolean);
   $("#balance-out").replaceChildren(
-    said("lead", balanceLead(b)),
-    table(["Factor", "Balanced setting", "Where it lies"], settings),
+    said("lead", balanceLead(b, { blend })),
+    table(blend ? ["Component", "Proportion", "Where it lies"] : ["Factor", "Balanced setting", "Where it lies"], settings),
     balanceTable(b),
-    ...[limitingSentence(b)].filter(Boolean).map((text) => said("", text)),
+    ...[limitingSentence(b, { blend })].filter(Boolean).map((text) => said("", text)),
     said("hint", balanceLeverage(b)),
-    ...noteList(balanceWhere(b)),
+    ...noteList([...balanceWhere(b), ...(blend && !b.overlay ? [NO_BLEND_OVERLAY] : [])]),
     ...noteList(cautions, "warnings"),
   );
   renderBalanceConfirmation(b);
@@ -3258,11 +3411,16 @@ function goalChanged(e) {
   else scheduleBalance();
 }
 
-/** Say what the confirmation runs show, response by response, and offer to add them at the balanced settings. */
+/**
+ * Say what the confirmation runs show, response by response, and offer to add them at the balanced settings: a
+ * mixture's at its balanced blend, weighed out, with no units on its proportions.
+ */
 function renderBalanceConfirmation(b) {
-  const factors = state.design.spec.factors;
+  const blend = blendStudy();
+  const factors = blend ? state.design.spec.factors.map((f) => ({ ...f, units: "" })) : state.design.spec.factors;
   $("#balance-confirm").hidden = false;
   $("#balance-confirm-out").replaceChildren(
+    ...(blend ? [said("hint", weighingSentence(b))] : []),
     ...b.confirmation.map((group) => {
       const { said: sentences, state: verdict } = balanceConfirmation(group, factors, b.responses);
       const box = el("div", "verdict", "");
@@ -3272,7 +3430,7 @@ function renderBalanceConfirmation(b) {
     }),
   );
   const add = $("#add-balance-confirmation");
-  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`;
+  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at ${blend ? "this blend" : "these settings"}`;
   add.hidden = confirmedAt(state.design, b.confirm_at); // runs there already: their results are what is wanted
   $("#remove-balance-confirmation").hidden = b.confirmation.length === 0;
 }
@@ -3285,11 +3443,15 @@ async function drawBalanceChart() {
     card.hidden = true;
     return;
   }
+  // A mixture's overlay is over its triangle of three components; a study's of factors, over two of them.
+  const triangle = b.overlay.kind === "ternary";
   const factors = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f]));
-  const axes = Object.fromEntries([b.overlay.x, b.overlay.y].map((name) => [name, withUnits(name, factors[name]?.units ?? "")]));
-  const figure = () => overlayFigure(b.overlay, b.responses, axes);
+  const axes = triangle ? {} : Object.fromEntries([b.overlay.x, b.overlay.y].map((name) => [name, withUnits(name, factors[name]?.units ?? "")]));
+  const figure = () => (triangle ? blendOverlayFigure(b.overlay, b.responses) : overlayFigure(b.overlay, b.responses, axes));
   card.hidden = false;
-  card.querySelector("figcaption").textContent = overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  card.querySelector("figcaption").textContent = triangle
+    ? blendOverlayCaption(b.overlay, b.responses)
+    : overlayCaption(b.overlay, state.design.spec.factors, b.responses);
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
   } catch {
@@ -3542,6 +3704,7 @@ async function showBuiltExample() {
   $("#sigma").value = example.inputs.sigma;
   showScenarioHint();
   showDesign(example.design, [], { save: false });
+  state.exampleBrief = briefKey(); // its comparison, run sheet and seed are the build's while its brief is
   state.planKey = planKey();
   selectTab("simulate");
   state.simulation = example.simulation;
@@ -3599,9 +3762,10 @@ async function runExample() {
   showScenarioHint();
   seed = example.seed;
   selectTab("simulate");
-  if (!(await generate())) return;
+  if (!(await generate({ randomState: RUN_ORDER_SEED }))) return; // the worked example's runs, as the build made them
   state.campaign = null; // the worked example, run here, is not saved
   state.example = true;
+  state.exampleBrief = briefKey();
   history.replaceState(null, "", `${location.pathname}?${EXAMPLE_PARAM}=${WORKED}`);
   $("#demo-version").textContent = `process-improve ${state.version ?? ""}`.trim();
   $("#demo-when").textContent = "in this tab, just now";
@@ -3636,6 +3800,7 @@ function newStudy() {
     example: false,
     widened: false,
   });
+  draftSeed = null; // a new study, which takes a seed of its own
   clearTimeout(analysisTimer);
   setResponse({ response: "" }, { columns: false });
   $("#response-known").open = false;
@@ -4133,11 +4298,18 @@ function showResultsCode() {
   showPython("run", resultsCode(state.design, state.results, simulated ? state.simulation : null));
 }
 
-/** The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one. */
+/**
+ * The Plotly.js version the build drew its figures with, so charts can be drawn before Python names one, and the
+ * commit the app was built from, which a report of a problem names.
+ */
 async function readManifest() {
   try {
     const res = await fetch("wheels/manifest.json", { cache: "no-store" });
-    if (res.ok) state.plotlyJs ??= (await res.json()).plotly_js ?? null;
+    if (res.ok) {
+      const { plotly_js: plotlyJs, commit } = await res.json();
+      state.plotlyJs ??= plotlyJs ?? null;
+      state.commit = commit ?? null;
+    }
   } catch {
     /* a plain local preview has no manifest */
   }
@@ -4389,6 +4561,7 @@ $("#restore-plan").onclick = () => {
 $("#search").onclick = () => findCandidates({ search: true });
 $("#compare").onclick = showComparison;
 $("#compare-close").onclick = () => $("#compare-dialog").close();
+closeOnBackdrop($("#compare-dialog"));
 $("#run-example").onclick = runExample;
 $("#simulate").onclick = simulateResults;
 $("#reroll").onclick = () => {
@@ -4405,8 +4578,8 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
-$("#add-confirmation").onclick = () => addConfirmationRuns();
-$("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, "the balanced settings");
+$("#add-confirmation").onclick = () => addConfirmationRuns(state.best?.confirm_at, blendStudy() ? "the best blend" : "the best settings");
+$("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, blendStudy() ? "the balanced blend" : "the balanced settings");
 $("#remove-balance-confirmation").onclick = removeConfirmationRuns;
 $("#balance-goals").addEventListener("input", goalChanged);
 $("#balance-reset").onclick = () => {
@@ -4472,6 +4645,12 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") flushSave();
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
+// A report of a problem: the study goes only when the reader ticks it, with its results, packed as a link carries it.
+installFeedback({
+  context: feedbackContext,
+  study: () => packCampaign(shareable(currentCampaign(), true)),
+  hasStudy: () => Boolean(state.design),
+});
 addFactor();
 addFactor();
 setAim(defaultAim(0));

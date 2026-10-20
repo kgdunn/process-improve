@@ -7,9 +7,11 @@ exactly. Unbalanced designs are checked against statsmodels' general ``MixedLM``
 
 from __future__ import annotations
 
+import itertools
 import json
 import warnings
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -19,7 +21,7 @@ from patsy import dmatrices
 
 from process_improve.experiments import DesignResult, Factor, datasets, evaluate_design, generate_design
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
-from process_improve.experiments._analyses.split_plot import RemlFit, _deviance, _score, fit_reml
+from process_improve.experiments._analyses.split_plot import RemlFit, _deviance, _score, _sum_code, fit_reml
 from process_improve.experiments._moment_aberration import moment_aberration
 from process_improve.experiments.analysis import analyze_experiment
 
@@ -462,6 +464,115 @@ class TestAnalyzeExperiment:
         result = analyze_experiment(df, response_column="y", analysis_type="split_plot")
         assert result["split_plot"]["variance_components"]["whole_plot"] == 0.0
         assert "estimated as zero" in result["split_plot_note"]
+
+
+#: Montgomery (2013), Table 14.16: the tensile strength of paper, one row per cooking temperature (degrees F).
+#: Each row's nine values run over replicates 1 to 3 and, within each, the pulp preparation methods 1 to 3.
+_TENSILE = {
+    "200": [30, 34, 29, 28, 31, 31, 31, 35, 32],
+    "225": [35, 41, 26, 32, 36, 30, 37, 40, 34],
+    "250": [37, 38, 33, 40, 42, 32, 41, 39, 39],
+    "275": [36, 42, 36, 41, 40, 40, 40, 44, 45],
+}
+
+
+def _tensile() -> pd.DataFrame:
+    """Return Montgomery's tensile-strength split plot: each batch of pulp (a method in a replicate) is a whole plot."""
+    runs = [
+        (replicate, method, temperature, float(strength))
+        for temperature, strengths in _TENSILE.items()
+        for (replicate, method), strength in zip(itertools.product("123", "123"), strengths, strict=True)
+    ]
+    df = pd.DataFrame(runs, columns=["replicate", "method", "temperature", "strength"])
+    return df.assign(batch=df["replicate"] + df["method"])
+
+
+class TestCodingDoesNotChangeTheTests:
+    """A main effect tested beside its own interaction gets the same test under any coding of its factor (#805).
+
+    Under patsy's default treatment coding, the method's coefficients are its effects at 200 degrees
+    only, so a test on them gave F = 2.05 on 15.5 df (p = 0.16). Montgomery (2013), Table 14.19,
+    JMP's REML analysis, prints the marginal (Type III) tests.
+    """
+
+    CODINGS: ClassVar[dict[str, str]] = {
+        "plain names": "replicate + method + temperature + method:temperature",
+        "treatment": "C(replicate) + C(method) + C(temperature) + C(method):C(temperature)",
+        "sum": "C(replicate, Sum) + C(method, Sum) + C(temperature, Sum) + C(method, Sum):C(temperature, Sum)",
+        "reordered levels": "replicate + C(method, levels=['3', '1', '2']) * C(temperature, Treatment('275'))",
+    }
+
+    #: Table 14.19, "Fixed Effect Tests": numerator df, denominator df, F ratio and Prob > F.
+    TABLE_14_19 = ((2, 4, 7.0781, 0.0485), (3, 18, 36.4266, None), (6, 18, 3.1538, 0.0271))
+
+    @staticmethod
+    def _analyse(model: str) -> dict:
+        return analyze_experiment(
+            _tensile(), model=model, response_column="strength", analysis_type="split_plot", whole_plot="batch"
+        )["split_plot"]
+
+    @pytest.mark.parametrize("coding", list(CODINGS))
+    def test_the_fixed_effect_tests_are_table_14_19s(self, coding: str) -> None:
+        tests = self._analyse(self.CODINGS[coding])["tests"][1:]  # the replicates are first
+        for row, (df_num, df_den, f_ratio, p_value) in zip(tests, self.TABLE_14_19, strict=True):
+            assert row["df"] == df_num, row["source"]
+            assert row["df_denominator"] == pytest.approx(df_den, rel=1e-8), row["source"]
+            assert row["F"] == pytest.approx(f_ratio, abs=5e-5), row["source"]
+            assert row["p_value"] == pytest.approx(p_value if p_value is not None else 0.0, abs=5e-5), row["source"]
+        assert [row["stratum"] for row in tests] == ["whole_plot", "subplot", "subplot"]
+
+    def test_the_coefficients_stay_in_the_coding_asked_for(self) -> None:
+        """Plain names keep treatment coding: ``method[T.2]`` is method 2 less method 1 at 200 degrees."""
+        result = self._analyse(self.CODINGS["plain names"])
+        coefficients = {row["term"]: row["coefficient"] for row in result["coefficients"]}
+        assert "method[T.2]" in coefficients
+        assert "method[S.1]" not in coefficients
+        at_200 = _tensile().query("temperature == '200'").groupby("method")["strength"].mean()
+        assert coefficients["method[T.2]"] == pytest.approx(at_200["2"] - at_200["1"], rel=1e-9)
+
+    def test_the_variance_components_do_not_depend_on_the_coding(self) -> None:
+        """JMP's residual variance, 3.9722222, the same under every coding."""
+        found = [self._analyse(model)["variance_components"] for model in self.CODINGS.values()]
+        for components in found:
+            assert components["residual"] == pytest.approx(3.9722222, abs=5e-8)
+            assert components == pytest.approx(found[0], rel=1e-9)
+
+    def test_a_two_level_factor_as_text_is_tested_as_its_plus_minus_one_column_is(self) -> None:
+        """Crossed random effects (a two-way split plot): text levels give the tests of the coded columns."""
+        coded = _battery()
+        as_text = coded.assign(**{name: coded[name].map({-1.0: "low", 1.0: "high"}) for name in ("x1", "x5")})
+        model = "x1 + x5 + x6 + x1:x5 + x1:x6"
+        numeric, text = (
+            _tests_by_source(
+                analyze_experiment(
+                    df, model=model, response_column="ocv", analysis_type="split_plot", whole_plot=["Row", "Column"]
+                )
+            )
+            for df in (coded, as_text)
+        )
+        assert set(text) == set(numeric)
+        for source, row in numeric.items():
+            assert text[source]["F"] == pytest.approx(row["F"], rel=1e-8), source
+            assert text[source]["df_denominator"] == pytest.approx(row["df_denominator"], rel=1e-8), source
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("method", "_pi_C(method, _pi_Sum)"),
+        ("C(method)", "_pi_C(method, _pi_Sum)"),
+        ("C(method, Treatment('3'))", "_pi_C(method, _pi_Sum)"),
+        ("C(method, levels=['3', '1', '2'])", "_pi_C(method, _pi_Sum, levels=['3', '1', '2'])"),
+        ("C(method, Treatment, ['3', '1', '2'])", "_pi_C(method, _pi_Sum, levels=['3', '1', '2'])"),
+        ("C(method, Sum)", "C(method, Sum)"),
+        ("C(method, Sum(omit='2'))", "C(method, Sum(omit='2'))"),
+        ("_pi_C(method, _pi_Sum)", "_pi_C(method, _pi_Sum)"),
+        ("method > 1", "_pi_C(method > 1, _pi_Sum)"),
+    ],
+)
+def test_sum_code(code: str, expected: str) -> None:
+    """Every categorical factor's code is rewritten to sum-to-zero contrasts, its levels kept."""
+    assert _sum_code(code) == expected
 
 
 class TestWholePlotArguments:

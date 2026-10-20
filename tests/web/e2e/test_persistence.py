@@ -8,6 +8,7 @@ brief not yet made into a run sheet is kept too, as a draft.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -100,6 +101,26 @@ def test_trying_designs_keeps_one_entry_until_a_result_is_typed_in(blank_page):
     page.fill("#design-table input[data-index='0']", "12.5")
     generate(page, design_type="ccd")
     saved(page, 2)
+
+
+def test_a_study_s_runs_are_ordered_with_the_moment_it_began_kept_for_its_life(blank_page):
+    """The seed is the second the study began: kept while designs are tried, new once a result is typed in."""
+    page = blank_page
+
+    def seed() -> int:
+        (found,) = re.findall(r"random_state=(\d+)", page.text_content("#py-design code"))
+        return int(found)
+
+    generate(page, design_type="full_factorial", n_center_points=0)
+    first = seed()
+    now = page.evaluate("Math.floor(Date.now() / 1000)")
+    assert now - 600 <= first <= now, "the second the study began, when its brief was first compared"
+    generate(page, design_type="box_behnken")
+    assert seed() == first, "the design tried in its place keeps the study's seed"
+    page.wait_for_timeout(1100)  # the next study begins in a later second
+    page.fill("#design-table input[data-index='0']", "12.5")
+    generate(page, design_type="ccd")
+    assert seed() > first, "a study with a typed result is kept, and the next one has a seed of its own"
 
 
 def test_a_result_typed_just_before_the_next_design_is_saved_with_its_design(context, site):

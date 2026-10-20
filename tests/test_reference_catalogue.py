@@ -627,6 +627,16 @@ def test_a_factor_left_out_of_a_prediction_point_sits_at_its_centre():
     assert reference_catalogue._prediction(out, check, entry) == pytest.approx(12.0)
 
 
+def test_a_prediction_s_error_at_a_run_is_the_prediction_less_the_run_s_value():
+    """A 2^2's corners predict 3 at the centre, where the centre run reads 4: an error of -1, or -25%."""
+    entry = _factorial(2, [1, 3, 2, 6], centre=[4])
+    check = {"model": "A * B", "runs": [1, 2, 3, 4], "point": {}}
+    out = reference_catalogue._Fits()(entry, check)
+    assert reference_catalogue._prediction(out, check, entry) == pytest.approx(3)
+    assert reference_catalogue._prediction(out, {**check, "error": "difference", "run": 5}, entry) == pytest.approx(-1)
+    assert reference_catalogue._prediction(out, {**check, "error": "percent", "run": 5}, entry) == pytest.approx(-25)
+
+
 def test_a_statistic_can_be_worked_in_other_units_than_the_readings_are_printed_in():
     """Readings printed in units of 10^17: ln s in the readings' own units is ln s printed plus ln 10^17."""
     from process_improve.experiments.reference_catalogue import _summarised
@@ -990,6 +1000,59 @@ def test_lenth_pseudo_t_is_an_effect_over_the_pse_on_a_third_as_many_degrees_of_
     assert reference_catalogue._FIT_KINDS["lenth_p"](out, check, entry) == pytest.approx(2 * stats.t.sf(t, 5))
 
 
+def test_lenth_s0_is_one_and_a_half_times_the_median_absolute_effect():
+    """Lenth's first estimate, from which the PSE is trimmed: 1.5 x 2.625 = 3.9375 for the filtration rate's effects."""
+    entry = _factorial(4, FILTRATION)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C * D"}
+    out = fits(entry, check)
+    s0 = reference_catalogue._FIT_KINDS["lenth_s0"]
+    effects = [abs(e["effect"]) for e in out["lenth_method"]["effects"]]
+    assert s0(out, check, entry) == pytest.approx(1.5 * np.median(effects))
+    assert s0(out, check, entry) == pytest.approx(3.9375)
+    assert s0(out, {**check, "scale": "coefficient"}, entry) == pytest.approx(3.9375 / 2)
+
+
+def test_a_normal_plot_ranks_the_effects_ties_averaged_at_100_i_less_a_half_over_m():
+    """A of 2, B of 1, and C and the four interactions of 0: ranks 7, 6 and 3 of seven, the five zeros tied."""
+    entry = _factorial(3, [1, 3, 2, 4, 1, 3, 2, 4])
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C"}
+    out = fits(entry, check)
+    plot = reference_catalogue._FIT_KINDS["normal_plot"]
+    assert [plot(out, {**check, "term": t, "key": "rank"}, entry) for t in ("A", "B", "C", "A·B·C")] == [7, 6, 3, 3]
+    assert plot(out, {**check, "term": "A", "key": "position"}, entry) == pytest.approx(100 * 6.5 / 7)
+    assert plot(out, {**check, "rank": 1, "key": "position"}, entry) == pytest.approx(100 * 0.5 / 7)
+
+
+def test_the_total_row_of_degrees_of_freedom_is_the_observations_less_one():
+    """The library's table has no Total row: a source's is the observations less one, a blank reading left out."""
+    anova_df = reference_catalogue._FIT_KINDS["anova_df"]
+    fits = reference_catalogue._Fits()
+    entry = _factorial(4, FILTRATION)
+    check = {"model": "A * B * C * D - A:B:C:D", "term": "Total"}
+    assert anova_df(fits(entry, check), check, entry) == 15
+    entry = _replicated_2x2([[1, 3], [2, None], [4, 4], [6, 9]])
+    check = {"model": "A * B", "term": "Total", "summary": {"of": ["y1", "y2"], "statistic": "each"}}
+    assert anova_df(fits(entry, check), check, entry) == 6
+    assert anova_df(fits(entry, check), {**check, "term": "A"}, entry) == 1
+
+
+def test_rows_of_the_analysis_of_variance_add_into_one_or_pool_into_a_mean_square():
+    """The filtration rate's A and C added, and two interactions pooled: their sums over their degrees of freedom."""
+    entry = _factorial(4, FILTRATION)
+    fits = reference_catalogue._Fits()
+    check = {"model": "A * B * C * D - A:B:C:D"}
+    out = fits(entry, check)
+    pooled = reference_catalogue._FIT_KINDS["anova_pooled"]
+    rows = {r["source"]: r for r in out["anova_table"]}
+    a_c = rows["A"]["sum_sq"] + rows["C"]["sum_sq"]
+    assert pooled(out, {**check, "terms": ["A", "C"]}, entry) == pytest.approx(a_c)
+    assert pooled(out, {**check, "terms": ["A", "C"], "key": "df"}, entry) == 2
+    two = rows["A:B"]["sum_sq"] + rows["B:D"]["sum_sq"]
+    assert pooled(out, {**check, "terms": ["A·B", "D·B"], "key": "mean_sq"}, entry) == pytest.approx(two / 2)
+
+
 def test_a_percent_of_total_is_a_term_s_share_of_the_total_sum_of_squares():
     """Montgomery's percent contribution: a term's sum of squares as a percentage of the total, not Taguchi's."""
     entry = _factorial(4, FILTRATION)
@@ -1055,6 +1118,22 @@ def test_the_signs_of_two_effects_pick_one_of_the_four_blocks_they_generate():
     entry = _factorial(3, [0] * 8)
     assert _fraction_runs(entry, {"generator": "-AB, -BC"}) == [3, 6]  # b and ac
     assert _fraction_runs(entry, {"generator": "AB, -BC"}) == [4, 5]  # ab and c
+
+
+def test_a_generator_is_read_against_the_factor_names_however_long():
+    """The half fractions of a 2^3 whose factors are named time, temp and x1: the runs the letters A, B, C give."""
+    from process_improve.experiments.reference_catalogue import _fraction_runs
+
+    lettered = _factorial(3, [0] * 8)
+    named = _factorial(3, [0] * 8)
+    names = ["time", "temp", "x1"]
+    named["factors"] = [{**f, "name": n} for f, n in zip(named["factors"], names, strict=True)]
+    named["runs"] = {**named["runs"], "columns": [*names, "y"]}
+    plus, minus = (_fraction_runs(lettered, {"generator": g}) for g in ("C = AB", "C = -AB"))
+    assert _fraction_runs(named, {"generator": "x1 = time·temp"}) == plus
+    assert _fraction_runs(named, {"generator": "x1 = \u2212timetemp"}) == minus
+    with pytest.raises(ValueError, match="is not a product of the factors"):
+        _fraction_runs(named, {"generator": "x2 = time"})
 
 
 def test_a_path_into_a_library_result_may_hold_keys_with_a_dot():
@@ -1305,6 +1384,23 @@ def test_a_library_label_or_a_line_it_displays_is_compared_word_for_word():
     assert not _library_text({}, cell | {"key": "tag"}, "Full")[1]
 
 
+def test_a_printed_limit_is_the_library_limit_through_cut_points_on_the_factors():
+    """T and P cut at 190 and 2.5 from the corner (200, 3) give T + 20 P <= 250, however it is printed."""
+    from process_improve.experiments.reference_catalogue import _limit_through
+
+    entry = {
+        "factors": [
+            {"name": "T", "type": "numeric", "low": 150, "high": 200},
+            {"name": "P", "type": "numeric", "low": 1, "high": 3},
+        ]
+    }
+    check = {"corner": {"T": 200, "P": 3}, "cuts": {"T": 190, "P": 2.5}}
+    assert _limit_through(entry, check, "T + 20 P ≤ 250") == ("T + 20 * P <= 250", True)
+    assert _limit_through(entry, check, "t + 20*p <= 250")[1]
+    assert not _limit_through(entry, check, "T + 20 P ≥ 250")[1]
+    assert not _limit_through(entry, check, "T + 20 P ≤ 251")[1]
+
+
 def test_a_number_the_construction_records_is_a_design_property():
     from process_improve.experiments.reference_catalogue import _design_property
 
@@ -1363,6 +1459,17 @@ def test_an_alias_chain_up_to_an_order_must_list_every_alias_that_short():
     assert _design_check({**design_j, "term": "C"}, "EFG", 7) == ("EFG", True)
     assert _design_check({**design_j, "term": "A"}, "", 7) == ("none", True)
     assert not _design_check({**design_j, "term": "AB"}, "CDF", 7)[1]  # AB = CDF = DEG: one alias left out
+
+
+def test_an_alias_chain_may_be_printed_with_plus_signs_between_its_words():
+    """BHH print a column's chain as 1 + 234, a sum of the effects it estimates: the same words as with commas."""
+    from process_improve.experiments.reference_catalogue import _design_check, _words
+
+    assert _words("A + BCD") == _words("A, BCD") == ["A", "BCD"]
+    assert _words("12 + 37 + 48 + 56") == ["12", "37", "48", "56"]
+    half = {"kind": "aliases", "generators": ["D=ABC"], "term": "AB"}
+    assert _design_check(half, "CD", 4) == ("CD", True)
+    assert _design_check({**half, "term": "A"}, "A + BCD", 4)[1]
 
 
 def test_blocks_confound_the_chosen_effects_and_their_products_read_as_alias_chains():
@@ -1534,6 +1641,21 @@ def test_a_3k_component_groups_the_runs_by_its_defining_contrast_modulo_3():
     assert interaction == pytest.approx(61 + 1 / 3)
 
 
+def test_a_3k_component_of_runs_printed_in_coded_units_takes_their_settings_in_order():
+    """The same tool life data with the levels coded -1, 0 and +1, and no levels listed: the same components."""
+    from process_improve.experiments.reference_catalogue import _component_ss
+
+    coded = {15: -1, 20: 0, 25: 1, 125: -1, 150: 0, 175: 1}
+    rows = [[coded[a], coded[s], y] for (a, s), ys in TOOL_LIFE.items() for y in ys]
+    entry = {
+        "factors": [{"name": n, "type": "numeric", "low": 0, "high": 2} for n in "AB"],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["A", "B", "y"], "rows": rows, "coded": True},
+    }
+    assert _component_ss(entry, {"word": "AB"}) == pytest.approx(100 / 3)
+    assert [_component_ss(entry, {"word": "AB2", "key": f"total.{u}"}) for u in range(3)] == [0, 18, 6]
+
+
 def test_3k_words_multiply_modulo_3_into_aliases_and_a_defining_relation():
     from process_improve.experiments.reference_catalogue import _component_product, _component_relation
 
@@ -1649,6 +1771,18 @@ def test_the_normal_equations_are_read_entry_by_entry():
     without = {"model": model, "runs": [r for r in range(1, 13) if r != 8]}
     assert _normal_equations(entry, {**without, "key": "xtx.1.2"}) == -1
     assert _normal_equations(entry, {**without, "key": "inverse.0.1"}) == pytest.approx(1 / 52)
+
+
+def test_the_normal_equations_take_every_reading_of_a_run_as_a_row():
+    """Four runs read twice are eight rows of X, so X'y sums both readings: 1 + 3 + 2 + 4 + 4 + 4 + 6 + 9."""
+    from process_improve.experiments.reference_catalogue import _normal_equations, _normal_equations_array
+
+    entry = _replicated_2x2([[1, 3], [2, 4], [4, 4], [6, 9]])
+    check = {"model": "A + B", "summary": {"of": ["y1", "y2"], "statistic": "each"}}
+    assert _normal_equations(entry, {**check, "key": "xty.0"}) == 33
+    assert _normal_equations(entry, {**check, "key": "xtx.0.0"}) == 8
+    assert _normal_equations_array(entry, {**check, "key": "xty"}).tolist() == [33, 9, 13]
+    assert _normal_equations(entry, {"model": "A + B", "key": "xty.0"}) == 13  # the first reading alone
 
 
 def test_a_prediction_interval_is_read_as_its_half_width_and_the_point_s_leverage():
@@ -1910,6 +2044,15 @@ def test_a_library_value_or_design_property_may_be_squared():
     assert _library_value({"function": "blocking_alpha", "args": [8, 3, 3, 2], "squared": True}) == pytest.approx(
         64 / 22
     )
+
+
+def test_a_number_read_from_a_fit_may_be_squared_as_a_variance_from_a_standard_error():
+    """The variance of an effect, its standard error squared: of a 2^4 with its four-factor term as error, 4 MSE/16."""
+    entry = _factorial(4, FILTRATION)
+    check = {"kind": "effect_std_error", "term": "A", "model": "A * B * C * D - A:B:C:D"}
+    out = reference_catalogue._Fits()(entry, check)
+    found, _ = reference_catalogue._fit_check(entry, {**check, "squared": True}, "1", reference_catalogue._Fits())
+    assert float(found) == pytest.approx(4 * out["model_summary"]["mse_residual"] / 16, rel=1e-5)
 
 
 def test_a_response_model_transmits_the_variance_of_its_noise_factor():
@@ -2234,3 +2377,87 @@ def test_the_adjusted_mean_of_an_analysis_of_covariance_is_a_prediction_with_its
     assert _prediction(out, {**at, "bound": "std_error"}, entry) == pytest.approx(
         0.7236, abs=5e-5
     )  # Minitab's Table 15.15
+
+
+def test_the_total_row_of_a_multistratum_analysis_adds_every_stratum():
+    """A split plot in two replicates of a 2^4: 1 + 6 + 24 degrees of freedom, the runs less one, and the total SS."""
+    from process_improve.experiments.reference_catalogue import _multistratum
+
+    layout = {"levels": {"rep": 2, "A": 2, "B": 2, "C": 2, "D": 2}, "model": "A * B * C * D", "strata": "rep/A:B"}
+    assert _multistratum({}, {**layout, "key": "df", "term": "Total"}) == 31
+    assert _multistratum({}, {**layout, "key": "df", "term": "Residual", "stratum": "rep:A:B"}) == 3
+    entry = _factorial(4, FILTRATION)
+    check = {"model": "C * D", "strata": "A/B", "term": "Total"}
+    total = np.sum((np.array(FILTRATION) - np.mean(FILTRATION)) ** 2)
+    assert _multistratum(entry, {**check, "key": "ss"}) == pytest.approx(total)
+    assert _multistratum(entry, {**check, "key": "df"}) == 15
+
+
+def _six_factor_dsd() -> dict:
+    """Jones and Nachtsheim's (2011) six-factor definitive screening design, Figure 1, as a catalogue entry."""
+    text = "0+---- 0-++++ +0-++- -0+--+ --0+-- ++0-++ -++0+- +--0-+ +-+-0- -+-+0+ ++++-0 ----+0 000000"
+    rows = [[{"+": 1, "-": -1, "0": 0}[c] for c in run] for run in text.split()]
+    names = [f"x{i + 1}" for i in range(6)]
+    return {
+        "name": "dsd-6",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in names],
+        "responses": [],
+        "runs": {"columns": names, "rows": rows, "coded": True},
+    }
+
+
+def test_a_correlation_check_reads_the_library_summary_of_its_kind_of_pair():
+    """Tables 3 and 4 for m = 6 through the library's correlation metrics; a kind the model lacks is refused."""
+    from process_improve.experiments.reference_catalogue import _estimate_correlations, _term_correlations
+
+    entry = _six_factor_dsd()
+    other = {"pairs": "square_and_other_interaction", "key": "mean"}
+    assert _term_correlations(entry, other) == pytest.approx(0.465, abs=5e-4)
+    squares = {"pairs": "two_squares", "key": "mean", "terms": "squares"}
+    assert _estimate_correlations(entry, squares) == pytest.approx(0.087, abs=5e-4)
+    one = {"pairs": "two_interactions", "key": "max", "factors": ["x1", "x2", "x3"]}
+    assert _estimate_correlations(entry, one) == pytest.approx(0.405, abs=5e-4)
+    with pytest.raises(ValueError, match="no pair"):
+        _estimate_correlations(entry, {"pairs": "two_interactions", "key": "max", "terms": "squares"})
+
+
+def test_a_power_check_reads_one_hypothesis_of_the_library_study_or_its_status():
+    """Table 7: hypothesis 1 of the six-factor design, and hypothesis 2 'Aliased' in its orthogonal alternative."""
+    from process_improve.experiments.reference_catalogue import _average_power
+
+    entry = _six_factor_dsd()
+    assert _average_power(entry, {"hypothesis": 1, "effect_size": 1}) == pytest.approx(0.821, abs=5e-4)
+    pb = {"design": {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 1}}, "design_columns": 6}
+    check = {"hypothesis": 2, "effect_size": 1, **pb}
+    assert _average_power(entry, check | {"status": "aliased"}) == 1
+    assert _average_power(entry, check | {"status": "not estimable"}) == 0
+
+
+def test_a_design_folded_over_takes_the_sign_of_its_halves_as_one_more_factor():
+    """The 12-run Plackett-Burman design folded over: 12 factors in 24 runs, interactions orthogonal to main effects."""
+    from process_improve.experiments.reference_catalogue import _design_runs
+
+    spec = {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 1}}
+    folded = _design_runs({}, {"design": spec, "fold_over": True}).to_numpy(dtype=float)
+    assert folded.shape == (25, 12)
+    assert not folded[-1].any()
+    assert np.array_equal(folded[:12], -folded[12:24])
+    interactions = np.column_stack([folded[:, a] * folded[:, b] for a in range(12) for b in range(a + 1, 12)])
+    assert np.abs(interactions.T @ folded).max() == 0
+
+
+def test_a_design_is_compared_with_one_the_library_makes_by_its_determinant_or_its_standard_errors():
+    """Table 5's row for m = 6: against the 12-run Plackett-Burman design with a centre run."""
+    from process_improve.experiments.reference_catalogue import _relative_efficiency
+
+    model = " + ".join(f"x{i + 1}" for i in range(6))
+    versus = {
+        "model": model,
+        "design": {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 1}},
+        "design_columns": 6,
+    }
+    entry = _six_factor_dsd()
+    assert _relative_efficiency(entry, {**versus, "criterion": "d", "percent": True}) == pytest.approx(85.5, abs=0.05)
+    errors = _relative_efficiency(entry, {**versus, "criterion": "se"})
+    assert errors == pytest.approx(math.sqrt(12 / 10))  # 1/10 against 1/12, the same for every main effect
+    assert _relative_efficiency(entry, {**versus, "criterion": "se", "gain": True}) == pytest.approx(9.5, abs=0.05)

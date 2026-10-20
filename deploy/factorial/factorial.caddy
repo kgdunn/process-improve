@@ -13,6 +13,21 @@ factori.al {
 	encode zstd gzip
 	file_server
 
+	# Feedback: the one request that carries anything of a reader's, sent only when they press Send in the
+	# app's Feedback dialog. Caddy holds the whole body, at most 4 MB, before it passes it on, and tells the
+	# relay (feedback_relay.py) the reader's address in X-Real-IP, by which the relay counts reports. The
+	# relay emails the report and keeps nothing; the log below keeps this request's line as it does any
+	# other's, without its body.
+	handle /api/feedback {
+		request_body {
+			max_size 4MB
+		}
+		reverse_proxy 127.0.0.1:8790 {
+			request_buffers 4MB
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
 	# A deploy reaches a reader at their next visit: the browser checks each file is unchanged
 	# before using its copy. The wheel sits in a folder named by its digest, so its address
 	# changes whenever it does, and it is kept for a year. The images are kept for a day.

@@ -88,9 +88,10 @@ From a split-plot design to its analysis
 ----------------------------------------
 
 ``generate_design`` builds a split-plot design when ``hard_to_change`` names the slow
-factors (with the optional ``pyoptex`` package installed). The design records each
-run's whole plot in a ``WholePlot`` column, numbered from 1, so the analysis finds the
-whole plots without being told:
+factors: a coordinate exchange sets them once for each whole plot, and chooses the runs
+for the generalised least squares information. The design records each run's whole plot
+in a ``WholePlot`` column, numbered from 1, so the analysis finds the whole plots without
+being told:
 
 .. code-block:: python
 
@@ -112,10 +113,10 @@ whole plots without being told:
 ::
 
       RunOrder  Temperature  Pressure  Ratio  WholePlot
-   1         1          1.0      -1.0    1.0          1
-   2         2          1.0       1.0   -1.0          1
-   3         3          1.0      -1.0   -1.0          1
-   4         4         -1.0      -1.0    1.0          2
+   1         1          1.0       1.0   -1.0          1
+   2         2          1.0       1.0    1.0          1
+   3         3          1.0      -1.0    1.0          1
+   4         4          1.0      -1.0   -1.0          2
 
 Run the experiment, join the responses on, and analyse. Here the responses are
 simulated, with a whole-plot error whose standard deviation is four times the run-to-run error's:
@@ -134,12 +135,12 @@ simulated, with a whole-plot error whose standard deviation is four times the ru
 
 ::
 
-   Temperature           whole_plot     4.0   0.0220
+   Temperature           whole_plot     3.9   0.0014
    Pressure              subplot        9.1   0.0000
-   Ratio                 subplot        9.1   0.9094
-   Temperature:Pressure  subplot        9.0   0.4915
-   Temperature:Ratio     subplot        9.1   0.3582
-   Pressure:Ratio        subplot        9.1   0.0001
+   Ratio                 subplot        9.2   0.7574
+   Temperature:Pressure  subplot        9.1   0.5563
+   Temperature:Ratio     subplot        9.1   0.8609
+   Pressure:Ratio        subplot        9.1   0.0000
 
 The 20 runs sit in 6 whole plots. Temperature, the only whole-plot term, is judged on
 about 4 degrees of freedom; the others on about 9. Any other ``analysis_type`` on a
@@ -172,10 +173,12 @@ run errors :math:`e` of variance :math:`\sigma^2`.
 * **The strata.** A term is in the ``whole_plot`` stratum when its model columns are
   constant within every whole plot, and in the ``subplot`` stratum otherwise. An
   interaction of a hard-to-change factor with an easy one is a subplot term.
-* **Marginal (Type III) tests.** Each term is tested adjusted for all the others. For
-  this, the named models code a categorical factor with sum-to-zero contrasts, so that
-  a main effect is averaged over the factors it interacts with. Write ``C(name, Sum)``
-  in an explicit formula for the same.
+* **Marginal (Type III) tests.** Each term is tested adjusted for all the others, with
+  every categorical factor coded to sum-to-zero contrasts for the test, so that a main
+  effect is averaged over the factors it interacts with. A formula gets the same tests
+  whether it writes ``method``, ``C(method)`` or ``C(method, Sum)``; only its
+  coefficients follow the coding it writes. The named models sum-code their categorical
+  factors, so their coefficients are deviations from the grand mean.
 
 The analysis refuses a model it cannot separate: one with aliased terms, one whose
 whole-plot terms use up every whole plot (no whole-plot error is left to judge them

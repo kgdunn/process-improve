@@ -339,6 +339,7 @@ function heldComment(held, factors) {
  * model step 3 fitted, and ``complete`` says every run of the design has its result, as for step 3.
  */
 export function bestCode(best, spec, model, complete = true) {
+  if (isMixture(spec)) return blendCode(best, spec, model, complete);
   const numeric = spec.factors.filter((f) => !labelled(f));
   const held = best.search?.held ?? {};
   const holds = Object.keys(held).length > 0;
@@ -392,6 +393,44 @@ export function bestCode(best, spec, model, complete = true) {
     `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
     "",
     ...prediction,
+  ].join("\n");
+}
+
+/**
+ * Step 4 for a mixture: the best blend for the response's goal, found on step 3's Scheffé model with the library's
+ * optimiser over the region of blends, a ``DesignRegion`` of step 1's components (each between its bounds, the
+ * proportions summing to 1), and the prediction there with its intervals. ``best`` is what bootstrap.best_settings
+ * answered: its ``search`` holds the desirability goal it searched with.
+ */
+function blendCode(best, spec, model, complete) {
+  const response = spec.response || "y";
+  const fitted = complete ? "X, y" : "X[done], y[done]";
+  return [
+    "import pandas as pd",
+    "from process_improve.experiments import DesignRegion, analyze_experiment, optimize_responses",
+    "",
+    "# The goal as a desirability, its limits beyond every prediction over the blends: a straight line in the prediction.",
+    `goal = ${repr(best.search.goal)}`,
+    "best = optimize_responses(",
+    "    [",
+    "        {",
+    `            "response_name": ${repr(response)},`,
+    '            "coefficients": analysis["coefficients"],',
+    `            "factor_names": ${repr(spec.factors.map((f) => f.name))},`,
+    "        }",
+    "    ],",
+    "    goals=[goal],",
+    "    region=DesignRegion(factors),  # the blends: each component between its bounds, the proportions summing to 1",
+    ')["desirability"]',
+    'print(best["optimal_coded"])  # the best blend: each component\'s proportion',
+    `print(best["predicted_responses"][${repr(response)}])  # what the model predicts there`,
+    "",
+    "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
+    'at = pd.DataFrame([best["optimal_coded"]])',
+    "prediction = analyze_experiment(",
+    `    ${fitted}, model=${repr(model)}, analysis_type="prediction", coding="actual", new_points=at`,
+    ")",
+    'print(prediction["predictions"][0])',
   ].join("\n");
 }
 
@@ -532,9 +571,11 @@ const DESIRABILITY_KEYS = ["response", "goal", "target", "low", "high", "weight"
  * its goal as a desirability over its acceptable range, and the settings with the best overall desirability found
  * with the library's optimiser over every model. It builds on step 2's ``runs`` and ``X``. ``balance`` is what
  * bootstrap.balance answered: its ``search`` holds each response's fitted formula, its goal, and what the page held
- * each categorical factor and block at.
+ * each categorical factor and block at. A mixture's balance is searched over the region of blends that step 1's
+ * components make.
  */
 export function balanceCode(balance, spec) {
+  const mixture = isMixture(spec); // a mixture's components are searched over its blends, not each over a range
   const numeric = spec.factors.filter((f) => !labelled(f));
   const held = balance.search?.held ?? {};
   const holds = Object.keys(held).length > 0;
@@ -544,13 +585,19 @@ export function balanceCode(balance, spec) {
   const ranges = numeric.map((f) => `${repr(f.name)}: {"low": ${f.low}, "high": ${f.high}}`).join(", ");
   const imports = [
     ...(holds ? ["import math"] : []),
-    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment, optimize_responses`,
+    `from process_improve.experiments import ${limits.length || mixture ? "DesignRegion, " : ""}analyze_experiment, optimize_responses`,
     "",
   ];
+  const searched = mixture
+    ? ["    region=DesignRegion(factors),  # the blends: each component between its bounds, the proportions summing to 1"]
+    : [
+        `    factor_ranges={${ranges}},`,
+        ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+      ];
   return [
     ...imports,
     ...(holds ? [heldComment(held, spec.factors), ...HELD_AT] : []),
-    "# Each response with a goal, fitted with its own model to the runs that have its result.",
+    `# Each response with a goal, fitted with its own ${mixture ? "Scheffé model" : "model"} to the runs that have its result.`,
     "models = []",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
@@ -566,10 +613,11 @@ export function balanceCode(balance, spec) {
     "balanced = optimize_responses(",
     "    models,",
     "    goals=goals,",
-    `    factor_ranges={${ranges}},`,
-    ...(limits.length ? ["    region=DesignRegion(factors, constraints),  # inside the limits on the settings"] : []),
+    ...searched,
     ')["desirability"]',
-    'print(balanced["optimal_actual"])  # the balanced settings, in the factors\' own units',
+    mixture
+      ? 'print(balanced["optimal_coded"])  # the balanced blend: each component\'s proportion'
+      : 'print(balanced["optimal_actual"])  # the balanced settings, in the factors\' own units',
     'print(balanced["predicted_responses"])  # what each model predicts there',
     'print(balanced["individual_desirability"])  # each response\'s desirability, d',
     'print(balanced["composite_desirability"])  # the overall desirability, D',
