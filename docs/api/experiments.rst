@@ -57,6 +57,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_three_level
    :members: dispatch_three_level_fraction
 
+.. automodule:: process_improve.experiments.three_level_components
+   :members: interaction_components
+
 .. automodule:: process_improve.experiments.models
    :members:
    :undoc-members:
