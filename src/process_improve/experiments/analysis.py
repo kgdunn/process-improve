@@ -880,9 +880,10 @@ def analyze_experiment(  # noqa: PLR0913
         Satterthwaite's denominator degrees of freedom, so a whole-plot term is judged
         against the whole-plot error and a subplot term against the run-to-run error.
         In a balanced design this is the classical split-plot ANOVA. The tests are
-        marginal (Type III); in a named model the categorical factors are sum-coded
-        for them, so a main effect is averaged over the factors it interacts with
-        (write ``C(name, Sum)`` in an explicit formula for the same). The result,
+        marginal (Type III), with every categorical factor coded to sum-to-zero
+        contrasts for them whatever coding the formula gives it, so a main effect is
+        averaged over the factors it interacts with. The coefficients are in the
+        formula's coding; a named model sum-codes its categorical factors. The result,
         under ``"split_plot"``, has the ``variance_components`` (``whole_plot``,
         ``residual`` and their ratio ``eta``, which a split-plot design is built
         for), the ``error_df`` of the two strata, ``coefficients`` and per-term

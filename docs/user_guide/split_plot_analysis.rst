@@ -172,10 +172,12 @@ run errors :math:`e` of variance :math:`\sigma^2`.
 * **The strata.** A term is in the ``whole_plot`` stratum when its model columns are
   constant within every whole plot, and in the ``subplot`` stratum otherwise. An
   interaction of a hard-to-change factor with an easy one is a subplot term.
-* **Marginal (Type III) tests.** Each term is tested adjusted for all the others. For
-  this, the named models code a categorical factor with sum-to-zero contrasts, so that
-  a main effect is averaged over the factors it interacts with. Write ``C(name, Sum)``
-  in an explicit formula for the same.
+* **Marginal (Type III) tests.** Each term is tested adjusted for all the others, with
+  every categorical factor coded to sum-to-zero contrasts for the test, so that a main
+  effect is averaged over the factors it interacts with. A formula gets the same tests
+  whether it writes ``method``, ``C(method)`` or ``C(method, Sum)``; only its
+  coefficients follow the coding it writes. The named models sum-code their categorical
+  factors, so their coefficients are deviations from the grand mean.
 
 The analysis refuses a model it cannot separate: one with aliased terms, one whose
 whole-plot terms use up every whole plot (no whole-plot error is left to judge them
