@@ -1287,7 +1287,7 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
 
 
 # --------------------------------------------------------------------------- what a source says of a design
-_ROMAN = {"III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8}
+_ROMAN = {"III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9}
 _LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
 
 
@@ -1842,20 +1842,34 @@ def _with_groups(settings: pd.DataFrame, experiment: dict, check: dict) -> pd.Da
 
 
 def _relative_efficiency(experiment: dict, check: dict) -> float:
-    """Return the efficiency of the entry's runs relative to another entry's, for the model ``check["model"]``.
+    """Return the efficiency of the entry's runs relative to another design's, for the model ``check["model"]``.
 
-    ``check["versus"]`` names the other entry, a design of the catalogue with the same factors.
+    ``check["versus"]`` names the other design, an entry of the catalogue with the same factors; or
+    ``check["design"]`` names one the library makes (``check["design_columns"]`` keeping its first
+    columns, as :func:`_design_runs` reads them), its columns taken as the entry's factors in order.
     ``check["criterion"]`` is ``"d"``: (|X'X| / |X0'X0|)^(1/p) for p model terms, the two designs'
-    determinants compared per parameter; or ``"i"``: the other design's average prediction variance
+    determinants compared per parameter; ``"i"``: the other design's average prediction variance
     over this one's (``check["options"]`` as :func:`~process_improve.experiments.evaluate_design`
-    takes them). Above one, the entry's runs are the better. ``check["groups"]`` names the runs'
-    columns that label random effects' groups, in both entries, for split-plot designs (see
-    :func:`_with_groups`). ``"percent": true`` returns the efficiency in percent, and ``"gain":
-    true`` the percent by which it exceeds one: how much more information the entry's runs carry.
+    takes them); or ``"se"``: the standard errors of the model's coefficients, the intercept's aside,
+    this design's over the other's and averaged, as Jones and Nachtsheim (2011) compare a design with
+    an orthogonal one. For ``"d"`` and ``"i"``, above one the entry's runs are the better; for ``"se"``,
+    above one their standard errors are the larger. ``check["groups"]`` names the runs' columns that
+    label random effects' groups, in both entries, for split-plot designs (see :func:`_with_groups`).
+    ``"percent": true`` returns the number in percent, and ``"gain": true`` the percent by which it
+    exceeds one: how much more information the entry's runs carry, or how much larger their errors.
     """
-    other = _entry(str(_CATALOGUE_DIR), check["versus"])
     every_run = check | {"runs": None}
-    settings = [_with_groups(_coded_runs(entry, None)[0], entry, every_run) for entry in (experiment, other)]
+    settings = [_with_groups(_coded_runs(experiment, None)[0], experiment, every_run)]
+    if check.get("design"):
+        made = _design_runs(experiment, check)
+        settings.append(made.set_axis(list(settings[0].columns[: made.shape[1]]), axis=1))
+    else:
+        other = _entry(str(_CATALOGUE_DIR), check["versus"])
+        settings.append(_with_groups(_coded_runs(other, None)[0], other, every_run))
+    if check["criterion"] == "se":
+        errors = [_coefficient_errors(dmatrix(check["model"], s, return_type="dataframe")) for s in settings]
+        value = float(np.mean(errors[0] / errors[1]))
+        return 100 * (value - 1) if check.get("gain") else value
     sources = [json.dumps({"columns": list(s.columns), "runs": s.to_dict("list")}, sort_keys=True) for s in settings]
     metric = "information_matrix" if check["criterion"] == "d" else "average_prediction_variance"
     asked = json.dumps({"model": check["model"], "metric": metric, "options": check.get("options")}, sort_keys=True)
@@ -1867,6 +1881,118 @@ def _relative_efficiency(experiment: dict, check: dict) -> float:
     if check.get("gain"):
         return 100 * (value - 1)
     return 100 * value if check.get("percent") else value
+
+
+def _coefficient_errors(matrix: pd.DataFrame) -> np.ndarray:
+    """Return the standard errors of a model's coefficients in units of sigma, the intercept's left out."""
+    errors = np.sqrt(np.diag(np.linalg.pinv(matrix.to_numpy().T @ matrix.to_numpy())))
+    return np.array([e for name, e in zip(matrix.columns, errors, strict=True) if name != "Intercept"])
+
+
+def _second_order_pair(first: tuple[int, ...], second: tuple[int, ...]) -> str:
+    """Name the kind of a pair of second-order terms, each a square (one factor) or an interaction (two factors).
+
+    ``"qq,ss"`` two squares, ``"qq,qs"`` a square and an interaction in its factor, ``"qq,st"`` a square
+    and an interaction without it, and ``"st,uv"`` two interactions, with a factor in common or not.
+    """
+    if len(first) == len(second):
+        return "qq,ss" if len(first) == 1 else "st,uv"
+    square, interaction = (first, second) if len(first) == 1 else (second, first)
+    return "qq,qs" if square[0] in interaction else "qq,st"
+
+
+def _term_correlations(experiment: dict, check: dict) -> float:
+    """Return the average or largest absolute correlation between a design's second-order columns of one kind.
+
+    The columns of the squares x_q^2 and the two-factor interactions x_s x_t of the entry's runs (or of
+    the design ``check["design"]`` names) are correlated pair by pair; ``check["pairs"]`` keeps one kind
+    of pair (see :func:`_second_order_pair`), and ``check["key"]`` is ``"mean"`` or ``"max"`` of the
+    correlations' sizes: the column correlations Jones and Nachtsheim (2011) tabulate for definitive
+    screening designs.
+    """
+    columns = _second_order_columns(_design_runs(experiment, check).to_numpy(dtype=float))
+    sizes = [
+        abs(float(np.corrcoef(columns[first], columns[second])[0, 1]))
+        for first, second in itertools.combinations(columns, 2)
+        if _second_order_pair(first, second) == check["pairs"]
+    ]
+    if not sizes:
+        raise ValueError(f"The design has no pair of second-order terms of the kind {check['pairs']!r}.")
+    return float(_REDUCE[check["key"]](sizes))
+
+
+def _second_order_columns(x: np.ndarray) -> dict[tuple[int, ...], np.ndarray]:
+    """Return a design's squares, keyed by their factor, then its two-factor interactions, by their two factors."""
+    columns = {(q,): x[:, q] ** 2 for q in range(x.shape[1])}
+    return columns | {pair: x[:, pair[0]] * x[:, pair[1]] for pair in itertools.combinations(range(x.shape[1]), 2)}
+
+
+def _estimate_correlations(experiment: dict, check: dict) -> float:
+    """Return the average or largest absolute correlation between estimated second-order effects.
+
+    The design, or its projection onto the factors ``check["factors"]``, or each of its projections
+    onto ``check["size"]`` factors, is fitted with the main effects and the second-order terms of
+    ``check["terms"]``: ``"all"`` (the default, the full quadratic model) or ``"squares"``. The
+    correlations of the estimates are read from (X'X)^-1; ``check["pairs"]`` keeps one kind of pair of
+    second-order terms (see :func:`_second_order_pair`), and ``check["key"]`` is ``"mean"`` or
+    ``"max"`` of the correlations' sizes, over every projection: the correlations of estimated
+    effects that Jones and Nachtsheim (2011) tabulate for definitive screening designs.
+    """
+    settings = _design_runs(experiment, check)
+    x = settings.to_numpy(dtype=float)
+    if check.get("factors"):
+        projections = [tuple(list(settings.columns).index(name) for name in check["factors"])]
+    else:
+        projections = list(itertools.combinations(range(x.shape[1]), check.get("size") or x.shape[1]))
+    sizes = []
+    for chosen in projections:
+        projected = x[:, chosen]
+        columns = _second_order_columns(projected)
+        if check.get("terms", "all") == "squares":
+            columns = {term: column for term, column in columns.items() if len(term) == 1}
+        matrix = np.column_stack([np.ones(len(projected)), projected, *columns.values()])
+        inverse = np.linalg.inv(matrix.T @ matrix)[1 + len(chosen) :, 1 + len(chosen) :]
+        correlations = inverse / np.sqrt(np.outer(np.diag(inverse), np.diag(inverse)))
+        sizes += [
+            abs(float(correlations[i, j]))
+            for (i, first), (j, second) in itertools.combinations(enumerate(columns), 2)
+            if _second_order_pair(first, second) == check["pairs"]
+        ]
+    if not sizes:
+        raise ValueError(f"The design's projections have no pair of second-order terms of the kind {check['pairs']!r}.")
+    return float(_REDUCE[check["key"]](sizes))
+
+
+def _average_power(experiment: dict, check: dict) -> float:
+    """Return the power of the t test of one coefficient, averaged over every factor or pair of factors it is asked of.
+
+    ``check["model"]`` is a formula and ``check["terms"]`` the tested terms, written with ``{a}`` for a
+    factor, ``{b}`` for a second one and ``{all}`` for the sum of every factor's main effect:
+    ``"{all} + I({a} ** 2)"`` with ``["I({a} ** 2)"]`` tests a square with every main effect in the
+    model. ``check["over"]`` is ``"factors"`` (each factor as ``{a}``) or ``"pairs"`` (each pair of two
+    factors); every term of every choice is tested in its own model, and the powers are averaged. The
+    power is that of :func:`~process_improve.experiments.evaluate_design` for a coefficient of
+    ``check["effect_size"]`` in units of sigma, at ``check["alpha"]`` (0.05 by default), as Jones and
+    Nachtsheim (2011) average it over the tests of one kind. The runs are the entry's, or those of
+    the design ``check["design"]`` names, its columns taken as the entry's factors.
+    """
+    settings = _design_runs(experiment, check)
+    names = [f["name"] for f in experiment["factors"]][: settings.shape[1]]
+    settings = settings.set_axis(names, axis=1)
+    every = " + ".join(names)
+    choices = [(a,) for a in names] if check["over"] == "factors" else list(itertools.combinations(names, 2))
+    powers = []
+    for choice in choices:
+        fill = {"all": every, "a": choice[0], "b": choice[-1]}
+        found = evaluate_design(
+            settings,
+            model=check["model"].format(**fill),
+            metric="power",
+            effect_size=check["effect_size"],
+            alpha=check.get("alpha", 0.05),
+        )
+        powers += [found["power"][term.format(**fill)] for term in check["terms"]]
+    return float(np.mean(powers))
 
 
 def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
@@ -1930,11 +2056,30 @@ _REDUCE: dict[str, Callable[[list[float]], float]] = {
 
 
 def _design_runs(experiment: dict, check: dict) -> pd.DataFrame:
-    """Return a design's factor settings in coded units: a design the library makes, or the entry's runs."""
+    """Return a design's factor settings in coded units: a design the library makes, or the entry's runs.
+
+    Of a design the library makes, ``check["design_columns"]`` keeps that many of its columns, the
+    first, as a source uses six columns of the 12-run Plackett-Burman design for six factors; and
+    ``"fold_over": true`` folds it over (see :func:`_folded_over`).
+    """
     if check.get("design"):
         made = _made(json.dumps(check["design"], sort_keys=True))
-        return pd.DataFrame(made.design)[list(made.factor_names)]
+        runs = pd.DataFrame(made.design)[list(made.factor_names)[: check.get("design_columns")]]
+        return _folded_over(runs) if check.get("fold_over") else runs
     return _coded_runs(experiment, check.get("runs"))[0]
+
+
+def _folded_over(runs: pd.DataFrame) -> pd.DataFrame:
+    """Return a two-level design folded over, the sign of its two halves one more factor, the last.
+
+    The runs off the centre are followed by their mirror image, every sign reversed, and then by the
+    centre runs: the 12-run Plackett-Burman design becomes the 24-run design in 12 factors, its
+    interactions orthogonal to every main effect, that Jones and Nachtsheim (2011) compare with.
+    """
+    centre = (runs == 0).all(axis=1)
+    corners = runs.loc[~centre]
+    halves = [corners.assign(fold=1), (-corners).assign(fold=-1), runs.loc[centre].assign(fold=0)]
+    return pd.concat(halves, ignore_index=True)
 
 
 _MEASURES: dict[str, Callable[[np.ndarray], int | None]] = {
@@ -2220,9 +2365,9 @@ def _t_test(experiment: dict, check: dict) -> float:
         test = ttest_paired(runs - minus.to_numpy(), conflevel=confidence)
         found = {
             "difference": test["Differences mean"],
-            "t": test["z value"],  # the library's paired test names its t statistic "z value"
-            "std_error": test["Standard deviation"],  # and the standard error of the mean difference so
-            "std_dev": test["Standard deviation"] * len(runs) ** 0.5,
+            "t": test["t value"],
+            "std_error": test["Std error of mean difference"],
+            "std_dev": test["Std dev of differences"],
         }
     else:
         test = ttest_independent(minus, runs, conflevel=confidence, equal_var=check.get("test") != "welch")
@@ -3111,6 +3256,9 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "log_variance_ratio": _log_variance_ratio,
     "normal_equations": _normal_equations,
     "relative_efficiency": _relative_efficiency,
+    "term_correlations": _term_correlations,
+    "estimate_correlations": _estimate_correlations,
+    "average_power": _average_power,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
     "design_measure": _design_measure,

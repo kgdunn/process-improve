@@ -77,16 +77,17 @@ export function resultWords(results, marks, simulation, runs) {
 /**
  * The stamp's rows, each [label, text, link]: when the report was made and with what, the run order's seed, where
  * the results came from, the SHA-256 of the inputs, and the link that opens the study again. A row with nothing to say
- * is left out: the runtime the page does not know, a digest the browser would not compute, or a link for a study too
- * large to carry in one.
+ * is left out: the runtime the page does not know, the run order and results of a page with no design yet (``spec``
+ * null, as the Feedback dialog may stamp one), a digest the browser would not compute, or a link for a study too large
+ * to carry in one.
  */
 export function stampRows({ made, version, runtime, url, spec, runs, results, marks, simulation, sha, link }) {
   const rows = [
     ["Made", whenWords(made), null],
     ["With", `${version ? `process-improve ${version}` : "process-improve, from its source"}, in Factorial at ${url}`, null],
     ["On", runtimeWords(runtime), null],
-    ["Run order", orderWords(spec), null],
-    ["Results", resultWords(results, marks, simulation, runs), null],
+    ["Run order", spec ? orderWords(spec) : "", null],
+    ["Results", spec ? resultWords(results, marks, simulation, runs) : "", null],
     ["Inputs, SHA-256", sha ?? "", null],
     ["Open it again", link ? "This study in Factorial, with its results" : "", link],
   ];

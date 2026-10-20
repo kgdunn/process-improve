@@ -15,10 +15,10 @@ Designed Experiments
    :members: Factor, Constraint, Response, ResponseGoal, DesignResult
 
 .. automodule:: process_improve.experiments.designs_screening
-   :members: dispatch_fractional_factorial, dispatch_plackett_burman, plackett_burman_runs, dispatch_taguchi
+   :members: dispatch_fractional_factorial, defining_relation, dispatch_plackett_burman, plackett_burman_runs, dispatch_taguchi
 
 .. automodule:: process_improve.experiments.designs_response_surface
-   :members: dispatch_ccd, orthogonal_alpha, blocking_alpha, dispatch_box_behnken, dispatch_dsd, dsd_conference_order, dsd_run_count
+   :members: dispatch_ccd, orthogonal_alpha, blocking_alpha, ccd_center_points, dispatch_box_behnken, dispatch_dsd, dsd_conference_order, dsd_run_count
 
 .. automodule:: process_improve.experiments.designs_optimal
    :members: dispatch_d_optimal, dispatch_i_optimal, dispatch_a_optimal
@@ -53,6 +53,12 @@ Designed Experiments
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: process_improve.experiments.designs_three_level
+   :members: dispatch_three_level_fraction
+
+.. automodule:: process_improve.experiments.three_level_components
+   :members: interaction_components
 
 .. automodule:: process_improve.experiments.models
    :members:
@@ -135,6 +141,12 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+Run Sheets
+~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.run_sheet
+   :members: run_sheet, read_run_sheet
+
 Strategy Recommender
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -146,6 +158,18 @@ Strategy Recommender
 .. automodule:: process_improve.experiments.strategy.engine
    :members: recommend_strategy
    :show-inheritance:
+
+The Next Round
+~~~~~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.next_step
+   :members: recommend_next_step, ACTIONS
+
+Simulated Studies
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.simulate
+   :members: simulate_design_performance
 
 .. automodule:: process_improve.experiments.strategy.models
    :members:
