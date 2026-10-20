@@ -89,6 +89,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.least_squares_means
    :members: least_squares_means
 
+.. automodule:: process_improve.experiments.layouts
+   :members: tukey_nonadditivity, estimate_missing
+
 .. automodule:: process_improve.experiments.multistratum
    :members: multistratum_anova, error_terms
 
