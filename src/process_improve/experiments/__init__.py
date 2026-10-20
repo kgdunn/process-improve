@@ -18,9 +18,12 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
+from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
 from process_improve.experiments.knowledge import doe_knowledge
+from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
+from process_improve.experiments.model_comparison import compare_models, group_test
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.multistratum import multistratum_anova
 from process_improve.experiments.next_step import recommend_next_step
@@ -77,6 +80,7 @@ __all__ = [
     "DesignResult",
     "Expt",
     "Factor",
+    "GaussianProcessFit",
     "Model",
     "MomentAberrationResult",
     "NotSeparableError",
@@ -94,16 +98,19 @@ __all__ = [
     "box_behnken_runs",
     "c",
     "compare_designs",
+    "compare_models",
     "constraint_through_cuts",
     "cross_arrays",
     "defining_relation",
     "definitive_screening_runs",
     "doe_knowledge",
+    "estimate_missing",
     "evaluate_all",
     "evaluate_design",
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "fit_gaussian_process",
     "from_pseudocomponents",
     "full_factorial",
     "gather",
@@ -112,6 +119,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "group_test",
     "interaction_components",
     "intraclass_correlation_interval",
     "is_omars",
@@ -145,6 +153,7 @@ __all__ = [
     "to_pseudocomponents",
     "trade_off_table",
     "trend_robust_run_order",
+    "tukey_nonadditivity",
     "variance_components",
     "variance_dispersion",
     "visualize_doe",
