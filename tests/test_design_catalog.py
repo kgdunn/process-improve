@@ -699,6 +699,13 @@ def test_the_feed_is_atom_with_an_entry_per_source_newest_first():
     assert "5 printed numbers, 4 of them recomputed" in entries[0].find(f"{atom}summary").text
 
 
+def test_a_family_the_knowledge_base_describes_says_what_it_is_in_plain_words():
+    families = catalog_families()
+    assert families["full_factorial"]["description"].startswith("Tests every combination of factor levels.")
+    assert "\n" not in families["dsd"]["description"]
+    assert families["latin_square"]["description"] == ""
+
+
 def test_a_family_says_which_families_it_can_lead_to():
     families = catalog_families()
     assert {"family": "ccd", "how": "Add center + axial points"} in families["full_factorial"]["next"]

@@ -8,7 +8,10 @@
 
 import { GOALS, escape, isCategorical, listNames, responsesOf } from "./logic.js";
 
-/** The seed a design's runs are put in random order with; mirrors bootstrap.RUN_ORDER_SEED. */
+/**
+ * The seed a design's runs are put in random order with when its specification names none: the worked example's,
+ * and the studies saved before each study had a seed of its own. Mirrors bootstrap.RUN_ORDER_SEED.
+ */
 export const RUN_ORDER_SEED = 42;
 
 /** The design type of runs as given, whose order is the reader's own; mirrors bootstrap.GIVEN. */
@@ -48,11 +51,17 @@ export function runtimeWords(runtime) {
   return packages.length ? `${python}, with ${listNames(packages)}` : python;
 }
 
-/** How the run order came about: drawn at random with the seed, or as the reader gave it. */
+/**
+ * How the run order came about: drawn at random with the study's seed, or as the reader gave it. The runs added to
+ * a study are drawn with its seed plus the number of runs before them; a study saved before studies had a seed of
+ * their own used RUN_ORDER_SEED for both.
+ */
 export function orderWords(spec) {
-  if (spec.design_type !== GIVEN) return `Drawn at random with seed ${RUN_ORDER_SEED}.`;
-  if (spec.options?.grown) return `As the study had them, then the runs added, drawn at random with seed ${RUN_ORDER_SEED}.`;
-  return "As given.";
+  const seed = spec.options?.random_state;
+  if (spec.design_type !== GIVEN) return `Drawn at random with seed ${seed ?? RUN_ORDER_SEED}.`;
+  if (!spec.options?.grown) return "As given.";
+  if (seed === undefined) return `As the study had them, then the runs added, drawn at random with seed ${RUN_ORDER_SEED}.`;
+  return `As the study had them, then each set of runs added, drawn at random with seed ${seed} plus the number of runs before it.`;
 }
 
 /**
@@ -77,16 +86,17 @@ export function resultWords(results, marks, simulation, runs) {
 /**
  * The stamp's rows, each [label, text, link]: when the report was made and with what, the run order's seed, where
  * the results came from, the SHA-256 of the inputs, and the link that opens the study again. A row with nothing to say
- * is left out: the runtime the page does not know, a digest the browser would not compute, or a link for a study too
- * large to carry in one.
+ * is left out: the runtime the page does not know, the run order and results of a page with no design yet (``spec``
+ * null, as the Feedback dialog may stamp one), a digest the browser would not compute, or a link for a study too large
+ * to carry in one.
  */
 export function stampRows({ made, version, runtime, url, spec, runs, results, marks, simulation, sha, link }) {
   const rows = [
     ["Made", whenWords(made), null],
     ["With", `${version ? `process-improve ${version}` : "process-improve, from its source"}, in Factorial at ${url}`, null],
     ["On", runtimeWords(runtime), null],
-    ["Run order", orderWords(spec), null],
-    ["Results", resultWords(results, marks, simulation, runs), null],
+    ["Run order", spec ? orderWords(spec) : "", null],
+    ["Results", spec ? resultWords(results, marks, simulation, runs) : "", null],
     ["Inputs, SHA-256", sha ?? "", null],
     ["Open it again", link ? "This study in Factorial, with its results" : "", link],
   ];

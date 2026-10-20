@@ -327,6 +327,7 @@ READS: dict[str, list[str]] = {
     "mixture charts": [
         "plotly_js: str",
         "figures{}: str",
+        "held_best: bool",
         "ternary.components[]: str",
         "ternary.grid.a[]: number",
         "ternary.grid.b[]: number",
@@ -343,6 +344,86 @@ READS: dict[str, list[str]] = {
         "cox.traces[].change[]: number",
         "cox.traces[].fitted[]: number",
         "cox.traces[].true[]: number",
+    ],
+    "mixture balance": [
+        "balanced: bool",
+        "responses[].name: str",
+        "responses[].predicted: number",
+        "responses[].d: number",
+        "composite: number",
+        "limiting: str",
+        "coded{}: number",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: number",
+        "settings[].low: number",
+        "settings[].high: number",
+        "settings[].end: str?",
+        "settings[].beyond: bool",
+        "confirm_at{}: number",
+        "rounding.decimals: int?",
+        "rounding.adjusted: str?",
+        "overlay.kind: str",
+        "overlay.components[]: str",
+        "overlay.a[]: number",
+        "overlay.b[]: number",
+        "overlay.c[]: number",
+        "overlay.acceptable[]: int",
+        "overlay.at[]: number",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.responses[].lines[].a[]: number?",
+        "overlay.responses[].lines[].b[]: number?",
+        "overlay.responses[].lines[].c[]: number?",
+        "search.held: dict",
+        "search.goals[].response: str",
+        "search.formulas{}: str",
+    ],
+    "mixture traces through the best blend": [
+        "held_best: bool",
+        "cox.through: str",
+        "cox.traces[].component: str",
+        "cox.traces[].change[]: number",
+        "cox.traces[].fitted[]: number",
+    ],
+    "mixture best blend": [
+        "goal: str",
+        "flat: bool",
+        "predicted: number",
+        "reached: bool?",
+        "level: number",
+        "confidence[]: number",
+        "prediction[]: number",
+        "leverage: number",
+        "max_leverage: number",
+        "extrapolating: bool",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: number",
+        "settings[].low: number",
+        "settings[].high: number",
+        "settings[].in_model: bool",
+        "settings[].end: str?",
+        "settings[].beyond: bool",
+        "coded{}: number",
+        "limits: list",
+        "unclear: bool",
+        "sensitivity[].name: str",
+        "sensitivity[].step: number",
+        "sensitivity[].down: number",
+        "sensitivity[].up: number",
+        "sensitivity[].down_runnable: bool",
+        "sensitivity[].up_runnable: bool",
+        "sensitivity[].in_model: bool",
+        "confirm_at{}: number",
+        "rounding.decimals: int?",
+        "rounding.adjusted: str?",
+        "confirmation: list",
+        "search.held: dict",
+        "search.goal.goal: str",
+        "search.goal.low: number",
+        "search.goal.high: number",
     ],
     "workbook": [
         "xlsx_base64: str",
@@ -596,6 +677,9 @@ ENTRY_POINTS = {
     "mixture analysis": "api_analyze_runs",
     "mixture charts": "api_plots",
     "mixture traces": "api_plots",
+    "mixture best blend": "api_best_settings",
+    "mixture traces through the best blend": "api_plots",
+    "mixture balance": "api_balance",
     "workbook": "api_workbook",
     "relabel": "api_relabel",
     "upload": "api_read_workbook",
@@ -750,6 +834,27 @@ def aimed_at(api, worked_example: dict[str, Any], target: float) -> dict:
     return {**made, "responses": api.ok("api_simulate", {**made, **drawn})["responses"]}
 
 
+def aimed_blend(request: dict) -> dict:
+    """Return a request about a blend's runs with a hardness to maximise: its best blend is searched for."""
+    return {**request, "spec": {**request["spec"], "response_info": {"label": "Hardness", "goal": "maximize"}}}
+
+
+def through_best_blend(api, request: dict) -> dict:
+    """Return a request for a blend's charts drawn through its best blend, as the page asks for them."""
+    return {**request, "best": api.ok("api_best_settings", request)["coded"]}
+
+
+def two_blends(api) -> dict:
+    """Return a simplex lattice measuring a hardness to maximise and a cost to minimise, with simulated results."""
+    responses = [{"name": "Hardness", "goal": "maximize"}, {"name": "Cost", "goal": "minimize"}]
+    factors = [{"name": n, "low": None, "high": None, "units": ""} for n in "ABC"]
+    spec = {"design_type": "simplex_lattice", "factors": factors, "n_replicates": 2, "responses": responses}
+    held = held_of(api.ok("api_make_design", spec))
+    simulation = api.ok("api_simulate", held)
+    more = {"Cost": simulation["more"]["Cost"]["responses"]}
+    return {**held, "responses": simulation["responses"], "more_responses": more}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -825,6 +930,9 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "mixture analysis": lambda: blend(3),
         "mixture charts": lambda: blend(3),
         "mixture traces": lambda: blend(4),
+        "mixture best blend": lambda: aimed_blend(blend(3)),
+        "mixture traces through the best blend": lambda: through_best_blend(api, aimed_blend(blend(4))),
+        "mixture balance": lambda: two_blends(api),
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,

@@ -61,7 +61,8 @@ const radius = (count) => Math.min(16, 4.5 * Math.sqrt(count));
  * Draw a design's runs projected onto two factors, as a square, or three, as a cube seen at an angle:
  * one point per distinct setting, its area in proportion to the runs that land on it. The box is the
  * factors' low and high levels; a run beyond it, such as an axial run of a central composite
- * design, is drawn outside.
+ * design, is drawn outside. When the points hold different numbers of runs, a point with more than
+ * one is labelled with its count, as "3×", so the label is not read as a response at that corner.
  */
 export function projectionPlot(runs, columns, names) {
   const points = projected(runs, columns);
@@ -91,20 +92,21 @@ export function projectionPlot(runs, columns, names) {
   );
   svg.append(...edges);
   // Each factor's name beside the middle of an edge along it, outside the box: below, to the left, and,
-  // for the depth, to the right of the cube's near right edge.
+  // for the depth, below and to the right of the cube's bottom right edge, clear of the labels of its points.
   const out = 1 + 0.2 * reach;
-  const labels = three ? [[0, -out, -1], [-out, 0, -1], [out, -1, 0]] : [[0, -out], [-out, 0]];
+  const labels = three ? [[0, -out, -1], [-out, 0, -1], [out, -out, 0]] : [[0, -out], [-out, 0]];
   labels.forEach((at, j) => {
     const [x, y] = px(place(at));
     svg.append(shape("text", { x, y, class: "projection__axis", "text-anchor": "middle", "dominant-baseline": "middle" }, names[j]));
   });
   // Far points first, so a nearer point is drawn over them.
   const order = [...points].sort((a, b) => (b.point[2] ?? 0) - (a.point[2] ?? 0));
+  const labelled = new Set(points.map((p) => p.count)).size > 1;
   for (const { point, count } of order) {
     const [x, y] = px(place(point));
     const dot = titled(shape("circle", { cx: x, cy: y, r: radius(count), class: "projection__point" }), `${point.map((v) => +v.toFixed(3)).join(", ")}: ${count} ${count === 1 ? "run" : "runs"}`);
     svg.append(dot);
-    if (count > 1) svg.append(shape("text", { x: x + radius(count) + 2, y: y - radius(count) + 2, class: "projection__count" }, String(count)));
+    if (labelled && count > 1) svg.append(shape("text", { x: x + radius(count) + 2, y: y - radius(count) + 2, class: "projection__count" }, `${count}×`));
   }
   return svg;
 }

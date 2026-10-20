@@ -22,7 +22,7 @@ from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAME
 from process_improve.experiments.designs_utils import categorical_codes
 
 if TYPE_CHECKING:
-    from process_improve.experiments.factor import Factor
+    from process_improve.experiments.factor import DesignResult, Factor
 
 # Minimum-aberration 2^(k-p) fractional factorials for 5 to 11 factors, keyed by the number of
 # factors and then by the run count 2^(k-p). Letters name factors by position, in the textbook
@@ -102,7 +102,7 @@ def dispatch_fractional_factorial(
         resolution the design achieves. A word of the defining relation that is -1 on
         every run (from a negated generator such as ``"D=-AB"``) is written ``"I=-ABD"``.
         A defining relation of more than 1023 words (more than ten generators) is not
-        listed.
+        listed: ``"defining_relation_note"`` says so, and :func:`defining_relation` lists it.
 
     Raises
     ------
@@ -142,13 +142,72 @@ def dispatch_fractional_factorial(
         )
     meta: dict = {"generators_used": generators_used, "resolution": achieved}
     if len(words) <= _MAX_LISTED_WORDS:
-        words.sort(key=lambda item: (item[0].bit_count(), [i for i in range(k) if item[0] >> i & 1]))
-        meta["defining_relation"] = [_format_word(mask, sign, factor_names) for mask, sign in words]
+        meta["defining_relation"] = _listed_words(words, factor_names)
+    else:
+        meta["defining_relation_note"] = (
+            f"The defining relation has {len(words)} words, more than the {_MAX_LISTED_WORDS} a design lists; "
+            "defining_relation(design) lists them all."
+        )
     return coded_matrix, meta
 
 
+def defining_relation(design: DesignResult) -> list[str]:
+    """Return every word of a two-level fraction's defining relation, however many generators it has.
+
+    A design lists its defining relation only up to ten generators (1023 words), because the
+    relation doubles with each generator: a saturated 2^(15-11) design has 2047 words. This
+    function works them out from the design's generators on request, in the design's own form:
+    shortest first, each as ``"I=ABD"``, or ``"I=-ABD"`` where the word is -1 on every run.
+
+    Parameters
+    ----------
+    design : DesignResult
+        A two-level fraction, or a design built on one (such as a composite design on a
+        fractional cube), from :func:`generate_design`.
+
+    Returns
+    -------
+    list[str]
+        The words of the defining relation; empty for a full factorial.
+
+    Raises
+    ------
+    ValueError
+        If the design has no generators and is not a full factorial, so it has no defining
+        relation (a Plackett-Burman or optimal design, for example).
+
+    Examples
+    --------
+    >>> from process_improve.experiments import Factor, generate_design
+    >>> factors = [Factor(name=name, low=-1, high=1) for name in "ABCDEFGHJKLMNOP"]
+    >>> design = generate_design(factors, design_type="fractional_factorial", resolution=3)
+    >>> design.n_runs, design.defining_relation
+    (19, None)
+    >>> relation = defining_relation(design)
+    >>> len(relation), relation[0]
+    (2047, 'I=ABE')
+    """
+    if not design.generators:
+        if design.design_type == "full_factorial":
+            return []
+        msg = f"design_type={design.design_type!r} has no generators, so it has no defining relation to list."
+        raise ValueError(msg)
+    names = list(design.factor_names)
+    derived, terms = _parse_generators(names, design.generators)
+    parsed = [(lhs, rhs) for lhs, (rhs, _negated) in zip(derived, terms, strict=True)]
+    signs = [-1 if negated else 1 for _rhs, negated in terms]
+    return _listed_words(_defining_word_masks(parsed, signs), names)
+
+
+def _listed_words(words: list[tuple[int, int]], factor_names: list[str]) -> list[str]:
+    """Return the words of a defining relation as strings, shortest first and then in factor order."""
+    k = len(factor_names)
+    ordered = sorted(words, key=lambda item: (item[0].bit_count(), [i for i in range(k) if item[0] >> i & 1]))
+    return [_format_word(mask, sign, factor_names) for mask, sign in ordered]
+
+
 #: Longest defining relation listed in the metadata (ten generators); a longer one is
-#: left out, since the generators define it.
+#: left out, since the generators define it, and :func:`defining_relation` lists it on request.
 _MAX_LISTED_WORDS = 1023
 
 

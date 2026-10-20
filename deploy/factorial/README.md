@@ -29,6 +29,12 @@ before the line is written (the first 24 bits of IPv4, 48 of IPv6), and lines ar
 90 days. There are no cookies, no tracking script and no database. A design shared by link
 travels after the `#`, which a browser never sends, so no design reaches the log.
 
+The one exception is a report a reader sends with the app's Feedback button, and only when they
+press Send: the relay emails it to the maintainer, and keeps no copy and no line of it
+([Feedback](#feedback)). Its request is logged as any other, without its body. A reader who gives
+an address gets a receipt of fixed text; to send an address at most one a day, the relay holds a
+keyed hash of it in memory for a day.
+
 ```bash
 sudo factorial-usage            # visits, catalog visits, readers, Python sessions and link previews per day
 sudo factorial-usage --days 90
@@ -65,8 +71,9 @@ sudo sh factorial-setup/setup.sh factorial-setup/factorial_deploy.pub
 `factorial-deploy` and `factorial-usage` in `/usr/local/bin`, puts the key where only root can
 change it, and installs the SSH block ([`sshd.conf`](sshd.conf)) once `sshd -t` accepts it.
 It installs the site's Caddy block, [`factorial.caddy`](factorial.caddy), and makes its log
-owned by Caddy. It ends by printing the value of `FACTORIAL_KNOWN_HOSTS` for step 5. It needs
-the server's Python to be 3.12 or later, as Ubuntu 24.04's is. Running it again is safe.
+owned by Caddy. It installs the feedback relay and its unit, and makes the relay's settings files
+once ([Feedback](#feedback)). It ends by printing the value of `FACTORIAL_KNOWN_HOSTS` for step 5.
+It needs the server's Python to be 3.12 or later, as Ubuntu 24.04's is. Running it again is safe.
 
 **3. Check the key**, from your machine:
 
@@ -114,6 +121,53 @@ until `FACTORIAL_KNOWN_HOSTS` is set. The next push to `main` deploys; to deploy
 The runners connect from GitHub's addresses, so SSH (port 22) has to stay open to the
 internet, as it is now.
 
+## Feedback
+
+The app's Feedback dialog sends a reader's report to `https://factori.al/api/feedback`, and
+Caddy passes it to [`feedback_relay.py`](feedback_relay.py), which emails it to the maintainer
+through the email provider that sends the site's mail. Each report gets a reference, such as
+`FB-7K3Q2M`, in the email's subject and on the reader's screen. When the reader gives an address,
+the relay also sends it a receipt: fixed text with the reference, the topic and the day, and
+nothing the reader wrote, at most one a day to an address. The relay listens on `127.0.0.1:8790`
+only, as an account systemd makes for it at each start
+([`factorial-feedback.service`](factorial-feedback.service)). It keeps nothing and logs no part
+of a report, and it takes at most 10 reports an hour from one network, and sends at most 200
+emails a day in all, reports and receipts together.
+
+**Setting it up**, once, on the server, before the old app is retired: its mail settings are the
+ones the relay needs, under the same names, in `/home/deploy/factorial/.env`. `setup.sh` made
+the relay's two files, empty, where only root can read them.
+
+```bash
+sudo grep -E '^SMTP_(HOST|PORT|USER|FROM_EMAIL)=' /home/deploy/factorial/.env    # the old app's settings
+sudo nano /etc/factorial/feedback.env    # copy those in, and set FEEDBACK_TO, the address reports go to
+sudo sh -c "grep '^SMTP_PASSWORD=' /home/deploy/factorial/.env | cut -d= -f2- | tr -d '\n' > /etc/factorial/smtp-password"
+sudo systemctl enable --now factorial-feedback
+```
+
+The relay reads `smtp-password` as it is, less a final line break: if the old `.env` quotes the
+password, take the quotes off there. Then check that Caddy reaches the relay:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Origin: https://factori.al' \
+  -H 'Content-Type: application/json' -d '{}' https://factori.al/api/feedback
+```
+
+It prints `400`, a report the relay refused; `502` means the relay is not running, and
+`sudo journalctl -u factorial-feedback` says why. Last, send a report from https://factori.al
+with the Feedback button, and check that it reaches `FEEDBACK_TO`.
+
+**A change to the relay** reaches the server only when `setup.sh` runs again, since the deploy
+key cannot change it: from your machine, a fresh copy of this folder with the deploy key's
+public half (step 1 without `ssh-keygen`), and then step 2, which restarts the relay.
+
+```bash
+cd ~/factorial-deploy && git -C ~/code/process-improve fetch origin
+rm -r factorial && git -C ~/code/process-improve archive origin/main deploy/factorial | tar -x --strip-components=1
+cp factorial_deploy.pub factorial/
+ssh deploy@factori.al rm -r factorial-setup && scp -r factorial deploy@factori.al:factorial-setup
+```
+
 ## Retiring the old app
 
 The old app ran from `/home/deploy/factorial` under Docker Compose, with nightly backups to
@@ -148,7 +202,10 @@ The last line rolls back without GitHub, as the workflow would.
 | [`usage.py`](usage.py) | `/usr/local/bin/factorial-usage` | The usage report |
 | [`sshd.conf`](sshd.conf) | `/etc/ssh/sshd_config.d/factorial.conf` | What sshd allows the deploy account |
 | [`factorial.caddy`](factorial.caddy) | `/etc/caddy/factorial.caddy` | The site, its headers and its log |
-| [`setup.sh`](setup.sh) | (run once) | Installs the four above |
+| [`feedback_relay.py`](feedback_relay.py) | `/usr/local/bin/factorial-feedback` | The relay that emails a reader's report |
+| [`factorial-feedback.service`](factorial-feedback.service) | `/etc/systemd/system/factorial-feedback.service` | Runs the relay |
+| [`feedback.env.example`](feedback.env.example) | `/etc/factorial/feedback.env`, if missing | The relay's settings |
+| [`setup.sh`](setup.sh) | (run once) | Installs the seven above |
 
-[`tests/deploy`](../../tests/deploy) tests the two commands, including what a leaked key could
-send.
+[`tests/deploy`](../../tests/deploy) tests the two commands and the relay, including what a
+leaked key, or anyone who finds the relay's address, could send.

@@ -10,6 +10,7 @@ uniform samples can use it without importing each other.
 from __future__ import annotations
 
 import itertools
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -35,7 +36,7 @@ def _linear_row(a: np.ndarray, b: float) -> _Inequality:
     return lambda x: np.atleast_2d(x) @ a - b
 
 
-def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Points to fit an affine form on, and more points to check it on, spread through the box ``[low, high]``.
 
     The fit uses the centre of the box, a step of a quarter of the range from it along
@@ -47,19 +48,23 @@ def _probe_points(low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.nda
     corners (up to ``2**_CORNER_DIMENSIONS`` of them) and ``_AFFINE_CHECKS`` pseudo-random
     points from a fixed seed, so the probes reach every part of the box, its edges
     included. Nothing depends on the caller's random generator.
+
+    Returns the fit points, the pseudo-random checks and the corners, in that order.
     """
     k = len(low)
     span = np.where(np.isfinite(high - low), high - low, 1.0)
     base = np.where(np.isfinite(low), low, 0.0)
     steps = np.vstack([np.full((1, k), 0.5), 0.5 + 0.25 * np.eye(k), qmc.Halton(d=k, scramble=False).random(2)[1:]])
-    fit = base + span * steps
-    unit = [np.random.default_rng(0).random((_AFFINE_CHECKS, k))]
+    randoms = np.random.default_rng(0).random((_AFFINE_CHECKS, k))
+    corners = np.empty((0, k))
     if k <= _CORNER_DIMENSIONS:
-        unit.append(np.array(list(itertools.product((0.0, 1.0), repeat=k))).reshape(2**k, k))  # one corner when k is 0
-    return fit, base + span * np.vstack(unit)
+        corners = np.array(list(itertools.product((0.0, 1.0), repeat=k))).reshape(2**k, k)  # one corner when k is 0
+    return base + span * steps, base + span * randoms, base + span * corners
 
 
-def _affine_form(g: _Inequality, low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, float] | None:
+def _affine_form(
+    g: _Inequality, low: np.ndarray, high: np.ndarray, offsets: np.ndarray | None = None
+) -> tuple[np.ndarray, float] | None:
     """Return ``(a, b)`` with ``g(x) = a @ x - b`` for every ``x``, or ``None`` when ``g`` is not affine.
 
     The form is fitted on ``k + 2`` points and must then reproduce ``g`` on the box
@@ -70,6 +75,16 @@ def _affine_form(g: _Inequality, low: np.ndarray, high: np.ndarray) -> tuple[np.
     constraint never yields an infeasible point, only a part of the region the
     hit-and-run chains do not visit.
 
+    The fit may miss ``g`` by ``1e-9`` of the largest value ``g`` takes, or by the
+    rounding of the terms ``g`` adds up, ``1e-13`` of their size, whichever is more: so
+    the test does not depend on the units of ``g``. (The ``1e-9`` used to be added in the
+    limit's own units, so a curved limit whose values stay below ``1e-9``, as on a factor
+    whose range is ``1e-9`` of its units, passed for straight.) ``offsets`` says where the
+    values behind each coordinate sit, as ``centre / half-range`` of a factor that ``g``
+    reads in coded units, where its terms can be far larger than its values: ``t``
+    near ``1.7e9`` with a range of an hour carries a rounding of ``5e-7``. None means
+    the coordinates themselves.
+
     A constraint that cannot be evaluated somewhere in the box (``sqrt`` or ``log`` of
     a negative number, a division by zero) is not affine there: any probe value that is
     not finite, and any fitted coefficient that overflows, gives ``None``. (Before this
@@ -77,20 +92,48 @@ def _affine_form(g: _Inequality, low: np.ndarray, high: np.ndarray) -> tuple[np.
     false, so such a limit passed and its secant plane stood in for it.)
     """
     k = len(low)
-    fit, check = _probe_points(low, high)
-    points = np.vstack([fit, check])
+    fit, randoms, corners = _probe_points(low, high)
+    points = np.vstack([fit, randoms, corners])
     with np.errstate(all="ignore"):
         values = np.broadcast_to(np.asarray(g(points), dtype=float), (len(points),))
     if not np.all(np.isfinite(values)):
         return None
     design = np.column_stack([points, np.ones(len(points))])
     coef = np.linalg.lstsq(design[: len(fit)], values[: len(fit)], rcond=None)[0]
+    shift = np.zeros(k) if offsets is None else np.asarray(offsets, dtype=float)
     with np.errstate(all="ignore"):
         error = float(np.max(np.abs(design @ coef - values)))
-        tolerance = 1e-9 * (1.0 + float(np.max(np.abs(values))))
+        # The terms in the values behind the coordinates: a @ (x + shift) and the constant left over.
+        terms = float(np.max(np.abs((points + shift) * coef[:k]).sum(axis=1))) + abs(coef[k] - coef[:k] @ shift)
+        tolerance = max(1e-9 * float(np.max(np.abs(values))), 1e-13 * terms)
     if not error <= tolerance:  # written so that a NaN fails the test too, as from a coefficient that overflowed
         return None
     return coef[:k], -float(coef[k])
+
+
+def _compares_numbers_only(a: np.ndarray, b: float) -> bool:
+    """Say whether the straight limit ``a @ x <= b`` compares numbers only: its gradient is below 1e-9 of ``b``.
+
+    The gradient and the constant are in the limit's own units, so the test does not depend
+    on them: ``X <= 0.5e-9`` on a range of ``1e-9`` is a limit, though its gradient is
+    ``5e-10``. (Compared with ``1e-9`` itself, it was taken for one that holds everywhere.)
+    """
+    return math.hypot(*a) <= 1e-9 * abs(b)
+
+
+def _spread(g: _Inequality, low: np.ndarray, high: np.ndarray) -> float:
+    """Return the largest finite ``|g|`` at the corners of the box and at its fit points, or 1 when that is 0.
+
+    A curved limit's tolerance is ``_TOL`` times this, ``1e-9`` of the values it takes over
+    the box, whatever its units; a straight limit's is a distance (see ``tolerances`` in
+    :class:`UniformSampler`). The corners are left out above ``_CORNER_DIMENSIONS`` factors.
+    """
+    fit, _, corners = _probe_points(low, high)
+    points = np.vstack([fit, corners])
+    with np.errstate(all="ignore"):
+        values = np.abs(np.broadcast_to(np.asarray(g(points), dtype=float), (len(points),)))
+    largest = float(values[np.isfinite(values)].max(initial=0.0))
+    return largest if largest > 0 else 1.0
 
 
 def _box_chord(x: np.ndarray, d: np.ndarray, low: np.ndarray, high: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -134,6 +177,11 @@ class UniformSampler:
         start the chains when rejection finds none.
     on_simplex : bool
         The points are proportions summing to 1; directions keep that sum.
+    tolerances : np.ndarray or None
+        Per inequality, what the tolerance ``_TOL`` on its value is multiplied by, so a
+        point passes here as it passes the caller's own test: the length of a straight
+        limit's gradient makes the tolerance a distance, whatever the limit's units. None
+        keeps ``_TOL`` in each limit's own units.
     """
 
     inequalities: list[_Inequality]
@@ -141,6 +189,7 @@ class UniformSampler:
     propose: Callable[[int], np.ndarray]
     seeds: Callable[[], np.ndarray] | None = None
     on_simplex: bool = False
+    tolerances: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         """Split the constraints into affine rows ``a @ x <= b`` and the rest."""
@@ -149,7 +198,11 @@ class UniformSampler:
         k = len(self.bounds[0])
         self._a = np.array([a for a, _ in rows]).reshape(len(rows), k)
         self._b = np.array([b for _, b in rows])
-        self._nonlinear = [g for g, f in zip(self.inequalities, forms, strict=True) if f is None]
+        widen = np.ones(len(self.inequalities)) if self.tolerances is None else np.asarray(self.tolerances, dtype=float)
+        self._reach = _TOL * widen.reshape(len(self.inequalities))
+        self._nonlinear = [
+            (g, reach) for g, f, reach in zip(self.inequalities, forms, self._reach, strict=True) if f is None
+        ]
 
     def feasible(self, x: np.ndarray) -> np.ndarray:
         """Boolean per row: inside the bounds, on the simplex if one, and meeting every constraint."""
@@ -157,8 +210,8 @@ class UniformSampler:
         ok = np.all((x >= low - _TOL) & (x <= high + _TOL), axis=1)
         if self.on_simplex:
             ok &= np.abs(x.sum(axis=1) - 1.0) <= 1e-6
-        for g in self.inequalities:
-            ok &= np.asarray(g(x)) <= _TOL
+        for g, reach in zip(self.inequalities, self._reach, strict=True):
+            ok &= np.asarray(g(x)) <= reach
         return ok
 
     def draw(self, n: int, rng: np.random.Generator) -> np.ndarray:
@@ -281,8 +334,8 @@ class UniformSampler:
             t = rng.uniform(t_lo[pending], t_hi[pending])
             trial = x[pending] + t[:, None] * d[pending]
             ok = np.ones(len(trial), dtype=bool)
-            for g in self._nonlinear:
-                ok &= np.asarray(g(trial)) <= _TOL
+            for g, reach in self._nonlinear:
+                ok &= np.asarray(g(trial)) <= reach
             x[pending[ok]] = trial[ok]
             t, pending = t[~ok], pending[~ok]
             t_lo[pending] = np.where(t < 0, t, t_lo[pending])  # shrink towards the current point (t = 0)

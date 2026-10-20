@@ -265,7 +265,7 @@
       "quote": "Estimated standard deviation of differences s = 1·127"
      },
      "check": {
-      "manual": "the standard deviation of the ten differences is the residual standard error of the paired fit times sqrt(2), 1.1265; the catalogue has no check of that form"
+      "manual": "the standard deviation of the ten differences, the residual standard error of the paired fit times √2: 1.126499, which rounds to 1.126; the book's 1.127 rounds 1.1265 a second time"
      }
     },
     {
@@ -1010,7 +1010,7 @@
     "coded": false,
     "notes": "Table 4C-1 (p. 133), which reprints Table 4-1 as x = % strength - 40; Table 4-1 itself is printed sideways"
    },
-   "notes": "Variance components: sigma0^2 (testing) = 0.75, sigma1^2 (sampling) = (1.41 - 0.75)/2 = 0.33, sigma2^2 (batches) = (99.11 - 1.41)/6 = 16.28. The library's REML variance components cover two strata (split plots), not three nested ones.",
+   "notes": "Variance components: sigma0^2 (testing) = 0.75, sigma1^2 (sampling) = (1.41 - 0.75)/2 = 0.33, sigma2^2 (batches) = (99.11 - 1.41)/6 = 16.28. The checks work them from the library's mean squares, as the book does; its REML fit with batches and samples within batches as random groups gives the same, 16.284 and 0.329.",
    "expected": [
     {
      "what": "anova_sum_sq",
@@ -1152,28 +1152,44 @@
     },
     {
      "what": "variance_component",
-     "term": "testing",
+     "term": "sampling",
      "value": "0.33",
+     "analysis": "the sampling component, σ1², from the library's mean squares: (MS samples - MS error)/2",
      "where": {
       "page": 110,
       "source_kind": "math",
       "quote": "(1·41 - 0·75)/2 = 0·33 is an estimate of sigma1^2"
      },
      "check": {
-      "manual": "a variance component worked by hand from two mean squares, both checked above; no check computes three nested strata"
+      "kind": "mean_squares",
+      "model": "Batch + Batch:Sample",
+      "key": "value",
+      "terms": {
+       "Batch:Sample": 1,
+       "Residual": -1
+      },
+      "divisor": 2
      }
     },
     {
      "what": "variance_component",
      "term": "batches",
      "value": "16.28",
+     "analysis": "the batch component, σ2², from the library's mean squares: (MS batches - MS samples)/6",
      "where": {
       "page": 110,
       "source_kind": "math",
       "quote": "(99·11 - 1·41)/6 = 16·28 is an estimate of sigma2^2"
      },
      "check": {
-      "manual": "a variance component worked by hand from two mean squares, both checked above; no check computes three nested strata"
+      "kind": "mean_squares",
+      "model": "Batch + Batch:Sample",
+      "key": "value",
+      "terms": {
+       "Batch": 1,
+       "Batch:Sample": -1
+      },
+      "divisor": 6
      }
     }
    ]
@@ -6205,7 +6221,12 @@
       "quote": "Between positions 14 1,313·1 93·8"
      },
      "check": {
-      "manual": "the rows and columns of the jig together: 543.2 + 769.9, each checked above"
+      "kind": "anova_pooled",
+      "terms": [
+       "Row",
+       "Column"
+      ],
+      "model": "Row + Column + Lot + Number"
      }
     },
     {
@@ -6910,7 +6931,7 @@
       "kind": "anova_sum_sq",
       "term": "Square",
       "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "the library's Type II ANOVA cannot separate squares, times and days: every time and every day lies in one square, so the three terms are aliased and statsmodels' anova_lm(typ=2) gives meaningless rows (11 df each, and sums of squares larger than the total); the book's sequential split, squares first, is right"
+      "disagreement": "every time and every day lies in one square, so adjusted for the times and days the squares have no degrees of freedom left: the library's Type II analysis cannot test them, and its note points to multistratum_anova with strata Square/Time + Square/Day, which gives 0.356075. The book's sequential split, squares first, is right"
      }
     },
     {
@@ -6926,7 +6947,7 @@
       "kind": "anova_sum_sq",
       "term": "Time",
       "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "the library's Type II ANOVA cannot separate squares, times and days: every time and every day lies in one square, so the three terms are aliased and statsmodels' anova_lm(typ=2) gives meaningless rows (11 df each, and sums of squares larger than the total); the book's sequential split, squares first, is right"
+      "disagreement": "the data give 6.79396 for the times within squares (6.7939556 in exact arithmetic), which rounds to 6.7940; the book prints 6.7939"
      }
     },
     {
@@ -6941,8 +6962,7 @@
      "check": {
       "kind": "anova_sum_sq",
       "term": "Day",
-      "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "the library's Type II ANOVA cannot separate squares, times and days: every time and every day lies in one square, so the three terms are aliased and statsmodels' anova_lm(typ=2) gives meaningless rows (11 df each, and sums of squares larger than the total); the book's sequential split, squares first, is right"
+      "model": "Square + Time + Day + Twist + Draw"
      }
     },
     {
@@ -6955,7 +6975,7 @@
       "quote": "35 12·0279"
      },
      "check": {
-      "manual": "the Type II rows of this model do not add to the total (see the rows for squares, times and days); the total itself is the corrected sum of squares of the 36 results, 12.0279"
+      "manual": "the Type II rows of this model leave out the squares, which cannot be tested beside the times and days, so they add to the total less the squares' 0.3561; the total itself is the corrected sum of squares of the 36 results, 12.0279"
      }
     }
    ]
@@ -13350,7 +13370,13 @@
       "quote": "Between plates 346·24 35 9·89"
      },
      "check": {
-      "manual": "the 36 plates (sites, alloys and their interaction together): 128.74 + 128.18 + 89.32, each checked"
+      "kind": "anova_pooled",
+      "terms": [
+       "Site",
+       "Alloy",
+       "Site·Alloy"
+      ],
+      "model": "Site + Alloy + Observer + Site:Alloy + Site:Observer + Alloy:Observer"
      }
     },
     {
@@ -14105,13 +14131,16 @@
      "what": "anova_sum_sq",
      "term": "B, all four components",
      "value": "132.25",
+     "analysis": "what the four polynomial terms of B explain beyond A: their components together",
      "where": {
       "page": 310,
       "source_kind": "table",
       "quote": "Total for factor B 132·25 4"
      },
      "check": {
-      "manual": "the sum of the four polynomial components, each checked"
+      "kind": "extra_ss",
+      "model": "A + B + I(B**2) + I(B**3) + I(B**4)",
+      "after": "A"
      }
     },
     {
@@ -14599,13 +14628,16 @@
      "what": "anova_sum_sq",
      "term": "concentrations",
      "value": "0.3000",
+     "analysis": "what the three polynomial terms of concentration explain beyond sugar: their components together",
      "where": {
       "page": 314,
       "source_kind": "table",
       "quote": "Between concentrations 0·3000 3 0·1000"
      },
      "check": {
-      "manual": "the three polynomial components together, each checked (Table 8-39 adds them to 0.3001)"
+      "kind": "extra_ss",
+      "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)",
+      "after": "Sugar"
      }
     },
     {
@@ -15662,7 +15694,18 @@
       "quote": "C x V x N 9,746 8 1,218"
      },
      "check": {
-      "manual": "the eight three-factor components together; the library reports each of them as its own row"
+      "kind": "anova_pooled",
+      "terms": [
+       "C·V·N",
+       "C·V·N²",
+       "C·V²·N",
+       "C·V²·N²",
+       "C²·V·N",
+       "C²·V·N²",
+       "C²·V²·N",
+       "C²·V²·N²"
+      ],
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)"
      }
     },
     {
@@ -16490,20 +16533,37 @@
       "quote": "Main effects.. 165,383 6"
      },
      "check": {
-      "manual": "the six main-effect components together, each checked under Table 8-62"
+      "manual": "the six main-effect components as the book prints them add to 165,383; the data's add to 165,382.0, the difference carried by C's 14,241 and N's 1,723, each recorded as a disagreement"
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "two-factor interactions",
      "value": "43881",
+     "analysis": "the twelve two-factor components together; the book adds them as Table 8-62 prints them, each rounded to units",
      "where": {
       "page": 435,
       "source_kind": "table",
       "quote": "Two-factor interactions 43,881 12"
      },
      "check": {
-      "manual": "the twelve two-factor components together, each checked under Table 8-62"
+      "kind": "anova_pooled",
+      "terms": [
+       "C·V",
+       "C·V²",
+       "C²·V",
+       "C²·V²",
+       "C·N",
+       "C·N²",
+       "C²·N",
+       "C²·N²",
+       "V·N",
+       "V·N²",
+       "V²·N",
+       "V²·N²"
+      ],
+      "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
+      "of_rounded": 12
      }
     },
     {
@@ -16516,59 +16576,147 @@
       "quote": "Unconfounded three-factor interactions (X) 6,191 (Z) 1,002 (W) 2,939 (Y) 664 10,796 8 1,350"
      },
      "check": {
-      "manual": "the sum of the X, Z, W and Y components, which no check computes"
+      "manual": "the sum of the X, Z, W and Y components, each checked: arithmetic"
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "X(CVN)",
      "value": "6191",
+     "analysis": "the component CV²N of the 54 runs (AB²C, the factors C, V and N lettered A, B and C), whose group totals are the 2148, 2620 and 2377 printed; the book subtracts two numbers it rounds",
      "where": {
       "page": 433,
       "source_kind": "table",
       "quote": "X = [2148^2 + 2620^2 + 2377^2]/18 - 7145^2/54 = 951,580 - 945,389 = 6191"
      },
      "check": {
-      "manual": "an I/J/W/X/Y/Z component of the three-factor interaction, which no check computes"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "AB²C",
+      "of_rounded": 2
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "Z(CVN)",
      "value": "1002",
+     "analysis": "the component CVN of the 54 runs (ABC), whose group totals are the 2342, 2490 and 2313 printed; the book subtracts two numbers it rounds",
      "where": {
       "page": 433,
       "source_kind": "table",
       "quote": "Z = [2342^2 + 2490^2 + 2313^2]/18 - 7145^2/54 ... = 1002"
      },
      "check": {
-      "manual": "a component of the three-factor interaction, which no check computes"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "ABC",
+      "of_rounded": 2
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "W(CVN), second replicate",
      "value": "2939",
+     "analysis": "the component CV²N² (AB²C²) of the second replicate's runs: the one confounded with the first replicate's blocks",
      "where": {
       "page": 434,
       "source_kind": "table",
       "quote": "(180^2 + 214^2 + 34^2)/27 = 2939"
      },
      "check": {
-      "manual": "a component of the three-factor interaction from the replicate in which it is not confounded"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "AB²C²",
+      "runs": [
+       2,
+       4,
+       6,
+       8,
+       10,
+       12,
+       14,
+       16,
+       18,
+       20,
+       22,
+       24,
+       26,
+       28,
+       30,
+       32,
+       34,
+       36,
+       38,
+       40,
+       42,
+       44,
+       46,
+       48,
+       50,
+       52,
+       54
+      ]
      }
     },
     {
      "what": "anova_sum_sq",
      "term": "Y(CVN), first replicate",
      "value": "664",
+     "analysis": "the component CVN² (ABC²) of the first replicate's runs: the one confounded with the second replicate's blocks",
      "where": {
       "page": 434,
       "source_kind": "table",
       "quote": "(47^2 + 109^2 + 62^2)/27 = 664"
      },
      "check": {
-      "manual": "a component of the three-factor interaction from the replicate in which it is not confounded"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "word": "ABC²",
+      "runs": [
+       1,
+       3,
+       5,
+       7,
+       9,
+       11,
+       13,
+       15,
+       17,
+       19,
+       21,
+       23,
+       25,
+       27,
+       29,
+       31,
+       33,
+       35,
+       37,
+       39,
+       41,
+       43,
+       45,
+       47,
+       49,
+       51,
+       53
+      ]
      }
     }
    ]
@@ -18116,13 +18264,28 @@
      "what": "anova_mean_sq",
      "term": "remaining two-factor interactions",
      "value": "0.0051",
+     "analysis": "the nine two-factor interactions other than C·E pooled: their sums of squares over their degrees of freedom",
      "where": {
       "page": 385,
       "source_kind": "table",
       "quote": "Remaining two-factor interactions 9 0·0051"
      },
      "check": {
-      "manual": "the nine two-factor interactions other than CE pooled; each is a row of the library's ANOVA"
+      "kind": "anova_pooled",
+      "terms": [
+       "A·B",
+       "A·C",
+       "A·D",
+       "A·E",
+       "B·C",
+       "B·D",
+       "B·E",
+       "C·D",
+       "D·E"
+      ],
+      "key": "mean_sq",
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
      }
     },
     {
@@ -18135,7 +18298,7 @@
       "quote": "Three-factor interactions 0·0020"
      },
      "check": {
-      "manual": "the ten three-factor interactions pooled; each is a row of the library's ANOVA"
+      "manual": "the ten three-factor rows of the library's fit of (A + B + C + D + E)**3 + Week pool to a mean square of 0.0029 (anova_pooled); the table prints 0.0020"
      }
     },
     {
@@ -18429,7 +18592,16 @@
       "quote": "Main effects 0·3424 5 0·0685"
      },
      "check": {
-      "manual": "the five main effects together; each is checked above through its mean square"
+      "kind": "anova_pooled",
+      "terms": [
+       "A",
+       "B",
+       "C",
+       "D",
+       "E"
+      ],
+      "model": "(A + B + C + D + E)**2 + Week",
+      "response": "LogYield"
      }
     },
     {
@@ -18442,7 +18614,7 @@
       "quote": "Two-factor 0·0727 10 0·0073"
      },
      "check": {
-      "manual": "the ten two-factor interactions together; each is a row of the library's ANOVA"
+      "manual": "the ten two-factor rows of the library's analysis add to 0.0728 (anova_pooled); the table prints 0.0727"
      }
     },
     {
@@ -24231,7 +24403,7 @@
       "kind": "optimum",
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
-      "key": "stationary_point.eigenvalues.1"
+      "key": "stationary_point.eigenvalues.2"
      }
     },
     {
@@ -24248,7 +24420,7 @@
       "kind": "optimum",
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
-      "key": "stationary_point.eigenvalues.2"
+      "key": "stationary_point.eigenvalues.1"
      }
     },
     {

@@ -1451,21 +1451,42 @@ def test_pca_select_n_components_ckf_reproducible_and_guarded() -> None:
         PCA.select_n_components(X, max_components=3, cv_scheme="kfold")
 
 
-@pytest.mark.xfail(strict=True, reason="#675: ckf PRESS is 0 when no fold can evaluate the component count")
 def test_pca_select_n_components_ckf_does_not_score_an_unevaluated_count_as_perfect() -> None:
     """#675: a component count that no column fold can evaluate must not win with a PRESS of 0.
 
     Five columns in five folds leave four retained columns per fold, too few to determine
     five scores, so every fold skips A = 5. Those folds are NaN, and the sum over them was
     taken with ``nansum``, which is 0 for all-NaN: pure noise came out with Q2 = 1 at A = 5,
-    and that count was recommended.
+    and that count was recommended. Now the count has no PRESS and no Q2.
     """
     rng = np.random.default_rng(0)
     noise = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((30, 5))))
     result = PCA.select_n_components(noise, cv_scheme="ckf")
-    last_press = float(result.press.iloc[-1])
-    assert np.isnan(last_press) or last_press > 0
+    assert np.isnan(result.press.iloc[-1])
+    assert np.isnan(result.q2.iloc[-1])
+    assert result.q2_per_variable.iloc[-1].isna().all(), "no column was predicted, so none has a Q2 of 1"
+    assert np.isfinite(result.press.iloc[:-1]).all()
     assert result.n_components < 5
+
+
+def test_pca_select_n_components_ckf_does_not_score_a_count_some_folds_skip() -> None:
+    """#675: seven columns in five groups are held out two, two, one, one and one at a time.
+
+    At six components the two groups of two leave five columns in, too few, while the
+    three groups of one still predict their column. A total over those three alone would
+    count three columns' errors against seven columns' worth of reference, and look like
+    a better fit than any count all five groups score.
+    """
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((40, 7)), columns=[f"x{i}" for i in range(7)])
+    result = PCA.select_n_components(X, max_components=7, cv_scheme="ckf", random_state=0)
+    assert np.isfinite(result.press.loc[1:5]).all()
+    assert result.press.loc[6:].isna().all()
+    assert result.q2.loc[6:].isna().all()
+    # The columns of the three single-column groups keep their own Q2 at six components.
+    assert sorted(result.q2_per_variable.loc[6].notna().to_numpy().tolist()) == [False] * 4 + [True] * 3
+    assert result.per_fold_press.loc[6].isna().sum() == 2
+    assert result.n_components <= 5
 
 
 def test_pca_select_n_components_refuses_data_too_small_for_any_component() -> None:
@@ -2111,17 +2132,18 @@ def test_pls_entry_points_read_arrays_as_their_dataframes(entry_point: str, y_fo
 
 
 def test_pls_nested_cv_refuses_when_no_held_out_row_is_predicted() -> None:
-    """With a missing cell in every row, no held-out row gets a prediction, and nested CV says so.
+    """When no held-out row gets a prediction, nested CV says so.
 
-    A held-out row with a missing X cell is scored by a plain product with the direct
-    weights, so its prediction is NaN (#676). Once that is fixed these rows are predicted,
-    and this guard needs another way to leave every row uncovered.
+    One outer fold holds out the two rows with no observed X, which no projection can score,
+    and the other eight rows are never held out. Before #676 a missing cell in every row did
+    this, since a held-out row with a gap was scored NaN; such rows are now projected over
+    their observed columns.
     """
     X, y = _pls_ten_rows()
-    for row in range(10):
-        X.iloc[row, row % 4] = np.nan
+    X.iloc[8:] = np.nan
+    one_fold = PredefinedSplit([-1] * 8 + [0, 0])
     with pytest.raises(RuntimeError, match=r"^Nested CV produced no covered observations; check the outer splitter\.$"):
-        PLS.nested_cv(X, y, outer_cv=5, **_PLS_QUICK_NESTED)
+        PLS.nested_cv(X, y, outer_cv=one_fold, **_PLS_QUICK_NESTED)
 
 
 class _TrainsOnEverythingTestsNothing(BaseCrossValidator):
@@ -5374,13 +5396,14 @@ def test_pca_diagnose_numpy_input() -> None:
     assert result.scores.shape == (5, 2)
 
 
-@pytest.mark.parametrize("estimator", [PCA, MBPCA, MBPLS, TPLS])
+@pytest.mark.parametrize("estimator", [PCA, MBPCA, TPLS])
 def test_the_predict_alias_of_diagnose_is_gone(estimator: type) -> None:
     """The deprecated ``predict`` forwarders to ``diagnose`` were removed in 2.0 (#395, #396)."""
     assert hasattr(estimator, "diagnose")
     assert not hasattr(estimator, "predict")
-    # PLS.predict is the sklearn regressor contract, not the alias, and it stays.
+    # PLS.predict and MBPLS.predict (#781) are the sklearn regressor contract, not the alias, and they stay.
     assert hasattr(PLS, "predict")
+    assert hasattr(MBPLS, "predict")
 
 
 def test_pca_score_method() -> None:

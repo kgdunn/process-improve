@@ -14,6 +14,7 @@ import {
   OTHER_COLOUR,
   SORTS,
   applicationLine,
+  caseFacts,
   applications,
   checkIndex,
   checkLine,
@@ -53,6 +54,7 @@ import {
   yearBins,
 } from "./catalog-logic.js";
 import { compareTable, drawTimeline, element, errataTable, projectionExplorer, table } from "./catalog-views.js";
+import { closeOnBackdrop } from "./dialogs.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -782,38 +784,39 @@ function printedIn(detail) {
 const NOTES_SHOWN = 240;
 
 /**
- * An entry's notes: the source's words for its design, and how the catalogue checked it. Short notes are shown
+ * An entry's notes: the source's words for its design, and what the catalogue adds of it. Short notes are shown
  * as they are; long ones, which name the lines of the source each number was read from, fold under a summary,
- * so they are there for a reader who checks the entry and out of the way of one who reads it.
+ * so they are there for a reader who wants them and out of the way of one who reads on.
  */
 function entryNotes(detail) {
   const notes = [detail.details, detail.notes].filter(Boolean).map((text) => element("p", { class: "hint", text }));
   if ([detail.details, detail.notes].join(" ").length <= NOTES_SHOWN) return notes;
-  return [element("details", { class: "detail__notes" }, element("summary", { text: "How the source describes the design, and how the catalogue checked it" }), ...notes)];
+  return [element("details", { class: "detail__notes" }, element("summary", { text: "Notes on this design, from its source" }), ...notes)];
 }
 
-function detailBody(design, detail) {
-  const family = catalog.families[design.family];
-  const source = catalog.sources[design.source];
-  const body = [element("p", { class: "detail__facts", text: factLine(design, catalog) })];
-  if (family?.year) body.push(element("p", { class: "hint", text: `${family.label} designs were first published by ${family.reference}.` }));
-  if (source) {
-    const cite = element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, target: "_blank", rel: "noopener", text: source.cite }) : source.cite);
-    body.push(cite);
-    const where = printedIn(detail);
-    if (where) body.push(where);
-    const application = applicationLine(design, catalog);
-    if (application) body.push(element("p", { class: "detail__application", text: application }));
-    const checks = checkLine(design.checks);
-    if (checks) body.push(element("p", { text: `Printed numbers: ${checks}. The library recomputes them on every change to it.` }));
-    if (design.regenerable === true) body.push(element("p", { class: "detail__ok", text: "The library makes this design: the page's runs are the source's runs, to within its rounding." }));
-    if (design.regenerable === false) body.push(element("p", { class: "hint", text: `The design the page makes from this description is not the source's: ${detail.unmade}.` }));
-  } else {
-    body.push(element("p", { text: "Made by process-improve's generate_design, with the call below." }));
-  }
-  body.push(...entryNotes(detail));
+/** One cell of a design's header: its heading, then what it holds. */
+const headCell = (heading, ...parts) => element("section", { class: "detail__cell" }, element("h3", { text: heading }), ...parts);
 
-  const actions = element("div", { class: "actions" });
+/**
+ * The top of a design's detail, the same three cells for every design: the design itself (its size, what it
+ * estimates, its application), where it comes from (the source and the place it is printed, or the library), and
+ * what the reader can do with it. Each says only what holds for this design; its family's is in designType.
+ */
+function detailHead(design, detail, source) {
+  const facts = element("ul", { class: "detail__list detail__facts" }, ...caseFacts(design).map((text) => element("li", { text })));
+  const application = applicationLine(design, catalog);
+  const what = headCell("This design", facts, ...(application ? [element("p", { class: "detail__application", text: application })] : []));
+
+  const from = source
+    ? [
+        element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, target: "_blank", rel: "noopener", text: source.cite }) : source.cite),
+        printedIn(detail),
+      ]
+    : [element("p", { text: "Made by process-improve's generate_design, with the call in Python, below." })];
+  const where = headCell("Where it comes from", ...from.filter(Boolean));
+
+  const actions = element("div", { class: "actions detail__actions" });
+  const said = [];
   const limit = parseLimit(state.limit);
   if (detail.campaign) {
     actions.append(element("button", { type: "button", class: "button primary", "data-open": design.id, text: "Open in Factorial" }));
@@ -822,17 +825,39 @@ function detailBody(design, detail) {
     }
     if (detail.opens_as === "given") {
       const whose = source ? "the source's runs as it prints them" : "these runs as the library made them";
-      body.push(element("p", { class: "hint", text: `Factorial opens ${whose}, in their order: ${detail.unmade}.` }));
+      said.push(element("p", { class: "hint", text: `Factorial opens ${whose}, in their order: ${detail.unmade}.` }));
     }
   } else {
-    body.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
+    said.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
   }
   if (design.compared) actions.append(compareButton(design)); // append() writes a null out as the text "null"
   actions.append(
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
+    element("button", { type: "button", class: "button", "data-show-code": design.id, text: "Show the Python" }),
   );
-  body.push(actions);
+  return element("div", { class: "detail__head" }, what, where, headCell("Use it", actions, ...said));
+}
+
+/**
+ * What a design's family is and where it was first published, folded under its name: it holds for every design of
+ * the family, so it is there for a reader who asks and out of the way of one reading about this design.
+ */
+function designType(design) {
+  const family = catalog.families[design.family];
+  const label = family?.label ?? design.family;
+  const about = [
+    family?.description && element("p", { text: family.description }),
+    family?.year && element("p", { class: "hint", text: `${label} designs were first published by ${family.reference}.` }),
+  ].filter(Boolean);
+  if (!about.length) return element("p", { class: "hint detail__family", text: `Design type: ${label}.` });
+  return element("details", { class: "detail__family" }, element("summary", { text: `About this design type: ${label}` }), ...about);
+}
+
+function detailBody(design, detail) {
+  const source = catalog.sources[design.source];
+  const body = [detailHead(design, detail, source), designType(design), ...entryNotes(detail)];
+  const limit = parseLimit(state.limit);
   const outcome = limit.ok ? outcomes.get(design.id) : null;
   if (outcome) {
     body.push(element("p", { class: outcome.judged && outcome.outside.length ? "detail__warn" : "hint", text: limitLine(limit, outcome, design.n_runs) }));
@@ -878,7 +903,7 @@ function detailBody(design, detail) {
   }
   const code = pythonCode(design, detail);
   body.push(
-    element("h3", { text: "In Python" }),
+    element("h3", { id: "detail-python", text: "In Python" }),
     element("pre", { class: "detail__code" }, element("code", { text: code })),
     element("button", { type: "button", class: "link", "data-copy-code": design.id, text: "Copy the code" }),
   );
@@ -1028,6 +1053,7 @@ function closeDetail() {
 
 // ---------------------------------------------------------------- the page
 function wire() {
+  for (const dialog of $$("dialog")) closeOnBackdrop(dialog);
   let typing = null;
   $("#query").addEventListener("input", () => {
     clearTimeout(typing);
@@ -1077,10 +1103,13 @@ function wire() {
     update({ keepPage: true });
   });
   document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-id], [data-open], [data-open-limited], [data-copy-link], [data-copy-code], [data-csv], [data-compare], [data-close]");
+    const target = event.target.closest(
+      "[data-id], [data-open], [data-open-limited], [data-copy-link], [data-copy-code], [data-show-code], [data-csv], [data-compare], [data-close]",
+    );
     if (!target) return;
-    const { id, open, openLimited, copyLink, copyCode, csv, compare, close } = target.dataset;
+    const { id, open, openLimited, copyLink, copyCode, showCode, csv, compare, close } = target.dataset;
     if (close) $(`#${close}`).close();
+    else if (showCode) $("#detail-python").scrollIntoView({ behavior: "smooth", block: "start" });
     else if (openLimited) openInFactorial(openLimited, { limited: true });
     else if (compare) toggleCompare(compare);
     else if (open) openInFactorial(open);

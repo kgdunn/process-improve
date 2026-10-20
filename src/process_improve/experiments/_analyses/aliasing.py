@@ -19,6 +19,8 @@ import statsmodels.formula.api as smf
 from sklearn.utils import Bunch
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
+from ._shared import has_error_variance
+
 #: Two model columns whose cosine is within this of plus or minus one are aliased.
 _ALIASED = 1e-9
 
@@ -123,7 +125,7 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
     -------
     Bunch
         ``coefficients`` (a Series, one entry per chain, the intercept excluded),
-        ``std_errors`` (the same, or None without residual degrees of freedom),
+        ``std_errors`` (the same, or None without residual degrees of freedom or a prior sigma),
         ``chains`` (chain name to its member terms, for chains of two or more),
         ``confounded_with_mean`` (terms aliased with the intercept, which no
         effect can be estimated for) and ``spans`` (the range of each chain's leading
@@ -133,7 +135,7 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
     exog = np.asarray(ols_result.model.exog, dtype=float)
     params = ols_result.params.to_numpy(dtype=float)
     position = {str(name): k for k, name in enumerate(ols_result.model.exog_names)}
-    covariance = ols_result.cov_params().to_numpy() if int(ols_result.df_resid) > 0 else None
+    covariance = ols_result.cov_params().to_numpy() if has_error_variance(ols_result) else None
     labels: list[str] = []
     coefficients: list[float] = []
     errors: list[float] = []
