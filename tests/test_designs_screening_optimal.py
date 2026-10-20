@@ -131,16 +131,18 @@ class TestDOptimalDispatch:
         actual = 5.0 + 5.0 * design  # coded [-1, 1] -> actual [0, 10]
         assert (actual.sum(axis=1) <= 10 + 1e-9).all()
 
-    def test_hard_to_change_ignored_flag_without_pyoptex(self) -> None:
-        """Without pyoptex the split-plot request is dropped and recorded on the meta."""
-        _design, meta = dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
-        assert meta.get("hard_to_change_ignored") == ["X1"]
+    @pytest.mark.filterwarnings("error:hard_to_change")
+    def test_hard_to_change_without_pyoptex_is_a_split_plot_design(self) -> None:
+        """Without pyoptex the built-in coordinate exchange builds the split-plot design, with no warning."""
+        design, meta = dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
+        assert (meta["backend"], meta["hard_to_change"]) == ("split_plot_exchange", ["X1"])
+        assert "hard_to_change_ignored" not in meta
+        plots = np.asarray(meta["whole_plot"])
+        assert all(len(set(design[plots == w, 0])) == 1 for w in set(plots.tolist()))
 
-    def test_hard_to_change_without_pyoptex_warns(self) -> None:
-        # A UserWarning, not only a log record: the design silently lacks split-plot structure otherwise.
-        with pytest.warns(UserWarning, match=r"hard_to_change=\['X1'\] is ignored.*pyoptex is not installed") as info:
-            dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
-        assert "pip install pyoptex" in str(info[0].message)
+    def test_backend_pyoptex_without_pyoptex_says_how_to_install_it(self) -> None:
+        with pytest.raises(ValueError, match="pip install pyoptex"):
+            dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"], backend="pyoptex")
 
     @pytest.mark.slow
     def test_candidate_grid_never_exceeds_the_cap(self) -> None:

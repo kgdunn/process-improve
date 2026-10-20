@@ -165,6 +165,11 @@ class BasePlot(ABC):
         form), whose factor ranges define the coded units the plots are drawn in.
         The contour and prediction-variance plots shade the settings it rules out,
         and the 3D surface leaves them out; the other plots ignore it.
+    extent : float, dict or None
+        How far the grid of the contour, 3D surface and prediction-variance plots
+        reaches from the centre, in coded units: one number for both axes, or one per
+        factor. By default each axis covers every run in ``design_data``, the axial runs
+        of a composite design included, and at least -1 to 1. The other plots ignore it.
     """
 
     def __init__(  # noqa: PLR0913
@@ -180,6 +185,7 @@ class BasePlot(ABC):
         factor_labels: dict[str, str] | None = None,
         model: str | None = None,
         region: DesignRegion | dict[str, Any] | None = None,
+        extent: float | dict[str, float] | None = None,
     ) -> None:
         self.analysis_results = analysis_results or {}
         self.design_data = design_data or []
@@ -191,6 +197,7 @@ class BasePlot(ABC):
         self.factor_labels = factor_labels or {}
         self.model = model
         self.region = region
+        self.extent = extent
 
     @abstractmethod
     def to_spec(self) -> ChartSpec:

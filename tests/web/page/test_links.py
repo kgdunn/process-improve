@@ -53,3 +53,17 @@ def test_every_link_out_the_catalog_writes_opens_in_a_new_tab(script):
     for a in out:
         assert 'target: "_blank"' in a, a
         assert 'rel: "noopener"' in a, a
+
+
+def test_the_feedback_dialog_s_link_to_an_issue_opens_in_a_new_tab():
+    """The dialog writes two links: a new issue on GitHub, in a tab of its own, and an email, in the mail program."""
+    tags = re.findall(r"<a [^>]*>", source("feedback.js"))
+    assert sorted(re.search(r'id="([^"]+)"', tag)[1] for tag in tags) == ["feedback-issue", "feedback-mail"]
+    for tag in tags:
+        if 'id="feedback-issue"' in tag:
+            assert OWN_TAB.search(tag), tag
+            assert 'rel="noopener"' in tag, tag
+        else:
+            assert "target=" not in tag, "a mailto: link opens the mail program, not a tab"
+    assert 'export const ISSUES = "https://github.com/kgdunn/process-improve/issues/new";' in source("feedback.js")
+    assert 'querySelector("#feedback-issue").href = issueUrl(' in source("feedback.js")
