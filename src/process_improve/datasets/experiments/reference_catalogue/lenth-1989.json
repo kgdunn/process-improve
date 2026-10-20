@@ -1,0 +1,1609 @@
+{
+ "schema": 1,
+ "about": ["Part of the reference catalogue: designed experiments from one published source, for testing that software reproduces them.", "Lenth (1989) defines the pseudo standard error (PSE) of the contrasts of an unreplicated factorial, with a margin of", "error (ME) and a simultaneous margin of error (SME), and applies it to two 16-run examples of Box and Meyer (1986):", "a 2^(9-5) in tensile strength and a 2^4 in the yield of isatin. Each expected item has its printed text, where it is", "printed (a page and a quotation) and a check, or manual: the reason it is not recomputed. not_captured lists what", "was left out. Read with process_improve.experiments.reference_catalogue."],
+ "source": {
+  "key": "lenth-1989",
+  "authors": ["Russell V. Lenth"],
+  "title": "Quick and Easy Analysis of Unreplicated Factorials",
+  "work": "Technometrics",
+  "volume": "31",
+  "issue": "4",
+  "pages": "469-473",
+  "year": 1989,
+  "publisher": "American Statistical Association and the American Society for Quality Control",
+  "doi": "10.1080/00401706.1989.10488595",
+  "url": "https://doi.org/10.1080/00401706.1989.10488595",
+  "cite": "Lenth (1989), \"Quick and Easy Analysis of Unreplicated Factorials\", Technometrics 31(4), 469-473",
+  "read": "2026-10-19, from the article's PDF (a cover page and pp. 469-473), supplied by the user; every number copied by hand from the page images, not from the PDF's text layer, which drops signs and decimal points",
+  "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [
+  {
+   "name": "lenth-example-ii-tensile-strength",
+   "title": "Tensile strength in an unreplicated 2^(9-5) of resolution III: Lenth's PSE, ME and SME, and the contrasts' alias chains",
+   "topics": ["metals"],
+   "kind": "example",
+   "where": {
+    "section": "3. Illustrations",
+    "pages": "470-472",
+    "tables": ["Table 1", "Table 2", "Table 3"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "T",
+     "description": "thickness",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "W",
+     "description": "method ('way')",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "current",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "R",
+     "description": "rods",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "P",
+     "description": "period",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "M",
+     "description": "material",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "A",
+     "description": "angle",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "O",
+     "description": "opening",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "H",
+     "description": "preheating",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "Strength",
+     "description": "tensile strength",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(9-5) fractional factorial, resolution III",
+    "details": "P = WCR, M = -TWCR, A = -TR, O = -TC, H = TCR; 16 runs in standard order of T, W, C and R",
+    "n_runs": 16
+   },
+   "runs": {
+    "columns": ["T", "W", "C", "R", "P", "M", "A", "O", "H", "Strength"],
+    "rows": [
+     [-1, -1, -1, -1, -1, -1, -1, -1, -1, 43.7],
+     [1, -1, -1, -1, -1, 1, 1, 1, 1, 40.2],
+     [-1, 1, -1, -1, 1, 1, -1, -1, -1, 42.4],
+     [1, 1, -1, -1, 1, -1, 1, 1, 1, 44.7],
+     [-1, -1, 1, -1, 1, 1, -1, 1, 1, 42.4],
+     [1, -1, 1, -1, 1, -1, 1, -1, -1, 45.9],
+     [-1, 1, 1, -1, -1, -1, -1, 1, 1, 42.2],
+     [1, 1, 1, -1, -1, 1, 1, -1, -1, 40.6],
+     [-1, -1, -1, 1, 1, 1, 1, -1, 1, 42.4],
+     [1, -1, -1, 1, 1, -1, -1, 1, -1, 45.5],
+     [-1, 1, -1, 1, -1, -1, 1, -1, 1, 43.6],
+     [1, 1, -1, 1, -1, 1, -1, 1, -1, 40.6],
+     [-1, -1, 1, 1, -1, -1, 1, 1, -1, 44.0],
+     [1, -1, 1, 1, -1, 1, -1, -1, 1, 40.2],
+     [-1, 1, 1, 1, 1, 1, 1, 1, -1, 42.5],
+     [1, 1, 1, 1, 1, -1, -1, -1, 1, 46.5]
+    ],
+    "coded": true,
+    "notes": "Table 2, Example II, in the printed order (standard order of the first four factors)"
+   },
+   "expected": [
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "Example II is a 2^(9-5)_III design from Taguchi and Wu (1980)"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"]
+     }
+    },
+    {
+     "what": "generator",
+     "term": "P",
+     "value": "P = WCR",
+     "analysis": "the printed runs obey it in every run",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "The generators of the design are as follows: P = WCR, M = -TWCR, A = -TR, O = -TC, and H = TCR."
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "P=WCR"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "M",
+     "value": "M = -TWCR",
+     "analysis": "the printed runs obey it in every run",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "The generators of the design are as follows: P = WCR, M = -TWCR, A = -TR, O = -TC, and H = TCR."
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "M=-TWCR"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "A",
+     "value": "A = -TR",
+     "analysis": "the printed runs obey it in every run",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "The generators of the design are as follows: P = WCR, M = -TWCR, A = -TR, O = -TC, and H = TCR."
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "A=-TR"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "O",
+     "value": "O = -TC",
+     "analysis": "the printed runs obey it in every run",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "The generators of the design are as follows: P = WCR, M = -TWCR, A = -TR, O = -TC, and H = TCR."
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "O=-TC"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "H",
+     "value": "H = TCR",
+     "analysis": "the printed runs obey it in every run",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "The generators of the design are as follows: P = WCR, M = -TWCR, A = -TR, O = -TC, and H = TCR."
+     },
+     "check": {
+      "kind": "generator_holds",
+      "printed": "H=TCR"
+     }
+    },
+    {
+     "what": "mean",
+     "term": null,
+     "value": "42.96",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "mean 42.96"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "1: T, -CO, -RA, -PM",
+     "value": ".12",
+     "analysis": "the high-minus-low contrast of the T column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "1 T, -CO, -RA, -PM .12"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "2: W, -MH",
+     "value": "-.15",
+     "analysis": "the high-minus-low contrast of the W column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "2 W, -MH -.15"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "W",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "3: TW, PH",
+     "value": ".30",
+     "analysis": "the high-minus-low contrast of the TW column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "3 TW, PH .30"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·W",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "4: C, -TO, -AH",
+     "value": ".15",
+     "analysis": "the high-minus-low contrast of the C column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "4 C, -TO, -AH .15"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "5: -O, TC, RH",
+     "value": ".40",
+     "analysis": "the high-minus-low contrast of the TC column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "5 -O, TC, RH .40"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "6: WC, RP, WC",
+     "value": "-.02",
+     "analysis": "the high-minus-low contrast of the WC column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "6 WC, RP, WC -.02"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "W·C",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "7: -WO, -RM, -PA",
+     "value": ".37",
+     "analysis": "the high-minus-low contrast of the TWC column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "7 -WO, -RM, -PA .37"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·W·C",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "8: R, -TA, -OH",
+     "value": ".40",
+     "analysis": "the high-minus-low contrast of the R column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "8 R, -TA, -OH .40"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "9: -A, TR, CH",
+     "value": "-.05",
+     "analysis": "the high-minus-low contrast of the TR column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "9 -A, TR, CH -.05"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "10: WR, CP, MO",
+     "value": ".42",
+     "analysis": "the high-minus-low contrast of the WR column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "10 WR, CP, MO .42"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "W·R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "11: -WA, -CM, -PO",
+     "value": ".13",
+     "analysis": "the high-minus-low contrast of the TWR column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "11 -WA, -CM, -PO .13"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·W·R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "12: CR, TH, WP, AO",
+     "value": ".12",
+     "analysis": "the high-minus-low contrast of the CR column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "12 CR, TH, WP, AO .12"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "C·R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "13: H, -WM, -CA, -RO",
+     "value": "-.37",
+     "analysis": "the high-minus-low contrast of the TCR column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "13 H, -WM, -CA, -RO -.37"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·C·R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "14: P, -TM",
+     "value": "2.15",
+     "analysis": "the high-minus-low contrast of the WCR column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "14 P, -TM 2.15"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "W·C·R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "15: -M, TP, WH",
+     "value": "3.10",
+     "analysis": "the high-minus-low contrast of the TWCR column of the base 2^4 in T, W, C and R",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "15 -M, TP, WH 3.10"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T·W·C·R",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 1",
+     "value": "T, -CO, -RA, -PM",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "1 T, -CO, -RA, -PM"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "T",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-CO, -RA, -PM"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 2",
+     "value": "W, -MH",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "2 W, -MH"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "W",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-MH"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 3",
+     "value": "TW, PH",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "3 TW, PH"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "TW",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "PH"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 4",
+     "value": "C, -TO, -AH",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "4 C, -TO, -AH"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "C",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-TO, -AH"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 5",
+     "value": "-O, TC, RH",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "5 -O, TC, RH"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "TC",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-O, RH"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 6",
+     "value": "WC, RP, WC",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "6 WC, RP, WC"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "WC",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "up_to": 2,
+      "disagreement": "the defining relation of P = WCR, M = -TWCR, A = -TR, O = -TC and H = TCR makes WC = RP = MA, so the printed chain 'WC, RP, WC' has WC twice where MA belongs; every other chain of Table 3 agrees as printed"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 7",
+     "value": "-WO, -RM, -PA",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "7 -WO, -RM, -PA"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "TWC",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-WO, -RM, -PA"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 8",
+     "value": "R, -TA, -OH",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "8 R, -TA, -OH"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "R",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-TA, -OH"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 9",
+     "value": "-A, TR, CH",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "9 -A, TR, CH"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "TR",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-A, CH"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 10",
+     "value": "WR, CP, MO",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "10 WR, CP, MO"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "WR",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "CP, MO"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 11",
+     "value": "-WA, -CM, -PO",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "11 -WA, -CM, -PO"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "TWR",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-WA, -CM, -PO"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 12",
+     "value": "CR, TH, WP, AO",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "12 CR, TH, WP, AO"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "CR",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "TH, WP, AO"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 13",
+     "value": "H, -WM, -CA, -RO",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "13 H, -WM, -CA, -RO"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "TCR",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "H, -WM, -CA, -RO"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 14",
+     "value": "P, -TM",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "14 P, -TM"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "WCR",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "P, -TM"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "contrast 15",
+     "value": "-M, TP, WH",
+     "analysis": "the main effects and two-factor interactions in the contrast's alias chain",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "15 -M, TP, WH"
+     },
+     "check": {
+      "kind": "aliases",
+      "term": "TWCR",
+      "k": 9,
+      "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
+      "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
+      "printed": "-M, TP, WH"
+     }
+    },
+    {
+     "what": "median of the absolute contrasts",
+     "term": null,
+     "value": ".30",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "s0 = 1.5 x .30 = .45"
+     },
+     "check": {
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+     }
+    },
+    {
+     "what": "s0",
+     "term": null,
+     "value": ".45",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "s0 = 1.5 x .30 = .45"
+     },
+     "check": {
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+     }
+    },
+    {
+     "what": "2.5 s0",
+     "term": null,
+     "value": "1.13",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "excluding the two contrasts that exceed 2.5s0 = 1.13"
+     },
+     "check": {
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+     }
+    },
+    {
+     "what": "median of the absolute contrasts below 2.5 s0",
+     "term": null,
+     "value": ".15",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "obtaining PSE = 1.5 x .15 = .225"
+     },
+     "check": {
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+     }
+    },
+    {
+     "what": "PSE",
+     "term": null,
+     "value": ".225",
+     "analysis": "Lenth's method on the 15 contrasts of the saturated fit, d = m/3 = 5 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "obtaining PSE = 1.5 x .15 = .225"
+     },
+     "check": {
+      "kind": "lenth_pse",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "ME",
+     "term": null,
+     "value": ".58",
+     "analysis": "Lenth's method on the 15 contrasts of the saturated fit, d = m/3 = 5 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "Example II. ME = 2.57 x .225 = .58; SME = 5.22 x .225 = 1.17."
+     },
+     "check": {
+      "kind": "lenth_me",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "SME",
+     "term": null,
+     "value": "1.17",
+     "analysis": "Lenth's method on the 15 contrasts of the saturated fit, d = m/3 = 5 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "Example II. ME = 2.57 x .225 = .58; SME = 5.22 x .225 = 1.17."
+     },
+     "check": {
+      "kind": "lenth_sme",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "ME",
+     "term": "footnote of Table 3",
+     "value": ".56",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "In example II, aliases for all main effects and two-way interactions are shown. ... Margins of error for the estimates (see text) are ±.56 in example II and ±.29 in example IV. Simultaneous margins of error are ±1.17 and ±.60, respectively."
+     },
+     "check": {
+      "kind": "lenth_me",
+      "model": "T*W*C*R",
+      "disagreement": "the text works it out as ME = 2.57 x .225 = .58, which agrees; the footnote's .56 is a misprint"
+     }
+    },
+    {
+     "what": "SME",
+     "term": "footnote of Table 3",
+     "value": "1.17",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "In example II, aliases for all main effects and two-way interactions are shown. ... Margins of error for the estimates (see text) are ±.56 in example II and ±.29 in example IV. Simultaneous margins of error are ±1.17 and ±.60, respectively."
+     },
+     "check": {
+      "kind": "lenth_sme",
+      "model": "T*W*C*R"
+     }
+    },
+    {
+     "what": "active effects",
+     "term": null,
+     "value": "P (period) and M (material)",
+     "analysis": "the contrasts beyond the SME: those of the WCR and TWCR columns, which are P and -M",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "two contrasts emerge as active ones in example II-P (period) and M (material)"
+     },
+     "check": {
+      "kind": "active_effects",
+      "model": "T*W*C*R",
+      "terms": ["W·C·R", "T·W·C·R"],
+      "margin": "SME"
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": ".975th, m = 7, d = m/3",
+     "value": "3.76",
+     "analysis": "the library's t_value on fractional degrees of freedom d = m/3",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "7 3.76 9.01"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.975, 2.3333333333333335]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": "gamma-th, m = 7, d = m/3",
+     "value": "9.01",
+     "analysis": "the library's t_value at gamma = (1 + .95^(1/m))/2 = 0.996350, on d = m/3 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "7 3.76 9.01"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.9963495840104927, 2.3333333333333335]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": ".975th, m = 15, d = m/3",
+     "value": "2.57",
+     "analysis": "the library's t_value on fractional degrees of freedom d = m/3",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "15 2.57 5.22"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.975, 5.0]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": "gamma-th, m = 15, d = m/3",
+     "value": "5.22",
+     "analysis": "the library's t_value at gamma = (1 + .95^(1/m))/2 = 0.998293, on d = m/3 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "15 2.57 5.22"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.9982931435267048, 5.0]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": ".975th, m = 31, d = m/3",
+     "value": "2.22",
+     "analysis": "the library's t_value on fractional degrees of freedom d = m/3",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "31 2.22 4.22"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.975, 10.333333333333334]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": "gamma-th, m = 31, d = m/3",
+     "value": "4.22",
+     "analysis": "the library's t_value at gamma = (1 + .95^(1/m))/2 = 0.999173, on d = m/3 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "31 2.22 4.22"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.9991733728666795, 10.333333333333334]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": ".975th, m = 63, d = m/3",
+     "value": "2.08",
+     "analysis": "the library's t_value on fractional degrees of freedom d = m/3",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "63 2.08 3.91"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.975, 21.0]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": "gamma-th, m = 63, d = m/3",
+     "value": "3.91",
+     "analysis": "the library's t_value at gamma = (1 + .95^(1/m))/2 = 0.999593, on d = m/3 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "63 2.08 3.91"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.9995930760390103, 21.0]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": ".975th, m = 127, d = m/3",
+     "value": "2.02",
+     "analysis": "the library's t_value on fractional degrees of freedom d = m/3",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "127 2.02 3.84"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.975, 42.333333333333336]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": "gamma-th, m = 127, d = m/3",
+     "value": "3.84",
+     "analysis": "the library's t_value at gamma = (1 + .95^(1/m))/2 = 0.999798, on d = m/3 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "127 2.02 3.84"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.9997980986712356, 42.333333333333336]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": ".975th, m = 255, d = m/3",
+     "value": "1.99",
+     "analysis": "the library's t_value on fractional degrees of freedom d = m/3",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "255 1.99 3.89"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.975, 85.0]
+     }
+    },
+    {
+     "what": "t quantile",
+     "term": "gamma-th, m = 255, d = m/3",
+     "value": "3.89",
+     "analysis": "the library's t_value at gamma = (1 + .95^(1/m))/2 = 0.999899, on d = m/3 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "table",
+      "quote": "255 1.99 3.89"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "t_value",
+      "args": [0.9998994350276356, 85.0]
+     }
+    },
+    {
+     "what": "median of |C|, in units of tau",
+     "term": null,
+     "value": ".675",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "Since the median of |C| is about .675τ"
+     },
+     "check": {
+      "manual": "an approximation the text marks with 'about' or '≈': the median of |C| for C normal is z(.75) = 0.6745 tau"
+     }
+    },
+    {
+     "what": "limit of s0, in units of tau",
+     "term": null,
+     "value": "1.01",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "s0 is a consistent estimate of 1.5 Med|C| ≈ 1.01τ"
+     },
+     "check": {
+      "manual": "an approximation the text marks with 'about' or '≈': 1.5 x 0.6745 = 1.012"
+     }
+    },
+    {
+     "what": "Pr(|C| > 2.5 tau)",
+     "term": null,
+     "value": ".01",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "since Pr(|C| > 2.5τ) ≈ .01"
+     },
+     "check": {
+      "manual": "an approximation the text marks with 'about' or '≈': the probability is 0.0124"
+     }
+    },
+    {
+     "what": ".495th quantile of |C|, in units of tau",
+     "term": null,
+     "value": ".665",
+     "analysis": "the point below which .495 of |C| lies is z((1 + .495)/2) = z(.7475)",
+     "where": {
+      "page": 472,
+      "source_kind": "prose",
+      "quote": "the .495th quantile of |C|, which is 1.5 x .665τ ≈ τ"
+     },
+     "check": {
+      "kind": "library_value",
+      "function": "z_value",
+      "args": [0.7475],
+      "disagreement": "the .495th quantile of |C| is z(.7475) = 0.6666; the printed .665 is the quantile at .5(1 - .0124) = .4938, the share of |C| below its median once the 1.24% beyond 2.5 tau is trimmed (Pr(|Z| > 2.5) = .0124), z(.7469) = 0.6648, of which '.495' is the rounded label"
+     }
+    }
+   ],
+   "notes": "Example II of Box and Meyer (1986), from Taguchi and Wu (1980). Lenth calls the high-minus-low differences contrasts; they are the library's effects. The contrasts are those of the 15 columns of the base 2^4 in T, W, C and R, each estimating the alias chain Table 3 prints: P is the WCR contrast and -M the TWCR contrast. Table 1, of t quantiles for the method, is held here."
+  },
+  {
+   "name": "lenth-example-iv-isatin-yield",
+   "title": "Yield of isatin in an unreplicated 2^4, Davies's data less 6: Lenth's PSE, ME and SME",
+   "topics": ["chemical-processes"],
+   "kind": "example",
+   "where": {
+    "section": "3. Illustrations",
+    "pages": "470-472",
+    "tables": ["Table 2", "Table 3"],
+    "figures": ["Figure 2"]
+   },
+   "factors": [
+    {
+     "name": "S",
+     "description": "acid strength",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "t",
+     "description": "time",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "A",
+     "description": "amount of acid",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "T",
+     "description": "temperature",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "Yield",
+     "description": "yield of isatin",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^4 full factorial",
+    "details": "16 runs in standard order of S, t, A and T",
+    "n_runs": 16
+   },
+   "runs": {
+    "columns": ["S", "t", "A", "T", "Yield"],
+    "rows": [
+     [-1, -1, -1, -1, 0.08],
+     [1, -1, -1, -1, 0.04],
+     [-1, 1, -1, -1, 0.53],
+     [1, 1, -1, -1, 0.43],
+     [-1, -1, 1, -1, 0.31],
+     [1, -1, 1, -1, 0.09],
+     [-1, 1, 1, -1, 0.12],
+     [1, 1, 1, -1, 0.36],
+     [-1, -1, -1, 1, 0.79],
+     [1, -1, -1, 1, 0.68],
+     [-1, 1, -1, 1, 0.73],
+     [1, 1, -1, 1, 0.08],
+     [-1, -1, 1, 1, 0.77],
+     [1, -1, 1, 1, 0.38],
+     [-1, 1, 1, 1, 0.49],
+     [1, 1, 1, 1, 0.23]
+    ],
+    "coded": true,
+    "notes": "Table 2, Example IV, in the printed order"
+   },
+   "expected": [
+    {
+     "what": "mean",
+     "term": null,
+     "value": ".382",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "mean .382"
+     },
+     "check": {
+      "kind": "mean"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "S",
+     "value": "-.191",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "S -.191"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "t",
+     "value": "-.021",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "t -.021"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "t",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "St",
+     "value": "-.001",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "St -.001"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S·t",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "A",
+     "value": "-.076",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "A -.076"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "SA",
+     "value": ".034",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "SA .034"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S·A",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "tA",
+     "value": "-.066",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "tA -.066"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "t·A",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "StA",
+     "value": ".149",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "StA .149"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S·t·A",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "T",
+     "value": ".274",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "T .274"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "ST",
+     "value": "-.161",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "ST -.161"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S·T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "tT",
+     "value": "-.251",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "tT -.251"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "t·T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "StT",
+     "value": "-.101",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "StT -.101"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S·t·T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "AT",
+     "value": "-.026",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "AT -.026"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "A·T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "SAT",
+     "value": "-.006",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "SAT -.006"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S·A·T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "tAT",
+     "value": ".124",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "tAT .124"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "t·A·T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "contrast",
+     "term": "StAT",
+     "value": ".019",
+     "analysis": "the high-minus-low contrast",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "StAT .019"
+     },
+     "check": {
+      "kind": "effect",
+      "term": "S·t·A·T",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "s0",
+     "term": null,
+     "value": ".114",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "In example IV, we obtain s0 = PSE = .114 (nothing is excluded in the second step)"
+     },
+     "check": {
+      "manual": "an intermediate of Lenth's method, here equal to the PSE checked below: no contrast exceeds 2.5 s0"
+     }
+    },
+    {
+     "what": "PSE",
+     "term": null,
+     "value": ".114",
+     "analysis": "Lenth's method on the 15 contrasts of the saturated fit, d = m/3 = 5 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "In example IV, we obtain s0 = PSE = .114 (nothing is excluded in the second step)"
+     },
+     "check": {
+      "kind": "lenth_pse",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "ME",
+     "term": null,
+     "value": ".29",
+     "analysis": "Lenth's method on the 15 contrasts of the saturated fit, d = m/3 = 5 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "Example IV. ME = 2.57 x .114 = .29; SME = 5.22 x .114 = .60."
+     },
+     "check": {
+      "kind": "lenth_me",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "SME",
+     "term": null,
+     "value": ".60",
+     "analysis": "Lenth's method on the 15 contrasts of the saturated fit, d = m/3 = 5 degrees of freedom",
+     "where": {
+      "page": 470,
+      "source_kind": "prose",
+      "quote": "Example IV. ME = 2.57 x .114 = .29; SME = 5.22 x .114 = .60."
+     },
+     "check": {
+      "kind": "lenth_sme",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "ME",
+     "term": "footnote of Table 3",
+     "value": ".29",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "In example II, aliases for all main effects and two-way interactions are shown. ... Margins of error for the estimates (see text) are ±.56 in example II and ±.29 in example IV. Simultaneous margins of error are ±1.17 and ±.60, respectively."
+     },
+     "check": {
+      "kind": "lenth_me",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "SME",
+     "term": "footnote of Table 3",
+     "value": ".60",
+     "where": {
+      "page": 471,
+      "source_kind": "table",
+      "quote": "In example II, aliases for all main effects and two-way interactions are shown. ... Margins of error for the estimates (see text) are ±.56 in example II and ±.29 in example IV. Simultaneous margins of error are ±1.17 and ±.60, respectively."
+     },
+     "check": {
+      "kind": "lenth_sme",
+      "model": "S*t*A*T"
+     }
+    },
+    {
+     "what": "active effects",
+     "term": null,
+     "value": "T and tT fairly close to the ME",
+     "analysis": "no contrast exceeds the ME: the largest, T at .274 and tT at -.251, come close to .29",
+     "where": {
+      "page": 471,
+      "source_kind": "prose",
+      "quote": "In example IV, two contrasts, T (temperature) and tT, (time x temperature) are fairly close to the ME."
+     },
+     "check": {
+      "kind": "active_effects",
+      "model": "S*t*A*T",
+      "terms": [],
+      "margin": "ME"
+     }
+    }
+   ],
+   "notes": "Example IV of Box and Meyer (1986), from Davies (1954). The yields are those of davies-isatin-2-4 (Davies 1956, Table 7-7) less 6, so every contrast is Davies's effect; the factors S, t, A and T are Davies's A, B, C and D."
+  }
+ ],
+ "designs": [],
+ "not_captured": ["Equations (1) to (5): the definitions of s0, PSE, ME, SME and gamma, which the library's Lenth method implements; the checks above use it.", "p. 469: Box and Meyer's prior parameters, alpha = .2 and k = 10: settings of a different method, the Bayes plot.", "Figures 1 and 2: bar charts of Table 3's contrasts with the ME and SME lines.", "p. 472: the limiting values of s0 (1.01 tau to 1.60 tau) and PSE (1.00 tau to 1.15 tau) for 0 <= alpha <= .3 and k >= 5: numerical integrals over a contaminated normal distribution, which the library does not compute.", "Table 4 and pp. 472-473: the Monte Carlo study (limits, means and standard deviations of s0 and PSE for 36 cases), the ratios of means to limits (1.05 to 1.07, 1.01 to 1.03, .99 to 1.03), and the fitted degrees of freedom 2.8, 5.4 and 10.4: random simulations, not reproducible from the paper.", "p. 472: the description of the simulation (2,000, 1,000 and 500 replications; 25 N(0, 1) and 6 N(0, 25) variates; the generators used): how the Monte Carlo study was run."]
+}

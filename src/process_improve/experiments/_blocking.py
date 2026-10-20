@@ -38,6 +38,7 @@ Sun, D. X., Wu, C. F. J. and Chen, Y. (1997). Optimal blocking schemes for 2^n a
 from __future__ import annotations
 
 import itertools
+import re
 import warnings
 from dataclasses import dataclass, field
 
@@ -63,6 +64,8 @@ class Blocking:
     model: str | None = None
     #: For a central composite design: whether the blocks are orthogonal to the squares too.
     orthogonal: bool | None = None
+    #: For a fraction: each word confounded with blocks, and the words aliased with it in the fraction.
+    aliases: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _word(mask: int, names: list[str]) -> str:
@@ -101,14 +104,22 @@ def is_regular_two_level(design: np.ndarray) -> bool:
     return True
 
 
-def confounding_blocks(design: np.ndarray, n_blocks: int, names: list[str]) -> Blocking:
+def confounding_blocks(
+    design: np.ndarray, n_blocks: int, names: list[str], generators: list[str] | None = None
+) -> Blocking:
     """Block a regular two-level design by confounding ``log2(n_blocks)`` interaction words.
+
+    The words are chosen as the module describes, or given as ``generators``: each a word in the
+    factors' names (``"ADE"``, or ``"A*D*E"`` when a name is longer than one letter). In a fraction
+    each confounded word carries its aliases, which ``Blocking.aliases`` lists.
 
     Raises
     ------
     ValueError
-        If ``n_blocks`` is not a power of 2, or every choice of words confounds a main
-        effect with blocks.
+        If ``n_blocks`` is not a power of 2, every choice of words confounds a main effect with
+        blocks, or the given generators are not ``log2(n_blocks)`` independent words of the
+        factors, outside the fraction's defining relation, that leave every main effect clear of
+        the blocks.
     """
     b = n_blocks.bit_length() - 1
     if n_blocks < 2 or 2**b != n_blocks:
@@ -121,14 +132,17 @@ def confounding_blocks(design: np.ndarray, n_blocks: int, names: list[str]) -> B
     def shortest_alias(mask: int) -> int:
         return min((mask ^ d).bit_count() for d in subgroup)
 
+    if generators is not None:
+        return _blocking_from_words(design, _given_generators(generators, names, b, subgroup), names, subgroup)
+
     pool = [m for m in range(1, 2**k) if m not in subgroup and shortest_alias(m) >= 2]
     pool.sort(key=lambda m: (-shortest_alias(m), -m.bit_count(), m))
     while len(pool) > b and _n_choose(len(pool), b) > _MAX_GENERATOR_SETS:
         pool = pool[: max(b, int(len(pool) * 0.8))]
 
     best, best_key = None, None
-    for generators in itertools.combinations(pool, b):
-        contrasts = _span(list(generators))[1:]
+    for candidate in itertools.combinations(pool, b):
+        contrasts = _span(list(candidate))[1:]
         if len(contrasts) != n_blocks - 1:
             continue  # the words were not independent
         lengths = sorted(shortest_alias(c) for c in contrasts)
@@ -136,25 +150,91 @@ def confounding_blocks(design: np.ndarray, n_blocks: int, names: list[str]) -> B
             continue  # a main effect (or the mean) would be confounded with blocks
         key = (lengths.count(2), [-length for length in lengths])
         if best_key is None or key < best_key:
-            best, best_key = generators, key
+            best, best_key = candidate, key
     if best is None:
         raise ValueError(
             f"Every way of splitting this {len(corners)}-run design into {n_blocks} blocks confounds a main effect "
             "with blocks; use fewer blocks or a larger design."
         )
 
+    return _blocking_from_words(design, list(best), names, subgroup)
+
+
+def _blocking_from_words(design: np.ndarray, words: list[int], names: list[str], subgroup: list[int]) -> Blocking:
+    """Return the blocks the signs of ``words`` define, the centre runs shared out among them in turn.
+
+    Every product of the words is confounded with blocks, and in a fraction each carries the words
+    aliased with it: its products with the defining relation's words.
+    """
+    k = design.shape[1]
+    centre = np.all(design == 0, axis=1)
+    corners = design[~centre]
     labels = np.zeros(len(design), dtype=int)
-    for i, mask in enumerate(best):
+    for i, mask in enumerate(words):
         columns = [j for j in range(k) if mask >> j & 1]
         labels[~centre] += (np.prod(corners[:, columns], axis=1) > 0).astype(int) << i
-    labels[centre] = np.arange(int(centre.sum())) % n_blocks
-    contrasts = _span(list(best))[1:]
+    labels[centre] = np.arange(int(centre.sum())) % 2 ** len(words)
+    contrasts = _span(words)[1:]
     return Blocking(
         labels=labels + 1,
         method="confounding",
-        generators=[_word(m, names) for m in best],
+        generators=[_word(m, names) for m in words],
         confounded_with=[_word(m, names) for m in contrasts],
+        aliases=_alias_chains(contrasts, subgroup, names),
     )
+
+
+def _alias_chains(contrasts: list[int], subgroup: list[int], names: list[str]) -> dict[str, list[str]]:
+    """Return each block contrast's aliases in a fraction, shortest first; nothing for a full factorial."""
+    relation = subgroup[1:]
+    return {
+        _word(c, names): [_word(c ^ d, names) for d in sorted(relation, key=lambda d: ((c ^ d).bit_count(), c ^ d))]
+        for c in contrasts
+        if relation
+    }
+
+
+def _word_mask(word: str, names: list[str]) -> int:
+    """Return a word of factor names as a bit mask over them: ``"ADE"``, or ``"A*D*E"`` (also ``:``) for long names.
+
+    A name that appears twice cancels, as the product of a column with itself is 1.
+    """
+    index = {name: i for i, name in enumerate(names)}
+    text = word.strip()
+    parts = re.split(r"[*:]", text) if re.search(r"[*:]", text) else list(text)
+    if not text or any(part not in index for part in parts):
+        raise ValueError(
+            f"Block generator {word!r} must be a product of the factors {names}: write it as letters "
+            '("ADE") when every name is one letter, or join the names with \'*\' ("Temp*Feed").'
+        )
+    mask = 0
+    for part in parts:
+        mask ^= 1 << index[part]
+    return mask
+
+
+def _given_generators(generators: list[str], names: list[str], b: int, subgroup: list[int]) -> list[int]:
+    """Return the given block generators as masks, refusing a set that cannot block the design."""
+    if len(generators) != b:
+        raise ValueError(f"{2**b} blocks need {b} block generators, one per halving; got {len(generators)}.")
+    words = [_word_mask(word, names) for word in generators]
+    contrasts = _span(words)[1:]
+    if len(contrasts) != 2**b - 1:
+        raise ValueError(f"The block generators {generators} are not independent: one is a product of the others.")
+    for word, mask in zip(generators, words, strict=True):
+        if mask in subgroup:
+            raise ValueError(
+                f"Block generator {word!r} is constant over the runs (it is in the defining relation), so it "
+                "cannot split them into blocks."
+            )
+    for contrast in contrasts:
+        main = [d for d in subgroup if (contrast ^ d).bit_count() == 1]
+        if main:
+            raise ValueError(
+                f"The block generators {generators} confound the main effect {_word(contrast ^ main[0], names)} "
+                f"with blocks (through {_word(contrast, names)}); choose words that leave every main effect clear."
+            )
+    return words
 
 
 def ccd_blocks(design: np.ndarray, axial: np.ndarray, n_blocks: int, names: list[str]) -> Blocking:

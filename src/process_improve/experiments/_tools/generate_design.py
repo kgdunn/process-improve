@@ -105,11 +105,19 @@ class GenerateDesignInput(BaseModel):
         "full",
         description="CCD cube portion: the full 2^k factorial or a resolution V fraction.",
     )
+    categorical_method: Literal["dsd", "orth"] = Field(
+        "dsd",
+        description=(
+            "For a DSD with two-level categorical factors: 'dsd' (DSD-augment, the default: main effects clear "
+            "of second-order effects) or 'orth' (ORTH-augment: main effects orthogonal to each other, for two "
+            "more centre runs with two or more categorical factors)."
+        ),
+    )
     model_type: str = Field(
         "interactions",
         description=(
             "Model the optimal and mixture designs are built for: 'main_effects', 'interactions' or "
-            "'quadratic' (mixtures also accept 'linear', 'special_cubic' and the 'scheffe_*' names)."
+            "'quadratic' (mixtures also accept 'linear', 'special_cubic', 'cubic' and the 'scheffe_*' names)."
         ),
     )
     constraints: list[str] | None = Field(
@@ -136,7 +144,7 @@ class GenerateDesignInput(BaseModel):
     hard_to_change: list[str] | None = Field(
         None,
         description=(
-            "Names of hard-to-change factors, for a split-plot design (needs the optional pyoptex package). "
+            "Names of hard-to-change factors, for a split-plot design: they are set once for each whole plot. "
             "Only the optimal design types build one; any other design_type raises an error."
         ),
     )
@@ -223,6 +231,7 @@ def generate_design_tool(spec: GenerateDesignInput) -> dict[str, Any]:
             generators=spec.generators,
             alpha=spec.alpha,
             cube=spec.cube,
+            categorical_method=spec.categorical_method,
             constraints=[Constraint(expression=e) for e in spec.constraints] if spec.constraints else None,
             hard_to_change=spec.hard_to_change,
             model_type=spec.model_type,

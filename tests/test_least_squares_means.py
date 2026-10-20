@@ -49,6 +49,51 @@ def test_youden_square_adjusted_averages():
     assert means == {"A": 367.43, "B": 558.79, "C": 255.86, "D": 219.79, "E": 182.93, "F": 555.86, "G": 279.86}
 
 
+@pytest.fixture(scope="module")
+def blood() -> pd.DataFrame:
+    return _runs("box-hunter-hunter-1978", "bhh-blood-coagulation")
+
+
+class TestReferenceScale:
+    """Box, Hunter and Hunter's reference t distribution, slid along the axis under a set of means (#800 E3)."""
+
+    def test_the_blood_diets_by_their_average_replication(self, blood):
+        """Section 6.4: the scale is the square root of 5.6/6, 0.97; 6 is the average of 4, 6, 6 and 8 animals."""
+        by_replication = Comparisons(reference_rule="average_replication")
+        found = least_squares_means(blood, "y ~ diet", "diet", by_replication)
+        assert (found["reference_scale"], found["reference_rule"]) == (
+            pytest.approx(0.97, abs=5e-3),
+            "average_replication",
+        )
+        pairwise = least_squares_means(blood, "y ~ diet", "diet")
+        assert pairwise["reference_rule"] == "pairwise"
+        assert pairwise["reference_scale"] == pytest.approx(1.00, abs=5e-3), "unequal replication: the two rules differ"
+        dunnett = Comparisons("dunnett", control="A", reference_rule="average_replication")
+        assert least_squares_means(blood, "y ~ diet", "diet", dunnett)["reference_scale"] == found["reference_scale"]
+
+    def test_the_toxic_agents_poisons(self):
+        """Section 7.8: the square root of 0.0222/16, 0.037, for the survival times, by either rule."""
+        toxic = _runs("box-hunter-hunter-1978", "bhh-toxic-agents")
+        for rule in ("pairwise", "average_replication"):
+            found = least_squares_means(toxic, "y ~ poison * treatment", "poison", Comparisons(reference_rule=rule))
+            assert found["reference_scale"] == pytest.approx(0.037, abs=5e-4), rule
+        rates = least_squares_means(toxic, "rate ~ poison * treatment", "poison")
+        # The book's 0.123 is the square root of 0.242/16; the rates' residual mean square is 0.240 on 36 df.
+        assert rates["reference_scale"] == pytest.approx(0.1225, abs=5e-5)
+
+    @pytest.mark.parametrize(
+        ("formula", "scale"), [("y ~ run + treatment", 20.50), ("y ~ run + position + treatment", 17.06)]
+    )
+    def test_the_wear_youden_square(self, formula, scale):
+        """Appendix 8D: the square root of k s^2/(t lambda), on 15 df in runs alone and on 12 with the positions too."""
+        wear = _runs("box-hunter-hunter-1978", "bhh-wear-youden-square")
+        assert least_squares_means(wear, formula, "treatment")["reference_scale"] == pytest.approx(scale, abs=5e-3)
+
+    def test_an_unknown_rule_is_refused(self, blood):
+        with pytest.raises(ValueError, match="reference_rule must be one of"):
+            least_squares_means(blood, "y ~ diet", "diet", Comparisons(reference_rule="harmonic"))
+
+
 def test_dunnett_against_a_numeric_control_level():
     """Montgomery's Example 3.9: d0.05(3, 16) = 2.59, from the multivariate t."""
     plasma = _runs("montgomery-2013", "montgomery-plasma-etching")

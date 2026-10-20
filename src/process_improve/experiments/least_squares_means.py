@@ -23,6 +23,15 @@ them: the comparisons of one factor's levels within one level of another, on the
 model. Tukey's and the unadjusted comparisons also give *connecting letters*: levels that share a
 letter do not differ significantly.
 
+``reference_scale`` is the scale of the t distribution, on the residual degrees of freedom, that
+Box, Hunter and Hunter (1978, sections 6.4 and 8D) slide along the axis under a set of means:
+means that cannot all sit under it at once are unlikely to differ by chance alone. By default it is
+the square root of half the average variance of a difference of two means. That is
+:math:`s/\sqrt{n}` when each level has *n* runs, and :math:`\sqrt{k s^2/(\lambda t)}` in a
+balanced incomplete block design. ``Comparisons(reference_rule="average_replication")`` gives
+:math:`s/\sqrt{\bar n}` instead, with :math:`\bar n` the average number of runs at a level, as the
+book scales the unequally replicated blood-coagulation diets.
+
 Examples
 --------
 >>> import pandas as pd
@@ -35,6 +44,7 @@ Examples
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 import re
 import string
@@ -50,6 +60,8 @@ from scipy import optimize, stats
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 COMPARISONS = ("tukey", "dunnett", "none")
+#: How the scale of the reference distribution is worked out (see the module's text).
+REFERENCE_RULES = ("pairwise", "average_replication")
 
 
 @dataclass(frozen=True)
@@ -65,11 +77,15 @@ class Comparisons:
         For Dunnett's comparisons, the control level; the first level by default.
     conflevel : float
         The confidence of the intervals, and of the family for Tukey's and Dunnett's.
+    reference_rule : {"pairwise", "average_replication"}
+        How ``reference_scale`` is worked out: from the variances of the differences of two
+        means (default), or from the residual mean square and the average replication.
     """
 
     method: str = "tukey"
     control: Any = None
     conflevel: float = 0.95
+    reference_rule: str = "pairwise"
 
 
 _SEED = 20_260_101  # the multivariate t's quadrature is randomised: one seed makes Dunnett's numbers repeat
@@ -177,6 +193,18 @@ def _compare(
     return rows, float(critical)
 
 
+def _reference_scale(weights: np.ndarray, cov: np.ndarray, residual: tuple[float, float], rule: str) -> float:
+    """Return the scale of the reference t distribution for the means ``weights @ beta``, by the rule named.
+
+    *residual* is the residual mean square and the number of runs fitted.
+    """
+    if rule == "average_replication":
+        mean_square, n_runs = residual
+        return float(np.sqrt(mean_square * len(weights) / n_runs))
+    differences = np.array([weights[i] - weights[j] for i, j in itertools.combinations(range(len(weights)), 2)])
+    return float(np.sqrt(np.einsum("ij,jk,ik->i", differences, cov, differences).mean() / 2))
+
+
 def _prepared(
     design_matrix: pd.DataFrame, formula: str, factor: str, at: dict[str, Any] | None
 ) -> tuple[pd.DataFrame, str, list[str], dict[str, Any]]:
@@ -244,14 +272,18 @@ def least_squares_means(
         ``"none"``, the studentized range's, exact when the levels are equally replicated). Tukey's
         also give the ``studentized_range`` point, the critical value times the square root of 2,
         and Tukey's and the unadjusted give ``letters``, each level's connecting letters at the
-        significance level 1 - the confidence.
+        significance level 1 - the confidence. ``reference_scale`` is the scale of Box, Hunter and
+        Hunter's reference t distribution for the means, on ``df`` degrees of freedom, by the
+        ``reference_rule`` the comparisons name (see the module's text).
     """
     spec = Comparisons(comparisons) if isinstance(comparisons, str) else comparisons
     if spec.method not in COMPARISONS:
         raise ValueError(f"comparisons must be one of {COMPARISONS}; got {spec.method!r}.")
+    if spec.reference_rule not in REFERENCE_RULES:
+        raise ValueError(f"reference_rule must be one of {REFERENCE_RULES}; got {spec.reference_rule!r}.")
     table, model, used, at = _prepared(design_matrix, formula, factor, at)
     if spec.control is not None:
-        spec = Comparisons(spec.method, _label(design_matrix[factor], spec.control), spec.conflevel)
+        spec = dataclasses.replace(spec, control=_label(design_matrix[factor], spec.control))
     conflevel = spec.conflevel
     outcome, exog = dmatrices(model, table, return_type="dataframe")
     fit = sm.OLS(outcome, exog).fit()
@@ -289,6 +321,8 @@ def least_squares_means(
         "family_confidence": float(stats.studentized_range.cdf(critical * np.sqrt(2), k, df))
         if spec.method == "none"
         else conflevel,
+        "reference_scale": _reference_scale(weights, cov, (float(fit.mse_resid), fit.nobs), spec.reference_rule),
+        "reference_rule": spec.reference_rule,
     }
     if spec.method == "tukey":
         result["studentized_range"] = float(critical * np.sqrt(2))

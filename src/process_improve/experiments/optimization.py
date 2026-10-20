@@ -43,10 +43,11 @@ from scipy import optimize
 
 from process_improve._random import check_random_state
 from process_improve.experiments._desirability import (
+    SCORED_GOALS,
     check_goal,
     check_importances,
-    composite_desirability,
     individual_desirability,
+    overall_desirability,
 )
 from process_improve.experiments._uniform_sampling import UniformSampler
 
@@ -286,8 +287,14 @@ def _extract_b_and_B(  # noqa: N802
 
 
 #: An eigenvalue of *B* this small, relative to the largest in magnitude, is
-#: zero: the surface is flat along its eigenvector (a ridge), not curved.
+#: zero: the surface is flat along its eigenvector (a ridge), not curved. The
+#: default of the ``flat_tolerance`` argument.
 _FLAT_EIGENVALUE_TOL = 1e-8
+
+#: An eigenvalue below this share of the largest in size, though above the flat
+#: tolerance, gets a note: the surface is nearly flat along its eigenvector, and
+#: the data may not tell it from a ridge (#789 B3).
+_NEARLY_FLAT = 0.05
 
 
 @dataclass
@@ -300,8 +307,10 @@ class _SurfaceShape:
     ridge_of: str | None = None  # "maxima" or "minima" for a ridge system, else None
 
 
-def _surface_shape(b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndarray) -> _SurfaceShape:
-    """Classify the surface, treating eigenvalues that are zero to rounding as a ridge.
+def _surface_shape(
+    b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndarray, flat_tolerance: float = _FLAT_EIGENVALUE_TOL
+) -> _SurfaceShape:
+    """Classify the surface, treating eigenvalues at most ``flat_tolerance`` of the largest in size as a ridge.
 
     All curved directions bending down gives a maximum, all bending up a
     minimum, and both a saddle. When some eigenvalue is zero the surface is a
@@ -309,13 +318,14 @@ def _surface_shape(b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndar
     Methodology*, sec. 6.4): a *stationary ridge*, a line or plane of equal
     optima, when *b* has no component along the flat directions, and a *rising
     ridge*, with no stationary point, when it has one and the response keeps
-    changing along them.
+    changing along them. The slope along the flat directions is judged as their
+    eigenvalues are: at most ``flat_tolerance`` of the largest eigenvalue in size
+    is none, so a ridge whose estimated slope is small is stationary.
     """
     scale = float(np.abs(eigenvalues).max())
-    flat = np.abs(eigenvalues) <= _FLAT_EIGENVALUE_TOL * scale
-    drifts = bool(
-        np.linalg.norm(eigenvectors[:, flat].T @ b) > _FLAT_EIGENVALUE_TOL * max(1.0, float(np.linalg.norm(b)))
-    )
+    flat = np.abs(eigenvalues) <= flat_tolerance * scale
+    slope = float(np.linalg.norm(eigenvectors[:, flat].T @ b))
+    drifts = slope > max(_FLAT_EIGENVALUE_TOL * max(1.0, float(np.linalg.norm(b))), flat_tolerance * scale)
     curved = eigenvalues[~flat]
     if np.all(curved < 0):
         kind, ridge_of = "maximum", "maxima"
@@ -328,11 +338,50 @@ def _surface_shape(b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndar
     return _SurfaceShape("rising_ridge" if drifts else "stationary_ridge", flat, drifts, ridge_of)
 
 
+def _eigen_by_size(B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return the eigenvalues of *B*, largest in size first, and their eigenvectors as columns in the same order."""
+    eigenvalues, eigenvectors = np.linalg.eigh(B)
+    order = np.argsort(-np.abs(eigenvalues), kind="stable")
+    return eigenvalues[order], eigenvectors[:, order]
+
+
+def _refuse_unused_factors(coefficients: list[dict[str, Any]], factor_names: list[str]) -> None:
+    """Refuse a factor name that no model term uses: it would add a zero eigenvalue to *B* (#796 item 4).
+
+    A row and column of zeros in *B* reads as a direction along which the surface is
+    flat, so a maximum would be called a stationary ridge. Such a name is not a factor
+    of the model: a block column, or a copy of a factor in other units.
+    """
+    used = {part for parts, _ in _parsed_terms(coefficients, factor_names) for part in parts}
+    unused = [name for name in factor_names if name not in used]
+    if unused:
+        msg = (
+            f"No term of the model uses {unused}, so the second-order analysis would read each as a direction "
+            "along which the surface is flat, and could call a maximum or minimum a ridge. Leave them out of "
+            "factor_names."
+        )
+        raise ValueError(msg)
+
+
+def _nearly_flat_note(eigenvalues: np.ndarray, shape: _SurfaceShape) -> str | None:
+    """Say when a curved direction has an eigenvalue below :data:`_NEARLY_FLAT` of the largest in size."""
+    scale = float(np.abs(eigenvalues).max())
+    small = [i for i, ev in enumerate(eigenvalues) if not shape.flat[i] and abs(ev) < _NEARLY_FLAT * scale]
+    if not small:
+        return None
+    sizes = ", ".join(f"{eigenvalues[i]:.4g} ({100 * abs(eigenvalues[i]) / scale:.2g}% of the largest)" for i in small)
+    return (
+        f"The surface is nearly flat along the eigenvector of the eigenvalue {sizes}: the data may not tell this "
+        f"{shape.classification.replace('_', ' ')} from a ridge. flat_tolerance={_NEARLY_FLAT} reads it as flat."
+    )
+
+
 def _find_stationary_point(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
     factor_ranges: dict[str, dict[str, float]] | None = None,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
+    flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
 ) -> dict[str, Any]:
     """Find the stationary point of a second-order response surface model.
 
@@ -354,6 +403,9 @@ def _find_stationary_point(
         Defaults to the factorial cube ``(-1, 1)`` for each factor when
         ``None``; supply a wider region for e.g. a central composite
         design's axial distance.
+    flat_tolerance : float
+        An eigenvalue of ``B`` at most this share of the largest in size is
+        read as zero, a direction along which the surface is flat.
 
     Returns
     -------
@@ -361,13 +413,16 @@ def _find_stationary_point(
         ``stationary_point_coded``, ``predicted_response``, ``classification``
         (``"maximum"``, ``"minimum"``, ``"saddle_point"`` or
         ``"stationary_ridge"``), ``eigenvalues`` (list of floats, spectrum of
-        the pure-quadratic matrix ``B``), and ``inside_design_space`` (bool,
+        the pure-quadratic matrix ``B``, largest in size first, as
+        :func:`_canonical_analysis` gives them), and ``inside_design_space`` (bool,
         whether the stationary point falls inside ``search_bounds``). Also
         includes ``stationary_point_actual`` when ``factor_ranges`` is provided.
         For a stationary ridge, where an eigenvalue is zero and every point
         along its eigenvector is equally good, the point reported is the one
         nearest the design centre and ``ridge_of`` says whether the ridge is
-        one of ``"maxima"`` or ``"minima"``.
+        one of ``"maxima"`` or ``"minima"``. ``classification_note`` says when
+        an eigenvalue is small next to the largest though not flat, so the
+        surface may be a ridge.
 
         Returns a dict with an ``error`` key instead when the model has no
         quadratic or interaction terms, or when there is no stationary point
@@ -379,9 +434,10 @@ def _find_stationary_point(
     # Check that B has quadratic terms (not purely first-order)
     if np.allclose(B, 0):
         return {"error": "Model has no quadratic or interaction terms - cannot find stationary point."}
+    _refuse_unused_factors(coefficients, factor_names)
 
-    eigenvalues, eigenvectors = np.linalg.eigh(B)
-    shape = _surface_shape(b, eigenvalues, eigenvectors)
+    eigenvalues, eigenvectors = _eigen_by_size(B)
+    shape = _surface_shape(b, eigenvalues, eigenvectors, flat_tolerance)
     if shape.drifts:
         return {
             "error": (
@@ -416,6 +472,8 @@ def _find_stationary_point(
     }
     if shape.ridge_of is not None:
         result["ridge_of"] = shape.ridge_of
+    if note := _nearly_flat_note(eigenvalues, shape):
+        result["classification_note"] = note
 
     if factor_ranges:
         result["stationary_point_actual"] = _coded_to_actual(result["stationary_point_coded"], factor_ranges)
@@ -431,11 +489,14 @@ def _find_stationary_point(
 def _canonical_analysis(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
+    flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
 ) -> dict[str, Any]:
     """Canonical analysis of a second-order response surface model.
 
     Computes eigenvalues and eigenvectors of the *B* matrix to determine
-    the shape and orientation of the response surface.
+    the shape and orientation of the response surface, largest eigenvalue in
+    size first. An eigenvalue at most ``flat_tolerance`` of the largest in size
+    is read as zero.
 
     Returns
     -------
@@ -444,7 +505,9 @@ def _canonical_analysis(
         ``"minimum"``, ``"saddle_point"``, ``"stationary_ridge"`` or
         ``"rising_ridge"``), and ``canonical_form_description``, which labels
         each canonical axis concave, convex, or flat (a zero eigenvalue). A
-        ridge also carries ``ridge_of``, ``"maxima"`` or ``"minima"``.
+        ridge also carries ``ridge_of``, ``"maxima"`` or ``"minima"``, and
+        ``classification_note`` says when an eigenvalue is small next to the
+        largest though not flat.
 
         ``b_canonical`` is the surface in Box and Draper's B canonical form,
         the form a ridge is read in: y = y0 + theta * X_k + sum of lambda_i X_i^2,
@@ -467,14 +530,10 @@ def _canonical_analysis(
 
     if np.allclose(B, 0):
         return {"error": "Model has no quadratic or interaction terms - canonical analysis not applicable."}
+    _refuse_unused_factors(coefficients, factor_names)
 
-    eigenvalues, eigenvectors = np.linalg.eigh(B)
-
-    # Sort by absolute value (largest first)
-    order = np.argsort(-np.abs(eigenvalues))
-    eigenvalues = eigenvalues[order]
-    eigenvectors = eigenvectors[:, order]
-    shape = _surface_shape(b, eigenvalues, eigenvectors)
+    eigenvalues, eigenvectors = _eigen_by_size(B)
+    shape = _surface_shape(b, eigenvalues, eigenvectors, flat_tolerance)
 
     desc_parts = []
     for i, (ev, is_flat) in enumerate(zip(eigenvalues, shape.flat, strict=True)):
@@ -501,6 +560,8 @@ def _canonical_analysis(
         ]
     if shape.ridge_of is not None:
         result["ridge_of"] = shape.ridge_of
+    if note := _nearly_flat_note(eigenvalues, shape):
+        result["classification_note"] = note
     return result
 
 
@@ -802,7 +863,11 @@ def _search_space(
     else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
         box = (lows[idx], highs[idx])
         samples = UniformSampler(
-            region.inequalities, box, lambda m: rng.uniform(*box, size=(m, len(idx))), seeds=region.seed_points
+            region.inequalities,
+            box,
+            lambda m: rng.uniform(*box, size=(m, len(idx))),
+            seeds=region.seed_points,
+            tolerances=region._widen(),  # so a start passes region.feasible()
         ).draw(n_starts, rng)
     starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
     for start, sample in zip(starts, samples, strict=True):
@@ -858,7 +923,8 @@ def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.n
     """Return the unclipped linear desirability ramps, all positive exactly where every d is.
 
     A maximise goal contributes ``(y - low) / (high - low)``, a minimise goal
-    ``(high - y) / (high - low)``, and a target goal both of its sides. Unlike the
+    ``(high - y) / (high - low)``, a target goal both of its sides, and an in-range
+    goal both of its margins, each over the width of the range. Unlike the
     desirabilities themselves, these keep a slope outside the acceptable limits,
     so they show which way to move from a setting where some response scores 0.
     """
@@ -869,6 +935,8 @@ def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.n
             pieces.append((y - low) / (high - low))
         elif goal["goal"] == "minimize":
             pieces.append((high - y) / (high - low))
+        elif goal["goal"] == "in_range":
+            pieces.extend(((y - low) / (high - low), (high - y) / (high - low)))
         else:
             target = float(goal["target"])
             pieces.extend(((y - low) / (target - low), (high - y) / (high - target)))
@@ -910,6 +978,51 @@ def _closest_to_specification(
         if np.all(np.isfinite(res.x)) and accept(x) and (best is None or t > best[0]):
             best = (t, x)
     return None if best is None else best[1]
+
+
+#: How far, as a fraction of its range, an in-range response may sit outside its limits at an accepted point.
+_LIMIT_TOL = 1e-6
+
+
+def _response_limits(
+    evaluators: list[Callable[[np.ndarray], float]], goals: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Return SLSQP constraints that hold each ``"in_range"`` response within its limits.
+
+    Each margin is divided by the width of the range, so the constraints of responses in
+    different units are on one scale.
+    """
+    constraints: list[dict[str, Any]] = []
+    for f, goal in zip(evaluators, goals, strict=True):
+        if goal["goal"] != "in_range":
+            continue
+        low, high = float(goal["low"]), float(goal["high"])
+        width = high - low
+        constraints.append({"type": "ineq", "fun": lambda x, f=f, low=low, width=width: (f(x) - low) / width})
+        constraints.append({"type": "ineq", "fun": lambda x, f=f, high=high, width=width: (high - f(x)) / width})
+    return constraints
+
+
+def _check_desirability_goals(goals: list[dict[str, Any]]) -> None:
+    """Check every goal, and that at least one scores a response rather than only limiting it."""
+    for goal in goals:
+        check_goal(goal)
+    if not any(goal["goal"] in SCORED_GOALS for goal in goals):
+        msg = (
+            "Every goal is 'in_range', which only limits a response: give at least one response a goal of "
+            "'maximize', 'minimize' or 'target' to optimise."
+        )
+        raise ValueError(msg)
+
+
+def _no_optimum(region: DesignRegion | None, limits: list[dict[str, Any]]) -> Exception:
+    """Return the error for a search in which no start ended at an accepted point."""
+    if limits:
+        return ValueError(
+            "No setting in the search region holds every 'in_range' response within its limits; widen "
+            "search_bounds or the limits."
+        )
+    return RuntimeError("optimization produced no result" if region is None else "no start converged inside the region")
 
 
 def _optimize_desirability(  # noqa: PLR0913
@@ -956,14 +1069,13 @@ def _optimize_desirability(  # noqa: PLR0913
     """
     if align_goals:
         goals = _align_goals_to_models(fitted_models, goals)
-    for goal in goals:
-        check_goal(goal)
+    _check_desirability_goals(goals)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
         """Return the negated composite desirability at coded settings ``x``, for minimization."""
         d_vals = [individual_desirability(f(x), goal) for f, goal in zip(evaluators, goals, strict=True)]
-        return -composite_desirability(d_vals, importances)
+        return -overall_desirability(d_vals, goals, importances)
 
     # Multi-start: try centre + random points.
     # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
@@ -974,9 +1086,12 @@ def _optimize_desirability(  # noqa: PLR0913
     # Start from the centre of the searched region, then sample across it, so
     # that widening the bounds actually widens where the search looks.
     space = _search_space(factor_names, search_bounds, region, rng, n_starts=10)
+    limits = _response_limits(evaluators, goals)
+    space.constraints.extend(limits)
 
     def accept(x: np.ndarray) -> bool:
-        return _within_region(region, factor_names, x) is not False
+        within = _within_region(region, factor_names, x) is not False
+        return within and all(c["fun"](x) >= -_LIMIT_TOL for c in limits)
 
     # Start first from the setting closest to meeting every limit: from there the
     # search can climb even when every other start sits where some d is 0, and on a
@@ -986,8 +1101,7 @@ def _optimize_desirability(  # noqa: PLR0913
     best_result = _multistart_slsqp(neg_composite, space, accept)
 
     if best_result is None:
-        msg = "optimization produced no result" if region is None else "no start converged inside the region"
-        raise RuntimeError(msg)
+        raise _no_optimum(region, limits)
 
     x_opt = best_result.x
     composite_d = float(-best_result.fun)
@@ -1293,6 +1407,8 @@ def _objective_senses(goals: list[dict[str, Any]]) -> list[tuple[str, float | No
             senses.append((kind, None))
         else:
             msg = f"Unknown goal {kind!r}; expected 'maximize', 'minimize' or 'target'."
+            if kind == "in_range":
+                msg += " To hold a response within limits, use method='desirability' with an 'in_range' goal."
             raise ValueError(msg)
     return senses
 
@@ -1838,6 +1954,7 @@ def optimize_responses(  # noqa: PLR0913
     n_pareto_points: int = 21,
     region: DesignRegion | None = None,
     random_state: int | np.random.Generator | None = 42,
+    flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
 
@@ -1874,8 +1991,13 @@ def optimize_responses(  # noqa: PLR0913
           order, and names that do not pair up one to one raise a
           ``ValueError``. When either side omits a name, goals are taken in
           list order, with a warning.
-        - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, or
-          ``"target"``.
+        - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, ``"target"``
+          or ``"in_range"``. An ``"in_range"`` goal (Design-Expert's "is in
+          range") holds the predicted response between ``low`` and ``high``:
+          the search keeps to settings where it does, its individual
+          desirability is 1 there, and it is left out of the composite. At
+          least one goal must be of another kind. ``"pareto_front"`` takes
+          the other three only.
         - ``"target"`` (float, optional) - target value (required when
           ``goal="target"``).
         - ``"low"`` (float) - lower acceptable bound.
@@ -1953,6 +2075,18 @@ def optimize_responses(  # noqa: PLR0913
         ``"desirability"`` and ``"pareto_front"``; the other methods are
         deterministic. The default of 42 keeps results reproducible; try another
         seed to check that an optimum does not depend on where the search began.
+    flat_tolerance : float
+        For ``"stationary_point"`` and ``"canonical_analysis"``: an eigenvalue of
+        the pure-quadratic matrix ``B`` at most this share of the largest in size
+        is read as zero, so the surface is classified as a ridge along its
+        eigenvector, and so is the slope along that eigenvector: a ridge rises
+        only when its slope is above this share of the largest eigenvalue. The
+        default, 1e-8, reads only rounding as zero. An estimated eigenvalue is
+        rarely exactly zero, and the sources read a small one as flat: Box,
+        Hunter and Hunter's stationary ridge has eigenvalues -9.02 and 0.0017 and
+        a slope of 0.005 along it, which ``flat_tolerance=0.05`` reads as a
+        stationary ridge; their rising ridge, with a slope of 2.97, still rises.
+        Below 5% of the largest, the result's ``classification_note`` says so.
 
     Returns
     -------
@@ -1963,8 +2097,10 @@ def optimize_responses(  # noqa: PLR0913
     Raises
     ------
     ValueError
-        If *method* is unknown, if *fitted_models* is empty or a model lacks
-        ``"coefficients"`` or ``"factor_names"``, if a single-response method
+        If *method* is unknown, if *flat_tolerance* is not in [0, 1), if
+        *fitted_models* is empty or a model lacks ``"coefficients"`` or
+        ``"factor_names"``, if ``"stationary_point"`` or ``"canonical_analysis"``
+        gets a factor name that no model term uses, if a single-response method
         (``"stationary_point"``, ``"canonical_analysis"``, ``"steepest_ascent"``,
         ``"steepest_descent"``, ``"ridge_analysis"``) gets more than one model, if
         a method that needs goals is called without them, or if a model's
@@ -1998,6 +2134,9 @@ def optimize_responses(  # noqa: PLR0913
         available = sorted(_METHODS)
         msg = f"Unknown method {method!r}. Available: {available}"
         raise ValueError(msg)
+    if not 0 <= flat_tolerance < 1:
+        msg = f"flat_tolerance must be at least 0 and below 1, a share of the largest eigenvalue; got {flat_tolerance}."
+        raise ValueError(msg)
 
     _check_fitted_models(fitted_models, method)
     factor_ranges = _ranges_from_coding(fitted_models, factor_ranges)
@@ -2010,12 +2149,16 @@ def optimize_responses(  # noqa: PLR0913
     region = _region_for_method(region, method)
 
     if method == "stationary_point":
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges, search_bounds)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds, flat_tolerance
+        )
 
     elif method == "canonical_analysis":
-        result["canonical_analysis"] = _canonical_analysis(coefficients, factor_names)
+        result["canonical_analysis"] = _canonical_analysis(coefficients, factor_names, flat_tolerance)
         # Also include the stationary point for context
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges, search_bounds)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds, flat_tolerance
+        )
 
     elif method in ("steepest_ascent", "steepest_descent"):
         direction = "ascent" if method == "steepest_ascent" else "descent"

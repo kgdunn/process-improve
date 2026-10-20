@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { analyseCode, bestCode, compareCode, cumulative, designCode, notebook, resultsCode } from "../../../web/python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, notebook, resultsCode } from "../../../web/python.js";
 
 const FACTORS = [
   { name: "T", low: 150, high: 200, units: "degC" },
@@ -266,5 +266,31 @@ describe("a mixture", () => {
     assert.match(code, /# The proportions, as the Scheffé model is fitted: a mixture's components are not coded\./);
     assert.match(code, / {8}"A": runs\["A"\],/);
     assert.doesNotMatch(code, /- 0.5/);
+  });
+
+  test("its best blend, searched over the region of blends step 1's components make", () => {
+    const goal = { response: "y", goal: "maximize", low: -300, high: 300 };
+    const code = bestCode({ coded: { A: 0.5, B: 0.5, C: 0 }, search: { held: {}, goal } }, spec, "scheffe_quadratic");
+    assert.match(code, /^import pandas as pd\nfrom process_improve\.experiments import DesignRegion, analyze_experiment, optimize_responses\n/);
+    assert.match(code, /goal = \{"response": "y", "goal": "maximize", "low": -300, "high": 300\}/);
+    assert.match(code, /"factor_names": \["A", "B", "C"\],/);
+    assert.match(code, /region=DesignRegion\(factors\), {2}# the blends: each component between its bounds/);
+    assert.doesNotMatch(code, /factor_ranges/, "a component's bounds are the region's, not a range to code from");
+    assert.match(code, /analysis_type="prediction", coding="actual", new_points=at/);
+  });
+
+  test("its balance, over the same region of blends", () => {
+    const goals = [
+      { response: "Hardness", goal: "maximize", low: 47, high: 55, weight: 1, importance: 3, shape: "even" },
+      { response: "Cost", goal: "minimize", low: 46, high: 53, weight: 1, importance: 3, shape: "even" },
+    ];
+    const formulas = { Hardness: "scheffe_quadratic", Cost: "scheffe_linear" };
+    const code = balanceCode({ search: { held: {}, goals, formulas } }, spec);
+    assert.match(code, /^from process_improve\.experiments import DesignRegion, analyze_experiment, optimize_responses\n/);
+    assert.match(code, /# Each response with a goal, fitted with its own Scheffé model to the runs that have its result\./);
+    assert.match(code, /for name, model in \{"Hardness": "scheffe_quadratic", "Cost": "scheffe_linear"\}\.items\(\):/);
+    assert.match(code, /region=DesignRegion\(factors\), {2}# the blends/);
+    assert.doesNotMatch(code, /factor_ranges|held_at|"shape"/);
+    assert.match(code, /print\(balanced\["optimal_coded"\]\) {2}# the balanced blend/);
   });
 });
