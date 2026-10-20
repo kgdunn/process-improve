@@ -619,6 +619,17 @@ class TestModelSelection:
         assert "I(A ** 2)" in ms["selected_terms"]
         assert "A" in ms["selected_terms"]
 
+    def test_a_square_without_its_main_effect_is_proposed_alone_when_freed(self) -> None:
+        """B is best in the middle of its range: B^2 and no B. Strong heredity carries B in beside it."""
+        from process_improve.experiments._analyses.model_selection import _proposed_terms
+
+        rng = np.random.default_rng(4)
+        x = pd.DataFrame(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)) * 2, columns=list("AB"))
+        x["y"] = 10 + 2 * x.A - 3 * x.B**2 + rng.normal(0, 0.2, len(x))
+        strong = analyze_experiment(x[["A", "B"]], x["y"], model="quadratic", analysis_type="model_selection")
+        assert strong["model_selection"]["selected_terms"] == ["A", "B", "I(B ** 2)"]
+        assert _proposed_terms(x, "y", ["A", "B"], "quadratic") == ["A", "I(B ** 2)"]
+
     def test_a_formula_model_is_searched_as_interactions_with_a_note(self) -> None:
         ms = analyze_experiment(
             _three_factor_data(), response_column="y", model="A + B + A:B", analysis_type="model_selection"

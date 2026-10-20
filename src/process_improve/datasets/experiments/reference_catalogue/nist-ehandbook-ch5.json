@@ -27221,12 +27221,13 @@
     },
     "notes": "the page's table, as in https://www.itl.nist.gov/div898/handbook/datasets/IMPROVE-5_5_3_2_2.DAT (from Derringer and Suich, 1980). The axial setting is printed 1.63; the page's coefficients and adjusted R2 reproduce only with 1.633, the square root of 8/3 (with 1.63 the x1 coefficient of Y1 is 16.51, not 16.49), so the fits use it. sqrt(8/3) is the axial distance that blocks a 20-run CCD orthogonally with four centre runs among the cube runs and two among the axial runs"
    },
-   "notes": "The page fits the full quadratic to Y1, Y2 and Y4 and the first-order model to Y3. The desired ranges are 120 < Y1, 1000 < Y2, 400 < Y3 < 600 and 60 < Y4 < 75; Y1 and Y2 are maximised with s = 1, Y3 and Y4 are 'target is best' with T3 = 500, T4 = 67.5 and s = t = 1.",
+   "notes": "The page fits the full quadratic to Y1, Y2 and Y4 and the first-order model to Y3. The desired ranges are 120 < Y1, 1000 < Y2, 400 < Y3 < 600 and 60 < Y4 < 75; Y1 and Y2 are maximised with s = 1, Y3 and Y4 are 'target is best' with T3 = 500, T4 = 67.5 and s = t = 1. The page's x3 column is not Derringer and Suich's: their Table 1 prints the cube as two half-fractions (compounds 1 to 4 with x3 = x1x2, 5 to 8 with x3 = -x1x2), and the page lists the same responses with the cube in standard order, which reverses x3 in compounds 1, 4, 5 and 8. The paper's own data reproduce its coefficients; these checks reproduce the page as printed.",
    "expected": [
     {
      "what": "axial distance",
      "term": null,
      "value": "1.63",
+     "analysis": "the alpha at which the cube and axial blocks of a 2^3 CCD are orthogonal to the squares, with four centre runs among the cube runs and two in the axial block: sqrt(8/3)",
      "where": {
       "page": "5.5.3.2.2",
       "url": "https://www.itl.nist.gov/div898/handbook/pri/section5/pri5322.htm",
@@ -27234,7 +27235,9 @@
       "quote": "9 | -1.63 | 0.00 | 0.00 | 102 | 770 | 590 | 76.0"
      },
      "check": {
-      "manual": "the axial setting of the CCD, printed rounded; the fits reproduce with sqrt(8/3) = 1.633 (runs.exact), and the library's blocked CCD splits six centre runs three and three (alpha 1.809), so no design_property check gives this design's alpha"
+      "kind": "library_value",
+      "function": "blocking_alpha",
+      "args": [8, 4, 3, 2]
      }
     },
     {
@@ -28092,7 +28095,7 @@
       "quote": "d_{1}(\\hat{Y}_{1}) = 0.34"
      },
      "check": {
-      "manual": "an individual desirability at the optimum, which no check computes (optimize_responses would); it needs the upper value T1 of the ramp, which the page does not give"
+      "manual": "a number of the desirability optimum; it needs the upper limits of the ramps for Y1 and Y2, which the page does not give (Derringer and Suich set them at 170 and 1300: derringer-suich-1980, where the optimum and its desirabilities are checked)"
      }
     },
     {
@@ -28128,7 +28131,7 @@
       "quote": "d_{2}(\\hat{Y}_{2}) = 1.0"
      },
      "check": {
-      "manual": "an individual desirability at the optimum, which no check computes (optimize_responses would)"
+      "manual": "a number of the desirability optimum; it needs the upper limits of the ramps for Y1 and Y2, which the page does not give (Derringer and Suich set them at 170 and 1300: derringer-suich-1980, where the optimum and its desirabilities are checked)"
      }
     },
     {
@@ -28164,7 +28167,34 @@
       "quote": "d_{3}(\\hat{Y}_{3}) = 0.49"
      },
      "check": {
-      "manual": "an individual desirability at the optimum, which no check computes (optimize_responses would)"
+      "kind": "desirability",
+      "goals": [
+       {
+        "model": "x1 + x2 + x3",
+        "response": "Y3",
+        "goal": "target",
+        "low": 400,
+        "target": 500,
+        "high": 600,
+        "weight": 1
+       },
+       {
+        "model": "x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + I(x1**2) + I(x2**2) + I(x3**2)",
+        "response": "Y4",
+        "goal": "target",
+        "low": 60,
+        "target": 67.5,
+        "high": 75,
+        "weight": 1
+       }
+      ],
+      "point": {
+       "x1": -0.1,
+       "x2": 0.15,
+       "x3": -1.0
+      },
+      "key": "d.0",
+      "disagreement": "at the printed optimum the page's first-order fit gives Y3 = 450.18 and d3 = 0.502, and the page's own printed Y3 of 450.56 gives (450.56 - 400)/100 = 0.506; neither rounds to the printed 0.49"
      },
      "note": "with L3 = 400, T3 = 500 and s = 1 as stated, the printed Y3 of 450.56 gives d3 = 0.506, not 0.49; the overall 0.596 is the geometric mean of the printed 0.34, 1.0, 0.49 and 0.76"
     },
@@ -28200,7 +28230,34 @@
       "quote": "d_{4}(\\hat{Y}_{4}) = 0.76"
      },
      "check": {
-      "manual": "an individual desirability at the optimum, which no check computes (optimize_responses would)"
+      "kind": "desirability",
+      "goals": [
+       {
+        "model": "x1 + x2 + x3",
+        "response": "Y3",
+        "goal": "target",
+        "low": 400,
+        "target": 500,
+        "high": 600,
+        "weight": 1
+       },
+       {
+        "model": "x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + I(x1**2) + I(x2**2) + I(x3**2)",
+        "response": "Y4",
+        "goal": "target",
+        "low": 60,
+        "target": 67.5,
+        "high": 75,
+        "weight": 1
+       }
+      ],
+      "point": {
+       "x1": -0.1,
+       "x2": 0.15,
+       "x3": -1.0
+      },
+      "key": "d.1",
+      "disagreement": "at the printed optimum the fit gives Y4 = 69.26, as the page prints it, and d4 = (75 - 69.26)/7.5 = 0.765; the printed 0.76 is not that value rounded"
      }
     },
     {
@@ -28214,7 +28271,7 @@
       "quote": "The best solution is (x*)' = (-0.10, 0.15, -1.0)"
      },
      "check": {
-      "manual": "the maximiser of the overall desirability, which no check computes (optimize_responses would)"
+      "manual": "a number of the desirability optimum; it needs the upper limits of the ramps for Y1 and Y2, which the page does not give (Derringer and Suich set them at 170 and 1300: derringer-suich-1980, where the optimum and its desirabilities are checked)"
      }
     },
     {
@@ -28228,7 +28285,7 @@
       "quote": "The overall desirability for this solution is 0.596."
      },
      "check": {
-      "manual": "the geometric mean of the individual desirabilities at the optimum; no check computes it"
+      "manual": "a number of the desirability optimum; it needs the upper limits of the ramps for Y1 and Y2, which the page does not give (Derringer and Suich set them at 170 and 1300: derringer-suich-1980, where the optimum and its desirabilities are checked)"
      }
     },
     {

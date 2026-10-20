@@ -19,7 +19,11 @@ class GenerateDesignInput(BaseModel):
     factors: list[dict[str, Any]] = Field(
         ...,
         min_length=1,
-        description="List of factor specifications (name, type, low/high or levels, units).",
+        description=(
+            "List of factor specifications (name, type, low/high or levels, units). Add 'hard_limits': true "
+            "when low and high are limits of the process (a safety limit, an instrument's range): a CCD is then "
+            "face-centred by default, and a design that would set the factor past them is refused."
+        ),
     )
     design_type: (
         Literal[

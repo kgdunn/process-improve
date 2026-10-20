@@ -105,6 +105,27 @@ def test_results_simulated_under_pyodide_are_native_python_s(pyodide, api, held)
     assert under["responses"] == pytest.approx(native["responses"], abs=0.011), "rounded to two decimals"
 
 
+def test_what_the_results_call_for_under_pyodide_is_native_python_s(pyodide, api, held, simulated):
+    """The next step's search, its tests and its simulated critical values run under WebAssembly as natively."""
+    request = {**held, "responses": simulated["responses"]}
+    under, native = (python.ok("api_next_runs", request)["recommendation"] for python in (pyodide, api))
+    assert (under["action"], under["does"], under["active"]) == (native["action"], native["does"], native["active"])
+    assert under["ranges"] == native["ranges"]
+    added = {**request, "kind": "recommended"}  # the worked example's results call for a new study, not runs added
+    assert pyodide.error("api_add_runs", added) == api.error("api_add_runs", added)
+
+
+def test_the_runs_the_results_call_for_under_pyodide_are_native_python_s(pyodide, api):
+    cube = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3})
+    settings = coded(run_sheet(cube), FACTORS).to_numpy(dtype=float)
+    peaked = 60 - 4 * np.abs(settings).sum(axis=1) + 0.1 * np.arange(len(settings))  # curved: axial runs called for
+    curved = {**held_of(cube), "responses": peaked.tolist(), "kind": "recommended"}
+    curved["spec"] = {**curved["spec"], "response_info": {"goal": "maximize"}}
+    under, native = (python.ok("api_add_runs", curved) for python in (pyodide, api))
+    assert under["added"] == native["added"] == 8
+    assert under["rows"] == native["rows"]
+
+
 def test_a_workbook_written_under_pyodide_reads_back_the_same_either_way(pyodide, api, held, simulated):
     request = {**held, "responses": simulated["responses"], "sources": ["simulated"] * 15, "simulated": simulated}
     book = pyodide.ok("api_workbook", request)

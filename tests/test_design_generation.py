@@ -420,6 +420,33 @@ class TestCCD:
             result = generate_design(_continuous_factors(3, "ABC"), design_type="ccd", alpha=alpha)
         assert "runs_beyond_ranges" not in result.metadata
 
+    def test_a_hard_limit_makes_the_default_ccd_face_centred(self) -> None:
+        """A rotatable CCD steps past a range that is a limit of the process: 0.59 bar on a 1 to 3 bar vessel."""
+        factors = [
+            Factor(name="Pressure", low=1, high=3, units="bar", hard_limits=True),
+            Factor(name="T", low=20, high=60),
+        ]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            result = generate_design(factors, design_type="ccd")
+        assert result.alpha == pytest.approx(1.0)
+        assert result.design_actual["Pressure"].between(1, 3).all()
+        assert "hard limit" in result.metadata["alpha_reason"]
+
+    def test_a_ccd_past_a_hard_limit_is_refused(self) -> None:
+        factors = [
+            Factor(name="Pressure", low=1, high=3, units="bar", hard_limits=True),
+            Factor(name="T", low=20, high=60),
+        ]
+        with pytest.raises(ValueError, match=r"past their hard limits: Pressure from 0\.5858 to 3\.414 bar"):
+            generate_design(factors, design_type="ccd", alpha="rotatable")
+
+    def test_an_alpha_asked_for_is_kept_inside_hard_limits(self) -> None:
+        factors = [Factor(name="Pressure", low=1, high=3, hard_limits=True), Factor(name="T", low=20, high=60)]
+        result = generate_design(factors, design_type="ccd", alpha="inscribed")
+        assert "alpha_reason" not in result.metadata
+        assert result.design_actual["Pressure"].between(1, 3).all()
+
     def test_inscribed(self) -> None:
         """Inscribed CCD keeps all points within the coded cube."""
         factors = _continuous_factors(2, "AB")

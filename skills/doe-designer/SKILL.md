@@ -148,6 +148,22 @@ desirability. Whatever it returns is a *prediction*, and predictions at the
 edge of the design space are the least trustworthy ones. Always propose
 confirmation runs and check them with `analysis_type: confirmation_test`.
 
+### 9. Decide the next round
+
+```bash
+python scripts/doe_tool.py call recommend_next_step --input study.json
+```
+
+After every round, pass every run made so far and do what `action` says,
+rather than choosing the next design by hand. It judges the terms, tests
+whether anything stands out at all, and returns the next runs in real units,
+the reasons with their numbers, and what to do with the runs once made:
+append them to `runs` and call again; for `confirm`, pass them as
+`confirmation_runs`; for `widen_ranges` and `move_region`, change the ranges
+as the reply says and start the runs afresh. Pass `history`, the actions so
+far, and `ranges_can_move: false` when a range is a hard limit. Quote its
+`reasons` to the user: they are the evidence, not a paraphrase of it.
+
 ## Tools
 
 Every tool below is reachable through `scripts/doe_tool.py call <name>`, and
@@ -160,10 +176,15 @@ calling, rather than guessing at field names.
 | `recommend_strategy` | "How should I plan this?" Staged plan from factors, budget, domain |
 | `doe_knowledge` | Definitions, design-type descriptions, diagnostics, decision logic |
 | `generate_design` | Build a design matrix |
+| `write_run_sheet` | The runs as a CSV or Excel sheet for the lab or an upload: actual or coded units, columns named or X01..Xnn, empty response columns |
+| `read_run_sheet` | A filled sheet back into the factors' names and actual units, whichever units and labels it was written in |
 | `create_factorial_design` | Quick 2^k full factorial |
 | `evaluate_design` | Resolution, aliasing, moment aberration, D/I/G-efficiency, VIF, power |
+| `compare_designs` | Several designs side by side for one model: A, D, E, G, I, max correlation, power |
+| `simulate_design_performance` | "Would this design find what I expect?" Designs run many times on the process you expect and analysed as the next step analyses them: the share that finds each term, false alarms, distance from the best settings |
 | `analyze_experiment` | ANOVA, effects, diagnostics, Lenth, Box-Cox, confirmation |
 | `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
+| `recommend_next_step` | "What do I run next?" After every round: confirm, axial runs, fold-over, the path of steepest ascent, or stop, with the runs in real units |
 | `fit_linear_model` | Explicit model formula when you need control |
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |
 | `optimize_responses` | Multi-response desirability optimisation |
