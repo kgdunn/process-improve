@@ -566,6 +566,41 @@ def dsd_run_count(n_factors: int, n_categorical: int = 0, categorical_method: st
     return 2 * dsd_conference_order(n_factors) + _dsd_centre_runs(n_categorical, categorical_method)
 
 
+#: Jones and Nachtsheim's (2011) definitive screening designs of ``2k + 1`` runs for an odd number
+#: ``k`` of factors, from their Figure 1: one word per run, ``+`` and ``-`` for +1 and -1, the centre
+#: run last. No conference matrix has an odd order, so the authors found these by coordinate exchange;
+#: they keep the fold-over structure, but their main effects are correlated.
+_DSD_2011_ODD: dict[int, str] = {
+    5: "0++-- 0--++ +0--+ -0++- +-0+- -+0-+ +-+0+ -+-0- ++++0 ----0 00000",
+    7: "0+-+-+- 0-+-+-+ -0+-++- +0-+--+ +-0++++ -+0---- +--0+-- -++0-++ --++0-- ++--0++ -+-++0+ +-+--0- "
+    "+++++-0 -----+0 0000000",
+    9: "0++++++++ 0-------- +0+-+--+- -0-+-++-+ -+0-+-+-- +-0+-+-++ --+0+---+ ++-0-+++- +-+-0++-- -+-+0--++ "
+    "----+0+++ ++++-0--- ++--++0-+ --++--0+- ---+++-0- +++---+0+ -++--+-+0 +--++-+-0 000000000",
+    11: "0-+-----+-+ 0+-+++++-+- -0--+----++ +0++-++++-- --0++++---+ ++0----+++- ---0-++-++- +++0+--+--+ "
+    "+--+0+-++++ -++-0-+---- --++-0-+-+- ++--+0+-+-+ ---++-0++-- +++--+0--++ -+++--+0+++ +---++-0--- "
+    "-+---+-+0-+ +-+++-+-0+- +-----++-0+ -+++++--+0- ++-+------0 --+-++++++0 00000000000",
+}
+
+
+def _dsd_2011(k: int) -> tuple[np.ndarray, dict]:
+    """Return Jones and Nachtsheim's (2011) design of ``2k + 1`` runs for an odd ``k`` of 5 to 11, and its metadata."""
+    level = {"+": 1.0, "-": -1.0, "0": 0.0}
+    design = np.array([[level[c] for c in run] for run in _DSD_2011_ODD[k].split()])
+    correlations = np.corrcoef(design, rowvar=False)
+    largest = float(np.abs(correlations[np.triu_indices(k, 1)]).max())
+    meta = {
+        "construction": "jones_nachtsheim_2011",
+        "conference_order": None,
+        "fake_factors": 0,
+        "note": (
+            f"Jones and Nachtsheim's (2011) design of {2 * k + 1} runs for {k} factors, from their Figure 1: two runs "
+            f"fewer than the conference-matrix design, but its main effects are correlated (|r| up to {largest:.3g}) "
+            "and it has no fake factors to leave error degrees of freedom."
+        ),
+    }
+    return design, meta
+
+
 #: How a DSD takes two-level categorical factors (Jones and Nachtsheim 2013): ``"dsd"``, the
 #: DSD-augment method, or ``"orth"``, the ORTH-augment method.
 CATEGORICAL_METHODS = ("dsd", "orth")
@@ -592,8 +627,13 @@ def _dsd_order_for_budget(k: int, extra: int, budget: int | None) -> int:
     if budget is None:
         return minimal
     if budget < 2 * minimal + extra:
+        smaller = (
+            f" ({2 * k + 1} for Jones and Nachtsheim's 2011 design, whose main effects are correlated)"
+            if extra == 1 and k in _DSD_2011_ODD
+            else ""
+        )
         raise ValueError(
-            f"A definitive screening design for {k} factors needs at least {2 * minimal + extra} runs; "
+            f"A definitive screening design for {k} factors needs at least {2 * minimal + extra} runs{smaller}; "
             f"budget={budget} is too small."
         )
     order = minimal
@@ -655,6 +695,13 @@ def dispatch_dsd(
     unused columns give error degrees of freedom free of any second-order effect, which
     the analysis of a DSD (:func:`process_improve.experiments.analyze_omars`) needs.
 
+    A ``budget`` of ``2k + 1`` or ``2k + 2`` runs for an odd ``k`` of 5, 7, 9 or 11 continuous
+    factors, too small for the conference-matrix design, gives Jones and Nachtsheim's (2011)
+    design of ``2k + 1`` runs instead (their Figure 1). It saves two runs; its main effects are
+    still orthogonal to every second-order effect, but correlated with each other (``|r|`` up to
+    0.25, 0.167, 0.125 and 0.3), and it has no fake factors, so the full second-order model leaves
+    it no error degrees of freedom. The metadata's ``note`` says so.
+
     Parameters
     ----------
     factors : list[Factor]
@@ -695,7 +742,10 @@ def dispatch_dsd(
                 "designs take two-level categorical factors only (Jones and Nachtsheim 2013). Use "
                 'design_type="d_optimal" or "i_optimal" for a factor with more levels.'
             )
-    m = _dsd_order_for_budget(k, _dsd_centre_runs(len(categorical), categorical_method), budget)
+    extra = _dsd_centre_runs(len(categorical), categorical_method)
+    if budget is not None and not categorical and k in _DSD_2011_ODD and 2 * k + 1 <= budget < dsd_run_count(k):
+        return _dsd_2011(k)
+    m = _dsd_order_for_budget(k, extra, budget)
     conference, construction = conference_matrix(m)
     folded = np.vstack([conference, -conference]).astype(float)[:, :k]
     meta: dict = {"construction": construction, "conference_order": m, "fake_factors": m - k}

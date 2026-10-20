@@ -824,7 +824,11 @@ def generate_design(  # noqa: PLR0913
         designs, and OMARS with a budget, are built to it (OMARS to the largest
         foldover size within it). A family whose size the design structure fixes
         (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
-        ``ValueError`` when it needs more runs than *budget*.
+        ``ValueError`` when it needs more runs than *budget*. A DSD with a budget
+        above its minimal size gains fake factors (error degrees of freedom); for an
+        odd number of factors (5, 7, 9 or 11, all continuous), a budget of ``2k + 1``
+        or ``2k + 2`` runs gives Jones and Nachtsheim's (2011) design of ``2k + 1``
+        runs, two fewer than the default, whose main effects are slightly correlated.
     n_center_points : int, str or None
         Number of centre runs in the whole design: they are not replicated with
         *n_replicates*. ``None`` (the default) means 3 for the full and
