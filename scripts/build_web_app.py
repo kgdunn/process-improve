@@ -65,6 +65,8 @@ APP_FILES = (
     "store.js",
     "glossary.js",
     "terms.js",
+    "feedback.js",
+    "vendor/modern-screenshot.mjs",
     "worker.js",
     "runtime.json",
     "bootstrap.py",
@@ -156,6 +158,7 @@ def worked_example() -> dict[str, Any]:
     )
     analysis = call("api_analyze_runs", request)
     best = call("api_best_settings", request)  # the page finds the best settings for the goal once the model is fitted
+    following = call("api_next_runs", request)  # and then what the results call for next
     return {
         "version": version("process-improve"),
         "inputs": inputs,
@@ -163,6 +166,7 @@ def worked_example() -> dict[str, Any]:
         "simulation": simulation,
         "analysis": analysis,
         "best": best,
+        "next": following,
         "plots": call("api_plots", {**request, **({"best": best["coded"]} if best.get("coded") else {})}),
         "comparison": comparison,
     }

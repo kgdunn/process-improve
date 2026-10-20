@@ -33,6 +33,8 @@ from typing import Any
 #   extra_stages : list[str] - stages this domain usually adds, which the plan names but does
 #       not schedule (they appear in the reasoning)
 #   special_considerations : list[str] - domain-specific warnings, appended to the risks
+#   soft_range_considerations : list[str] - warnings that hold only when no factor's range is a
+#       hard limit (Factor.hard_limits), appended to the risks after the special considerations
 
 DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
     "pharma_formulation": {
@@ -139,11 +141,11 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
             ),
         },
         "extra_stages": [],
-        "special_considerations": [
-            "Extraction processes often have strongly quadratic responses.",
+        "special_considerations": ["Extraction processes often have strongly quadratic responses."],
+        "soft_range_considerations": [
             (
-                "Where the factor ranges are not hard limits, a rotatable CCD predicts better at the region "
-                "boundaries than the face-centred one the plan uses; its axial runs go beyond the ranges."
+                "A rotatable CCD predicts better at the region boundaries than the face-centred one the plan uses; "
+                "its axial runs go beyond the ranges."
             ),
         ],
     },

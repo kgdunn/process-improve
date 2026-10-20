@@ -5373,10 +5373,13 @@ MODEL_WORDS = {
 
 
 def next_runs(request: dict) -> dict:
-    """List the ways Learn offers to add runs to the study, each with what it is for and what it leaves.
+    """Say what the results call for next, and list the ways Learn offers to add runs to the study.
 
-    The study is the page's run sheet (``spec``, ``columns`` and ``rows``); its confirmation runs are no
-    runs of the design, and are left out. Each offer is one of :data:`EXTENSIONS`, in that order, and
+    The study is the page's run sheet (``spec``, ``columns`` and ``rows``), with its results as the
+    analysis takes them (``responses``, ``more_responses`` and ``response``); its confirmation runs
+    are no runs of the design, and are left out of the offers. ``recommendation`` is what the
+    results call for (see :func:`_recommended`), or None, with ``waiting`` saying why when there is
+    a reason the reader can act on. Each offer is one of :data:`EXTENSIONS`, in that order, and
     only where it applies: ``kind``, its ``label`` for the button, the ``runs`` it adds, ``why`` in a
     sentence or two, ``model``, the largest model the design then estimates in full, and ``blocked``.
     An extension whose runs would break a limit on the settings is not offered, and ``notes`` says so.
@@ -5384,7 +5387,8 @@ def next_runs(request: dict) -> dict:
     """
     spec, _, design = _study_runs(request)
     if _mixture(spec):
-        return {"offers": [], "notes": [MIXTURE_EXTENSIONS]}
+        return {"offers": [], "notes": [MIXTURE_EXTENSIONS], "recommendation": None, "waiting": None}
+    recommendation, waiting = _recommended(request, spec)
     offers, notes = [], []
     for kind in EXTENSIONS:
         made = _extension(spec, design, kind)
@@ -5396,7 +5400,180 @@ def next_runs(request: dict) -> dict:
             continue
         shown = {key: made[key] for key in ("kind", "label", "why", "model", "blocked")}
         offers.append(shown | {"runs": len(made["new"])})
-    return {"offers": offers, "notes": notes}
+    return {"offers": offers, "notes": notes, "recommendation": recommendation, "waiting": waiting}
+
+
+#: The option marking a study started with its ranges widened because nothing stood out in the study before it:
+#: if nothing stands out again, the next step stops rather than widen them a second time.
+WIDENED = "widened"
+
+#: What the next step says while a run of the design, or a confirmation run, has no result yet.
+RESULTS_FIRST = "Once every run has its result, the results say what to run next."
+
+#: The steps whose runs Learn adds to the run sheet, as ``add_runs`` adds the runs of an extension.
+ADDED_STEPS = ("add_center_points", "replicate", "de_alias", "augment_to_rsm", "add_runs_for_model")
+
+#: The kind ``add_runs`` takes for the runs the results call for: :func:`_recommended`'s step, made again from the
+#: same request, which gives the same runs.
+RECOMMENDED = "recommended"
+
+
+def _recommended_runs(request: dict, whole: dict, design: pd.DataFrame) -> dict[str, Any] | None:
+    """Make the runs the results call for, as :func:`_extension` makes an extension's; None when they call for none.
+
+    They are a block of their own, a later round of the study, except centre runs, whose block
+    would be the curvature they are added to test.
+    """
+    found = _next_step(request, whole)
+    if not isinstance(found, dict) or found["action"] not in ADDED_STEPS:
+        return None
+    kinds = ["categorical" if _categorical(f) else "numeric" for f in whole["factors"]]
+    new = _coded(pd.DataFrame(found["runs"]), whole["factors"]).to_numpy(dtype=float)
+    before = _coded(design, whole["factors"]).to_numpy(dtype=float)
+    headline = found["headline"].replace("{", "{{").replace("}", "}}")
+    return {
+        "kind": RECOMMENDED,
+        "new": new,
+        "label": f"Add these {len(new)} runs",
+        "why": found["headline"],
+        "said": f"Runs {{first}} to {{last}} are the runs the results called for. {headline}",
+        "model": _largest_model(np.vstack([before, new]), kinds),
+        "blocked": found["action"] != "add_center_points",
+    }
+
+
+def _recommended(request: dict, whole: dict) -> tuple[dict[str, Any] | None, str | None]:
+    """Return what the results call for next, as the page shows it, and why there is nothing to show instead.
+
+    The decision is :func:`~process_improve.experiments.next_step.recommend_next_step`'s, for the
+    response the page analyses, toward its goal, from every run of the design that has a result.
+    The latest :data:`CONFIRMATION_RUNS` confirmation runs are judged as confirmation runs; any
+    made before them missed (else the study would have stopped) and are runs of the study, in its
+    latest block. A study whose runs are in blocks has a shift fitted for each.
+
+    The reply holds the step (``action``, ``headline``, ``reasons``, ``after``, ``n_runs``), the
+    model it read (``judged_by``, ``active``), and how the page carries it out: ``does`` is
+    ``confirm`` (confirmation runs at ``settings``, rounded for the plant), ``runs`` (``add_runs``
+    with the kind ``recommended``), ``study`` (a new study with the ``ranges`` given) or None.
+    ``outside_limits`` says the runs would break a limit on the settings, so the page offers none.
+    Nothing is shown for a goal of learning, a mixture, or before the results are sent.
+    """
+    found = _next_step(request, whole)
+    if found is None or isinstance(found, str):
+        return None, found
+    return _shown_step(_for_response(whole, request.get("response")), found), None
+
+
+def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
+    """Return recommend_next_step's reply for the run sheet, or why it has none: a sentence for the page, or None.
+
+    None is for a study the step does not apply to: a goal of learning, a target not yet typed, a
+    mixture, or a request that sends no results.
+    """
+    spec = _for_response(whole, request.get("response"))
+    info = spec.get("response_info") or {}
+    goal, target = info.get("goal", "learn"), info.get("target")
+    if goal not in AIMED or (goal == "target" and target is None) or _mixture(spec):
+        return None
+    if request.get("responses") is None and not request.get("more_responses"):
+        return None
+    try:
+        from process_improve.experiments.next_step import recommend_next_step  # noqa: PLC0415 - not in older releases
+    except ImportError:
+        return "This version of process-improve cannot say what the results call for yet."
+    response = spec["response"]
+    runs = _runs_frame(request, whole)
+    confirming = _confirming(runs)
+    design = runs.loc[~confirming].drop(columns=[CONFIRMATION], errors="ignore")
+    confirmations = runs.loc[confirming]
+    if "Run order" in runs.columns:
+        confirmations = confirmations.sort_values("Run order", kind="stable")
+    if design[response].isna().any() or confirmations[response].isna().any():
+        return RESULTS_FIRST
+    latest = confirmations.iloc[-CONFIRMATION_RUNS:]
+    earlier = confirmations.iloc[: len(confirmations) - len(latest)]
+    block = BLOCK if BLOCK in design.columns and len(set(design[BLOCK].dropna())) > 1 else None
+    if block is not None and len(earlier):
+        earlier = earlier.assign(**{BLOCK: design[BLOCK].dropna().iloc[-1]})  # made after every run of the design
+    history = ["widen_ranges"] if spec.get("options", {}).get(WIDENED) else []
+    history += ["confirm"] * math.ceil(len(confirmations) / CONFIRMATION_RUNS)
+    try:
+        with _listening() as heard:
+            found = recommend_next_step(
+                _factors(whole),
+                pd.concat([design, earlier.drop(columns=[CONFIRMATION], errors="ignore")], ignore_index=True),
+                response,
+                goal=goal,  # type: ignore[arg-type]
+                target=target,  # type: ignore[arg-type]
+                confirmation_runs=latest if len(latest) else None,
+                n_confirmation_runs=CONFIRMATION_RUNS,
+                history=history,
+                block=block,
+            )
+        _relay(heard)
+    except ValueError as exc:
+        return f"The results cannot say what to run next: {exc}"
+    return found
+
+
+def _shown_step(spec: dict, found: dict[str, Any]) -> dict[str, Any]:
+    """Return a step of recommend_next_step as the page shows it, with how the page carries it out."""
+    action = found["action"]
+    shown: dict[str, Any] = {key: found[key] for key in ("action", "headline", "reasons", "after", "n_runs")} | {
+        "response": spec["response"],
+        "judged_by": found["model"]["judged_by"],
+        "active": found["evidence"]["active_terms"],
+        "does": None,
+        "label": None,
+        "settings": None,
+        "ranges": None,
+        "outside_limits": False,
+    }
+    if action == "confirm":
+        settings = _practical(spec, found["evidence"]["optimum"]["coded"], _spec_region(spec))
+        coded = np.array(
+            [
+                [
+                    _coded_value(_factor_of(f), settings[f["name"]]) if not _categorical(f) else 0.0
+                    for f in spec["factors"]
+                ]
+            ]
+        )
+        shown |= {"settings": settings, "does": "confirm", "label": f"Add {found['n_runs']} confirmation runs here"}
+        shown["outside_limits"] = not _runnable(spec, coded)
+    elif action in ADDED_STEPS:
+        coded = _coded(pd.DataFrame(found["runs"]), spec["factors"]).to_numpy(dtype=float)
+        shown |= {"does": "runs", "label": f"Add these {found['n_runs']} runs"}
+        shown["outside_limits"] = not _runnable(spec, coded)
+    elif action in ("widen_ranges", "move_region"):
+        shown |= {"does": "study", "label": "Start a new study with these ranges", "ranges": _moved(spec, found)}
+    if shown["outside_limits"]:
+        shown |= {"does": None, "label": None}
+    return shown
+
+
+def _moved(spec: dict, found: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the factors of the new study a step points to: the ranges widened, or moved along the path.
+
+    Moving, each factor the path moves has its range shifted by its share of half the range, to two
+    significant figures, as the page's own next study moves it (best.js's ``nextRanges``); the
+    others, and every categorical factor, keep theirs.
+    """
+    widened = found.get("new_ranges") or {}
+    shares = found.get("direction") or {}
+    moved = []
+    for f in spec["factors"]:
+        if _categorical(f):
+            moved.append(dict(f))
+        elif f["name"] in widened:
+            low, high = widened[f["name"]]
+            moved.append({**f, "low": float(f"{low:.12g}"), "high": float(f"{high:.12g}")})
+        elif f["name"] in shares:
+            step = float(f"{shares[f['name']] * (f['high'] - f['low']) / 2:.2g}")
+            moved.append({**f, "low": float(f"{f['low'] + step:.12g}"), "high": float(f"{f['high'] + step:.12g}")})
+        else:
+            moved.append(dict(f))
+    return moved
 
 
 #: What Learn says of a mixture, to which it offers to add no runs.
@@ -5415,16 +5592,10 @@ def add_runs(request: dict) -> dict:
     returns it, less its workbook, with ``added``, the number of runs added.
     """
     kind = request.get("kind")
-    if kind not in EXTENSIONS:
+    if kind not in EXTENSIONS and kind != RECOMMENDED:
         raise ValueError(f"Unknown way to add runs {kind!r}.")
     spec, runs, design = _study_runs(request)
-    if _mixture(spec):
-        raise ValueError("A mixture's runs are blends, and the runs Learn adds to a design are not.")
-    made = _extension(spec, design, kind)
-    if made is None:
-        raise ValueError(f"This study's runs cannot be extended that way: {EXTENSION_REFUSALS[kind]}")
-    if not _runnable(spec, made["new"]):
-        raise ValueError(f"{EXTENSIONS[kind]['name']} would fall outside your limits on the settings.")
+    made = _made_for(request, spec, design, kind)
     names = [f["name"] for f in spec["factors"]]
     # The runs before are sent back as they came, cell for cell; only a Block column the sheet gains is new to them.
     columns = [str(c) for c in request["columns"]]
@@ -5448,7 +5619,11 @@ def add_runs(request: dict) -> dict:
         **{key: value for key, value in spec.items() if key not in ("design_type", "options", "model")},
         "design_type": GIVEN,
         "model": made["model"],
-        "options": {GROWN: True, **({"n_blocks": n_blocks} if n_blocks > 1 else {})},
+        "options": {
+            GROWN: True,
+            **({"n_blocks": n_blocks} if n_blocks > 1 else {}),
+            **({WIDENED: True} if spec.get("options", {}).get(WIDENED) else {}),
+        },
     }
     extended = _design_runs(sheet)
     coded = _coded(extended, spec["factors"])
@@ -5476,6 +5651,25 @@ def add_runs(request: dict) -> dict:
         "spec": stored,
         "added": len(order),
     }
+
+
+def _made_for(request: dict, spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any]:
+    """Make the runs ``add_runs`` adds of one kind, or refuse, saying why the study cannot take them."""
+    if _mixture(spec):
+        raise ValueError("A mixture's runs are blends, and the runs Learn adds to a design are not.")
+    if kind == RECOMMENDED:
+        made = _recommended_runs(request, spec, design)
+        if made is None:
+            raise ValueError("The results call for no runs to add to this study: see what the next step says.")
+        name = "The runs the results call for"
+    else:
+        made = _extension(spec, design, kind)
+        if made is None:
+            raise ValueError(f"This study's runs cannot be extended that way: {EXTENSION_REFUSALS[kind]}")
+        name = EXTENSIONS[kind]["name"]
+    if not _runnable(spec, made["new"]):
+        raise ValueError(f"{name} would fall outside your limits on the settings.")
+    return made
 
 
 #: Why a study's runs cannot be extended each way, as the refusal of :func:`add_runs` says it.

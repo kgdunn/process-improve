@@ -1,10 +1,12 @@
-"""The next step, in Learn: a new study further along, and runs added to this one.
+"""The next step, in Learn: what the results call for, a new study further along, and runs added to this one.
 
-When the best settings sit at the ends of the ranges and the model predicts better past them, Learn lays
-out the ranges a next study would have, moved along the steepest ascent, and starts that study in
-Design. It also offers the ways of adding runs that suit the design: a fold-over for a fraction whose
-main effects are aliased with two-factor interactions, center runs for a two-level design with none,
-and others. The runs added go at the end of the run sheet; the runs before keep their results.
+Once every run has its result, Learn says what the results call for next, with one button that does it:
+runs added to the study, confirmation runs at the optimum, or a new study with its ranges moved or
+widened. When the best settings sit at the ends of the ranges and the model predicts better past them,
+the new study's ranges move along the steepest ascent, and it starts in Design. Learn also offers the
+ways of adding runs that suit the design: a fold-over for a fraction whose main effects are aliased with
+two-factor interactions, center runs for a two-level design with none, and others. The runs added go at
+the end of the run sheet; the runs before keep their results.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from tests.web.e2e._page import (
     factor_table,
     generate,
     headers,
+    name_response,
     practise,
     reveal,
     run_sheet,
@@ -53,17 +56,40 @@ def add(page, kind: str) -> None:
 
 
 # --------------------------------------------------------------------------- a new study further along
-def test_the_worked_example_points_to_a_new_study_further_along(page, first_paint):
+def called_for(page) -> str | None:
+    """Return the step the results call for, as the next step's first part marks it, or None."""
     reveal(page, "#next")
-    assert page.is_visible("#next")
+    return page.evaluate("() => document.querySelector('#next-out .next__called')?.dataset.action ?? null")
+
+
+def practise_on(page, scenario: str) -> None:
+    """Simulate the run sheet's results from one of the page's processes, as a reader practising would."""
+    reveal(page, "#panel-simulate")
+    page.click("#tab-simulate")
+    page.select_option("#scenario", scenario)
+    page.click("#simulate")
+    settled(page)
+
+
+def do_what_is_called_for(page) -> None:
+    """Press the button of what the results call for, as a reader would, and wait for the page to settle."""
+    reveal(page, "#next")
+    page.click("#next-out .next__called button.button")
+    settled(page)
+
+
+def test_the_worked_example_s_results_call_for_a_new_study_further_along(page, first_paint):
+    assert called_for(page) == "move_region"
     assert page.text_content("#h-next") == "The next step"
+    assert page.text_content("#next-out .next__called h4") == "What the results call for"
     assert headers(page, "#next-out table") == ["Factor", "Range now", "Next study"]
-    p_step = float(f"{first_paint['best']['ascent']['P']:.2g}")  # the share of half the range, to two figures
+    moved = {r["name"]: r for r in first_paint["next"]["recommendation"]["ranges"]}
     assert next_rows(page) == [
         ["T", "150 to 200 degC", "175 to 225 degC"],
-        ["P", "1 to 3 bar", f"{num(1 + p_step)} to {num(3 + p_step)} bar"],
+        ["P", "1 to 3 bar", f"{num(moved['P']['low'])} to {num(moved['P']['high'])} bar"],
         ["F", "10 to 20 L/min", "10 to 20 L/min"],
     ]
+    assert page.is_hidden("#next-out .next__why p"), "why, and what then, are folded until opened"
     assert offered(page) == [], "its Box-Behnken design fits the full quadratic with runs to spare"
 
 
@@ -167,6 +193,61 @@ def test_a_mixture_shows_no_next_step(fresh_page):
     reveal(page, "#analysis")
     assert page.is_hidden("#next")
     assert calls(page, "api_next_runs") == []
+
+
+# --------------------------------------------------------------------------- following the results
+def test_a_practice_study_follows_its_results_to_a_confirmed_optimum(blank_page):
+    """Curvature at the center calls for axial runs; the response surface, for confirmation runs; they agree."""
+    page = blank_page
+    name_response(page, "Yield", "%", goal="maximize")
+    generate(page, design_type="full_factorial", n_center_points=3)
+    practise_on(page, "optimum")
+    assert called_for(page) == "augment_to_rsm"
+    do_what_is_called_for(page)
+    assert len(run_sheet(page)) == 19
+    assert status(page) == ("8 runs added at the end of the run sheet, their results simulated.", "ok")
+    assert calls(page, "api_add_runs")[-1]["payload"]["kind"] == "recommended"
+    assert called_for(page) == "confirm"
+    assert headers(page, "#next-out .next__called table") == ["Factor", "Setting"]
+    do_what_is_called_for(page)
+    assert len(run_sheet(page)) == 22
+    assert status(page) == (
+        "3 confirmation runs added at the settings the results call for, their results simulated.",
+        "ok",
+    )
+    assert called_for(page) == "stop"
+    assert page.locator("#next-out .next__called .actions button").count() == 0, (
+        "a study that stops has no step to press"
+    )
+
+
+def test_a_run_without_its_result_holds_the_next_step_back(blank_page):
+    page = blank_page
+    name_response(page, "Yield", "%", goal="maximize")
+    generate(page, design_type="full_factorial", n_center_points=0)
+    type_results(page, {i: 50 + i for i in range(7)})
+    reveal(page, "#next")
+    assert called_for(page) is None
+    assert page.text_content("#next-out > p.hint") == "Once every run has its result, the results say what to run next."
+
+
+def test_a_study_in_which_nothing_stands_out_widens_its_ranges_once(blank_page):
+    """Its next study starts with wider ranges; the run sheet made for it says so, and the next step reads it."""
+    page = blank_page
+    set_factors(page, [*FACTORS, {"name": "S", "low": -1, "high": 1}])
+    name_response(page, "Yield", "%", goal="maximize")
+    generate(page, design_type="full_factorial", n_center_points=3)
+    practise_on(page, "nothing")
+    assert called_for(page) == "widen_ranges"
+    do_what_is_called_for(page)
+    assert status(page) == (
+        "A new study, its ranges widened: check they are safe to run, then make its run sheet.",
+        "ok",
+    )
+    assert next((f["low"], f["high"]) for f in factor_table(page)) == ("137.5", "212.5")
+    generate(page)
+    practise_on(page, "nothing")
+    assert calls(page, "api_next_runs")[-1]["payload"]["spec"]["options"]["widened"] is True
 
 
 def test_the_factors_of_the_worked_example_are_the_brief_s(first_paint):
