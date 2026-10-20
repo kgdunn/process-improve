@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pytest
 from pydantic import BaseModel, ConfigDict
+from scipy import stats
 
 # Importing the univariate tools module triggers @tool_spec registration.
 import process_improve.multivariate.tools
@@ -559,6 +560,15 @@ class TestTtestPairedSamples:
         )
         for key in ("differences_mean", "p_value", "z_value", "significant", "interpretation"):
             assert key in result
+
+    def test_differences_std_is_the_standard_deviation_of_the_differences(self) -> None:
+        """It was the standard error of their mean, sqrt(n) too small (#782)."""
+        result = execute_tool_call("ttest_paired_samples", {"group_a": [2, 4, 6, 8], "group_b": [1, 2, 3, 4]})
+        differences = np.array([1.0, 2.0, 3.0, 4.0])
+        assert result["differences_std"] == pytest.approx(differences.std(ddof=1))  # 1.291
+        assert result["std_error_of_mean_difference"] == pytest.approx(differences.std(ddof=1) / 2)
+        assert result["t_value"] == pytest.approx(stats.ttest_1samp(differences, 0).statistic)  # 3.873
+        assert result["z_value"] == result["t_value"]
 
     def test_result_json_serialisable(self) -> None:
         """Verify the result is JSON-serialisable."""

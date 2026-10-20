@@ -36,6 +36,9 @@ from process_improve.experiments._analyses._shared import (
     WHOLE_PLOT_COL,
     _compute_adequate_precision,
     _compute_pred_r_squared,
+    _no_intercept_note,
+    _sums_of_squares,
+    _without_blocks,
 )
 from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
 from process_improve.experiments._analyses.box_cox import _run_box_cox
@@ -677,7 +680,8 @@ def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: Regression
 def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
     """Return the coefficients, or their confidence intervals, on the scale ``coding`` asks for."""
     ols = fit.coefficient_fit()
-    result = _run_coefficients(ols) if analysis == "coefficients" else _run_confidence_intervals(ols, fit.alpha)
+    extract = _run_coefficients if analysis == "coefficients" else _run_confidence_intervals
+    result = extract(ols, fit.alpha)
     for row in result[analysis]:
         row["term"] = _readable(row["term"])
     result["coding"] = "actual" if fit.coding == "actual" else "coded"
@@ -685,7 +689,7 @@ def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
         result["factor_coding"] = coding
     if analysis == "coefficients" and ols is not fit.ols:
         # The equation in the factors' own units, for whoever needs to evaluate it there.
-        result["coefficients_actual"] = _run_coefficients(fit.ols)["coefficients"]
+        result["coefficients_actual"] = _run_coefficients(fit.ols, fit.alpha)["coefficients"]
     return result
 
 
@@ -707,7 +711,7 @@ def _split_plot(fit: _Fit) -> dict[str, Any]:
 def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     """Analyses that differ for a Scheffe mixture model, keyed by analysis type."""
     return {
-        "anova": lambda: run_mixture_anova(fit.ols, fit.factor_cols),
+        "anova": lambda: _noted(run_mixture_anova(fit.ols, fit.factor_cols), _no_intercept_note(fit.ols)),
         "significance": lambda: run_mixture_significance(fit.ols, fit.factor_cols, fit.alpha),
         "effects": lambda: run_mixture_effects(fit.ols, fit.factor_cols),
         "lenth_method": run_mixture_lenth,
@@ -739,7 +743,9 @@ def _handlers(
         return _run_box_cox(raw, fit.response_col, exog=fit.ols.model.exog, alpha=fit.alpha)
 
     handlers: dict[str, Callable[[], dict[str, Any]]] = {
-        "anova": lambda: _run_anova(fit.reduced()[0], labels=fit.reduced()[1], blocks=fit.blocks),
+        "anova": lambda: _noted(
+            _run_anova(fit.reduced()[0], labels=fit.reduced()[1], blocks=fit.blocks), _no_intercept_note(fit.ols)
+        ),
         "effects": lambda: _effects(fit, lenth=False),
         "coefficients": lambda: _coefficients(fit, "coefficients"),
         "significance": lambda: _run_significance(
@@ -844,7 +850,12 @@ def analyze_experiment(  # noqa: PLR0913
         degC and kelvin. A model that coding would change, such as an interaction without
         its main effects, is tested as given. The
         ANOVA and significance list exactly aliased terms once, as their alias chain
-        (``"A:B + C:D"``), as the effects do; the coefficients keep one entry per term. Effects and Lenth's
+        (``"A:B + C:D"``), as the effects do; the coefficients keep one entry per term.
+        A factor nested in another, whose levels each fall in one of that other's, leaves
+        the model matrix short of full rank: the ANOVA then tests each term on the
+        degrees of freedom it adds, gives a term that adds none no test, and says so in
+        ``anova_note``, naming the strata for
+        :func:`~process_improve.experiments.multistratum_anova`. Effects and Lenth's
         method use the factors coded to -1/+1: a numeric factor not already coded is
         mapped from its own minimum and maximum, and a two-level categorical factor
         from its first level to its second (sorted); the mapping is reported under
@@ -853,8 +864,9 @@ def analyze_experiment(  # noqa: PLR0913
         interaction, the coefficient itself for a square such as ``I(A**2)``. The curvature test uses
         pure error from the replicated runs.
 
-        Each of the ``"coefficients"`` carries its ``std_error``, ``t_value``, ``p_value``,
-        ``ci_low`` and ``ci_high``, and its ``standardised_coefficient``: the coefficient
+        Each of the ``"coefficients"`` carries its ``std_error``, ``t_value``, ``p_value``, its
+        interval ``ci_low`` to ``ci_high`` at the ``confidence_level`` of 1 - ``significance_level``,
+        and its ``standardised_coefficient``: the coefficient
         times the standard deviation of its column of the model matrix, over the standard
         deviation of the response (the "beta" coefficient, MYSTAT's STD COEF). It has no
         units, so terms in different units compare; the intercept's is 0. Like the
@@ -868,9 +880,10 @@ def analyze_experiment(  # noqa: PLR0913
         Satterthwaite's denominator degrees of freedom, so a whole-plot term is judged
         against the whole-plot error and a subplot term against the run-to-run error.
         In a balanced design this is the classical split-plot ANOVA. The tests are
-        marginal (Type III); in a named model the categorical factors are sum-coded
-        for them, so a main effect is averaged over the factors it interacts with
-        (write ``C(name, Sum)`` in an explicit formula for the same). The result,
+        marginal (Type III), with every categorical factor coded to sum-to-zero
+        contrasts for them whatever coding the formula gives it, so a main effect is
+        averaged over the factors it interacts with. The coefficients are in the
+        formula's coding; a named model sum-codes its categorical factors. The result,
         under ``"split_plot"``, has the ``variance_components`` (``whole_plot``,
         ``residual`` and their ratio ``eta``, which a split-plot design is built
         for), the ``error_df`` of the two strata, ``coefficients`` and per-term
@@ -1012,6 +1025,19 @@ def analyze_experiment(  # noqa: PLR0913
         - ``log_likelihood``, ``aic`` and ``bic`` - the Gaussian log-likelihood and the criteria
           that count the error variance as a parameter, as R's ``AIC`` does; ``aic_step``,
           n ln(RSS/n) + 2p, as R's ``step`` prints it.
+        - ``ss_total``, ``ss_mean`` and ``ss_total_uncorrected`` - the total sum of squares
+          about the mean, the correction for the mean (n times the mean squared), and the
+          crude total, the sum of the squared responses, which is the other two added.
+        - ``ss_model`` - the model's sum of squares on the basis of ``r_squared`` and
+          ``f_statistic``: about the mean, or about zero for a model whose terms do not span
+          a constant; ``ss_model_uncorrected`` - the sum of the squared fitted values, the
+          model's sum about zero; ``ss_residual`` - the residual sum of squares.
+        - ``coefficient_of_variation`` - 100 times the residual standard deviation over the
+          mean response, Design-Expert's "C.V. %"; ``None`` when the mean is zero.
+        - With blocks in the model, ``ss_blocks`` (the blocks' sum of squares, fitted first)
+          and ``r_squared_without_blocks``, ``r_squared_adj_without_blocks`` and
+          ``r_squared_pred_without_blocks``: the three R-squared values over the total less
+          the blocks' sum of squares, as Design-Expert reports them.
 
         Notes from individual analyses are kept apart, as ``anova_note``,
         ``effects_note``, ``lenth_note``, ``significance_note`` and
@@ -1113,6 +1139,7 @@ def analyze_experiment(  # noqa: PLR0913
         "response_name": reported_response,
         "factor_names": list(factor_cols),
         "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
+        | _without_blocks(ols_result, blocks)
         | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
         | ({"model_note": model_note} if model_note else {}),
     }
@@ -1274,8 +1301,16 @@ def _model_summary(
         "df_model": int(ols_result.df_model),
         "df_residual": int(ols_result.df_resid),
         "mse_residual": float(ols_result.mse_resid),
+        **_sums_of_squares(ols_result),
         **_fit_criteria(ols_result),
     }
+
+
+def _noted(anova: dict[str, Any], note: str | None) -> dict[str, Any]:
+    """Return an ANOVA result with ``note`` added to its ``anova_note``, when there is a note and a table."""
+    if note is None or not anova.get("anova_table"):
+        return anova
+    return anova | {"anova_note": f"{anova['anova_note']} {note}" if anova.get("anova_note") else note}
 
 
 def _fit_criteria(ols_result: RegressionResultsWrapper) -> dict[str, float | None]:

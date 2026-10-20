@@ -32,9 +32,12 @@ The procedure, summarised:
 5. Gate the second-order space with an overall F-test at
    ``alpha_second_overall``.
 6. If the gate passes, build a candidate set of second-order terms subject to
-   the requested heredity rules, then run an exhaustive best-subset search,
-   adding terms until the residual second-order variation is no longer
-   significant at ``alpha_second_subset``.
+   the requested heredity rules, then run a best-subset search, adding terms
+   until the residual second-order variation is no longer significant at
+   ``alpha_second_subset``. The search is exhaustive at every subset size with
+   at most 200,000 subsets; past that it continues by a beam search refined by
+   sequential replacement, so a design with many factors finishes in seconds
+   rather than hours.
 
 References
 ----------
@@ -54,18 +57,28 @@ implementation of that published methodology.
 
 from __future__ import annotations
 
+import heapq
 import itertools
+import math
 import warnings
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
 
 # Quadratic-heredity options.
 _Q_HEREDITY = ("none", "strong")
 # Interaction-heredity options.
 _I_HEREDITY = ("none", "weak", "strong")
+#: Most subsets of one size the search fits one by one (a few seconds of least squares). A 10-factor
+#: design with no heredity has 55 candidates and C(55, 6) = 29 million subsets of six, which is hours.
+_EXHAUSTIVE_SUBSETS = 200_000
+#: How many of the best subsets of one size the search extends to the next, once it is past exhaustive.
+_BEAM = 100
 
 
 @dataclass
@@ -111,6 +124,9 @@ class OmarsResult:
         Human-readable explanation of how ``subset_limit`` was chosen.
     details : dict[str, Any]
         Additional diagnostic values (term ranks, candidate counts, ...).
+        ``details["subset_search"]`` says whether every subset size the search
+        reached was searched exhaustively, or from which size it continued by
+        a beam search refined by sequential replacement.
     """
 
     success: bool = False
@@ -243,6 +259,12 @@ def _full_second_order(coded: np.ndarray, quad_cols: list[int]) -> np.ndarray:
     return full - full.mean(axis=0)
 
 
+def _has_omars_structure(matrix: np.ndarray) -> bool:
+    """Say whether a design (one column per factor) has every part of the structure the staged analysis needs."""
+    coded = _code_design(matrix)
+    return all(_orthogonality(coded, _full_second_order(coded, _quadratic_columns(coded))).values())
+
+
 def _heredity_candidates(  # noqa: PLR0913
     coded: np.ndarray,
     names: list[str],
@@ -329,29 +351,43 @@ def _best_subset_search(  # noqa: PLR0913
     full_so_rank: int,
     limit: int,
     alpha: float,
-) -> tuple[list[str], float]:
-    """Exhaustive best-subset search over the second-order candidates.
+) -> tuple[list[str], float, int]:
+    """Best-subset search over the second-order candidates.
 
-    Grows the subset one term at a time, always keeping the lowest-RSS subset of
-    the current size, and stops once the residual second-order variation is no
-    longer significant at ``alpha`` (or the candidates are exhausted).  Returns
-    the active labels and the p-value of the terminating F-test.
+    Grows the subset one term at a time, keeping the lowest-RSS subset of the
+    current size, and stops once the residual second-order variation is no
+    longer significant at ``alpha`` (or the candidates are exhausted). A size
+    with at most :data:`_EXHAUSTIVE_SUBSETS` subsets is searched exhaustively.
+    A larger size is searched by a beam: every one-term extension of the
+    :data:`_BEAM` best subsets of the size before, the best of which is then
+    refined by :func:`_swap_terms`. Returns the active labels, the p-value of
+    the terminating F-test, and the largest size searched exhaustively.
     """
     from scipy.stats import f as f_dist  # noqa: PLC0415 - local import keeps scipy optional
 
     n_runs, n_candidates = candidate.shape
     intercept = np.ones((n_runs, 1))
+
+    def rss(combo: tuple[int, ...]) -> float:
+        return _residual_ss(np.hstack((intercept, candidate[:, combo])), cy_second)
+
+    beam: list[tuple[float, tuple[int, ...]]] = [(0.0, ())]
     best_combo: tuple[int, ...] = ()
     final_p_value = float("nan")
+    exhaustive_to = 0
 
     for size in range(1, limit + 1):
-        best_rss = np.inf
-        for combo in itertools.combinations(range(n_candidates), size):
-            design = np.hstack((intercept, candidate[:, combo]))
-            rss = _residual_ss(design, cy_second)
-            if rss < best_rss:
-                best_rss = rss
-                best_combo = combo
+        if math.comb(n_candidates, size) <= _EXHAUSTIVE_SUBSETS:
+            exhaustive_to = size
+            subsets: Iterable[tuple[int, ...]] = itertools.combinations(range(n_candidates), size)
+        else:
+            subsets = sorted({tuple(sorted((*s, j))) for _, s in beam for j in range(n_candidates) if j not in s})
+        # Ties go to the subset first in lexicographic order, the one a plain scan would keep.
+        beam = heapq.nsmallest(_BEAM, ((rss(combo), combo) for combo in subsets))
+        best_rss, best_combo = beam[0]
+        if size > exhaustive_to:
+            best_rss, best_combo = _swap_terms(rss, n_candidates, best_rss, best_combo)
+            beam.insert(0, (best_rss, best_combo))
 
         df_left = full_so_rank - size
         if df_left <= 0:
@@ -363,7 +399,23 @@ def _best_subset_search(  # noqa: PLR0913
             break
 
     active = [labels[i] for i in best_combo]
-    return active, final_p_value
+    return active, final_p_value, exhaustive_to
+
+
+def _swap_terms(
+    rss: Callable[[tuple[int, ...]], float], n_candidates: int, best_rss: float, best: tuple[int, ...]
+) -> tuple[float, tuple[int, ...]]:
+    """Refine a subset by sequential replacement, and return its RSS and the subset.
+
+    Makes the best single swap of a term in the subset for one outside it, until
+    no swap lowers the RSS (Miller, *Subset Selection in Regression*).
+    """
+    while True:
+        swaps = [(*best[:i], j, *best[i + 1 :]) for i in range(len(best)) for j in range(n_candidates) if j not in best]
+        trial_rss, trial = min(((rss(t), tuple(sorted(t))) for t in swaps), default=(np.inf, best))
+        if not trial_rss < best_rss * (1 - 1e-12):  # only a strict drop counts, so ties cannot cycle
+            return best_rss, best
+        best_rss, best = trial_rss, trial
 
 
 def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
@@ -600,7 +652,7 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
     if limit <= 0:
         return result
 
-    active, final_p = _best_subset_search(
+    active, final_p, exhaustive_to = _best_subset_search(
         candidate,
         labels,
         cy_second,
@@ -609,6 +661,12 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
         full_so_rank,
         limit,
         alpha_second_subset,
+    )
+    result.details["subset_search"] = (
+        "exhaustive"
+        if exhaustive_to >= len(active)
+        else f"exhaustive up to {exhaustive_to} terms, then a beam search refined by sequential replacement (too "
+        "many subsets to fit each)"
     )
     result.final_p_value = round(final_p, 6) if np.isfinite(final_p) else float("nan")
     result.active_interactions = [lbl for lbl in active if ":" in lbl]

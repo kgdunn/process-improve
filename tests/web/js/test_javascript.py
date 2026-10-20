@@ -27,6 +27,7 @@ SUITES = (
     "campaign.test.mjs",
     "picture.test.mjs",
     "catalog.test.mjs",
+    "feedback.test.mjs",
 )
 
 #: The first Node.js that reads ``web/*.js`` as ES modules without being told.
