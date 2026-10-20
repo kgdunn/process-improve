@@ -21,6 +21,7 @@ from process_improve.experiments.least_squares_means import Comparisons, least_s
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.multistratum import multistratum_anova
+from process_improve.experiments.next_step import recommend_next_step
 from process_improve.experiments.omars import OmarsResult, analyze_omars
 from process_improve.experiments.omars_trade_off import (
     OmarsTradeOffTableEntry,
@@ -40,11 +41,13 @@ from process_improve.experiments.random_effects import (
 )
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.run_order import run_order_trends, time_trends, trend_robust_run_order
+from process_improve.experiments.run_sheet import read_run_sheet, run_sheet
 from process_improve.experiments.separating import (
     NotSeparableError,
     constraint_through_cuts,
     separating_constraint,
 )
+from process_improve.experiments.simulate import simulate_design_performance
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
@@ -116,10 +119,14 @@ __all__ = [
     "optimize_responses",
     "popcorn",
     "predict",
+    "read_run_sheet",
+    "recommend_next_step",
     "recommend_strategy",
     "rename_factors",
     "run_order_trends",
+    "run_sheet",
     "separating_constraint",
+    "simulate_design_performance",
     "summary",
     "supplement",
     "time_trends",

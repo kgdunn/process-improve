@@ -44,7 +44,9 @@ from pydantic import BaseModel, ValidationError
 from process_improve.config import settings
 
 
-def _default_mp_context(platform: str = sys.platform) -> multiprocessing.context.BaseContext | None:
+def _default_mp_context(
+    platform: str = sys.platform, free_threaded: bool | None = None
+) -> multiprocessing.context.BaseContext | None:
     """Return the multiprocessing context the worker pool uses on ``platform``.
 
     Prefer ``fork`` on Linux: the worker inherits the parent's imported
@@ -55,11 +57,19 @@ def _default_mp_context(platform: str = sys.platform) -> multiprocessing.context
     does not support fork at all. On those platforms, and wherever ``fork``
     is unavailable, return None: the pool then uses the platform default
     (spawn).
+
+    A free-threaded build (``free_threaded``, by default whether the GIL is
+    off) uses ``forkserver`` instead. Its threads run truly in parallel, so a
+    fork from a thread while another holds a lock leaves that lock held in the
+    child for ever: concurrent tool calls then deadlock and time out.
+    ``forkserver`` forks each worker from a single-threaded server process.
     """
     if not platform.startswith("linux"):
         return None
+    if free_threaded is None:
+        free_threaded = not getattr(sys, "_is_gil_enabled", lambda: True)()
     try:
-        return multiprocessing.get_context("fork")
+        return multiprocessing.get_context("forkserver" if free_threaded else "fork")
     except ValueError:
         return None
 

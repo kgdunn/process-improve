@@ -444,6 +444,26 @@ READS: dict[str, list[str]] = {
     "next runs outside the limits": [
         "notes[]: str",
     ],
+    "next runs called for": [
+        "recommendation.action: str",
+        "recommendation.headline: str",
+        "recommendation.reasons[]: str",
+        "recommendation.after: str",
+        "recommendation.judged_by: str",
+        "recommendation.does: str",
+        "recommendation.label: str",
+        "recommendation.ranges[].low: number",
+        "recommendation.ranges[].high: number",
+        "recommendation.outside_limits: bool",
+    ],
+    "next runs confirmed at": [
+        "recommendation.settings.T: number",
+        "recommendation.settings.P: number",
+        "recommendation.settings.F: number",
+    ],
+    "next runs waiting": [
+        "waiting: str",
+    ],
     "runs added": [
         "added: int",
         "n_runs: int",
@@ -585,6 +605,9 @@ ENTRY_POINTS = {
     "design with limits": "api_make_design",
     "next runs": "api_next_runs",
     "next runs outside the limits": "api_next_runs",
+    "next runs called for": "api_next_runs",
+    "next runs confirmed at": "api_next_runs",
+    "next runs waiting": "api_next_runs",
     "runs added": "api_add_runs",
     "limits": "api_limits",
     "limits with a problem": "api_limits",
@@ -717,6 +740,16 @@ def next_steps(api) -> dict[str, Callable[[], dict]]:
     }
 
 
+def aimed_at(api, worked_example: dict[str, Any], target: float) -> dict:
+    """Return a face-centred CCD of the worked example's process, with results, aiming at a target in its ranges."""
+    demo = worked_example["demo"]
+    info = {**demo["design"]["response_info"], "goal": "target", "target": target}
+    spec = {**demo["design"], "response_info": info, "design_type": "ccd", "alpha": "face_centered"}
+    made = held_of(api.ok("api_make_design", {**spec, "n_center_points": 4}))
+    drawn = {"scenario": demo["scenario"], "sigma": demo["sigma"], "seed": demo["seed"]}
+    return {**made, "responses": api.ok("api_simulate", {**made, **drawn})["responses"]}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -800,6 +833,9 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "slow candidates": slow,
         "design with limits": lambda: {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS},
         **next_steps(api),
+        "next runs called for": lambda: analysed,
+        "next runs confirmed at": lambda: aimed_at(api, worked_example, 60),
+        "next runs waiting": lambda: {**analysed, "responses": [None, *analysed["responses"][1:]]},
         "limits": lambda: {"factors": FACTORS, "constraints": LIMITS},
         "limits with a problem": lambda: {"factors": FACTORS, "constraints": [{"expression": "T + Z <= 3"}]},
         "limits proposed": lambda: {
