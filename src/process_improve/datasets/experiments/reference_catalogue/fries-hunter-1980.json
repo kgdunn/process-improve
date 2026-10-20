@@ -1,0 +1,1617 @@
+{
+ "schema": 1,
+ "about": ["Part of the reference catalogue: designs from one published source, for testing that software reproduces them.", "Fries and Hunter (1980) define the minimum-aberration criterion for 2^(k-p) fractional factorials: of the", "designs of maximum resolution, the one with the fewest words of minimum length in its defining relation. designs:", "Table 1's three 2^(7-2) designs of resolution IV, with their generators, defining relations, word length patterns", "and aliased two-factor interactions, and the worked example of Section 4; and Table 2's maximum resolution R_max", "for 48 choices of k and p. Each expected item has its printed text, where it is printed (a page and a quotation)", "and a check, or manual: the reason it is not recomputed. not_captured lists what was left out."],
+ "source": {
+  "key": "fries-hunter-1980",
+  "authors": ["Arthur Fries", "William G. Hunter"],
+  "title": "Minimum Aberration 2^(k-p) Designs",
+  "work": "Technometrics",
+  "volume": "22",
+  "issue": "4",
+  "pages": "601-608",
+  "year": 1980,
+  "publisher": "American Statistical Association and the American Society for Quality Control",
+  "doi": "10.1080/00401706.1980.10486210",
+  "url": "https://doi.org/10.1080/00401706.1980.10486210",
+  "cite": "Fries and Hunter (1980), \"Minimum Aberration 2^(k-p) Designs\", Technometrics 22(4), 601-608",
+  "read": "2026-10-19, from the article's PDF (a cover page and pp. 601-608), supplied by the user; every number copied by hand from the page images, Tables 1 and 2 at 300 dpi",
+  "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [],
+ "designs": [
+  {
+   "name": "fries-hunter-2-7-2-three-choices",
+   "title": "Three 2^(7-2) designs of resolution IV compared by aberration: generators, defining relations, word length patterns and aliased two-factor interactions",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "2. An Example; 4. Bounds for Maximum Resolution",
+    "pages": "601-604",
+    "tables": ["Table 1"],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(7-2) fractional factorial, resolution IV",
+    "details": "designs (a), (b) and (c) of Table 1, factors 1 to 7, 32 runs each",
+    "n_runs": 32,
+    "treatment_factors": 7
+   },
+   "notes": "The paper writes factors as numerals; the checks name them '1' to '7'. Design (c), the minimum aberration design, is the one Section 4's algorithm arrives at. Montgomery (2013, section 8.4.1) retells this comparison (montgomery-2-7-2-choices).",
+   "expected": [
+    {
+     "what": "resolution",
+     "term": "design (a)",
+     "value": "IV",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "TABLE 1-Three choices for a 2^(7-2)_IV fractional factorial design for seven variables 1, 2, 3, 4, 5, 6, 7 in 32 runs."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "design (a)",
+     "value": "6=123",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (a) Generators 6=123,7=234"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "6=123"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "design (a)",
+     "value": "7=234",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (a) Generators 6=123,7=234"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "7=234"
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": "design (a)",
+     "value": "I=1236=2347=1467",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (a) Defining relation I=1236=2347=1467"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "I = 1236 = 2347 = 1467"
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (a): 12",
+     "value": "12+36",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (a) 12+36"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "36",
+      "term": "12",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (a): 13",
+     "value": "13+26",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (a) 13+26"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "26",
+      "term": "13",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (a): 14",
+     "value": "14+67",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (a) 14+67"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "67",
+      "term": "14",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (a): 17",
+     "value": "17+46",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (a) 17+46"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "46",
+      "term": "17",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (a): 24",
+     "value": "24+37",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (a) 24+37"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "37",
+      "term": "24",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (a): 27",
+     "value": "27+34",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (a) 27+34"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "34",
+      "term": "27",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (a): 16",
+     "value": "16+23+47",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (a) 16+23+47"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "23, 47",
+      "term": "16",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "word length pattern",
+     "term": "design (a)",
+     "value": "{4, 4, 4}",
+     "where": {
+      "page": 602,
+      "source_kind": "prose",
+      "quote": "The three word lengths in the defining relation for design (a) are all four, that is, the word length pattern is {4, 4, 4}. For design (b) it is {4, 4, 6}, and for design (c) it is {4, 5, 5}."
+     },
+     "check": {
+      "kind": "word_lengths",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=234"],
+      "printed": "4, 4, 4"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "design (b)",
+     "value": "IV",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "TABLE 1-Three choices for a 2^(7-2)_IV fractional factorial design for seven variables 1, 2, 3, 4, 5, 6, 7 in 32 runs."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "design (b)",
+     "value": "6=123",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (b) Generators 6=123,7=145"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "6=123"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "design (b)",
+     "value": "7=145",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (b) Generators 6=123,7=145"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "7=145"
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": "design (b)",
+     "value": "I=1236=1457=234567",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (b) Defining relation I=1236=1457=234567"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "I = 1236 = 1457 = 234567"
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (b): 12",
+     "value": "12+36",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (b) 12+36"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "36",
+      "term": "12",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (b): 13",
+     "value": "13+26",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (b) 13+26"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "26",
+      "term": "13",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (b): 14",
+     "value": "14+57",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (b) 14+57"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "57",
+      "term": "14",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (b): 15",
+     "value": "15+47",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (b) 15+47"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "47",
+      "term": "15",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (b): 16",
+     "value": "16+23",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (b) 16+23"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "23",
+      "term": "16",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (b): 17",
+     "value": "17+45",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (b) 17+45"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "45",
+      "term": "17",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "word length pattern",
+     "term": "design (b)",
+     "value": "{4, 4, 6}",
+     "where": {
+      "page": 602,
+      "source_kind": "prose",
+      "quote": "The three word lengths in the defining relation for design (a) are all four, that is, the word length pattern is {4, 4, 4}. For design (b) it is {4, 4, 6}, and for design (c) it is {4, 5, 5}."
+     },
+     "check": {
+      "kind": "word_lengths",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=123", "7=145"],
+      "printed": "4, 4, 6"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "design (c)",
+     "value": "IV",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "TABLE 1-Three choices for a 2^(7-2)_IV fractional factorial design for seven variables 1, 2, 3, 4, 5, 6, 7 in 32 runs."
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "design (c)",
+     "value": "6=1234",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (c) Generators 6=1234,7=1235"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "6=1234"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "design (c)",
+     "value": "7=1235",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (c) Generators 6=1234,7=1235"
+     },
+     "check": {
+      "kind": "generator",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "7=1235"
+     }
+    },
+    {
+     "what": "defining relation",
+     "term": "design (c)",
+     "value": "I=12346=12357=4567",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Design (c) Defining relation I=12346=12357=4567"
+     },
+     "check": {
+      "kind": "defining_relation",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "I = 12346 = 12357 = 4567"
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (c): 45",
+     "value": "45+67",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (c) 45+67"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "67",
+      "term": "45",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (c): 46",
+     "value": "46+57",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (c) 46+57"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "57",
+      "term": "46",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "aliased two-factor interactions",
+     "term": "design (c): 47",
+     "value": "47+56",
+     "analysis": "every two-factor interaction aliased with it, three-factor and higher interactions taken as negligible",
+     "where": {
+      "page": 602,
+      "source_kind": "table",
+      "quote": "Strings of aliased two-factor interactions ... (c) 47+56"
+     },
+     "check": {
+      "kind": "aliases",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "56",
+      "term": "47",
+      "up_to": 2
+     }
+    },
+    {
+     "what": "word length pattern",
+     "term": "design (c)",
+     "value": "{4, 5, 5}",
+     "where": {
+      "page": 602,
+      "source_kind": "prose",
+      "quote": "The three word lengths in the defining relation for design (a) are all four, that is, the word length pattern is {4, 4, 4}. For design (b) it is {4, 4, 6}, and for design (c) it is {4, 5, 5}."
+     },
+     "check": {
+      "kind": "word_lengths",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "4, 5, 5"
+     }
+    },
+    {
+     "what": "minimum aberration",
+     "term": "design (c)",
+     "value": "design (c)",
+     "analysis": "design (c) against the library's minimum-aberration 32-run fraction in seven factors: the same word lengths",
+     "where": {
+      "page": 602,
+      "source_kind": "prose",
+      "quote": "Thus, (c) is the design which minimizes the number of words in the defining relation that are of minimum length. We call it a minimum aberration design."
+     },
+     "check": {
+      "kind": "minimum_aberration",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "design (c)"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(7-2)",
+     "value": "IV",
+     "analysis": "the resolution of the library's minimum-aberration 32-run fraction in seven factors",
+     "where": {
+      "page": 602,
+      "source_kind": "prose",
+      "quote": "It can be shown that R = IV is the maximum attainable resolution for a 2^(7-2) design"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "n_runs": 32,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "6 = 12 and 7 = 13",
+     "value": "III",
+     "where": {
+      "page": 601,
+      "source_kind": "prose",
+      "quote": "a 2^(7-2) design of resolution III (for example with generating relations 6 = 12 and 7 = 13)"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=12", "7=13"],
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "B for k = 7, p = 2",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 32-run fraction in seven factors",
+     "where": {
+      "page": 604,
+      "source_kind": "prose",
+      "quote": "(1) gives B = R_max = 4 and (B1) yields Σw = 14"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "n_runs": 32,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "sum of the word lengths",
+     "term": "k = 7, p = 2",
+     "value": "14",
+     "where": {
+      "page": 604,
+      "source_kind": "prose",
+      "quote": "(1) gives B = R_max = 4 and (B1) yields Σw = 14"
+     },
+     "check": {
+      "manual": "equation (B1), 2^(p-1) k: the word lengths of every 2^(7-2) in which all seven factors appear add to 14, as each of Table 1's patterns does (checked above)"
+     }
+    },
+    {
+     "what": "word length patterns",
+     "term": "satisfying (B1) and (B2)",
+     "value": "{4, 4, 6} and {4, 5, 5}",
+     "where": {
+      "page": 604,
+      "source_kind": "prose",
+      "quote": "The only word length patterns satisfying both of these conditions are {4, 4, 6} and {4, 5, 5}."
+     },
+     "check": {
+      "manual": "a step of the paper's algorithm, which the library does not run; designs (b) and (c) of Table 1 have these patterns (checked above)"
+     }
+    },
+    {
+     "what": "sums of the t's",
+     "term": "Σt and Σt^2",
+     "value": "Σt = 7 and Σt^2 = 17",
+     "where": {
+      "page": 604,
+      "source_kind": "prose",
+      "quote": "From (B3) and (B5) we calculate Σt = 7 and Σt^2 = 17"
+     },
+     "check": {
+      "manual": "a step of the paper's algorithm: the numbers of letters in the cells of the generators, which the library does not compute"
+     }
+    },
+    {
+     "what": "word lengths",
+     "term": "w(1), w(2) and w(12)",
+     "value": "w(1) = 5, w(2) = 5, w(12) = 4",
+     "analysis": "the generators W(1) = 12346 and W(2) = 12357 that the example arrives at, design (c)",
+     "where": {
+      "page": 604,
+      "source_kind": "prose",
+      "quote": "the generators have lengths w(1) = t(1) + t(12) = 5, w(2) = t(2) + t(12) = 5, and their product has length w(12) = t(1) + t(2) = 4"
+     },
+     "check": {
+      "kind": "word_lengths",
+      "k": 7,
+      "factors": ["1", "2", "3", "4", "5", "6", "7"],
+      "generators": ["6=1234", "7=1235"],
+      "printed": "5, 5, 4"
+     }
+    },
+    {
+     "what": "generators",
+     "term": "W(1) and W(2)",
+     "value": "W(1) = 12346 and W(2) = 12357",
+     "where": {
+      "page": 604,
+      "source_kind": "prose",
+      "quote": "The generators, up to a relabeling of factors, are W(1) = 12346 and W(2) = 12357."
+     },
+     "check": [
+      {
+       "kind": "generator",
+       "k": 7,
+       "factors": ["1", "2", "3", "4", "5", "6", "7"],
+       "generators": ["6=1234", "7=1235"],
+       "printed": "6=1234"
+      },
+      {
+       "kind": "generator",
+       "k": 7,
+       "factors": ["1", "2", "3", "4", "5", "6", "7"],
+       "generators": ["6=1234", "7=1235"],
+       "printed": "7=1235"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "fries-hunter-table-2-maximum-resolution",
+   "title": "The maximum resolution R_max of a 2^(k-p) design for k = 5 to 14 factors and p = 2 to 10 generators",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "4. Bounds for Maximum Resolution",
+    "pages": "604-605",
+    "tables": ["Table 2"],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(k-p) fractional factorials",
+    "details": "48 choices of k and p, 8 to 4096 runs",
+    "n_runs": null,
+    "treatment_factors": null
+   },
+   "notes": "An asterisk marks a row whose bound (3) exceeds R_max. 42 of the 48 rows hold; six do not, each with its reason. A 2^(k-p) design of resolution R is a binary linear [k, p] code of minimum distance R (its words are the defining relation's), which is how the search reaching each R_max is set up: the base factors are interchangeable, so one generator's letters can be fixed.",
+   "expected": [
+    {
+     "what": "maximum resolution",
+     "term": "2^(5-2), 8 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 8-run fraction in 5 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "5 2 3 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 5,
+      "n_runs": 8,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(6-3), 8 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 8-run fraction in 6 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "6 3 3 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "n_runs": 8,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(6-2), 16 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 6 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "6 2 4 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 6,
+      "n_runs": 16,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(7-4), 8 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 8-run fraction in 7 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "7 4 3 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "n_runs": 8,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(7-3), 16 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 7 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "7 3 4 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "n_runs": 16,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(7-2), 32 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 32-run fraction in 7 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "7 2 4 5 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 7,
+      "n_runs": 32,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(8-4), 16 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 8 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "8 4 4 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 8,
+      "n_runs": 16,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(8-3), 32 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 32-run fraction in 8 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "8 3 4 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 8,
+      "n_runs": 32,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(8-2), 64 runs",
+     "value": "5",
+     "analysis": "the resolution of the library's minimum-aberration 64-run fraction in 8 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "8 2 5 5 5 5"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 8,
+      "n_runs": 64,
+      "printed": "V"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(9-5), 16 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 9 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "9 5 4 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 9,
+      "n_runs": 16,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(9-4), 32 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 32-run fraction in 9 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "9 4 4 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 9,
+      "n_runs": 32,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(9-3), 64 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 64-run fraction in 9 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "9 3 4 5 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 9,
+      "n_runs": 64,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(9-2), 128 runs",
+     "value": "6",
+     "analysis": "the resolution of the library's minimum-aberration 128-run fraction in 9 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "9 2 6 6 6 6"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 9,
+      "n_runs": 128,
+      "printed": "VI"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(10-6), 16 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 10 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "10 6 4 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 10,
+      "n_runs": 16,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(10-5), 32 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(10-5) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's minimum-aberration search agrees, in 4 s, too long for every test run",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "10 5 4 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 10,
+      "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD", "K=ABE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(10-4), 64 runs",
+     "value": "4*",
+     "analysis": "the library's resolution of a 2^(10-4) that reaches IV, its generators found by a search over generator sets; none of resolution V exists, by an exhaustive search over every set of 4 generators. The library's minimum-aberration search agrees, in 16 s, too long for every test run",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "10 4 5 5 5 4*"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 10,
+      "generators": ["G=ABC", "H=ABD", "J=ACD", "K=BCD"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(10-3), 128 runs",
+     "value": "5",
+     "analysis": "the library's resolution of a 2^(10-3) that reaches V, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's minimum-aberration search agrees, in 7 s, too long for every test run",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "10 3 5 5 5 5"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 10,
+      "generators": ["H=ABCD", "J=ABEF", "K=ACEG"],
+      "printed": "V"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(10-2), 256 runs",
+     "value": "6",
+     "analysis": "the resolution of the library's minimum-aberration 256-run fraction in 10 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "10 2 6 6 6 6"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 10,
+      "n_runs": 256,
+      "printed": "VI"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(11-7), 16 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 11 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "11 7 5 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 11,
+      "n_runs": 16,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(11-6), 32 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(11-6) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's minimum-aberration search agrees, in 32 s, too long for every test run",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "11 6 5 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 11,
+      "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD", "K=ABE", "L=ACE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(11-5), 64 runs",
+     "value": "4",
+     "analysis": "the resolution of the library's minimum-aberration 64-run fraction in 11 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "11 5 5 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 11,
+      "n_runs": 64,
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(11-4), 128 runs",
+     "value": "5",
+     "analysis": "the resolution of the library's minimum-aberration 128-run fraction in 11 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "11 4 5 6 5 5"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 11,
+      "n_runs": 128,
+      "printed": "V"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(11-3), 256 runs",
+     "value": "6",
+     "analysis": "the resolution of the library's minimum-aberration 256-run fraction in 11 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "11 3 6 7 6 6"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 11,
+      "n_runs": 256,
+      "printed": "VI"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(11-2), 512 runs",
+     "value": "7",
+     "analysis": "the library's resolution of a 2^(11-2) that reaches VII, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's minimum-aberration search agrees, in 2 s, too long for every test run",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "11 2 7 9 7 7"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 11,
+      "generators": ["K=ABCDEF", "L=ABCGHJ"],
+      "printed": "VII"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(12-8), 16 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 12 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "12 8 5 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 12,
+      "n_runs": 16,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(12-7), 32 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(12-7) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 12 factors in 32 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "12 7 5 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 12,
+      "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD", "K=ABE", "L=ACE", "M=BCE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(12-6), 64 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(12-6) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 12 factors in 64 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "12 6 5 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 12,
+      "generators": ["G=ABC", "H=ABD", "J=ACD", "K=BCD", "L=ABE", "M=ACE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(12-5), 128 runs",
+     "value": "5",
+     "analysis": "the library's resolution of a 2^(12-5) that reaches IV, its generators found by a search over generator sets; none of resolution V exists, by an exhaustive search over every set of 5 generators. The library's own minimum-aberration search does not reach 12 factors in 128 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "12 5 5 5 5 5"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 12,
+      "generators": ["H=ABC", "J=ABD", "K=ACD", "L=BCD", "M=ABE"],
+      "printed": "V",
+      "disagreement": "no 2^(12-5) reaches resolution V: an exhaustive search over every set of five generators (the base factors being interchangeable) finds none, and the binary [12, 5] codes have minimum distance at most 4. R_max is 4, which the design checked here reaches. The printed 5 is the paper's bound (3), which no design attains here, so the row should carry the asterisk"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(12-4), 256 runs",
+     "value": "6",
+     "analysis": "the library's resolution of a 2^(12-4) that reaches VI, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 12 factors in 256 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "12 4 6 6 6 6"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 12,
+      "generators": ["J=ABCDE", "K=ABCFG", "L=ABDFH", "M=ACEGH"],
+      "printed": "VI"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(12-3), 512 runs",
+     "value": "6",
+     "analysis": "the library's resolution of a 2^(12-3) that reaches VI, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 12 factors in 512 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "12 3 6 8 6 6"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 12,
+      "generators": ["K=ABCDE", "L=ABCFG", "M=ABDFH"],
+      "printed": "VI"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(12-2), 1024 runs",
+     "value": "8",
+     "analysis": "the library's resolution of a 2^(12-2) that reaches VIII, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 12 factors in 1024 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "12 2 8 9 8 8"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 12,
+      "generators": ["L=ABCDEFG", "M=ABCDHJK"],
+      "printed": "VIII"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-9), 16 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 13 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 9 6 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "n_runs": 16,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-8), 32 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(13-8) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 13 factors in 32 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 8 6 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD", "K=ABE", "L=ACE", "M=BCE", "N=ADE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-7), 64 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(13-7) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 13 factors in 64 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 7 6 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "generators": ["G=ABC", "H=ABD", "J=ACD", "K=BCD", "L=ABE", "M=ACE", "N=BCE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-6), 128 runs",
+     "value": "4*",
+     "analysis": "the library's resolution of a 2^(13-6) that reaches IV, its generators found by a search over generator sets; none of resolution V exists, by an exhaustive search over every set of 6 generators. The library's own minimum-aberration search does not reach 13 factors in 128 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 6 6 5 5 4*"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "generators": ["H=ABC", "J=ABD", "K=ACD", "L=BCD", "M=ABE", "N=ACE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-5), 256 runs",
+     "value": "4*",
+     "analysis": "the library's resolution of a 2^(13-5) that reaches V, its generators found by a search over generator sets; none of resolution VI exists, by an exhaustive search over every set of 5 generators. The library's own minimum-aberration search does not reach 13 factors in 256 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 5 6 6 6 4*"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "generators": ["J=ABCD", "K=ABEF", "L=ACEG", "M=BDFG", "N=BCEH"],
+      "printed": "IV",
+      "disagreement": "a 2^(13-5) of resolution V exists (these generators; none reaches VI), so R_max is 5. The printed 4 also contradicts the table's own row for 2^(14-6), R_max = 5 in the same 256 runs: removing a factor from that design leaves a 2^(13-5) of at least resolution V"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-4), 512 runs",
+     "value": "6",
+     "analysis": "the library's resolution of a 2^(13-4) that reaches VI, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 13 factors in 512 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 4 6 7 6 6"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "generators": ["K=ABCDE", "L=ABCFG", "M=ABDFH", "N=ACEGH"],
+      "printed": "VI"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-3), 1024 runs",
+     "value": "6",
+     "analysis": "the library's resolution of a 2^(13-3) that reaches VII, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 13 factors in 1024 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 3 6 8 6 6"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "generators": ["L=ABCDEF", "M=ABCGHJ", "N=ADEGHK"],
+      "printed": "VI",
+      "disagreement": "a 2^(13-3) of resolution VII exists (these generators), so R_max is 7. The paper's own equation (1) gives 7 here (13 = 1 x 7 + 6, so 4 x 1 + [6/2]), where the table prints 6 for bound (1) and bound (3) alike"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(13-2), 2048 runs",
+     "value": "8",
+     "analysis": "the library's resolution of a 2^(13-2) that reaches VIII, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 13 factors in 2048 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "13 2 8 9 8 8"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 13,
+      "generators": ["M=ABCDEFG", "N=ABCDHJK"],
+      "printed": "VIII"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-10), 16 runs",
+     "value": "3",
+     "analysis": "the resolution of the library's minimum-aberration 16-run fraction in 14 factors, every generator set scored",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 10 6 3 3 3"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "n_runs": 16,
+      "printed": "III"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-9), 32 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(14-9) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 14 factors in 32 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 9 6 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD", "K=ABE", "L=ACE", "M=BCE", "N=ADE", "O=BDE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-8), 64 runs",
+     "value": "4",
+     "analysis": "the library's resolution of a 2^(14-8) that reaches IV, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 14 factors in 64 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 8 6 4 4 4"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["G=ABC", "H=ABD", "J=ACD", "K=BCD", "L=ABE", "M=ACE", "N=BCE", "O=ADE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-7), 128 runs",
+     "value": "4*",
+     "analysis": "the library's resolution of a 2^(14-7) that reaches IV, its generators found by a search over generator sets; none of resolution V exists, by an exhaustive search over every set of 7 generators. The library's own minimum-aberration search does not reach 14 factors in 128 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 7 6 5 5 4*"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["H=ABC", "J=ABD", "K=ACD", "L=BCD", "M=ABE", "N=ACE", "O=BCE"],
+      "printed": "IV"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-6), 256 runs",
+     "value": "5*",
+     "analysis": "the library's resolution of a 2^(14-6) that reaches V, its generators found by a search over generator sets; none of resolution VI exists, by an exhaustive search over every set of 6 generators. The library's own minimum-aberration search does not reach 14 factors in 256 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 6 6 6 6 5*"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["J=ABCD", "K=ABEF", "L=ACEG", "M=BDFG", "N=BCEH", "O=ABDFH"],
+      "printed": "V"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-5), 512 runs",
+     "value": "5*",
+     "analysis": "the library's resolution of a 2^(14-5) that reaches VI, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 14 factors in 512 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 5 6 7 6 5*"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["K=ABCDE", "L=ABCFG", "M=ABDFH", "N=ACEGH", "O=ACDFJ"],
+      "printed": "V",
+      "disagreement": "a 2^(14-5) of resolution VI exists (these generators), so R_max is 6 and equals the bound (3) printed beside it; the asterisk, saying the bound is not attained, does not hold"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-4), 1024 runs",
+     "value": "6*",
+     "analysis": "the library's resolution of a 2^(14-4) that reaches VII, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 14 factors in 1024 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 4 7 8 7 6*"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["L=ABCDEF", "M=ABCGHJ", "N=ADEGHK", "O=BDFGJK"],
+      "printed": "VI",
+      "disagreement": "a 2^(14-4) of resolution VII exists (these generators), so R_max is 7 and equals the bound (3) printed beside it; the asterisk, saying the bound is not attained, does not hold"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-3), 2048 runs",
+     "value": "7",
+     "analysis": "the library's resolution of a 2^(14-3) that reaches VIII, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 14 factors in 2048 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 3 7 10 7 7"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["M=ABCDEFG", "N=ABCDHJK", "O=ABEFHJL"],
+      "printed": "VII",
+      "disagreement": "a 2^(14-3) of resolution VIII exists: two factors in each of the seven cells of three generators, every word of length 8. R_max is 8, as the paper's own equation (1) gives (14 = 2 x 7, so 4 x 2), where the table prints 7 for bound (1), bound (3) and R_max alike"
+     }
+    },
+    {
+     "what": "maximum resolution",
+     "term": "2^(14-2), 4096 runs",
+     "value": "9",
+     "analysis": "the library's resolution of a 2^(14-2) that reaches IX, its generators found by a search over generator sets; no design does better, as the paper's equations (1) and (2) bound it there. The library's own minimum-aberration search does not reach 14 factors in 4096 runs within its limit",
+     "where": {
+      "page": 605,
+      "source_kind": "table",
+      "quote": "14 2 9 11 9 9"
+     },
+     "check": {
+      "kind": "resolution",
+      "k": 14,
+      "generators": ["N=ABCDEFGH", "O=ABCDJKLM"],
+      "printed": "IX"
+     }
+    }
+   ]
+  }
+ ],
+ "not_captured": ["Table 2's three bound columns (144 numbers): equations (1), (2) and (3), upper bounds the library does not implement. Recomputed from the equations as printed, 134 agree and 10 do not: 2^(8-2) bound (2) 5 (equations give 6); 2^(10-3) bound (2) 5 (equations give 6); 2^(10-2) bound (2) 6 (equations give 7); 2^(11-2) bound (2) 9 (equations give 8); 2^(13-3) bound (1) 6 (equations give 7); 2^(13-3) bound (3) 6 (equations give 7); 2^(13-2) bound (2) 9 (equations give 10); 2^(14-3) bound (1) 7 (equations give 8); 2^(14-3) bound (2) 10 (equations give 9); 2^(14-3) bound (3) 7 (equations give 8). No other reading of equation (2) (the four variants of its indicator tried) matches more of the column.", "Equations (1), (2) and (3), (B1) to (B5) and (C1), and the theorems of Appendices A to C: results stated as formulas and proofs.", "Section 4: Robillard's R_max = [2k/3] for p = 2 and Fujii's bounds, which equation (1) assembles; the bound for p = 1, R_max = k.", "Figure 1: the flowchart of the algorithm. Figure 2: an illustration of the t's, for generators W(1) = 1234, W(2) = 3456 and W(3) = 45.", "Section 1: the definitions of resolution and aberration; Section 3: the direct approaches to finding a minimum aberration design."]
+}
