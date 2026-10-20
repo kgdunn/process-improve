@@ -608,15 +608,35 @@ def _warn_if_no_error_df(
     )
 
 
+def _alpha_inside_limits(design_type: str, alpha: str | float | None, factors: list[Factor]) -> str | float | None:
+    """Return a CCD's axial distance: face-centred when none is given and a factor's range is a hard limit.
+
+    The default axial distance steps past the ranges, which a hard limit forbids.
+    """
+    if design_type == "ccd" and alpha is None and any(f.hard_limits for f in factors):
+        return "face_centered"
+    return alpha
+
+
+def _note_alpha_chosen(meta: dict, given: str | float | None, used: str | float | None) -> None:
+    """Record why the axial distance is not the one asked for, when hard limits chose it."""
+    if used != given:
+        meta["alpha_reason"] = (
+            "face-centred: a factor's range is a hard limit, and axial runs further out would pass it"
+        )
+
+
 def _note_runs_beyond_ranges(design_type: str, coded_matrix: np.ndarray, factors: list[Factor], meta: dict) -> None:
-    """Record, and warn about, runs that set a continuous factor beyond its low or high value.
+    """Record, and warn about, runs that set a continuous factor beyond its low or high value; refuse a hard limit.
 
     A CCD with ``alpha`` above 1 (rotatable, orthogonal or circumscribed) puts its axial
     runs at plus or minus ``alpha`` in coded units, which is past the ranges the
     factors were given. That is intended when the ranges are a convenient scale, and
     impossible when they are limits: a negative concentration, a temperature the
     equipment cannot reach. ``meta["runs_beyond_ranges"]`` maps each such factor to
-    the lowest and highest setting the design asks for, in its own units.
+    the lowest and highest setting the design asks for, in its own units. A factor
+    whose range is a hard limit (``Factor.hard_limits``) cannot be set there, so the
+    design is refused instead.
     """
     beyond: dict[str, dict[str, float]] = {}
     for j, factor in enumerate(factors):
@@ -631,17 +651,26 @@ def _note_runs_beyond_ranges(design_type: str, coded_matrix: np.ndarray, factors
         return
     meta["runs_beyond_ranges"] = beyond
     by_name = {f.name: f for f in factors}
-    detail = "; ".join(
-        f"{name} from {v['lowest']:.4g} to {v['highest']:.4g}{' ' + by_name[name].units if by_name[name].units else ''}"
-        f" against a range of {by_name[name].low:.4g} to {by_name[name].high:.4g}"
-        for name, v in beyond.items()
-    )
+
+    def said(names: list[str]) -> str:
+        return "; ".join(
+            f"{name} from {beyond[name]['lowest']:.4g} to {beyond[name]['highest']:.4g}"
+            f"{' ' + by_name[name].units if by_name[name].units else ''}"
+            f" against a range of {by_name[name].low:.4g} to {by_name[name].high:.4g}"
+            for name in names
+        )
+
     remedy = (
-        " If the ranges are limits, use alpha='face_centered' to keep every run inside them, or 'inscribed' to "
-        "shrink the cube so the axial runs reach the ranges exactly."
+        " Use alpha='face_centered' to keep every run inside the ranges, or 'inscribed' to shrink the cube so the "
+        "axial runs reach the ranges exactly."
         if design_type == "ccd"
         else ""
     )
+    hard = [name for name in beyond if by_name[name].hard_limits]
+    if hard:
+        raise ValueError(f"This {design_type!r} design sets factors past their hard limits: {said(hard)}.{remedy}")
+    detail = said(list(beyond))
+    remedy = f" If the ranges are limits, mark them with hard_limits=True.{remedy}" if remedy else ""
     warnings.warn(
         f"This {design_type!r} design sets factors beyond the ranges given: {detail}.{remedy}",
         category=UserWarning,
@@ -884,6 +913,7 @@ def generate_design(  # noqa: PLR0913
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
+    alpha_given, alpha = alpha, _alpha_inside_limits(design_type, alpha, factors)
 
     # Build kwargs for the dispatch handler
     dispatch_kwargs: dict[str, Any] = {
@@ -909,6 +939,7 @@ def generate_design(  # noqa: PLR0913
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
+    _note_alpha_chosen(meta, alpha_given, alpha)
     if constraints and not meta.get("constraints_enforced"):
         # Only the optimal, mixture and sobol/halton/maximin paths honour constraints; say so on the result.
         logger.warning(

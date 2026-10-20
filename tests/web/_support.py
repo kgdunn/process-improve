@@ -60,6 +60,8 @@ APP_SOURCES = (
     "glossary.js",
     "terms.js",
     "dialogs.js",
+    "feedback.js",
+    "vendor/modern-screenshot.mjs",
     "worker.js",
     "bootstrap.py",
     "runtime.json",

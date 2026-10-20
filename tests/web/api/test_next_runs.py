@@ -14,8 +14,10 @@ from __future__ import annotations
 import itertools
 
 import numpy as np
+import pandas as pd
 import pytest
 
+from process_improve.experiments import TrueProcess
 from tests.web._support import FACTORS, coded, factors_named, held_of, run_sheet
 
 #: Seven factors from -1 to +1, which a resolution III fraction screens in 8 runs.
@@ -48,7 +50,7 @@ def mains_clear(design: dict) -> bool:
 # --------------------------------------------------------------------------- what is offered
 def test_a_box_behnken_design_is_offered_no_runs(api, held):
     """The worked example fits its full quadratic model with runs to spare: no way of adding runs applies."""
-    assert api.ok("api_next_runs", held) == {"offers": [], "notes": []}
+    assert api.ok("api_next_runs", held) == {"offers": [], "notes": [], "recommendation": None, "waiting": None}
 
 
 def test_a_resolution_three_fraction_is_offered_its_fold_over_first(api):
@@ -136,7 +138,124 @@ def test_a_way_that_breaks_a_limit_is_noted_and_not_offered(api):
 def test_a_mixture_is_offered_nothing(api, bootstrap):
     blends = [{"name": n, "low": None, "high": None, "units": ""} for n in "ABC"]
     lattice = make(api, design_type="simplex_lattice", factors=blends)
-    assert api.ok("api_next_runs", held_of(lattice)) == {"offers": [], "notes": [bootstrap.MIXTURE_EXTENSIONS]}
+    assert api.ok("api_next_runs", held_of(lattice)) == {
+        "offers": [],
+        "notes": [bootstrap.MIXTURE_EXTENSIONS],
+        "recommendation": None,
+        "waiting": None,
+    }
+
+
+# --------------------------------------------------------------------------- what the results call for
+#: A process with a maximum inside the ranges of A and B, which a 2^3 with center runs sees only as curvature.
+CURVED = TrueProcess({"Intercept": 60, "A": 2, "B": -1.5, "I(A ** 2)": -6, "I(B ** 2)": -4, "A:B": 1}, sigma=0.7)
+
+
+def results(design: dict, truth: TrueProcess, seed: int, start: int = 0) -> list[float]:
+    """Return the truth's results for a design's runs from place ``start`` on, rounded as a reader types them."""
+    sheet = run_sheet(design).iloc[start:]
+    return truth.simulate(coded(sheet, design["spec"]["factors"]), random_state=seed).round(3).tolist()
+
+
+def curved_study(api) -> tuple[dict, list[float]]:
+    """Return a 2^3 with three center runs, aiming to maximise y, and its results on the curved process."""
+    cube = make(
+        api, design_type="full_factorial", factors=FACTORS_ABC, n_center_points=3, response_info={"goal": "maximize"}
+    )
+    return cube, results(cube, CURVED, 2)
+
+
+FACTORS_ABC = factors_named("A", "B", "C")
+
+
+def test_the_results_call_for_axial_runs_where_the_center_shows_curvature(api):
+    cube, y = curved_study(api)
+    reply = api.ok("api_next_runs", {**held_of(cube), "responses": y})
+    called = reply["recommendation"]
+    assert called["action"] == "augment_to_rsm"
+    assert called["does"] == "runs"
+    assert called["label"] == "Add these 8 runs"
+    assert called["headline"].startswith("Add 8 axial and centre runs in A, B, C")
+    assert reply["waiting"] is None
+    assert reply["offers"][0]["kind"] == "axial", "the ways of adding runs are still offered beside it"
+
+
+def test_the_runs_the_results_call_for_are_added_as_a_block(api):
+    cube, y = curved_study(api)
+    grown = api.ok("api_add_runs", {**held_of(cube), "responses": y, "kind": "recommended"})
+    assert grown["added"] == 8
+    sheet = run_sheet(grown)
+    assert list(sheet["Block"]) == [1] * 11 + [2] * 8
+    assert grown["facts"]["notes"][0].startswith("Runs 12 to 19 are the runs the results called for.")
+    axial = coded(sheet.iloc[11:], FACTORS_ABC).to_numpy()
+    assert sorted(map(tuple, axial[(abs(axial) > 0).sum(axis=1) == 1])) == sorted(
+        [(s, 0, 0) for s in (-1, 1)] + [(0, s, 0) for s in (-1, 1)] + [(0, 0, s) for s in (-1, 1)]
+    )
+
+
+def test_a_study_followed_round_by_round_stops_at_its_confirmed_optimum(api):
+    """Axial runs, then confirmation runs at the optimum, made as the page makes them, then the study stops."""
+    cube, y = curved_study(api)
+    grown = api.ok("api_add_runs", {**held_of(cube), "responses": y, "kind": "recommended"})
+    y = y + results(grown, CURVED, 3, start=len(y))
+    called = api.ok("api_next_runs", {**held_of(grown), "responses": y})["recommendation"]
+    assert called["action"] == "confirm"
+    assert called["does"] == "confirm"
+    assert called["settings"]["A"] == pytest.approx(0.15, abs=0.15)  # the true maximum is at A = 0.15, B = -0.17
+    assert called["settings"]["B"] == pytest.approx(-0.17, abs=0.15)
+    columns = [*grown["columns"], "Confirmation run"]
+    rows = [[*row, None] for row in grown["rows"]]
+    last = max(row[columns.index("Run order")] for row in rows)
+    marked = {"Confirmation run": "yes", **called["settings"]}  # as best.js withConfirmationRuns adds them
+    rows.extend([last + i if c == "Run order" else marked.get(c) for c in columns] for i in range(1, 4))
+    settings = pd.DataFrame([called["settings"]] * 3)[["A", "B", "C"]]
+    y = y + CURVED.simulate(settings, random_state=4).round(3).tolist()
+    done = api.ok("api_next_runs", {"spec": grown["spec"], "columns": columns, "rows": rows, "responses": y})
+    assert done["recommendation"]["action"] == "stop"
+    assert done["recommendation"]["does"] is None
+
+
+def test_the_worked_example_calls_for_a_new_study_further_along(api, held, simulated):
+    called = api.ok("api_next_runs", {**held, "responses": simulated["responses"]})["recommendation"]
+    assert called["action"] == "move_region"
+    assert called["does"] == "study"
+    assert called["label"] == "Start a new study with these ranges"
+    ranges = {r["name"]: (r["low"], r["high"]) for r in called["ranges"]}
+    assert ranges["T"] == (175.0, 225.0)
+    assert ranges["F"] == (10.0, 20.0), "F has no part in the path"
+
+
+def test_a_run_without_its_result_waits_for_it(api, held, simulated):
+    partial = list(simulated["responses"])
+    partial[3] = None
+    reply = api.ok("api_next_runs", {**held, "responses": partial})
+    assert reply["recommendation"] is None
+    assert reply["waiting"] == "Once every run has its result, the results say what to run next."
+
+
+def test_a_goal_of_learning_calls_for_nothing(api, held, simulated):
+    spec = {**held["spec"], "response_info": {**held["spec"]["response_info"], "goal": "learn"}}
+    reply = api.ok("api_next_runs", {**held, "spec": spec, "responses": simulated["responses"]})
+    assert (reply["recommendation"], reply["waiting"]) == (None, None)
+
+
+def test_a_widened_study_in_which_nothing_stands_out_stops(api):
+    """Nothing stood out before its ranges were widened, and nothing does now: no factor moves the response."""
+    cube = make(
+        api,
+        design_type="full_factorial",
+        factors=factors_named(*"ABCD"),
+        n_center_points=3,
+        response_info={"goal": "maximize"},
+    )
+    y = results(cube, TrueProcess({"Intercept": 20}, sigma=2), 5)
+    first = api.ok("api_next_runs", {**held_of(cube), "responses": y})["recommendation"]
+    assert first["action"] == "widen_ranges"
+    assert [(r["low"], r["high"]) for r in first["ranges"]] == [(-1.5, 1.5)] * 4
+    widened = {**cube["spec"], "options": {**cube["spec"]["options"], "widened": True}}
+    again = api.ok("api_next_runs", {**held_of(cube), "spec": widened, "responses": y})["recommendation"]
+    assert again["action"] == "stop"
+    assert again["headline"] == "Stop: no factor moves the response by more than the noise."
 
 
 # --------------------------------------------------------------------------- the runs added

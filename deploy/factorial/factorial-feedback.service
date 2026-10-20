@@ -1,0 +1,41 @@
+# factori.al's feedback relay (feedback_relay.py): it takes each report a reader sends from the app's Feedback
+# dialog, which Caddy passes on from /api/feedback, and emails it to the maintainer.
+#
+# Installed as /etc/systemd/system/factorial-feedback.service by setup.sh, with the relay as
+# /usr/local/bin/factorial-feedback. Its settings are in /etc/factorial/feedback.env and the SMTP password,
+# alone, in /etc/factorial/smtp-password; only root can read either. The relay runs as an account systemd
+# makes for it at each start, which can write nowhere and holds the password in a credential of its own.
+
+[Unit]
+Description=Factorial feedback relay (factori.al/api/feedback)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/factorial-feedback
+EnvironmentFile=/etc/factorial/feedback.env
+LoadCredential=smtp-password:/etc/factorial/smtp-password
+Restart=on-failure
+RestartSec=5
+
+DynamicUser=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+SystemCallArchitectures=native
+UMask=0077
+TasksMax=32
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target
