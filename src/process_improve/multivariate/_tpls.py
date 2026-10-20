@@ -1111,6 +1111,32 @@ class TPLS(RegressorMixin, BaseEstimator):
         max_iter = iterations >= self.max_iter
         return bool(np.any([max_iter, converged]))
 
+    def _refuse_scores_that_are_not_finite(self, component: int, t_super_i: np.ndarray) -> None:
+        """Raise ``ValueError`` when a component's scores are not finite, naming the empty rows that cause it.
+
+        A NaN never leaves the iteration once it is in it, and the convergence test can never
+        pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
+        material with no observed value in D has no loading to give, and a row with no observed
+        value in F no score to take; one of them makes every score NaN.
+        """
+        if np.isfinite(t_super_i).all():
+            return
+        empty = [
+            f"material {str(name)!r} has no observed value in D block {key!r}"
+            for key, present in self.not_na_d.items()
+            for name in np.asarray(self.material_names[key])[~np.asarray(present).any(axis=1)]
+        ] + [
+            f"row {str(name)!r} has no observed value in F block {key!r}"
+            for key, present in self.not_na_f.items()
+            for name in np.asarray(self.observation_names)[~np.asarray(present).any(axis=1)]
+        ]
+        cause = "; ".join(empty) if empty else "a block has a row or a column with no observed value"
+        msg = (
+            f"TPLS cannot fit component {component}: its scores are not finite, because {cause}. "
+            "Remove it, or give it observed values."
+        )
+        raise ValueError(msg)
+
     def _store_model_coefficients(  # noqa: PLR0913
         self,
         pc_a_column: int,  # one-based index for the component
@@ -1715,10 +1741,11 @@ class TPLS(RegressorMixin, BaseEstimator):
                     x_present_map=np.ones(t_combined.shape).astype(bool),
                     y_present_map=np.array(next(iter(self.not_na_y.values()))),
                 )
-                u_super_i = inner_pls["u_i"]  # only used for convergence check; not stored or used further
+                u_super_i = inner_pls["u_i"]  # steps 2 and 7 regress F and Z on it, and it is the convergence check
                 t_super_i = inner_pls["t_i"]
                 q_super_i = inner_pls["q_i"]
                 w_super_i = inner_pls["w_i"]
+                self._refuse_scores_that_are_not_finite(pc_a + 1, t_super_i)
 
             logger.debug("TPLS: super-component %d converged in %d iterations", pc_a + 1, n_iter)
 

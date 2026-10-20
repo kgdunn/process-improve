@@ -467,10 +467,69 @@ Factor ``D`` is not in the model, so it has no effect, and its estimate differs 
 zero by the noise alone. The terms are named as ``analyze_experiment`` names them;
 ``A*B``, ``B:A``, ``C**2`` and ``C^2`` are accepted too.
 
+.. _simulating-designs:
+
+Simulating the Studies a Design Would Give
+------------------------------------------
+
+The measures above take the model as known and complete. Two things they cannot see decide
+how a screening study goes: a term outside the model (an interaction that a 12-run
+Plackett-Burman design was not built to estimate) biases the effects inside it, and the
+analysis has to choose the model from the same noisy runs.
+:func:`~process_improve.experiments.simulate_design_performance` sees both. It makes each
+design many times on a :class:`~process_improve.experiments.TrueProcess`, the process you
+expect, and judges every simulated study the way
+:func:`~process_improve.experiments.recommend_next_step` judges real runs (see
+:doc:`next_step`).
+
+.. code-block:: python
+
+   from process_improve.experiments import Factor, TrueProcess, generate_design, simulate_design_performance
+
+   factors = [Factor(name=n, low=-1, high=1) for n in "ABCDEFGH"]
+   truth = TrueProcess({"Intercept": 100, "A": 10, "C": 7, "G": -6, "A:C": 8}, sigma=3)
+   designs = {
+       "PB": generate_design(factors, "plackett_burman", n_center_points=0),
+       "PB + 3 centre": generate_design(factors, "plackett_burman", n_center_points=3),
+       "2^(8-4) + 3 centre": generate_design(factors, "fractional_factorial", resolution=4, n_center_points=3),
+       "DSD + 5 centre": generate_design(factors, "dsd", n_center_points=5),
+   }
+   report = simulate_design_performance(designs, truth, n_simulations=200)
+   for label, design in report["designs"].items():
+       print(f"{label:28} {design['found_all']:.2f} {design['false_alarms']:.2f} {design['nothing_stood_out']:.2f}")
+
+.. code-block:: text
+
+   PB [n=12]                    0.53 0.21 0.41
+   PB + 3 centre [n=15]         0.94 0.32 0.01
+   2^(8-4) + 3 centre [n=19]    1.00 0.48 0.00
+   DSD + 5 centre [n=21]        0.99 0.55 0.00
+
+The columns are the share of studies that find every true term, the mean number of terms
+found that are not true, and the share in which nothing stood out from the noise. A share
+from 200 studies is within about 0.07 of its limit (95%). The 12-run Plackett-Burman design
+finds the process in half of the studies: the ``A:C`` interaction biases every main effect
+outside it, and with no runs to spare for error, nothing stands out in two studies of five.
+Three centre runs give it the degrees of freedom to see the interaction. The false alarms are
+the price of testing every term at 0.05: a design that tests more terms raises more of them. A true term counts as found when
+the analysis finds it, or a term the design makes identical to it: ``D`` for ``A:B`` in a
+resolution III fraction whose generator is ``D = AB``, or the curvature at the centre runs
+for a square. The design can do no better than that, so it is no false alarm.
+
+With ``goal="maximize"`` (or ``"minimize"``, or ``"target"`` with a ``target``), each study
+also predicts its best settings, and the report says how far the true response there falls
+short of the true best inside the ranges, in the response's units and in noise standard
+deviations. ``report["true_optimum"]`` holds the true best. Each design's ``summary`` says the
+main numbers in a sentence, and ``found`` gives each true term's share.
+
+The simulation is also an MCP tool, ``simulate_design_performance``, which takes each
+design's coded runs as ``generate_design`` returns them; ``compare_designs`` is one too.
+
 See Also
 --------
 
 - :func:`~process_improve.experiments.compare_designs` - several designs, one model.
+- :func:`~process_improve.experiments.simulate_design_performance` - several designs, by simulated studies.
 - :func:`~process_improve.experiments.evaluate_design` - full API reference.
 - :func:`~process_improve.experiments.evaluate_all` - compute every metric in
   one call.

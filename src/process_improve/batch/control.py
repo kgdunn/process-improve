@@ -528,7 +528,10 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     # bisect each active multiplier down so the achieved statistic lands just
     # inside its cap instead of far below it (the escalation overshoots).
     # Each statistic is non-increasing in its own multiplier for this convex
-    # problem, so the per-coordinate bisection is well posed.
+    # problem, so the per-coordinate bisection is well posed. Lowering one
+    # multiplier can raise the other statistic, so a bisection step is taken
+    # only when both caps still hold: every accepted schedule meets both, and
+    # an "ok" status means they hold (#681).
     mu_spe = mu_t2 = 0.0
     n_solves = 0
     u_star = _solve(mu_spe, mu_t2)
@@ -538,6 +541,10 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     spe_cap_value = float("inf") if spe_cap is None else float(spe_cap)
     t2_cap_value = float("inf") if t2_cap is None else float(t2_cap)
     cap_status = "ok"
+
+    def _within_caps(spe: float, t2: float) -> bool:
+        return spe <= spe_cap_value * (1 + _CAP_REL_TOL) and t2 <= t2_cap_value * (1 + _CAP_REL_TOL)
+
     for _ in range(30):
         spe_bad = spe_value > spe_cap_value * (1 + _CAP_REL_TOL)
         t2_bad = t2_value > t2_cap_value * (1 + _CAP_REL_TOL)
@@ -561,12 +568,12 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     mid = 0.5 * (low_mu + high_mu)
                     u_try = _solve(mid, mu_t2)
                     n_solves += 1
-                    spe_try, _t2_try = _statistics(u_try)
-                    if spe_try > spe_cap_value * (1 + _CAP_REL_TOL):
+                    spe_try, t2_try = _statistics(u_try)
+                    if not _within_caps(spe_try, t2_try):
                         low_mu = mid
                     else:
                         high_mu = mid
-                        u_star, spe_value, t2_value = u_try, spe_try, _t2_try
+                        u_star, spe_value, t2_value = u_try, spe_try, t2_try
                         if spe_try >= spe_cap_value * (1 - _CAP_REL_TOL):
                             break
                 mu_spe = high_mu
@@ -577,7 +584,7 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
                     u_try = _solve(mu_spe, mid)
                     n_solves += 1
                     spe_try, t2_try = _statistics(u_try)
-                    if t2_try > t2_cap_value * (1 + _CAP_REL_TOL):
+                    if not _within_caps(spe_try, t2_try):
                         low_mu = mid
                     else:
                         high_mu = mid
@@ -585,9 +592,7 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
                         if t2_try >= t2_cap_value * (1 - _CAP_REL_TOL):
                             break
                 mu_t2 = high_mu
-            spe_ok = spe_value <= spe_cap_value * (1 + _CAP_REL_TOL)
-            t2_ok = t2_value <= t2_cap_value * (1 + _CAP_REL_TOL)
-            if spe_ok and t2_ok:
+            if _within_caps(spe_value, t2_value):
                 break
 
     scores = b + A_F @ u_star
@@ -610,10 +615,22 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 kind = name.split(":", 1)[0]
                 key = "bounds" if kind == "bound" else "rate"
                 typing.cast("list", active[key]).append(name.split(":", 1)[1])
+
+    def _binding(statistic: str) -> bool:
+        """Return whether a cap holds its statistic down: with its multiplier at zero, the statistic breaks it."""
+        nonlocal n_solves
+        n_solves += 1
+        if statistic == "spe":
+            return _statistics(_solve(0.0, mu_t2))[0] > spe_cap_value * (1 + _CAP_REL_TOL)
+        return _statistics(_solve(mu_spe, 0.0))[1] > t2_cap_value * (1 + _CAP_REL_TOL)
+
+    # A cap is active where its statistic sits at it (within the tolerance), or above it when it
+    # could not be met. Below it, a multiplier left over from the bisection is binding only if
+    # dropping it would break the cap: one bisected down because its cap is slack is not (#681).
     if spe_cap is not None:
-        active["spe_cap"] = bool(mu_spe > 0 or spe_value >= spe_cap_value * (1 - _CAP_REL_TOL))
+        active["spe_cap"] = spe_value >= spe_cap_value * (1 - _CAP_REL_TOL) or (mu_spe > 0 and _binding("spe"))
     if t2_cap is not None:
-        active["t2_cap"] = bool(mu_t2 > 0 or t2_value >= t2_cap_value * (1 - _CAP_REL_TOL))
+        active["t2_cap"] = t2_value >= t2_cap_value * (1 - _CAP_REL_TOL) or (mu_t2 > 0 and _binding("t2"))
 
     return Bunch(
         mv=mv,

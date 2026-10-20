@@ -7,7 +7,9 @@ Here the app is a local directory with only a manifest, changed as a deploy woul
 
 from __future__ import annotations
 
+import http.client
 import importlib.util
+import io
 import json
 import threading
 from typing import TYPE_CHECKING
@@ -63,6 +65,17 @@ def test_it_gives_up_in_time_and_says_what_it_last_saw(waiter, app, tmp_path):
 
 def test_an_app_with_no_manifest_yet_is_waited_for(waiter, app):
     assert waiter.published_commit(app) is None
+
+
+def test_a_manifest_cut_short_by_a_deploy_is_waited_for(waiter, monkeypatch):
+    """A deploy that rewrites the manifest while it is served can end the response early; the waiter looks again."""
+
+    class CutShort(io.BytesIO):
+        def read(self, *_args: object) -> bytes:
+            raise http.client.IncompleteRead(b"", 46)
+
+    monkeypatch.setattr(waiter.urllib.request, "urlopen", lambda *_args, **_kwargs: CutShort())
+    assert waiter.published_commit("http://127.0.0.1/app/") is None
 
 
 def test_the_deploy_is_checked_once_it_is_published():

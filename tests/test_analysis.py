@@ -619,6 +619,17 @@ class TestModelSelection:
         assert "I(A ** 2)" in ms["selected_terms"]
         assert "A" in ms["selected_terms"]
 
+    def test_a_square_without_its_main_effect_is_proposed_alone_when_freed(self) -> None:
+        """B is best in the middle of its range: B^2 and no B. Strong heredity carries B in beside it."""
+        from process_improve.experiments._analyses.model_selection import _proposed_terms
+
+        rng = np.random.default_rng(4)
+        x = pd.DataFrame(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)) * 2, columns=list("AB"))
+        x["y"] = 10 + 2 * x.A - 3 * x.B**2 + rng.normal(0, 0.2, len(x))
+        strong = analyze_experiment(x[["A", "B"]], x["y"], model="quadratic", analysis_type="model_selection")
+        assert strong["model_selection"]["selected_terms"] == ["A", "B", "I(B ** 2)"]
+        assert _proposed_terms(x, "y", ["A", "B"], "quadratic") == ["A", "I(B ** 2)"]
+
     def test_a_formula_model_is_searched_as_interactions_with_a_note(self) -> None:
         ms = analyze_experiment(
             _three_factor_data(), response_column="y", model="A + B + A:B", analysis_type="model_selection"
@@ -728,6 +739,31 @@ class TestConfidenceIntervals:
         assert len(ci) > 0
         assert "ci_low" in ci[0]
         assert "ci_high" in ci[0]
+
+    def test_the_coefficients_intervals_are_at_the_significance_level(self) -> None:
+        """At 0.10 each coefficient's interval is b +/- t(0.95, df) s, in both scales, as confidence_intervals gives it.
+
+        The ``coefficients`` table kept its 95% intervals whatever the level asked for.
+        """
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "confidence_intervals"],
+            significance_level=0.10,
+            coding="coded",
+        )
+        assert result["confidence_level"] == pytest.approx(0.90)
+        t = stats.t.ppf(0.95, result["model_summary"]["df_residual"])
+        for row in [*result["coefficients"], *result["coefficients_actual"]]:
+            half = t * row["std_error"]
+            assert row["ci_low"] == pytest.approx(row["coefficient"] - half)
+            assert row["ci_high"] == pytest.approx(row["coefficient"] + half)
+
+        def bounds(rows: list[dict]) -> dict[str, tuple[float, float]]:
+            return {row["term"]: (row["ci_low"], row["ci_high"]) for row in rows}
+
+        assert bounds(result["confidence_intervals"]) == pytest.approx(bounds(result["coefficients"]))
 
 
 # ---------------------------------------------------------------------------

@@ -1063,6 +1063,12 @@ def _build_assumptions(spec: DOEProblemSpec, has_screening: bool) -> list[str]:
         "Measurement system is adequate (repeatability << effect sizes).",
         "Runs are randomised to avoid confounding with lurking variables.",
     ]
+    hard = [f.name for f in spec.factors if f.hard_limits]
+    if hard:
+        assumptions.append(
+            f"The ranges of {', '.join(hard)} are hard limits: every stage keeps them inside, and a later round "
+            "does not move or widen them."
+        )
     if has_screening:
         assumptions.append("Screening will identify 2-4 significant factors for optimisation.")
         assumptions.append("Effect sparsity: only a few factors dominate the response.")
@@ -1092,6 +1098,8 @@ def _build_risks(
     if classification["n_factors"] >= 8:
         risks.append("With 8+ factors, screening may miss important interactions (resolution III/IV limitation).")
     risks.extend(template.get("special_considerations", []))
+    if not any(f.hard_limits for f in spec.factors):
+        risks.extend(template.get("soft_range_considerations", []))
     if not risks:
         risks.append("Standard risks: ensure randomisation, verify measurement system, check for outliers.")
     return risks

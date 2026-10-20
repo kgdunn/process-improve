@@ -18,6 +18,7 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin, _fit_context
+from sklearn.metrics import r2_score
 from sklearn.model_selection import BaseCrossValidator, KFold, RepeatedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
@@ -1205,10 +1206,54 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Hotelling's T² over all components, per new observation).
 
         The rename (since 1.38.4, #395) matches :meth:`PLS.diagnose`
-        and PCA.diagnose. The deprecated ``predict`` alias was removed in 2.0.
+        and PCA.diagnose. The deprecated ``predict`` alias, which returned this
+        Bunch, was removed in 2.0; :meth:`predict` now returns the predictions only.
         """
         check_is_fitted(self, "super_weights_")
         return self._project(X)
+
+    def predict(self, X: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """Predict Y for new observations, on its original scale.
+
+        Returns the predictions only, so the model meets scikit-learn's regressor
+        contract (:meth:`score`, :func:`~sklearn.model_selection.cross_val_predict`, a
+        :class:`~sklearn.pipeline.Pipeline` step), as :meth:`PLS.predict` does. For the
+        super scores, the block scores, the block SPE and Hotelling's T² as well, see
+        :meth:`diagnose`.
+
+        Parameters
+        ----------
+        X : dict[str, pd.DataFrame]
+            The X-blocks of the new observations, under the names they were fitted with.
+
+        Returns
+        -------
+        pd.DataFrame of shape (n_samples, n_targets)
+            The predicted Y, indexed by the rows of ``X`` and labelled with the fitted Y
+            columns: ``diagnose(X).predictions``.
+        """
+        check_is_fitted(self, "super_weights_")
+        return self._project(X).predictions
+
+    def score(self, X: dict[str, pd.DataFrame], y: pd.DataFrame, sample_weight: np.ndarray | None = None) -> float:
+        """Return the R² of :meth:`predict` on ``X`` against ``y``.
+
+        Parameters
+        ----------
+        X : dict[str, pd.DataFrame]
+            The X-blocks of the observations.
+        y : pd.DataFrame of shape (n_samples, n_targets)
+            Their observed Y.
+        sample_weight : np.ndarray of shape (n_samples,) or None
+            Weights of the observations.
+
+        Returns
+        -------
+        float
+            R² of the predictions, averaged over the Y columns with equal weights, as
+            :meth:`PLS.score` gives it.
+        """
+        return float(r2_score(y, self.predict(X), sample_weight=sample_weight))
 
     @classmethod
     def select_n_components(  # noqa: PLR0913, PLR0915
