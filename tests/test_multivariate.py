@@ -5374,13 +5374,14 @@ def test_pca_diagnose_numpy_input() -> None:
     assert result.scores.shape == (5, 2)
 
 
-@pytest.mark.parametrize("estimator", [PCA, MBPCA, MBPLS, TPLS])
+@pytest.mark.parametrize("estimator", [PCA, MBPCA, TPLS])
 def test_the_predict_alias_of_diagnose_is_gone(estimator: type) -> None:
     """The deprecated ``predict`` forwarders to ``diagnose`` were removed in 2.0 (#395, #396)."""
     assert hasattr(estimator, "diagnose")
     assert not hasattr(estimator, "predict")
-    # PLS.predict is the sklearn regressor contract, not the alias, and it stays.
+    # PLS.predict and MBPLS.predict (#781) are the sklearn regressor contract, not the alias, and they stay.
     assert hasattr(PLS, "predict")
+    assert hasattr(MBPLS, "predict")
 
 
 def test_pca_score_method() -> None:
