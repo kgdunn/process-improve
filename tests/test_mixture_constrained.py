@@ -95,11 +95,11 @@ class TestInputErrors:
         with pytest.raises(
             ValueError,
             match=(
-                r"^Unknown mixture model 'cubic'; "
-                r"choose from scheffe_linear, scheffe_quadratic, scheffe_special_cubic\.$"
+                r"^Unknown mixture model 'quartic'; "
+                r"choose from scheffe_linear, scheffe_quadratic, scheffe_special_cubic, scheffe_cubic\.$"
             ),
         ):
-            scheffe_model("cubic")
+            scheffe_model("quartic")
 
     def test_too_many_vertex_systems_are_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The vertex enumeration solves one system per subset of constraints; past the cap it stops and says why."""

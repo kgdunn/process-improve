@@ -10,18 +10,21 @@ built from the geometry of that polytope, in three steps:
    ``q - 1`` constraints are active. Every choice of ``q - 1`` constraints is solved as
    one linear system (all at once, batched), and the feasible solutions are the
    vertices (McLean and Anderson 1966, with general linear constraints as in XVERT).
-2. **Candidate points.** The vertices, the midpoints of the edges joining them, the
-   centroid of each constraint face, the overall centroid, and the axial check blends
-   halfway between each vertex and the centroid.
+2. **Candidate points.** The vertices, the midpoints of the edges joining them and the
+   points a third of the way along them, the centroid of each constraint face, the
+   overall centroid, and the axial check blends halfway between each vertex and the
+   centroid.
 3. **Selection.** Without a run budget the vertices, the edge midpoints (for a
-   quadratic model), the 2-face centroids (for a special cubic one) and the overall
-   centroid are returned, unless that is more than three runs per model term; with a
-   budget, or for such a large design, a D-optimal subset is chosen for the Scheffé
-   model by the same Fedorov exchange used for constrained process designs.
+   quadratic model) or edge third-points (for a full cubic one), the 2-face centroids
+   (for a special or full cubic one) and the overall centroid are returned, unless
+   that is more than three runs per model term; with a budget, or for such a large
+   design, a D-optimal subset is chosen for the Scheffé model by the same Fedorov
+   exchange used for constrained process designs.
 
 The Scheffé models have no intercept, since ``sum(x) = 1`` makes an intercept
-redundant: ``linear`` has one term per component, ``quadratic`` adds ``x_i x_j`` and
-``special_cubic`` adds ``x_i x_j x_k``.
+redundant: ``linear`` has one term per component, ``quadratic`` adds ``x_i x_j``,
+``special_cubic`` adds ``x_i x_j x_k``, and the full ``cubic`` adds
+``x_i x_j (x_i - x_j)`` beside those.
 """
 
 from __future__ import annotations
@@ -52,14 +55,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 #: Scheffé model names, and the design model_type names that map onto them.
-SCHEFFE_MODELS = ("scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic")
+SCHEFFE_MODELS = ("scheffe_linear", "scheffe_quadratic", "scheffe_special_cubic", "scheffe_cubic")
 _MODEL_ALIASES = {
     "main_effects": "scheffe_linear",
     "linear": "scheffe_linear",
     "interactions": "scheffe_quadratic",
     "quadratic": "scheffe_quadratic",
     "special_cubic": "scheffe_special_cubic",
+    "cubic": "scheffe_cubic",
 }
+#: Highest number of components multiplied in one term of each Scheffé model.
+SCHEFFE_DEGREE = {"scheffe_linear": 1, "scheffe_quadratic": 2, "scheffe_special_cubic": 3, "scheffe_cubic": 3}
 #: Uniform blends that estimate the region's moment matrix for I-optimality.
 _N_REGION_SAMPLES = 20_000
 #: Largest number of constraint subsets solved when enumerating vertices, and how many are solved at once.
@@ -81,18 +87,32 @@ def scheffe_matrix(x: np.ndarray, model: str) -> np.ndarray:
     model = scheffe_model(model)
     q = x.shape[1]
     columns = [x]
-    if model in {"scheffe_quadratic", "scheffe_special_cubic"}:
+    if SCHEFFE_DEGREE[model] >= 2:
         columns += [x[:, [i]] * x[:, [j]] for i, j in itertools.combinations(range(q), 2)]
-    if model == "scheffe_special_cubic":
+    if model == "scheffe_cubic":
+        columns += [x[:, [i]] * x[:, [j]] * (x[:, [i]] - x[:, [j]]) for i, j in itertools.combinations(range(q), 2)]
+    if SCHEFFE_DEGREE[model] == 3:
         columns += [x[:, [i]] * x[:, [j]] * x[:, [k]] for i, j, k in itertools.combinations(range(q), 3)]
     return np.hstack(columns)
 
 
 def scheffe_formula_rhs(names: list[str], model: str) -> str:
-    """Return the patsy right-hand side of a Scheffé model, e.g. ``"-1 + (A + B + C) ** 2"``."""
-    degree = {"scheffe_linear": 1, "scheffe_quadratic": 2, "scheffe_special_cubic": 3}[scheffe_model(model)]
+    """Return the patsy right-hand side of a Scheffé model, e.g. ``"-1 + (A + B + C) ** 2"``.
+
+    The full cubic adds ``I(A * B * (A - B))`` for each pair of components to the special cubic.
+    """
+    model = scheffe_model(model)
+    degree = SCHEFFE_DEGREE[model]
     joined = " + ".join(names)
-    return f"-1 + {joined}" if degree == 1 else f"-1 + ({joined}) ** {min(degree, len(names))}"
+    rhs = f"-1 + {joined}" if degree == 1 else f"-1 + ({joined}) ** {min(degree, len(names))}"
+    if model == "scheffe_cubic":
+        rhs += "".join(f" + {cubic_difference_term(a, b)}" for a, b in itertools.combinations(names, 2))
+    return rhs
+
+
+def cubic_difference_term(a: str, b: str) -> str:
+    """Return the full cubic Scheffé model's term in components ``a`` and ``b``: ``I(a * b * (a - b))``."""
+    return f"I({a} * {b} * ({a} - {b}))"
 
 
 # ---------------------------------------------------------------------------
@@ -312,10 +332,12 @@ def _uniform_blends(
 def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.ndarray]:
     """Return candidate blends by kind.
 
-    The kinds are vertices, edge midpoints, centroids of the 2-dimensional faces
-    (``plane_centroid``, the points the ``x_i x_j x_k`` terms of a special cubic model
-    need), centroids of the facets (``face_centroid``), the overall centroid, and
-    axial blends halfway from each vertex to it. Two vertices share an edge when the
+    The kinds are vertices, edge midpoints and the points a third and two thirds of the
+    way along each edge (``edge_third``, the points the ``x_i x_j (x_i - x_j)`` terms of
+    a full cubic model need), centroids of the 2-dimensional faces (``plane_centroid``,
+    the points the ``x_i x_j x_k`` terms of a special cubic model need), centroids of the
+    facets (``face_centroid``), the overall centroid, and axial blends halfway from each
+    vertex to it. Two vertices share an edge when the
     constraints active at both, together with ``sum(x) = 1``, have rank ``q - 1``: the
     set of points satisfying them is a line.
     """
@@ -326,12 +348,15 @@ def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.nda
     q = a_mat.shape[1]
     active = np.abs(vertices @ a_mat.T - b_vec) <= 1e-9
     adjacent = _adjacency(active, a_mat)
-    edges = [(vertices[i] + vertices[j]) / 2 for i, j in zip(*np.nonzero(np.triu(adjacent)), strict=True)]
+    pairs = list(zip(*np.nonzero(np.triu(adjacent)), strict=True))
+    edges = [(vertices[i] + vertices[j]) / 2 for i, j in pairs]
+    thirds = [(w * vertices[i] + (3 - w) * vertices[j]) / 3 for i, j in pairs for w in (1, 2)]
     faces = [vertices[active[:, r]].mean(axis=0) for r in range(a_mat.shape[0]) if active[:, r].sum() > 2]
     centroid = vertices.mean(axis=0, keepdims=True)
     return {
         "vertex": vertices,
         "edge_midpoint": _unique_rows(np.array(edges).reshape(-1, q)),
+        "edge_third": _unique_rows(np.array(thirds).reshape(-1, q)),
         "plane_centroid": _unique_rows(np.array(_plane_centroids(vertices, active, a_mat, adjacent)).reshape(-1, q)),
         "face_centroid": _unique_rows(np.array(faces).reshape(-1, q)),
         "centroid": centroid,
@@ -372,6 +397,7 @@ _EV_DESIGN = {
     "scheffe_linear": ("vertex", "centroid"),
     "scheffe_quadratic": ("vertex", "edge_midpoint", "centroid"),
     "scheffe_special_cubic": ("vertex", "edge_midpoint", "plane_centroid", "centroid"),
+    "scheffe_cubic": ("vertex", "edge_third", "plane_centroid", "centroid"),
 }
 
 
@@ -409,7 +435,8 @@ def constrained_mixture_design(
     budget : int or None
         Number of runs. ``None`` returns, for the model, the vertices and the overall
         centroid, plus the edge midpoints for a quadratic model, plus the centroids of
-        the 2-dimensional faces for a special cubic one. (This is not McLean and
+        the 2-dimensional faces for a special cubic one, and the edge third-points and
+        2-face centroids for a full cubic one. (This is not McLean and
         Anderson's design, which adds the facet centroids instead.) When that is more
         than three runs per model term, as with many bounded components, a D-optimal
         design of ``n_terms + 5`` runs is returned instead, and
@@ -421,8 +448,8 @@ def constrained_mixture_design(
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.
     options : ConstrainedOptions or None
-        ``model_type``: ``"scheffe_linear"``, ``"scheffe_quadratic"`` or
-        ``"scheffe_special_cubic"``, or the process-design names ``"main_effects"``,
+        ``model_type``: ``"scheffe_linear"``, ``"scheffe_quadratic"``,
+        ``"scheffe_special_cubic"`` or ``"scheffe_cubic"``, or the process-design names ``"main_effects"``,
         ``"interactions"`` and ``"quadratic"``, which map to linear, quadratic and
         quadratic. ``criterion``: ``"d_optimal"`` (default), ``"i_optimal"`` (average
         prediction variance over the constrained simplex), ``"a_optimal"`` or

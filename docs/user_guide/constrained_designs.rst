@@ -381,19 +381,27 @@ design is built from its geometry.
 * **Without a budget** the vertices and the centroid are returned, plus the edge
   midpoints for a quadratic model and the centroids of the 2-dimensional faces for a
   special cubic one. Those faces are the constrained counterpart of ternary blends,
-  which the ``x_i x_j x_k`` terms need. When that is more than three runs per model
-  term, as it soon is with many bounded components, a D-optimal design with five runs
-  more than the model has terms is returned instead.
+  which the ``x_i x_j x_k`` terms need. A full cubic model takes the 2-face centroids
+  and, in place of the midpoints, the points a third and two thirds of the way along
+  each edge: along an edge the model is a cubic polynomial, which needs four points on
+  that edge. When that is more than three runs per model term, as it soon is with many
+  bounded components, a D-optimal design with five runs more than the model has terms
+  is returned instead.
 * **With a budget** a D-optimal subset is chosen from the vertices, edge midpoints,
-  2-face and facet centroids, centroid and axial check blends, by the same exchange
-  as above. Blends can repeat, which gives replicates for a pure-error estimate.
+  edge third-points, 2-face and facet centroids, centroid and axial check blends, by
+  the same exchange as above. Blends can repeat, which gives replicates for a
+  pure-error estimate.
 
 Mixture constraints must be linear in the proportions, since the vertex enumeration
 relies on flat faces. On the full simplex (no bounds, no constraints) the design is
 sized to the model: the pure components and the overall centroid for a linear model,
 plus the binary 50:50 blends for a quadratic one (the ``{q, 2}`` simplex lattice), plus
 the ternary blends for a special cubic one. With three components that is the 7-run
-simplex centroid. A budget below that size gives a D-optimal subset instead.
+simplex centroid. The full cubic model (``"scheffe_cubic"``, or ``"cubic"``) adds a term
+``x_i x_j (x_i - x_j)`` for each pair of components, which is zero at every one of those
+blends. Its design is the ``{q, 3}`` simplex lattice, every blend in thirds, plus the
+overall centroid for four or more components. A budget below that size gives a D-optimal
+subset instead.
 
 Analyse the runs with a Scheffé model. It has no intercept, because the proportions
 sum to one:
@@ -416,11 +424,12 @@ sum to one:
    )
    print(fit["model_summary"]["formula"])  # y ~ -1 + (polymer + solvent + filler) ** 2
 
-``"scheffe_linear"``, ``"scheffe_quadratic"`` and ``"scheffe_special_cubic"`` are
-accepted by ``analyze_experiment`` and ``evaluate_design``. statsmodels recognises
-that the proportions carry an implicit intercept, so R-squared is centred and the
-model degrees of freedom are one less than the number of terms, as for a model with an
-intercept.
+``"scheffe_linear"``, ``"scheffe_quadratic"``, ``"scheffe_special_cubic"`` and
+``"scheffe_cubic"`` are accepted by ``analyze_experiment`` and ``evaluate_design``. In a
+formula the full cubic's terms are written ``I(polymer * solvent * (polymer - solvent))``.
+statsmodels recognises that the proportions carry an implicit intercept, so R-squared is
+centred and the model degrees of freedom are one less than the number of terms, as for a
+model with an intercept.
 
 A blending coefficient tested against zero asks whether a pure component gives a
 response of zero, which is rarely the question. So for a Scheffé model the ANOVA tests

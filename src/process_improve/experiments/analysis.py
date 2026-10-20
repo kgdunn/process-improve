@@ -101,7 +101,7 @@ def build_formula(
     model : str or None
         ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a Scheffé mixture
         model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
-        ``"scheffe_special_cubic"``), or an explicit formula string.  *None*
+        ``"scheffe_special_cubic"``, ``"scheffe_cubic"``), or an explicit formula string.  *None*
         defaults to ``"interactions"``.
     categorical : Collection[str]
         Factors that are categorical. ``"quadratic"`` adds no square for them, since a
@@ -826,7 +826,7 @@ def analyze_experiment(  # noqa: PLR0913
     model : str or None
         ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a Scheffé mixture
         model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
-        ``"scheffe_special_cubic"``, fitted without an intercept since the
+        ``"scheffe_special_cubic"``, ``"scheffe_cubic"``, fitted without an intercept since the
         components sum to 1), an explicit formula whose left-hand side is the
         response, or *None*: ``"scheffe_quadratic"`` when every run's factor
         settings are proportions summing to 1, and ``"interactions"`` otherwise.

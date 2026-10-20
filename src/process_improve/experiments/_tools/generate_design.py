@@ -109,7 +109,7 @@ class GenerateDesignInput(BaseModel):
         "interactions",
         description=(
             "Model the optimal and mixture designs are built for: 'main_effects', 'interactions' or "
-            "'quadratic' (mixtures also accept 'linear', 'special_cubic' and the 'scheffe_*' names)."
+            "'quadratic' (mixtures also accept 'linear', 'special_cubic', 'cubic' and the 'scheffe_*' names)."
         ),
     )
     constraints: list[str] | None = Field(
