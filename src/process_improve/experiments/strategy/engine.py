@@ -189,6 +189,8 @@ def _n_parameters(factors: list[Factor], model_type: str) -> int:
         return q * (q + 1) // 2
     if model_type == "scheffe_special_cubic":
         return q * (q + 1) // 2 + math.comb(q, 3)
+    if model_type == "scheffe_cubic":
+        return q * q + math.comb(q, 3)  # q + 2 C(q, 2) + C(q, 3)
     from process_improve.experiments.designs_optimal import _n_model_parameters  # noqa: PLC0415
 
     return _n_model_parameters(factors, model_type)

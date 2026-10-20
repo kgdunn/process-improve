@@ -22,7 +22,9 @@ import os
 import subprocess
 import sys
 import textwrap
+import threading
 import time
+import warnings
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 
@@ -517,6 +519,72 @@ class TestSafeExecuteToolCall:
                 memory_mb=128,
             )
         assert exc_info.value.code == "memory_exceeded"
+
+
+class TestForkHoldsTheWarningsLock:
+    """No other thread holds the warnings lock at the instant this module forks a worker.
+
+    From Python 3.14 every warning takes one lock for the whole process. A worker forked while
+    another thread held it inherited it held, and hung at its first warning.
+    """
+
+    @staticmethod
+    def _taken_by_another_thread(lock: object) -> bool:
+        """Say whether another thread fails to take *lock* within a tenth of a second."""
+        taken: list[bool] = []
+
+        def take_and_release() -> None:
+            taken.append(lock.acquire(timeout=0.1))
+            if taken[0]:
+                lock.release()
+
+        thread = threading.Thread(target=take_and_release)
+        thread.start()
+        thread.join()
+        return not taken[0]
+
+    def test_the_lock_is_held_from_before_the_fork_until_after_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve import tool_safety as ts
+
+        lock = threading.RLock()  # a stand-in, so the hooks run on every Python version
+        monkeypatch.setattr(warnings, "_lock", lock, raising=False)
+        monkeypatch.setattr(ts._forking_a_worker, "active", True, raising=False)
+        ts._hold_warnings_lock()
+        try:
+            assert self._taken_by_another_thread(lock)
+        finally:
+            ts._release_warnings_lock()
+        assert not self._taken_by_another_thread(lock)
+
+    def test_other_forks_leave_the_lock_alone(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve import tool_safety as ts
+
+        lock = threading.RLock()
+        monkeypatch.setattr(warnings, "_lock", lock, raising=False)
+        monkeypatch.setattr(ts._forking_a_worker, "active", False, raising=False)
+        ts._hold_warnings_lock()
+        assert not self._taken_by_another_thread(lock)
+        ts._release_warnings_lock()  # releases nothing, and so does not raise
+
+    @_skip_if_not_linux
+    @pytest.mark.skipif(not hasattr(warnings, "_lock"), reason="Python 3.13 and earlier have no warnings lock")
+    def test_a_worker_forked_while_another_thread_holds_the_lock_runs(self) -> None:
+        """The worker hung until its timeout when it inherited the other thread's lock."""
+        holding = threading.Event()
+
+        def hold_the_lock() -> None:
+            with warnings._lock:
+                holding.set()
+                time.sleep(1.0)
+
+        holder = threading.Thread(target=hold_the_lock)
+        holder.start()
+        holding.wait()
+        try:
+            result = safe_execute_tool_call("_safety_test_echo", {"value": 1}, timeout=10)
+        finally:
+            holder.join()
+        assert result == {"value": 1}
 
 
 # ---------------------------------------------------------------------------

@@ -55874,7 +55874,7 @@
      "what": "curvature",
      "term": "b11 + b22",
      "value": "-0.50",
-     "analysis": "the curvature check: the factorial average less the centre average; the library reports the centre average less the factorial average, so the sign is turned",
+     "analysis": "the curvature check: the factorial average less the centre average, as the library reports it",
      "where": {
       "page": 516,
       "source_kind": "prose",
@@ -55891,8 +55891,7 @@
        5,
        6,
        7
-      ],
-      "printed": "0.50"
+      ]
      }
     },
     {
@@ -56374,8 +56373,7 @@
      },
      "check": {
       "kind": "curvature_difference",
-      "model": "time * temperature",
-      "printed": "0.50"
+      "model": "time * temperature"
      }
     }
    ]
@@ -56704,8 +56702,7 @@
        4,
        5,
        6
-      ],
-      "printed": "5.28"
+      ]
      }
     },
     {
@@ -59524,13 +59521,58 @@
      "what": "classification",
      "term": "(c) stationary ridge",
      "value": "a line of maxima",
+     "analysis": "the book reads the eigenvalue 0.0017, beside -9.02, as zero, and the slope of 0.005 along it as none; flat_tolerance=0.05 does the same",
      "where": {
       "page": 531,
       "source_kind": "prose",
       "quote": "Here there is not a single point maximum but a line of maxima. We have a stationary ridge."
      },
      "check": {
-      "manual": "the library classifies this surface as a saddle point, from an eigenvalue of 0.0017 that the book reads as zero; it has no ridge class"
+      "kind": "library_text",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.93
+          },
+          {
+           "term": "x1",
+           "coefficient": 10.23
+          },
+          {
+           "term": "x2",
+           "coefficient": 5.59
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.95
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.07
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.59
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis",
+       "flat_tolerance": 0.05
+      },
+      "key": "canonical_analysis.classification",
+      "printed": "stationary_ridge"
      }
     }
    ]

@@ -2234,3 +2234,73 @@ def test_the_adjusted_mean_of_an_analysis_of_covariance_is_a_prediction_with_its
     assert _prediction(out, {**at, "bound": "std_error"}, entry) == pytest.approx(
         0.7236, abs=5e-5
     )  # Minitab's Table 15.15
+
+
+def _six_factor_dsd() -> dict:
+    """Jones and Nachtsheim's (2011) six-factor definitive screening design, Figure 1, as a catalogue entry."""
+    text = "0+---- 0-++++ +0-++- -0+--+ --0+-- ++0-++ -++0+- +--0-+ +-+-0- -+-+0+ ++++-0 ----+0 000000"
+    rows = [[{"+": 1, "-": -1, "0": 0}[c] for c in run] for run in text.split()]
+    names = [f"x{i + 1}" for i in range(6)]
+    return {
+        "name": "dsd-6",
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in names],
+        "responses": [],
+        "runs": {"columns": names, "rows": rows, "coded": True},
+    }
+
+
+def test_a_correlation_check_reads_the_library_summary_of_its_kind_of_pair():
+    """Tables 3 and 4 for m = 6 through the library's correlation metrics; a kind the model lacks is refused."""
+    from process_improve.experiments.reference_catalogue import _estimate_correlations, _term_correlations
+
+    entry = _six_factor_dsd()
+    other = {"pairs": "square_and_other_interaction", "key": "mean"}
+    assert _term_correlations(entry, other) == pytest.approx(0.465, abs=5e-4)
+    squares = {"pairs": "two_squares", "key": "mean", "terms": "squares"}
+    assert _estimate_correlations(entry, squares) == pytest.approx(0.087, abs=5e-4)
+    one = {"pairs": "two_interactions", "key": "max", "factors": ["x1", "x2", "x3"]}
+    assert _estimate_correlations(entry, one) == pytest.approx(0.405, abs=5e-4)
+    with pytest.raises(ValueError, match="no pair"):
+        _estimate_correlations(entry, {"pairs": "two_interactions", "key": "max", "terms": "squares"})
+
+
+def test_a_power_check_reads_one_hypothesis_of_the_library_study_or_its_status():
+    """Table 7: hypothesis 1 of the six-factor design, and hypothesis 2 'Aliased' in its orthogonal alternative."""
+    from process_improve.experiments.reference_catalogue import _average_power
+
+    entry = _six_factor_dsd()
+    assert _average_power(entry, {"hypothesis": 1, "effect_size": 1}) == pytest.approx(0.821, abs=5e-4)
+    pb = {"design": {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 1}}, "design_columns": 6}
+    check = {"hypothesis": 2, "effect_size": 1, **pb}
+    assert _average_power(entry, check | {"status": "aliased"}) == 1
+    assert _average_power(entry, check | {"status": "not estimable"}) == 0
+
+
+def test_a_design_folded_over_takes_the_sign_of_its_halves_as_one_more_factor():
+    """The 12-run Plackett-Burman design folded over: 12 factors in 24 runs, interactions orthogonal to main effects."""
+    from process_improve.experiments.reference_catalogue import _design_runs
+
+    spec = {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 1}}
+    folded = _design_runs({}, {"design": spec, "fold_over": True}).to_numpy(dtype=float)
+    assert folded.shape == (25, 12)
+    assert not folded[-1].any()
+    assert np.array_equal(folded[:12], -folded[12:24])
+    interactions = np.column_stack([folded[:, a] * folded[:, b] for a in range(12) for b in range(a + 1, 12)])
+    assert np.abs(interactions.T @ folded).max() == 0
+
+
+def test_a_design_is_compared_with_one_the_library_makes_by_its_determinant_or_its_standard_errors():
+    """Table 5's row for m = 6: against the 12-run Plackett-Burman design with a centre run."""
+    from process_improve.experiments.reference_catalogue import _relative_efficiency
+
+    model = " + ".join(f"x{i + 1}" for i in range(6))
+    versus = {
+        "model": model,
+        "design": {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 1}},
+        "design_columns": 6,
+    }
+    entry = _six_factor_dsd()
+    assert _relative_efficiency(entry, {**versus, "criterion": "d", "percent": True}) == pytest.approx(85.5, abs=0.05)
+    errors = _relative_efficiency(entry, {**versus, "criterion": "se"})
+    assert errors == pytest.approx(math.sqrt(12 / 10))  # 1/10 against 1/12, the same for every main effect
+    assert _relative_efficiency(entry, {**versus, "criterion": "se", "gain": True}) == pytest.approx(9.5, abs=0.05)

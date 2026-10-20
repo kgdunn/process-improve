@@ -1,0 +1,3 @@
+# Third-party files copied unchanged: each one's header names the SHA-256 of the published bytes
+# (tests/web/page/test_feedback.py checks it), so git never converts their line endings on checkout.
+web/vendor/** -text

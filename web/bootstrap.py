@@ -57,7 +57,7 @@ from process_improve.experiments._desirability import composite_desirability, in
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
-from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, parse_constraint
+from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -284,8 +284,9 @@ PROPORTION_DIGITS = 12
 #: The number of components of a blend of equal parts, in words.
 PARTS = {2: "two", 3: "three", 4: "four", 5: "five"}
 
-#: The seed a design's runs are put in random order with, unless its specification names one; the runs added to a
-#: study are put in random order with it too. A study's report names it (report.js's RUN_ORDER_SEED).
+#: The seed a design's runs are put in random order with, unless its specification names one. The page names one
+#: for each study it begins, the moment it began, so this is the seed of the worked example, the book's examples and
+#: the studies saved before then. A study's report names its seed (report.js's RUN_ORDER_SEED).
 RUN_ORDER_SEED = 42
 
 #: Designs whose non-centre runs all lie on one sphere (Box-Behnken at any size, a
@@ -858,7 +859,9 @@ def _read_limit(text: str, factors: list[Factor]) -> tuple[str, list[str]]:
             f"The limit {text!r} cannot use {found[1] if found else exc}: a limit is written with numbers, your "
             f"factors, + - * / ** and the functions {_listed(list(LIMIT_FUNCTIONS))}."
         ) from exc
-    canonical = ast.unparse(tree)
+    # The library's canonical text, with each factor written as it is named: the parsed text holds a name's NFKC
+    # form, the plain T of a full-width one (#808).
+    canonical = rename_factors(text, {name: name for name in named})
     _short_enough(canonical)
     return canonical, [name for name in numeric if name in named]
 
@@ -881,16 +884,20 @@ def _one_comparison(text: str, tree: ast.expr, numeric: list[str]) -> None:
 
 
 def _factors_named(text: str, tree: ast.expr, factors: list[Factor]) -> list[str]:
-    """Return the names a limit uses for factors, refusing a function, a factor or a name it cannot use."""
+    """Return the factors a limit uses, by their names, refusing a function, a factor or a name it cannot use.
+
+    The parsed limit holds each name in its NFKC form, so a name is matched through that form (#808).
+    """
     names = [f.name for f in factors]
     numeric = [f.name for f in factors if f.type != "categorical"]
+    lookup = factor_lookup(names)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and not (isinstance(node.func, ast.Name) and node.func.id in LIMIT_FUNCTIONS):
             raise ValueError(
                 f"The limit {text!r} uses {ast.unparse(node.func)}, which a limit cannot: the functions it can use "
                 f"are {_listed(list(LIMIT_FUNCTIONS))}."
             )
-    named = _named(tree)
+    named = [lookup.get(name, name) for name in _named(tree)]
     for name in named:
         if name in names and name not in numeric:
             raise ValueError(
@@ -1143,7 +1150,10 @@ def _given_design(spec: dict) -> dict:
         "design_type": GIVEN,
         "factors": [_factor_spec(f) for f in factors],
         "response": responses[0]["name"],
-        "options": {"n_blocks": len(set(blocks))} if blocks else {},
+        "options": {
+            **({"n_blocks": len(set(blocks))} if blocks else {}),
+            **({"random_state": int(spec["random_state"])} if "random_state" in spec else {}),
+        },
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
@@ -3547,6 +3557,8 @@ def compare_plan(request: dict) -> dict:
     # A design taken from the comparison keeps the reader's description of the response, and aims to learn the
     # model it was compared on.
     described = _described({"response_info": request.get("response_info"), "aim": model})
+    # The study's seed, so a design taken from the comparison keeps it.
+    seeded = {"random_state": request["random_state"]} if "random_state" in request else {}
     for design_type, info in DESIGNS.items():
         if design_type in SPACE_FILLING:
             continue  # made for no model, so not one to compare on a model
@@ -3560,6 +3572,7 @@ def compare_plan(request: dict) -> dict:
         if "n_levels" in info["options"] and model in TAGUCHI_THREE_LEVELS:
             options["n_levels"] = TAGUCHI_LEVELS[-1]
         spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
+        spec.update(seeded)
         if limits:
             spec["constraints"] = limits
         plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
@@ -5584,7 +5597,8 @@ def add_runs(request: dict) -> dict:
     """Add the runs of one extension (``kind``, one of :data:`EXTENSIONS`) to the end of the study's run sheet.
 
     The runs made so far stay as they are, in their places, so the results the page holds for them still
-    belong to them; the runs added follow, in random order, with blank results. A blocked extension puts
+    belong to them; the runs added follow, in random order, with blank results. The order is drawn with the
+    study's seed (its ``random_state`` option) plus the number of runs before them. A blocked extension puts
     them in a block of their own: the run sheet gains its Block column the first time, the runs before
     in block 1, and a confirmation run in no block. The study is then a design of runs as given (its
     ``design_type`` is ``given``), estimating the largest model its runs estimate in full, and its notes
@@ -5608,7 +5622,11 @@ def add_runs(request: dict) -> dict:
     before = pd.DataFrame(rows, columns=columns)
     first_std, first_run = _last(before, "Std order") + 1, _last(before, "Run order") + 1
     block = _last(before, BLOCK) + 1 if made["blocked"] else None
-    order = np.random.default_rng(RUN_ORDER_SEED).permutation(len(made["new"]))
+    # The study's seed plus the runs before, so each set of runs added has an order of its own. A study saved before
+    # studies had a seed keeps the page's one seed, as its report says.
+    seed = (spec.get("options") or {}).get("random_state")
+    rng = np.random.default_rng(RUN_ORDER_SEED if seed is None else int(seed) + len(before))
+    order = rng.permutation(len(made["new"]))
     for place, i in enumerate(order):  # in run order, each with its place in the standard order of the runs added
         settings = {f["name"]: _setting(f, made["new"][i][j]) for j, f in enumerate(spec["factors"])}
         numbers = {"Std order": first_std + int(i), "Run order": first_run + place, BLOCK: block}
@@ -5621,6 +5639,7 @@ def add_runs(request: dict) -> dict:
         "model": made["model"],
         "options": {
             GROWN: True,
+            **({"random_state": int(seed)} if seed is not None else {}),
             **({"n_blocks": n_blocks} if n_blocks > 1 else {}),
             **({WIDENED: True} if spec.get("options", {}).get(WIDENED) else {}),
         },
