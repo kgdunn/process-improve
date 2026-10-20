@@ -15,7 +15,7 @@ Designed Experiments
    :members: Factor, Constraint, Response, ResponseGoal, DesignResult
 
 .. automodule:: process_improve.experiments.designs_screening
-   :members: dispatch_fractional_factorial, dispatch_plackett_burman, plackett_burman_runs, dispatch_taguchi
+   :members: dispatch_fractional_factorial, defining_relation, dispatch_plackett_burman, plackett_burman_runs, dispatch_taguchi
 
 .. automodule:: process_improve.experiments.designs_response_surface
    :members: dispatch_ccd, orthogonal_alpha, blocking_alpha, ccd_center_points, dispatch_box_behnken, dispatch_dsd, dsd_conference_order, dsd_run_count
