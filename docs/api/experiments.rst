@@ -77,6 +77,9 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.model_comparison
+   :members: compare_models, group_test
+
 .. automodule:: process_improve.experiments.omars
    :members: analyze_omars, OmarsResult
 
@@ -85,6 +88,9 @@ Designed Experiments
 
 .. automodule:: process_improve.experiments.least_squares_means
    :members: least_squares_means
+
+.. automodule:: process_improve.experiments.layouts
+   :members: tukey_nonadditivity, estimate_missing
 
 .. automodule:: process_improve.experiments.multistratum
    :members: multistratum_anova, error_terms
@@ -101,6 +107,9 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.variance_dispersion
+   :members: variance_dispersion
+
 .. automodule:: process_improve.experiments.true_process
    :members:
    :show-inheritance:
@@ -108,6 +117,10 @@ Designed Experiments
 .. automodule:: process_improve.experiments.analysis
    :members:
    :undoc-members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.gaussian_process
+   :members:
    :show-inheritance:
 
 .. automodule:: process_improve.experiments.augment

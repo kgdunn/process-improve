@@ -88,6 +88,7 @@ from process_improve.experiments.projections import evaluate_projections
 from process_improve.experiments.random_effects import expected_mean_squares
 from process_improve.experiments.random_effects import fixed_columns as _fixed_columns
 from process_improve.experiments.run_order import run_order_trends
+from process_improve.experiments.separating import constraint_through_cuts
 from process_improve.experiments.sequential import steepest_path
 from process_improve.experiments.trade_off import minimum_aberration_generators
 from process_improve.monitoring.metrics import calculate_cpk
@@ -649,6 +650,16 @@ def _anova_row(out: dict, term: str) -> dict:
     )
 
 
+def _anova_df(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a row's degrees of freedom in the analysis of variance.
+
+    The ``Total`` row, which the library's table does not hold, has the observations less one.
+    """
+    if check["term"] == "Total":
+        return float(out["y"].notna().sum() - 1)
+    return _anova_row(out, check["term"])["df"]
+
+
 def _percent_of_total(out: dict, check: dict, _experiment: dict) -> float:
     """Return a row's sum of squares (a term's, or the ``Residual``) as a percentage of the total about the mean."""
     return 100 * _anova_row(out, check["term"])["sum_sq"] / sum(_anova_sums(out)[:2])
@@ -664,6 +675,18 @@ def _percent_contribution(out: dict, check: dict, _experiment: dict) -> float:
     error = out["model_summary"]["mse_residual"]
     df = -out["model_summary"]["df_model"] if row["source"] == "Residual" else row["df"]
     return 100 * (row["sum_sq"] - df * error) / sum(_anova_sums(out)[:2])
+
+
+def _pooled_rows(out: dict, check: dict, _experiment: dict) -> float:
+    """Return rows of the analysis of variance added into one: their sum of squares, degrees of freedom or mean square.
+
+    ``check["terms"]`` names the rows, each as ``anova_sum_sq`` names a term, as a source adds the main effects into
+    one line or pools interactions; ``check["key"]`` is ``"sum_sq"`` (the default), ``"df"``, or ``"mean_sq"``, the
+    sum of squares over the degrees of freedom.
+    """
+    rows = [_anova_row(out, term) for term in check["terms"]]
+    sum_sq, df = math.fsum(row["sum_sq"] for row in rows), sum(row["df"] for row in rows)
+    return {"sum_sq": sum_sq, "df": float(df), "mean_sq": sum_sq / df}[check.get("key", "sum_sq")]
 
 
 def _extra_sums(out: dict, check: dict) -> dict[str, float]:
@@ -692,8 +715,13 @@ def _extra_sums(out: dict, check: dict) -> dict[str, float]:
 
 
 def _lenth(out: dict, key: str, check: dict) -> float:
-    """Return one of Lenth's margins, on the effects' scale or, when the source works with coefficients, on theirs."""
-    return float(out["lenth_method"][key]) / (2.0 if check.get("scale") == "coefficient" else 1.0)
+    """Return one of Lenth's margins, on the effects' scale or, when the source works with coefficients, on theirs.
+
+    ``"s0"`` is Lenth's first estimate, 1.5 times the median absolute effect, from which the PSE is trimmed.
+    """
+    lenth = out["lenth_method"]
+    value = 1.5 * statistics.median(abs(e["effect"]) for e in lenth["effects"]) if key == "s0" else lenth[key]
+    return float(value) / (2.0 if check.get("scale") == "coefficient" else 1.0)
 
 
 def _lenth_ratio(out: dict, check: dict) -> tuple[float, float]:
@@ -709,6 +737,24 @@ def _lenth_ratio(out: dict, check: dict) -> tuple[float, float]:
     return ratio, 2 * float(t_value_cdf(-abs(ratio), len(lenth["effects"]) / 3))
 
 
+def _normal_plot(out: dict, check: dict, _experiment: dict) -> float:
+    """Return a place on a normal plot of the fit's effects: a term's rank, or a plotting position in percent.
+
+    The effects are the library's, one for each estimable contrast (those Lenth's method judges), ranked from the most
+    negative, tied ranks averaged. ``check["key"]`` is ``"rank"``, the rank of ``check["term"]``, or ``"position"``,
+    100(i - 1/2)/m for the rank i of m effects: the term's, or ``check["rank"]`` itself, for a source that prints the
+    positions without naming the effects beside them.
+    """
+    effects = out["lenth_method"]["effects"]
+    rank = check.get("rank")
+    if rank is None:
+        values = pd.Series([e["effect"] for e in effects])
+        ranks = (values / values.abs().max()).round(9).rank()  # effects equal in exact arithmetic tie
+        wanted = set(_library_term(check["term"]).split(":"))
+        rank = next(r for e, r in zip(effects, ranks, strict=True) if set(e["term"].split(":")) == wanted)
+    return float(rank) if check["key"] == "rank" else 100 * (float(rank) - 0.5) / len(effects)
+
+
 def _prediction(out: dict, check: dict, experiment: dict) -> float:
     """Return the model's prediction at a point in coded units, as the library predicts new runs.
 
@@ -718,7 +764,8 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
     ``"pi_half_width"``, an interval's half-width, as a prediction profiler prints it beside the
     prediction. ``"leverage"`` is x0'(X'X)^-1 x0, the variance of the predicted mean in units of σ²,
     and ``"std_error"`` the standard error of the predicted mean: the adjusted mean's, at the
-    covariate's average, in an analysis of covariance.
+    covariate's average, in an analysis of covariance. ``check["error"]`` reads the prediction's
+    error at a run instead (see :func:`_prediction_error`).
     """
     names = [f["name"] for f in experiment["factors"]]
     point = pd.DataFrame([dict.fromkeys(names, 0.0) | check["point"]])[names]
@@ -739,7 +786,23 @@ def _prediction(out: dict, check: dict, experiment: dict) -> float:
         matrix = dmatrix(check["model"], out["settings"], return_type="dataframe")
         at = np.asarray(build_design_matrices([matrix.design_info], point)[0])[0]
         return float(at @ np.linalg.pinv(matrix.to_numpy().T @ matrix.to_numpy()) @ at)
-    return float(prediction[bound])
+    predicted = float(prediction[bound])
+    return _prediction_error(predicted, check, experiment) if "error" in check else predicted
+
+
+def _prediction_error(predicted: float, check: dict, experiment: dict) -> float:
+    """Return a prediction less a run's value, the run ``check["run"]`` (1-based), which need not be among those fitted.
+
+    The run's value is in the column ``check["observed"]``, the check's response by default. ``check["error"]`` is
+    ``"difference"``, or ``"percent"``: the difference over the run's value, times 100, as a source prints the percent
+    error of a model, or a simulator, against a run it is checked by. The sign is the opposite of a marginal-means
+    check's ``"deviation"``, the run's value less the prediction.
+    """
+    runs = experiment["runs"]
+    column = check.get("observed") or check.get("response") or experiment["responses"][0]["name"]
+    observed = float(runs["rows"][check["run"] - 1][runs["columns"].index(column)])
+    error = predicted - observed
+    return 100 * error / observed if check["error"] == "percent" else error
 
 
 def _best_corner(out: dict, check: dict, experiment: dict) -> float:
@@ -1244,16 +1307,19 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "aicc": lambda out, _c, _e: out["model_summary"]["aicc"],
     "aic_step": lambda out, _c, _e: out["model_summary"]["aic_step"],
     "bic": lambda out, _c, _e: out["model_summary"]["bic"],
+    "lenth_s0": lambda out, c, _e: _lenth(out, "s0", c),
     "lenth_pse": lambda out, c, _e: _lenth(out, "PSE", c),
     "lenth_me": lambda out, c, _e: _lenth(out, "ME", c),
     "lenth_sme": lambda out, c, _e: _lenth(out, "SME", c),
     "lenth_t": lambda out, c, _e: _lenth_ratio(out, c)[0],
     "lenth_p": lambda out, c, _e: _lenth_ratio(out, c)[1],
+    "normal_plot": _normal_plot,
     "anova_sum_sq": lambda out, c, _e: _anova_row(out, c["term"])["sum_sq"],
     "anova_mean_sq": lambda out, c, _e: _anova_row(out, c["term"])["mean_sq"],
     "anova_f": lambda out, c, _e: _anova_row(out, c["term"])["F"],
     "anova_p": lambda out, c, _e: _anova_row(out, c["term"])["p_value"],
-    "anova_df": lambda out, c, _e: _anova_row(out, c["term"])["df"],
+    "anova_df": _anova_df,
+    "anova_pooled": _pooled_rows,
     "percent_of_total": _percent_of_total,
     "percent_contribution": _percent_contribution,
     "extra_ss": lambda out, c, _e: _extra_sums(out, c)["sum_sq"],
@@ -1304,8 +1370,8 @@ def _word(word: str) -> str:
 
 
 def _words(printed: str) -> list[str]:
-    """Return the words of a printed list, such as ``I = ABD = ACE``, ``AD and CDE`` or ``BCD, ACD``."""
-    parts = re.split(r"[,=]|\band\b", printed.replace("\u2212", "-"))
+    """Return the words of a printed list, such as ``I = ABD = ACE``, ``AD and CDE``, ``BCD, ACD`` or ``A + BCD``."""
+    parts = re.split(r"[,=+]|\band\b", printed.replace("\u2212", "-"))
     return [w for w in (_word(p) for p in parts) if w]
 
 
@@ -1409,15 +1475,20 @@ def _block_effects(words: list[str], check: dict, printed: str) -> tuple[str, bo
 
 
 def _alias_check(words: list[str], check: dict, printed: str) -> tuple[str, bool]:
-    """Check a term's aliases, as a fraction's defining relation ``words`` gives them, or that it is clear."""
-    aliases = sorted({_multiply(_word(check["term"]), word) for word in words})
+    """Check a term's aliases, as a fraction's defining relation ``words`` gives them, or that it is clear.
+
+    The term's own word, printed at the head of its chain as in ``A + BCD``, is not one of its aliases.
+    """
+    term = _word(check["term"])
+    aliases = sorted({_multiply(term, word) for word in words})
     if check["kind"] == "clear":  # aliased with no main effect or two-factor interaction
         short = [a for a in aliases if len(a.lstrip("-")) <= 2]
         return ", ".join(short) or "no main effect or two-factor interaction", not short
+    listed = set(_words(printed)) - {term}
     if "up_to" in check:  # every alias of up to that many factors, and only those
         short = sorted((a for a in aliases if len(a.lstrip("-")) <= check["up_to"]), key=lambda w: (len(w), w))
-        return ", ".join(short) or "none", set(_words(printed)) == set(short)
-    return ", ".join(aliases), bool(_words(printed)) and set(_words(printed)) <= set(aliases)  # kind == "aliases"
+        return ", ".join(short) or "none", listed == set(short)
+    return ", ".join(aliases), bool(listed) and listed <= set(aliases)  # kind == "aliases"
 
 
 _DESIGN_KINDS = {
@@ -1722,13 +1793,17 @@ def _component_relation(_experiment: dict, check: dict, printed: str) -> tuple[s
 
 
 def _levels_of(experiment: dict, names: list[str], positions: list[int] | None = None) -> np.ndarray:
-    """Return the runs' levels of three-level factors as 0, 1 and 2: each value's place in its factor's ``levels``."""
+    """Return the runs' levels of three-level factors as 0, 1 and 2: each value's place in its factor's ``levels``.
+
+    A factor that lists no levels takes its settings in increasing order, as -1, 0 and +1 are in coded units.
+    """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
+    listed = {f["name"]: f.get("levels") for f in experiment["factors"]}
+    levels = {name: [str(level) for level in listed[name] or sorted(table[name].unique())] for name in names}
     if positions is not None:
         table = table.iloc[[p - 1 for p in positions]]
-    factors = {f["name"]: [str(level) for level in f["levels"]] for f in experiment["factors"]}
-    return np.column_stack([table[name].map(lambda v, n=name: factors[n].index(str(v))) for name in names])
+    return np.column_stack([table[name].map(lambda v, n=name: levels[n].index(str(v))) for name in names])
 
 
 def _contrast_values(experiment: dict, check: dict, positions: list[int] | None = None) -> np.ndarray:
@@ -1961,19 +2036,40 @@ def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]
     return ("every run" if not differ else f"not in runs {', '.join(map(str, differ))}"), not differ
 
 
+def _factor_word(side: str, names: list[str]) -> list[str]:
+    """Return the factors one side of a generator multiplies, read against the factor names, the longest first.
+
+    ``AB`` is A and B; ``x1x2`` (or ``x1\u00b7x2``) is x1 and x2, for factors so named; I, the intercept, is none.
+    """
+    text = _plain(side).replace("-", "")
+    if text in ("I", "Intercept"):
+        return []
+    by_length = sorted(names, key=len, reverse=True)
+    found = []
+    while text:
+        name = next((n for n in by_length if text.startswith(n)), None)
+        if name is None:
+            raise ValueError(f"{side!r} is not a product of the factors {names}.")
+        found.append(name)
+        text = text.removeprefix(name)
+    return found
+
+
 def _fraction_runs(experiment: dict, check: dict) -> list[int]:
     """Return the 1-based positions of the runs that make the fraction of a generator: C = AB, or C = \u2212AB.
 
     A run is in it when the product of its coded settings over the generator's word is the word's sign.
     Several generators, separated by commas, keep the runs that satisfy them all, as the signs of
-    two effects pick one of the four blocks they generate: ``-ADE, -BCE``.
+    two effects pick one of the four blocks they generate: ``-ADE, -BCE``. The words are read against
+    the factors' names, so a factor's name may be longer than a letter: ``time = temp\u00b7rate``.
     """
     settings, _ = _coded_runs(experiment, check.get("runs"))
     kept = np.ones(len(settings), dtype=bool)
-    for generator in str(check["generator"]).split(","):
-        word = _generator_word(generator)
-        sign = -1.0 if word.startswith("-") else 1.0
-        kept &= np.isclose(settings[list(word.lstrip("-"))].prod(axis=1).to_numpy(), sign)
+    for generator in str(check["generator"]).replace("\u2212", "-").split(","):
+        factors = [name for side in generator.split("=") for name in _factor_word(side, list(settings.columns))]
+        word = [name for name in dict.fromkeys(factors) if factors.count(name) % 2]  # a factor twice cancels
+        sign = -1.0 if generator.count("-") % 2 else 1.0
+        kept &= np.isclose(settings[word].prod(axis=1).to_numpy(), sign)
     return [int(i) + 1 for i in np.flatnonzero(kept)]
 
 
@@ -2267,6 +2363,26 @@ def _library_text(_experiment: dict, check: dict, printed: str) -> tuple[str, bo
     else:
         text = str(_walk(_library_result(check), check.get("key")))
     return text, " ".join(text.split()) == " ".join(str(printed).split())
+
+
+def _limit_through(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:
+    """Compare a printed straight limit on the factors with the library's limit through cut points on them.
+
+    ``check["corner"]`` is a corner of the factors' box that cannot be run and ``check["cuts"]`` the value each limited
+    factor reaches from it, the others held at the corner, in actual units, as
+    :func:`~process_improve.experiments.separating.constraint_through_cuts` takes them; the box is the entry's numeric
+    factors' ranges. The two limits agree when they read the same without spaces or signs of multiplication, in
+    either case, with ≥ and ≤ written >= and <=.
+    """
+    factors = [
+        Factor(name=f["name"], low=f["low"], high=f["high"]) for f in experiment["factors"] if f["type"] == "numeric"
+    ]
+    found = constraint_through_cuts(factors, check["corner"], check["cuts"]).expression
+
+    def plain(limit: str) -> str:
+        return re.sub(r"[\s*]", "", limit.replace("\u2265", ">=").replace("\u2264", "<=")).lower()
+
+    return found, plain(found) == plain(printed)
 
 
 def _active(out: dict, check: dict) -> tuple[str, bool]:
@@ -2610,9 +2726,11 @@ def _normal_equations(experiment: dict, check: dict) -> float:
     is (|X'X - X'Z(Z'Z)^-1 Z'X| / |X'X|)^(1/p), with ``Z`` the columns ``check["covariates"]`` of the
     runs: the share of the model's information a time trend (or another covariate) leaves, 1 when the
     model's columns are orthogonal to it, in percent with ``"percent": true``. ``check["set"]`` changes
-    some elements of the runs first (see :func:`_changed`).
+    some elements of the runs first (see :func:`_changed`). ``check["summary"]`` reads a run's
+    readings as a fit does (see :func:`_coded_runs`): with ``"each"`` every reading is a row of X,
+    and X'y sums them all.
     """
-    settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
     settings = _changed(settings, check.get("set"))
     model = dmatrix(check["model"], settings, return_type="dataframe")
     matrix = model.to_numpy()
@@ -2955,7 +3073,8 @@ def _multistratum(experiment: dict, check: dict) -> float:
     ``"df"``, ``"ss"``, ``"ms"``, ``"f"`` or ``"p_value"`` of ``check["term"]`` in ``check["stratum"]``
     (``"Residual"`` for the stratum's residual; a term's factors may be written in any order);
     ``"units"``, the units the stratum holds; or ``"n_terms"``, the count of treatment terms estimated
-    in the stratum, or in a list of strata.
+    in the stratum, or in a list of strata. The term ``"Total"`` adds the ``"df"`` or ``"ss"`` of every
+    row of every stratum: the runs less one, and their sum of squares about the mean.
     """
     if "levels" in check:
         names = list(check["levels"])
@@ -2966,6 +3085,8 @@ def _multistratum(experiment: dict, check: dict) -> float:
         response = check.get("response") or responses.columns[0]
         table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
     strata = {s["stratum"]: s for s in multistratum_anova(table, check["model"], check["strata"], response)["strata"]}
+    if check.get("term") == "Total":  # the strata split the contrasts among the runs between them
+        return float(sum(row[check["key"]] for s in strata.values() for row in [*s["terms"], s["residual"]]))
     key, wanted = check["key"], check["stratum"]
     if key == "n_terms":
         return float(sum(len(strata[name]["terms"]) for name in (wanted if isinstance(wanted, list) else [wanted])))
@@ -3241,6 +3362,7 @@ _STRUCTURE_KINDS: dict[str, Callable[[dict, dict, str], tuple[str, bool]]] = {
     "same_runs": _same_runs,
     "generator_holds": _generator_holds,
     "library_text": _library_text,
+    "limit_through": _limit_through,
     "generalized_interactions": _generalized_interactions,
     "product_column": _product_column,
     "same_projections": _same_projections,
@@ -3267,9 +3389,10 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
     ``"columns"`` (0-based) pick part of it, ``"diagonal": true`` its diagonal, and ``"abs": true``
     compares its entries' sizes, as a source prints them ±2. ``"average": true`` returns the mean of
     the rows picked, the average row of one block's model matrix that orthogonal blocking compares.
-    ``check["set"]`` changes some elements of the runs first (see :func:`_changed`).
+    ``check["set"]`` changes some elements of the runs first (see :func:`_changed`), and ``check["summary"]``
+    reads a run's readings as :func:`_normal_equations` does.
     """
-    settings, responses = _coded_runs(experiment, check.get("runs"))
+    settings, responses = _coded_runs(experiment, check.get("runs"), check.get("summary"))
     settings = _changed(settings, check.get("set"))
     matrix = dmatrix(check["model"], settings, return_type="dataframe").to_numpy()
     found = {
@@ -3356,6 +3479,7 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     if kind not in _FIT_KINDS:
         raise KeyError(f"No check of the kind {kind!r}.")
     found = float(_FIT_KINDS[kind](out, check, experiment))
+    found = found**2 if check.get("squared") else found  # a variance, from the standard error read
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     found = math.exp(found) if check.get("exp") else found  # a model of ln(s²) read back as a variance
     found = found / math.log(10) if check.get("log10") else found  # a natural log printed as a common one

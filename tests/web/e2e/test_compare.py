@@ -274,6 +274,17 @@ def test_the_arrows_stay_beside_the_measures_as_the_designs_scroll(page):
     assert after[2] < before[2] - 50, "the designs scroll past them"
 
 
+def test_a_click_outside_the_detailed_comparison_closes_it(page):
+    reveal(page, "#compare")
+    page.click("#compare")
+    page.wait_for_selector("#compare-dialog[open]")
+    box = page.locator("#compare-dialog").bounding_box()
+    page.mouse.click(box["x"] + 20, box["y"] + 20)
+    assert page.is_visible("#compare-dialog"), "a click inside it leaves it open"
+    page.mouse.click(box["x"] / 2, box["y"] + 20)
+    page.wait_for_selector("#compare-dialog", state="hidden")
+
+
 def test_a_design_taken_from_the_detailed_comparison_reaches_the_run_sheet_as_made(page, first_paint):
     chosen = next(m for m in first_paint["comparison"]["made"] if m["design_type"] == "d_optimal")
     reveal(page, "#compare")

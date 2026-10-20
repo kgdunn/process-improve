@@ -17220,7 +17220,7 @@
       "quote": "0.9770 ≤ σ² ≤ 5.1775"
      },
      "check": {
-      "manual": "the chi-square interval for the error variance, which the library does not compute: 12 × 1.90/23.3367 = 0.97700, from the rounded MSE; from the unrounded 22.75 it is 0.97486, as JMP's REML table prints"
+      "manual": "the chi-square interval for the error variance worked from the mean square rounded to 1.90: 12 × 1.90/23.3367 = 0.97700; from the unrounded 22.75 it is 0.97486 (mean_squares, key chi2_low), as JMP's REML table prints it (checked)"
      }
     },
     {
@@ -17233,7 +17233,7 @@
       "quote": "0.9770 ≤ σ² ≤ 5.1775"
      },
      "check": {
-      "manual": "the same interval's upper limit: 22.8/4.4038 = 5.17735 from the rounded MSE; 5.16601 from the unrounded 22.75, as JMP prints"
+      "manual": "the same interval's upper limit: 22.8/4.4038 = 5.17735 from the rounded mean square; 5.16601 from the unrounded 22.75 (mean_squares, key chi2_high), as JMP prints it (checked)"
      }
     },
     {
@@ -17681,7 +17681,12 @@
       "quote": "Residual ... 0.9748608 5.1660065"
      },
      "check": {
-      "manual": "the chi-square interval for the residual variance on 12 degrees of freedom, which the library does not compute (it reproduces: 22.75/23.3367 = 0.974861)"
+      "kind": "mean_squares",
+      "model": "loom",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_low"
      }
     },
     {
@@ -17694,7 +17699,12 @@
       "quote": "Residual ... 0.9748608 5.1660065"
      },
      "check": {
-      "manual": "the same interval's upper limit (22.75/4.4038 = 5.16601)"
+      "kind": "mean_squares",
+      "model": "loom",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_high"
      }
     },
     {
@@ -27136,7 +27146,12 @@
       "quote": "Residual ... 3.9975509 17.547721"
      },
      "check": {
-      "manual": "the chi-square interval for the residual variance on 15 degrees of freedom, which the library does not compute (it reproduces: 109.886/27.4884 = 3.99755)"
+      "kind": "mean_squares",
+      "model": "pressure + batch",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_low"
      }
     },
     {
@@ -27149,7 +27164,12 @@
       "quote": "Residual ... 3.9975509 17.547721"
      },
      "check": {
-      "manual": "the same interval's upper limit (109.886/6.26214 = 17.5477)"
+      "kind": "mean_squares",
+      "model": "pressure + batch",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_high"
      }
     },
     {
@@ -48722,7 +48742,12 @@
       "quote": "Residual ... 6.0510389 26.561749"
      },
      "check": {
-      "manual": "the chi-square interval for the residual variance on 15 degrees of freedom, which the library does not compute (it reproduces: 166.333/27.4884 = 6.05104)"
+      "kind": "mean_squares",
+      "model": "clutter * filter + operator",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_low"
      }
     },
     {
@@ -48735,7 +48760,12 @@
       "quote": "Residual ... 26.561749"
      },
      "check": {
-      "manual": "the same interval's upper limit (166.333/6.26214 = 26.5617)"
+      "kind": "mean_squares",
+      "model": "clutter * filter + operator",
+      "terms": {
+       "Residual": 1
+      },
+      "key": "chi2_high"
      }
     },
     {
@@ -66085,7 +66115,8 @@
       "quote": "The calculations result in s0 = 1.5 × |−2.625| = 3.9375 and 2.5 × 3.9375 = 9.84375"
      },
      "check": {
-      "manual": "Lenth's first estimate, 1.5 times the median absolute effect, which the library computes on the way to its PSE but does not report; the PSE it leads to is checked"
+      "kind": "lenth_s0",
+      "model": "A * B * C * D"
      }
     },
     {
@@ -150308,7 +150339,9 @@
       "quote": "Table 9.4 ... Total 145.56 8"
      },
      "check": {
-      "manual": "nine runs less one"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "C(block) + C(A) + C(B)"
      }
     }
    ]
@@ -157797,7 +157830,9 @@
       "quote": "Table 10.4 Minitab Output for the Viscosity Regression Model, Example 10.1 ... Analysis of Variance ... Regression 2 44157 22079 82.50 0.000 Residual Error 13 3479 268 Total 15 47636"
      },
      "check": {
-      "manual": "16 observations less one; the regression's and the residual's degrees of freedom are checked"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "temperature + feed"
      }
     },
     {
@@ -162536,7 +162571,9 @@
       "quote": "Table 11.2 Analysis of Variance for the First-Order Model ... Total 3.0022 8"
      },
      "check": {
-      "manual": "nine runs less one; the model's and the residual's degrees of freedom are checked"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "time + temp"
      }
     },
     {
@@ -166072,27 +166109,75 @@
      "what": "lack_of_fit",
      "term": "Lack of Fit",
      "value": "0.28 3 0.094 1.78 0.2897",
+     "analysis": "the quadratic model's row of the library's lack-of-fit test",
      "where": {
       "page": 491,
       "source_kind": "table",
       "quote": "Table 11.7 Computer Output from Design-Expert for Fitting a Model to the Yield Response in Example 11.2 ... ANOVA for Response Surface Quadratic Model ... Lack of Fit 0.28 3 0.094 1.78 0.2897"
      },
-     "check": {
-      "manual": "the quadratic model's row of the lack-of-fit tests above, which is checked"
-     }
+     "check": [
+      {
+       "kind": "lack_of_fit_ss",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.28"
+      },
+      {
+       "kind": "lack_of_fit_df",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "3"
+      },
+      {
+       "kind": "lack_of_fit_ms",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.094"
+      },
+      {
+       "kind": "lack_of_fit_f",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "1.78"
+      },
+      {
+       "kind": "lack_of_fit_p",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.2897"
+      }
+     ]
     },
     {
      "what": "pure_error",
      "term": "Pure Error",
      "value": "0.21 4 0.053",
+     "analysis": "the pure-error row of the library's lack-of-fit test of the quadratic model",
      "where": {
       "page": 491,
       "source_kind": "table",
       "quote": "Table 11.7 Computer Output from Design-Expert for Fitting a Model to the Yield Response in Example 11.2 ... ANOVA for Response Surface Quadratic Model ... Pure Error 0.21 4 0.053"
      },
-     "check": {
-      "manual": "the row of the lack-of-fit tests above, which is checked"
-     }
+     "check": [
+      {
+       "kind": "pure_error_ss",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.21"
+      },
+      {
+       "kind": "pure_error_df",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "4"
+      },
+      {
+       "kind": "pure_error_ms",
+       "model": "time * temp + I(time ** 2) + I(temp ** 2)",
+       "response": "yield",
+       "printed": "0.053"
+      }
+     ]
     },
     {
      "what": "ss_total",
@@ -169855,7 +169940,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... X-Axis 65.40254 ... R-axis 3603.2483"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169868,7 +169953,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... Total Sensitivity Main Effect ... Interaction"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169881,7 +169966,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... Mu 734.54584"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169894,7 +169979,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... Sigma 212205.18"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169907,7 +169992,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... −2*LogLikelihood 132.98004"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169920,7 +170005,7 @@
       "quote": "Table 11.18 The JMP Gaussian process prediction model for the CFD experiment ... ŷ = 734.545842514493 + (−1943.3447961328 * Exp(..."
      },
      "check": {
-      "manual": "the library fits no Gaussian process model; the weights are R^-1(y − jμ) for the correlation matrix of Equation 11.23 at the fitted θ"
+      "manual": "the weights are R^-1(y − jμ) for the correlation matrix of Equation 11.23 at the fitted θ; JMP fitted the design points to the digits of Table 11.18, and the weights move with their rounding to Table 11.16's three decimals far more than the estimates do (fit_gaussian_process gives them as weights; tests/test_gaussian_process.py)"
      }
     }
    ]
@@ -171216,7 +171301,10 @@
       "quote": "Table 11.21 Model Fitting for the Hardness Response ... ANOVA for Mixture Quadratic Model ... Cor Total 468.36 13"
      },
      "check": {
-      "manual": "fourteen runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "scheffe_quadratic",
+      "response": "hardness"
      }
     },
     {
@@ -172372,7 +172460,10 @@
       "quote": "Table 11.22 Model Fitting for the Solids Response ... ANOVA for Mixture Quadratic Model ... Cor Total 4564.73 13"
      },
      "check": {
-      "manual": "fourteen runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "scheffe_quadratic",
+      "response": "solids"
      }
     },
     {
@@ -183969,7 +184060,9 @@
       "quote": "Table 13.2 Analysis of Variance (Minitab Balanced ANOVA) for Example 13.1 ... Total 119 1274.592"
      },
      "check": {
-      "manual": "120 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "part * operator"
      }
     },
     {
@@ -188886,14 +188979,94 @@
      "what": "expected mean squares",
      "term": "restricted mixed model",
      "value": "σ² + bnσ²τγ + cnσ²τβ + nσ²τβγ + bcnΣτ²i/(a − 1) ...",
+     "analysis": "the temperature row of the library's expected_mean_squares under the restricted model, with b = 4 operators, c = 3 gauges and n = 2 replicates: the coefficients of σ², σ²τγ, σ²τβ, σ²τβγ and Στ²/(a - 1)",
      "where": {
       "page": 594,
       "source_kind": "table",
       "quote": "Table 13.10 Analysis of Variance for the Pressure Drop Data ... Expected Mean Squares"
      },
-     "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
-     }
+     "check": [
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.Error",
+       "printed": "1",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp:gauge",
+       "printed": "4 * 2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp:operator",
+       "printed": "3 * 2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp:operator:gauge",
+       "printed": "2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "temp.temp",
+       "printed": "4 * 3 * 2",
+       "expression": true,
+       "levels": {
+        "temp": 3,
+        "operator": 4,
+        "gauge": 3
+       },
+       "random": [
+        "operator",
+        "gauge"
+       ],
+       "replicates": 2
+      }
+     ]
     },
     {
      "what": "ss_total",
@@ -189575,7 +189748,7 @@
       "quote": "Table 13.11 Minitab Balanced ANOVA for Example 13.6, Restricted Model ... Expected Mean Square for Each Term (using restricted model)"
      },
      "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+      "manual": "the catalogue holds only the start of Minitab's rows, (8) + 2(7) + ..., not the rows; expected_mean_squares(restricted=True) derives them, and Table 13.10's temperature row is checked"
      }
     },
     {
@@ -190171,7 +190344,7 @@
       "quote": "Table 13.12 Minitab Balanced ANOVA for Example 13.6, Unrestricted Model ... Expected Mean Square for Each Term (using unrestricted model)"
      },
      "check": {
-      "manual": "the library derives no expected mean squares; the coefficients are those of the balanced design's levels and replicates"
+      "manual": "the catalogue holds only the start of Minitab's rows, (8) + 2(7) + ..., not the rows; expected_mean_squares(restricted=False) derives them, and Table 13.10's temperature row is checked"
      }
     },
     {
@@ -190218,14 +190391,32 @@
      "what": "chi-square points",
      "term": "χ²0.025,r and χ²0.975,r",
      "value": "13.14 0.90",
+     "analysis": "the library's chi-square percentage points on the r = 5.19 degrees of freedom the text works with",
      "where": {
       "page": 599,
       "source_kind": "prose",
       "quote": "(5.19)(31.36)/13.14 ≤ σ²τβ ≤ (5.19)(31.36)/0.90 12.39 ≤ σ²τβ ≤ 180.84"
      },
-     "check": {
-      "manual": "a percentage point of the chi-square distribution on fractional degrees of freedom, which the library does not compute"
-     }
+     "check": [
+      {
+       "kind": "library_value",
+       "function": "chi2_value",
+       "args": [
+        0.975,
+        5.19
+       ],
+       "printed": "13.14"
+      },
+      {
+       "kind": "library_value",
+       "function": "chi2_value",
+       "args": [
+        0.025,
+        5.19
+       ],
+       "printed": "0.90"
+      }
+     ]
     },
     {
      "what": "interval low",
@@ -192350,7 +192541,9 @@
       "quote": "Table 14.4 Analysis of Variance for the Data in Example 14.1 ... Total 148.31 35"
      },
      "check": {
-      "manual": "36 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "supplier + supplier:batch"
      }
     },
     {
@@ -192795,7 +192988,9 @@
       "quote": "Table 14.5 Incorrect Analysis of the Two-Stage Nested Design in Example 14.1 as a Factorial (Suppliers Fixed, Batches Random) ... Total 148.31 35"
      },
      "check": {
-      "manual": "36 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "supplier * batch"
      }
     },
     {
@@ -197368,7 +197563,9 @@
       "quote": "Table 14.12 Analysis of Variance for Example 14.2 ... Total 299.67 47"
      },
      "check": {
-      "manual": "48 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "fixture * layout + layout:operator + fixture:layout:operator"
      }
     },
     {
@@ -197934,14 +198131,86 @@
      "what": "error term",
      "term": "restricted model",
      "value": "6, 6, 5, 5, 6",
+     "analysis": "the library's expected_mean_squares, restricted mixed model: the term whose mean square tests each term, numbered as Minitab numbers the terms, the error last",
      "where": {
       "page": 618,
       "source_kind": "table",
       "quote": "Table 14.13 Minitab Balanced ANOVA Analysis of Example 14.2 Using the Restricted Model ... Error term 6 6 5 5 6"
      },
-     "check": {
-      "manual": "the term whose expected mean square differs only by the effect tested: the F tests above use them"
-     }
+     "check": [
+      {
+       "manual": "the error term of layouts: the library's is 2, operators within layouts, by whose mean square the table's F of 0.34 for layouts divides (checked); the 6 printed would test them against the error",
+       "printed": "6"
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.operator(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.fixture",
+       "printed": "5",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.layout:fixture",
+       "printed": "5",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      },
+      {
+       "kind": "expected_mean_squares",
+       "key": "error_term.operator:fixture(layout)",
+       "printed": "6",
+       "levels": {
+        "layout": 2,
+        "operator": 4,
+        "fixture": 3
+       },
+       "random": [
+        "operator"
+       ],
+       "nested": {
+        "operator": "layout"
+       },
+       "replicates": 2
+      }
+     ]
     },
     {
      "what": "expected mean squares",
@@ -200899,7 +201168,9 @@
       "quote": "Factorial Analysis ... SSF 2 SSL 1 SSFL 2 SSO 3 SSLO 3 SSFO 6 SSFOL 6 SSE 24 SST 47 ... Nested–Factorial Analysis ... SSO(L) = SSO + SSLO 6 SSFO(L) = SSFO + SSFOL 12"
      },
      "check": {
-      "manual": "48 readings less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "fixture * layout + layout:operator + fixture:layout:operator"
      }
     },
     {
@@ -221943,7 +222214,9 @@
       "quote": "Table 15.7 Analysis of Variance for Battery Design Data in Table 15.6 ... Total 39,150.0 19"
      },
      "check": {
-      "manual": "20 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "material * temperature"
      }
     },
     {
@@ -222690,7 +222963,9 @@
       "quote": "Table 15.13 Analysis of Covariance for the Breaking Strength Data ... Total 14"
      },
      "check": {
-      "manual": "15 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "strength ~ diameter + C(machine, Sum)"
      }
     },
     {
@@ -224250,7 +224525,9 @@
       "quote": "Table 15.14 Incorrect Analysis of the Breaking Strength Data as a Single-Factor Experiment ... Total 346.40 14"
      },
      "check": {
-      "manual": "15 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "machine"
      }
     },
     {
@@ -224522,7 +224799,9 @@
       "quote": "Table 15.15 Minitab Output (Analysis of Covariance) for Example 15.5 ... Total 14 346.40"
      },
      "check": {
-      "manual": "15 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "strength ~ diameter + C(machine, Sum)"
      }
     },
     {
@@ -225510,7 +225789,9 @@
       "quote": "Table 15.17 JMP Analysis of Covariance for the Experiment in Table 15.16, Assuming a Common Slope ... Analysis of Variance ... Model 8 21363.834 2670.48 29.7595 Error 7 628.147 89.74 C. Total 15 21991.981 Prob > F <.0001"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {
@@ -226737,7 +227018,9 @@
       "quote": "Table 15.18 JMP Analysis of Covariance, Reduced Model for the Experiment in Table 15.16 ... Analysis of Variance ... Model 4 21228.644 5307.16 76.4783 Error 11 763.337 69.39 C. Total 15 21991.981 Prob > F <.0001"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {
@@ -227244,7 +227527,9 @@
       "quote": "Table 15.19 JMP Output for the Experiment in Table 15.16 ... Analysis of Variance ... Model 13 21989.177 1691.48 1206.292 Error 2 2.804 1.40 C. Total 15 21991.981 Prob > F 0.0008"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {
@@ -229071,7 +229356,9 @@
       "quote": "Table 15.20 JMP Output for the Experiment in Table 15.16, Reduced Model ... Analysis of Variance ... Model 8 21986.334 2748.29 3406.688 Error 7 5.647 0.81 C. Total 15 21991.981 Prob > F <.0001"
      },
      "check": {
-      "manual": "16 runs less one: arithmetic"
+      "kind": "anova_df",
+      "term": "Total",
+      "model": "x + A * B * C"
      }
     },
     {
@@ -277232,14 +277519,317 @@
      "what": "degrees of freedom",
      "term": "Table 14.21",
      "value": "1, 1, 1, 1, 3, 1 (×12), 12, 31",
+     "analysis": "the skeleton analysis of the library's multistratum_anova: replicates, the whole plots of A and B within them, and the subplots of C and D; the replicates' row is their stratum's residual",
      "where": {
       "page": 628,
       "source_kind": "table",
       "quote": "Table 14.21 An Abbreviated Analysis for a Split-Plot Design with Factors A and B in the Whole Plots and Factors C and D in the Subplots"
      },
-     "check": {
-      "manual": "the degrees of freedom and expected mean squares of an analysis with no response, in symbols"
-     }
+     "check": [
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "rep",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A",
+       "stratum": "rep:A:B",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B",
+       "stratum": "rep:A:B",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B",
+       "stratum": "rep:A:B",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "rep:A:B",
+       "printed": "3"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B:C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B:C",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "B:C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "A:B:C:D",
+       "stratum": "Within",
+       "printed": "1"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Residual",
+       "stratum": "Within",
+       "printed": "12"
+      },
+      {
+       "kind": "multistratum",
+       "levels": {
+        "rep": 2,
+        "A": 2,
+        "B": 2,
+        "C": 2,
+        "D": 2
+       },
+       "model": "A * B * C * D",
+       "strata": "rep/A:B",
+       "key": "df",
+       "term": "Total",
+       "printed": "31"
+      }
+     ]
     }
    ],
    "notes": "Figure 14.7 draws, for each replicate (block), the settings of A and B in its four whole plots and of C and D in each whole plot's four subplots; the order of the runs within a whole plot is as drawn, not a run order."

@@ -284,8 +284,9 @@ PROPORTION_DIGITS = 12
 #: The number of components of a blend of equal parts, in words.
 PARTS = {2: "two", 3: "three", 4: "four", 5: "five"}
 
-#: The seed a design's runs are put in random order with, unless its specification names one; the runs added to a
-#: study are put in random order with it too. A study's report names it (report.js's RUN_ORDER_SEED).
+#: The seed a design's runs are put in random order with, unless its specification names one. The page names one
+#: for each study it begins, the moment it began, so this is the seed of the worked example, the book's examples and
+#: the studies saved before then. A study's report names its seed (report.js's RUN_ORDER_SEED).
 RUN_ORDER_SEED = 42
 
 #: Designs whose non-centre runs all lie on one sphere (Box-Behnken at any size, a
@@ -1149,7 +1150,10 @@ def _given_design(spec: dict) -> dict:
         "design_type": GIVEN,
         "factors": [_factor_spec(f) for f in factors],
         "response": responses[0]["name"],
-        "options": {"n_blocks": len(set(blocks))} if blocks else {},
+        "options": {
+            **({"n_blocks": len(set(blocks))} if blocks else {}),
+            **({"random_state": int(spec["random_state"])} if "random_state" in spec else {}),
+        },
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
@@ -3214,6 +3218,10 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
     ``cox`` holds the fitted response along each component's Cox direction through the reference
     blend, for a trace plot (``coxFigure``). With the true process the results were simulated from,
     each also holds the true response, on the same blends.
+
+    With the best blend (``best``, as :func:`_best_blend` gives it), ``held_best`` is true: the page
+    stars the blend on the triangle, and the Cox directions go through the best blend instead (see
+    :func:`_cox_through`), so they cross at its prediction, where the page puts the star.
     """
     from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
     from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
@@ -3222,6 +3230,7 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
 
     names = [f["name"] for f in spec["factors"]]
     model = _mixture_model(request.get("model") or spec["model"])
+    best = _blend_sent(request.get("best"), spec)
     runs = _design_runs(_runs_frame(request, spec))
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
@@ -3244,13 +3253,37 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
         "contour_factors": [],
         "shaded": False,
         "held": [],
+        "held_best": best is not None,
         "plotly_js": get_plotlyjs_version(),
     }
     if len(names) == 3:
         reply["ternary"] = _ternary(spec, blends, y, fitted, true)
-    else:
+    elif best is None:
         reply["cox"] = _cox_traces(names, out, fitted, true)
+    else:
+        reply["cox"] = _cox_through(spec, best, fitted, true)
     return reply
+
+
+def _blend_sent(raw: object, spec: dict) -> np.ndarray | None:
+    """Return the best blend the page sends with its charts, checked as a blend of the components; None without one.
+
+    ``raw`` is the blend as :func:`_best_blend` gives it, ``coded``: each component's proportion,
+    within its bounds, the proportions summing to 1.
+    """
+    if raw is None:
+        return None
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    values = [_number(raw.get(n)) for n in names] if isinstance(raw, dict) and set(raw) == set(names) else [None]
+    blend = np.array(values, dtype=float) if None not in values else np.full(len(names), np.nan)
+    if not (
+        np.all(blend >= low - PROPORTION_TOLERANCE)
+        and np.all(blend <= high + PROPORTION_TOLERANCE)
+        and abs(blend.sum() - 1.0) <= 1e-6
+    ):
+        raise ValueError("The page sent a best blend this page did not write.")
+    return blend
 
 
 def _blended(coefficients: dict[str, float], blends: pd.DataFrame) -> list[float]:
@@ -3270,18 +3303,11 @@ def _ternary(
 ) -> dict:
     """Return the fitted response over a grid of blends of three components, and the runs, for a ternary plot.
 
-    The grid covers the smallest triangle holding the blends the lower proportions allow (the
-    whole triangle without lower bounds), in :data:`TERNARY_STEPS` steps a side, and keeps the
-    blends the upper proportions allow too, so the response is not drawn where the design has no
-    runs to support it.
+    The grid is :func:`_ternary_grid`'s, so the response is not drawn where the design has no runs
+    to support it.
     """
     names = [f["name"] for f in spec["factors"]]
-    low = np.array([f["low"] for f in spec["factors"]], dtype=float)
-    high = np.array([f["high"] for f in spec["factors"]], dtype=float)
-    n = TERNARY_STEPS
-    steps = np.array([(i, j, n - i - j) for i in range(n + 1) for j in range(n + 1 - i)], dtype=float) / n
-    grid = low + (1.0 - low.sum()) * steps
-    grid = grid[np.all(grid <= high + PROPORTION_TOLERANCE, axis=1)].round(9)
+    grid, _ = _ternary_grid(spec)
     frame = pd.DataFrame(grid, columns=names)
     return {
         "components": names,
@@ -3299,6 +3325,23 @@ def _ternary(
             "y": y.tolist(),
         },
     }
+
+
+def _ternary_grid(spec: dict) -> tuple[np.ndarray, list[tuple[int, int]]]:
+    """Return the blends of three components a triangle is drawn over, and each one's place ``(i, j)`` on its lattice.
+
+    The grid covers the smallest triangle holding the blends the lower proportions allow (the whole
+    triangle without lower bounds), in :data:`TERNARY_STEPS` steps a side: the blend at ``(i, j)`` has
+    ``i`` and ``j`` steps of the first two components. It keeps the blends the upper proportions
+    allow too.
+    """
+    low, high = _bounds(spec)
+    n = TERNARY_STEPS
+    places = [(i, j) for i in range(n + 1) for j in range(n + 1 - i)]
+    steps = np.array([(i, j, n - i - j) for i, j in places], dtype=float) / n
+    grid = low + (1.0 - low.sum()) * steps
+    kept = np.all(grid <= high + PROPORTION_TOLERANCE, axis=1)
+    return grid[kept].round(9), [place for place, keep in zip(places, kept, strict=True) if keep]
 
 
 def _cox_traces(names: list[str], out: dict, fitted: dict[str, float], true: dict[str, float] | None) -> dict:
@@ -3328,6 +3371,46 @@ def _cox_traces(names: list[str], out: dict, fitted: dict[str, float], true: dic
             }
         )
     return {"components": names, "reference": dict(zip(names, reference.tolist(), strict=True)), "traces": traces}
+
+
+def _cox_through(spec: dict, blend: np.ndarray, fitted: dict[str, float], true: dict[str, float] | None) -> dict:
+    """Return the fitted response along each component's Cox direction through the best blend.
+
+    As :func:`_cox_traces`, with the best blend in place of the reference blend: each trace moves one
+    component from the best blend, the others keeping their proportions to each other (see
+    :func:`_cox_moved`), over the span every component's bounds allow, and holds the best blend
+    itself, a change of 0. So the traces cross at the best blend's prediction. ``through`` says
+    which blend they go through.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    traces = []
+    for i, name in enumerate(names):
+        direction = _cox_moved(blend, i, 1.0) - blend  # a change of 1 in component i, the others moving with it
+        start, stop = _span_along(blend, direction, low, high)
+        change = np.unique(np.append(np.linspace(start, stop, COX_POINTS), 0.0))
+        frame = pd.DataFrame(blend[None, :] + change[:, None] * direction[None, :], columns=names)
+        traces.append(
+            {
+                "component": name,
+                "change": [float(f"{v:.6g}") for v in change],
+                "fitted": _blended(fitted, frame),
+                "true": None if true is None else _blended(true, frame),
+            }
+        )
+    reference = dict(zip(names, blend.tolist(), strict=True))
+    return {"components": names, "reference": reference, "through": "best", "traces": traces}
+
+
+def _span_along(blend: np.ndarray, direction: np.ndarray, low: np.ndarray, high: np.ndarray) -> tuple[float, float]:
+    """Return how far a blend can move along a direction, either way, with every component within its bounds."""
+    start, stop = -np.inf, np.inf
+    for d, x, lo, hi in zip(direction, blend, low, high, strict=True):
+        if d > 0:
+            start, stop = max(start, (lo - x) / d), min(stop, (hi - x) / d)
+        elif d < 0:
+            start, stop = max(start, (hi - x) / d), min(stop, (lo - x) / d)
+    return min(start, 0.0), max(stop, 0.0)  # the blend itself is inside, to rounding
 
 
 # --------------------------------------------------------------------------- renaming the factors
@@ -3553,6 +3636,8 @@ def compare_plan(request: dict) -> dict:
     # A design taken from the comparison keeps the reader's description of the response, and aims to learn the
     # model it was compared on.
     described = _described({"response_info": request.get("response_info"), "aim": model})
+    # The study's seed, so a design taken from the comparison keeps it.
+    seeded = {"random_state": request["random_state"]} if "random_state" in request else {}
     for design_type, info in DESIGNS.items():
         if design_type in SPACE_FILLING:
             continue  # made for no model, so not one to compare on a model
@@ -3566,6 +3651,7 @@ def compare_plan(request: dict) -> dict:
         if "n_levels" in info["options"] and model in TAGUCHI_THREE_LEVELS:
             options["n_levels"] = TAGUCHI_LEVELS[-1]
         spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
+        spec.update(seeded)
         if limits:
             spec["constraints"] = limits
         plan.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], "spec": spec})
@@ -4309,8 +4395,8 @@ def best_settings(request: dict) -> dict:
     """Find the settings that best meet the response's goal on the fitted model, and say how well they are known.
 
     The goal is the brief's (``response_info.goal``): ``maximize``, ``minimize``, or ``target`` with its
-    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else; so
-    does it for a mixture (``mixture``), whose blends this search does not keep to a sum of 1.
+    ``target``. For ``learn``, or a target not yet typed, the reply says so and holds nothing else. A
+    mixture's best blend is found by :func:`_best_blend`, whose reply follows this one's.
 
     The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
     and one response, over the numeric factors' ranges and inside the limits on the settings. Its
@@ -4340,8 +4426,8 @@ def best_settings(request: dict) -> dict:
     target = info.get("target")
     if goal == "target" and target is None:
         return {"goal": goal, "target": None}
-    if _mixture(spec):  # a blend's proportions sum to 1, which the search over each factor's range does not keep
-        return {"goal": goal, "target": target, "mixture": True}
+    if _mixture(spec):  # a blend's proportions sum to 1: the search keeps to the blends, not to each factor's range
+        return _best_blend(request, whole, spec, goal, target)
     every_run = _runs_frame(request, whole)
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
@@ -4394,10 +4480,10 @@ def best_settings(request: dict) -> dict:
 class _FittedModel:
     """A least-squares fit as the page made it, with what a prediction at new settings needs.
 
-    The model matrix is built from the fitted terms over the coded runs, so the covariance of the
-    coefficients is the fit's own: ``mse_residual`` times the inverse of ``X'X``. A new point's
-    row holds its coded settings in the same terms, and zero in each block contrast, which is the
-    average block, as the equation is written.
+    The model matrix is built from the fitted terms over the coded runs (a mixture's over its
+    proportions, see :func:`_blend_fit`), so the covariance of the coefficients is the fit's own:
+    ``mse_residual`` times the inverse of ``X'X``. A new point's row holds its coded settings in the
+    same terms, and zero in each block contrast, which is the average block, as the equation is written.
     """
 
     def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str]) -> None:
@@ -4565,7 +4651,9 @@ def _goal(goal: str, target: float | None, model: list[dict], response: str) -> 
     """Return the desirability goal whose best is the goal's best, for one response on this model.
 
     In the ranges, every term of a coded model is between -1 and +1, so no prediction is further
-    from the intercept than the sum of the other coefficients' sizes, the model's ``spread``.
+    from the intercept than the sum of the other coefficients' sizes, the model's ``spread``. Over
+    the blends, every term of a Scheffé model is between 0 and 1, and its intercept is 0, so the same
+    holds of it.
     Limits twice that far out leave every prediction strictly inside them, where the desirability
     is a straight line: rising with the prediction to maximise it, falling to minimise it, and for
     a target, with limits as far out on each side, falling with the distance from the target.
@@ -4938,14 +5026,15 @@ def _confirmation(runs: pd.DataFrame, spec: dict, fitted: _FittedModel) -> list[
     Each group's ``rows`` are its places on the run sheet; ``runs`` how many it has and ``done``
     how many have a result; ``mean`` their average; ``predicted`` the model's prediction there; and
     ``interval`` the prediction interval for the average of ``done`` new runs there (of ``runs``
-    while none has a result), which the average falls ``inside`` when the model holds there.
+    while none has a result), which the average falls ``inside`` when the model holds there. The
+    settings are coded, or a mixture's proportions as they are, as each model is fitted.
     """
     confirming = _confirming(runs).to_numpy()
     if not confirming.any():
         return []
     names = [f["name"] for f in spec["factors"]]
     values = pd.to_numeric(runs[spec["response"]], errors="coerce")
-    coded = _coded(runs, spec["factors"])
+    coded = runs[names].astype(float) if _mixture(spec) else _coded(runs, spec["factors"])  # as the model is fitted
     groups: dict[tuple, list[int]] = {}
     for i in np.flatnonzero(confirming).tolist():
         groups.setdefault(tuple(runs.loc[i, names].tolist()), []).append(i)
@@ -4970,6 +5059,252 @@ def _confirmation(runs: pd.DataFrame, spec: dict, fitted: _FittedModel) -> list[
             }
         )
     return out
+
+
+# --------------------------------------------------------------------------- a mixture's best blend
+#: How many decimals each proportion of the best blend is weighed out to for a confirmation run: a thousandth of
+#: the blend, 1 g in 1 kg.
+BLEND_DECIMALS = 3
+
+#: A Scheffé model whose predictions over the design's blends span less than this share of the results' size predicts
+#: the same at every blend. Its fit leaves more round-off than a coded fit, as its proportions sum to 1 in every run.
+FLAT_BLEND = 1e-9
+
+
+def _best_blend(request: dict, whole: dict, spec: dict, goal: str, target: float | None) -> dict:
+    """Find the blend that best meets the response's goal on its Scheffé model, and say how well it is known.
+
+    The search is :func:`~process_improve.experiments.optimize_responses` with the desirability method
+    over the region of blends, a ``DesignRegion`` of the components (see :func:`_components`): each
+    component between its bounds, and the proportions summing to 1. The model is the analysis's, on
+    the proportions as they are, and the goal is a straight line in the prediction, as for factors
+    with ranges (see :func:`_goal`).
+
+    The reply holds what :func:`best_settings` holds wherever it applies to a blend. ``settings`` gives
+    each component's proportion, of ``kind`` ``component`` (see :func:`_blend_settings`), and ``coded``
+    the blend, the scale the model is fitted on. The prediction, its intervals and the leverage are as
+    for factors with ranges. ``sensitivity`` moves each component along its Cox direction (see
+    :func:`_blend_sensitivity`). ``confirm_at`` is the blend as it is weighed out, and ``rounding`` says
+    how it was rounded (see :func:`_weighed`). A way to move on, a stationary point and the limits on
+    the settings do not apply to a blend: ``ascent`` and ``stationary`` are None, and ``limits`` empty.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a goal asks for it
+
+    every_run = _runs_frame(request, whole)
+    design = _design_runs(every_run)
+    names = [f["name"] for f in spec["factors"]]
+    fitted = _blend_fit(design, spec, _mixture_model(request.get("model") or spec["model"]))
+    size = float(pd.to_numeric(design[spec["response"]], errors="coerce").abs().max())
+    coefficients = [  # as the analysis shows them: a coefficient within the fit's round-off of 0 is 0
+        {"term": c["term"], "coefficient": _snapped(c["coefficient"], ROUND_OFF * size)}
+        for c in fitted.out["coefficients"]
+    ]
+    if np.ptp(_predict(coefficients, names, design[names].to_numpy(dtype=float))) <= FLAT_BLEND * size:
+        return {"goal": goal, "target": target, "flat": True, "confirmation": []}  # every blend predicts the same
+    sought = _goal(goal, target, coefficients, spec["response"])
+    with _listening() as heard:
+        found = optimize_responses(
+            [{"response_name": spec["response"], "coefficients": coefficients, "factor_names": names}],
+            goals=[sought],
+            region=DesignRegion(_components(whole)),
+        )["desirability"]
+    _relay(heard)
+    low, high = _bounds(spec)
+    x = _on_bounds(found["optimal_coded"], names, low, high)
+    point = dict(zip(names, x.tolist(), strict=True))
+    predicted, confidence, prediction, leverage = fitted.at(point)
+    spread = sum(abs(c["coefficient"]) for c in coefficients)
+    reached = None if goal != "target" else abs(predicted - target) <= 1e-4 * max(spread, 1e-12)  # type: ignore[operator]
+    ascent = _sense(goal, target, predicted, reached=bool(reached)) * _gradient(coefficients, names, x)
+    confirm_at, rounding = _weighed(spec, x)
+    return {
+        "goal": goal,
+        "target": target,
+        "flat": False,
+        "predicted": predicted,
+        "reached": reached,
+        "level": LEVEL,
+        "confidence": confidence,
+        "prediction": prediction,
+        "leverage": leverage,
+        "max_leverage": fitted.max_leverage,
+        "extrapolating": leverage > fitted.max_leverage * (1 + 1e-9) + 1e-12,
+        "settings": _blend_settings(spec, x, ascent, 1e-9 * max(spread, 1.0)),
+        "coded": point,
+        "limits": [],
+        "stationary": None,
+        "ascent": None,
+        "unclear": _unclear_blend(fitted.out),
+        "sensitivity": _blend_sensitivity(coefficients, spec, x),
+        "confirm_at": confirm_at,
+        "rounding": rounding,
+        "confirmation": _confirmation(every_run, spec, fitted),
+        "search": {"held": {}, "goal": sought},
+    }
+
+
+def _blend_fit(runs: pd.DataFrame, spec: dict, model: str) -> _FittedModel:
+    """Fit a mixture's Scheffé model to the runs with results, as its analysis does, and return it with its covariance.
+
+    A Scheffé model is fitted on the proportions as they are, with no intercept, so a blend's row of
+    the model matrix is its proportions and their products: :class:`_FittedModel` builds it from the
+    terms, as it does a coded row.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    y = pd.to_numeric(runs[spec["response"]], errors="coerce")
+    done = y.notna().to_numpy()
+    if not done.any():
+        raise ValueError("Enter results first: the best blend is found on the model fitted to them.")
+    blends = runs.loc[done, names].astype(float).reset_index(drop=True)
+    y = y[done].reset_index(drop=True).rename(spec["response"])
+    return _FittedModel(
+        {"out": _mixture_fit(blends, y, model, ["coefficients", "anova"]), "formula": model}, blends, names
+    )
+
+
+def _on_bounds(found: dict[str, float], names: list[str], low: np.ndarray, high: np.ndarray) -> np.ndarray:
+    """Return the optimiser's blend, each proportion within :data:`PROPORTION_TOLERANCE` of a bound put on it.
+
+    SLSQP keeps to the bounds, and stops on one to rounding (3e-17 for a component a blend leaves
+    out), so a proportion at its bound is the bound itself, as the page shows it.
+    """
+    x = np.clip([found[n] for n in names], low, high)
+    x = np.where(x <= low + PROPORTION_TOLERANCE, low, x)
+    return np.where(x >= high - PROPORTION_TOLERANCE, high, x)
+
+
+def _bounds(spec: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Return a mixture's lower and upper proportions, a component each, as its checked specification holds them."""
+    return (
+        np.array([f["low"] for f in spec["factors"]], dtype=float),
+        np.array([f["high"] for f in spec["factors"]], dtype=float),
+    )
+
+
+def _unclear_blend(out: dict[str, Any]) -> bool:
+    """Say whether no test of a mixture's ANOVA finds anything clearly larger than the noise: no p-value below 0.05.
+
+    The mixture ANOVA tests whether the components blend alike, and each blending term on its own (a
+    component's own coefficient is not tested against 0). With no runs left to estimate the noise it
+    tests nothing, and nothing is said.
+    """
+    p_values = [row.get("p_value") for row in out.get("anova_table") or []]
+    known = [p for p in p_values if p is not None and math.isfinite(p)]
+    return bool(known) and all(p >= CLEAR for p in known)
+
+
+def _blend_settings(spec: dict, x: np.ndarray, ascent: np.ndarray, tiny: float) -> list[dict[str, Any]]:
+    """Describe each component's proportion in the best blend, and where it lies between its bounds.
+
+    ``end`` is ``low`` or ``high`` for a component at that bound, to :data:`AT_EDGE` of half its range,
+    as for a factor at an end of its range. ``beyond`` says whether the goal improves past a bound the
+    reader set, by the prediction's gradient there (``ascent``, signed the way the prediction should
+    move). Moving a component past its bound takes the difference from another component, or gives it
+    to one, that its own bounds leave free to move that way; the goal improves past the bound when it
+    does for one such component. No proportion passes 0 or 1, so a bound at either has no ``beyond``.
+    """
+    low, high = _bounds(spec)
+    edge = AT_EDGE * (high - low) / 2
+    at_low, at_high = x <= low + edge, x >= high - edge
+    others = [[k for k in range(len(x)) if k != i] for i in range(len(x))]
+    settings = []
+    for i, f in enumerate(spec["factors"]):
+        end = "low" if at_low[i] else "high" if at_high[i] else None
+        gain = 0.0
+        if end == "low" and low[i] > PROPORTION_TOLERANCE:  # less of it: another, not at its upper bound, takes more
+            gain = max((ascent[k] - ascent[i] for k in others[i] if not at_high[k]), default=0.0)
+        elif end == "high" and high[i] < 1 - PROPORTION_TOLERANCE:  # more of it: another, not at its lower, takes less
+            gain = max((ascent[i] - ascent[k] for k in others[i] if not at_low[k]), default=0.0)
+        settings.append(
+            {
+                "name": f["name"],
+                "kind": "component",
+                "value": float(x[i]),
+                "coded": float(x[i]),
+                "units": f["units"],
+                "low": f["low"],
+                "high": f["high"],
+                "in_model": True,
+                "end": end,
+                "beyond": bool(gain > tiny),
+            }
+        )
+    return settings
+
+
+def _cox_moved(blend: np.ndarray, i: int, change: float) -> np.ndarray:
+    """Return a blend with component ``i`` moved by ``change`` along its Cox direction, so it still sums to 1.
+
+    On the Cox direction the other components keep their proportions to each other, as along the
+    direction the analysis takes each component's effect: each is scaled by ``(1 - x_i - change) /
+    (1 - x_i)``. A blend of component ``i`` alone leaves the others no proportions to keep, and they
+    share the change equally.
+    """
+    moved = blend.copy()
+    rest = 1.0 - blend[i]
+    others = np.arange(len(blend)) != i
+    if rest > PROPORTION_TOLERANCE:
+        moved[others] *= (rest - change) / rest
+    else:
+        moved[others] = (rest - change) / others.sum()
+    moved[i] = blend[i] + change
+    return moved
+
+
+def _blend_sensitivity(model: list[dict], spec: dict, x: np.ndarray) -> list[dict[str, Any]]:
+    """Return how much the prediction changes when each component moves :data:`NUDGE` of its range, along its Cox line.
+
+    ``step`` is the change in the component's proportion; ``down`` and ``up`` are the changes from the
+    prediction at the best blend; ``down_runnable`` and ``up_runnable`` say whether the blend moved to
+    keeps every component within its bounds. Every component is in a Scheffé model.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    at = float(_predict(model, names, x[None, :])[0])
+    out = []
+    for i, name in enumerate(names):
+        step = NUDGE * (high[i] - low[i])
+        moved = np.vstack([_cox_moved(x, i, -step), _cox_moved(x, i, step)])
+        down, up = (_predict(model, names, moved) - at).tolist()
+        inside = np.all((moved >= low - PROPORTION_TOLERANCE) & (moved <= high + PROPORTION_TOLERANCE), axis=1)
+        out.append(
+            {
+                "name": name,
+                "step": float(step),
+                "down": down,
+                "up": up,
+                "down_runnable": bool(inside[0]),
+                "up_runnable": bool(inside[1]),
+                "in_model": True,
+            }
+        )
+    return out
+
+
+def _weighed(spec: dict, x: np.ndarray) -> tuple[dict[str, float], dict[str, Any]]:
+    """Return the best blend as it is weighed out for a confirmation run, and how it was rounded.
+
+    Each proportion is rounded to :data:`BLEND_DECIMALS` decimals, and what the rounding leaves over,
+    or short, goes on the largest component whose bounds leave it room (``adjusted``; None when the
+    rounding leaves nothing), so the proportions still sum to 1, as decimals. When no component has the
+    room, or the rounding takes one outside its bounds, it is done again a decimal finer, up to 12
+    decimals; past that the blend is given as found, with ``decimals`` None.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    low, high = _bounds(spec)
+    largest_first = np.argsort(-x, kind="stable")
+    for decimals in range(BLEND_DECIMALS, 13):
+        scale = 10**decimals
+        units = np.rint(x * scale).astype(np.int64)
+        short = scale - int(units.sum())
+        for k in largest_first:
+            weighed = units.copy()
+            weighed[k] += short
+            blend = weighed / scale
+            if np.all(blend >= low - PROPORTION_TOLERANCE) and np.all(blend <= high + PROPORTION_TOLERANCE):
+                adjusted = names[k] if short else None
+                return dict(zip(names, blend.tolist(), strict=True)), {"decimals": decimals, "adjusted": adjusted}
+    return dict(zip(names, x.tolist(), strict=True)), {"decimals": None, "adjusted": None}
 
 
 # --------------------------------------------------------------------------- the settings that balance the responses
@@ -5019,19 +5354,17 @@ def balance(request: dict) -> dict:
     down most (``limiting``); the leverage there against the runs' for the model that leans furthest;
     the limits the settings are on; the confirmation runs judged response by response; the
     ``overlay`` of the acceptable ranges over two factors (see :func:`_overlay`); and ``search``, what
-    the code the page shows needs. With fewer than two responses with a goal, or for a mixture (``mixture``),
-    it says so and holds no more.
+    the code the page shows needs. With fewer than two responses with a goal it says so and holds no
+    more. A mixture's responses are balanced over its blends, each fitted with its Scheffé model (see
+    :func:`_balanced_blend`).
     """
     whole = _checked_spec(request.get("spec") or {})
     every_run = _runs_frame(request, whole)
     design = _design_runs(every_run)
     aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
-    if len(aimed) < 2 or _mixture(whole):  # two responses or more are balanced; a mixture's blends are not searched
-        return {
-            "balanced": False,
-            "aimed": [r["name"] for r in aimed],
-            **({"mixture": True} if _mixture(whole) else {}),
-        }
+    if len(aimed) < 2:  # two responses or more are balanced
+        return {"balanced": False, "aimed": [r["name"] for r in aimed]}
+    mixture = _mixture(whole)
     names = [f["name"] for f in whole["factors"]]
     categorical = _categorical_names(whole)
     raw_goals = request.get("goals") or {}
@@ -5042,40 +5375,56 @@ def balance(request: dict) -> dict:
     goals: list[dict[str, Any]] = []
     for r in aimed:
         spec = _for_response(whole, r["name"])
-        model = _checked_model(raw_models.get(r["name"]) or spec["model"], names, categorical)
+        model = raw_models.get(r["name"]) or spec["model"]
+        model = _mixture_model(model) if mixture else _checked_model(model, names, categorical)
         results = pd.to_numeric(design[r["name"]], errors="coerce").dropna()
         if results.empty:
             raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
-        fits[r["name"]] = _fitted(design, spec, model)
+        fits[r["name"]] = _blend_fit(design, spec, model) if mixture else _fitted(design, spec, model)
         goals.append(_balance_goal(r, results, raw_goals.get(r["name"])))
+    if mixture:
+        return _balanced_blend(every_run, whole, aimed, fits, goals)
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
     point = _full_point(whole, found["x"], found["levels"])
-    responses = _balanced_responses(aimed, goals, fits, point)
-    weights = [g["importance"] for g in goals]
-    composite = float(composite_desirability([r["d"] for r in responses], weights))
-    share = [r["d"] ** (w / sum(weights)) for r, w in zip(responses, weights, strict=True)]
-    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
     in_model = set().union(*(_factors_in(fit.out["coefficients"], names) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
     still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
     return {
-        "balanced": True,
-        "aimed": [r["name"] for r in aimed],
-        "responses": responses,
-        "composite": composite,
-        "limiting": responses[int(np.argmin(share))]["name"],
-        "coded": point,
+        **_balanced_at(aimed, goals, fits, point),
         "settings": _settings_reply(whole, point, in_model, still, 1.0),
-        "leverage": leaning["leverage"],
-        "max_leverage": leaning["max_leverage"],
-        "leverage_of": leaning["name"],
-        "extrapolating": any(r["extrapolating"] for r in responses),
         "limits": _limits_on(whole, region, found["x"], still, 1.0),
         "confirm_at": _practical(whole, point, region),
         "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
         "overlay": _overlay(whole, found, goals, region),
         "search": {"held": found["held"], "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+    }
+
+
+def _balanced_at(
+    aimed: list[dict], goals: list[dict], fits: dict[str, _FittedModel], point: dict[str, float]
+) -> dict[str, Any]:
+    """Return what the balance says at the settings it found, or the blend: each response there, D and what holds it.
+
+    Each response's prediction, intervals, d and leverage (see :func:`_balanced_responses`); the overall
+    desirability D; the response that holds D down most (``limiting``), its d counted by its
+    importance; and the leverage there of the model that leans furthest on its runs.
+    """
+    responses = _balanced_responses(aimed, goals, fits, point)
+    weights = [g["importance"] for g in goals]
+    share = [r["d"] ** (w / sum(weights)) for r, w in zip(responses, weights, strict=True)]
+    leaning = max(responses, key=lambda r: r["leverage"] / r["max_leverage"] if r["max_leverage"] else 0.0)
+    return {
+        "balanced": True,
+        "aimed": [r["name"] for r in aimed],
+        "responses": responses,
+        "composite": float(composite_desirability([r["d"] for r in responses], weights)),
+        "limiting": responses[int(np.argmin(share))]["name"],
+        "coded": point,
+        "leverage": leaning["leverage"],
+        "max_leverage": leaning["max_leverage"],
+        "leverage_of": leaning["name"],
+        "extrapolating": any(r["extrapolating"] for r in responses),
     }
 
 
@@ -5335,6 +5684,119 @@ def _grid(values: np.ndarray, shape: tuple[int, ...]) -> list[list[float]]:
     return [[float(f"{v:.6g}") for v in row] for row in values.reshape(shape)]
 
 
+def _balanced_blend(
+    every_run: pd.DataFrame, whole: dict, aimed: list[dict], fits: dict[str, _FittedModel], goals: list[dict]
+) -> dict:
+    """Find the blend that balances the responses with a goal, by their overall desirability, on their Scheffé models.
+
+    The search is :func:`balance`'s, over the region of blends (see :func:`_best_blend`): every
+    response's model, fitted on the proportions, with its goal as a desirability. The reply is
+    :func:`balance`'s, with each component's proportion in ``settings`` (see :func:`_blend_settings`)
+    and the blend weighed out for the confirmation runs (see :func:`_weighed`). ``overlay`` is drawn
+    over the triangle of three components (see :func:`_blend_overlay`), and is None for more.
+    """
+    from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
+
+    names = [f["name"] for f in whole["factors"]]
+    models = {
+        name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
+        for name, fit in fits.items()
+    }
+    with _listening() as heard:
+        found = optimize_responses(
+            [{"response_name": name, "coefficients": model, "factor_names": names} for name, model in models.items()],
+            goals=[_desirability_of(g) for g in goals],
+            region=DesignRegion(_components(whole)),
+        )["desirability"]
+    _relay(heard)
+    low, high = _bounds(whole)
+    x = _on_bounds(found["optimal_coded"], names, low, high)
+    confirm_at, rounding = _weighed(whole, x)
+    return {
+        **_balanced_at(aimed, goals, fits, dict(zip(names, x.tolist(), strict=True))),
+        "settings": _blend_settings(whole, x, np.zeros(len(x)), 1.0),  # no way to move is said: no bound has a "beyond"
+        "limits": [],
+        "confirm_at": confirm_at,
+        "rounding": rounding,
+        "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
+        "overlay": _blend_overlay(whole, models, goals, x),
+        "search": {"held": {}, "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+    }
+
+
+def _blend_overlay(
+    spec: dict, models: dict[str, list[dict]], goals: list[dict], x: np.ndarray
+) -> dict[str, Any] | None:
+    """Return the overlay of the acceptable ranges over the triangle of three components; None for more.
+
+    Over the triangle's grid of blends (see :func:`_ternary_grid`), as ``a``, ``b`` and ``c``: each
+    response's prediction (``z``), the levels its acceptable boundary is at (``levels``, as
+    :func:`_acceptable` gives them) and where it crosses each (``lines``, see :func:`_crossings`);
+    ``acceptable``, 1 at a blend where every response has a desirability above 0; and ``at``, the
+    balanced blend. Four components or more make a solid, which no picture of the triangle holds.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    if len(names) != 3:  # the triangle of three components
+        return None
+    grid, places = _ternary_grid(spec)
+    acceptable = np.ones(len(grid), dtype=bool)
+    surfaces = []
+    for goal in goals:
+        z = _predict(models[goal["response"]], names, grid)
+        inside, levels = _acceptable(goal, z)
+        acceptable &= inside
+        surfaces.append(
+            {
+                "name": goal["response"],
+                "z": [float(f"{v:.6g}") for v in z],
+                "levels": levels,
+                "lines": [_crossings(grid, places, z, level) for level in levels],
+            }
+        )
+    return {
+        "kind": "ternary",
+        "components": names,
+        "a": grid[:, 0].tolist(),
+        "b": grid[:, 1].tolist(),
+        "c": grid[:, 2].tolist(),
+        "responses": surfaces,
+        "acceptable": acceptable.astype(int).tolist(),
+        "at": x.tolist(),
+    }
+
+
+def _crossings(
+    grid: np.ndarray, places: list[tuple[int, int]], z: np.ndarray, level: float
+) -> dict[str, list[float | None]]:
+    """Return where a response crosses a level over the triangle's grid, as segments of line for a ternary plot.
+
+    The grid's lattice splits the triangle into small triangles. One whose corners lie on both sides
+    of the level holds a segment of the line, from where it crosses one side to where it crosses
+    another, each found by straight-line interpolation along the side. The segments are listed end
+    to end in ``a``, ``b`` and ``c``, each followed by None, so a plot draws them apart.
+    """
+    at = {place: k for k, place in enumerate(places)}
+    ends: dict[str, list[float | None]] = {"a": [], "b": [], "c": []}
+    for i, j in places:
+        for corners in (((i, j), (i + 1, j), (i, j + 1)), ((i + 1, j), (i, j + 1), (i + 1, j + 1))):
+            if not all(c in at for c in corners):  # a corner past the triangle, or outside the bounds
+                continue
+            k = [at[c] for c in corners]
+            v = z[k] - level
+            crossed = [
+                grid[k[p]] + v[p] / (v[p] - v[q]) * (grid[k[q]] - grid[k[p]])
+                for p, q in ((0, 1), (1, 2), (2, 0))
+                if (v[p] >= 0) != (v[q] >= 0)
+            ]
+            if len(crossed) == 2:  # a straight line crosses two sides of a triangle, or none
+                for point in crossed:
+                    for axis, value in zip("abc", point, strict=True):
+                        ends[axis].append(round(float(value), 6))
+                for axis in "abc":
+                    ends[axis].append(None)
+    return ends
+
+
 # --------------------------------------------------------------------------- runs added to a study
 #: The ways Learn offers to add runs to a study, in the order it lists them, each the library's
 #: ``augment_design`` with the augmentation it names:
@@ -5590,7 +6052,8 @@ def add_runs(request: dict) -> dict:
     """Add the runs of one extension (``kind``, one of :data:`EXTENSIONS`) to the end of the study's run sheet.
 
     The runs made so far stay as they are, in their places, so the results the page holds for them still
-    belong to them; the runs added follow, in random order, with blank results. A blocked extension puts
+    belong to them; the runs added follow, in random order, with blank results. The order is drawn with the
+    study's seed (its ``random_state`` option) plus the number of runs before them. A blocked extension puts
     them in a block of their own: the run sheet gains its Block column the first time, the runs before
     in block 1, and a confirmation run in no block. The study is then a design of runs as given (its
     ``design_type`` is ``given``), estimating the largest model its runs estimate in full, and its notes
@@ -5614,7 +6077,11 @@ def add_runs(request: dict) -> dict:
     before = pd.DataFrame(rows, columns=columns)
     first_std, first_run = _last(before, "Std order") + 1, _last(before, "Run order") + 1
     block = _last(before, BLOCK) + 1 if made["blocked"] else None
-    order = np.random.default_rng(RUN_ORDER_SEED).permutation(len(made["new"]))
+    # The study's seed plus the runs before, so each set of runs added has an order of its own. A study saved before
+    # studies had a seed keeps the page's one seed, as its report says.
+    seed = (spec.get("options") or {}).get("random_state")
+    rng = np.random.default_rng(RUN_ORDER_SEED if seed is None else int(seed) + len(before))
+    order = rng.permutation(len(made["new"]))
     for place, i in enumerate(order):  # in run order, each with its place in the standard order of the runs added
         settings = {f["name"]: _setting(f, made["new"][i][j]) for j, f in enumerate(spec["factors"])}
         numbers = {"Std order": first_std + int(i), "Run order": first_run + place, BLOCK: block}
@@ -5627,6 +6094,7 @@ def add_runs(request: dict) -> dict:
         "model": made["model"],
         "options": {
             GROWN: True,
+            **({"random_state": int(seed)} if seed is not None else {}),
             **({"n_blocks": n_blocks} if n_blocks > 1 else {}),
             **({WIDENED: True} if spec.get("options", {}).get(WIDENED) else {}),
         },

@@ -13,6 +13,8 @@ the sum of the components :math:`\sigma^2_k`, one per random term, and the error
   which mean square tests each term.
 - :func:`intraclass_correlation_interval` gives the exact interval for the share of the variance
   that lies between the levels of a single random factor.
+- :func:`sampling_scheme_variance` turns the components into the variance, and the cost, of the
+  mean of a sampling and testing scheme, so that one can choose how many samples and tests to take.
 
 Examples
 --------
@@ -397,3 +399,74 @@ def intraclass_correlation_interval(
         "error_low": scaled / float(stats.chi2.ppf(1 - alpha / 2, df_error)),
         "error_high": scaled / float(stats.chi2.ppf(alpha / 2, df_error)),
     }
+
+
+# --------------------------------------------------------------------------- sampling schemes
+def sampling_scheme_variance(
+    components: Mapping[str, float],
+    schemes: pd.DataFrame,
+    costs: Mapping[str, float] | None = None,
+    target: float | None = None,
+) -> pd.DataFrame:
+    r"""Return the variance of the mean of each sampling scheme, from the variance components, and its cost.
+
+    A scheme draws :math:`n_k` independent units at each level :math:`k` of the hierarchy, and the
+    variance of the mean of what it measures is :math:`V = \sum_k \sigma^2_k / n_k`. For Box,
+    Hunter and Hunter's composite samples (1978, section 17.4), *U* samples mixed into one and *A*
+    tests on the mix, that is :math:`\sigma^2_U/U + \sigma^2_T/A`. In a nested scheme of *b*
+    batches, *u* samples from each and *t* tests on each sample, the counts are *b*, *bu* and *but*.
+
+    Parameters
+    ----------
+    components : Mapping[str, float]
+        Each level's variance component, such as ``{"sample": 16.0, "test": 1.3}``.
+    schemes : pd.DataFrame
+        One row per scheme, with a column per component: the number of independent units drawn at
+        that level, at least 1.
+    costs : Mapping[str, float], optional
+        The cost of one unit at each level. A scheme costs the sum of its counts times their costs.
+    target : float, optional
+        A variance to reach. With ``costs``, ``attrs["cheapest"]`` is the label of the cheapest
+        scheme whose variance is at most ``target``, or None when none is.
+
+    Returns
+    -------
+    pd.DataFrame
+        The schemes, with the ``variance`` of the mean, its square root ``std_error``, and the
+        ``cost`` when ``costs`` are given.
+
+    Raises
+    ------
+    ValueError
+        If a component is negative, a scheme lacks a component's count or has a count below 1,
+        ``costs`` does not price every component, or ``target`` comes without ``costs``.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> schemes = pd.DataFrame({"sample": [1, 10], "test": [1, 1]})
+    >>> sampling_scheme_variance({"sample": 16.0, "test": 1.3}, schemes)["variance"].round(2).tolist()
+    [17.3, 2.9]
+    """
+    if any(value < 0 for value in components.values()):
+        raise ValueError("A variance component cannot be negative.")
+    missing = sorted(set(components) - set(schemes.columns))
+    if missing:
+        raise ValueError(f"Each scheme needs a count for every component; the schemes have no column {missing}.")
+    counts = schemes[list(components)].to_numpy(dtype=float)
+    if not (counts >= 1).all():
+        raise ValueError("Each scheme draws at least one unit at every level.")
+    found = schemes.copy()
+    found["variance"] = counts**-1 @ np.array(list(components.values()), dtype=float)
+    found["std_error"] = np.sqrt(found["variance"])
+    if costs is not None:
+        unpriced = sorted(set(components) - set(costs))
+        if unpriced:
+            raise ValueError(f"costs must price every component; {unpriced} have no cost.")
+        found["cost"] = counts @ np.array([costs[name] for name in components], dtype=float)
+    if target is not None:
+        if costs is None:
+            raise ValueError("The cheapest scheme that reaches a target needs the costs.")
+        reaching = found[found["variance"] <= target]
+        found.attrs["cheapest"] = reaching["cost"].idxmin() if len(reaching) else None
+    return found

@@ -43,10 +43,11 @@ from scipy import optimize
 
 from process_improve._random import check_random_state
 from process_improve.experiments._desirability import (
+    SCORED_GOALS,
     check_goal,
     check_importances,
-    composite_desirability,
     individual_desirability,
+    overall_desirability,
 )
 from process_improve.experiments._uniform_sampling import UniformSampler
 
@@ -829,7 +830,11 @@ def _search_space(
     else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
         box = (lows[idx], highs[idx])
         samples = UniformSampler(
-            region.inequalities, box, lambda m: rng.uniform(*box, size=(m, len(idx))), seeds=region.seed_points
+            region.inequalities,
+            box,
+            lambda m: rng.uniform(*box, size=(m, len(idx))),
+            seeds=region.seed_points,
+            tolerances=region._widen(),  # so a start passes region.feasible()
         ).draw(n_starts, rng)
     starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
     for start, sample in zip(starts, samples, strict=True):
@@ -885,7 +890,8 @@ def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.n
     """Return the unclipped linear desirability ramps, all positive exactly where every d is.
 
     A maximise goal contributes ``(y - low) / (high - low)``, a minimise goal
-    ``(high - y) / (high - low)``, and a target goal both of its sides. Unlike the
+    ``(high - y) / (high - low)``, a target goal both of its sides, and an in-range
+    goal both of its margins, each over the width of the range. Unlike the
     desirabilities themselves, these keep a slope outside the acceptable limits,
     so they show which way to move from a setting where some response scores 0.
     """
@@ -896,6 +902,8 @@ def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.n
             pieces.append((y - low) / (high - low))
         elif goal["goal"] == "minimize":
             pieces.append((high - y) / (high - low))
+        elif goal["goal"] == "in_range":
+            pieces.extend(((y - low) / (high - low), (high - y) / (high - low)))
         else:
             target = float(goal["target"])
             pieces.extend(((y - low) / (target - low), (high - y) / (high - target)))
@@ -937,6 +945,51 @@ def _closest_to_specification(
         if np.all(np.isfinite(res.x)) and accept(x) and (best is None or t > best[0]):
             best = (t, x)
     return None if best is None else best[1]
+
+
+#: How far, as a fraction of its range, an in-range response may sit outside its limits at an accepted point.
+_LIMIT_TOL = 1e-6
+
+
+def _response_limits(
+    evaluators: list[Callable[[np.ndarray], float]], goals: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Return SLSQP constraints that hold each ``"in_range"`` response within its limits.
+
+    Each margin is divided by the width of the range, so the constraints of responses in
+    different units are on one scale.
+    """
+    constraints: list[dict[str, Any]] = []
+    for f, goal in zip(evaluators, goals, strict=True):
+        if goal["goal"] != "in_range":
+            continue
+        low, high = float(goal["low"]), float(goal["high"])
+        width = high - low
+        constraints.append({"type": "ineq", "fun": lambda x, f=f, low=low, width=width: (f(x) - low) / width})
+        constraints.append({"type": "ineq", "fun": lambda x, f=f, high=high, width=width: (high - f(x)) / width})
+    return constraints
+
+
+def _check_desirability_goals(goals: list[dict[str, Any]]) -> None:
+    """Check every goal, and that at least one scores a response rather than only limiting it."""
+    for goal in goals:
+        check_goal(goal)
+    if not any(goal["goal"] in SCORED_GOALS for goal in goals):
+        msg = (
+            "Every goal is 'in_range', which only limits a response: give at least one response a goal of "
+            "'maximize', 'minimize' or 'target' to optimise."
+        )
+        raise ValueError(msg)
+
+
+def _no_optimum(region: DesignRegion | None, limits: list[dict[str, Any]]) -> Exception:
+    """Return the error for a search in which no start ended at an accepted point."""
+    if limits:
+        return ValueError(
+            "No setting in the search region holds every 'in_range' response within its limits; widen "
+            "search_bounds or the limits."
+        )
+    return RuntimeError("optimization produced no result" if region is None else "no start converged inside the region")
 
 
 def _optimize_desirability(  # noqa: PLR0913
@@ -983,14 +1036,13 @@ def _optimize_desirability(  # noqa: PLR0913
     """
     if align_goals:
         goals = _align_goals_to_models(fitted_models, goals)
-    for goal in goals:
-        check_goal(goal)
+    _check_desirability_goals(goals)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
         """Return the negated composite desirability at coded settings ``x``, for minimization."""
         d_vals = [individual_desirability(f(x), goal) for f, goal in zip(evaluators, goals, strict=True)]
-        return -composite_desirability(d_vals, importances)
+        return -overall_desirability(d_vals, goals, importances)
 
     # Multi-start: try centre + random points.
     # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
@@ -1001,9 +1053,12 @@ def _optimize_desirability(  # noqa: PLR0913
     # Start from the centre of the searched region, then sample across it, so
     # that widening the bounds actually widens where the search looks.
     space = _search_space(factor_names, search_bounds, region, rng, n_starts=10)
+    limits = _response_limits(evaluators, goals)
+    space.constraints.extend(limits)
 
     def accept(x: np.ndarray) -> bool:
-        return _within_region(region, factor_names, x) is not False
+        within = _within_region(region, factor_names, x) is not False
+        return within and all(c["fun"](x) >= -_LIMIT_TOL for c in limits)
 
     # Start first from the setting closest to meeting every limit: from there the
     # search can climb even when every other start sits where some d is 0, and on a
@@ -1013,8 +1068,7 @@ def _optimize_desirability(  # noqa: PLR0913
     best_result = _multistart_slsqp(neg_composite, space, accept)
 
     if best_result is None:
-        msg = "optimization produced no result" if region is None else "no start converged inside the region"
-        raise RuntimeError(msg)
+        raise _no_optimum(region, limits)
 
     x_opt = best_result.x
     composite_d = float(-best_result.fun)
@@ -1320,6 +1374,8 @@ def _objective_senses(goals: list[dict[str, Any]]) -> list[tuple[str, float | No
             senses.append((kind, None))
         else:
             msg = f"Unknown goal {kind!r}; expected 'maximize', 'minimize' or 'target'."
+            if kind == "in_range":
+                msg += " To hold a response within limits, use method='desirability' with an 'in_range' goal."
             raise ValueError(msg)
     return senses
 
@@ -1902,8 +1958,13 @@ def optimize_responses(  # noqa: PLR0913
           order, and names that do not pair up one to one raise a
           ``ValueError``. When either side omits a name, goals are taken in
           list order, with a warning.
-        - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, or
-          ``"target"``.
+        - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, ``"target"``
+          or ``"in_range"``. An ``"in_range"`` goal (Design-Expert's "is in
+          range") holds the predicted response between ``low`` and ``high``:
+          the search keeps to settings where it does, its individual
+          desirability is 1 there, and it is left out of the composite. At
+          least one goal must be of another kind. ``"pareto_front"`` takes
+          the other three only.
         - ``"target"`` (float, optional) - target value (required when
           ``goal="target"``).
         - ``"low"`` (float) - lower acceptable bound.

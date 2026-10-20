@@ -59,6 +59,7 @@ APP_SOURCES = (
     "store.js",
     "glossary.js",
     "terms.js",
+    "dialogs.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     "worker.js",

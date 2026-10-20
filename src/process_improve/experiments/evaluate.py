@@ -71,7 +71,7 @@ class _EvalRequest:
     effect_size: float | None
     alpha: float
     sigma: float | None
-    region: str | DesignRegion = "cuboidal"
+    region: str | DesignRegion | pd.DataFrame = "cuboidal"
     n_samples: int = 100_000
     include_vertices: bool = True
     random_state: int | np.random.Generator | None = 42
@@ -106,7 +106,7 @@ class _EvalContext:
     effect_size: float | None
     alpha: float
     sigma: float | None
-    region: str | DesignRegion = "cuboidal"
+    region: str | DesignRegion | pd.DataFrame = "cuboidal"  # a DataFrame: the candidate points themselves
     n_samples: int = 100_000
     include_vertices: bool = True
     random_state: int | np.random.Generator | None = 42
@@ -472,8 +472,8 @@ def _region_average(ctx: _EvalContext) -> tuple[float, str | None]:
     """
     assert ctx.XtX_inv is not None
     note = None
-    if ctx.integration == "exact":
-        moments = _cube_moment_matrix(ctx) if ctx.region == "cuboidal" else None
+    if ctx.integration == "exact" and not isinstance(ctx.region, pd.DataFrame):
+        moments = _cube_moment_matrix(ctx) if _is_cube(ctx.region) else None
         if moments is not None:
             return float(np.trace(ctx.XtX_inv @ moments)), None
         note = "The exact average needs the cuboidal region and a quadrature grid of at most 250,000 points: sampled."
@@ -492,7 +492,7 @@ def _region_maximum(ctx: _EvalContext) -> float:
     found = float(np.max(np.concatenate([interior, boundary])))
     categorical = _categorical_levels(ctx)
     continuous = [f for f in ctx.factor_names if f not in categorical]
-    if ctx.max_search != "optimize" or ctx.region != "cuboidal" or not continuous:
+    if ctx.max_search != "optimize" or not _is_cube(ctx.region) or not continuous:
         return found
     interior_df, boundary_df = _points_in_box_region(ctx, "cuboidal")
     points = pd.concat([interior_df, boundary_df], ignore_index=True)
@@ -544,6 +544,8 @@ def _region_prediction_variance(ctx: _EvalContext) -> tuple[np.ndarray, np.ndarr
         for the maximum (G). Empty when ``include_vertices`` is off.
     """
     assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
+    if isinstance(ctx.region, pd.DataFrame):  # a candidate set: every point, each once
+        return _prediction_variance_of_frame(ctx, ctx.region), np.empty(0)
     if isinstance(ctx.region, DesignRegion):
         interior_df, boundary_df = _points_in_design_region(ctx, ctx.region)
     else:
@@ -613,17 +615,40 @@ def _points_in_design_region(ctx: _EvalContext, region: DesignRegion) -> tuple[p
     return out[0], out[1] if len(out) > 1 else pd.DataFrame()
 
 
-def _region_label(region: str | DesignRegion) -> str:
-    """Name the region in results: the string as given, or ``"mixture"`` / ``"constrained"``."""
+def _region_label(region: str | DesignRegion | pd.DataFrame) -> str:
+    """Name the region in results: the string as given, ``"mixture"`` / ``"constrained"``, or ``"candidates"``."""
     if isinstance(region, str):
         return region
+    if isinstance(region, pd.DataFrame):
+        return "candidates"
     return region.kind if region.kind == "mixture" else "constrained"
 
 
+def _is_cube(region: str | DesignRegion | pd.DataFrame) -> bool:
+    """Say whether the region is the cube ``[-1, 1]^k``, where the exact average and the search apply."""
+    return isinstance(region, str) and region == "cuboidal"
+
+
+def _candidate_points(points: pd.DataFrame, factor_names: list[str]) -> pd.DataFrame:
+    """Return the candidate points as a region: a row per point, the design's factors as columns."""
+    missing = [f for f in factor_names if f not in points.columns]
+    if points.empty or missing:
+        found = "no points" if points.empty else f"no column for {missing}"
+        raise ValueError(f"A region of candidate points needs a row per point and a column per factor; it has {found}.")
+    chosen = points[factor_names].reset_index(drop=True)
+    if chosen.isna().to_numpy().any():
+        raise ValueError("The candidate points have missing settings; give every factor's setting at every point.")
+    return chosen
+
+
 def _resolve_region(
-    region: str | DesignRegion | None, design_matrix: pd.DataFrame | DesignResult
-) -> str | DesignRegion:
-    """Use the caller's region, else the one ``generate_design`` recorded, else the cube."""
+    region: str | DesignRegion | pd.DataFrame | None,
+    design_matrix: pd.DataFrame | DesignResult,
+    factor_names: list[str],
+) -> str | DesignRegion | pd.DataFrame:
+    """Use the caller's region (candidate points checked against the factors), else the one recorded, else the cube."""
+    if isinstance(region, pd.DataFrame):
+        return _candidate_points(region, factor_names)
     if region is not None:
         return region
     spec = design_matrix.metadata.get("region") if isinstance(design_matrix, DesignResult) else None
@@ -1097,7 +1122,7 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
     quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, quantile_values, strict=True)}
     payload: dict[str, Any] = {
         "region": _region_label(ctx.region),
-        "n_samples": ctx.n_samples,
+        "n_samples": len(pv),
         "include_vertices": ctx.include_vertices,
         "random_seed": ctx.random_state if isinstance(ctx.random_state, int) else None,
         "fds_resolution": ctx.fds_resolution,
@@ -2028,7 +2053,7 @@ def evaluate_design(  # noqa: PLR0913
     effect_size: float | None = None,
     alpha: float = 0.05,
     sigma: float | None = None,
-    region: str | DesignRegion | None = None,
+    region: str | DesignRegion | pd.DataFrame | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
     fds_resolution: int | None = None,
@@ -2095,7 +2120,7 @@ def evaluate_design(  # noqa: PLR0913
     sigma : float or None
         Estimated noise standard deviation.  Defaults to 1.0 when needed
         but not provided.
-    region : {"cuboidal", "spherical"}, DesignRegion, or None
+    region : {"cuboidal", "spherical"}, DesignRegion, pandas.DataFrame, or None
         Design region over which the region-based metrics (``average_prediction_variance``,
         ``g_efficiency``, ``fds``) integrate the prediction variance.
         ``"cuboidal"`` is ``[-1, 1]^k``; ``"spherical"`` is the ball of radius
@@ -2103,6 +2128,11 @@ def evaluate_design(  # noqa: PLR0913
         restricts the average and the maximum to settings that satisfy its
         constraints (a box) or lie on its constrained simplex (a mixture): a
         constrained design should not be judged on corners it may not visit.
+        A DataFrame is a discrete region, such as the candidate points an optimal
+        design was chosen from: one row per point and a column per factor, in the
+        design's units (coded, for a :class:`DesignResult`). The average and the
+        maximum are then taken over exactly those points, each counted once, with
+        no sampling.
         ``None`` (default) uses the region a :class:`DesignResult` recorded when
         it was generated with constraints or mixture factors, and the cube
         otherwise.
@@ -2222,7 +2252,7 @@ def evaluate_design(  # noqa: PLR0913
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
     # --- Region, and the Scheffé default for mixtures (an intercept is redundant there) ---
-    region = _resolve_region(region, design_matrix)
+    region = _resolve_region(region, design_matrix, factor_names)
     if isinstance(region, DesignRegion) and region.kind == "mixture":
         model = _mixture_model(model, design_matrix)
 
@@ -2277,7 +2307,7 @@ def evaluate_all(  # noqa: PLR0913
     effect_size: float | None = None,
     alpha: float = 0.05,
     sigma: float | None = None,
-    region: str | DesignRegion | None = None,
+    region: str | DesignRegion | pd.DataFrame | None = None,
     n_samples: int = 100_000,
     include_vertices: bool = True,
     fds_resolution: int | None = None,

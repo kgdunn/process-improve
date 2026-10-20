@@ -15,6 +15,12 @@ Two quantities in this module are easy to confuse, so they are named apart:
     the composite. It sets how much one response counts relative to another,
     and it has no effect on any individual ramp.
 
+*in range*
+    A goal that limits a response instead of scoring it, as Design-Expert's
+    "is in range" goal does: its desirability is 1 inside the limits and 0
+    outside. It makes the composite 0 when it is not met, and it is left out
+    of the geometric mean when it is (see :func:`overall_desirability`).
+
 This module was previously duplicated in ``optimization.py`` and in
 ``visualization/plots/optimization_plots.py``, and the two copies drifted.
 It now holds the union of their behaviour: asymmetric target weights from the
@@ -40,7 +46,11 @@ __all__ = [
     "desirability_minimize",
     "desirability_target",
     "individual_desirability",
+    "overall_desirability",
 ]
+
+#: The goals that score a response. An ``"in_range"`` goal only limits one.
+SCORED_GOALS = ("maximize", "minimize", "target")
 
 
 def desirability_maximize(y: float, low: float, high: float, weight: float = 1.0) -> float:
@@ -140,10 +150,12 @@ def individual_desirability(y: float, goal: dict[str, Any]) -> float:
     y : float
         Predicted response value.
     goal : dict
-        Keys: ``goal`` (one of ``"maximize"``, ``"minimize"``, ``"target"``),
-        ``low``, ``high``, ``target`` (required for a target goal), ``weight``,
-        and optionally ``weight_high`` to make a target goal asymmetric. When
-        ``weight_high`` is absent, ``weight`` applies to both sides.
+        Keys: ``goal`` (one of ``"maximize"``, ``"minimize"``, ``"target"``,
+        ``"in_range"``), ``low``, ``high``, ``target`` (required for a target
+        goal), ``weight``, and optionally ``weight_high`` to make a target goal
+        asymmetric. When ``weight_high`` is absent, ``weight`` applies to both
+        sides. An ``"in_range"`` goal scores 1 from ``low`` to ``high`` and 0
+        outside, and takes no weight.
 
     Returns
     -------
@@ -161,6 +173,8 @@ def individual_desirability(y: float, goal: dict[str, Any]) -> float:
     high = goal["high"]
     weight = goal.get("weight", 1.0)
 
+    if goal_type == "in_range":
+        return 1.0 if low <= y <= high else 0.0
     if goal_type == "maximize":
         return desirability_maximize(y, low, high, weight)
     if goal_type == "minimize":
@@ -188,15 +202,18 @@ def check_goal(goal: dict[str, Any]) -> None:
     ValueError
         If ``goal`` is missing or unrecognised, ``low`` or ``high`` is missing or
         not finite, ``low >= high``, a target goal has no target or one outside
-        ``(low, high)``, or ``weight`` / ``weight_high`` is not positive.
+        ``(low, high)``, ``weight`` / ``weight_high`` is not positive, or an
+        ``"in_range"`` goal has a weight, which has no ramp to shape there.
     """
     where = f" for response {goal['response']!r}" if goal.get("response") is not None else ""
     if "goal" not in goal:
-        msg = f"Goal dict{where} is missing the required 'goal' key. Use 'maximize', 'minimize', or 'target'."
+        msg = (
+            f"Goal dict{where} is missing the required 'goal' key. Use 'maximize', 'minimize', 'target' or 'in_range'."
+        )
         raise ValueError(msg)
     goal_type = goal["goal"]
-    if goal_type not in ("maximize", "minimize", "target"):
-        msg = f"Unknown goal type{where}: {goal_type!r}. Use 'maximize', 'minimize', or 'target'."
+    if goal_type not in (*SCORED_GOALS, "in_range"):
+        msg = f"Unknown goal type{where}: {goal_type!r}. Use 'maximize', 'minimize', 'target' or 'in_range'."
         raise ValueError(msg)
     if goal.get("low") is None or goal.get("high") is None:
         msg = f"The {goal_type!r} goal{where} needs both 'low' and 'high': the desirability ramps between them."
@@ -212,6 +229,14 @@ def check_goal(goal: dict[str, Any]) -> None:
         if not low < float(goal["target"]) < high:
             msg = f"The target{where} must lie strictly between low={low} and high={high}; got {goal['target']}."
             raise ValueError(msg)
+    _check_weights(goal, where)
+
+
+def _check_weights(goal: dict[str, Any], where: str) -> None:
+    """Refuse a weight that is not positive, and any weight on an ``"in_range"`` goal, which has no ramp."""
+    if goal["goal"] == "in_range" and ("weight" in goal or "weight_high" in goal):
+        msg = f"An 'in_range' goal{where} is 1 inside its limits and 0 outside, so it takes no weight."
+        raise ValueError(msg)
     for key in ("weight", "weight_high"):
         if key in goal and not float(goal[key]) > 0:
             msg = f"The goal{where} needs a positive '{key}'; got {goal[key]}."
@@ -258,6 +283,37 @@ def composite_desirability(d_values: list[float], importances: list[float] | Non
 
     log_d = sum(w * np.log(d) for d, w in zip(d_values, weights, strict=True))
     return float(np.exp(log_d / sum(weights)))
+
+
+def overall_desirability(
+    d_values: list[float], goals: list[dict[str, Any]], importances: list[float] | None = None
+) -> float:
+    """Composite desirability of the scored goals, and 0 when an ``"in_range"`` goal is not met.
+
+    An ``"in_range"`` goal limits its response: the composite is 0 where it lies outside the
+    limits, and where it lies inside, the goal is left out of the geometric mean, so it does not
+    change the composite. This is Design-Expert's convention, which Montgomery's printed
+    composites follow (Section 11.3.4).
+
+    Parameters
+    ----------
+    d_values : list of float
+        Individual desirabilities, one per goal.
+    goals : list of dict
+        The goals, in the order of *d_values*.
+    importances : list of float, optional
+        Relative importance per goal; those of ``"in_range"`` goals are not used.
+
+    Returns
+    -------
+    float
+        Composite desirability in [0, 1].
+    """
+    if any(g["goal"] == "in_range" and d == 0.0 for d, g in zip(d_values, goals, strict=True)):
+        return 0.0
+    scored = [i for i, g in enumerate(goals) if g["goal"] != "in_range"]
+    weights = None if importances is None else [importances[i] for i in scored]
+    return composite_desirability([d_values[i] for i in scored], weights)
 
 
 def check_importances(importances: list[float], n_responses: int) -> None:

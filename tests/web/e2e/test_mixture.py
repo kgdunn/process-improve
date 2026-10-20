@@ -11,19 +11,21 @@ import pytest
 
 from tests.web._support import FACTORS
 from tests.web.e2e._page import (
-    calls,
     choose,
     factor_table,
     generate,
     headers,
+    last_reply,
     name_response,
     practise,
     reveal,
     run_sheet,
     set_factors,
     settled,
+    status,
     type_limit,
 )
+from tests.web.e2e.test_best_settings import num, table_rows
 from tests.web.e2e.test_layout import WIDE_FONT, overflowing
 from tests.web.e2e.test_responses import add_response, pick, tabs
 
@@ -181,7 +183,15 @@ def test_a_mixture_on_a_phone_scrolls_only_downwards(fresh_page):
         assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), phase
 
 
-def test_a_mixture_measures_two_responses_and_says_its_best_blend_is_not_searched(fresh_page):
+def blend_stars(page) -> list[list[float]]:
+    """Return where each chart of Learn puts the best blend's star: its proportions on the triangle."""
+    return page.evaluate(
+        """() => [...document.querySelectorAll('#charts .js-plotly-plot')].flatMap((div) =>
+             div.data.filter((t) => t.name === 'Best blend').map((t) => [t.a[0], t.b[0], t.c[0]]))"""
+    )
+
+
+def test_a_mixture_measures_two_responses_and_finds_each_one_s_best_blend(fresh_page):
     page = fresh_page
     name_response(page, "Hardness", "HV", goal="maximize")
     add_response(page, "Cost", "$/kg", "minimize")
@@ -192,16 +202,72 @@ def test_a_mixture_measures_two_responses_and_says_its_best_blend_is_not_searche
     reveal(page, "#response-picker")
     assert tabs(page) == [["Hardness", "true"], ["Cost", "false"]]
     assert page.text_content("#analysis .equation").startswith("Hardness = ")
-    assert page.text_content("#best-out") == (
-        "The page does not yet search a mixture's blends for the one that best meets the goal for Hardness. "
-        "The charts below show the fitted Hardness over the blends."
+    best = last_reply(page, "api_best_settings")["result"]
+    reveal(page, "#best")
+    assert page.text_content("#h-best") == "The best blend for your goal"
+    assert page.text_content("#best .lead") == (
+        f"This blend gives the highest Hardness the model predicts: {num(best['predicted'])} HV."
     )
-    assert page.is_hidden("#best-chart")
+    assert headers(page, "#best-out table")[:3] == ["Component", "Proportion", "Where it lies"]
+    rows = table_rows(page, "#best-out table.data:not(.known-table)")
+    assert [row[:2] for row in rows] == [[s["name"], num(s["value"])] for s in best["settings"]]
+    assert sum(s["value"] for s in best["settings"]) == pytest.approx(1.0)
+    assert page.text_content("#best-chart .term") == "How tightly to weigh out each component"
+    assert "Fitted response over the blends" in charts(page)
+    assert page.is_visible("#best-chart")
+    assert blend_stars(page) == [[best["coded"][n] for n in ("Water", "Oil", "Wax")]], "on the fitted triangle"
+    caption = page.locator("#charts figure", has_text="Fitted response over the blends").locator("figcaption")
+    assert caption.text_content().endswith("the white dots are the runs, and the star the best blend.")
+    assert "DesignRegion(factors)" in page.text_content("#py-best code")
     # The balance is asked for once the charts are drawn, which can be after the page reads as settled.
-    page.wait_for_function("window.__pi.count('api_balance') > 0")
-    assert calls(page, "api_balance"), "the page asked, and was told it is a mixture"
-    assert page.is_hidden("#balance"), "two goals, and no balance searched over a mixture's blends"
+    page.wait_for_selector("#balance-chart .js-plotly-plot")
+    b = last_reply(page, "api_balance")["result"]
+    reveal(page, "#balance")
+    assert page.text_content("#balance .lead").startswith(
+        "This blend balances the responses best: an overall desirability"
+    )
+    assert headers(page, "#balance-out table")[:3] == ["Component", "Proportion", "Where it lies"]
+    traces = page.evaluate(
+        "() => document.querySelector('#balance-chart .js-plotly-plot').data.map((t) => ({name: t.name, type: t.type, "
+        "a: t.a, b: t.b, c: t.c}))"
+    )
+    assert {t["type"] for t in traces} == {"scatterternary"}, "the overlay is over the triangle"
+    star = next(t for t in traces if t["name"] == "Balanced blend")
+    assert [star["a"][0], star["b"][0], star["c"][0]] == b["overlay"]["at"]
+    shaded = next(t for t in traces if t["name"] == "Every response acceptable")
+    assert len(shaded["a"]) == sum(b["overlay"]["acceptable"])
+    assert page.text_content("#balance-chart figcaption").startswith("Each corner is a pure component and each point")
+    assert page.text_content("#add-balance-confirmation") == "Add 3 confirmation runs at this blend"
+    assert "region=DesignRegion(factors)" in page.text_content("#py-balance code")
     pick(page, "Cost")
     assert page.text_content("#analysis .equation").startswith("Cost = ")
     assert "Fitted response over the blends" in charts(page)
-    assert "for Cost" in page.text_content("#best-out")
+    assert page.text_content("#best .lead").startswith("This blend gives the lowest Cost the model predicts: ")
+
+
+def test_confirmation_runs_at_the_best_blend_are_weighed_out_simulated_and_judged(fresh_page):
+    page = fresh_page
+    name_response(page, "Hardness", "HV", goal="maximize")
+    made_mixture(page)
+    page.click("#go-learn")
+    settled(page)
+    reveal(page, "#best")
+    at = last_reply(page, "api_best_settings")["result"]["confirm_at"]
+    assert sum(round(v * 1000) for v in at.values()) == 1000, "weighed out to a thousandth, summing to 1"
+    assert page.text_content("#add-confirmation") == "Add 3 confirmation runs at this blend"
+    page.click("#add-confirmation")
+    settled(page)
+    assert status(page)[0] == "3 confirmation runs added at the best blend, their results simulated."
+    reveal(page, "#design-table")
+    names = headers(page)
+    rows = [row for row in run_sheet(page) if row[names.index("Confirmation run")] == "yes"]
+    assert [[float(row[names.index(n)]) for n in ("Water", "Oil", "Wax")] for row in rows] == [list(at.values())] * 3
+    reveal(page, "#best")
+    assert page.text_content("#confirm-out .hint").startswith(
+        "The confirmation runs weigh out each proportion to 0.001"
+    )
+    verdict = page.locator("#confirm-out .verdict")
+    assert verdict.count() == 1
+    assert verdict.get_attribute("data-state") in {"inside", "outside"}
+    assert "this blend" in verdict.text_content()
+    assert page.is_hidden("#add-confirmation"), "runs at this blend are on the sheet"

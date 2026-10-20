@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import numpy as np
-from statsmodels.regression.linear_model import RegressionResultsWrapper
+from statsmodels.regression.linear_model import OLSResults, RegressionResultsWrapper
 
 
 def _press(ols_result: RegressionResultsWrapper) -> float:
@@ -84,24 +84,49 @@ def _no_intercept_note(ols_result: RegressionResultsWrapper) -> str | None:
     )
 
 
-def _compute_adequate_precision(ols_result: RegressionResultsWrapper) -> float:
-    """Adequate precision: signal-to-noise ratio (~10 lines)."""
-    predicted = ols_result.fittedvalues.values
-    mse = float(ols_result.mse_resid)
-    n = len(predicted)
-    p = ols_result.df_model + 1
+def average_fitted_variance(ols_result: RegressionResultsWrapper, variance: float | None = None) -> float:
+    """Return the average variance of the fitted values over the runs, p variance/n (#797 R1).
 
-    max_pred = float(np.max(predicted))
-    min_pred = float(np.min(predicted))
-    signal = max_pred - min_pred
+    The leverages of the runs sum to p, the number of terms the model estimates (the rank of
+    its matrix), so the average is p variance/n whatever the design (Box and Wetz).
+    ``variance`` is the error variance: the residual mean square unless one is given.
+    """
+    error = float(ols_result.mse_resid) if variance is None else variance
+    return int(ols_result.model.rank) * error / int(ols_result.nobs)
 
-    # Average variance of prediction
-    avg_var = p * mse / n
-    noise = np.sqrt(avg_var)
 
+def _compute_adequate_precision(ols_result: RegressionResultsWrapper, variance: float | None = None) -> float:
+    """Return adequate precision: the range of the fitted values over their average standard error.
+
+    The average standard error is the square root of :func:`average_fitted_variance`, with
+    the same ``variance``. Infinite when the fit leaves no error at all.
+    """
+    noise = np.sqrt(average_fitted_variance(ols_result, variance))
     if noise == 0:
         return float("inf")
-    return signal / noise
+    return float(np.ptp(np.asarray(ols_result.fittedvalues, dtype=float)) / noise)
+
+
+def with_prior_sigma(ols_result: RegressionResultsWrapper, sigma: float | None) -> RegressionResultsWrapper:
+    """Return ``ols_result`` with its standard errors from a prior ``sigma`` instead of the residual (#789 B6).
+
+    The coefficients do not change. Their covariance becomes sigma² (X'X)⁻¹, and the tests
+    and intervals read the normal distribution rather than the t, since sigma is not
+    estimated from these runs. A saturated fit, which has no residual, gets standard errors
+    too. ``ols_result`` itself is returned when ``sigma`` is None.
+    """
+    if sigma is None:
+        return ols_result
+    params, unscaled = np.asarray(ols_result.params), np.asarray(ols_result.normalized_cov_params)
+    known = OLSResults(ols_result.model, params, unscaled, use_t=False)
+    known.scale = float(sigma) ** 2  # set after construction, which clears the cache the scale is kept in
+    known.prior_sigma = float(sigma)
+    return RegressionResultsWrapper(known)
+
+
+def has_error_variance(ols_result: RegressionResultsWrapper) -> bool:
+    """Return whether the fit has an error variance to test its terms against: a prior sigma, or a residual."""
+    return getattr(ols_result, "prior_sigma", None) is not None or int(ols_result.df_resid) > 0
 
 
 #: The design column that names each run's block. Blocks enter a model as sum-coded

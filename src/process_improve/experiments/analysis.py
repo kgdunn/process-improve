@@ -39,6 +39,8 @@ from process_improve.experiments._analyses._shared import (
     _no_intercept_note,
     _sums_of_squares,
     _without_blocks,
+    average_fitted_variance,
+    with_prior_sigma,
 )
 from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
 from process_improve.experiments._analyses.box_cox import _run_box_cox
@@ -55,6 +57,7 @@ from process_improve.experiments._analyses.mixture import (
 )
 from process_improve.experiments._analyses.model_selection import _run_model_selection
 from process_improve.experiments._analyses.ols_extractors import (
+    _joint_inference,
     _run_anova,
     _run_coefficients,
     _run_confidence_intervals,
@@ -547,6 +550,9 @@ class _Fit:
     #: The largest model model_selection may reach: the model asked for, which is ``model`` unless the
     #: default interactions model was not estimable and main effects were fitted instead.
     searched_model: str | None = None
+    #: The error standard deviation known before the runs, which the standard errors use instead of the
+    #: residual's (#789 B6); None for the residual's.
+    sigma: float | None = None
 
     @property
     def group_cols(self) -> list[str]:
@@ -638,7 +644,10 @@ class _Fit:
 def _effects(fit: _Fit, *, lenth: bool) -> dict[str, Any]:
     """Effects, or Lenth's method on them, from the -1/+1 coded refit."""
     coded, coding = fit.coded()
-    result = _run_lenth_method(coded, fit.alpha, blocks=fit.blocks) if lenth else _run_effects(coded, blocks=fit.blocks)
+    if lenth:  # Lenth's method estimates the error from the effects themselves
+        result = _run_lenth_method(coded, fit.alpha, blocks=fit.blocks)
+    else:
+        result = _run_effects(with_prior_sigma(coded, fit.sigma), blocks=fit.blocks)
     if coding:
         result["effects_coding"] = coding
     return result
@@ -680,16 +689,20 @@ def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: Regression
 def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
     """Return the coefficients, or their confidence intervals, on the scale ``coding`` asks for."""
     ols = fit.coefficient_fit()
+    shown = with_prior_sigma(ols, fit.sigma)
     extract = _run_coefficients if analysis == "coefficients" else _run_confidence_intervals
-    result = extract(ols, fit.alpha)
+    result = extract(shown, fit.alpha)
     for row in result[analysis]:
         row["term"] = _readable(row["term"])
     result["coding"] = "actual" if fit.coding == "actual" else "coded"
     if fit.model not in SCHEFFE_MODELS and (coding := fit.factor_coding()[1]):
         result["factor_coding"] = coding
-    if analysis == "coefficients" and ols is not fit.ols:
-        # The equation in the factors' own units, for whoever needs to evaluate it there.
-        result["coefficients_actual"] = _run_coefficients(fit.ols, fit.alpha)["coefficients"]
+    if analysis == "coefficients":
+        result |= _joint_inference(shown, fit.alpha, _readable)
+        if ols is not fit.ols:
+            # The equation in the factors' own units, for whoever needs to evaluate it there.
+            actual = with_prior_sigma(fit.ols, fit.sigma)
+            result["coefficients_actual"] = _run_coefficients(actual, fit.alpha)["coefficients"]
     return result
 
 
@@ -731,12 +744,13 @@ def _handlers(
     def prediction() -> dict[str, Any]:
         if points is None:
             return {"prediction": {"error": "new_points is required for prediction."}}
-        return _run_prediction(fit.ols, points, fit.alpha, fit.transform_info)
+        return _run_prediction(with_prior_sigma(fit.ols, fit.sigma), points, fit.alpha, fit.transform_info)
 
     def confirmation() -> dict[str, Any]:
         if points is None or observed_at_new is None:
             return {"confirmation_test": {"error": "new_points and observed_at_new are required."}}
-        return _run_confirmation_test(fit.ols, points, observed_at_new, fit.alpha, fit.transform_info)
+        known = with_prior_sigma(fit.ols, fit.sigma)
+        return _run_confirmation_test(known, points, observed_at_new, fit.alpha, fit.transform_info)
 
     def box_cox() -> dict[str, Any]:
         raw = fit.df.assign(**{fit.response_col: fit.raw_response})
@@ -749,7 +763,7 @@ def _handlers(
         "effects": lambda: _effects(fit, lenth=False),
         "coefficients": lambda: _coefficients(fit, "coefficients"),
         "significance": lambda: _run_significance(
-            fit.reduced()[0], fit.alpha, labels=fit.reduced()[1], blocks=fit.blocks
+            with_prior_sigma(fit.reduced()[0], fit.sigma), fit.alpha, labels=fit.reduced()[1], blocks=fit.blocks
         ),
         "residual_diagnostics": lambda: _run_residual_diagnostics(fit.ols),
         "lack_of_fit": lambda: _run_lack_of_fit(fit.ols, fit.df, fit.response_col, fit.group_cols, fit.alpha),
@@ -799,6 +813,7 @@ def analyze_experiment(  # noqa: PLR0913
     dispersion: str | float | None = None,
     information: str = "expected",
     df_method: str = "satterthwaite",
+    sigma: float | None = None,
 ) -> dict[str, Any]:
     """Fit models, run ANOVA, compute effects, diagnose residuals.
 
@@ -871,6 +886,13 @@ def analyze_experiment(  # noqa: PLR0913
         deviation of the response (the "beta" coefficient, MYSTAT's STD COEF). It has no
         units, so terms in different units compare; the intercept's is 0. Like the
         coefficient, it depends on ``coding`` when the model has interactions or squares.
+        The ``"coefficients"`` analysis also gives ``estimate_correlations``, the correlation
+        of each pair of estimates, from :math:`(X'X)^{-1}` alone, and
+        ``joint_confidence_region``: its ``sum_of_squares`` bounds the values of all the
+        coefficients together at ``1 - significance_level``, :math:`S_R (1 + p F / (n - p))`
+        with :math:`S_R` the ``residual_sum_of_squares`` (Box, Hunter and Hunter, eq. 14.45);
+        with a ``sigma``, :math:`S_R` plus sigma squared times the upper chi-square point on
+        :math:`p` degrees of freedom.
 
         ``"split_plot"`` is for a design whose hard-to-change factors change only
         between whole plots. Every other analysis is ordinary least squares, which
@@ -989,6 +1011,16 @@ def analyze_experiment(  # noqa: PLR0913
         the covariance of the estimates for the uncertainty in the variance components and
         scales the F tests, as Kenward and Roger (1997) do. A single coefficient's df are the
         same either way.
+    sigma : float or None
+        The error standard deviation when it is known before these runs, from past records
+        or earlier experiments. The standard errors of the ``"coefficients"``, ``"effects"``,
+        ``"confidence_intervals"``, ``"significance"``, ``"prediction"`` and
+        ``"confirmation_test"`` then use it instead of the residual, and their tests and
+        intervals read the normal distribution, not the t, since sigma is not estimated from
+        the runs: each ``t_value`` is a z value. A saturated design gets standard errors this
+        way too. The ANOVA, the lack-of-fit test, Lenth's method and a mixture model's
+        ``"significance"`` and ``"effects"`` keep the residual. Give sigma in the units of the
+        response as it is fitted, after ``transform``. None (the default) uses the residual.
 
     Returns
     -------
@@ -1006,7 +1038,12 @@ def analyze_experiment(  # noqa: PLR0913
         - ``r_squared_adj`` - adjusted R^2.
         - ``r_squared_pred`` - prediction R^2 (leave-one-out style).
         - ``adequate_precision`` - signal-to-noise ratio (>= 4 is
-          considered adequate).
+          considered adequate): the range of the fitted values over the square root of
+          ``average_fitted_variance``.
+        - ``average_fitted_variance`` - the average variance of the fitted values over the
+          runs, p s²/n with s² the residual mean square (p sigma²/n with a ``sigma``): the
+          runs' leverages sum to p, the number of terms the model estimates, whatever the
+          design (Box and Wetz). Its square root is the fitted values' average standard error.
         - ``n_obs`` - number of observations used to fit.
         - ``n_terms`` - number of columns in the model matrix.
         - ``model_rank`` - rank of the model matrix with the numeric
@@ -1020,6 +1057,9 @@ def analyze_experiment(  # noqa: PLR0913
         - ``df_model`` - model degrees of freedom.
         - ``df_residual`` - residual degrees of freedom.
         - ``mse_residual`` - mean squared error of the residuals.
+        - ``prior_sigma`` - the ``sigma`` given, when one is: the standard errors,
+          ``adequate_precision`` and ``average_fitted_variance`` use it, not the square root of
+          ``mse_residual``.
         - ``f_statistic`` and ``f_p_value`` - the overall F test of the model against the
           intercept alone (against zero, on uncorrected sums of squares, with no intercept).
         - ``log_likelihood``, ``aic`` and ``bic`` - the Gaussian log-likelihood and the criteria
@@ -1055,6 +1095,13 @@ def analyze_experiment(  # noqa: PLR0913
     >>> result = analyze_experiment(df, response_column="y", analysis_type="coefficients")
     >>> result["coefficients"][0]["term"]
     'Intercept'
+
+    With the error standard deviation known from earlier runs, the four runs, which leave
+    no residual, still give each coefficient a standard error, sigma over the square root of 4:
+
+    >>> known = analyze_experiment(df, response_column="y", analysis_type="coefficients", sigma=2.0)
+    >>> [round(row["std_error"], 6) for row in known["coefficients"]]
+    [1.0, 1.0, 1.0, 1.0]
     """
     df, response_col = _assemble_data(design_matrix, responses, response_column)
 
@@ -1086,7 +1133,7 @@ def analyze_experiment(  # noqa: PLR0913
         available = sorted(_ANALYSIS_REGISTRY.keys())
         raise ValueError(f"Unknown analysis_type(s): {unknown}. Available: {available}")
     glm = {"family": family, "link": link, "trials": trials, "dispersion": dispersion, "information": information}
-    _check_df_method(df_method)
+    _check_options(df_method, sigma)
     whole_plot_cols, trials_col = _side_columns(df, whole_plot, types, transform, glm)
 
     _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL, *whole_plot_cols, trials_col}
@@ -1141,7 +1188,8 @@ def analyze_experiment(  # noqa: PLR0913
         "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
         | _without_blocks(ols_result, blocks)
         | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
-        | ({"model_note": model_note} if model_note else {}),
+        | ({"model_note": model_note} if model_note else {})
+        | _fitted_noise(ols_result, sigma),
     }
 
     fit = _Fit(
@@ -1159,6 +1207,7 @@ def analyze_experiment(  # noqa: PLR0913
         coding=coding,
         glm=glm,
         searched_model=searched_model,
+        sigma=sigma,
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:
@@ -1187,10 +1236,32 @@ def _side_columns(
     return _whole_plot_columns(df, whole_plot, types), _trials_column(df, glm, types, transform)
 
 
-def _check_df_method(df_method: str) -> None:
-    """Raise ``ValueError`` for a degrees-of-freedom method the split-plot analysis does not offer."""
+def _fitted_noise(ols_result: RegressionResultsWrapper, sigma: float | None) -> dict[str, Any]:
+    """Return the fitted values' average variance, and with a prior ``sigma`` adequate precision read against it.
+
+    Both are worked from the residual mean square unless ``sigma`` is given (#797 R1);
+    ``adequate_precision`` then replaces the one ``_model_summary`` worked from the residual.
+    """
+    if sigma is None:
+        return {"average_fitted_variance": average_fitted_variance(ols_result)}
+    variance = float(sigma) ** 2
+    return {
+        "prior_sigma": float(sigma),
+        "adequate_precision": _compute_adequate_precision(ols_result, variance),
+        "average_fitted_variance": average_fitted_variance(ols_result, variance),
+    }
+
+
+def _check_options(df_method: str, sigma: float | None) -> None:
+    """Raise ``ValueError`` for a degrees-of-freedom method the split-plot analysis does not offer, or a bad sigma."""
     if df_method not in DF_METHODS:
         raise ValueError(f"df_method must be one of {', '.join(map(repr, DF_METHODS))}; got {df_method!r}.")
+    if sigma is not None and not (
+        isinstance(sigma, numbers.Real) and not isinstance(sigma, bool) and np.isfinite(sigma) and sigma > 0
+    ):
+        raise ValueError(
+            f"sigma must be a positive number, the error standard deviation known before these runs; got {sigma!r}."
+        )
 
 
 def _trials_column(df: pd.DataFrame, glm: dict[str, Any], types: list[str], transform: str | None) -> str | None:

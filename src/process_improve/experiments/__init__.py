@@ -18,9 +18,12 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
+from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
 from process_improve.experiments.knowledge import doe_knowledge
+from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
+from process_improve.experiments.model_comparison import compare_models, group_test
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.multistratum import multistratum_anova
 from process_improve.experiments.next_step import recommend_next_step
@@ -40,6 +43,7 @@ from process_improve.experiments.pseudocomponents import from_pseudocomponents, 
 from process_improve.experiments.random_effects import (
     expected_mean_squares,
     intraclass_correlation_interval,
+    sampling_scheme_variance,
     variance_components,
 )
 from process_improve.experiments.region import DesignRegion
@@ -66,6 +70,7 @@ from process_improve.experiments.surface_checks import pooled_pure_error, third_
 from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
+from process_improve.experiments.variance_dispersion import variance_dispersion
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 
 __all__ = [
@@ -77,6 +82,7 @@ __all__ = [
     "DesignResult",
     "Expt",
     "Factor",
+    "GaussianProcessFit",
     "Model",
     "MomentAberrationResult",
     "NoSteepestDirectionError",
@@ -95,16 +101,19 @@ __all__ = [
     "box_behnken_runs",
     "c",
     "compare_designs",
+    "compare_models",
     "constraint_through_cuts",
     "cross_arrays",
     "defining_relation",
     "definitive_screening_runs",
     "doe_knowledge",
+    "estimate_missing",
     "evaluate_all",
     "evaluate_design",
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "fit_gaussian_process",
     "from_pseudocomponents",
     "full_factorial",
     "gather",
@@ -113,6 +122,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "group_test",
     "interaction_components",
     "intraclass_correlation_interval",
     "is_omars",
@@ -138,6 +148,7 @@ __all__ = [
     "rename_factors",
     "run_order_trends",
     "run_sheet",
+    "sampling_scheme_variance",
     "separating_constraint",
     "simulate_design_performance",
     "steepest_path",
@@ -148,6 +159,8 @@ __all__ = [
     "to_pseudocomponents",
     "trade_off_table",
     "trend_robust_run_order",
+    "tukey_nonadditivity",
     "variance_components",
+    "variance_dispersion",
     "visualize_doe",
 ]
