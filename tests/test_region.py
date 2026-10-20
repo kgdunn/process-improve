@@ -857,9 +857,9 @@ class TestLinearForms:
             expression = " + ".join(f"({c!r})*{n}" for c, n in zip(coefficients, names, strict=True)) + f" <= {rhs!r}"
             region = DesignRegion(factors, [expression])
             form = region.linear_forms()[0]
-            # Skip a limit the affine test cannot tell from a curved one in double precision, and one that changes
-            # by less than 1e-5 over the box, where feasible()'s tolerance of 1e-9 in its own units is wide.
-            if form is None or region._linear().scale[0] < 1e-5:
+            # Skip a limit the affine test cannot tell from a curved one in double precision. (One that changes by
+            # less than 1e-5 over the box was skipped as well, while feasible() judged it in its own units, #807.)
+            if form is None:
                 continue
             checked += 1
             coded = rng.uniform(-1, 1, size=(4000, k))
@@ -955,6 +955,64 @@ class TestLinearForms:
             assert not shadow[20:, :].any(), "nothing above B = 0.5 can be run"
 
 
+#: Ranges of the factor X, in its own units: a mole fraction in parts per trillion and per billion, a
+#: concentration in mol/L at the micromolar scale, and an ordinary range.
+_RANGES = [1e-12, 1e-9, 1e-6, 1.0]
+
+
+class TestLimitsInAnyUnits:
+    """A limit reads the same whatever the units of its factors (#807).
+
+    A tolerance of 1e-9 held in a limit's own units was as wide as a factor's whole range of
+    1e-9: the region dropped ``X <= 0.5e-9``, every setting passed it, and a curved limit on such
+    a factor was read as a straight one.
+    """
+
+    @staticmethod
+    def _region(span: float, limit: str) -> DesignRegion:
+        factors = [Factor(name="X", low=0.0, high=span), Factor(name="Y", low=0, high=1)]
+        return DesignRegion(factors, [limit.format(r=span)])
+
+    @pytest.mark.parametrize("span", _RANGES)
+    def test_a_straight_limit_halves_the_box(self, span):
+        region = self._region(span, "X <= 0.5*{r!r}")
+        assert region.volume_fraction() == pytest.approx(0.5, abs=1e-12)
+        assert region._linear().a.tolist() == [[1.0, 0.0]]
+        assert region.vertices()[:, 0].max() == pytest.approx(0.5 * span, rel=1e-12)
+        # Coded: the boundary is X = 0; within 1e-9 a setting passes, and further out it fails.
+        settings = np.array([[0.0, 0.0], [0.9e-9, 0.5], [2e-9, -0.5], [1.0, 0.0]])
+        assert region.feasible(settings).tolist() == [True, True, False, False]
+        drawn = region.sample(500, np.random.default_rng(0))
+        assert drawn[:, 0].max() <= 1e-9
+
+    @pytest.mark.parametrize("span", _RANGES)
+    def test_a_curved_limit_keeps_its_curve(self, span):
+        """``X*Y <= r/4`` leaves 1/4 + ln(4)/4 of the box; read as straight, it left 1/2."""
+        region = self._region(span, "X*Y <= 0.25*{r!r}")
+        assert region._linear().nonlinear_limit == [0]
+        assert region.volume_fraction() == pytest.approx(0.25 + math.log(4) / 4, abs=2e-3)
+
+    @pytest.mark.parametrize("limit", ["X <= 0.5*{r!r}", "X + {r!r}*Y <= {r!r}", "X*Y <= 0.25*{r!r}"])
+    def test_every_range_gives_the_region_of_the_ordinary_one(self, limit):
+        """The same limit, written for each range, allows the same coded settings, point for point."""
+        probes = np.random.default_rng(1).uniform(-1, 1, (4000, 2))
+        allowed = [self._region(span, limit).feasible(probes) for span in _RANGES]
+        for each in allowed[:-1]:
+            np.testing.assert_array_equal(each, allowed[-1])
+        assert 0.2 < allowed[-1].mean() < 0.8
+
+    def test_factors_that_cancel_compare_numbers_only(self):
+        """``0.1*A + 0.2*A <= 0.3*A`` holds everywhere; evaluated term by term it was rounding noise in A.
+
+        Read as a limit with that noise for its gradient, it would have cut the box along a random line.
+        """
+        unit = [Factor(name="A", low=0, high=1), Factor(name="B", low=0, high=1)]
+        region = DesignRegion(unit, ["0.1*A + 0.2*A <= 0.3*A", "A - A + 1 >= 2*B"])
+        assert region._linear().a.tolist() == [[0.0, 1.0]]  # only the second limit, B <= 0.5, cuts the box
+        assert region.volume_fraction() == pytest.approx(0.5, abs=1e-12)
+        assert region.redundant_constraints() == [0]
+
+
 class TestFeasible:
     @pytest.mark.parametrize(
         ("limit", "length"),
@@ -969,10 +1027,9 @@ class TestFeasible:
     def test_a_point_within_the_tolerance_passes_however_a_straight_limit_is_scaled(self, limit, length):
         """One limit written five ways: within 1e-9 of its boundary, in coded units, a point passes every one.
 
-        Beyond that the scaling matters once the coded gradient is shorter than 1, where the tolerance stays
-        1e-9 in the limit's own units, a coded distance of 1e-9 divided by that length. The changelog and
-        feasible() once said that a limit multiplied through by any constant accepts the same points; a
-        point 2e-9 (coded) outside fails the first three forms and passes the last two.
+        Further out it fails every one. Where the coded gradient was shorter than 1, the tolerance used to
+        stay 1e-9 in the limit's own units, a coded distance of 1e-9 divided by that length, so a point 2e-9
+        (coded) outside passed the last two forms (#807).
         """
         region = DesignRegion(HEAT_FACTORS, [limit])
         assert region._linear().scale[0] == pytest.approx(length)
@@ -981,11 +1038,10 @@ class TestFeasible:
         def passes(distance: float) -> bool:
             return bool(region.feasible(np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]]))[0])
 
-        reach = 1e-9 / min(length, 1.0)  # how far outside, in coded units, a point still passes
         assert passes(0.5e-9)
-        assert passes(0.9 * reach)
-        assert not passes(1.1 * reach)
-        assert passes(2e-9) == (length < 1)
+        assert passes(0.9e-9)
+        assert not passes(1.1e-9)
+        assert not passes(2e-9)
 
 
 # ---------------------------------------------------------------------------

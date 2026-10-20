@@ -862,7 +862,11 @@ def _search_space(
     else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
         box = (lows[idx], highs[idx])
         samples = UniformSampler(
-            region.inequalities, box, lambda m: rng.uniform(*box, size=(m, len(idx))), seeds=region.seed_points
+            region.inequalities,
+            box,
+            lambda m: rng.uniform(*box, size=(m, len(idx))),
+            seeds=region.seed_points,
+            tolerances=region._widen(),  # so a start passes region.feasible()
         ).draw(n_starts, rng)
     starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
     for start, sample in zip(starts, samples, strict=True):
