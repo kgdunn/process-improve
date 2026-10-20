@@ -189,6 +189,72 @@ def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1)
     return float((n_cube_runs * gap**2 / (4 * n_axial_replicates**2)) ** 0.25)
 
 
+#: Box and Hunter's (1957) rules for the number of centre runs of a rotatable central composite design.
+CENTER_POINT_RULES = ("uniform_precision", "orthogonal")
+
+
+def ccd_center_points(rule: str, n_cube_runs: int, n_factors: int, n_replicates: int = 1) -> int:
+    r"""Return the number of centre runs of a rotatable central composite design by Box and Hunter's rule.
+
+    In a rotatable CCD, with ``alpha = F ** 0.25`` for ``F`` cube runs, the variance of a prediction
+    depends only on its distance from the centre. The centre runs set how it changes with that
+    distance, through the design's pure fourth moment
+
+    .. math::
+
+        \lambda_4 = \frac{N F}{r\,(F + 2\sqrt{F})^2},
+
+    with ``N`` runs in all, of which ``r (F + 2k)`` are the cube and axial runs (the design run
+    ``r`` times, its centre runs once) for ``k`` factors (Box and Hunter 1957; Myers, Montgomery and
+    Anderson-Cook, *Response Surface Methodology*, section 7.4).
+
+    - ``"uniform_precision"``: the variance at the centre equals the variance one unit from it, in
+      Box and Hunter's unit of distance: the root mean square of a factor over the runs. That needs
+      :math:`\lambda_4 = (k + 3 + \sqrt{9k^2 + 14k - 7}) / (4(k + 2))`.
+    - ``"orthogonal"``: :math:`\lambda_4 = 1`, which makes the centred squared columns orthogonal,
+      so the quadratic coefficients are estimated independently of one another. The number is then
+      :math:`r(4\sqrt{F} + 4 - 2k)`.
+
+    Parameters
+    ----------
+    rule : str
+        ``"uniform_precision"`` or ``"orthogonal"``.
+    n_cube_runs : int
+        ``F``, the runs of one copy of the cube, full or fractional.
+    n_factors : int
+        ``k``, the number of factors.
+    n_replicates : int
+        ``r``, how many times the cube and axial runs are run.
+
+    Returns
+    -------
+    int
+        The number of centre runs, rounded to the nearest whole run and at least 1.
+
+    Raises
+    ------
+    ValueError
+        If *rule* is not one of :data:`CENTER_POINT_RULES`.
+
+    Examples
+    --------
+    Box and Hunter's table for four factors, 16 cube runs:
+
+    >>> ccd_center_points("uniform_precision", 16, 4), ccd_center_points("orthogonal", 16, 4)
+    (7, 12)
+    """
+    if rule not in CENTER_POINT_RULES:
+        msg = f"rule must be one of {CENTER_POINT_RULES}; got {rule!r}."
+        raise ValueError(msg)
+    k, r, root = n_factors, n_replicates, np.sqrt(n_cube_runs)
+    if rule == "orthogonal":
+        n_center = r * (4 * root + 4 - 2 * k)
+    else:
+        lambda_4 = (k + 3 + np.sqrt(9 * k**2 + 14 * k - 7)) / (4 * (k + 2))
+        n_center = lambda_4 * r * (n_cube_runs + 2 * root) ** 2 / n_cube_runs - r * (n_cube_runs + 2 * k)
+    return max(round(float(n_center)), 1)
+
+
 def blocking_alpha(
     n_cube_runs: int, n_center_cube: int, n_factors: int, n_center_axial: int, n_axial_replicates: int = 1
 ) -> float:
