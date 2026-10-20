@@ -8,8 +8,11 @@ is ``f_value(0.95, 3, 16)``.
 The tests are the ones a first course in designed experiments uses before any model is fitted:
 a mean against a stated value, by :math:`t` or with :math:`\sigma` known by :math:`z`; two groups by
 Wilcoxon's rank sum; and two groups, or pairs, by a randomization test that enumerates every way
-the labels could have fallen, which is what Fisher's argument for randomization rests on. The
-autocorrelation of a record in time order says whether its observations can be treated as
+the labels could have fallen, which is what Fisher's argument for randomization rests on. Several
+groups are compared by the Kruskal-Wallis test, and their variances by Bartlett's test; a variance
+has its chi-square interval. The power of the one-way analysis of variance, and the smallest
+number of runs a group needs to reach a stated power, are worked from the noncentral :math:`F`.
+The autocorrelation of a record in time order says whether its observations can be treated as
 independent.
 
 Examples
@@ -324,6 +327,240 @@ def rank_sum_test(
         result["exact_p_value_less"] = float(np.mean(sums <= w_x + _TIES))
         result["exact_p_value_greater"] = float(np.mean(sums >= w_x - _TIES))
     return result
+
+
+def _groups(groups: tuple[Sequence[float], ...], least: int) -> list[np.ndarray]:
+    """Return the groups as float arrays; raise ``ValueError`` for fewer than two, or a group under ``least``."""
+    arrays = [np.asarray(group, dtype=float) for group in groups]
+    if len(arrays) < 2:
+        raise ValueError(f"Two or more groups are needed; got {len(arrays)}.")
+    if any(len(group) < least for group in arrays):
+        raise ValueError(f"Each group needs at least {least} observation(s); got sizes {[len(g) for g in arrays]}.")
+    return arrays
+
+
+def bartlett_test(*groups: Sequence[float]) -> dict[str, Any]:
+    r"""Test whether groups share one variance, by Bartlett's test.
+
+    With :math:`a` groups of :math:`n_i` observations and variances :math:`S_i^2`, pooled to
+    :math:`S_p^2` on :math:`N - a` degrees of freedom (Montgomery, section 3.4.3),
+
+    .. math::
+
+        q = (N - a) \log_{10} S_p^2 - \sum_i (n_i - 1) \log_{10} S_i^2, \qquad
+        c = 1 + \frac{1}{3 (a - 1)} \left( \sum_i \frac{1}{n_i - 1} - \frac{1}{N - a} \right),
+
+    and :math:`\chi^2_0 = \ln(10)\, q / c` on :math:`a - 1` degrees of freedom. The test is sensitive
+    to a departure from normality, which can look like unequal variances.
+
+    Returns
+    -------
+    dict[str, Any]
+        ``statistic`` (:math:`\chi^2_0`), ``df``, ``p_value``, ``q``, ``c``, ``pooled_variance`` and
+        the groups' ``variances``.
+
+    Examples
+    --------
+    Montgomery's etch rates at four RF powers (Example 3.4):
+
+    >>> found = bartlett_test(
+    ...     [575, 542, 530, 539, 570], [565, 593, 590, 579, 610], [600, 651, 610, 637, 629], [725, 700, 715, 685, 710]
+    ... )
+    >>> round(found["q"], 2), round(found["c"], 2), round(found["statistic"], 2), round(found["p_value"], 3)
+    (0.21, 1.1, 0.43, 0.933)
+    """
+    arrays = _groups(groups, 2)
+    a, sizes = len(arrays), np.array([len(group) for group in arrays], dtype=float)
+    variances = np.array([group.var(ddof=1) for group in arrays])
+    dof = sizes - 1
+    pooled = float(dof @ variances / dof.sum())
+    q = float(dof.sum() * math.log10(pooled) - dof @ np.log10(variances))
+    c = 1 + (float(np.sum(1 / dof)) - 1 / float(dof.sum())) / (3 * (a - 1))
+    statistic = math.log(10) * q / c
+    return {
+        "statistic": statistic,
+        "df": a - 1,
+        "p_value": float(stats.chi2.sf(statistic, a - 1)),
+        "q": q,
+        "c": c,
+        "pooled_variance": pooled,
+        "variances": variances.tolist(),
+    }
+
+
+def kruskal_wallis_test(*groups: Sequence[float]) -> dict[str, Any]:
+    r"""Compare groups by the Kruskal-Wallis test: the analysis of variance of their ranks.
+
+    The observations are ranked together, ties taking the average of their ranks. With
+    :math:`R_i` the rank sum of a group of :math:`n_i` (Montgomery, section 3.11.1),
+
+    .. math::
+
+        H = \frac{1}{S^2} \left( \sum_i \frac{R_i^2}{n_i} - \frac{N (N + 1)^2}{4} \right), \qquad
+        S^2 = \frac{1}{N - 1} \left( \sum r^2 - \frac{N (N + 1)^2}{4} \right),
+
+    the groups' sum of squares of the ranks over the ranks' variance, which allows for ties. It is
+    referred to :math:`\chi^2` on :math:`a - 1` degrees of freedom.
+
+    Returns
+    -------
+    dict[str, Any]
+        ``statistic`` (:math:`H`), ``df``, ``p_value``, and the groups' ``rank_sums`` and
+        ``mean_ranks``.
+    """
+    arrays = _groups(groups, 1)
+    sizes = np.array([len(group) for group in arrays], dtype=float)
+    ranks = stats.rankdata(np.concatenate(arrays))
+    n = len(ranks)
+    sums = np.array([part.sum() for part in np.split(ranks, np.cumsum(sizes[:-1]).astype(int))])
+    correction = n * (n + 1) ** 2 / 4
+    spread = (float(np.sum(ranks**2)) - correction) / (n - 1)
+    if spread == 0:
+        raise ValueError("Every observation is tied, so the ranks do not vary and H is undefined.")
+    statistic = (float(np.sum(sums**2 / sizes)) - correction) / spread
+    return {
+        "statistic": statistic,
+        "df": len(arrays) - 1,
+        "p_value": float(stats.chi2.sf(statistic, len(arrays) - 1)),
+        "rank_sums": sums.tolist(),
+        "mean_ranks": (sums / sizes).tolist(),
+    }
+
+
+def variance_interval(variance: float, df: float, conflevel: float = 0.95) -> dict[str, float]:
+    r"""Return the chi-square confidence interval of a variance, and of its standard deviation.
+
+    For a variance :math:`s^2` on :math:`\nu` degrees of freedom the interval is
+    :math:`\nu s^2 / \chi^2_{1 - \alpha/2, \nu}` to :math:`\nu s^2 / \chi^2_{\alpha/2, \nu}`, the
+    :math:`\chi^2` points being the upper and lower percentage points. :math:`\nu` need not be a whole
+    number: a variance whose degrees of freedom come from Satterthwaite's approximation is common.
+
+    Returns
+    -------
+    dict[str, float]
+        ``variance``, ``df``, ``ci_low`` and ``ci_high`` for the variance, and ``std_dev_ci_low`` and
+        ``std_dev_ci_high``, their square roots.
+
+    Examples
+    --------
+    >>> found = variance_interval(22.75 / 12, df=12)  # Montgomery's REML table: 22.75 / 23.3367
+    >>> round(found["ci_low"], 6)
+    0.974861
+    """
+    if not variance >= 0 or not math.isfinite(variance):
+        raise ValueError(f"variance must be a finite number of at least 0; got {variance!r}.")
+    if not df > 0:
+        raise ValueError(f"df must be positive; got {df!r}.")
+    if not 0 < conflevel < 1:
+        raise ValueError(f"conflevel must be between 0 and 1; got {conflevel!r}.")
+    alpha = 1 - conflevel
+    low = df * variance / float(stats.chi2.ppf(1 - alpha / 2, df))
+    high = df * variance / float(stats.chi2.ppf(alpha / 2, df))
+    return {
+        "variance": float(variance),
+        "df": float(df),
+        "ci_low": low,
+        "ci_high": high,
+        "std_dev_ci_low": math.sqrt(low),
+        "std_dev_ci_high": math.sqrt(high),
+    }
+
+
+def least_favourable_means(difference: float, n_groups: int) -> list[float]:
+    r"""Return the means of ``n_groups`` groups at which a ``difference`` between two of them is hardest to detect.
+
+    Two groups sit ``difference`` apart and the others midway between them, so the departures from
+    the average have the least sum of squares the difference allows, :math:`D^2/2`. Minitab works
+    the power for a "maximum difference" at these means.
+
+    Examples
+    --------
+    >>> least_favourable_means(75, 4)
+    [-37.5, 0.0, 0.0, 37.5]
+    """
+    if n_groups < 2:
+        raise ValueError(f"n_groups must be at least 2; got {n_groups!r}.")
+    return [-difference / 2, *[0.0] * (n_groups - 2), difference / 2]
+
+
+def one_way_power(n: int, sigma: float, means: Sequence[float], alpha: float = 0.05) -> dict[str, float]:
+    r"""Return the power of the one-way analysis of variance's F test, with ``n`` runs in each group.
+
+    The F statistic follows the noncentral :math:`F` on :math:`a - 1` and :math:`a (n - 1)` degrees
+    of freedom, with noncentrality :math:`\lambda = n \sum \tau_i^2 / \sigma^2`, where
+    :math:`\tau_i` are the ``means``' departures from their average. For the smallest difference
+    between two groups worth detecting, pass :func:`least_favourable_means`. ``phi`` is
+    :math:`\sqrt{\lambda / a}`, the parameter of the operating characteristic curves of
+    Montgomery's Appendix Chart V.
+
+    Returns
+    -------
+    dict[str, float]
+        ``power``, ``noncentrality``, ``phi``, ``df_between``, ``df_within`` and ``critical_f``.
+
+    Examples
+    --------
+    >>> found = one_way_power(5, 25, least_favourable_means(75, 4), alpha=0.01)  # Montgomery 3.7
+    >>> round(found["power"], 6)
+    0.804838
+    """
+    if n < 2:
+        raise ValueError(f"n must be at least 2; got {n!r}.")
+    if not sigma > 0:
+        raise ValueError(f"sigma must be positive; got {sigma!r}.")
+    if not 0 < alpha < 1:
+        raise ValueError(f"alpha must be between 0 and 1; got {alpha!r}.")
+    centred = np.asarray(means, dtype=float) - float(np.mean(means))
+    a = len(centred)
+    if a < 2:
+        raise ValueError(f"Two or more means are needed; got {a}.")
+    noncentrality = n * float(centred @ centred) / sigma**2
+    df_between, df_within = a - 1, a * (n - 1)
+    critical = float(stats.f.ppf(1 - alpha, df_between, df_within))
+    return {
+        "power": float(stats.ncf.sf(critical, df_between, df_within, noncentrality)),
+        "noncentrality": noncentrality,
+        "phi": math.sqrt(noncentrality / a),
+        "df_between": df_between,
+        "df_within": df_within,
+        "critical_f": critical,
+    }
+
+
+def one_way_sample_size(
+    power: float, sigma: float, means: Sequence[float], alpha: float = 0.05, max_n: int = 10_000
+) -> dict[str, float]:
+    r"""Return the smallest number of runs in each group whose one-way F test reaches ``power``.
+
+    The groups are described as for :func:`one_way_power`; the search starts at two runs in each
+    group and stops at ``max_n``.
+
+    Returns
+    -------
+    dict[str, float]
+        ``n`` (runs in each group), ``n_total``, the ``power`` reached, and ``power_below``, the
+        power with one run fewer in each group (NaN at two).
+
+    Raises
+    ------
+    ValueError
+        If ``power`` is not between 0 and 1, or no number of runs up to ``max_n`` reaches it.
+
+    Examples
+    --------
+    >>> found = one_way_sample_size(0.95, 0.25, least_favourable_means(0.5, 2))  # Montgomery 2.4: 8 of each
+    >>> found["n"], round(found["power"], 4)
+    (8, 0.9602)
+    """
+    if not 0 < power < 1:
+        raise ValueError(f"power must be between 0 and 1; got {power!r}.")
+    below = math.nan
+    for n in range(2, max_n + 1):
+        found = one_way_power(n, sigma, means, alpha)
+        if found["power"] >= power:
+            return {"n": n, "n_total": n * len(means), "power": found["power"], "power_below": below}
+        below = found["power"]
+    raise ValueError(f"No number of runs up to {max_n} in each group reaches a power of {power}.")
 
 
 def autocorrelation(x: Sequence[float], lags: int | Sequence[int] = 1) -> dict[str, Any]:

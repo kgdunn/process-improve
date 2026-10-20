@@ -144,6 +144,48 @@ def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
         )
 
 
+def _held_out_scores(model: PLS, x_train: np.ndarray, x_test: np.ndarray, n_components: int) -> np.ndarray:
+    """Return held-out rows' scores under a fold model's first ``n_components`` components (#676).
+
+    Both blocks are in the space the model was fitted in. The smaller model's weights W,
+    loadings P and scores are the first columns of the fold model's, since NIPALS extracts its
+    components one at a time; its direct weights R = W (P'W)^-1 are the first columns of the
+    fold model's only on complete data, where P'W is triangular, so with gaps in the training
+    block they are worked out again. A complete row's score is ``x @ R``. A row with a missing
+    cell would be NaN that way, so it is projected as :meth:`PLS.project` projects a new row with
+    gaps: by trimmed score regression over its observed columns, with the smaller model's
+    loadings, score variances and training residuals. A row with fewer observed columns than
+    components has no such score and stays NaN, as does one whose regression is singular.
+    """
+    a = n_components
+    loadings = model.x_loadings_.to_numpy(dtype=float)[:, :a]
+    weights = model.x_weights_.to_numpy(dtype=float)[:, :a]
+    if np.isnan(x_train).any():
+        guide = weights @ safe_inverse(loadings.T @ weights, what="(P'W of the smaller model)")
+        scores = x_test @ guide
+    else:  # the product with every column, then cut, as before #676, so complete data scores the same
+        guide = model.direct_weights_.to_numpy(dtype=float)
+        scores = (x_test @ guide)[:, :a]
+        guide = guide[:, :a]
+    gaps = np.isnan(x_test).any(axis=1)
+    if not gaps.any():
+        return scores
+    residuals = np.nan_to_num(x_train - model.scores_.to_numpy(dtype=float)[:, :a] @ loadings.T)
+    variances = np.asarray(model.explained_variance_, dtype=float)[:a]
+    patterns, which = np.unique(~np.isnan(x_test[gaps]), axis=0, return_inverse=True)
+    rows = np.flatnonzero(gaps)
+    for k, observed in enumerate(patterns):
+        if observed.sum() < a:
+            continue
+        try:
+            op = operator_for_pattern(loadings, guide, variances, observed, x_weights=weights, x_residuals=residuals)
+        except np.linalg.LinAlgError:
+            continue
+        mine = rows[which.ravel() == k]
+        scores[mine] = x_test[np.ix_(mine, np.flatnonzero(observed))] @ op.matrix.T
+    return scores
+
+
 class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
     """Projection to Latent Structures (PLS) regression with diagnostics.
 
@@ -1853,6 +1895,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # covers every row exactly once) to preserve the existing semantic that
         # cv_predictions has one row per observation.
         oof = np.full((A, N, M), np.nan)
+        # A count that leaves a held-out row with an observed response unpredicted (a row with
+        # fewer observed columns than components) is not comparable with the counts that predict
+        # every row, so it gets no PRESS (#676).
+        unscored = np.zeros(A, dtype=bool)
 
         x_columns = list(X.columns)
         y_columns = list(Y.columns)
@@ -1882,7 +1928,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 x_scale = np.ones(K)
 
             model = cls(n_components=A, **pls_kwargs).fit(X_train, Y_train)
-            scores_test = X_test_scaled @ model.direct_weights_.to_numpy()
+            x_train = np.asarray(X_train, dtype=float)
             # ``y_values`` and ``x_values`` are on the ORIGINAL (un-scaled)
             # input data: RMSECV / r2y_validated / r2x_validated are all
             # reported on the input scale.
@@ -1892,11 +1938,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()  # shape (M, A)
             x_loadings = model.x_loadings_.to_numpy()  # shape (K, A)
             for a in range(1, A + 1):
-                y_hat_scaled = scores_test[:, :a] @ y_loadings[:, :a].T
-                x_hat_scaled = scores_test[:, :a] @ x_loadings[:, :a].T
+                scores_test = _held_out_scores(model, x_train, X_test_scaled, a)
+                y_hat_scaled = scores_test @ y_loadings[:, :a].T
+                x_hat_scaled = scores_test @ x_loadings[:, :a].T
                 # inverse-transform: x_scale[None, :] broadcasts (n_test, K).
                 y_hat = y_hat_scaled * y_scale + y_centre
                 x_hat = x_hat_scaled * x_scale + x_centre
+                unscored[a - 1] |= bool(np.isnan(y_hat[~np.isnan(y_test)]).any())
                 residuals_y = y_test - y_hat
                 fold_press = float(np.nansum(residuals_y**2))
                 press_y[a - 1] += np.nansum(residuals_y**2, axis=0)
@@ -1905,6 +1953,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 per_fold_press_total[a - 1, fold_idx] = fold_press
                 if fold_idx < first_repeat_fold_count:
                     oof[a - 1, test_idx, :] = y_hat
+
+        press_y[unscored] = press_x[unscored] = np.nan
+        per_fold_rmse[unscored] = per_fold_press_total[unscored] = np.nan
 
         # PRESS accumulates one residual per test-row evaluation, so the
         # divisor is the actual number of those evaluations. Counting them
@@ -2016,13 +2067,19 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         randomization_pvalues: pd.Series | None = None
         if selection_rule == "randomization":
-            recommended, p_values = _vandervoet_randomization(
-                per_obs_sse,
-                total_rmsecv=total_rmsecv,
+            # Only the counts that predicted every held-out row are compared (#676); a count
+            # left out has no p-value. With every count scored this is the whole table.
+            scored = np.flatnonzero(~unscored)
+            pick, scored_p = _vandervoet_randomization(
+                per_obs_sse[scored],
+                total_rmsecv=total_rmsecv[scored],
                 n_permutations=n_permutations,
                 alpha=alpha,
                 random_state=random_state,
             )
+            recommended = int(scored[pick - 1]) + 1
+            p_values = np.full(A, np.nan)
+            p_values[scored] = scored_p
             randomization_pvalues = pd.Series(p_values, index=component_index, name="p-value (Van der Voet)")
         else:
             recommended = _select_n_components(
@@ -2046,7 +2103,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         selection_mode: int | None = None
         selection_is_stable: bool | None = None
         # The fold loop gives every (component count, fold) cell of per_fold_rmse a finite
-        # value, the root of a nansum, so every repeat has folds to judge and casts a vote.
+        # value, the root of a nansum, so every repeat has folds to judge and casts a vote. A
+        # count that left a held-out row unpredicted is NaN in every fold, and the rules pass
+        # over it (#676).
         if selection_rule in ("1se", "min") and n_repeats_effective > 1:
             votes: list[int] = []
             for r in range(n_repeats_effective):
@@ -2512,7 +2571,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 y_scale = np.ones(M)
 
             model = cls(n_components=n_comp_inner, **pls_kwargs).fit(X_train_s, Y_train_s)
-            scores_test = X_test_s @ model.direct_weights_.to_numpy()
+            scores_test = _held_out_scores(model, np.asarray(X_train_s, dtype=float), X_test_s, n_comp_inner)
             y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()
             y_hat_scaled = scores_test @ y_loadings.T
             oof_predictions[test_idx, :] = y_hat_scaled * y_scale + y_centre

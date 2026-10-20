@@ -6,6 +6,8 @@ import { describe, test } from "node:test";
 
 import {
   BALANCED,
+  BALANCED_BLEND,
+  BEST_BLEND,
   BEST_MARKER,
   LIGHT,
   GREYED,
@@ -13,6 +15,7 @@ import {
   RESPONSE_DASHES,
   SHADED,
   boundaryDrawn,
+  blendOverlayFigure,
   boundaryName,
   overlayFigure,
   withAlpha,
@@ -255,6 +258,45 @@ describe("a card's layout", () => {
   });
 });
 
+describe("a mixture's overlay of the acceptable ranges", () => {
+  const PAGE = { fg: "#1d1d1f", muted: "#5f6368", line: "#dcd8ce", accent: "#2c5f7c", warn: "#a35f00", ok: "#1e7b3a", error: "#b3261e" };
+  const OVERLAY = {
+    kind: "ternary",
+    components: ["A", "B", "C"],
+    a: [1, 0.5, 0, 0],
+    b: [0, 0.5, 1, 0],
+    c: [0, 0, 0, 1],
+    responses: [
+      { name: "Hardness", z: [30, 31, 25, 20], levels: [26], lines: [{ a: [0.6, 0.5, null], b: [0.4, 0.3, null], c: [0, 0.2, null] }] },
+      { name: "Cost", z: [20, 18, 10, 15], levels: [30], lines: [{ a: [], b: [], c: [] }] },
+    ],
+    acceptable: [1, 1, 0, 0],
+    at: [0.6, 0.35, 0.05],
+  };
+  const RESPONSES = [
+    { name: "Hardness", label: "Hardness", units: "HV", goal: "maximize", low: 26, high: 31 },
+    { name: "Cost", label: "Cost", units: "$/kg", goal: "minimize", low: 10, high: 30 },
+  ];
+
+  test("shaded at the blends where every response is acceptable, a line at each boundary, a star at the balanced blend", () => {
+    const { data, layout } = blendOverlayFigure(OVERLAY, RESPONSES, PAGE);
+    const [shade, hardness, cost] = data;
+    assert.equal(shade.type, "scatterternary");
+    assert.equal(shade.name, SHADED);
+    assert.deepEqual([shade.a, shade.b, shade.c], [[1, 0.5], [0, 0.5], [0, 0]], "the acceptable blends only");
+    assert.deepEqual([hardness.mode, hardness.a], ["lines", [0.6, 0.5, null]], "segments kept apart by a gap");
+    assert.equal(hardness.name, "Hardness: 26 HV and above");
+    assert.equal(hardness.showlegend, true);
+    assert.equal(cost.showlegend, false, "a boundary the blends do not reach has no key");
+    assert.notEqual(hardness.line.dash, cost.line.dash, "each line reads without its colour");
+    const star = data.at(-1);
+    assert.equal(star.name, BALANCED_BLEND);
+    assert.deepEqual([star.a, star.b, star.c], [[0.6], [0.35], [0.05]]);
+    assert.equal(star.marker, BEST_MARKER);
+    assert.deepEqual([layout.ternary.aaxis.title.text, layout.ternary.baxis.title.text, layout.ternary.caxis.title.text], ["A", "B", "C"]);
+  });
+});
+
 describe("the overlay of the acceptable ranges", () => {
   const PAGE = { fg: "#1d1d1f", muted: "#5f6368", line: "#dcd8ce", accent: "#2c5f7c", warn: "#a35f00", ok: "#1e7b3a", error: "#b3261e" };
   const grid = [-1, 0, 1];
@@ -376,6 +418,15 @@ describe("a mixture's pictures", () => {
     assert.deepEqual([truth.marker.cmin, truth.marker.cmax], [0, 40]);
   });
 
+  test("the best blend starred on the triangle", () => {
+    assert.equal(ternaryFigure(ternary, { response: "Hardness" }, COLOURS).data.length, 2, "no star without a best blend");
+    const best = { Water: 0.938, Oil: 0.062, Wax: 0 };
+    const star = ternaryFigure(ternary, { response: "Hardness", best }, COLOURS).data.at(-1);
+    assert.equal(star.name, BEST_BLEND);
+    assert.deepEqual([star.a, star.b, star.c], [[0.938], [0.062], [0]]);
+    assert.equal(star.marker, BEST_MARKER);
+  });
+
   test("a line per component along its Cox direction, the true process dotted in the same colour", () => {
     const traces = ["A", "B", "C", "D"].map((component, i) => ({ component, change: [-0.25, 0, 0.75], fitted: [1, 2, 3 + i], true: null }));
     const plain = coxFigure({ components: ["A", "B", "C", "D"], traces }, { response: "y" }, COLOURS);
@@ -387,6 +438,18 @@ describe("a mixture's pictures", () => {
     assert.equal(data[1].line.dash, "dot");
     assert.equal(data[1].line.color, data[0].line.color);
     assert.equal(data.at(-1).name, "True process");
+  });
+
+  test("drawn through the best blend, the lines cross at the star", () => {
+    const traces = ["A", "B", "C", "D"].map((component) => ({ component, change: [-0.25, 0, 0.75], fitted: [1, 2, 1.5], true: null }));
+    const through = coxFigure({ components: ["A", "B", "C", "D"], traces, through: "best" }, { response: "y", best: 2 }, COLOURS);
+    const star = through.data.at(-1);
+    assert.equal(star.name, BEST_BLEND);
+    assert.deepEqual([star.x, star.y], [[0], [2]]);
+    assert.equal(through.layout.xaxis.title.text, "Change in the component's proportion from the best blend");
+    const plain = coxFigure({ components: ["A", "B", "C", "D"], traces }, { response: "y" }, COLOURS);
+    assert.equal(plain.layout.xaxis.title.text, "Change in the component's proportion from the reference blend");
+    assert.ok(!plain.data.some((t) => t.name === BEST_BLEND));
   });
 
   test("a mixture's coefficients are in the response's units, not coded ones", () => {

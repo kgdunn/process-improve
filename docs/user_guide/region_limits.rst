@@ -58,7 +58,8 @@ them:
   0.59 bar to 3.41 bar.
 * ``augment_design`` takes the names in ``hard_limits=[...]``, since its design is in coded
   units. Its axial runs then sit on the faces of the cube, and an ``alpha`` above 1 is
-  refused.
+  refused. A ``region`` makes every factor's range such a limit (see
+  :ref:`region-limits-augment`).
 * ``recommend_strategy`` names the limits in its assumptions, and plans no stage past them.
 * ``recommend_next_step`` never widens or moves such a range. The path of steepest ascent
   moves only the other factors, and the reasons say which factors would improve past their
@@ -109,7 +110,7 @@ each one removes:
        alone = DesignRegion(factors, [constraint])
        print(constraint.expression, f"{1 - alone.volume_fraction():.3f}")
    # T + 25*P <= 250 0.125
-   # T*F <= 3600 0.042
+   # T*F <= 3600 0.041
 
    print(region.is_empty())  # False
    middle = region.centroid()
@@ -119,15 +120,28 @@ The straight limit removes the corner where temperature and pressure are both hi
 prism whose share is 0.125, and the curved one a sliver at high temperature and high flow.
 With straight limits only, the share is exact: in closed form for factors one limit ties
 together, and from the volume of the polytope the limits leave for up to five factors tied
-together by several. A curved limit's share is counted over a fixed Sobol sample of 16384
-points instead, so it is the same on every run and within about 0.005 of the exact value
-(0.042 here, against 0.041 exactly). Beside straight limits, the sample counts only what
-the curved limit takes from the exact share the straight ones leave, so the two limits
-together keep 0.849, as they do exactly.
+together by several. A curved limit's share is integrated when one factor runs through
+every limit that ties the others to it, as the temperature does here. At each temperature,
+the pressure and the flow each have an allowed range, and the product of the two is
+integrated over the temperature, to about 1e-10: the heat load removes 0.041404. A curved
+limit on three factors is counted over a fixed Sobol sample of 16384 points instead, the
+same on every run and within about 0.005 of the exact share. Beside straight limits, the
+sample counts only what the curved limit takes from the exact share the straight ones
+leave, and when the straight limits leave too thin a region for any of the 16384 points,
+points spread uniformly through that region take their place, so its share does not read
+as 0.
 :meth:`~process_improve.experiments.region.DesignRegion.is_empty` says whether any
 setting is left at all, and
 :meth:`~process_improve.experiments.region.DesignRegion.centroid` gives a central setting
 that can be run: where to hold the factors a plot does not show.
+
+For a mixture, the share is of the blends the components' ranges allow (the whole simplex
+when every range is 0 to 1). A mixture's limits are straight, so the share is exact:
+
+.. code-block:: python
+
+   blends = [Factor(name=name, type="mixture") for name in ("A", "B", "C")]
+   print(DesignRegion(blends, ["A <= 0.5"]).volume_fraction())  # 0.75, all but the corner where A > 0.5
 
 A limit can also narrow a factor's range everywhere, which the ranges then overstate:
 
@@ -262,6 +276,46 @@ With the pressure at 3 bar the temperature can go up to 190 degC, and with the t
 at 200 degC the pressure can go up to 2.5 bar; the limit passes through those two
 settings, whatever the flow. The arithmetic is exact, so round values give whole-number
 coefficients.
+
+.. _region-limits-augment:
+
+Adding runs inside the limits
+-----------------------------
+
+A limit often shows only after some runs are made, when a run that could not be made
+proposes it (:func:`~process_improve.experiments.separating.separating_constraint`).
+``augment_design`` then adds runs to the runs already made, inside the limit.
+Given the region, ``"add_runs_optimal"`` chooses its D-optimal runs among the settings the
+limits allow, with the runs already made held fixed:
+
+.. code-block:: python
+
+   import pandas as pd
+
+   from process_improve.experiments import augment_design
+
+   reactor = DesignRegion(factors[:2], ["T + 25*P <= 250"])  # T from 150 to 200 degC, P from 1 to 3 bar
+   made = pd.DataFrame({"T": [-1, 1, -1, 1], "P": [-1, -1, 1, 1]})  # the 2^2 factorial, coded
+   added = augment_design(made, "add_runs_optimal", n_additional_runs=5, target_model="quadratic", region=reactor)
+   print(added["existing_runs_outside_region"])  # [3]
+   print(reactor.feasible(pd.DataFrame(added["new_runs"]).to_numpy()).all())  # True
+   print(reactor.broken_limits([[1, 1]]))  # [['T + 25*P <= 250']]
+
+The run at 200 degC and 3 bar breaks the limit. It is kept as given, with a warning, and
+no new run joins it there. The region's factors give the coding: their low and high are
+the design's -1 and +1, and the region holds exactly the design's factors.
+
+The other kinds of augmentation keep to the region too:
+
+* ``"add_center_points"`` puts the centre runs at the region's central setting
+  (:meth:`~process_improve.experiments.region.DesignRegion.centroid`) when the centre of
+  the box breaks a limit, and says so.
+* The ranges are limits, so axial runs sit on the faces of the cube, as with
+  ``hard_limits``.
+* Any other new run that breaks a limit (a folded run, an axial or centre run, a copy) is
+  refused. The message names each such setting and the limits it breaks, which
+  :meth:`~process_improve.experiments.region.DesignRegion.broken_limits` lists for any
+  point.
 
 Pictures of the region
 ----------------------

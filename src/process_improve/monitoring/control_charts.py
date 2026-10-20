@@ -1,7 +1,7 @@
 """Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties."""
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 import numpy as np
@@ -330,6 +330,37 @@ def _one_sided_cusum(
             alarms.append((t, start, reference + total / n_run))
             total, n_run = 0.0, 0
     return sums, alarms
+
+
+def cusum_about_target(values: Sequence[float] | pd.Series, target: float) -> pd.DataFrame:
+    """Return the cumulative sum of the deviations from a target, as Box, Hunter and Hunter plot it.
+
+    Unlike the tabular CUSUM of ``ControlChart(variant="cusum")``, it has no reference value and no
+    decision interval: plotted against the sample number, its slope is the mean's distance from
+    the target, and a change of slope marks a change of mean (Box, Hunter and Hunter 1978,
+    section 17.1).
+
+    Parameters
+    ----------
+    values : Sequence[float] or pd.Series
+        The observations, in the order they were made. A missing one (NaN) holds the sum.
+    target : float
+        The target the deviations are taken from.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per observation, with the index of ``values`` when it is a Series: ``y``, the
+        ``deviation`` from the target, and the ``cusum`` of the deviations so far.
+
+    Examples
+    --------
+    >>> cusum_about_target([61.0, 59.5, 62.0], target=60.0)["cusum"].tolist()
+    [1.0, 0.5, 2.5]
+    """
+    y = pd.Series(values, dtype=float)
+    deviation = y - float(target)
+    return pd.DataFrame({"y": y, "deviation": deviation, "cusum": np.nancumsum(deviation.to_numpy())}, index=y.index)
 
 
 class ControlChart:

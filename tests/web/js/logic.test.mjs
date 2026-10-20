@@ -317,6 +317,13 @@ describe("words and numbers", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors/);
   });
 
+  test("a mixture's captions say what the star marks once the best blend is found", () => {
+    assert.match(CAPTIONS.ternary([]), /the white dots are the runs\.$/);
+    assert.match(CAPTIONS.ternary([], { starred: true }), /the white dots are the runs, and the star the best blend\.$/);
+    assert.match(CAPTIONS.cox([]), /the lines cross at the reference blend\.$/);
+    assert.match(CAPTIONS.cox([], { starred: true }), /^Each line changes one component's share of the best blend .* which the star marks\.$/);
+  });
+
   test("with limits, the caption says what is grey, and where the others are held when the center cannot be run", () => {
     const factors = [{ name: "F", units: "L/min" }];
     assert.equal(

@@ -86,9 +86,23 @@ h1 {
 }
 /* The name beside the mark, as the package's social card sets its own: a bold serif, a quiet tagline. */
 .brand { display: flex; align-items: center; gap: 14px; margin: 0 0 12px; }
+/* Feedback, at the header's right before the colour-mode switch: its icon and its name, the icon alone on a phone. */
+.feedback-button {
+  margin-left: auto; align-self: flex-start; flex: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px; border: none; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: none;
+  color: var(--muted); font-size: 0.92rem; line-height: 1;
+}
+.feedback-button:hover, .feedback-button:focus-visible { color: var(--fg); border-bottom-color: var(--warn); }
+.feedback-button svg { width: 22px; height: 22px; flex: none; }
+/* On a phone the name is a little smaller, so the mark, the name and the two buttons fit across a 360 px screen. */
+@media (max-width: 480px) {
+  .brand { gap: 10px; }
+  .brand h1 { font-size: 2rem; }
+  .feedback-button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 /* The colour-mode switch, an icon at the header's right as the book has it: the mode now, and a press for the next. */
 .mode-switch {
-  margin-left: auto; align-self: flex-start; flex: none; padding: 8px; border: none; background: none;
+  align-self: flex-start; flex: none; padding: 8px; border: none; background: none;
   color: var(--muted); line-height: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
 }
 .mode-switch:hover, .mode-switch:focus-visible { color: var(--fg); border-bottom-color: var(--warn); }
@@ -330,6 +344,7 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
 .drop input { display: block; margin: 0 auto 8px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 footer { color: var(--muted); font-size: 0.88rem; }
+footer .link { padding: 0; font: inherit; text-decoration: underline; }
 
 /* New study and the worked example: buttons in the header, and a banner while the worked example is
    the copy computed when the page was built. */
@@ -623,6 +638,30 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
 .sheet__head .link { font-size: 1.2rem; line-height: 1; }
 @media (max-width: 480px) { dialog.sheet { width: 100vw; max-width: 100vw; max-height: 100vh; border-radius: 0; padding: 14px 12px; } }
 
+/* The Feedback dialog (feedback.js): a narrower sheet, each box as wide as it is, the lists in the page's small type. */
+dialog.feedback { width: min(640px, 100vw - 32px); }
+.feedback__topics { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 10px 0 4px; padding: 0; border: none; }
+.feedback__topics legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; }
+.feedback__field { display: flex; flex-direction: column; gap: 4px; margin: 12px 0 0; font-size: 0.9rem; }
+.feedback__field input { width: 100%; }
+.feedback textarea {
+  width: 100%; min-height: 8em; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: inherit; font: inherit;
+}
+.feedback .hint { margin: 4px 0 0; }
+/* The screenshot as it will go, whole and small: a long page is a narrow strip. */
+.feedback__shot {
+  display: block; width: auto; height: auto; max-width: 100%; max-height: 160px; margin: 8px 0 0;
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.feedback__extras .check { margin: 12px 0 0; }
+.feedback__sent ul, .feedback__ways { margin: 6px 0; padding-left: 1.2em; font-size: 0.88rem; overflow-wrap: anywhere; }
+.feedback__ways li { margin: 6px 0; }
+/* The other ways to send a report, when it does not go from here: set apart as the page sets apart a stale plan. */
+.feedback__fallback { margin: 10px 0 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--warn); }
+.feedback__fallback p { margin: 4px 0; }
+.feedback__ways .link { padding: 0; font: inherit; text-decoration: underline; }
+
 /* Where the results come from: simulated, or entered. */
 .tabs { display: flex; gap: 0; margin: 12px 0; border-bottom: 1px solid var(--line); }
 .tabs [role="tab"] {
@@ -876,9 +915,20 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 #more { display: block; margin: 12px auto 0; }
 #more[hidden] { display: none; }
 dialog.detail { width: min(980px, 100vw - 32px); }
-.detail__facts { margin-top: 4px; font-weight: 600; }
-.detail__cite a { overflow-wrap: anywhere; }
-.detail__ok { color: var(--ok); }
+/* A design's detail opens on the same three cells for every design: the design, where it comes from, and its use. */
+.detail__head { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 10px; }
+.detail__cell { min-width: 0; margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.detail__cell h3 {
+  margin: 0 0 6px; color: var(--muted); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.detail__cell p { margin: 6px 0 0; }
+.detail__list { margin: 0; padding: 0; list-style: none; }
+.detail__list li { margin: 2px 0; }
+.detail__facts { font-weight: 600; }
+.detail__cite { overflow-wrap: anywhere; }
+.detail .detail__actions { flex-direction: column; align-items: stretch; margin: 0; gap: 6px; }
+.detail__family { margin: 0 0 8px; }
+@media (max-width: 720px) { .detail__head { grid-template-columns: minmax(0, 1fr); } }
 .detail__runs { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .detail__runs .scroll { flex: 1 1 320px; max-height: 420px; margin: 0; overflow: auto; }
 .detail__code {

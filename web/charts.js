@@ -399,9 +399,13 @@ export function ternaryRange(ternary) {
  * A mixture of three components over its triangle (``ternary``, as api_plots gives it): each blend of the grid
  * coloured by the response, the ``fitted`` one or the ``true`` one, and the runs marked on top. Each corner is
  * a pure component, labelled with its name; ``range`` is the colour scale's ends, shared by the fitted and the
- * true surface.
+ * true surface. ``best``, the best blend's proportions by component, puts a star there.
  */
-export function ternaryFigure(ternary, { response, units = "", values = "fitted", range = ternaryRange(ternary) }, colours = palette()) {
+export function ternaryFigure(
+  ternary,
+  { response, units = "", values = "fitted", range = ternaryRange(ternary), best = null },
+  colours = palette(),
+) {
   const [a, b, c] = ternary.components;
   const { grid, runs } = ternary;
   const axis = (title) => ({
@@ -447,6 +451,22 @@ export function ternaryFigure(ternary, { response, units = "", values = "fitted"
         hovertemplate: `${at}<br>${response}, run: %{customdata:.4g}<extra></extra>`,
         showlegend: false,
       },
+      ...(best
+        ? [
+            {
+              type: "scatterternary",
+              mode: "markers",
+              name: BEST_BLEND,
+              a: [best[a]],
+              b: [best[b]],
+              c: [best[c]],
+              marker: BEST_MARKER,
+              cliponaxis: false,
+              hovertemplate: `${BEST_BLEND}<br>${at}<extra></extra>`,
+              showlegend: false,
+            },
+          ]
+        : []),
     ],
     layout: {
       ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
@@ -459,12 +479,17 @@ export function ternaryFigure(ternary, { response, units = "", values = "fitted"
 /** Okabe and Ito's colourblind-safe colours, one per component of a Cox trace plot. */
 const COMPONENT_COLOURS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"];
 
+/** What the star on a mixture's pictures marks. */
+export const BEST_BLEND = "Best blend";
+
 /**
  * A mixture of four components or more, along each component's Cox direction (``cox``, as api_plots gives it):
  * the fitted response as the component's share moves from the reference blend, the others keeping their
  * proportions to each other, a line per component; with the true process, its response dotted in the same colour.
+ * Drawn through the best blend (``cox.through`` is "best"), the lines cross there, at its prediction ``best``,
+ * where a star marks it.
  */
-export function coxFigure(cox, { response, units = "" }, colours = palette()) {
+export function coxFigure(cox, { response, units = "", best = null }, colours = palette()) {
   const data = cox.traces.flatMap((trace, i) => {
     const color = COMPONENT_COLOURS[i % COMPONENT_COLOURS.length];
     const fitted = {
@@ -492,10 +517,24 @@ export function coxFigure(cox, { response, units = "" }, colours = palette()) {
     return [fitted, truth];
   });
   if (cox.traces.some((trace) => trace.true)) data.push(legendKey("True process", colours.muted, "dot"));
+  if (best !== null) {
+    data.push({
+      type: "scatter",
+      mode: "markers",
+      name: BEST_BLEND,
+      x: [0],
+      y: [best],
+      marker: BEST_MARKER,
+      cliponaxis: false,
+      showlegend: false,
+      hovertemplate: `${BEST_BLEND}: %{y:.4g}<extra></extra>`,
+    });
+  }
+  const from = cox.through === "best" ? "the best blend" : "the reference blend";
   return {
     data,
     layout: {
-      xaxis: { title: { text: "Change in the component's proportion from the reference blend" }, zeroline: true },
+      xaxis: { title: { text: `Change in the component's proportion from ${from}` }, zeroline: true },
       yaxis: { title: { text: withUnits(`Fitted ${response}`, units) } },
       legend: LEGEND_ABOVE,
       showlegend: true,
@@ -674,6 +713,9 @@ export const responseColours = (colours) => [colours.accent, colours.warn, colou
 /** The star on the overlay at the balanced settings: the best settings' marker, which reads on every shading. */
 export const BALANCED = "Balanced settings";
 
+/** The star on a mixture's overlay, at the balanced blend. */
+export const BALANCED_BLEND = "Balanced blend";
+
 /** What the overlay's shading means, as its legend says it. */
 export const SHADED = "Every response acceptable";
 export const GREYED = "Outside your limits";
@@ -803,5 +845,78 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
       margin: { t: 8 },
     },
     height: 420 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
+  };
+}
+
+/**
+ * The overlay of the responses' acceptable ranges over the triangle of a mixture's three components: the blends where
+ * every response is acceptable shaded, each response's acceptable boundary a line in its colour and dash, and a star
+ * at the balanced blend. ``overlay`` is bootstrap.balance's for a mixture: its grid of blends, each response's
+ * prediction there and its boundary as segments of line; ``responses`` are the reply's, for each response's words.
+ */
+export function blendOverlayFigure(overlay, responses, colours = palette()) {
+  const [a, b, c] = overlay.components;
+  const byName = Object.fromEntries(responses.map((r) => [r.name, r]));
+  const lineColours = responseColours(colours);
+  const kept = (values) => values.filter((_, k) => overlay.acceptable[k]);
+  const at = `${a} %{a:.3f}<br>${b} %{b:.3f}<br>${c} %{c:.3f}`;
+  const data = [
+    {
+      type: "scatterternary",
+      mode: "markers",
+      name: SHADED,
+      a: kept(overlay.a),
+      b: kept(overlay.b),
+      c: kept(overlay.c),
+      marker: { symbol: "circle", size: 7, color: withAlpha(colours.accent, 0.35), line: { width: 0 } },
+      hoverinfo: "skip",
+    },
+  ];
+  overlay.responses.forEach((surface, i) => {
+    const r = byName[surface.name];
+    const line = { color: lineColours[i % lineColours.length], width: 2.5, dash: RESPONSE_DASHES[i % RESPONSE_DASHES.length] };
+    // A boundary that misses the blends drawn has no line, so no key: the caption says why.
+    surface.lines.forEach((segments, j) => {
+      data.push({
+        type: "scatterternary",
+        mode: "lines",
+        name: boundaryName(r),
+        legendgroup: surface.name,
+        showlegend: j === 0 && boundaryDrawn(surface),
+        a: segments.a,
+        b: segments.b,
+        c: segments.c,
+        line,
+        hoverinfo: "skip",
+      });
+    });
+  });
+  data.push({
+    type: "scatterternary",
+    mode: "markers",
+    name: BALANCED_BLEND,
+    a: [overlay.at[0]],
+    b: [overlay.at[1]],
+    c: [overlay.at[2]],
+    marker: BEST_MARKER,
+    cliponaxis: false,
+    hovertemplate: `${BALANCED_BLEND}<br>${at}<extra></extra>`,
+  });
+  const axis = (title) => ({
+    title: { text: title, font: { size: 13 } },
+    min: 0,
+    linecolor: colours.muted,
+    gridcolor: colours.line,
+    tickfont: { color: colours.muted, size: 10 },
+  });
+  return {
+    data,
+    layout: {
+      ternary: { sum: 1, bgcolor: "rgba(0,0,0,0)", aaxis: axis(a), baxis: axis(b), caxis: axis(c) },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+      margin: { l: 36, r: 36, t: 48, b: 36 },
+    },
+    height: 440 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
   };
 }
