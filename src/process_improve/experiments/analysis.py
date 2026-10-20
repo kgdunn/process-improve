@@ -57,6 +57,7 @@ from process_improve.experiments._analyses.mixture import (
 )
 from process_improve.experiments._analyses.model_selection import _run_model_selection
 from process_improve.experiments._analyses.ols_extractors import (
+    _joint_inference,
     _run_anova,
     _run_coefficients,
     _run_confidence_intervals,
@@ -688,18 +689,20 @@ def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: Regression
 def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
     """Return the coefficients, or their confidence intervals, on the scale ``coding`` asks for."""
     ols = fit.coefficient_fit()
+    shown = with_prior_sigma(ols, fit.sigma)
     extract = _run_coefficients if analysis == "coefficients" else _run_confidence_intervals
-    result = extract(with_prior_sigma(ols, fit.sigma), fit.alpha)
+    result = extract(shown, fit.alpha)
     for row in result[analysis]:
         row["term"] = _readable(row["term"])
     result["coding"] = "actual" if fit.coding == "actual" else "coded"
     if fit.model not in SCHEFFE_MODELS and (coding := fit.factor_coding()[1]):
         result["factor_coding"] = coding
-    if analysis == "coefficients" and ols is not fit.ols:
-        # The equation in the factors' own units, for whoever needs to evaluate it there.
-        result["coefficients_actual"] = _run_coefficients(with_prior_sigma(fit.ols, fit.sigma), fit.alpha)[
-            "coefficients"
-        ]
+    if analysis == "coefficients":
+        result |= _joint_inference(shown, fit.alpha, _readable)
+        if ols is not fit.ols:
+            # The equation in the factors' own units, for whoever needs to evaluate it there.
+            actual = with_prior_sigma(fit.ols, fit.sigma)
+            result["coefficients_actual"] = _run_coefficients(actual, fit.alpha)["coefficients"]
     return result
 
 
@@ -883,6 +886,13 @@ def analyze_experiment(  # noqa: PLR0913
         deviation of the response (the "beta" coefficient, MYSTAT's STD COEF). It has no
         units, so terms in different units compare; the intercept's is 0. Like the
         coefficient, it depends on ``coding`` when the model has interactions or squares.
+        The ``"coefficients"`` analysis also gives ``estimate_correlations``, the correlation
+        of each pair of estimates, from :math:`(X'X)^{-1}` alone, and
+        ``joint_confidence_region``: its ``sum_of_squares`` bounds the values of all the
+        coefficients together at ``1 - significance_level``, :math:`S_R (1 + p F / (n - p))`
+        with :math:`S_R` the ``residual_sum_of_squares`` (Box, Hunter and Hunter, eq. 14.45);
+        with a ``sigma``, :math:`S_R` plus sigma squared times the upper chi-square point on
+        :math:`p` degrees of freedom.
 
         ``"split_plot"`` is for a design whose hard-to-change factors change only
         between whole plots. Every other analysis is ordinary least squares, which
