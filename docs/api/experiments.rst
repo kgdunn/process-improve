@@ -23,8 +23,17 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_optimal
    :members: dispatch_d_optimal, dispatch_i_optimal, dispatch_a_optimal
 
+.. automodule:: process_improve.experiments.designs_split_plot
+   :members: split_plot_design, SplitPlotOptions, strip_plot_design, StripPlotLayout, StripPlotOptions, CRITERIA
+
+.. automodule:: process_improve.experiments.designs_covariates
+   :members: covariate_design, CovariateOptions
+
 .. automodule:: process_improve.experiments.designs_mixture
    :members: dispatch_mixture
+
+.. automodule:: process_improve.experiments.pseudocomponents
+   :members: to_pseudocomponents, from_pseudocomponents
 
 .. automodule:: process_improve.experiments.designs_constrained
    :members: constrained_optimal_design, ConstrainedOptions, Criterion, parse_constraint, rename_factors, build_candidates, model_matrix, fedorov_exchange
@@ -53,6 +62,9 @@ Designed Experiments
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: process_improve.experiments.crossed_arrays
+   :members: cross_arrays
 
 .. automodule:: process_improve.experiments.designs_three_level
    :members: dispatch_three_level_fraction

@@ -9,6 +9,7 @@ from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.compare import DesignComparison, compare_designs
+from process_improve.experiments.crossed_arrays import cross_arrays
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.designs_factorial import full_factorial
@@ -35,6 +36,7 @@ from process_improve.experiments.omars_trade_off import (
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.pseudocomponents import from_pseudocomponents, to_pseudocomponents
 from process_improve.experiments.random_effects import (
     expected_mean_squares,
     intraclass_correlation_interval,
@@ -92,6 +94,7 @@ __all__ = [
     "c",
     "compare_designs",
     "constraint_through_cuts",
+    "cross_arrays",
     "defining_relation",
     "definitive_screening_runs",
     "doe_knowledge",
@@ -100,6 +103,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "from_pseudocomponents",
     "full_factorial",
     "gather",
     "generate_design",
@@ -137,6 +141,7 @@ __all__ = [
     "supplement",
     "third_order_contrasts",
     "time_trends",
+    "to_pseudocomponents",
     "trade_off_table",
     "trend_robust_run_order",
     "variance_components",

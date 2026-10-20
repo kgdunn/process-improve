@@ -149,7 +149,9 @@ def _dispatch_dsd(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
-    return dispatch_dsd(factors, budget=kwargs.get("budget"))
+    return dispatch_dsd(
+        factors, budget=kwargs.get("budget"), categorical_method=kwargs.get("categorical_method", "dsd")
+    )
 
 
 def _dispatch_omars(
@@ -601,6 +603,15 @@ def _refuse_unused_arguments(
         )
 
 
+def _refuse_categorical_method(design_type: str, categorical_method: str) -> None:
+    """Raise when ``categorical_method`` asks a design type other than a DSD for ORTH-augment, which only a DSD has."""
+    if categorical_method != "dsd" and design_type != "dsd":
+        raise ValueError(
+            f"categorical_method={categorical_method!r} chooses how a DSD adds two-level categorical factors; "
+            f"design_type={design_type!r} does not use it."
+        )
+
+
 def _blocks_from_generators(design_type: str, block_generators: list[str], n_blocks: int | None) -> int:
     """Return the number of blocks the block generators make, refusing them on a design they cannot block."""
     if design_type not in ("full_factorial", "fractional_factorial"):
@@ -770,6 +781,7 @@ def generate_design(  # noqa: PLR0913
     generators: list[str] | None = None,
     alpha: str | float | None = None,
     cube: str = "full",
+    categorical_method: str = "dsd",
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
     model_type: str = "interactions",
@@ -812,7 +824,11 @@ def generate_design(  # noqa: PLR0913
         designs, and OMARS with a budget, are built to it (OMARS to the largest
         foldover size within it). A family whose size the design structure fixes
         (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
-        ``ValueError`` when it needs more runs than *budget*.
+        ``ValueError`` when it needs more runs than *budget*. A DSD with a budget
+        above its minimal size gains fake factors (error degrees of freedom); for an
+        odd number of factors (5, 7, 9 or 11, all continuous), a budget of ``2k + 1``
+        or ``2k + 2`` runs gives Jones and Nachtsheim's (2011) design of ``2k + 1``
+        runs, two fewer than the default, whose main effects are slightly correlated.
     n_center_points : int, str or None
         Number of centre runs in the whole design: they are not replicated with
         *n_replicates*. ``None`` (the default) means 3 for the full and
@@ -882,6 +898,14 @@ def generate_design(  # noqa: PLR0913
         three factors Hartley's small composite design). A cube given that aliases
         two-factor interactions in pairs is built with a warning, for a model with
         one interaction of each pair; ``metadata["aliased_interactions"]`` lists the pairs.
+    categorical_method : {"dsd", "orth"}
+        For a DSD with two-level categorical factors, how they are added (Jones and
+        Nachtsheim 2013): ``"dsd"`` (default), the DSD-augment method, two centre runs
+        and a little correlation between a categorical and the other main effects; or
+        ``"orth"``, the ORTH-augment method, every main effect orthogonal to every other
+        (up to four categorical factors) but partly aliased with some second-order
+        effects, in the same runs for one categorical factor and two more centre runs
+        for more. Any other design type refuses ``"orth"``.
     constraints : list[Constraint] or None
         Inequalities on the continuous factors, in actual units, e.g.
         ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
@@ -894,9 +918,11 @@ def generate_design(  # noqa: PLR0913
         ``"maxpro"`` space-filling designs. Other design types do not enforce them and set
         ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
-        Names of hard-to-change factors, for a split-plot design. Only the optimal
-        families build one, so any other *design_type* raises ``ValueError``; with
-        *design_type* unset, a D-optimal design is chosen.
+        Names of hard-to-change factors, for a split-plot design: they are set once for
+        each whole plot, and the design is D-, I- or A-optimal on the generalised least
+        squares information ``X'V^-1 X``, with the whole-plot variance half the run-to-run
+        variance. Only the optimal families build one, so any other *design_type* raises
+        ``ValueError``; with *design_type* unset, a D-optimal design is chosen.
     model_type : str
         Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
         ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"``, ``"k_optimal"``) are built
@@ -928,10 +954,12 @@ def generate_design(  # noqa: PLR0913
         same call gives the same design). ``None`` draws fresh entropy; see
         :doc:`/development/reproducibility`.
     backend : {"auto", "exchange", "pyoptex"}
-        Engine for the optimal families. ``"auto"`` (default) uses the built-in
-        candidate exchange, and the optional pyoptex package only for a split-plot
-        design (``hard_to_change``), so the same call gives the same design whether or
-        not pyoptex is installed. ``"pyoptex"`` asks for pyoptex's coordinate exchange.
+        Engine for the optimal families. ``"auto"`` (default) and ``"exchange"`` use the
+        built-in engines, so the same call gives the same design whether or not the
+        optional pyoptex package is installed: the coordinate exchange of
+        :func:`~process_improve.experiments.designs_split_plot.split_plot_design` for a
+        split-plot design (``hard_to_change``), the candidate exchange otherwise.
+        ``"pyoptex"`` asks for pyoptex's coordinate exchange.
     block_generators : list[str] or None
         The interaction words that define the blocks of a two-level full or fractional
         factorial, in place of the words the library would choose: ``["ADE", "BCE"]``
@@ -1009,6 +1037,7 @@ def generate_design(  # noqa: PLR0913
     _refuse_mixture_in_box_family(factors, design_type)
     _refuse_unsupported_categorical(factors, design_type, generators)
     _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)
+    _refuse_categorical_method(design_type, categorical_method)
     if block_generators is not None:
         n_blocks = _blocks_from_generators(design_type, block_generators, n_blocks)
 
@@ -1025,6 +1054,7 @@ def generate_design(  # noqa: PLR0913
         "generators": generators,
         "alpha": alpha,
         "cube": cube,
+        "categorical_method": categorical_method,
         "hard_to_change": hard_to_change,
         "constraints": constraints,
         "model_type": model_type,
@@ -1066,10 +1096,8 @@ def generate_design(  # noqa: PLR0913
         n_runs = _total_runs(coded_matrix.shape[0], own_center_rows, extra_center_points, n_replicates)
         _refuse_over_budget(design_type, n_runs, budget)
 
-    # A split-plot optimal design from pyoptex keeps its run order: the whole plots are part of the solution.
-    split_plot = (
-        design_type in _OPTIMAL_FAMILIES and meta.get("backend") == "pyoptex" and bool(meta.get("hard_to_change"))
-    )
+    # A split-plot optimal design keeps its run order: the whole plots are part of the solution.
+    split_plot = design_type in _OPTIMAL_FAMILIES and "whole_plot" in meta
 
     return build_design_result(
         coded_matrix=coded_matrix,

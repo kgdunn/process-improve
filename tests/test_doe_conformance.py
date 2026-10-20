@@ -20,6 +20,7 @@ from scipy.stats import qmc
 from process_improve.experiments import analyze_omars, augment_design, generate_design
 from process_improve.experiments.designs_supersaturated import e_s2, e_s2_lower_bound
 from process_improve.experiments.factor import Constraint, Factor
+from process_improve.experiments.reference_catalogue import reference_designs
 
 
 def _factors(k: int) -> list[Factor]:
@@ -381,6 +382,58 @@ class TestDSDFakeFactors:
     def test_budget_below_the_minimal_design_raises(self) -> None:
         with pytest.raises(ValueError, match="needs at least 13 runs"):
             generate_design(_factors(6), "dsd", budget=11)
+
+
+class TestDSD2011OddFactors:
+    """Jones and Nachtsheim (2011), Figure 1: 2k + 1 runs for an odd k, two fewer than a conference matrix allows."""
+
+    @pytest.mark.parametrize(("k", "largest"), [(5, 0.25), (7, 1 / 6), (9, 0.125), (11, 0.3)])
+    @pytest.mark.parametrize("spare", [0, 1])
+    def test_a_budget_of_2k_plus_1_gives_the_paper_s_design(self, k: int, largest: float, spare: int) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # no error degrees of freedom: tested below
+            result = generate_design(_factors(k), "dsd", budget=2 * k + 1 + spare)
+        assert result.n_runs == 2 * k + 1
+        assert result.metadata["construction"] == "jones_nachtsheim_2011"
+        x = _coded(result, k)
+        corners = _corners(x)
+        assert len(corners) == 2 * k
+        assert np.all((corners == 0).sum(axis=1) == 1)  # one factor at its centre in each fold-over run
+        assert {tuple(-run) for run in corners} == {tuple(run) for run in corners}
+        second = np.column_stack([x[:, i] * x[:, j] for i in range(k) for j in range(i, k)])
+        assert np.abs(x.T @ second).max() == 0  # main effects orthogonal to every second-order effect
+        r = np.corrcoef(x, rowvar=False)[np.triu_indices(k, 1)]
+        assert np.abs(r).max() == pytest.approx(largest)
+        assert "correlated" in result.metadata["note"]
+
+    @pytest.mark.parametrize("k", [5, 7, 9, 11])
+    def test_the_designs_are_the_reference_catalogue_s(self, k: int) -> None:
+        """The library's copy of Figure 1 and the catalogue's, each read from the paper, are the same runs."""
+        entry = next(d for d in reference_designs("jones-nachtsheim-2011") if d["name"].endswith(f"-{k}-factors"))
+        printed = np.array([row[1:] for row in entry["runs"]["rows"]], dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            result = generate_design(_factors(k), "dsd", budget=2 * k + 1, random_state=None)
+        assert sorted(map(tuple, _coded(result, k))) == sorted(map(tuple, printed))
+
+    def test_the_design_leaves_no_error_degrees_of_freedom_and_says_so(self) -> None:
+        with pytest.warns(UserWarning, match="no degrees of freedom for error"):
+            generate_design(_factors(5), "dsd", budget=11)
+
+    def test_a_budget_below_2k_plus_1_names_both_sizes(self) -> None:
+        with pytest.raises(ValueError, match=r"needs at least 13 runs \(11 for Jones and Nachtsheim's 2011 design"):
+            generate_design(_factors(5), "dsd", budget=10)
+
+    def test_without_a_budget_or_with_enough_the_conference_matrix_design_is_kept(self) -> None:
+        for budget in (None, 13):
+            result = generate_design(_factors(5), "dsd", budget=budget)
+            assert result.n_runs == 13
+            assert result.metadata["construction"] != "jones_nachtsheim_2011"
+
+    def test_a_categorical_factor_still_needs_the_conference_matrix_design(self) -> None:
+        factors = [*_factors(4), Factor(name="c", type="categorical", levels=["a", "b"])]
+        with pytest.raises(ValueError, match="needs at least 14 runs"):
+            generate_design(factors, "dsd", budget=11)
 
 
 class TestNoErrorDegreesOfFreedom:
