@@ -41,7 +41,7 @@ def _response_surface(
     n_grid: int,
 ) -> list[list[float]]:
     """Predict one response over the coded grid, row-major as ``z[y][x]``."""
-    _, _, z_matrix = _compute_grid(coef_map, factor_x, factor_y, hold_values, n_grid)
+    _, _, z_matrix = _compute_grid(coef_map, (factor_x, factor_y), hold_values, n_grid)
     return z_matrix
 
 

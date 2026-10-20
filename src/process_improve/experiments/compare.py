@@ -46,10 +46,12 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+from process_improve._random import check_random_state
+from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._region_geometry import MAX_VERTICES
 from process_improve.experiments._uniform_sampling import _TOL, _Inequality
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
-from process_improve.experiments.evaluate import _coefficient_power
+from process_improve.experiments.evaluate import _coefficient_power, _random_effects_information
 from process_improve.experiments.factor import DesignResult, Factor, FactorType
 from process_improve.experiments.region import DesignRegion
 from process_improve.tool_spec import clean
@@ -94,6 +96,9 @@ _ASCENTS = 8
 _ASCENT_STEPS = 100
 _CANDIDATES = 1024
 _APART = 0.5
+
+#: The fractions of the design space at which two designs' FDS curves are compared.
+_FDS_FRACTIONS = np.linspace(0.0, 1.0, 1001)
 
 #: The step of the differences a curved limit's slope is taken from, in coded units.
 _SLOPE_STEP = 1e-6
@@ -279,6 +284,8 @@ class DesignComparison:
     correlations: Mapping[str, pd.DataFrame]
     g_points: str
     region: DesignRegion | None = None
+    _inverses: Mapping[str, np.ndarray] = dataclasses.field(default_factory=dict, repr=False)
+    _model: _Model | None = dataclasses.field(default=None, repr=False)
 
     @property
     def measures(self) -> tuple[Measure, ...]:
@@ -341,6 +348,90 @@ class DesignComparison:
                 for m in MEASURES
             ]
         )
+
+    def relative(
+        self,
+        design: str,
+        reference: str,
+        n_points: int = 100_000,
+        random_state: int | np.random.Generator | None = 42,
+    ) -> dict[str, Any]:
+        r"""Return how one design compares with another on the model: efficiencies, variances, FDS curves.
+
+        Every value comes from the information matrices the scores were computed from, so
+        the two never disagree: :math:`\mathbf{X}^T\mathbf{V}^{-1}\mathbf{X}` for a
+        split-plot design.
+
+        Parameters
+        ----------
+        design, reference : str
+            The designs' labels, as :attr:`designs` lists them (``"DSD [n=9]"``) or as
+            they were given (``"DSD"``).
+        n_points : int, default 100000
+            Points drawn uniformly from the cube, or from the region, at which the two
+            designs' prediction variances are compared for their FDS curves.
+        random_state : int, numpy.random.Generator or None, default 42
+            Seeds the points, as ``evaluate_design`` seeds its sample.
+
+        Returns
+        -------
+        dict
+            - ``d_efficiency``: :math:`(|\mathbf{M}_1| / |\mathbf{M}_2|)^{1/p}`, the
+              design's joint precision of the coefficients over the reference's;
+            - ``a_efficiency``, ``i_efficiency`` and ``g_efficiency``: the reference's
+              :math:`A/p`, :math:`I` and :math:`G` over the design's, so that every
+              efficiency above 1 favours the design;
+            - ``variance_ratio``: for each term, the design's coefficient variance over
+              the reference's;
+            - ``fds_crossings``: the fractions of the design space, to the nearest
+              0.001, at which the two FDS curves cross (empty when one lies below the
+              other everywhere), and ``fds_lower_share``, the share of the fractions at
+              which the design's curve is the lower;
+            - ``design``, ``reference`` and ``n_points``.
+
+        Raises
+        ------
+        ValueError
+            If a label names no design of the comparison, either design cannot fit the
+            model, or ``n_points`` is below 2.
+        """
+        mine, theirs = self._fitted(design), self._fitted(reference)
+        if n_points < 2:  # two points are the fewest a curve is drawn through
+            raise ValueError(f"n_points must be at least 2; got {n_points}.")
+        assert self._model is not None  # set by compare_designs whenever a design fits
+        rows = _fds_rows(self._model, n_points, random_state)
+        curves = [
+            np.quantile(np.einsum("ij,jk,ik->i", rows, self._inverses[label], rows), _FDS_FRACTIONS)
+            for label in (mine, theirs)
+        ]
+        difference = curves[0] - curves[1]
+        sign = np.sign(difference)
+        kept = np.flatnonzero(sign)
+        changes = kept[1:][sign[kept[1:]] != sign[kept[:-1]]]
+        ours, other = self.values[mine], self.values[theirs]
+        return {
+            "design": mine,
+            "reference": theirs,
+            "d_efficiency": ours["d"] / other["d"],
+            "a_efficiency": other["a"] / ours["a"],
+            "i_efficiency": other["i"] / ours["i"],
+            "g_efficiency": other["g"] / ours["g"],
+            "variance_ratio": dict(
+                zip(self.terms, (np.diag(self._inverses[mine]) / np.diag(self._inverses[theirs])).tolist(), strict=True)
+            ),
+            "fds_crossings": [round(float(f), 3) for f in _FDS_FRACTIONS[changes]],
+            "fds_lower_share": float(np.mean(difference < 0)),
+            "n_points": n_points,
+        }
+
+    def _fitted(self, label: str) -> str:
+        """Return a design's label as :attr:`designs` lists it, refusing one that names none or cannot fit."""
+        matches = [d for d in self.designs if label in (d, d.rpartition(" [n=")[0])]
+        if not matches:
+            raise ValueError(f"{label!r} is not one of the designs compared: {list(self.designs)}.")
+        if matches[0] not in self._inverses:
+            raise ValueError(f"{matches[0]!r} cannot fit the {self.model} model, so it has no efficiency to compare.")
+        return matches[0]
 
     def to_dict(self) -> dict[str, Any]:
         """Return the comparison as JSON-safe Python values.
@@ -594,6 +685,45 @@ def _coded_runs(design: object) -> tuple[np.ndarray, list[str] | None]:
     return runs, None if frame is None else [str(c) for c in frame.columns]
 
 
+def _whole_plots(design: object) -> tuple[dict[str, tuple[np.ndarray, float]] | None, str | None]:
+    """Return the random effect of a design's whole plots, as the design records them, and a note.
+
+    A split-plot :class:`DesignResult` records the variance ratio it was made for in
+    ``metadata["whole_plot_variance_ratio"]``; a DataFrame can carry one in
+    ``attrs["whole_plot_variance_ratio"]``. Either way the whole plots are the ``WholePlot``
+    column. Without a ratio the runs are scored as independent, and the note says so.
+
+    Raises
+    ------
+    ValueError
+        If the ratio is not a finite number of at least 0.
+    """
+    frame: pd.DataFrame
+    if isinstance(design, DesignResult):
+        frame, ratio = design.design, design.metadata.get("whole_plot_variance_ratio")
+    elif isinstance(design, pd.DataFrame):
+        frame, ratio = design, design.attrs.get("whole_plot_variance_ratio")
+    else:
+        return None, None
+    if WHOLE_PLOT_COL not in frame.columns:
+        return None, None
+    labels = frame[WHOLE_PLOT_COL].to_numpy()
+    count = len(pd.unique(labels))
+    if ratio is None:
+        return None, (
+            f"Its runs share {count} whole plots, but the design records no whole-plot variance ratio, so the "
+            "measures treat every run as set on its own; give one as whole_plot_variance_ratio."
+        )
+    if not isinstance(ratio, (int, float)) or not np.isfinite(ratio) or ratio < 0:
+        raise ValueError(f"The whole-plot variance ratio must be a finite number of at least 0; got {ratio!r}.")
+    note = (
+        f"Its runs share {count} whole plots, with a whole-plot variance {float(ratio):g} times the run "
+        "variance, as the design records it: the measures use X'V^-1 X, and the power keeps the run-level "
+        "residual degrees of freedom."
+    )
+    return {WHOLE_PLOT_COL: (labels, float(ratio))}, note
+
+
 def _labelled(designs: Mapping[str, Any] | Sequence[Any]) -> list[tuple[str, Any]]:
     """Pair each design with its label: the mapping's key, else its design type."""
     if isinstance(designs, (pd.DataFrame, np.ndarray, DesignResult)):
@@ -650,9 +780,14 @@ def _largest_second_order_r(correlations: pd.DataFrame, k: int) -> float | None:
     return None if np.all(np.isnan(block)) else float(np.nanmax(block))
 
 
-def _criteria(matrix: np.ndarray, model: _Model) -> tuple[dict[str, float], np.ndarray]:
-    """Return the five alphabetic criteria of a full-rank model matrix, and the diagonal of M^-1."""
-    information = matrix.T @ matrix
+def _criteria(
+    matrix: np.ndarray, model: _Model, groups: dict[str, tuple[np.ndarray, float]] | None = None
+) -> tuple[dict[str, float], np.ndarray]:
+    """Return the five alphabetic criteria of a full-rank model matrix, and M^-1.
+
+    M is X'X, or X'V^-1 X for runs that share the random effects ``groups``.
+    """
+    information = matrix.T @ matrix if not groups else _random_effects_information(matrix, groups)
     inverse = np.linalg.inv(information)
     p = information.shape[0]
     _, log_det = np.linalg.slogdet(information)
@@ -664,7 +799,7 @@ def _criteria(matrix: np.ndarray, model: _Model) -> tuple[dict[str, float], np.n
         "g": float(max(prediction.max(), _ascent(inverse, prediction, model))),
         "d": float(math.exp(log_det / p)),
     }
-    return criteria, np.diag(inverse)
+    return criteria, inverse
 
 
 def _ascent(inverse: np.ndarray, prediction: np.ndarray, model: _Model) -> float:
@@ -832,8 +967,14 @@ def _inseparable(matrix: np.ndarray, model: _Model) -> str:
     return "; ".join(parts) + "." if parts else "Some of its terms are linear combinations of the others."
 
 
-def _score(x: np.ndarray, model: _Model, effect_size: float, alpha: float) -> tuple[dict[str, Any], list[str]]:
-    """Score one design on every measure, with the notes that qualify the numbers."""
+def _score(
+    x: np.ndarray,
+    model: _Model,
+    effect_size: float,
+    alpha: float,
+    groups: dict[str, tuple[np.ndarray, float]] | None = None,
+) -> tuple[dict[str, Any], list[str], np.ndarray | None]:
+    """Score one design on every measure, with the notes that qualify the numbers and its M^-1 (None if singular)."""
     matrix = _expand(x, model.exponents)
     n, p = matrix.shape
     rank = int(np.linalg.matrix_rank(matrix))
@@ -845,16 +986,16 @@ def _score(x: np.ndarray, model: _Model, effect_size: float, alpha: float) -> tu
             f"Cannot fit the {model.name.replace('_', ' ')} model: its {p} terms have rank {rank} in this "
             f"design. {_inseparable(matrix, model)}"
         )
-        return values, notes
-    criteria, c = _criteria(matrix, model)
+        return values, notes, None
+    criteria, inverse = _criteria(matrix, model, groups)
     values.update(criteria)
-    values.update(_power(c, n - p, model, effect_size, alpha))
+    values.update(_power(np.diag(inverse), n - p, model, effect_size, alpha))
     if n == p:
         notes.append("No degrees of freedom are left to estimate the error, so there is no test and no power.")
     outside = _outside(x, model.region)
     if outside:
         notes.append(outside)
-    return values, notes
+    return values, notes, inverse
 
 
 def _outside(x: np.ndarray, region: DesignRegion | None) -> str | None:
@@ -995,6 +1136,16 @@ def compare_designs(
     noted. Without a region, or with one that has no constraints, the cube's exact
     moments are used.
 
+    A split-plot design's runs share whole plots, so they are not independent. When the
+    design records the whole-plot variance ratio :math:`\eta` it was made for (a split-plot
+    :class:`DesignResult` keeps it in ``metadata["whole_plot_variance_ratio"]``; a DataFrame can
+    carry one in ``attrs["whole_plot_variance_ratio"]``), every measure uses
+    :math:`\mathbf{X}^T\mathbf{V}^{-1}\mathbf{X}` in place of :math:`\mathbf{M}`, with
+    :math:`\mathbf{V} = \mathbf{I} + \eta \mathbf{Z}\mathbf{Z}^T` and :math:`\mathbf{Z}` the
+    indicators of the ``WholePlot`` column, as :func:`evaluate_design` does with
+    ``random_effects``: :math:`A/p`, :math:`I` and :math:`G` are then in units of the run
+    variance, and the power keeps the run-level :math:`N - p`. The design's note says so.
+
     Parameters
     ----------
     designs : mapping of str to design, or sequence of DesignResult
@@ -1023,7 +1174,9 @@ def compare_designs(
     -------
     DesignComparison
         The values, the table in the book's layout (:attr:`DesignComparison.table`),
-        notes on each design and its correlation map.
+        notes on each design and its correlation map; :meth:`DesignComparison.relative`
+        compares two of the designs: their relative efficiencies, coefficient variances
+        and FDS curves.
 
     Raises
     ------
@@ -1062,10 +1215,16 @@ def compare_designs(
     values: dict[str, Mapping[str, Any]] = {}
     notes: dict[str, tuple[str, ...]] = {}
     correlations: dict[str, pd.DataFrame] = {}
-    for (label, _), (x, _) in zip(labelled, runs, strict=True):
+    inverses: dict[str, np.ndarray] = {}
+    for (label, design), (x, _) in zip(labelled, runs, strict=True):
         sized = _unique(f"{label} [n={len(x)}]", labels)
         labels.append(sized)
-        design_values, design_notes = _score(x, scored, effect_size, significance_level)
+        groups, whole_plot_note = _whole_plots(design)
+        design_values, design_notes, inverse = _score(x, scored, effect_size, significance_level, groups)
+        if inverse is not None:
+            inverses[sized] = inverse
+        if whole_plot_note:
+            design_notes.append(whole_plot_note)
         correlations[sized] = _correlations(x, names)
         design_values["max_r"] = _largest_second_order_r(correlations[sized], len(names))
         if np.isnan(correlations[sized].to_numpy()[len(names) : 2 * len(names)]).all():
@@ -1083,7 +1242,17 @@ def compare_designs(
         correlations=MappingProxyType(correlations),
         g_points=scored.g_points,
         region=given,
+        _inverses=MappingProxyType(inverses),
+        _model=scored,
     )
+
+
+def _fds_rows(model: _Model, n_points: int, random_state: int | np.random.Generator | None) -> np.ndarray:
+    """Return the model's columns at points drawn uniformly from the cube, or from the region."""
+    rng = check_random_state(random_state)
+    k = model.exponents.shape[1]
+    points = rng.uniform(-1.0, 1.0, size=(n_points, k)) if model.region is None else model.region.sample(n_points, rng)
+    return _expand_in_chunks(points, model.exponents)
 
 
 def _unique(label: str, taken: Sequence[str]) -> str:

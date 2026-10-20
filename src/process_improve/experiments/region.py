@@ -54,12 +54,25 @@ from process_improve.experiments._region_geometry import (
     convex_polygon,
     points_inside,
     round_significant,
+    simplex_share,
+    uniform_points_inside,
 )
-from process_improve.experiments._uniform_sampling import _TOL, UniformSampler, _affine_form, _Inequality, _linear_row
+from process_improve.experiments._region_quadrature import columns_named, curved_share
+from process_improve.experiments._uniform_sampling import (
+    _TOL,
+    UniformSampler,
+    _affine_form,
+    _compares_numbers_only,
+    _Inequality,
+    _linear_row,
+    _spread,
+)
 from process_improve.experiments.factor import Constraint, Factor, FactorType, as_constraints
 
 #: Sobol points behind :meth:`DesignRegion.volume_fraction` and the searches of a curved region.
 _N_SAMPLES = 2**14
+#: Sobol points on which a curved limit is evaluated to find the factors it names.
+_PROBE_POINTS = 2**8
 #: Points spread inside the polytope of the linear constraints, to search a curved region with.
 _N_INSIDE = 2**12
 #: Cells per axis of a shadow mask, and grid points per axis of a slice mask.
@@ -211,15 +224,17 @@ class DesignRegion:
         x : np.ndarray
             Points ``(n, k)`` in design units (coded for a box, proportions for a mixture).
         tol : float
-            How far a point may lie outside. For a straight limit of a box region whose
-            coded gradient is longer than 1 it is a distance in coded units (the limit's
-            value divided by that length); otherwise it is in the limit's own units, as for
-            a curved limit. Either way a point within ``tol`` of a straight limit's
-            boundary, in coded units, passes, however the limit is scaled. So do the
-            corners the region reports (:meth:`vertices`, :meth:`shadow`,
-            :meth:`slice_polygon`), whose rounding (see :meth:`vertices`) moves a
-            coordinate by at most ``1e-10`` in coded units, or a few times that for a
-            factor whose values pass 100000 times its range.
+            How far a point may lie outside. For a straight limit of a box region it is a
+            distance in coded units (the limit's value divided by the length of its coded
+            gradient), so a point within ``tol`` of the boundary passes and one further out
+            fails, however the limit is scaled and whatever its units: ``X <= 0.5e-9`` on a
+            range of ``1e-9`` is judged as ``X <= 0.5`` on a range of 1. For a curved
+            limit it is ``tol`` times the largest size the limit takes over the box, at its
+            corners and its centre; for one that compares numbers only, and for a mixture,
+            ``tol`` in the limit's own units. The corners the region reports
+            (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`) pass, whose rounding
+            (see :meth:`vertices`) moves a coordinate by at most ``1e-10`` in coded units,
+            or a few times that for a factor whose values pass 100000 times its range.
 
         Returns
         -------
@@ -235,16 +250,70 @@ class DesignRegion:
             ok &= g(x) <= tol * widen
         return ok
 
+    def broken_limits(self, x: np.ndarray, tol: float = _TOL) -> list[list[str]]:
+        """Return, for each point, the limits it breaks: the factor ranges it leaves, then the constraints it fails.
+
+        A range is written in actual units, ``"100 <= T <= 150"``, and a constraint as its
+        expression, each once. A point that :meth:`feasible` accepts with the same ``tol``
+        breaks none, so this says why a setting cannot be run.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points ``(n, k)`` in coded units.
+        tol : float
+            How far a point may lie outside, as for :meth:`feasible`.
+
+        Returns
+        -------
+        list[list[str]]
+            One list per row of ``x``, empty for a feasible point.
+
+        Raises
+        ------
+        ValueError
+            For a mixture region.
+
+        Examples
+        --------
+        >>> region = DesignRegion(
+        ...     [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)],
+        ...     ["3*T + 5*D <= 600"],
+        ... )
+        >>> region.broken_limits(np.array([[1.0, 1.0], [-1.0, -1.0], [1.5, -1.0]]))
+        [['3*T + 5*D <= 600'], [], ['100 <= T <= 150']]
+        """
+        self._require_box("broken_limits")
+        x = np.atleast_2d(np.asarray(x, dtype=float))
+        ranges = [
+            f"{low:g} <= {name} <= {high:g}" for name, low, high in zip(self.names, self._low, self._high, strict=True)
+        ]
+        outside = (x < -1.0 - tol) | (x > 1.0 + tol)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            fails = [~(g(x) <= tol * widen) for g, widen in zip(self._inequalities, self._widen(), strict=True)]
+        broken = []
+        for row in range(len(x)):
+            found = [ranges[j] for j in np.flatnonzero(outside[row])]
+            for fail, limit in zip(fails, self._limit_of, strict=True):
+                expression = self.constraints[limit].expression
+                if fail[row] and expression not in found:
+                    found.append(expression)
+            broken.append(found)
+        return broken
+
     def _widen(self) -> np.ndarray:
         """Return, per inequality, what the tolerance on its value is multiplied by (cached).
 
-        For a straight limit of a box region it is the length of its coded gradient when
-        above 1, which turns the tolerance into a distance; else 1, which keeps the
-        tolerance of a gently sloped or curved limit in its own units.
+        For a straight limit of a box region it is the length of its coded gradient, which
+        turns the tolerance into a distance in coded units, and for a curved one the
+        largest size it takes over the box (see :class:`_Rows`). It used to be at least 1,
+        which kept the tolerance of a gentle limit in its own units: on a factor whose
+        range is ``1e-9`` of its units, that was as wide as the range, and every setting
+        passed.
         """
         if "widen" not in self._cache:
-            scale = self._linear().scale if self.kind == "box" else [1.0] * len(self._inequalities)
-            self._cache["widen"] = np.maximum(np.asarray(scale, dtype=float), 1.0).reshape(len(self._inequalities))
+            widen = self._linear().widen if self.kind == "box" else [1.0] * len(self._inequalities)
+            self._cache["widen"] = np.asarray(widen, dtype=float).reshape(len(self._inequalities))
         return self._cache["widen"]
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
@@ -277,7 +346,12 @@ class DesignRegion:
 
         bounds = tuple(np.array(self.bounds, dtype=float).T)
         sampler = UniformSampler(
-            self._inequalities, bounds, propose, self.seed_points, on_simplex=self.kind == "mixture"
+            self._inequalities,
+            bounds,
+            propose,
+            self.seed_points,
+            on_simplex=self.kind == "mixture",
+            tolerances=self._widen(),  # so a sampled point passes feasible()
         )
         return sampler.draw(n, rng)
 
@@ -319,7 +393,7 @@ class DesignRegion:
     def _linear(self) -> _Rows:
         """Return the inequalities in coded units, split into unit-length affine rows and the rest (cached)."""
         if "rows" not in self._cache:
-            self._cache["rows"] = _Rows.of(self._inequalities, self._limit_of, len(self.names))
+            self._cache["rows"] = _Rows.of(self._inequalities, self._limit_of, self._centre / self._half)
         return self._cache["rows"]
 
     def _vertices_coded(self) -> np.ndarray | None:
@@ -424,17 +498,33 @@ class DesignRegion:
         of up to five factors under several (see
         :func:`~process_improve.experiments._region_geometry.box_share`).
 
-        Otherwise (a curved constraint, or six factors or more that several constraints tie
-        together), the share is counted over ``n_samples`` points of the unscrambled Sobol
-        sequence (moved to the midpoints of their cells). Beside a curved constraint, the
+        With a curved constraint, the share is integrated when, in each group of factors a
+        curved constraint ties, one factor is named by every constraint that names two, and
+        none names three: a constraint on one or two factors, or one beside a straight one that
+        shares a factor with it, as ``"T*F <= 3600"`` beside ``"T + 25*P <= 250"``. At each
+        value of that factor, each other one's allowed length is found along a line across the
+        box, and their product is integrated by adaptive quadrature, to about 1e-10 (see
+        :func:`~process_improve.experiments._region_quadrature.curved_share`). A stretch a
+        curved constraint allows, or removes, narrower than 1/128 of such a line can be missed.
+
+        Otherwise (a curved constraint on three factors, a chain of them that no one factor
+        runs through, or six factors or more that several straight constraints tie together),
+        the share is counted over ``n_samples`` points of the unscrambled Sobol sequence
+        (moved to the midpoints of their cells). Beside a curved constraint, the
         share the straight ones leave is still exact, and the points count only what the
         curved ones take from it: the share is that exact share times the fraction of the
-        points inside the straight constraints that meet every constraint. Else (or when the
-        straight constraints leave too thin a region for any point to lie in it) it is the
-        fraction of all the points that meet every constraint. The points are fixed, so the
-        result is the same on every run and on every platform; with the default ``2**14``
-        points it is within about 0.005 of the exact share for the regions of a few factors
-        that limits describe.
+        points inside the straight constraints that meet every constraint. When the straight
+        constraints leave too thin a region for any of the points to lie in it, ``n_samples``
+        points uniform on that region take their place, for up to five factors. In every other
+        case the share is the fraction of all the points that meet every constraint. The
+        points are fixed, so the result is the same on every run and on every platform; with
+        the default ``2**14`` points it is within about 0.005 of the exact share for the
+        regions of a few factors that limits describe.
+
+        For a mixture region the share is of the blends the components' ranges allow (the
+        whole simplex when every range is 0 to 1), and it is exact: a mixture's constraints
+        are straight, so it is the volume of the polytope they leave over that of the
+        polytope the ranges leave, each the hull of its extreme vertices (#810).
 
         Parameters
         ----------
@@ -445,39 +535,88 @@ class DesignRegion:
         Returns
         -------
         float
-            The share of the box, between 0 and 1.
+            The share of the box, or of the mixtures, between 0 and 1.
 
         Raises
         ------
         ValueError
-            For a mixture region, or ``n_samples`` below 1.
+            If ``n_samples`` is below 1, or a mixture's vertices are too many to list.
 
         Examples
         --------
         >>> T, D = Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)
         >>> round(DesignRegion([T, D], ["3*T + 5*D <= 600"]).volume_fraction(), 3)  # exactly 0.625
         0.625
+        >>> blends = [Factor(name=name, type="mixture") for name in ("A", "B", "C")]
+        >>> DesignRegion(blends, ["A <= 0.5"]).volume_fraction()  # all but the corner where A > 0.5, 1/4
+        0.75
         """
-        self._require_box("volume_fraction")
         if n_samples < 1:
             raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
         if not self.constraints:
             return 1.0
-        exact = self._exact_share()
-        if exact is not None:
-            return exact
+        if self.kind == "mixture":
+            return self._mixture_share()
+        share = self._exact_share()
+        if share is None:
+            share = self._integrated_share()
+        if share is not None:
+            return share
         sample = self._unit_sample(n_samples)
         allowed = self._sample_allowed() if n_samples == _N_SAMPLES else self.feasible(sample)
         rows = self._linear()
         straight = self._straight_share()
         inside = np.all(sample @ rows.a.T <= rows.b + _TOL, axis=1)
-        if straight is None or not inside.any():
+        if straight is None:
             return float(np.mean(allowed))
-        return straight * float(np.mean(allowed[inside]))
+        if inside.any():
+            return straight * float(np.mean(allowed[inside]))
+        thin = self._thin_fraction(n_samples)
+        return float(np.mean(allowed)) if thin is None else straight * thin
+
+    def _thin_fraction(self, n_samples: int) -> float | None:
+        """Return the fraction of the straight constraints' polytope that the curved ones leave (#810 item 2).
+
+        It is for a polytope too thin for any point of the box's sample. Its own ``n_samples``
+        points are uniform on it (see
+        :func:`~process_improve.experiments._region_geometry.uniform_points_inside`), so the
+        fraction of them that meet every constraint estimates the share. None when its
+        vertices are too many to list, it has no volume, or the region has more than five
+        factors.
+        """
+        vertices = self._vertices_coded()
+        points = None if vertices is None else uniform_points_inside(vertices, n_samples)
+        return None if points is None else float(np.mean(self.feasible(points)))
+
+    def _mixture_share(self) -> float:
+        """Return the share of the blends the components' ranges allow that the constraints leave, exactly (#810).
+
+        A mixture's constraints are straight, so both are polytopes, each the hull of its extreme vertices.
+        """
+        from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
+            extreme_vertices,
+            mixture_inequalities,
+        )
+
+        return simplex_share(
+            extreme_vertices(self._a, self._b), extreme_vertices(*mixture_inequalities(self.factors, []))
+        )
 
     def _exact_share(self) -> float | None:
         """Return the exact share of the box with straight constraints only, or None when it is sampled."""
         return None if self._linear().nonlinear else self._straight_share()
+
+    def _integrated_share(self) -> float | None:
+        """Return the share by quadrature, when each curved limit's group of factors has a hub (#810 item 1; cached).
+
+        See :func:`~process_improve.experiments._region_quadrature.curved_share`. None when a
+        group has none, and the share is sampled.
+        """
+        if "integrated_share" not in self._cache:
+            rows, probe = self._linear(), self._unit_sample(_PROBE_POINTS)
+            curved = [(g, columns_named(g, probe)) for g in rows.nonlinear]
+            self._cache["integrated_share"] = curved_share(rows.a, rows.b, curved)
+        return self._cache["integrated_share"]
 
     def _straight_share(self) -> float | None:
         """Return the exact share of the box its straight constraints leave, or None when not had fast (cached)."""
@@ -712,9 +851,13 @@ class DesignRegion:
             constraint that is not affine, compares only numbers, or chains two different
             combinations of factors (``"A <= B <= 2"``).
         """
-        from process_improve.experiments.designs_constrained import _compile, _factor_names  # noqa: PLC0415
+        from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+            _compile,
+            _factor_names,
+            factor_lookup,
+        )
 
-        names = set(self.names)
+        names = factor_lookup(self.names)
         out: list[tuple[dict[str, float], float | None, float | None] | None] = []
         for constraint in self.constraints:
             # parse_constraint checked, when the region was built, that the expression is a comparison.
@@ -749,7 +892,7 @@ class DesignRegion:
             return np.broadcast_to(value, (actual.shape[0],))
 
         ones = np.ones(len(self.names))
-        form = _affine_form(coded, -ones, ones)
+        form = _affine_form(coded, -ones, ones, centre / half)
         if form is None:
             return None
         exact = None if written is None else _exact_difference(*written, self.names)
@@ -984,8 +1127,8 @@ class DesignRegion:
         a contour of it at zero draws a straight limit straight; a curved constraint's
         slack is its own value (the left side minus the right), and ``+inf`` where it cannot
         be evaluated. A value within the default tolerance of :meth:`feasible` (``1e-9``,
-        as a coded distance for a steep straight limit) is returned as zero, so ``<= 0``
-        here agrees with :meth:`feasible` at every point.
+        as a coded distance for a straight limit) is returned as zero, so ``<= 0`` here
+        agrees with :meth:`feasible` at every point.
 
         Parameters
         ----------
@@ -1061,6 +1204,11 @@ class _Rows:
     scale : list[float]
         For each inequality (affine or not, in order), the length of its coded gradient
         (1 for a curved or constant one): dividing by it turns a value into a distance.
+    widen : list[float]
+        For each inequality, what the tolerance on its value is multiplied by: the length of
+        a straight one's coded gradient, which makes the tolerance a distance in coded
+        units; the largest size a curved one takes over the box (see :func:`_spread`); and
+        1 for one that compares numbers only.
     nonlinear, nonlinear_limit : list
         The inequalities that are not affine over the box, and their constraints' indices.
     """
@@ -1069,16 +1217,21 @@ class _Rows:
     b: np.ndarray
     limit: np.ndarray
     scale: list[float]
+    widen: list[float]
     nonlinear: list[_Inequality]
     nonlinear_limit: list[int]
 
     @classmethod
-    def of(cls, inequalities: list[_Inequality], limit_of: list[int], k: int) -> _Rows:
-        """Classify ``inequalities`` (coded functions) with the test the design engines use."""
+    def of(cls, inequalities: list[_Inequality], limit_of: list[int], offsets: np.ndarray) -> _Rows:
+        """Classify ``inequalities`` (coded functions) with the test the design engines use.
+
+        ``offsets`` holds each factor's ``centre / half-range`` (see :func:`_affine_form`).
+        """
+        k = len(offsets)
         ones = np.ones(k)
-        a_rows, b_rows, limits, scale, nonlinear, nonlinear_limit = [], [], [], [], [], []
+        a_rows, b_rows, limits, scale, widen, nonlinear, nonlinear_limit = [], [], [], [], [], [], []
         for g, limit in zip(inequalities, limit_of, strict=True):
-            form = _affine_form(g, -ones, ones) if k else (np.zeros(0), -float(g(np.zeros((1, 0)))[0]))
+            form = _affine_form(g, -ones, ones, offsets) if k else (np.zeros(0), -float(g(np.zeros((1, 0)))[0]))
             # The length without squaring: np.linalg.norm squares, which overflows from a length of 1e154, so
             # T <= 1e200 (whose fit carries noise near 1e184) and 1e200*T <= 1.2e202 were taken for curved.
             size = math.hypot(*form[0]) if form is not None else math.inf
@@ -1086,10 +1239,12 @@ class _Rows:
                 nonlinear.append(g)
                 nonlinear_limit.append(limit)
                 scale.append(1.0)
+                widen.append(_spread(g, -ones, ones))
                 continue
             a, b = cast("tuple[np.ndarray, float]", form)
-            if size <= _SNAP * (1.0 + abs(b)):  # compares numbers only
+            if _compares_numbers_only(a, b):
                 scale.append(1.0)
+                widen.append(1.0)
                 if b < -_TOL:
                     a_rows.append(np.zeros(k))
                     b_rows.append(-1.0)
@@ -1098,11 +1253,13 @@ class _Rows:
             a = np.where(np.abs(a) <= _SNAP * size, 0.0, a)
             size = math.hypot(*a)
             scale.append(size)
+            widen.append(size)
             a_rows.append(a / size)
             b_rows.append(b / size)
             limits.append(limit)
         a_mat = np.array(a_rows, dtype=float).reshape(len(a_rows), k)
-        return cls(a_mat, np.array(b_rows, dtype=float), np.array(limits, dtype=int), scale, nonlinear, nonlinear_limit)
+        b_vec, limit_vec = np.array(b_rows, dtype=float), np.array(limits, dtype=int)
+        return cls(a_mat, b_vec, limit_vec, scale, widen, nonlinear, nonlinear_limit)
 
 
 _Exact = tuple[dict[str, Fraction], Fraction]
@@ -1116,10 +1273,13 @@ def _exact_difference(first: ast.expr, second: ast.expr, names: list[str]) -> tu
 
     None unless both sides are affine by their syntax (see :func:`_exact_affine`).
     """
+    from process_improve.experiments.designs_constrained import nfkc  # noqa: PLC0415
+
     left, right = _exact_affine(first), _exact_affine(second)
     if left is None or right is None:
         return None
-    coefficients = np.array([float(left[0].get(n, 0) - right[0].get(n, 0)) for n in names])
+    # The parsed names are in NFKC form (#808), the factors' names as given.
+    coefficients = np.array([float(left[0].get(nfkc(n), 0) - right[0].get(nfkc(n), 0)) for n in names])
     return coefficients, float(right[1] - left[1])
 
 

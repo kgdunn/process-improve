@@ -46,9 +46,12 @@ def _run_curvature_test(
     Returns
     -------
     dict[str, Any]
-        ``{"curvature_test": {...}}`` with the two means, their difference, the F statistic
-        (and the equivalent t statistic) on ``(1, df_pure_error)`` degrees of freedom, the
-        p-value and the ``significant`` flag, or an ``error``.
+        ``{"curvature_test": {...}}`` with the two means, their ``difference`` (the factorial
+        mean less the centre mean, ``yF - yC``, as Box, Hunter and Hunter and Montgomery write
+        it: it estimates the sum of the pure quadratic coefficients, b11 + ... + bkk) and its
+        ``std_error``, ``s * sqrt(1/nF + 1/nC)`` with ``s`` from pure error; the F statistic (and
+        the equivalent t statistic, ``difference / std_error``) on ``(1, df_pure_error)`` degrees
+        of freedom, the p-value and the ``significant`` flag, or an ``error``.
     """
     factors = design_df[factor_cols]
     y = design_df[response_col]
@@ -74,22 +77,23 @@ def _run_curvature_test(
 
     y_center_mean = float(y[is_center].mean())
     y_factorial_mean = float(y[is_factorial].mean())
-    difference = y_center_mean - y_factorial_mean
+    difference = y_factorial_mean - y_center_mean
+    std_error = (ms_pe * (1.0 / n_factorial + 1.0 / n_center)) ** 0.5
     ss_curvature = n_factorial * n_center * difference**2 / (n_factorial + n_center)
     f_stat = ss_curvature / ms_pe
     p_value = float(stats.f.sf(f_stat, 1, df_pe))
-    t_stat = (1.0 if difference >= 0 else -1.0) * f_stat**0.5
 
     return {
         "curvature_test": {
             "center_point_mean": y_center_mean,
             "factorial_point_mean": y_factorial_mean,
             "difference": difference,
+            "std_error": float(std_error),
             "ss_curvature": float(ss_curvature),
             "ms_pure_error": float(ms_pe),
             "df_pure_error": int(df_pe),
             "F_statistic": float(f_stat),
-            "t_statistic": float(t_stat),
+            "t_statistic": float(difference / std_error),
             "p_value": p_value,
             "significant": p_value < alpha,
             "significance_level": alpha,

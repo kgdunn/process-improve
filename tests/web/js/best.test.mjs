@@ -5,7 +5,10 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import {
+  BLEND_SENSITIVITY,
+  BLEND_UNCLEAR,
   CONFIRMATION,
+  NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
   CONFIRMS,
   GOOD_END,
@@ -18,6 +21,7 @@ import {
   balanceLeverage,
   balanceRows,
   balanceWhere,
+  blendOverlayCaption,
   dWords,
   goalProblem,
   goalWords,
@@ -26,6 +30,10 @@ import {
   overlayCaption,
   ascentSentence,
   bestContourCaption,
+  blendExtrapolation,
+  blendLead,
+  blendSentences,
+  blendWhere,
   confirmationRows,
   confirmationSentences,
   confirmedAt,
@@ -41,6 +49,7 @@ import {
   num,
   sensitivityCaption,
   settingWords,
+  weighingSentence,
   whereSentences,
   whereWords,
   withConfirmationRuns,
@@ -167,6 +176,13 @@ describe("what the panel says first", () => {
     );
     assert.match(noGoalSentence({ goal: "target", target: null }, WORDS), /^Type the target for Yield in the brief/);
     assert.equal(flatSentence(WORDS), "No term of the model changes Yield, so no setting is better than another.");
+  });
+
+  test("of a mixture, the same lines name the blend", () => {
+    const blend = { blend: true };
+    assert.match(noGoalSentence({ goal: "learn" }, WORDS, blend), /and the page finds the best blend here\.$/);
+    assert.match(noGoalSentence({ goal: "target", target: null }, WORDS, blend), /finds the blend that reaches it\.$/);
+    assert.equal(flatSentence(WORDS, blend), "The model predicts the same Yield for every blend, so no blend is better than another.");
   });
 });
 
@@ -430,6 +446,71 @@ describe("what the confirmation runs show", () => {
   });
 });
 
+describe("a mixture's best blend", () => {
+  const HARDNESS = { label: "Hardness", units: "HV" };
+  const component = (name, value, end = null, more = {}) => ({ name, kind: "component", value, low: 0, high: 1, in_model: true, end, beyond: false, ...more });
+  const BLEND = {
+    goal: "maximize",
+    target: null,
+    predicted: 54.686,
+    reached: null,
+    settings: [component("A", 0.9379), component("B", 0.0621), component("C", 0, "low")],
+    extrapolating: false,
+    rounding: { decimals: 3, adjusted: "A" },
+  };
+
+  test("the lead names the blend and what the model predicts there", () => {
+    assert.equal(blendLead(BLEND, HARDNESS), "This blend gives the highest Hardness the model predicts: 54.69 HV.");
+    assert.equal(blendLead({ ...BLEND, goal: "minimize" }, HARDNESS), "This blend gives the lowest Hardness the model predicts: 54.69 HV.");
+    const reached = { ...BLEND, goal: "target", target: 50, predicted: 50, reached: true };
+    assert.equal(blendLead(reached, HARDNESS), "This blend gives Hardness on its target, 50 HV, as the model predicts.");
+    const missed = { ...BLEND, goal: "target", target: 60, reached: false };
+    assert.equal(blendLead(missed, HARDNESS), "No blend within your bounds reaches the target of 60 HV. This one comes closest: 54.69 HV.");
+  });
+
+  test("each component at a bound, or between its bounds, and whether the goal may be better past a bound set", () => {
+    assert.equal(blendWhere(BLEND.settings[0], BLEND, HARDNESS), "between its bounds");
+    assert.equal(blendWhere(BLEND.settings[2], BLEND, HARDNESS), "at its lower bound, 0");
+    const capped = component("A", 0.7, "high", { low: 0.2, high: 0.7, beyond: true });
+    assert.equal(blendWhere(capped, BLEND, HARDNESS), "at its upper bound, 0.7; a higher Hardness may lie above");
+    const floored = component("B", 0.1, "low", { low: 0.1, high: 0.6, beyond: true });
+    assert.equal(blendWhere(floored, { ...BLEND, goal: "minimize" }, HARDNESS), "at its lower bound, 0.1; a lower Hardness may lie below");
+  });
+
+  test("a blend inside every bound is the top or the bottom of the surface; a target reached, one of many", () => {
+    assert.deepEqual(blendSentences(BLEND), [], "C is at its bound: the table says so");
+    const inside = { ...BLEND, settings: BLEND.settings.map((s) => ({ ...s, end: null })) };
+    assert.deepEqual(blendSentences(inside), ["Every component is between its bounds: this blend is the top of the fitted surface."]);
+    assert.match(blendSentences({ ...inside, goal: "minimize" })[0], /the bottom of the fitted surface\.$/);
+    assert.deepEqual(blendSentences({ ...BLEND, goal: "target", reached: true }), ["Other blends reach the target too."]);
+    assert.deepEqual(blendSentences({ ...inside, goal: "target", reached: false }), []);
+  });
+
+  test("the cautions and the chart's caption name the blend", () => {
+    assert.equal(blendExtrapolation(BLEND), "");
+    assert.match(blendExtrapolation({ ...BLEND, extrapolating: true }), /^This blend lies beyond the runs/);
+    assert.match(BLEND_UNCLEAR, /so this blend may follow the noise\.$/);
+    assert.match(BLEND_SENSITIVITY, /the others keeping their proportions to each other, so the blend still sums to 1\.$/);
+  });
+
+  test("the confirmation runs weigh out the blend, and say which component takes the rounding", () => {
+    assert.equal(
+      weighingSentence(BLEND),
+      "The confirmation runs weigh out each proportion to 0.001, and A takes what the rounding leaves, so the blend still sums to 1.",
+    );
+    assert.equal(weighingSentence({ ...BLEND, rounding: { decimals: 4, adjusted: null } }), "The confirmation runs weigh out each proportion to 0.0001; the blend still sums to 1.");
+    assert.equal(weighingSentence({ ...BLEND, rounding: { decimals: null, adjusted: null } }), "The confirmation runs use the blend as the search found it.");
+  });
+
+  test("confirmation runs at a blend say so", () => {
+    const factors = ["A", "B", "C"].map((name) => ({ name, low: 0, high: 1, units: "" }));
+    const group = { rows: [14], at: { A: 0.938, B: 0.062, C: 0 }, runs: 3, done: 3, mean: 54.2, predicted: 54.69, interval: [53, 56.4], inside: true };
+    const said = confirmationSentences(group, factors, HARDNESS, "this blend");
+    assert.equal(said[0], "3 confirmation runs at A = 0.938, B = 0.062 and C = 0.");
+    assert.match(said[1], /: the model holds at this blend\.$/);
+  });
+});
+
 describe("the settings that balance the responses", () => {
   /** A balance as bootstrap.balance gives it: a yield to maximise and a purity with a target, at T and P. */
   const BALANCE = {
@@ -471,6 +552,30 @@ describe("the settings that balance the responses", () => {
     assert.equal(balanceLead(BALANCE), "These settings balance the responses best: an overall desirability of 0.73.");
     assert.equal(balanceLead({ ...BALANCE, composite: 1 }), "These settings make every response as good as it gets: an overall desirability of 1.");
     assert.match(balanceLead({ ...BALANCE, composite: 0 }), /^No setting in your ranges makes every response acceptable\./);
+    const blend = { blend: true };
+    assert.equal(balanceLead(BALANCE, blend), "This blend balances the responses best: an overall desirability of 0.73.");
+    assert.equal(balanceLead({ ...BALANCE, composite: 1 }, blend), "This blend makes every response as good as it gets: an overall desirability of 1.");
+    assert.match(balanceLead({ ...BALANCE, composite: 0 }, blend), /^No blend within your bounds makes every response acceptable\. This one comes closest/);
+    const none = { ...BALANCE, composite: 0, responses: [{ ...BALANCE.responses[0], d: 0 }, BALANCE.responses[1]] };
+    assert.match(limitingSentence(none, blend), /^At this blend Yield is not acceptable/);
+  });
+
+  test("a mixture's overlay is over its triangle, and four components or more have none", () => {
+    const overlay = {
+      kind: "ternary",
+      components: ["A", "B", "C"],
+      responses: [
+        { name: "Yield", z: [50, 56, 60], levels: [55] },
+        { name: "Purity", z: [98, 98.2, 98.4], levels: [97.5, 99.5] },
+      ],
+    };
+    assert.equal(
+      blendOverlayCaption(overlay, BALANCE.responses),
+      "Each corner is a pure component and each point a blend the bounds allow. Shaded where every response is " +
+        "acceptable; each line is a response's acceptable boundary; the star marks the balanced blend. No line for " +
+        "Purity: it is acceptable at every blend drawn. Narrow a range in the table to draw its boundary.",
+    );
+    assert.match(NO_BLEND_OVERLAY, /^With four components or more the blends fill a solid/);
   });
 
   test("the response that holds D down most is named, with its importance when they differ", () => {

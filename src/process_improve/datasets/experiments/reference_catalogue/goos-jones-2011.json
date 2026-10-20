@@ -8854,26 +8854,44 @@
      "what": "lower_constraint",
      "term": "Time and Temperature",
      "value": "0.03 Time + Temperature ≥ 539.8",
+     "analysis": "the library's straight limit through (360 s, 529 K) and (660 s, 520 K), the cut points from the corner (360 s, 520 K) that cannot be run",
      "where": {
       "page": 100,
       "source_kind": "prose",
       "quote": "Here is the equation of Gray’s lower inequality constraint: 0.03 Time + Temperature ≥ 539.8."
      },
      "check": {
-      "manual": "the line through (360 s, 529 K) and (660 s, 520 K): its slope is -9/300 = -0.03 K per second, and 529 + 0.03 × 360 = 539.8: arithmetic"
+      "kind": "limit_through",
+      "corner": {
+       "time": 360,
+       "temperature": 520
+      },
+      "cuts": {
+       "time": 660,
+       "temperature": 529
+      }
      }
     },
     {
      "what": "upper_constraint",
      "term": "Time and Temperature",
      "value": "0.09 Time + Temperature ≤ 587.8",
+     "analysis": "the library's straight limit through (420 s, 550 K) and (720 s, 523 K), the cut points from the corner (720 s, 550 K) that cannot be run",
      "where": {
       "page": 101,
       "source_kind": "prose",
       "quote": "here is the equation of Gray’s upper inequality constraint: 0.09 Time + Temperature ≤ 587.8."
      },
      "check": {
-      "manual": "the line through (420 s, 550 K) and (720 s, 523 K): its slope is -27/300 = -0.09 K per second, and 550 + 0.09 × 420 = 587.8: arithmetic"
+      "kind": "limit_through",
+      "corner": {
+       "time": 720,
+       "temperature": 550
+      },
+      "cuts": {
+       "time": 420,
+       "temperature": 523
+      }
      }
     },
     {
@@ -10308,7 +10326,7 @@
       "quote": "Note that we cannot increase the time beyond 586 seconds when the temperature is 535 K, because that would violate the second constraint that Gray imposed on the factor settings."
      },
      "check": {
-      "manual": "(587.8 - 535) / 0.09 = 586.7 s, the upper constraint at 535 K: arithmetic"
+      "manual": "(587.8 - 535)/0.09 = 586.7 s, the upper limit at 535 K: arithmetic; the book gives the whole seconds below it, 586"
      }
     },
     {

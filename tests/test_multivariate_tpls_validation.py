@@ -197,3 +197,66 @@ def test_a_non_string_group_name_fits_when_d_and_f_use_the_same_one() -> None:
     mismatched = {**blocks, "F": {"1": blocks["F"]["G"]}}
     with pytest.raises(ValueError, match=r"^The keys in F must match the keys in D\.$"):
         TPLS(n_components=2, d_matrix=numbered_d).fit(DataFrameDict(mismatched))
+
+
+def test_a_row_with_no_y_value_is_predicted_from_its_materials() -> None:
+    """#709: a material not yet tested for anything fitted to 500 iterations and turned every value NaN.
+
+    Each product is one material (F is the identity), and M7 has no Y value at all. Its row
+    now carries no Y information (u = 0), so the fit converges, and M7 is predicted from its
+    D row through F, as a row with only some Y values missing already was.
+    """
+    rng = np.random.default_rng(0)
+    materials = [f"M{i}" for i in range(8)]
+    d = pd.DataFrame(rng.normal(size=(8, 5)), index=materials, columns=[f"p{j}" for j in range(5)])
+    f = pd.DataFrame(np.eye(8), index=materials, columns=materials)
+    y = pd.DataFrame(rng.normal(size=(8, 2)), index=materials, columns=["y1", "y2"])
+    y.loc["M7"] = np.nan
+    model = TPLS(n_components=1, d_matrix={"G": d}).fit(DataFrameDict({"F": {"G": f}, "Z": {}, "Y": {"Q": y}}))
+    assert model.fitting_statistics["iterations"][0] < model.max_iter
+    assert np.isfinite(model.hat["Q"].to_numpy()).all()
+
+
+def test_a_row_with_no_y_value_shapes_no_weight() -> None:
+    """#709: the first component's weights and scores are those of the fit without the row.
+
+    F is passed as given and there is no Z block, so the extra row changes no scaling; Y's
+    centre and scale are worked over the observed values only. The row still has a score.
+    """
+    d_matrix, blocks = _synthetic()
+    blocks["Z"] = {}
+    blocks["F"]["G"] = MCUVScaler().fit_transform(blocks["F"]["G"])
+    gap = copy.deepcopy(blocks)
+    gap["Y"]["Y1"].loc["blend19", "y"] = np.nan
+    fewer = {name: {key: frame.drop(index="blend19") for key, frame in block.items()} for name, block in blocks.items()}
+
+    with_gap = TPLS(n_components=1, d_matrix=d_matrix, skip_f_matrix_preprocessing=True).fit(DataFrameDict(gap))
+    without = TPLS(n_components=1, d_matrix=d_matrix, skip_f_matrix_preprocessing=True).fit(DataFrameDict(fewer))
+
+    np.testing.assert_allclose(with_gap.r_loadings_f["G"], without.r_loadings_f["G"], atol=1e-12)
+    np.testing.assert_allclose(with_gap.s_loadings_d["G"], without.s_loadings_d["G"], atol=1e-12)
+    np.testing.assert_allclose(with_gap.w_loadings_super, without.w_loadings_super, atol=1e-12)
+    shared = without.t_scores_super.index
+    np.testing.assert_allclose(with_gap.t_scores_super.loc[shared], without.t_scores_super, atol=1e-12)
+    assert np.isfinite(with_gap.t_scores_super.loc["blend19"]).all()
+
+
+@pytest.mark.parametrize(
+    ("block", "row", "message"),
+    [
+        ("D", "mat2", "material 'mat2' has no observed value in D block 'G'"),
+        ("F", "blend3", "row 'blend3' has no observed value in F block 'G'"),
+    ],
+)
+def test_a_row_with_nothing_observed_stops_the_fit_at_once(block: str, row: str, message: str) -> None:
+    """#709: a NaN in the iteration never leaves it, so the fit stops and names the row instead of running on."""
+    d_matrix, blocks = _synthetic()
+    if block == "D":
+        d_matrix = {"G": d_matrix["G"].copy()}
+        d_matrix["G"].loc[row] = np.nan
+    else:
+        blocks["F"]["G"].loc[row] = np.nan
+    with pytest.raises(
+        ValueError, match=rf"^TPLS cannot fit component 1: its scores are not finite, because {message}\."
+    ):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))

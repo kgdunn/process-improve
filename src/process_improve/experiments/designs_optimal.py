@@ -571,6 +571,64 @@ def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.
     )
 
 
+def _split_plot_refusal(criterion: str, req: _OptimalRequest) -> str | None:
+    """Why the built-in split-plot search cannot build this request, or ``None`` when it can."""
+    from process_improve.experiments.designs_split_plot import CRITERIA  # noqa: PLC0415
+
+    asked = {
+        "constraints are given": bool(req.constraints),
+        "a candidate set is given": req.candidates is not None,
+        "fixed runs are given (backend='pyoptex' keeps them in a split-plot design)": req.fixed_runs is not None,
+        "blocks are asked for": bool(req.n_blocks and req.n_blocks > 1),
+        f"the split-plot search has no {criterion[0].upper()}-optimality criterion": criterion not in CRITERIA,
+    }
+    reasons = [reason for reason, given in asked.items() if given]
+    return "; ".join(reasons) or None
+
+
+def _native_split_plot(criterion: str, req: _OptimalRequest, budget: int) -> tuple[np.ndarray, dict]:
+    """Build a split-plot design by the built-in coordinate exchange on the GLS information."""
+    from process_improve.experiments.designs_split_plot import SplitPlotOptions, split_plot_design  # noqa: PLC0415
+
+    hard_to_change = list(req.hard_to_change or [])
+    options = SplitPlotOptions(
+        criterion=criterion,
+        model_type=req.model_type,
+        n_whole_plots=_whole_plot_count(req.factors, hard_to_change, budget, req.model_type),
+        variance_ratio=_WHOLE_PLOT_VARIANCE_RATIO,
+    )
+    return split_plot_design(req.factors, hard_to_change, budget, options, req.random_state)
+
+
+def _candidate_exchange(
+    criterion: str, req: _OptimalRequest, budget: int, refusal: str | None
+) -> tuple[np.ndarray, dict]:
+    """Build the design by the built-in candidate exchange; ``hard_to_change`` is ignored, with a warning."""
+    from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+        ConstrainedOptions,
+        constrained_optimal_design,
+    )
+
+    prior = _prepare_prior_runs(req.fixed_runs, req.factors, budget) if req.fixed_runs is not None else None
+    options = ConstrainedOptions(
+        model_type=req.model_type,
+        criterion=criterion,
+        fixed_runs=prior,
+        candidates=req.candidates,
+        n_blocks=req.n_blocks,
+    )
+    matrix, meta = constrained_optimal_design(req.factors, budget, req.constraints or [], options, req.random_state)
+    if req.hard_to_change:
+        warnings.warn(
+            f"hard_to_change={list(req.hard_to_change)} is ignored, so this is an ordinary (not a split-plot) "
+            f"design: {refusal}. metadata['hard_to_change_ignored'] records it.",
+            category=UserWarning,
+            stacklevel=3,
+        )
+        meta["hard_to_change_ignored"] = list(req.hard_to_change)
+    return matrix, meta
+
+
 def _pyoptex_blocker(criterion: str, req: _OptimalRequest) -> str | None:
     """Why pyoptex cannot build this request, or ``None`` when it can."""
     if req.constraints:
@@ -588,13 +646,15 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
     """Route a D-, I-, A- or E-optimal request to the backend that can honour it.
 
     - Mixture factors go to the constrained-simplex engine with a Scheffé model.
-    - By default the built-in candidate exchange runs
+    - By default the built-in engines run, so the design does not depend on whether pyoptex
+      is installed: for a split-plot design (``hard_to_change``) the coordinate exchange of
+      :func:`~process_improve.experiments.designs_split_plot.split_plot_design`, otherwise the
+      candidate exchange
       (:func:`~process_improve.experiments.designs_constrained.constrained_optimal_design`),
       which handles every criterion, constraints, candidate sets, categorical factors and
-      fixed runs, so the design does not depend on whether pyoptex is installed.
-    - pyoptex's coordinate exchange runs for split-plot designs (``hard_to_change``), when
-      it is installed and nothing it cannot honour is asked for, or for
-      ``backend="pyoptex"``. Otherwise ``hard_to_change`` is ignored and recorded.
+      fixed runs. When the split-plot search cannot honour the request (see
+      :func:`_split_plot_refusal`), ``hard_to_change`` is ignored and recorded.
+    - pyoptex's coordinate exchange runs for ``backend="pyoptex"``.
     """
     from process_improve.experiments.factor import FactorType  # noqa: PLC0415
 
@@ -619,38 +679,16 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
 
     if req.backend not in ("auto", "exchange", "pyoptex"):
         raise ValueError(f"backend must be 'auto', 'exchange' or 'pyoptex'; got {req.backend!r}.")
+    if req.backend != "pyoptex":
+        # The built-in engines are the default, so a design does not depend on which optional packages
+        # are installed: the coordinate exchange for split-plot structure, the candidate exchange otherwise.
+        refusal = _split_plot_refusal(criterion, req) if req.hard_to_change else None
+        if req.hard_to_change and refusal is None:
+            return _native_split_plot(criterion, req, budget)
+        return _candidate_exchange(criterion, req, budget, refusal)
     blocker = _pyoptex_blocker(criterion, req)
-    if req.backend == "pyoptex" and blocker is not None:
+    if blocker is not None:
         raise ValueError(f"backend='pyoptex' cannot be used here: {blocker}.")
-    # The built-in exchange is the default, so a design does not depend on which optional
-    # packages are installed; pyoptex runs for split-plot structure or when asked for.
-    use_pyoptex = req.backend == "pyoptex" or (req.backend == "auto" and bool(req.hard_to_change) and blocker is None)
-    if not use_pyoptex:
-        from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
-            ConstrainedOptions,
-            constrained_optimal_design,
-        )
-
-        prior = _prepare_prior_runs(req.fixed_runs, req.factors, budget) if req.fixed_runs is not None else None
-        options = ConstrainedOptions(
-            model_type=req.model_type,
-            criterion=criterion,
-            fixed_runs=prior,
-            candidates=req.candidates,
-            n_blocks=req.n_blocks,
-        )
-        matrix, meta = constrained_optimal_design(req.factors, budget, req.constraints or [], options, req.random_state)
-        if req.hard_to_change:
-            reason = blocker or "backend='exchange' was requested"
-            warnings.warn(
-                f"hard_to_change={list(req.hard_to_change)} is ignored, so this is an ordinary (not a split-plot) "
-                f"design: {reason}. metadata['hard_to_change_ignored'] records it.",
-                category=UserWarning,
-                stacklevel=2,
-            )
-            meta["hard_to_change_ignored"] = list(req.hard_to_change)
-        return matrix, meta
-
     return _run_pyoptex(
         req.factors,
         criterion=criterion,
@@ -680,10 +718,13 @@ _DISPATCH_PARAMETERS = """
         the model is raised, with a warning, and recorded in
         ``metadata["budget_requested"]``.
     hard_to_change : list[str] or None
-        Names of hard-to-change factors: a split-plot design via pyoptex. A name that
-        is not a factor raises ``ValueError``. Ignored, with a warning, and recorded as
-        ``hard_to_change_ignored``, whenever the built-in exchange builds the design:
-        with constraints, a candidate set or E-optimality, or without pyoptex.
+        Names of hard-to-change factors: a split-plot design, found by the built-in
+        coordinate exchange on the GLS information (see
+        :func:`~process_improve.experiments.designs_split_plot.split_plot_design`), or by
+        pyoptex with ``backend="pyoptex"``. A name that is not a factor raises
+        ``ValueError``. Ignored, with a warning, and recorded as ``hard_to_change_ignored``,
+        when the design is built by the candidate exchange: with constraints, a candidate
+        set, fixed runs (unless ``backend="pyoptex"``), blocks, or the E-, G- or K-criterion.
     constraints : list[Constraint] or None
         Inequalities in actual units over the continuous factors, e.g.
         ``"3*T + 5*D <= 600"``. Enforced: every run the optimizer places satisfies
@@ -703,7 +744,8 @@ _DISPATCH_PARAMETERS = """
         a constraint are dropped. ``metadata["selected_candidates"]`` counts how often
         each row (by index label) was picked.
     backend : {"auto", "exchange", "pyoptex"}
-        ``"auto"`` uses the built-in exchange, and pyoptex only for ``hard_to_change``.
+        ``"auto"`` and ``"exchange"`` use the built-in engines: the coordinate exchange for a
+        split-plot design, the candidate exchange otherwise. ``"pyoptex"`` asks for pyoptex.
     n_blocks : int or None
         Blocks the design is run in. With the built-in exchange, the blocks are fixed
         effects in the model the runs are chosen for, and ``metadata["block_labels"]``
@@ -714,7 +756,7 @@ _DISPATCH_PARAMETERS = """
     -------
     tuple[np.ndarray, dict]
         The coded design and its metadata; ``metadata["backend"]`` names the engine
-        (``"pyoptex"`` or ``"candidate_exchange"``).
+        (``"split_plot_exchange"``, ``"candidate_exchange"`` or ``"pyoptex"``).
 """
 
 

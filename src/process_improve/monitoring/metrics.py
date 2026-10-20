@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy import stats
 from sklearn.utils import Bunch
 
 from ..univariate.metrics import Sn
@@ -58,6 +59,12 @@ def calculate_cpk(  # noqa: C901
           percentage: ``spread / center-of-the-data * 100``. (Earlier versions
           divided by the distance-to-spec centre, which is not an RSD of
           anything and changed value when the spec limit moved.)
+        * ``defects_per_million``: the parts per million outside the specifications
+          of a normal process with this capability, ``(Phi(-3 Cpk_lower) +
+          Phi(-3 Cpk_upper)) x 10^6``, ``2 Phi(-3 Cp) x 10^6`` when the process is
+          centred; a side with no capability (NaN) adds nothing.
+        * ``defects_per_million_nearer``: those beyond the nearer specification
+          alone, ``Phi(-3 Cpk) x 10^6``.
 
     Notes
     -----
@@ -135,7 +142,15 @@ def calculate_cpk(  # noqa: C901
     # specification sat). data_center / data_spread are computed from the data
     # column directly above, alongside the per-side statistics.
     rsd = (data_spread / data_center) * 100 if abs(data_center) > 0 else float("nan")
-    return Bunch(cpk=cpk, center=center, spread=spread, rsd=rsd)
+    outside = stats.norm.cdf(-3 * np.array([cpk_lower, cpk_upper])) * 1e6
+    return Bunch(
+        cpk=cpk,
+        center=center,
+        spread=spread,
+        rsd=rsd,
+        defects_per_million=float(np.nansum(outside)) if not np.isnan(outside).all() else float("nan"),
+        defects_per_million_nearer=float(stats.norm.cdf(-3 * cpk) * 1e6),
+    )
 
 
 _RENAMED = {"calculate_Cpk": "calculate_cpk"}

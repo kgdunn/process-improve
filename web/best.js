@@ -201,24 +201,26 @@ export function sensitivityCaption(best) {
 export const UNCLEAR =
   "No term of the model is clearly larger than the noise (every p-value is 0.05 or above), so these settings may follow the noise.";
 
-/** What the panel says for a goal of learning, or a target not yet typed. */
-export function noGoalSentence(best, { label }) {
-  if (best.goal === "target") return `Type the target for ${label} in the brief, and the page finds the settings that reach it.`;
-  return `Set a goal for ${label} in the brief, to maximise, minimise or hit a target, and the page finds the best settings here.`;
+/** What the panel says for a goal of learning, or a target not yet typed; of a mixture's best blend with ``blend``. */
+export function noGoalSentence(best, { label }, { blend = false } = {}) {
+  if (best.goal === "target") {
+    return `Type the target for ${label} in the brief, and the page finds the ${blend ? "blend that reaches" : "settings that reach"} it.`;
+  }
+  return `Set a goal for ${label} in the brief, to maximise, minimise or hit a target, and the page finds the best ${blend ? "blend" : "settings"} here.`;
 }
 
-/** What the panel says for a mixture: the search keeps each factor to its range, and a blend's proportions to no sum. */
-export const mixtureSentence = ({ label }) =>
-  `The page does not yet search a mixture's blends for the one that best meets the goal for ${label}. The charts below show the fitted ${label} over the blends.`;
-
-/** What the panel says when no term of the model changes the response. */
-export const flatSentence = ({ label }) => `No term of the model changes ${label}, so no setting is better than another.`;
+/** What the panel says when no term of the model changes the response; of a mixture's blends with ``blend``. */
+export const flatSentence = ({ label }, { blend = false } = {}) =>
+  blend
+    ? `The model predicts the same ${label} for every blend, so no blend is better than another.`
+    : `No term of the model changes ${label}, so no setting is better than another.`;
 
 /**
  * What the page says of one group of confirmation runs: where they are, and once their results are in, whether
  * their average falls inside the prediction interval for an average of that many runs, and what that means.
+ * ``where`` names the place the runs test: "these settings", or "this blend" for a mixture's.
  */
-export function confirmationSentences(group, factors, { label, units }) {
+export function confirmationSentences(group, factors, { label, units }, where = "these settings") {
   const unitsOf = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = listed(
     factors.map((f) => (typeof group.at[f.name] === "string" ? `${f.name} at ${group.at[f.name]}` : `${f.name} = ${withUnit(group.at[f.name], unitsOf[f.name])}`)),
@@ -238,11 +240,67 @@ export function confirmationSentences(group, factors, { label, units }) {
   const average = `The average of ${group.done === 1 ? "the one result" : `their ${runs(group.done)}`}, ${withUnit(group.mean, units)},`;
   const interval = `the 95% prediction interval for the average of ${runs(group.done)}, ${range}`;
   return group.inside
-    ? [`${head}${some}`, `${average} is inside ${interval}: the model holds at these settings.`]
+    ? [`${head}${some}`, `${average} is inside ${interval}: the model holds at ${where}.`]
     : [
         `${head}${some}`,
-        `${average} is outside ${interval}: the process differs from the model at these settings, so the model misses something there. Look for a term it lacks, or a change in the process.`,
+        `${average} is outside ${interval}: the process differs from the model at ${where}, so the model misses something there. Look for a term it lacks, or a change in the process.`,
       ];
+}
+
+// ---------------------------------------------------------------- a mixture's best blend
+/**
+ * What the panel says first of a mixture's best blend: the prediction it gives, and that it is the goal's best. The
+ * proportions follow in a table. ``words`` is the response's {label, units}.
+ */
+export function blendLead(best, { label, units }) {
+  const predicted = withUnit(best.predicted, units);
+  if (best.goal !== "target") return `This blend gives the ${SUPERLATIVE[best.goal]} ${label} the model predicts: ${predicted}.`;
+  if (best.reached) return `This blend gives ${label} on its target, ${withUnit(best.target, units)}, as the model predicts.`;
+  return `No blend within your bounds reaches the target of ${withUnit(best.target, units)}. This one comes closest: ${predicted}.`;
+}
+
+/**
+ * Where a component's proportion lies, as the table of the best blend says it: at its lower or upper bound, and
+ * whether the goal may be better past a bound you set, or between its bounds.
+ */
+export function blendWhere(setting, best = null, { label = "" } = {}) {
+  if (!setting.end) return "between its bounds";
+  const [which, bound, past] = setting.end === "high" ? ["upper", setting.high, "above"] : ["lower", setting.low, "below"];
+  const at = `at its ${which} bound, ${num(bound)}`;
+  return setting.beyond ? `${at}; ${better(best, label)} may lie ${past}` : at;
+}
+
+/**
+ * What the table of the best blend cannot say, a sentence each: a target that other blends reach too, or a blend with
+ * every component between its bounds, which is then the top (or the bottom) of the fitted surface.
+ */
+export function blendSentences(best) {
+  if (best.goal === "target") return best.reached ? ["Other blends reach the target too."] : [];
+  if ((best.settings ?? []).some((s) => s.end)) return [];
+  return [`Every component is between its bounds: this blend is the ${best.goal === "maximize" ? "top" : "bottom"} of the fitted surface.`];
+}
+
+/** What the panel says when the best blend leans on the model beyond the runs; else nothing. */
+export const blendExtrapolation = (best) =>
+  best.extrapolating ? "This blend lies beyond the runs, so the prediction leans on the model there: confirm it with a run." : "";
+
+/** The caution when no test of a mixture's model finds anything clearly larger than the noise. */
+export const BLEND_UNCLEAR =
+  "No test of the model finds the blends differ by more than the noise (every p-value is 0.05 or above), so this blend may follow the noise.";
+
+/** What the chart of how tightly to weigh out each component moves: each along its Cox direction. */
+export const BLEND_SENSITIVITY =
+  "Each component is moved with the others keeping their proportions to each other, so the blend still sums to 1.";
+
+/**
+ * How the confirmation runs weigh out the best blend: each proportion rounded, and the component that takes what the
+ * rounding leaves, so the blend still sums to 1 (bootstrap._weighed).
+ */
+export function weighingSentence(best) {
+  const { decimals = null, adjusted = null } = best.rounding ?? {};
+  if (decimals === null) return "The confirmation runs use the blend as the search found it.";
+  const each = `The confirmation runs weigh out each proportion to ${(10 ** -decimals).toFixed(decimals)}`;
+  return adjusted ? `${each}, and ${adjusted} takes what the rounding leaves, so the blend still sums to 1.` : `${each}; the blend still sums to 1.`;
 }
 
 /**
@@ -346,14 +404,18 @@ export function goalProblem(r, low, high) {
 
 /**
  * What the balance panel says first: how good the balance is, as the overall desirability D. With D of 0, no setting
- * makes every response acceptable, and the settings shown are those that come closest.
+ * makes every response acceptable, and the settings shown are those that come closest. Of a mixture's blend with
+ * ``blend``.
  */
-export function balanceLead(b) {
+export function balanceLead(b, { blend = false } = {}) {
   if (b.composite <= 0) {
-    return "No setting in your ranges makes every response acceptable. These settings come closest: widen an acceptable range to find a balance.";
+    return blend
+      ? "No blend within your bounds makes every response acceptable. This one comes closest: widen an acceptable range to find a balance."
+      : "No setting in your ranges makes every response acceptable. These settings come closest: widen an acceptable range to find a balance.";
   }
-  if (b.composite >= 1) return "These settings make every response as good as it gets: an overall desirability of 1.";
-  return `These settings balance the responses best: an overall desirability of ${dWords(b.composite)}.`;
+  const these = blend ? "This blend" : "These settings";
+  if (b.composite >= 1) return `${these} ${blend ? "makes" : "make"} every response as good as it gets: an overall desirability of 1.`;
+  return `${these} ${blend ? "balances" : "balance"} the responses best: an overall desirability of ${dWords(b.composite)}.`;
 }
 
 /**
@@ -361,11 +423,11 @@ export function balanceLead(b) {
  * importance, is lowest. Its importance is said when the importances differ. Nothing when every response is as good
  * as it gets; with D of 0, the responses not acceptable at these settings.
  */
-export function limitingSentence(b) {
+export function limitingSentence(b, { blend = false } = {}) {
   if (b.composite >= 1) return "";
   if (b.composite <= 0) {
     const out = b.responses.filter((r) => r.d <= 0).map((r) => r.label);
-    return `At these settings ${listed(out)} ${out.length === 1 ? "is" : "are"} not acceptable: a desirability of 0.`;
+    return `At ${blend ? "this blend" : "these settings"} ${listed(out)} ${out.length === 1 ? "is" : "are"} not acceptable: a desirability of 0.`;
   }
   const r = b.responses.find((one) => one.name === b.limiting);
   const differ = new Set(b.responses.map((one) => one.importance)).size > 1;
@@ -429,6 +491,27 @@ export function overlayCaption(overlay, factors = [], responses = []) {
     missed(nowhere, "not acceptable at any setting drawn")
   );
 }
+
+/**
+ * The caption of a mixture's overlay of the acceptable ranges over its triangle: what the shading, the lines and the
+ * star mean, and why a response has no line. ``responses`` are the balance's, for each one's label, goal and range.
+ */
+export function blendOverlayCaption(overlay, responses = []) {
+  const { everywhere, nowhere } = missedBoundaries(overlay, responses);
+  const missed = (labels, said) => (labels.length ? ` No line for ${listed(labels)}: ${labels.length === 1 ? "it is" : "they are"} ${said}.` : "");
+  const narrow = everywhere.length ? " Narrow a range in the table to draw its boundary." : "";
+  return (
+    "Each corner is a pure component and each point a blend the bounds allow. Shaded where every response is " +
+    "acceptable; each line is a response's acceptable boundary; the star marks the balanced blend." +
+    missed(everywhere, "acceptable at every blend drawn") +
+    narrow +
+    missed(nowhere, "not acceptable at any blend drawn")
+  );
+}
+
+/** Why a mixture of four components or more has no overlay of the acceptable ranges. */
+export const NO_BLEND_OVERLAY =
+  "With four components or more the blends fill a solid, which no picture of a triangle holds, so no overlay is drawn.";
 
 /**
  * The responses whose acceptable boundary misses the settings the overlay draws, by what that means: acceptable at
