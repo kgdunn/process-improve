@@ -2365,9 +2365,9 @@ def _t_test(experiment: dict, check: dict) -> float:
         test = ttest_paired(runs - minus.to_numpy(), conflevel=confidence)
         found = {
             "difference": test["Differences mean"],
-            "t": test["z value"],  # the library's paired test names its t statistic "z value"
-            "std_error": test["Standard deviation"],  # and the standard error of the mean difference so
-            "std_dev": test["Standard deviation"] * len(runs) ** 0.5,
+            "t": test["t value"],
+            "std_error": test["Std error of mean difference"],
+            "std_dev": test["Std dev of differences"],
         }
     else:
         test = ttest_independent(minus, runs, conflevel=confidence, equal_var=check.get("test") != "welch")

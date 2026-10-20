@@ -677,7 +677,8 @@ def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: Regression
 def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
     """Return the coefficients, or their confidence intervals, on the scale ``coding`` asks for."""
     ols = fit.coefficient_fit()
-    result = _run_coefficients(ols) if analysis == "coefficients" else _run_confidence_intervals(ols, fit.alpha)
+    extract = _run_coefficients if analysis == "coefficients" else _run_confidence_intervals
+    result = extract(ols, fit.alpha)
     for row in result[analysis]:
         row["term"] = _readable(row["term"])
     result["coding"] = "actual" if fit.coding == "actual" else "coded"
@@ -685,7 +686,7 @@ def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
         result["factor_coding"] = coding
     if analysis == "coefficients" and ols is not fit.ols:
         # The equation in the factors' own units, for whoever needs to evaluate it there.
-        result["coefficients_actual"] = _run_coefficients(fit.ols)["coefficients"]
+        result["coefficients_actual"] = _run_coefficients(fit.ols, fit.alpha)["coefficients"]
     return result
 
 
@@ -853,8 +854,9 @@ def analyze_experiment(  # noqa: PLR0913
         interaction, the coefficient itself for a square such as ``I(A**2)``. The curvature test uses
         pure error from the replicated runs.
 
-        Each of the ``"coefficients"`` carries its ``std_error``, ``t_value``, ``p_value``,
-        ``ci_low`` and ``ci_high``, and its ``standardised_coefficient``: the coefficient
+        Each of the ``"coefficients"`` carries its ``std_error``, ``t_value``, ``p_value``, its
+        interval ``ci_low`` to ``ci_high`` at the ``confidence_level`` of 1 - ``significance_level``,
+        and its ``standardised_coefficient``: the coefficient
         times the standard deviation of its column of the model matrix, over the standard
         deviation of the response (the "beta" coefficient, MYSTAT's STD COEF). It has no
         units, so terms in different units compare; the intercept's is 0. Like the
