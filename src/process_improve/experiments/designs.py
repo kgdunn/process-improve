@@ -520,6 +520,43 @@ _OWN_CENTER_RUNS = frozenset({"dsd", "omars", "omars_ilp"})
 _FIXED_SIZE = frozenset({"full_factorial", "fractional_factorial", "plackett_burman", "box_behnken", "ccd", "taguchi"})
 
 
+def _center_points_by_rule(
+    n_center_points: int | str | None,
+    design_type: str | None,
+    factors: list[Factor],
+    alpha: str | float | None,
+    ccd: dict[str, Any],
+) -> tuple[int | None, str | float | None]:
+    """Turn a rule named for a CCD's centre runs into their number, and the axial distance it assumes.
+
+    Box and Hunter's rules hold for a rotatable design in one block, so the design is made rotatable.
+    *ccd* holds the composite design's ``cube``, ``generators``, ``resolution``, ``n_replicates`` and
+    ``n_blocks``. A number of centre runs (or ``None``) passes through unchanged.
+    """
+    if not isinstance(n_center_points, str):
+        return n_center_points, alpha
+    from process_improve.experiments.designs_response_surface import (  # noqa: PLC0415
+        _fractional_cube,
+        ccd_center_points,
+    )
+
+    if design_type != "ccd":
+        raise ValueError(
+            f"n_center_points={n_center_points!r} names a rule for a central composite design; "
+            f"design_type={design_type!r} takes a number of centre runs."
+        )
+    if alpha not in (None, "rotatable") or (ccd["n_blocks"] or 1) > 1:
+        raise ValueError(
+            f"n_center_points={n_center_points!r} is Box and Hunter's rule for a rotatable CCD in one block; "
+            f"with alpha={alpha!r} and n_blocks={ccd['n_blocks']!r}, give the number of centre runs instead."
+        )
+    k = len(factors)
+    cube_runs = (
+        2**k if ccd["cube"] == "full" else len(_fractional_cube(factors, ccd["generators"], ccd["resolution"])[0])
+    )
+    return ccd_center_points(n_center_points, cube_runs, k, ccd["n_replicates"]), "rotatable"
+
+
 def _check_counts(n_center_points: int | None, n_replicates: int, n_blocks: int | None) -> None:
     """Raise for a centre-point, replicate or block count that cannot be meant literally."""
     if n_center_points is not None and (int(n_center_points) != n_center_points or n_center_points < 0):
@@ -698,7 +735,7 @@ def generate_design(  # noqa: PLR0913
     factors: list[Factor],
     design_type: str | None = None,
     budget: int | None = None,
-    n_center_points: int | None = None,
+    n_center_points: int | str | None = None,
     n_replicates: int = 1,
     n_blocks: int | None = None,
     resolution: int | None = None,
@@ -747,7 +784,7 @@ def generate_design(  # noqa: PLR0913
         foldover size within it). A family whose size the design structure fixes
         (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
         ``ValueError`` when it needs more runs than *budget*.
-    n_center_points : int or None
+    n_center_points : int, str or None
         Number of centre runs in the whole design: they are not replicated with
         *n_replicates*. ``None`` (the default) means 3 for the full and
         fractional factorials, Plackett-Burman, CCD and Box-Behnken designs, and the
@@ -760,7 +797,10 @@ def generate_design(  # noqa: PLR0913
         model no error degrees of freedom (the default for an even number of factors)
         warns, since :func:`analyze_omars` could not test its effects; extra centre runs
         fix that. Any other design type takes no centre points, so a positive value
-        raises ``ValueError``.
+        raises ``ValueError``. For a CCD, ``"uniform_precision"`` or ``"orthogonal"``
+        sets the number by Box and Hunter's rule for a rotatable design in one block
+        (:func:`~process_improve.experiments.designs_response_surface.ccd_center_points`),
+        and makes the design rotatable: four factors get 7 or 12 centre runs.
     n_replicates : int
         Number of replicates of the design's runs, centre runs excepted (default 1 =
         no replication): a 2^3 factorial with ``n_center_points=3`` and
@@ -889,6 +929,9 @@ def generate_design(  # noqa: PLR0913
     if not factors:
         raise ValueError("At least one factor must be provided.")
     constraints = _as_constraints(constraints)
+    ccd = {"cube": cube, "generators": generators, "resolution": resolution, "n_replicates": n_replicates}
+    ccd["n_blocks"] = n_blocks
+    n_center_points, alpha = _center_points_by_rule(n_center_points, design_type, factors, alpha, ccd)
     _check_counts(n_center_points, n_replicates, n_blocks)
 
     auto_selected = design_type is None
