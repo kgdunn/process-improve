@@ -120,6 +120,11 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.surface_checks
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.trade_off
    :members:
    :show-inheritance:
