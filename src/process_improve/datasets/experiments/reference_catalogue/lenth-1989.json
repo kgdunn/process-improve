@@ -594,7 +594,7 @@
       "k": 9,
       "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
       "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
-      "printed": "RP, WC",
+      "up_to": 2,
       "disagreement": "the defining relation of P = WCR, M = -TWCR, A = -TR, O = -TC and H = TCR makes WC = RP = MA, so the printed chain 'WC, RP, WC' has WC twice where MA belongs; every other chain of Table 3 agrees as printed"
      }
     },
