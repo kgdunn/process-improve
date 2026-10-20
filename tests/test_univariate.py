@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import warnings
 
 import numpy as np
@@ -301,7 +302,7 @@ def test_t_paried_test_differences() -> None:
     assert row["Group A average"][0] == pytest.approx(8.216667, rel=1e-7)
     assert row["Group B average"][0] == pytest.approx(6.040833, rel=1e-7)
     assert row["Differences mean"][0] == pytest.approx(2.175833, rel=1e-6)
-    assert row["z value"][0] == pytest.approx(2.8139, rel=1e-4)
+    assert row["t value"][0] == pytest.approx(2.8139, rel=1e-4)
     assert row["p value"][0] == pytest.approx(0.01685, rel=1e-4)
     assert row["ConfInt: Lo"][0] == pytest.approx(0.4739104, rel=1e-7)
     assert row["ConfInt: Hi"][0] == pytest.approx(3.8777563, rel=1e-7)
@@ -882,6 +883,42 @@ def test_ttest_independent_correctly_named_fields() -> None:
 
     # The aliases removed in 2.0.0 are gone, so reading them raises KeyError.
     assert {"z value", "Pooled standard deviation"}.isdisjoint(out)
+
+
+def test_ttest_paired_correctly_named_keys() -> None:
+    """The paired test's statistic is a t statistic, and its standard error is not a standard deviation (#782)."""
+    d = pd.Series([1.0, 2.0, 3.0, 4.0])
+    out = univariate.ttest_paired(d, conflevel=0.95)
+    assert out["t value"] == pytest.approx(stats.ttest_1samp(d, 0).statistic)  # 3.873
+    assert out["Std dev of differences"] == pytest.approx(d.std(ddof=1))  # 1.291
+    assert out["Std error of mean difference"] == pytest.approx(d.std(ddof=1) / 2)
+    assert out["p value"] == pytest.approx(stats.ttest_1samp(d, 0).pvalue)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"), [("z value", "t value"), ("Standard deviation", "Std error of mean difference")]
+)
+def test_ttest_paired_old_keys_warn_and_hold_the_same_number(old: str, new: str) -> None:
+    out = univariate.ttest_paired(pd.Series([1.0, 2.0, 3.0, 4.0]), conflevel=0.95)
+    pattern = rf"\[{old!r}\] is deprecated since 2\.1\.0 and will be removed in 3\.0; use \[{new!r}\]"
+    with pytest.warns(DeprecationWarning, match=pattern) as record:
+        value = out[old]
+    assert record[0].filename == __file__  # the warning points at the line that read the key
+    with pytest.warns(DeprecationWarning, match=pattern):
+        assert out.get(old) == value
+    assert value == out[new]
+
+
+def test_ttest_paired_read_whole_does_not_warn() -> None:
+    """Only reading an old key by name warns: copying, serialising and the DataFrame form stay quiet."""
+    out = univariate.ttest_paired(pd.Series([1.0, 2.0, 3.0, 4.0]), conflevel=0.95)
+    df = pd.DataFrame({"group": ["A"] * 3 + ["B"] * 3, "value": [5.0, 6.0, 8.0, 4.0, 4.5, 6.0]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        assert dict(out)["z value"] == out["t value"]
+        json.dumps({key: float(value) for key, value in out.items()})
+        table = univariate.ttest_paired_from_df(df, grouper_column="group", values_column="value", conflevel=0.95)
+    assert {"t value", "Std error of mean difference", "Std dev of differences"} <= set(table.columns)
 
 
 @pytest.mark.parametrize("equal_var", [True, False])

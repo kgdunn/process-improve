@@ -38,6 +38,7 @@ from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
+from process_improve.experiments.designs_three_level import MODULUS
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
@@ -1757,7 +1758,7 @@ def _compute_minimum_aberration(ctx: _EvalContext) -> dict[str, Any]:
         return {
             "minimum_aberration": {
                 "wordlength_pattern": [],
-                "note": "Not a fractional factorial design.",
+                "note": "Not a two-level fractional factorial design.",
             }
         }
 
@@ -2011,12 +2012,13 @@ def evaluate_design(  # noqa: PLR0913
     model : str or None
         Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``, a
         Scheffé mixture model (``"scheffe_linear"``, ``"scheffe_quadratic"``,
-        ``"scheffe_special_cubic"``), or an explicit patsy formula.  Over a
+        ``"scheffe_special_cubic"``, ``"scheffe_cubic"``), or an explicit patsy formula.  Over a
         mixture region the process-model names map to Scheffé models as in
         :func:`generate_design` (``"interactions"`` and ``"quadratic"`` to
         ``"scheffe_quadratic"``, ``"special_cubic"`` to
-        ``"scheffe_special_cubic"``), and ``None`` means the model the design was
-        generated for, else ``"scheffe_quadratic"``; otherwise ``None`` means
+        ``"scheffe_special_cubic"``, ``"cubic"`` to ``"scheffe_cubic"``), and
+        ``None`` means the model the design was generated for, else
+        ``"scheffe_quadratic"``; otherwise ``None`` means
         ``"interactions"``.  A formula may name a ``Block`` column (``"A + B +
         Block"``) to include the blocks as a categorical factor; otherwise the
         blocks are left out and a note says so.
@@ -2153,7 +2155,9 @@ def evaluate_design(  # noqa: PLR0913
 
     if isinstance(design_matrix, DesignResult):
         design_type = design_matrix.design_type
-        generators = design_matrix.generators
+        # A three-level fraction's generators work modulo 3, and the relation and alias metrics below
+        # modulo 2, so they read its recorded relation and resolution instead.
+        generators = None if design_matrix.metadata.get("modulus") == MODULUS else design_matrix.generators
         defining_relation = design_matrix.defining_relation
         resolution = design_matrix.resolution
         factor_names = list(design_matrix.factor_names)

@@ -749,7 +749,7 @@ def _generated_specs() -> list[dict[str, Any]]:
         for k in range(2, 5)
     ]
     specs += [{"design_type": "supersaturated", "k": k, "options": {}} for k in (10, 14, 18, 22)]
-    for model in ("linear", "quadratic", "special_cubic"):
+    for model in ("linear", "quadratic", "special_cubic", "cubic"):
         specs += [{"design_type": "mixture", "k": k, "options": {"model_type": model}} for k in range(3, 6)]
     specs += [{"design_type": "taguchi", "array": name, "options": {}} for name in ORTHOGONAL_ARRAY_NAMES]
     return specs

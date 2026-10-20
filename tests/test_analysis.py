@@ -15,6 +15,7 @@ from scipy import stats
 from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
+from process_improve.experiments._analyses.ols_extractors import _type_ii_by_rank
 from process_improve.experiments.analysis import (
     analyze_experiment,
     build_formula,
@@ -295,6 +296,99 @@ class TestAnova:
         sources = [r["source"] for r in result["anova_table"]]
         assert "A" in sources
         assert "B" in sources
+
+
+#: Davies (1956), Example 5-5: the strength of synthetic yarn in four 3 x 3 Graeco-Latin squares. Each
+#: run is "time day twist-draw strength"; the three times and three days of a square occur in it only.
+_YARN = {
+    "I": "1 4 AY 4.53;9 4 BX 4.25;12 4 CZ 3.97;1 9 CX 4.05;9 9 AZ 3.05;12 9 BY 3.61;1 12 BZ 4.4;9 12 CY 2.78;"
+    "12 12 AX 3.32",
+    "II": "2 1 CZ 3.58;6 1 BX 4.48;8 1 AY 4.29;2 3 AX 4.68;6 3 CY 3.85;8 3 BZ 3.23;2 6 BY 4.5;6 6 AZ 4.07;8 6 CX 3.71",
+    "III": "3 5 BX 4.76;7 5 AY 3.22;10 5 CZ 4.01;3 8 CY 4.54;7 8 BZ 2.97;10 8 AX 4.1;3 10 AZ 4.3;7 10 CX 3.09;"
+    "10 10 BY 3.97",
+    "IV": "4 2 AZ 4.1;5 2 BY 4.18;11 2 CX 3.46;4 7 CY 4.35;5 7 AX 4.6;11 7 BZ 3.76;4 11 BX 4.26;5 11 CZ 3.35;"
+    "11 11 AY 2.5",
+}
+
+
+def _yarn() -> pd.DataFrame:
+    runs = [run.split() for runs in _YARN.values() for run in runs.split(";")]
+    squares = [square for square, runs in _YARN.items() for _ in runs.split(";")]
+    return pd.DataFrame(
+        {
+            "Square": squares,
+            "Time": [time for time, *_ in runs],
+            "Day": [day for _, day, *_ in runs],
+            "Twist": [positions[0] for *_, positions, _ in runs],
+            "Draw": [positions[1] for *_, positions, _ in runs],
+            "Strength": [float(strength) for *_, strength in runs],
+        }
+    )
+
+
+class TestNestedFactors:
+    """A factor whose levels each sit inside one level of another lies in that other's columns (#789 B7).
+
+    statsmodels' Type II table then counted every column as a degree of freedom: Davies's Example
+    5-5 gave 3, 11 and 11 df for the squares, times and days, with sums of squares of 0.11, 0.41 and
+    0.41 and a residual on 11 df. Each row is now worked out on the rank its term adds.
+    """
+
+    MODEL = "Square + Time + Day + Twist + Draw"
+
+    def _anova(self) -> dict:
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            return analyze_experiment(_yarn(), response_column="Strength", model=self.MODEL, analysis_type="anova")
+
+    def test_the_rows_are_the_printed_table(self) -> None:
+        """Davies's table: times 6.7939 and days 2.3170 on 8 df, twist 0.5514, draw 0.6682, error 1.3413 on 12."""
+        rows = {row["source"]: row for row in self._anova()["anova_table"]}
+        printed = {"Time": (8, 6.7940), "Day": (8, 2.3170), "Twist": (2, 0.5514), "Draw": (2, 0.6682)}
+        printed["Residual"] = (12, 1.3413)  # the times are 6.7939556 in exact arithmetic: Davies prints 6.7939
+        for source, (df, sum_sq) in printed.items():
+            assert rows[source]["df"] == df, source
+            assert rows[source]["sum_sq"] == pytest.approx(sum_sq, abs=5e-5), source
+        assert rows["Time"]["F"] == pytest.approx((6.7939556 / 8) / (1.3412667 / 12), rel=1e-6)
+
+    def test_the_squares_are_refused_with_the_analysis_that_separates_them(self) -> None:
+        result = self._anova()
+        square = next(row for row in result["anova_table"] if row["source"] == "Square")
+        assert (square["df"], square["sum_sq"], square["F"], square["p_value"]) == (0, 0.0, None, None)
+        note = result["anova_note"]
+        assert "Square cannot be tested: its columns lie in those of Time and Day" in note
+        assert 'multistratum_anova(..., strata="Square/Time + Square/Day")' in note
+        assert "Time is tested on 8 of its 11 degrees of freedom" in note
+
+    def test_the_rows_add_to_the_total_less_the_squares(self) -> None:
+        rows = self._anova()["anova_table"]
+        total = float(((_yarn()["Strength"] - _yarn()["Strength"].mean()) ** 2).sum())
+        assert sum(row["sum_sq"] for row in rows) == pytest.approx(total - 0.356075, abs=1e-6)
+
+    def test_a_model_of_full_rank_gets_statsmodels_type_ii_table(self) -> None:
+        """The rank-aware rows equal anova_lm's for an unbalanced design whose matrix has full rank."""
+        rng = np.random.default_rng(5)
+        cells = {("a", "x"): 2, ("a", "y"): 1, ("b", "x"): 3, ("b", "y"): 1, ("c", "x"): 2, ("c", "y"): 2}
+        df = pd.DataFrame([cell for cell, count in cells.items() for _ in range(count)], columns=["A", "B"])
+        df["y"] = rng.normal(10, 1, len(df)) + (df["A"] == "b") * 2.0
+        fit = smf.ols("y ~ A * B", data=df).fit()
+        found, notes = _type_ii_by_rank(fit, ())
+        expected = sm.stats.anova_lm(fit, typ=2)
+        assert notes == []
+        np.testing.assert_allclose(found["sum_sq"], expected["sum_sq"], rtol=1e-10)
+        np.testing.assert_allclose(found["df"], expected["df"])
+        np.testing.assert_allclose(found["F"].iloc[:-1], expected["F"].iloc[:-1], rtol=1e-10)
+
+    def test_a_term_partly_in_the_others_is_tested_on_what_it_adds(self) -> None:
+        """Batches that each hold one level of A: B's six levels add three degrees of freedom beyond A's two."""
+        df = pd.DataFrame({"A": list("aabbccaabbcc"), "B": list("pqrstupqrstu")})
+        df["y"] = np.arange(12.0) ** 1.5
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            result = analyze_experiment(df, response_column="y", model="A + B", analysis_type="anova")
+        rows = {row["source"]: row for row in result["anova_table"]}
+        assert rows["A"]["df"] == 0
+        assert rows["B"]["df"] == 3
+        assert "B is tested on 3 of its 5 degrees of freedom" in result["anova_note"]
+        assert 'strata="A/B"' in result["anova_note"]
 
 
 # ---------------------------------------------------------------------------
@@ -739,6 +833,31 @@ class TestConfidenceIntervals:
         assert len(ci) > 0
         assert "ci_low" in ci[0]
         assert "ci_high" in ci[0]
+
+    def test_the_coefficients_intervals_are_at_the_significance_level(self) -> None:
+        """At 0.10 each coefficient's interval is b +/- t(0.95, df) s, in both scales, as confidence_intervals gives it.
+
+        The ``coefficients`` table kept its 95% intervals whatever the level asked for.
+        """
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "confidence_intervals"],
+            significance_level=0.10,
+            coding="coded",
+        )
+        assert result["confidence_level"] == pytest.approx(0.90)
+        t = stats.t.ppf(0.95, result["model_summary"]["df_residual"])
+        for row in [*result["coefficients"], *result["coefficients_actual"]]:
+            half = t * row["std_error"]
+            assert row["ci_low"] == pytest.approx(row["coefficient"] - half)
+            assert row["ci_high"] == pytest.approx(row["coefficient"] + half)
+
+        def bounds(rows: list[dict]) -> dict[str, tuple[float, float]]:
+            return {row["term"]: (row["ci_low"], row["ci_high"]) for row in rows}
+
+        assert bounds(result["confidence_intervals"]) == pytest.approx(bounds(result["coefficients"]))
 
 
 # ---------------------------------------------------------------------------
@@ -1876,3 +1995,88 @@ class TestStandardisedCoefficients:
             warnings.simplefilter("ignore")
             result = analyze_experiment(data, response_column="y", model="y ~ A + B", analysis_type="coefficients")
         assert all(np.isnan(row["standardised_coefficient"]) for row in result["coefficients"])
+
+
+#: BHH's blood coagulation times (Table 6.1): four diets, in seconds.
+_BLOOD = {
+    "A": [62, 60, 63, 59],
+    "B": [63, 67, 71, 64, 65, 66],
+    "C": [68, 66, 71, 67, 68, 68],
+    "D": [56, 62, 60, 61, 63, 64, 63, 59],
+}
+
+#: NIST 5.5.4.2, yarn elongation of three-component blends (proportions X1, X2, X3).
+_ELONGATION = [
+    (0.0, 0.0, 1.0, 16.8), (0.0, 0.0, 1.0, 16.0), (0.0, 0.5, 0.5, 10.0), (0.0, 0.5, 0.5, 9.7),
+    (0.0, 0.5, 0.5, 11.8), (0.0, 1.0, 0.0, 8.8), (0.0, 1.0, 0.0, 10.0), (0.5, 0.0, 0.5, 17.7),
+    (0.5, 0.0, 0.5, 16.4), (0.5, 0.0, 0.5, 16.6), (0.5, 0.5, 0.0, 15.0), (0.5, 0.5, 0.0, 14.8),
+    (0.5, 0.5, 0.0, 16.1), (1.0, 0.0, 0.0, 11.0), (1.0, 0.0, 0.0, 12.4),
+]  # fmt: skip
+
+#: Montgomery's vascular graft (Example 4.1): yield at four extrusion pressures, in six batches of resin.
+_GRAFT = {
+    "8500": [90.3, 89.2, 98.2, 93.9, 87.4, 97.9],
+    "8700": [92.5, 89.5, 90.6, 94.7, 87.0, 95.8],
+    "8900": [85.5, 90.8, 89.6, 86.2, 88.0, 93.4],
+    "9100": [82.5, 89.5, 85.6, 87.4, 78.9, 90.7],
+}
+
+
+class TestSumsOfSquaresConventions:
+    """The sums and R-squared values in the conventions sources print (#789 B1)."""
+
+    def test_the_crude_total_is_the_correction_for_the_mean_plus_the_corrected_total(self) -> None:
+        """BHH Table 6.4: 98,644 = 98,304 + 228 + 112."""
+        rows = [(diet, y) for diet, values in _BLOOD.items() for y in values]
+        data = pd.DataFrame(rows, columns=["diet", "y"])
+        summary = analyze_experiment(data, response_column="y", model="y ~ diet")["model_summary"]
+        assert summary["ss_total_uncorrected"] == pytest.approx(98644)
+        assert summary["ss_mean"] == pytest.approx(98304)
+        assert summary["ss_model"] == pytest.approx(228)
+        assert summary["ss_residual"] == pytest.approx(112)
+        assert summary["ss_total"] == pytest.approx(340)
+        assert summary["coefficient_of_variation"] == pytest.approx(100 * np.sqrt(112 / 20) / 64)
+
+    def test_a_model_without_an_intercept_gives_its_sums_about_zero_and_says_its_rows_do_not_add_up(self) -> None:
+        """NIST 5.5.4.2 prints the uncorrected model and total sums, 2878.27 and 2884.83.
+
+        The Type II rows of the library's ANOVA add to 1952.33, neither of the model's sums.
+        """
+        data = pd.DataFrame(_ELONGATION, columns=["X1", "X2", "X3", "y"])
+        model = "y ~ X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1"
+        result = analyze_experiment(data, response_column="y", model=model)
+        summary = result["model_summary"]
+        assert summary["ss_model_uncorrected"] == pytest.approx(2878.27, abs=0.005)
+        assert summary["ss_total_uncorrected"] == pytest.approx(2884.83, abs=0.005)
+        assert summary["ss_model"] == pytest.approx(128.30, abs=0.005)  # about the mean: the blends span a constant
+        assert summary["ss_residual"] == pytest.approx(6.56, abs=0.005)
+        assert "do not add up to a model sum of squares" in result["anova_note"]
+        rows = sum(row["sum_sq"] for row in result["anova_table"] if row["source"] != "Residual")
+        assert rows == pytest.approx(1952.33, abs=0.005)
+
+    def test_a_model_with_an_intercept_has_no_such_note(self) -> None:
+        rows = [(diet, y) for diet, values in _BLOOD.items() for y in values]
+        data = pd.DataFrame(rows, columns=["diet", "y"])
+        assert "anova_note" not in analyze_experiment(data, response_column="y", model="y ~ diet")
+
+    def test_r_squared_without_the_blocks_as_design_expert_reports_it(self) -> None:
+        """Montgomery Example 4.1: R² 0.6185, adjusted 0.5422 and predicted 0.0234, and C.V. 3.01%."""
+        rows = [(p, str(b), y) for p, values in _GRAFT.items() for b, y in enumerate(values, start=1)]
+        data = pd.DataFrame(rows, columns=["pressure", "Block", "y"])
+        summary = analyze_experiment(data, response_column="y", model="main_effects")["model_summary"]
+        assert summary["r_squared_without_blocks"] == pytest.approx(0.6185, abs=5e-5)
+        assert summary["r_squared_adj_without_blocks"] == pytest.approx(0.5422, abs=5e-5)
+        assert summary["r_squared_pred_without_blocks"] == pytest.approx(0.0234, abs=5e-5)
+        assert summary["ss_blocks"] == pytest.approx(192.25, abs=0.005)
+        assert summary["coefficient_of_variation"] == pytest.approx(3.01, abs=0.005)
+        assert summary["ss_total_uncorrected"] == pytest.approx(193999.31, abs=0.005)
+        unblocked = analyze_experiment(data.drop(columns="Block"), response_column="y", model="main_effects")
+        assert "r_squared_without_blocks" not in unblocked["model_summary"]
+
+    def test_with_nothing_left_to_test_the_values_without_blocks_are_none(self) -> None:
+        data = pd.DataFrame({"x": [-1, 1, -1, 1], "Block": ["1", "1", "2", "2"], "y": [1.0, 3.0, 2.0, 5.0]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            summary = analyze_experiment(data, response_column="y", model="y ~ x + Block + x:Block")["model_summary"]
+        assert summary["r_squared_without_blocks"] is None
+        assert summary["coefficient_of_variation"] is None
