@@ -2249,79 +2249,31 @@ def _six_factor_dsd() -> dict:
     }
 
 
-def test_a_pair_of_second_order_terms_is_named_by_the_factors_they_share():
-    """A square is one factor, an interaction two; Jones and Nachtsheim's (2011) four kinds of pair."""
-    from process_improve.experiments.reference_catalogue import _second_order_pair
-
-    assert _second_order_pair((0,), (1,)) == "qq,ss"
-    assert _second_order_pair((0,), (0, 1)) == "qq,qs"
-    assert _second_order_pair((1, 2), (2,)) == "qq,qs"
-    assert _second_order_pair((0,), (1, 2)) == "qq,st"
-    assert _second_order_pair((0, 1), (2, 3)) == "st,uv"
-    assert _second_order_pair((0, 1), (1, 2)) == "st,uv"
-
-
-def test_column_correlations_of_a_definitive_screening_design_follow_equations_4_to_6():
-    """Table 3's row for m = 6, and equation (4)'s 1/3 - 1/(m - 1) for two squares."""
-    from process_improve.experiments.reference_catalogue import _term_correlations
+def test_a_correlation_check_reads_the_library_summary_of_its_kind_of_pair():
+    """Tables 3 and 4 for m = 6 through the library's correlation metrics; a kind the model lacks is refused."""
+    from process_improve.experiments.reference_catalogue import _estimate_correlations, _term_correlations
 
     entry = _six_factor_dsd()
-    found = {
-        (pairs, key): _term_correlations(entry, {"pairs": pairs, "key": key})
-        for pairs in ("qq,qs", "qq,st", "st,uv")
-        for key in ("mean", "max")
-    }
-    assert found["qq,qs", "max"] == pytest.approx(0, abs=1e-12)
-    assert found["qq,st", "mean"] == pytest.approx(found["qq,st", "max"])  # one size for every such pair
-    assert found["qq,st", "mean"] == pytest.approx(0.465, abs=5e-4)
-    assert (found["st,uv", "mean"], found["st,uv", "max"]) == pytest.approx((0.357, 0.5), abs=5e-4)
-    assert _term_correlations(entry, {"pairs": "qq,ss", "key": "max"}) == pytest.approx(1 / 3 - 1 / 5)
-    entry["runs"] = {"columns": ["x1"], "rows": [[-1], [0], [1]], "coded": True}
-    entry["factors"] = entry["factors"][:1]
+    other = {"pairs": "square_and_other_interaction", "key": "mean"}
+    assert _term_correlations(entry, other) == pytest.approx(0.465, abs=5e-4)
+    squares = {"pairs": "two_squares", "key": "mean", "terms": "squares"}
+    assert _estimate_correlations(entry, squares) == pytest.approx(0.087, abs=5e-4)
+    one = {"pairs": "two_interactions", "key": "max", "factors": ["x1", "x2", "x3"]}
+    assert _estimate_correlations(entry, one) == pytest.approx(0.405, abs=5e-4)
     with pytest.raises(ValueError, match="no pair"):
-        _term_correlations(entry, {"pairs": "st,uv", "key": "max"})
+        _estimate_correlations(entry, {"pairs": "two_interactions", "key": "max", "terms": "squares"})
 
 
-def test_estimate_correlations_read_one_projection_every_projection_or_the_squares_model():
-    """Table 4's row for m = 6: the squares model of the whole design, then a three-factor projection's."""
-    from process_improve.experiments.reference_catalogue import _estimate_correlations
-
-    entry = _six_factor_dsd()
-    assert _estimate_correlations(entry, {"pairs": "qq,ss", "key": "mean", "terms": "squares"}) == pytest.approx(
-        0.087, abs=5e-4
-    )
-    one = {"factors": ["x1", "x2", "x3"]}
-    printed = {"qq,qs": 0.128, "qq,st": 0.483, "st,uv": 0.405}
-    for pairs, value in printed.items():
-        assert _estimate_correlations(entry, {"pairs": pairs, "key": "mean", **one}) == pytest.approx(value, abs=5e-4)
-        # the design is orthogonal for main effects, so every one of its 20 projections gives the same
-        assert _estimate_correlations(entry, {"pairs": pairs, "key": "max", "size": 3}) == pytest.approx(
-            value, abs=5e-4
-        )
-    with pytest.raises(ValueError, match="no pair"):
-        _estimate_correlations(entry, {"pairs": "st,uv", "key": "max", "terms": "squares"})
-
-
-def test_average_power_is_the_noncentral_t_power_averaged_over_the_choices_of_factors():
-    """In the 2^3 factorial every interaction is tested with variance 1/8 on 3 degrees of freedom."""
+def test_a_power_check_reads_one_hypothesis_of_the_library_study_or_its_status():
+    """Table 7: hypothesis 1 of the six-factor design, and hypothesis 2 'Aliased' in its orthogonal alternative."""
     from process_improve.experiments.reference_catalogue import _average_power
 
-    names = ["a", "b", "c"]
-    corners = [[i + 1, *[2 * int(bit) - 1 for bit in f"{i:03b}"]] for i in range(8)]
-    entry = {
-        "name": "cube",
-        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in names],
-        "responses": [],
-        "runs": {"columns": ["run", *names], "rows": corners, "coded": True},
-    }
-    check = {"model": "{all} + {a}:{b}", "terms": ["{a}:{b}"], "over": "pairs", "effect_size": 1.5}
-    critical = stats.t.ppf(0.975, 3)
-    delta = 1.5 * math.sqrt(8)
-    expected = stats.nct.sf(critical, 3, delta) + stats.nct.cdf(-critical, 3, delta)
-    assert _average_power(entry, check) == pytest.approx(expected, rel=1e-6)
-    assert _average_power(
-        _six_factor_dsd(), {"model": "{a}", "terms": ["{a}"], "over": "factors", "effect_size": 1}
-    ) == pytest.approx(0.821, abs=5e-4)  # Table 7, hypothesis 1
+    entry = _six_factor_dsd()
+    assert _average_power(entry, {"hypothesis": 1, "effect_size": 1}) == pytest.approx(0.821, abs=5e-4)
+    pb = {"design": {"design_type": "plackett_burman", "k": 11, "options": {"n_center_points": 1}}, "design_columns": 6}
+    check = {"hypothesis": 2, "effect_size": 1, **pb}
+    assert _average_power(entry, check | {"status": "aliased"}) == 1
+    assert _average_power(entry, check | {"status": "not estimable"}) == 0
 
 
 def test_a_design_folded_over_takes_the_sign_of_its_halves_as_one_more_factor():

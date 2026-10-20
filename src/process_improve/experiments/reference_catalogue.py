@@ -1867,8 +1867,11 @@ def _relative_efficiency(experiment: dict, check: dict) -> float:
         other = _entry(str(_CATALOGUE_DIR), check["versus"])
         settings.append(_with_groups(_coded_runs(other, None)[0], other, every_run))
     if check["criterion"] == "se":
-        errors = [_coefficient_errors(dmatrix(check["model"], s, return_type="dataframe")) for s in settings]
-        value = float(np.mean(errors[0] / errors[1]))
+        mine, theirs = (
+            _evaluated_runs(s, check["model"], "information_matrix")["information_matrix"]["coefficient_variances"]
+            for s in settings
+        )
+        value = float(np.mean([math.sqrt(mine[t] / theirs[t]) for t in mine if t != "Intercept"]))
         return 100 * (value - 1) if check.get("gain") else value
     sources = [json.dumps({"columns": list(s.columns), "runs": s.to_dict("list")}, sort_keys=True) for s in settings]
     metric = "information_matrix" if check["criterion"] == "d" else "average_prediction_variance"
@@ -1883,116 +1886,62 @@ def _relative_efficiency(experiment: dict, check: dict) -> float:
     return 100 * value if check.get("percent") else value
 
 
-def _coefficient_errors(matrix: pd.DataFrame) -> np.ndarray:
-    """Return the standard errors of a model's coefficients in units of sigma, the intercept's left out."""
-    errors = np.sqrt(np.diag(np.linalg.pinv(matrix.to_numpy().T @ matrix.to_numpy())))
-    return np.array([e for name, e in zip(matrix.columns, errors, strict=True) if name != "Intercept"])
+def _evaluated_runs(settings: pd.DataFrame, model: str | None, metric: str, **options: float) -> dict[str, Any]:
+    """Return the library's evaluation of runs in coded units, worked once (see :func:`_evaluated`)."""
+    source = json.dumps({"columns": list(settings.columns), "runs": settings.to_dict("list")}, sort_keys=True)
+    return _evaluated(
+        source, json.dumps({"model": model, "metric": metric, "options": options or None}, sort_keys=True)
+    )
 
 
-def _second_order_pair(first: tuple[int, ...], second: tuple[int, ...]) -> str:
-    """Name the kind of a pair of second-order terms, each a square (one factor) or an interaction (two factors).
-
-    ``"qq,ss"`` two squares, ``"qq,qs"`` a square and an interaction in its factor, ``"qq,st"`` a square
-    and an interaction without it, and ``"st,uv"`` two interactions, with a factor in common or not.
-    """
-    if len(first) == len(second):
-        return "qq,ss" if len(first) == 1 else "st,uv"
-    square, interaction = (first, second) if len(first) == 1 else (second, first)
-    return "qq,qs" if square[0] in interaction else "qq,st"
+def _pair_summary(found: dict[str, Any], check: dict) -> float:
+    """Return ``check["key"]`` (``"mean"`` or ``"max"``) of a correlation metric's sizes for ``check["pairs"]``."""
+    summary = found["by_pair"].get(check["pairs"])
+    if summary is None:
+        raise ValueError(f"The design has no pair of second-order terms of the kind {check['pairs']!r}.")
+    return float(summary[f"{check['key']}_abs_r"])
 
 
 def _term_correlations(experiment: dict, check: dict) -> float:
     """Return the average or largest absolute correlation between a design's second-order columns of one kind.
 
-    The columns of the squares x_q^2 and the two-factor interactions x_s x_t of the entry's runs (or of
-    the design ``check["design"]`` names) are correlated pair by pair; ``check["pairs"]`` keeps one kind
-    of pair (see :func:`_second_order_pair`), and ``check["key"]`` is ``"mean"`` or ``"max"`` of the
-    correlations' sizes: the column correlations Jones and Nachtsheim (2011) tabulate for definitive
-    screening designs.
+    The library's ``correlation`` metric under the full quadratic model of the entry's runs (or of the
+    design ``check["design"]`` names): ``check["pairs"]`` is a kind of pair of
+    :data:`~process_improve.experiments.evaluate.SECOND_ORDER_PAIRS`, and ``check["key"]`` is ``"mean"``
+    or ``"max"``, the column correlations Jones and Nachtsheim (2011) tabulate.
     """
-    columns = _second_order_columns(_design_runs(experiment, check).to_numpy(dtype=float))
-    sizes = [
-        abs(float(np.corrcoef(columns[first], columns[second])[0, 1]))
-        for first, second in itertools.combinations(columns, 2)
-        if _second_order_pair(first, second) == check["pairs"]
-    ]
-    if not sizes:
-        raise ValueError(f"The design has no pair of second-order terms of the kind {check['pairs']!r}.")
-    return float(_REDUCE[check["key"]](sizes))
-
-
-def _second_order_columns(x: np.ndarray) -> dict[tuple[int, ...], np.ndarray]:
-    """Return a design's squares, keyed by their factor, then its two-factor interactions, by their two factors."""
-    columns = {(q,): x[:, q] ** 2 for q in range(x.shape[1])}
-    return columns | {pair: x[:, pair[0]] * x[:, pair[1]] for pair in itertools.combinations(range(x.shape[1]), 2)}
+    found = _evaluated_runs(_design_runs(experiment, check), "quadratic", "correlation")
+    return _pair_summary(found["correlation"], check)
 
 
 def _estimate_correlations(experiment: dict, check: dict) -> float:
-    """Return the average or largest absolute correlation between estimated second-order effects.
+    """Return the average or largest absolute correlation between estimated second-order effects of one kind.
 
-    The design, or its projection onto the factors ``check["factors"]``, or each of its projections
-    onto ``check["size"]`` factors, is fitted with the main effects and the second-order terms of
-    ``check["terms"]``: ``"all"`` (the default, the full quadratic model) or ``"squares"``. The
-    correlations of the estimates are read from (X'X)^-1; ``check["pairs"]`` keeps one kind of pair of
-    second-order terms (see :func:`_second_order_pair`), and ``check["key"]`` is ``"mean"`` or
-    ``"max"`` of the correlations' sizes, over every projection: the correlations of estimated
-    effects that Jones and Nachtsheim (2011) tabulate for definitive screening designs.
+    The library's ``estimate_correlation`` metric for the full quadratic model of the factors
+    ``check["factors"]`` (all of them by default), or, with ``check["terms"]`` ``"squares"``, for the
+    model of every main effect and every square; ``check["pairs"]`` and ``check["key"]`` as for
+    :func:`_term_correlations`.
     """
     settings = _design_runs(experiment, check)
-    x = settings.to_numpy(dtype=float)
-    if check.get("factors"):
-        projections = [tuple(list(settings.columns).index(name) for name in check["factors"])]
-    else:
-        projections = list(itertools.combinations(range(x.shape[1]), check.get("size") or x.shape[1]))
-    sizes = []
-    for chosen in projections:
-        projected = x[:, chosen]
-        columns = _second_order_columns(projected)
-        if check.get("terms", "all") == "squares":
-            columns = {term: column for term, column in columns.items() if len(term) == 1}
-        matrix = np.column_stack([np.ones(len(projected)), projected, *columns.values()])
-        inverse = np.linalg.inv(matrix.T @ matrix)[1 + len(chosen) :, 1 + len(chosen) :]
-        correlations = inverse / np.sqrt(np.outer(np.diag(inverse), np.diag(inverse)))
-        sizes += [
-            abs(float(correlations[i, j]))
-            for (i, first), (j, second) in itertools.combinations(enumerate(columns), 2)
-            if _second_order_pair(first, second) == check["pairs"]
-        ]
-    if not sizes:
-        raise ValueError(f"The design's projections have no pair of second-order terms of the kind {check['pairs']!r}.")
-    return float(_REDUCE[check["key"]](sizes))
+    settings = settings[check["factors"]] if check.get("factors") else settings
+    squares = " + ".join([*settings.columns, *(f"I({c} ** 2)" for c in settings.columns)])
+    model = squares if check.get("terms") == "squares" else "quadratic"
+    return _pair_summary(_evaluated_runs(settings, model, "estimate_correlation")["estimate_correlation"], check)
 
 
 def _average_power(experiment: dict, check: dict) -> float:
-    """Return the power of the t test of one coefficient, averaged over every factor or pair of factors it is asked of.
+    """Return the average power of one hypothesis of Jones and Nachtsheim's (2011) power study, or its status.
 
-    ``check["model"]`` is a formula and ``check["terms"]`` the tested terms, written with ``{a}`` for a
-    factor, ``{b}`` for a second one and ``{all}`` for the sum of every factor's main effect:
-    ``"{all} + I({a} ** 2)"`` with ``["I({a} ** 2)"]`` tests a square with every main effect in the
-    model. ``check["over"]`` is ``"factors"`` (each factor as ``{a}``) or ``"pairs"`` (each pair of two
-    factors); every term of every choice is tested in its own model, and the powers are averaged. The
-    power is that of :func:`~process_improve.experiments.evaluate_design` for a coefficient of
-    ``check["effect_size"]`` in units of sigma, at ``check["alpha"]`` (0.05 by default), as Jones and
-    Nachtsheim (2011) average it over the tests of one kind. The runs are the entry's, or those of
-    the design ``check["design"]`` names, its columns taken as the entry's factors.
+    The library's ``screening_power`` metric of the entry's runs (or of the design ``check["design"]``
+    names) for hypothesis ``check["hypothesis"]``, at a coefficient of ``check["effect_size"]`` in units
+    of sigma. With ``check["status"]`` (``"aliased"`` or ``"not estimable"``) it is 1 when the
+    hypothesis has that status, as Table 7 prints a test a design cannot make.
     """
-    settings = _design_runs(experiment, check)
-    names = [f["name"] for f in experiment["factors"]][: settings.shape[1]]
-    settings = settings.set_axis(names, axis=1)
-    every = " + ".join(names)
-    choices = [(a,) for a in names] if check["over"] == "factors" else list(itertools.combinations(names, 2))
-    powers = []
-    for choice in choices:
-        fill = {"all": every, "a": choice[0], "b": choice[-1]}
-        found = evaluate_design(
-            settings,
-            model=check["model"].format(**fill),
-            metric="power",
-            effect_size=check["effect_size"],
-            alpha=check.get("alpha", 0.05),
-        )
-        powers += [found["power"][term.format(**fill)] for term in check["terms"]]
-    return float(np.mean(powers))
+    found = _evaluated_runs(_design_runs(experiment, check), None, "screening_power", effect_size=check["effect_size"])
+    hypothesis = next(h for h in found["screening_power"]["hypotheses"] if h["hypothesis"] == check["hypothesis"])
+    if check.get("status"):
+        return float(hypothesis["status"] == check["status"])
+    return float(hypothesis["average_power"][0])
 
 
 def _projection(experiment: dict, check: dict, printed: str) -> tuple[str, bool]:

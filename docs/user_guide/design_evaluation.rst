@@ -135,7 +135,11 @@ terms (pure quadratics and two-factor interactions).  Because the
 inflated by that shared offset and depends on the coding.  The metric instead
 residualises each second-order column against the intercept-and-main-effect
 block first, giving a coding-invariant measure.  It returns ``max_abs_r``,
-``mean_abs_r``, and the full ``matrix``.
+``mean_abs_r``, the full ``matrix``, and ``by_pair``: the largest and the mean
+:math:`|r|`, and the number of pairs, for each kind of pair Jones and Nachtsheim
+(2011) tabulate for definitive screening designs: ``two_squares``,
+``square_and_own_interaction``, ``square_and_other_interaction`` and
+``two_interactions``. Under the full quadratic model of a DSD this is their Table 3.
 
 Correlation of estimates
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -144,12 +148,10 @@ Correlation of estimates
 :math:`r_{ij} = c_{ij} / \sqrt{c_{ii} c_{jj}}` with :math:`c = (X^\top X)^{-1}`, for the
 model's second-order terms (JMP's "correlation of estimates"). A large :math:`|r_{ij}|`
 means the runs cannot tell the two effects apart, so an active square can show up as an
-interaction. Jones and Nachtsheim (2011) summarise these correlations by kind of pair, and the
-metric does too: ``max_abs_r_<kind>`` and ``mean_abs_r_<kind>`` for ``two_squares``,
-``square_and_own_interaction``, ``square_and_other_interaction`` and ``two_interactions``,
-and for ``second_order``, every pair. A definitive screening design cannot fit the full
-quadratic model in all its factors, so its correlations are read on the projections onto three
-factors, where it can:
+interaction. It returns ``terms``, ``matrix`` and ``by_pair``, the same summary by kind of pair
+as ``correlation``. A definitive screening design cannot fit the full quadratic model in all its
+factors, so its estimates are compared in the projections onto three factors, where it can (Jones
+and Nachtsheim's Table 4):
 
 .. code-block:: python
 
@@ -157,7 +159,8 @@ factors, where it can:
 
    dsd = generate_design([Factor(name=f"x{i}", low=-1, high=1) for i in range(1, 7)], "dsd")
    found = evaluate_projections(dsd, 3, model="quadratic", metric="estimate_correlation")
-   found["averages"]["mean_abs_r_square_and_other_interaction"]  # 0.483, their Table 4
+   first = found["projections"][0]["metrics"]["estimate_correlation"]
+   first["by_pair"]["square_and_other_interaction"]["mean_abs_r"]  # 0.483
 
 Alias (bias) matrix
 ~~~~~~~~~~~~~~~~~~~~~

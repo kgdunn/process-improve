@@ -234,9 +234,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1
      }
     },
@@ -385,7 +383,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -400,7 +398,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -415,7 +413,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -430,7 +428,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -445,7 +443,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -460,7 +458,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -476,7 +474,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "printed": "0"
      }
@@ -609,7 +607,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -624,7 +622,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -639,7 +637,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -654,7 +652,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -669,7 +667,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -684,7 +682,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     }
@@ -825,7 +823,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -840,7 +838,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -855,7 +853,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -870,7 +868,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -885,7 +883,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -900,7 +898,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -916,7 +914,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "mean",
       "terms": "squares"
      }
@@ -933,7 +931,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "terms": "squares"
      }
@@ -950,7 +948,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -967,7 +965,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -984,7 +982,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1001,7 +999,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1018,7 +1016,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1035,7 +1033,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1132,9 +1130,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1
      }
     },
@@ -1150,9 +1146,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2,
       "disagreement": "The library's average power is 0.999912, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation."
      }
@@ -1169,9 +1163,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3
      }
     },
@@ -1187,9 +1179,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1,
       "design": {
        "design_type": "plackett_burman",
@@ -1213,9 +1203,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2,
       "design": {
        "design_type": "plackett_burman",
@@ -1239,9 +1227,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3,
       "design": {
        "design_type": "plackett_burman",
@@ -1265,9 +1251,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 1
      }
     },
@@ -1283,9 +1267,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 2
      }
     },
@@ -1301,10 +1283,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 2",
+     "value": "Aliased",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 2 6 Aliased Aliased Aliased"
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 2,
+      "effect_size": 1,
+      "status": "aliased",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
      }
     },
     {
@@ -1319,9 +1325,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 1
      }
     },
@@ -1337,9 +1341,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 2
      }
     },
@@ -1355,9 +1357,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 3
      }
     },
@@ -1373,9 +1373,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 1,
       "design": {
        "design_type": "plackett_burman",
@@ -1399,9 +1397,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 2,
       "design": {
        "design_type": "plackett_burman",
@@ -1426,9 +1422,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 3,
       "design": {
        "design_type": "plackett_burman",
@@ -1452,9 +1446,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 1
      }
     },
@@ -1470,9 +1462,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 2,
       "disagreement": "The library's average power is 0.999618, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation."
      }
@@ -1489,10 +1479,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 4",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 4 6 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 4,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
      }
     },
     {
@@ -1507,9 +1521,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 1,
       "disagreement": "The library's average power is 0.256477, 0.00002 below the printed 0.257's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
      }
@@ -1526,9 +1538,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 2
      }
     },
@@ -1544,10 +1554,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 5",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 5 6 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 5,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
      }
     },
     {
@@ -1562,9 +1596,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 1
      }
     },
@@ -1580,9 +1612,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 2
      }
     },
@@ -1598,10 +1628,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 6",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 6 6 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 6,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
      }
     }
    ],
@@ -1752,7 +1806,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -1767,7 +1821,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -1782,7 +1836,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -1797,7 +1851,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -1812,7 +1866,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -1827,7 +1881,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -1843,7 +1897,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "mean",
       "terms": "squares"
      }
@@ -1860,7 +1914,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "terms": "squares"
      }
@@ -1877,7 +1931,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1894,7 +1948,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1911,7 +1965,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1928,7 +1982,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1945,7 +1999,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -1962,7 +2016,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -2181,7 +2235,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -2196,7 +2250,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -2211,7 +2265,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -2226,7 +2280,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -2241,7 +2295,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -2256,7 +2310,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -2272,7 +2326,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "mean",
       "terms": "squares"
      }
@@ -2289,7 +2343,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "terms": "squares"
      }
@@ -2306,7 +2360,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -2323,7 +2377,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -2340,7 +2394,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -2357,7 +2411,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -2374,7 +2428,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -2391,7 +2445,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -2488,9 +2542,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1
      }
     },
@@ -2506,9 +2558,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2
      }
     },
@@ -2524,9 +2574,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3
      }
     },
@@ -2542,9 +2590,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1,
       "design": {
        "design_type": "fractional_factorial",
@@ -2568,9 +2614,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2,
       "design": {
        "design_type": "fractional_factorial",
@@ -2594,9 +2638,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3,
       "design": {
        "design_type": "fractional_factorial",
@@ -2620,9 +2662,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 1
      }
     },
@@ -2638,9 +2678,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 2
      }
     },
@@ -2656,10 +2694,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 2",
+     "value": "Aliased",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 2 8 Aliased Aliased Aliased"
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 2,
+      "effect_size": 1,
+      "status": "aliased",
+      "printed": "1",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
      }
     },
     {
@@ -2674,9 +2736,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 1,
       "disagreement": "The library's average power is 0.842467, 0.00003 below the printed 0.843's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
      }
@@ -2693,9 +2753,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 2
      }
     },
@@ -2711,10 +2769,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 3",
+     "value": "Aliased",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 8 Aliased Aliased Aliased"
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 3,
+      "effect_size": 1,
+      "status": "aliased",
+      "printed": "1",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
      }
     },
     {
@@ -2729,9 +2811,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 1
      }
     },
@@ -2747,9 +2827,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 2
      }
     },
@@ -2765,10 +2843,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 4",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 4 8 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 4,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
      }
     },
     {
@@ -2783,9 +2885,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 1,
       "disagreement": "The library's average power is 0.291472, 0.00003 below the printed 0.292's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
      }
@@ -2802,9 +2902,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 2
      }
     },
@@ -2820,10 +2918,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 5",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 5 8 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 5,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
      }
     },
     {
@@ -2838,9 +2960,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 1
      }
     },
@@ -2856,9 +2976,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 2
      }
     },
@@ -2874,10 +2992,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 6",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 6 8 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 6,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
      }
     }
    ],
@@ -3048,7 +3190,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -3063,7 +3205,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -3078,7 +3220,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -3093,7 +3235,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -3108,7 +3250,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -3123,7 +3265,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -3139,7 +3281,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "mean",
       "terms": "squares"
      }
@@ -3156,7 +3298,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "terms": "squares"
      }
@@ -3173,7 +3315,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
@@ -3191,7 +3333,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
@@ -3209,7 +3351,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
@@ -3227,7 +3369,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
@@ -3245,7 +3387,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
@@ -3263,7 +3405,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
@@ -3503,7 +3645,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -3518,7 +3660,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -3533,7 +3675,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -3548,7 +3690,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -3563,7 +3705,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -3578,7 +3720,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -3594,7 +3736,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "mean",
       "terms": "squares"
      }
@@ -3611,7 +3753,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "terms": "squares"
      }
@@ -3628,7 +3770,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -3645,7 +3787,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -3662,7 +3804,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -3679,7 +3821,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -3696,7 +3838,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -3713,7 +3855,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -3810,9 +3952,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1
      }
     },
@@ -3828,9 +3968,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2
      }
     },
@@ -3846,9 +3984,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3
      }
     },
@@ -3864,9 +4000,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1,
       "design": {
        "design_type": "plackett_burman",
@@ -3890,9 +4024,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2,
       "design": {
        "design_type": "plackett_burman",
@@ -3916,9 +4048,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3,
       "design": {
        "design_type": "plackett_burman",
@@ -3942,9 +4072,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 1
      }
     },
@@ -3960,9 +4088,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 2
      }
     },
@@ -3978,10 +4104,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 2",
+     "value": "Aliased",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 2 10 Aliased Aliased Aliased"
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 2,
+      "effect_size": 1,
+      "status": "aliased",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
      }
     },
     {
@@ -3996,9 +4146,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 1
      }
     },
@@ -4014,9 +4162,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 2
      }
     },
@@ -4032,9 +4178,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 3
      }
     },
@@ -4050,9 +4194,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 1,
       "design": {
        "design_type": "plackett_burman",
@@ -4076,9 +4218,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 2,
       "design": {
        "design_type": "plackett_burman",
@@ -4102,9 +4242,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 3,
       "design": {
        "design_type": "plackett_burman",
@@ -4128,9 +4266,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 1
      }
     },
@@ -4146,9 +4282,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 2
      }
     },
@@ -4164,10 +4298,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 4",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 4 10 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 4,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
      }
     },
     {
@@ -4182,9 +4340,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 1
      }
     },
@@ -4200,9 +4356,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 2
      }
     },
@@ -4218,10 +4372,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 5",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 5 10 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 5,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
      }
     },
     {
@@ -4236,9 +4414,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 1
      }
     },
@@ -4254,9 +4430,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 2
      }
     },
@@ -4272,10 +4446,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 6",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 6 10 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 6,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
      }
     }
    ],
@@ -4466,7 +4664,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -4481,7 +4679,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -4496,7 +4694,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -4511,7 +4709,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -4526,7 +4724,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -4541,7 +4739,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -4557,7 +4755,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "mean",
       "terms": "squares"
      }
@@ -4574,7 +4772,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "terms": "squares"
      }
@@ -4591,7 +4789,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
@@ -4609,7 +4807,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
@@ -4627,7 +4825,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
@@ -4645,7 +4843,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
@@ -4663,7 +4861,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
@@ -4681,7 +4879,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
       "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
@@ -4942,7 +5140,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean"
      }
     },
@@ -4957,7 +5155,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max"
      }
     },
@@ -4972,7 +5170,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean"
      }
     },
@@ -4987,7 +5185,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max"
      }
     },
@@ -5002,7 +5200,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean"
      }
     },
@@ -5017,7 +5215,7 @@
      },
      "check": {
       "kind": "term_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max"
      }
     },
@@ -5033,7 +5231,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "mean",
       "terms": "squares"
      }
@@ -5050,7 +5248,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,ss",
+      "pairs": "two_squares",
       "key": "max",
       "terms": "squares"
      }
@@ -5067,7 +5265,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -5084,7 +5282,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,qs",
+      "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -5101,7 +5299,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -5118,7 +5316,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "qq,st",
+      "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -5135,7 +5333,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"]
      }
@@ -5152,7 +5350,7 @@
      },
      "check": {
       "kind": "estimate_correlations",
-      "pairs": "st,uv",
+      "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"]
      }
@@ -5249,9 +5447,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1
      }
     },
@@ -5267,9 +5463,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2
      }
     },
@@ -5285,9 +5479,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3
      }
     },
@@ -5303,9 +5495,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 1,
       "design": {
        "design_type": "plackett_burman",
@@ -5329,9 +5519,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 2,
       "design": {
        "design_type": "plackett_burman",
@@ -5355,9 +5543,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a}",
-      "terms": ["{a}"],
-      "over": "factors",
+      "hypothesis": 1,
       "effect_size": 3,
       "design": {
        "design_type": "plackett_burman",
@@ -5381,9 +5567,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 1
      }
     },
@@ -5399,9 +5583,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 2
      }
     },
@@ -5417,10 +5599,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + I({a} ** 2)",
-      "terms": ["I({a} ** 2)"],
-      "over": "factors",
+      "hypothesis": 2,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 2",
+     "value": "Aliased",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 2 12 Aliased Aliased Aliased"
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 2,
+      "effect_size": 1,
+      "status": "aliased",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
      }
     },
     {
@@ -5435,9 +5641,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 1,
       "disagreement": "The library's average power is 0.981484, 0.00002 below the printed 0.982's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
      }
@@ -5454,9 +5658,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 2
      }
     },
@@ -5472,9 +5674,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 3
      }
     },
@@ -5490,9 +5690,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 1,
       "design": {
        "design_type": "plackett_burman",
@@ -5516,9 +5714,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 2,
       "design": {
        "design_type": "plackett_burman",
@@ -5542,9 +5738,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{all} + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 3,
       "effect_size": 3,
       "design": {
        "design_type": "plackett_burman",
@@ -5568,9 +5762,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 1
      }
     },
@@ -5586,9 +5778,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 2
      }
     },
@@ -5604,10 +5794,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}", "{b}"],
-      "over": "pairs",
+      "hypothesis": 4,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 4",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 4 12 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 4,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
      }
     },
     {
@@ -5622,9 +5836,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 1
      }
     },
@@ -5640,9 +5852,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 2
      }
     },
@@ -5658,10 +5868,34 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
-      "over": "pairs",
+      "hypothesis": 5,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 5",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 5 12 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 5,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
      }
     },
     {
@@ -5676,9 +5910,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 1
      }
     },
@@ -5694,9 +5926,7 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 2
      }
     },
@@ -5712,15 +5942,39 @@
      },
      "check": {
       "kind": "average_power",
-      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
-      "terms": ["{a}:{b}"],
-      "over": "pairs",
+      "hypothesis": 6,
       "effect_size": 3
+     }
+    },
+    {
+     "what": "test, orthogonal design",
+     "term": "hypothesis 6",
+     "value": "N.E.",
+     "analysis": "the library marks a test aliased when a second-order term outside its model copies the term tested (every square of a two-level design with a centre run has one column; in the 2^(8-4) each interaction has three aliases), and not estimable when its model is rank-deficient",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 6 12 N.E. N.E. N.E."
+     },
+     "check": {
+      "kind": "average_power",
+      "hypothesis": 6,
+      "effect_size": 1,
+      "status": "not estimable",
+      "printed": "1",
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
      }
     }
    ],
    "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
   }
  ],
- "not_captured": ["The rows of Tables 3 and 4 for m = 13 to 20: their designs are not printed (p. 5 gives a download address at asq.org).", "Table 4's caption, 'full quadratic models involving any three active factors', describes two models. Its |r_qq,ss| columns are the correlations of the estimated squares in the model of every main effect and every square, which the full quadratic model of three factors does not reproduce (0.059 for m = 6, against the printed 0.087). Its other six columns are those of the full quadratic model of one projection onto three factors, not an average over projections: every projection gives the same numbers for m = 6, 8 and 10, but for m = 7 and 12 only 14 of 35 and 130 of 220 do (x1, x2 and x3 among them), and for m = 9 and 11 the projection onto x1, x2 and x3 is not one of them (see the disagreements).", "Table 8's D-efficiencies (average, minimum and maximum over the three-factor projections): they are relative to a design the paper does not name. The library's absolute D-efficiency of each projection (42.35 for each of m = 6's 20) is on another scale, but its spread agrees: every projection of m = 6, 8 and 10 has the same D-efficiency, as p. 12 says, and the largest over the smallest is 1.199, 1.079, 1.071 and 1.033 for m = 7, 9, 11 and 12, where the printed columns give 0.97/0.81, 0.95/0.88, 0.95/0.89 and 0.94/0.90.", "Table 7's 'Aliased' and 'N.E.' cells for the orthogonal designs. Hypothesis 2's model, the main effects and one square, can be fitted in a two-level design with a centre run (the library gives an average power of 0.124 at |beta|/sigma = 1 for the 12-run Plackett-Burman design's six columns), because a square is then the contrast of the centre run with the others; but every square has the same column, so the test cannot say which factor's square is active, which is what the paper calls mutually aliased. In the 2^(8-4) the interaction of hypothesis 3 can be estimated in its model (average power 0.927 at |beta|/sigma = 1) but is aliased with three other interactions outside it, as p. 12 says. Hypotheses 4 to 6 need the squares of two factors, never separately estimable in these designs (N.E.).", "Table 6, the six hypotheses: captured as the models and terms of Table 7's power checks, not as numbers.", "Equations (4) to (6), the correlations between second-order columns as functions of m: checked where Table 3 prints them (zero for |r_qq,qs| and one constant |r_qq,st| for even m, and equation (4) at m = 4), not as formulas; the proofs of the appendix.", "Figure 2 (the correlations of equations (4) and (6) for 4 to 40 factors) and Figure 3 (the column correlations of the six-factor design): plots.", "Corner-point balance of the two-factor projections (p. 12): for even m each projection is a central composite design with m/2 - 1 replicates of the corners, for odd m the corners are replicated (m/2 - 1) +/- 1/2 times; a count the catalogue's check kinds do not read.", "The algorithm of the paper's search (coordinate exchange from 10,000 random starting designs, pp. 4-5), and the forward stepwise and best-subset analyses of the example, beyond the AICc of the models they end with."]
+ "not_captured": ["The rows of Tables 3 and 4 for m = 13 to 20: their designs are not printed (p. 5 gives a download address at asq.org).", "Table 4's caption, 'full quadratic models involving any three active factors', describes two models. Its |r_qq,ss| columns are the correlations of the estimated squares in the model of every main effect and every square, which the full quadratic model of three factors does not reproduce (0.059 for m = 6, against the printed 0.087). Its other six columns are those of the full quadratic model of one projection onto three factors, not an average over projections: every projection gives the same numbers for m = 6, 8 and 10, but for m = 7 and 12 only 14 of 35 and 130 of 220 do (x1, x2 and x3 among them), and for m = 9 and 11 the projection onto x1, x2 and x3 is not one of them (see the disagreements).", "Table 8's D-efficiencies (average, minimum and maximum over the three-factor projections): they are relative to a design the paper does not name. The library's absolute D-efficiency of each projection (42.35 for each of m = 6's 20) is on another scale, but its spread agrees: every projection of m = 6, 8 and 10 has the same D-efficiency, as p. 12 says, and the largest over the smallest is 1.199, 1.079, 1.071 and 1.033 for m = 7, 9, 11 and 12, where the printed columns give 0.97/0.81, 0.95/0.88, 0.95/0.89 and 0.94/0.90.", "Table 6, the six hypotheses: captured as the models and terms of Table 7's power checks, not as numbers.", "Equations (4) to (6), the correlations between second-order columns as functions of m: checked where Table 3 prints them (zero for |r_qq,qs| and one constant |r_qq,st| for even m, and equation (4) at m = 4), not as formulas; the proofs of the appendix.", "Figure 2 (the correlations of equations (4) and (6) for 4 to 40 factors) and Figure 3 (the column correlations of the six-factor design): plots.", "Corner-point balance of the two-factor projections (p. 12): for even m each projection is a central composite design with m/2 - 1 replicates of the corners, for odd m the corners are replicated (m/2 - 1) +/- 1/2 times; a count the catalogue's check kinds do not read.", "The algorithm of the paper's search (coordinate exchange from 10,000 random starting designs, pp. 4-5), and the forward stepwise and best-subset analyses of the example, beyond the AICc of the models they end with."]
 }

@@ -1,28 +1,30 @@
-"""Tests for the ``estimate_correlation`` and ``screening_power`` metrics of ``evaluate_design``.
+"""Tests for the second-order correlations by kind of pair, and the ``screening_power`` metric, of ``evaluate_design``.
 
-The reference numbers are Jones and Nachtsheim's (2011) Tables 4 and 7, for the six-factor definitive
+The reference numbers are Jones and Nachtsheim's (2011) Tables 3, 4 and 7, for the six-factor definitive
 screening design of their Figure 1 and for its orthogonal two-level alternatives.
 """
 
 from __future__ import annotations
 
 import itertools
+import math
 from typing import ClassVar
 
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from process_improve.experiments import evaluate_design, evaluate_projections
 from process_improve.experiments.designs import generate_design
-from process_improve.experiments.evaluate import _second_order_factors
+from process_improve.experiments.evaluate import _second_order_factors, _second_order_pair
 from process_improve.experiments.factor import Factor
 
 _FIGURE_1_SIX = "0+---- 0-++++ +0-++- -0+--+ --0+-- ++0-++ -++0+- +--0-+ +-+-0- -+-+0+ ++++-0 ----+0 000000"
 
 
 def _six_factor_dsd() -> pd.DataFrame:
-    """Jones and Nachtsheim's (2011) six-factor definitive screening design, Figure 1."""
+    """Return Jones and Nachtsheim's (2011) six-factor definitive screening design, Figure 1."""
     rows = [[{"+": 1, "-": -1, "0": 0}[c] for c in run] for run in _FIGURE_1_SIX.split()]
     return pd.DataFrame(rows, columns=[f"x{i + 1}" for i in range(6)], dtype=float)
 
@@ -39,51 +41,88 @@ def _hypotheses(design: pd.DataFrame, **kwargs: object) -> dict[int, dict]:
     return {h["hypothesis"]: h for h in found["hypotheses"]}
 
 
-class TestSecondOrderFactors:
-    """A column is a square or an interaction of named factors, or neither."""
+def _by_pair(design: pd.DataFrame, model: str, metric: str) -> dict[str, dict]:
+    return evaluate_design(design, model=model, metric=metric)[metric]["by_pair"]
+
+
+class TestKindsOfPair:
+    """A column is a square or an interaction of named factors, and two of them a kind of pair."""
 
     @pytest.mark.parametrize(
         ("name", "expected"),
         [
-            ("I(A ** 2)", ("A",)),
+            ("I(A ** 2)", ("A", "A")),
             ("A:B", ("A", "B")),
             ("A:C[S.y]", ("A", "C")),
             ("x1:x10", ("x1", "x10")),
-            ("I(x10 ** 2)", ("x10",)),
             ("I(A ** 3)", None),
             ("A:B:C", None),
             ("I(A ** 2):B", None),
             ("A", None),
+            ("Intercept", None),
         ],
     )
-    def test_names(self, name: str, expected: tuple[str, ...] | None) -> None:
-        assert _second_order_factors(name, ["A", "B", "C", "x1", "x10"]) == expected
+    def test_the_factors_of_a_column(self, name: str, expected: tuple[str, str] | None) -> None:
+        assert _second_order_factors(name) == expected
+
+    @pytest.mark.parametrize(
+        ("first", "second", "kind"),
+        [
+            (("A", "A"), ("B", "B"), "two_squares"),
+            (("A", "A"), ("A", "B"), "square_and_own_interaction"),
+            (("B", "C"), ("C", "C"), "square_and_own_interaction"),
+            (("A", "A"), ("B", "C"), "square_and_other_interaction"),
+            (("A", "B"), ("C", "D"), "two_interactions"),
+            (("A", "B"), ("B", "C"), "two_interactions"),
+        ],
+    )
+    def test_the_kind_of_a_pair(self, first: tuple[str, str], second: tuple[str, str], kind: str) -> None:
+        assert _second_order_pair(first, second) == kind
+
+
+class TestColumnCorrelationByPair:
+    """``correlation`` summarises the second-order columns by kind of pair: Table 3 and equation (4)."""
+
+    def test_the_six_factor_design_follows_table_3(self) -> None:
+        found = _by_pair(_six_factor_dsd(), "quadratic", "correlation")
+        assert found["square_and_own_interaction"]["max_abs_r"] == pytest.approx(0, abs=1e-12)
+        other = found["square_and_other_interaction"]
+        assert (other["mean_abs_r"], other["max_abs_r"]) == pytest.approx((0.465, 0.465), abs=5e-4)
+        both = found["two_interactions"]
+        assert (both["mean_abs_r"], both["max_abs_r"]) == pytest.approx((0.357, 0.5), abs=5e-4)
+        assert found["two_squares"]["max_abs_r"] == pytest.approx(1 / 3 - 1 / 5)  # equation (4)
+        assert [found[kind]["n_pairs"] for kind in found] == [15, 30, 60, 105]
+
+    def test_fewer_than_two_second_order_terms_have_no_pairs(self) -> None:
+        design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=2)), columns=["A", "B"])
+        assert _by_pair(design, "A + B + A:B", "correlation") == {}
 
 
 class TestEstimateCorrelation:
-    """Correlations between estimated second-order effects, from (X'X)^-1, by kind of pair."""
+    """Correlations between estimated second-order effects, from (X'X)^-1, by kind of pair: Table 4."""
 
     def test_two_squares_in_the_model_of_every_main_effect_and_square_follow_table_4(self) -> None:
         design = _six_factor_dsd()
         model = " + ".join(design.columns) + " + " + " + ".join(f"I({c} ** 2)" for c in design.columns)
         found = evaluate_design(design, model=model, metric="estimate_correlation")["estimate_correlation"]
-        assert found["mean_abs_r_two_squares"] == pytest.approx(0.087, abs=5e-4)
-        assert found["max_abs_r_two_squares"] == pytest.approx(found["mean_abs_r_two_squares"])
+        assert list(found["by_pair"]) == ["two_squares"]  # no interaction in the model
+        squares = found["by_pair"]["two_squares"]
+        assert (squares["mean_abs_r"], squares["max_abs_r"]) == pytest.approx((0.087, 0.087), abs=5e-4)
         assert len(found["terms"]) == 6
-        assert "max_abs_r_two_interactions" not in found  # no interaction in the model
 
-    def test_three_factor_projections_follow_table_4(self) -> None:
-        """Every projection of an orthogonal DSD gives the same correlations, so their average is Table 4's row."""
-        found = evaluate_projections(_six_factor_dsd(), 3, model="quadratic", metric="estimate_correlation")
-        averages = found["averages"]
+    def test_every_three_factor_projection_follows_table_4(self) -> None:
+        """Every projection of an orthogonal DSD gives Table 4's row (for any three factors)."""
         printed = {
             "square_and_own_interaction": 0.128,
             "square_and_other_interaction": 0.483,
             "two_interactions": 0.405,
         }
-        for kind, value in printed.items():
-            assert averages[f"mean_abs_r_{kind}"] == pytest.approx(value, abs=5e-4)
-            assert averages[f"max_abs_r_{kind}"] == pytest.approx(value, abs=5e-4)
+        found = evaluate_projections(_six_factor_dsd(), 3, model="quadratic", metric="estimate_correlation")
+        for projection in found["projections"]:
+            by_pair = projection["metrics"]["estimate_correlation"]["by_pair"]
+            for kind, value in printed.items():
+                assert by_pair[kind]["mean_abs_r"] == pytest.approx(value, abs=5e-4)
+                assert by_pair[kind]["max_abs_r"] == pytest.approx(value, abs=5e-4)
 
     def test_the_matrix_is_the_correlation_of_the_inverse_information(self) -> None:
         design = _six_factor_dsd()[["x1", "x2", "x3"]]
@@ -98,15 +137,8 @@ class TestEstimateCorrelation:
 
     def test_an_orthogonal_design_estimates_its_interactions_independently(self) -> None:
         design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=["A", "B", "C"])
-        found = evaluate_design(design, model="interactions", metric="estimate_correlation")["estimate_correlation"]
-        assert found["max_abs_r_two_interactions"] == pytest.approx(0.0, abs=1e-12)
-
-    def test_a_categorical_factor_s_interaction_is_classed_by_its_factors(self) -> None:
-        design = pd.DataFrame(
-            [(a, c) for a in (-1.0, 0.0, 1.0) for c in ("lo", "hi")] + [(1.0, "lo"), (-1.0, "hi")], columns=["A", "C"]
-        )
-        found = evaluate_design(design, model="A + C + I(A ** 2) + A:C", metric="estimate_correlation")
-        assert "max_abs_r_square_and_own_interaction" in found["estimate_correlation"]
+        found = _by_pair(design, "interactions", "estimate_correlation")
+        assert found["two_interactions"]["max_abs_r"] == pytest.approx(0.0, abs=1e-12)
 
     def test_the_columns_of_one_categorical_interaction_are_not_paired(self) -> None:
         levels = [(a, c) for a in (-1.0, 0.0, 1.0) for c in ("p", "q", "r")]
@@ -114,8 +146,8 @@ class TestEstimateCorrelation:
         found = evaluate_design(design, model="A + C + I(A ** 2) + A:C", metric="estimate_correlation")
         result = found["estimate_correlation"]
         assert len(result["terms"]) == 3  # the square and the interaction's two columns
-        assert "max_abs_r_two_interactions" not in result
-        assert "max_abs_r_square_and_own_interaction" in result
+        assert list(result["by_pair"]) == ["square_and_own_interaction"]
+        assert result["by_pair"]["square_and_own_interaction"]["n_pairs"] == 2
 
     def test_a_rank_deficient_model_has_none_and_says_why(self) -> None:
         design = pd.DataFrame([[-1, -1, 1], [1, -1, -1], [-1, 1, -1], [1, 1, 1]], columns=["A", "B", "C"], dtype=float)
@@ -127,6 +159,7 @@ class TestEstimateCorrelation:
         design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=2)), columns=["A", "B"])
         found = evaluate_design(design, model="A + B + A:B", metric="estimate_correlation")["estimate_correlation"]
         assert found["terms"] == ["A:B"]
+        assert found["by_pair"] == {}
         assert "Fewer than two" in found["note"]
 
 
@@ -153,6 +186,14 @@ class TestScreeningPower:
             lowest, average = found[number]["min_power"], found[number]["average_power"]
             assert all(low <= mean + 1e-12 for low, mean in zip(lowest, average, strict=True))
         assert [found[n]["n_tests"] for n in range(1, 7)] == [6, 6, 15, 30, 30, 15]
+
+    def test_each_test_is_the_noncentral_t_power_of_its_coefficient(self) -> None:
+        """In the 2^3 factorial an interaction is tested with variance 1/8 on 3 residual degrees of freedom."""
+        design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=["a", "b", "c"])
+        critical = stats.t.ppf(0.975, 3)
+        delta = 1.5 * math.sqrt(8)
+        expected = stats.nct.sf(critical, 3, delta) + stats.nct.cdf(-critical, 3, delta)
+        assert _hypotheses(design, effect_size=1.5)[3]["average_power"] == pytest.approx([expected], rel=1e-6)
 
     def test_the_orthogonal_alternative_marks_what_table_7_cannot_test(self) -> None:
         """The 12-run Plackett-Burman design's first six columns and a centre run: Table 7's columns 6 to 8."""
@@ -199,7 +240,7 @@ class TestScreeningPower:
         assert found["screening_power"] is None
         assert "numeric factors only" in found["notes"]["screening_power"]
 
-    def test_both_metrics_are_part_of_all(self) -> None:
+    def test_both_new_metrics_are_part_of_all(self) -> None:
         found = evaluate_design(_six_factor_dsd(), model="main_effects", metric="all", n_samples=200)
         assert found["screening_power"]["hypotheses"]
         assert "estimate_correlation" in found

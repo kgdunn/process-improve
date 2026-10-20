@@ -42,6 +42,7 @@ from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 from process_improve.experiments.region import DesignRegion
+from process_improve.experiments.true_process import _canonical
 
 logger = logging.getLogger(__name__)
 
@@ -815,7 +816,9 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
     on the residuals.
 
     Returns ``max_abs_r``, ``mean_abs_r``, the full correlation ``matrix`` (as
-    nested lists), and the ordered ``terms``.
+    nested lists), the ordered ``terms``, and ``by_pair``, the sizes by kind of pair (see
+    :func:`_by_pair`): Jones and Nachtsheim's (2011) Table 3 for a definitive screening design
+    under the full quadratic model.
     """
     second_idx = [i for i, c in enumerate(ctx.column_names) if _term_order(c) == 2]
     base_idx = [i for i, c in enumerate(ctx.column_names) if _term_order(c) in (0, 1)]
@@ -826,6 +829,7 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
                 "mean_abs_r": 0.0,
                 "matrix": [[1.0]] if second_idx else [],
                 "terms": [ctx.column_names[i] for i in second_idx],
+                "by_pair": {},
                 "note": "Fewer than two second-order terms; no pairwise correlation.",
             }
         }
@@ -851,6 +855,7 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
             "mean_abs_r": mean_abs,
             "matrix": corr.tolist(),
             "terms": [ctx.column_names[i] for i in second_idx],
+            "by_pair": _by_pair(corr, [ctx.column_names[i] for i in second_idx]),
         }
     }
 
@@ -861,30 +866,50 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
 SECOND_ORDER_PAIRS = ("two_squares", "square_and_own_interaction", "square_and_other_interaction", "two_interactions")
 
 
-def _second_order_factors(name: str, factor_names: list[str]) -> tuple[str, ...] | None:
-    """Return the factor of a square ``I(A ** 2)``, or the two of an interaction ``A:B``; ``None`` for another column.
+def _second_order_factors(name: str) -> tuple[str, str] | None:
+    """Return the factors a square (``(A, A)``) or a two-factor interaction (``(A, B)``) multiplies; else ``None``.
 
-    An interaction column of a categorical factor (``A:C[S.y]``) names that factor.
+    The term is read as the simulation reads one (``true_process._canonical``), once the level of a
+    categorical factor's column (``A:C[S.y]``) is set aside.
     """
-    names = sorted(factor_names, key=len, reverse=True)  # "AB" before "A"
-    pattern = re.compile("|".join(rf"(?<![\w.]){re.escape(f)}(?![\w])" for f in names))
-    parts = name.split(":")
-    found = [pattern.findall(part) for part in parts]
-    if any(len(set(f)) != 1 for f in found):
+    try:
+        _, factors = _canonical(re.sub(r"\[[^\]]*\]", "", name))
+    except ValueError:
         return None
-    if len(parts) == 1:
-        return (found[0][0],) if re.fullmatch(r"I\(.+\*\*\s*2\)", name) else None
-    first, second = found[0][0], found[1][0]
-    powers = any("**" in part for part in parts)
-    return (first, second) if len(parts) == 2 and first != second and not powers else None
+    return (factors[0], factors[1]) if len(factors) == 2 else None
 
 
-def _second_order_pair(first: tuple[str, ...], second: tuple[str, ...]) -> str:
+def _second_order_pair(first: tuple[str, str], second: tuple[str, str]) -> str:
     """Name the kind of a pair of second-order terms (see :data:`SECOND_ORDER_PAIRS`)."""
-    if len(first) == len(second):
-        return "two_squares" if len(first) == 1 else "two_interactions"
-    square, interaction = (first, second) if len(first) == 1 else (second, first)
+    squares = [a == b for a, b in (first, second)]
+    if all(squares):
+        return "two_squares"
+    if not any(squares):
+        return "two_interactions"
+    square, interaction = (first, second) if squares[0] else (second, first)
     return "square_and_own_interaction" if square[0] in interaction else "square_and_other_interaction"
+
+
+def _by_pair(corr: np.ndarray, terms: list[str]) -> dict[str, dict[str, float | int]]:
+    """Summarise the sizes of correlations between second-order terms by kind of pair.
+
+    For each kind of :data:`SECOND_ORDER_PAIRS` that the terms make, ``max_abs_r``, ``mean_abs_r``
+    and ``n_pairs``, as Jones and Nachtsheim (2011) tabulate them for definitive screening designs
+    (their Tables 3 and 4). Two columns of one term, the levels of a categorical factor in an
+    interaction, are not a pair: their correlation comes from the coding, not from the design.
+    """
+    factors = [_second_order_factors(t) for t in terms]
+    sizes: dict[str, list[float]] = {}
+    for i, j in itertools.combinations(range(len(terms)), 2):
+        first, second = factors[i], factors[j]
+        if first is None or second is None or set(first) == set(second):
+            continue
+        sizes.setdefault(_second_order_pair(first, second), []).append(abs(float(corr[i, j])))
+    return {
+        kind: {"max_abs_r": max(sizes[kind]), "mean_abs_r": float(np.mean(sizes[kind])), "n_pairs": len(sizes[kind])}
+        for kind in SECOND_ORDER_PAIRS
+        if kind in sizes
+    }
 
 
 def _compute_estimate_correlation(ctx: _EvalContext) -> dict[str, Any]:
@@ -894,14 +919,12 @@ def _compute_estimate_correlation(ctx: _EvalContext) -> dict[str, Any]:
     *estimates* the fit makes of them: ``r_ij = c_ij / sqrt(c_ii c_jj)`` with ``c = (X'X)^-1``,
     the correlations JMP prints as the "correlation of estimates". A large ``|r_ij|`` means the
     data cannot tell the two effects apart: an active square can show up as an interaction, or
-    the reverse. The sizes are summarised by kind of pair as Jones and Nachtsheim (2011) tabulate
-    them for definitive screening designs: ``max_abs_r_<kind>`` and ``mean_abs_r_<kind>`` for each
-    kind of :data:`SECOND_ORDER_PAIRS` the model has, and for ``second_order``, every pair of
-    second-order terms. A model of every main effect and every square gives their Table 4's
-    correlations of two squares; :func:`~process_improve.experiments.evaluate_projections` with
-    ``model="quadratic"`` gives the others for each projection, and averages them.
+    the reverse. ``by_pair`` summarises them by kind of pair (see :func:`_by_pair`), as
+    ``correlation`` does for the columns. A model of every main effect and every square gives
+    Jones and Nachtsheim's (2011) Table 4 for two squares, and the full quadratic model of three of
+    the factors gives its other columns.
 
-    Returns ``terms``, ``matrix`` (the correlations, as nested lists) and the summaries.
+    Returns ``terms``, ``matrix`` (the correlations, as nested lists) and ``by_pair``.
     """
     if ctx.is_singular:
         return {"estimate_correlation": None, "note": "Design is rank-deficient for the specified model."}
@@ -913,27 +936,14 @@ def _compute_estimate_correlation(ctx: _EvalContext) -> dict[str, Any]:
             "estimate_correlation": {
                 "terms": terms,
                 "matrix": [[1.0]] if second_idx else [],
+                "by_pair": {},
                 "note": "Fewer than two second-order terms; no pairwise correlation.",
             }
         }
     inverse = ctx.XtX_inv[np.ix_(second_idx, second_idx)]
     scale = np.sqrt(np.diag(inverse))
     corr = inverse / np.outer(scale, scale)
-    factors = [_second_order_factors(t, ctx.factor_names) for t in terms]
-    sizes: dict[str, list[float]] = {"second_order": []}
-    for i, j in itertools.combinations(range(len(terms)), 2):
-        first, second = factors[i], factors[j]
-        if first is not None and first == second:
-            continue  # two columns of one term (a categorical factor's levels): their coding, not the design
-        sizes["second_order"].append(abs(float(corr[i, j])))
-        if first is not None and second is not None:
-            sizes.setdefault(_second_order_pair(first, second), []).append(abs(float(corr[i, j])))
-    result: dict[str, Any] = {"terms": terms, "matrix": corr.tolist()}
-    for kind in ("second_order", *SECOND_ORDER_PAIRS):
-        if kind in sizes:
-            result[f"max_abs_r_{kind}"] = max(sizes[kind])
-            result[f"mean_abs_r_{kind}"] = float(np.mean(sizes[kind]))
-    return {"estimate_correlation": result}
+    return {"estimate_correlation": {"terms": terms, "matrix": corr.tolist(), "by_pair": _by_pair(corr, terms)}}
 
 
 def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, list[str]]:
