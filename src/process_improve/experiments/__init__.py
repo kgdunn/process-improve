@@ -21,6 +21,7 @@ from process_improve.experiments.factor import Constraint, DesignResult, Factor,
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
+from process_improve.experiments.model_comparison import compare_models, group_test
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.multistratum import multistratum_anova
 from process_improve.experiments.next_step import recommend_next_step
@@ -94,6 +95,7 @@ __all__ = [
     "box_behnken_runs",
     "c",
     "compare_designs",
+    "compare_models",
     "constraint_through_cuts",
     "cross_arrays",
     "defining_relation",
@@ -112,6 +114,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "group_test",
     "interaction_components",
     "intraclass_correlation_interval",
     "is_omars",
