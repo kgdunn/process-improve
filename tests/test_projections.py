@@ -79,3 +79,22 @@ def test_too_many_projections_are_refused(monkeypatch: pytest.MonkeyPatch) -> No
     with pytest.raises(ValueError, match="projections is more than"):
         evaluate_projections(dsd(4), 2)
     assert MOST_PROJECTIONS == 50_000
+
+
+def test_numbers_two_metrics_return_under_one_name_are_averaged_apart() -> None:
+    """VIF and power are both keyed by term: asked together, each keeps its own average."""
+    design = dsd(6)
+    both = evaluate_projections(design, 3, model="quadratic", metric=["vif", "power"], effect_size=1)["averages"]
+    vif = evaluate_projections(design, 3, model="quadratic", metric="vif")["averages"]
+    power = evaluate_projections(design, 3, model="quadratic", metric="power", effect_size=1)["averages"]
+    assert "A" not in both
+    assert both["vif.A"] == pytest.approx(vif["A"])
+    assert both["power.A"] == pytest.approx(power["A"])
+
+
+def test_a_metric_s_own_number_keeps_its_name_beside_another_that_repeats_it() -> None:
+    """``fds`` repeats the region's average prediction variance; the metric of that name keeps the plain key."""
+    found = evaluate_projections(
+        dsd(6), 3, model="quadratic", metric=["average_prediction_variance", "fds"], n_samples=500
+    )["averages"]
+    assert found["average_prediction_variance"] == pytest.approx(found["fds.average_prediction_variance"])
