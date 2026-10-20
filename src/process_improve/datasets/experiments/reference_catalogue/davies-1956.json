@@ -24230,7 +24230,7 @@
       "kind": "optimum",
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
-      "key": "stationary_point.eigenvalues.1"
+      "key": "stationary_point.eigenvalues.2"
      }
     },
     {
@@ -24247,7 +24247,7 @@
       "kind": "optimum",
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
-      "key": "stationary_point.eigenvalues.2"
+      "key": "stationary_point.eigenvalues.1"
      }
     },
     {
