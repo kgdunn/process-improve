@@ -46,10 +46,11 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._region_geometry import MAX_VERTICES
 from process_improve.experiments._uniform_sampling import _TOL, _Inequality
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
-from process_improve.experiments.evaluate import _coefficient_power
+from process_improve.experiments.evaluate import _coefficient_power, _random_effects_information
 from process_improve.experiments.factor import DesignResult, Factor, FactorType
 from process_improve.experiments.region import DesignRegion
 from process_improve.tool_spec import clean
@@ -594,6 +595,45 @@ def _coded_runs(design: object) -> tuple[np.ndarray, list[str] | None]:
     return runs, None if frame is None else [str(c) for c in frame.columns]
 
 
+def _whole_plots(design: object) -> tuple[dict[str, tuple[np.ndarray, float]] | None, str | None]:
+    """Return the random effect of a design's whole plots, as the design records them, and a note.
+
+    A split-plot :class:`DesignResult` records the variance ratio it was made for in
+    ``metadata["whole_plot_variance_ratio"]``; a DataFrame can carry one in
+    ``attrs["whole_plot_variance_ratio"]``. Either way the whole plots are the ``WholePlot``
+    column. Without a ratio the runs are scored as independent, and the note says so.
+
+    Raises
+    ------
+    ValueError
+        If the ratio is not a finite number of at least 0.
+    """
+    frame: pd.DataFrame
+    if isinstance(design, DesignResult):
+        frame, ratio = design.design, design.metadata.get("whole_plot_variance_ratio")
+    elif isinstance(design, pd.DataFrame):
+        frame, ratio = design, design.attrs.get("whole_plot_variance_ratio")
+    else:
+        return None, None
+    if WHOLE_PLOT_COL not in frame.columns:
+        return None, None
+    labels = frame[WHOLE_PLOT_COL].to_numpy()
+    count = len(pd.unique(labels))
+    if ratio is None:
+        return None, (
+            f"Its runs share {count} whole plots, but the design records no whole-plot variance ratio, so the "
+            "measures treat every run as set on its own; give one as whole_plot_variance_ratio."
+        )
+    if not isinstance(ratio, (int, float)) or not np.isfinite(ratio) or ratio < 0:
+        raise ValueError(f"The whole-plot variance ratio must be a finite number of at least 0; got {ratio!r}.")
+    note = (
+        f"Its runs share {count} whole plots, with a whole-plot variance {float(ratio):g} times the run "
+        "variance, as the design records it: the measures use X'V^-1 X, and the power keeps the run-level "
+        "residual degrees of freedom."
+    )
+    return {WHOLE_PLOT_COL: (labels, float(ratio))}, note
+
+
 def _labelled(designs: Mapping[str, Any] | Sequence[Any]) -> list[tuple[str, Any]]:
     """Pair each design with its label: the mapping's key, else its design type."""
     if isinstance(designs, (pd.DataFrame, np.ndarray, DesignResult)):
@@ -650,9 +690,14 @@ def _largest_second_order_r(correlations: pd.DataFrame, k: int) -> float | None:
     return None if np.all(np.isnan(block)) else float(np.nanmax(block))
 
 
-def _criteria(matrix: np.ndarray, model: _Model) -> tuple[dict[str, float], np.ndarray]:
-    """Return the five alphabetic criteria of a full-rank model matrix, and the diagonal of M^-1."""
-    information = matrix.T @ matrix
+def _criteria(
+    matrix: np.ndarray, model: _Model, groups: dict[str, tuple[np.ndarray, float]] | None = None
+) -> tuple[dict[str, float], np.ndarray]:
+    """Return the five alphabetic criteria of a full-rank model matrix, and the diagonal of M^-1.
+
+    M is X'X, or X'V^-1 X for runs that share the random effects ``groups``.
+    """
+    information = matrix.T @ matrix if not groups else _random_effects_information(matrix, groups)
     inverse = np.linalg.inv(information)
     p = information.shape[0]
     _, log_det = np.linalg.slogdet(information)
@@ -832,7 +877,13 @@ def _inseparable(matrix: np.ndarray, model: _Model) -> str:
     return "; ".join(parts) + "." if parts else "Some of its terms are linear combinations of the others."
 
 
-def _score(x: np.ndarray, model: _Model, effect_size: float, alpha: float) -> tuple[dict[str, Any], list[str]]:
+def _score(
+    x: np.ndarray,
+    model: _Model,
+    effect_size: float,
+    alpha: float,
+    groups: dict[str, tuple[np.ndarray, float]] | None = None,
+) -> tuple[dict[str, Any], list[str]]:
     """Score one design on every measure, with the notes that qualify the numbers."""
     matrix = _expand(x, model.exponents)
     n, p = matrix.shape
@@ -846,7 +897,7 @@ def _score(x: np.ndarray, model: _Model, effect_size: float, alpha: float) -> tu
             f"design. {_inseparable(matrix, model)}"
         )
         return values, notes
-    criteria, c = _criteria(matrix, model)
+    criteria, c = _criteria(matrix, model, groups)
     values.update(criteria)
     values.update(_power(c, n - p, model, effect_size, alpha))
     if n == p:
@@ -995,6 +1046,16 @@ def compare_designs(
     noted. Without a region, or with one that has no constraints, the cube's exact
     moments are used.
 
+    A split-plot design's runs share whole plots, so they are not independent. When the
+    design records the whole-plot variance ratio :math:`\eta` it was made for (a split-plot
+    :class:`DesignResult` keeps it in ``metadata["whole_plot_variance_ratio"]``; a DataFrame can
+    carry one in ``attrs["whole_plot_variance_ratio"]``), every measure uses
+    :math:`\mathbf{X}^T\mathbf{V}^{-1}\mathbf{X}` in place of :math:`\mathbf{M}`, with
+    :math:`\mathbf{V} = \mathbf{I} + \eta \mathbf{Z}\mathbf{Z}^T` and :math:`\mathbf{Z}` the
+    indicators of the ``WholePlot`` column, as :func:`evaluate_design` does with
+    ``random_effects``: :math:`A/p`, :math:`I` and :math:`G` are then in units of the run
+    variance, and the power keeps the run-level :math:`N - p`. The design's note says so.
+
     Parameters
     ----------
     designs : mapping of str to design, or sequence of DesignResult
@@ -1062,10 +1123,13 @@ def compare_designs(
     values: dict[str, Mapping[str, Any]] = {}
     notes: dict[str, tuple[str, ...]] = {}
     correlations: dict[str, pd.DataFrame] = {}
-    for (label, _), (x, _) in zip(labelled, runs, strict=True):
+    for (label, design), (x, _) in zip(labelled, runs, strict=True):
         sized = _unique(f"{label} [n={len(x)}]", labels)
         labels.append(sized)
-        design_values, design_notes = _score(x, scored, effect_size, significance_level)
+        groups, whole_plot_note = _whole_plots(design)
+        design_values, design_notes = _score(x, scored, effect_size, significance_level, groups)
+        if whole_plot_note:
+            design_notes.append(whole_plot_note)
         correlations[sized] = _correlations(x, names)
         design_values["max_r"] = _largest_second_order_r(correlations[sized], len(names))
         if np.isnan(correlations[sized].to_numpy()[len(names) : 2 * len(names)]).all():
