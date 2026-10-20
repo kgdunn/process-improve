@@ -15,6 +15,7 @@ from scipy import stats
 from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
+from process_improve.experiments._analyses.ols_extractors import _type_ii_by_rank
 from process_improve.experiments.analysis import (
     analyze_experiment,
     build_formula,
@@ -295,6 +296,99 @@ class TestAnova:
         sources = [r["source"] for r in result["anova_table"]]
         assert "A" in sources
         assert "B" in sources
+
+
+#: Davies (1956), Example 5-5: the strength of synthetic yarn in four 3 x 3 Graeco-Latin squares. Each
+#: run is "time day twist-draw strength"; the three times and three days of a square occur in it only.
+_YARN = {
+    "I": "1 4 AY 4.53;9 4 BX 4.25;12 4 CZ 3.97;1 9 CX 4.05;9 9 AZ 3.05;12 9 BY 3.61;1 12 BZ 4.4;9 12 CY 2.78;"
+    "12 12 AX 3.32",
+    "II": "2 1 CZ 3.58;6 1 BX 4.48;8 1 AY 4.29;2 3 AX 4.68;6 3 CY 3.85;8 3 BZ 3.23;2 6 BY 4.5;6 6 AZ 4.07;8 6 CX 3.71",
+    "III": "3 5 BX 4.76;7 5 AY 3.22;10 5 CZ 4.01;3 8 CY 4.54;7 8 BZ 2.97;10 8 AX 4.1;3 10 AZ 4.3;7 10 CX 3.09;"
+    "10 10 BY 3.97",
+    "IV": "4 2 AZ 4.1;5 2 BY 4.18;11 2 CX 3.46;4 7 CY 4.35;5 7 AX 4.6;11 7 BZ 3.76;4 11 BX 4.26;5 11 CZ 3.35;"
+    "11 11 AY 2.5",
+}
+
+
+def _yarn() -> pd.DataFrame:
+    runs = [run.split() for runs in _YARN.values() for run in runs.split(";")]
+    squares = [square for square, runs in _YARN.items() for _ in runs.split(";")]
+    return pd.DataFrame(
+        {
+            "Square": squares,
+            "Time": [time for time, *_ in runs],
+            "Day": [day for _, day, *_ in runs],
+            "Twist": [positions[0] for *_, positions, _ in runs],
+            "Draw": [positions[1] for *_, positions, _ in runs],
+            "Strength": [float(strength) for *_, strength in runs],
+        }
+    )
+
+
+class TestNestedFactors:
+    """A factor whose levels each sit inside one level of another lies in that other's columns (#789 B7).
+
+    statsmodels' Type II table then counted every column as a degree of freedom: Davies's Example
+    5-5 gave 3, 11 and 11 df for the squares, times and days, with sums of squares of 0.11, 0.41 and
+    0.41 and a residual on 11 df. Each row is now worked out on the rank its term adds.
+    """
+
+    MODEL = "Square + Time + Day + Twist + Draw"
+
+    def _anova(self) -> dict:
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            return analyze_experiment(_yarn(), response_column="Strength", model=self.MODEL, analysis_type="anova")
+
+    def test_the_rows_are_the_printed_table(self) -> None:
+        """Davies's table: times 6.7939 and days 2.3170 on 8 df, twist 0.5514, draw 0.6682, error 1.3413 on 12."""
+        rows = {row["source"]: row for row in self._anova()["anova_table"]}
+        printed = {"Time": (8, 6.7940), "Day": (8, 2.3170), "Twist": (2, 0.5514), "Draw": (2, 0.6682)}
+        printed["Residual"] = (12, 1.3413)  # the times are 6.7939556 in exact arithmetic: Davies prints 6.7939
+        for source, (df, sum_sq) in printed.items():
+            assert rows[source]["df"] == df, source
+            assert rows[source]["sum_sq"] == pytest.approx(sum_sq, abs=5e-5), source
+        assert rows["Time"]["F"] == pytest.approx((6.7939556 / 8) / (1.3412667 / 12), rel=1e-6)
+
+    def test_the_squares_are_refused_with_the_analysis_that_separates_them(self) -> None:
+        result = self._anova()
+        square = next(row for row in result["anova_table"] if row["source"] == "Square")
+        assert (square["df"], square["sum_sq"], square["F"], square["p_value"]) == (0, 0.0, None, None)
+        note = result["anova_note"]
+        assert "Square cannot be tested: its columns lie in those of Time and Day" in note
+        assert 'multistratum_anova(..., strata="Square/Time + Square/Day")' in note
+        assert "Time is tested on 8 of its 11 degrees of freedom" in note
+
+    def test_the_rows_add_to_the_total_less_the_squares(self) -> None:
+        rows = self._anova()["anova_table"]
+        total = float(((_yarn()["Strength"] - _yarn()["Strength"].mean()) ** 2).sum())
+        assert sum(row["sum_sq"] for row in rows) == pytest.approx(total - 0.356075, abs=1e-6)
+
+    def test_a_model_of_full_rank_gets_statsmodels_type_ii_table(self) -> None:
+        """The rank-aware rows equal anova_lm's for an unbalanced design whose matrix has full rank."""
+        rng = np.random.default_rng(5)
+        cells = {("a", "x"): 2, ("a", "y"): 1, ("b", "x"): 3, ("b", "y"): 1, ("c", "x"): 2, ("c", "y"): 2}
+        df = pd.DataFrame([cell for cell, count in cells.items() for _ in range(count)], columns=["A", "B"])
+        df["y"] = rng.normal(10, 1, len(df)) + (df["A"] == "b") * 2.0
+        fit = smf.ols("y ~ A * B", data=df).fit()
+        found, notes = _type_ii_by_rank(fit, ())
+        expected = sm.stats.anova_lm(fit, typ=2)
+        assert notes == []
+        np.testing.assert_allclose(found["sum_sq"], expected["sum_sq"], rtol=1e-10)
+        np.testing.assert_allclose(found["df"], expected["df"])
+        np.testing.assert_allclose(found["F"].iloc[:-1], expected["F"].iloc[:-1], rtol=1e-10)
+
+    def test_a_term_partly_in_the_others_is_tested_on_what_it_adds(self) -> None:
+        """Batches that each hold one level of A: B's six levels add three degrees of freedom beyond A's two."""
+        df = pd.DataFrame({"A": list("aabbccaabbcc"), "B": list("pqrstupqrstu")})
+        df["y"] = np.arange(12.0) ** 1.5
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            result = analyze_experiment(df, response_column="y", model="A + B", analysis_type="anova")
+        rows = {row["source"]: row for row in result["anova_table"]}
+        assert rows["A"]["df"] == 0
+        assert rows["B"]["df"] == 3
+        assert "B is tested on 3 of its 5 degrees of freedom" in result["anova_note"]
+        assert 'strata="A/B"' in result["anova_note"]
 
 
 # ---------------------------------------------------------------------------
