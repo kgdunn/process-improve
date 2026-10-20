@@ -65,6 +65,7 @@ from process_improve.experiments.surface_checks import pooled_pure_error, third_
 from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
+from process_improve.experiments.variance_dispersion import variance_dispersion
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 
 __all__ = [
@@ -145,5 +146,6 @@ __all__ = [
     "trade_off_table",
     "trend_robust_run_order",
     "variance_components",
+    "variance_dispersion",
     "visualize_doe",
 ]
