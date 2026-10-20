@@ -460,6 +460,33 @@ export function settingColour(value) {
   return v < 0 ? hex(mix(MID, LOW, -v)) : hex(mix(MID, HIGH, v));
 }
 
+/** Whether a factor is categorical with more than two labels: its coded settings are places in its list of labels. */
+export const manyLabels = (factor) => factor?.type === "categorical" && (factor.levels?.length ?? 0) > 2;
+
+/** How near a coded setting must sit to a label's place, as a share of the step between two labels. */
+const LABEL_NEAR = 0.25;
+
+/**
+ * The label a categorical factor's coded setting stands for: its labels are coded evenly from -1, the first, to +1,
+ * the last, in the order the catalogue lists them. Null when the setting is missing or falls between two labels.
+ */
+export function labelOf(factor, coded) {
+  if (coded === null || coded === undefined) return null;
+  const n = factor.levels.length;
+  const place = ((coded + 1) * (n - 1)) / 2;
+  const at = Math.round(place);
+  return Math.abs(place - at) < LABEL_NEAR && at >= 0 && at < n ? String(factor.levels[at]) : null;
+}
+
+/** A factor's levels in a few words: a numeric factor's range, a categorical factor's labels or how many it has. */
+export function levelsText(factor) {
+  const labels = factor.levels ?? [];
+  if (factor.type === "categorical" && labels.length > 2) return `${labels[0]} to ${labels.at(-1)} (${labels.length} labels)`;
+  if (factor.type === "categorical") return (labels.length ? labels : [factor.low, factor.high]).filter((v) => v !== null && v !== undefined).join(", ");
+  if (factor.low === null || factor.low === undefined) return "";
+  return factor.high === null || factor.high === undefined ? String(factor.low) : `${factor.low} to ${factor.high}`;
+}
+
 // ---------------------------------------------------------------- words for a design
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 

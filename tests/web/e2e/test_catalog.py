@@ -210,14 +210,20 @@ def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
     assert shown(page) == [BOOK_DESIGN]
 
 
-def test_a_design_whose_runs_differ_in_leverage_draws_them_and_names_the_heaviest(context, site):
-    """The face-centred CCD leans on its corners more than on its centre: a bar each, and the runs it leans on most."""
+def test_a_design_whose_runs_differ_in_leverage_lists_it_beside_each_run(context, site):
+    """The face-centred CCD leans on its corners more than on its centre: a leverage column, and the heaviest named."""
     page = open_catalog(context, site, f"#d={CCD}")
-    page.wait_for_selector("#detail[open] canvas.leverage")
+    page.wait_for_selector("#detail[open] table.runs-table")
     words = page.text_content("#detail-body .detail__leverage")
-    assert re.match(r"\d+ runs carry the most weight, with leverage 0\.\d\d; the least is 0\.\d\d\.$", words), words
-    assert "how much the model leans on it" in page.text_content("#detail-body")
-    assert "determinant" not in page.text_content("#detail-body"), "the caption says what leverage is, in words"
+    assert re.match(r"\d+ runs carry the most weight, with leverage 0\.\d\d; the least is 0\.\d\d\. ", words), words
+    assert page.locator("#detail-body canvas").count() == 0, "colours and leverage sit in the table, not beside it"
+    heads = page.locator("table.runs-table thead th").all_text_contents()
+    assert (heads[0], heads[-1]) == ("Run", "Leverage")
+    cells = page.locator("table.runs-table tbody tr").first.locator("td")
+    tinted = "(td) => td.classList.contains('setting') && td.style.getPropertyValue('--tint') !== ''"
+    assert cells.nth(1).evaluate(tinted), "a coded setting is tinted in its own cell"
+    assert re.fullmatch(r"0\.\d\d", cells.last.text_content()), "the first run's leverage, beside its bar"
+    assert "how much the model leans on a run" in page.text_content("#detail-body")
     projectivity = next(line for line in page.locator("#detail-body p").all_text_contents() if "two-level" in line)
     assert projectivity == "Its 8 two-level runs, of 17, hold every combination of its 3 factors' levels."
 
@@ -232,8 +238,9 @@ def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context,
     text = " ".join(page.text_content("#detail-body").split())
     assert "If any one run is lost, the design still estimates two-factor interactions" in text
     assert "Its two-level runs hold every combination of its 3 factors' levels." in text
-    assert page.locator("#detail-body canvas.leverage").count() == 0, "equal bars would add nothing to the sentence"
     assert page.text_content("#detail-body .detail__leverage").startswith("Every run has the same leverage, 0.88:")
+    heads = page.locator("table.runs-table thead th").all_text_contents()
+    assert "Leverage" not in heads, "a column of one value would add nothing to the sentence"
     page.click(f"#detail-body .detail__twins [data-id='{CUBE}']")
     page.wait_for_function(
         "document.querySelector('#detail-title').textContent.startsWith('Full factorial, 3 factors')"

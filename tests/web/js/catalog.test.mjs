@@ -48,7 +48,10 @@ import {
   INDEX_FIELDS,
   minimumRuns,
   parseQuery,
+  labelOf,
   leverageWords,
+  levelsText,
+  manyLabels,
   projectionLines,
   pythonCode,
   results,
@@ -485,6 +488,28 @@ describe("what a design withstands, in words", () => {
     assert.deepEqual(projectionLines(wide, CCD), [
       "Projectivity 2: in its 8 two-level runs, of 17, any 2 of its factors hold all 4 combinations of their two levels.",
     ]);
+  });
+
+  test("a categorical factor of more than two labels reads back its label from its coded setting", () => {
+    const part = { name: "part", type: "categorical", levels: Array.from({ length: 20 }, (_, i) => String(i + 1)) };
+    assert.equal(manyLabels(part), true);
+    assert.equal(manyLabels({ type: "categorical", levels: ["A", "B"] }), false, "two labels are a factor's two levels");
+    assert.equal(manyLabels({ type: "numeric", levels: [1, 2, 3] }), false);
+    assert.equal(labelOf(part, -1), "1");
+    assert.equal(labelOf(part, -1 + (2 * 2) / 19), "3", "the third label of twenty");
+    assert.equal(labelOf(part, Number((-0.789).toFixed(3))), "3", "as the catalog rounds it");
+    assert.equal(labelOf(part, 1), "20");
+    assert.equal(labelOf(part, 0), null, "between two labels");
+    assert.equal(labelOf(part, null), null);
+  });
+
+  test("a factor's levels in a few words", () => {
+    const labels = Array.from({ length: 20 }, (_, i) => String(i + 1));
+    assert.equal(levelsText({ type: "categorical", low: "1", high: "2", levels: labels }), "1 to 20 (20 labels)");
+    assert.equal(levelsText({ type: "categorical", levels: ["A", "B"] }), "A, B");
+    assert.equal(levelsText({ type: "categorical", low: "old", high: "new" }), "old, new");
+    assert.equal(levelsText({ type: "numeric", low: 150, high: 200 }), "150 to 200");
+    assert.equal(levelsText({ type: "numeric" }), "");
   });
 
   test("leverage in words: one sentence when every run has the same, else the runs that carry the most", () => {
