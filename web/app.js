@@ -13,6 +13,7 @@
 // the form's settings a run sheet was made from.
 
 import {
+  blendOverlayFigure,
   coefficientFigure,
   correlationFigure,
   coxFigure,
@@ -31,7 +32,10 @@ import {
   ternaryRange,
 } from "./charts.js";
 import {
+  BLEND_SENSITIVITY,
+  BLEND_UNCLEAR,
   CONFIRMATION,
+  NO_BLEND_OVERLAY,
   CONFIRMATION_RUNS,
   IMPORTANCES,
   GOOD_END,
@@ -42,6 +46,11 @@ import {
   balanceRows,
   balanceWhere,
   bestContourCaption,
+  blendExtrapolation,
+  blendLead,
+  blendOverlayCaption,
+  blendSentences,
+  blendWhere,
   confirmationRows,
   confirmationSentences,
   confirmedAt,
@@ -55,7 +64,6 @@ import {
   leadSentence,
   limitingSentence,
   climb,
-  mixtureSentence,
   movesOn,
   nextRanges,
   noGoalSentence,
@@ -64,6 +72,7 @@ import {
   overlayCaption,
   sensitivityCaption,
   settingWords,
+  weighingSentence,
   whereSentences,
   whereWords,
   withConfirmationRuns,
@@ -2955,17 +2964,19 @@ async function drawCharts(request, mine, given = null) {
     if (!plots) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
-    const starred = plots.held_best && starBest(figures, plots.contour_factors);
+    // A mixture's best blend is starred on its triangle, or where its Cox traces, drawn through it, cross.
+    const blend = plots.held_best && blendStudy() && state.best?.settings ? state.best : null;
+    const starred = plots.held_best && (blend !== null || starBest(figures, plots.contour_factors));
     // A mixture's response over its blends is drawn here, in the page's colours: a triangle for three components,
     // else the trace along each component's Cox direction.
     const words = { response: responseWords().label, units: responseWords().units };
     const { ternary, cox } = plots;
     if (ternary) {
       const range = ternaryRange(ternary);
-      figures.ternary = () => ternaryFigure(ternary, { ...words, range });
+      figures.ternary = () => ternaryFigure(ternary, { ...words, range, best: blend?.coded ?? null });
       if (ternary.grid.true) figures.true_ternary = () => ternaryFigure(ternary, { ...words, range, values: "true" });
     }
-    if (cox) figures.cox = () => coxFigure(cox, words);
+    if (cox) figures.cox = () => coxFigure(cox, { ...words, best: blend && cox.through === "best" ? blend.predicted : null });
     for (const key of ["contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
       const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
@@ -3016,10 +3027,14 @@ async function findBest(request, mine) {
   return state.best;
 }
 
+/** Whether the study on the page is a mixture's: its best settings are then a blend of its components. */
+const blendStudy = () => isMixture(state.design?.spec?.design_type);
+
 /**
  * Show the best settings: what the model predicts there, the settings and where each lies, the two intervals,
  * where the settings sit against the ranges and the limits, whether the runs support the prediction there, how
  * tightly to hold each factor, and the confirmation runs. A goal of learning, or a target not yet typed, gets one line.
+ * A mixture's are its best blend (see renderBlend).
  */
 function renderBest(reply) {
   if (!reply?.ok || !state.design) {
@@ -3030,13 +3045,20 @@ function renderBest(reply) {
   const best = reply.result;
   const words = wordsOf(state.shown);
   const factors = state.design.spec.factors;
+  const blend = blendStudy();
   $("#best").hidden = false;
   $("#best-chart").hidden = true;
   $("#confirm").hidden = true;
+  $("#h-best").textContent = blend ? "The best blend for your goal" : "The best settings for your goal";
+  $("#best-chart .term").textContent = blend ? "How tightly to weigh out each component" : "How tightly to hold each factor";
   if (!best.settings) {
     hidePython("best");
-    const text = best.mixture ? mixtureSentence(words) : best.flat ? flatSentence(words) : noGoalSentence(best, words);
+    const text = best.flat ? flatSentence(words, { blend }) : noGoalSentence(best, words, { blend });
     $("#best-out").replaceChildren(said("hint", text));
+    return;
+  }
+  if (blend) {
+    renderBlend(best, words);
     return;
   }
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
@@ -3052,6 +3074,27 @@ function renderBest(reply) {
     knownTable(intervalRows(best, words)),
     ...[noIntervalSentence(best)].filter(Boolean).map((text) => said("hint", text)),
     ...noteList(whereSentences(best, factors, words)),
+    ...noteList(cautions, "warnings"),
+  );
+  renderConfirmation(best, words);
+  const model = state.analysis?.formula ?? state.analysis?.model ?? "";
+  showPython("best", bestCode(best, shownSpec(), model, designComplete()));
+  drawBestChart();
+}
+
+/**
+ * Show a mixture's best blend: what the model predicts there, each component's proportion and where it lies between its
+ * bounds, the two intervals and the leverage, how tightly to weigh out each component, and the confirmation runs.
+ */
+function renderBlend(best, words) {
+  const rows = best.settings.map((s) => [s.name, num(s.value), blendWhere(s, best, words)]);
+  const cautions = [blendExtrapolation(best), best.unclear ? BLEND_UNCLEAR : ""].filter(Boolean);
+  $("#best-out").replaceChildren(
+    said("lead", blendLead(best, words)),
+    table(["Component", "Proportion", "Where it lies"], rows),
+    knownTable(intervalRows(best, words)),
+    ...[noIntervalSentence(best)].filter(Boolean).map((text) => said("hint", text)),
+    ...noteList(blendSentences(best)),
     ...noteList(cautions, "warnings"),
   );
   renderConfirmation(best, words);
@@ -3076,20 +3119,27 @@ function knownTable(rows) {
   return wrap;
 }
 
-/** Say what the confirmation runs on the run sheet show, and offer to add them at the best settings. */
+/**
+ * Say what the confirmation runs on the run sheet show, and offer to add them at the best settings. A mixture's are at
+ * its best blend, each proportion as it is weighed out, with no units: a proportion is a share of the blend.
+ */
 function renderConfirmation(best, words) {
   const groups = best.confirmation ?? [];
+  const blend = blendStudy();
+  const factors = blend ? state.design.spec.factors.map((f) => ({ ...f, units: "" })) : state.design.spec.factors;
+  const where = blend ? "this blend" : "these settings";
   $("#confirm").hidden = false;
   $("#confirm-out").replaceChildren(
+    ...(blend ? [said("hint", weighingSentence(best))] : []),
     ...groups.map((group) => {
       const box = el("div", "verdict", "");
       box.dataset.state = group.inside === null ? "waiting" : group.inside ? "inside" : "outside";
-      box.append(...confirmationSentences(group, state.design.spec.factors, words).map((text) => said("", text)));
+      box.append(...confirmationSentences(group, factors, words, where).map((text) => said("", text)));
       return box;
     }),
   );
   const add = $("#add-confirmation");
-  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`;
+  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at ${where}`;
   add.hidden = confirmedAt(state.design, best.confirm_at); // runs there already: their results are what is wanted
   $("#remove-confirmation").hidden = groups.length === 0;
 }
@@ -3103,12 +3153,13 @@ async function drawBestChart() {
     card.hidden = true;
     return;
   }
-  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const blend = blendStudy(); // a component's step is a share of the blend, with no units
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, blend ? "" : (f.units ?? "")]));
   const items = best.sensitivity.map((s) => ({ ...s, units: units[s.name] }));
   const figure = () => sensitivityFigure(items, wordsOf(state.shown));
   card.hidden = false;
   const caption = card.querySelector("figcaption");
-  caption.textContent = sensitivityCaption(best);
+  caption.textContent = blend ? BLEND_SENSITIVITY : sensitivityCaption(best);
   caption.hidden = !caption.textContent; // the legend, the axis and the heading's definition say the rest
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
@@ -3245,20 +3296,21 @@ function renderBalance(reply) {
   state.balance = b;
   const factors = state.design.spec.factors;
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+  const blend = blendStudy(); // a mixture's balance is a blend: each component's proportion, between its bounds
   renderGoals(b);
-  const settings = b.settings.map((s) => [
-    s.name,
-    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
-    whereWords(s, null, { label: "" }),
-  ]);
-  const cautions = [extrapolationSentence(b)].filter(Boolean);
+  const settings = b.settings.map((s) =>
+    blend
+      ? [s.name, num(s.value), blendWhere(s, null, { label: "" })]
+      : [s.name, s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]), whereWords(s, null, { label: "" })],
+  );
+  const cautions = [blend ? blendExtrapolation(b) : extrapolationSentence(b)].filter(Boolean);
   $("#balance-out").replaceChildren(
-    said("lead", balanceLead(b)),
-    table(["Factor", "Balanced setting", "Where it lies"], settings),
+    said("lead", balanceLead(b, { blend })),
+    table(blend ? ["Component", "Proportion", "Where it lies"] : ["Factor", "Balanced setting", "Where it lies"], settings),
     balanceTable(b),
-    ...[limitingSentence(b)].filter(Boolean).map((text) => said("", text)),
+    ...[limitingSentence(b, { blend })].filter(Boolean).map((text) => said("", text)),
     said("hint", balanceLeverage(b)),
-    ...noteList(balanceWhere(b)),
+    ...noteList([...balanceWhere(b), ...(blend && !b.overlay ? [NO_BLEND_OVERLAY] : [])]),
     ...noteList(cautions, "warnings"),
   );
   renderBalanceConfirmation(b);
@@ -3359,11 +3411,16 @@ function goalChanged(e) {
   else scheduleBalance();
 }
 
-/** Say what the confirmation runs show, response by response, and offer to add them at the balanced settings. */
+/**
+ * Say what the confirmation runs show, response by response, and offer to add them at the balanced settings: a
+ * mixture's at its balanced blend, weighed out, with no units on its proportions.
+ */
 function renderBalanceConfirmation(b) {
-  const factors = state.design.spec.factors;
+  const blend = blendStudy();
+  const factors = blend ? state.design.spec.factors.map((f) => ({ ...f, units: "" })) : state.design.spec.factors;
   $("#balance-confirm").hidden = false;
   $("#balance-confirm-out").replaceChildren(
+    ...(blend ? [said("hint", weighingSentence(b))] : []),
     ...b.confirmation.map((group) => {
       const { said: sentences, state: verdict } = balanceConfirmation(group, factors, b.responses);
       const box = el("div", "verdict", "");
@@ -3373,7 +3430,7 @@ function renderBalanceConfirmation(b) {
     }),
   );
   const add = $("#add-balance-confirmation");
-  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`;
+  add.textContent = `Add ${CONFIRMATION_RUNS} confirmation runs at ${blend ? "this blend" : "these settings"}`;
   add.hidden = confirmedAt(state.design, b.confirm_at); // runs there already: their results are what is wanted
   $("#remove-balance-confirmation").hidden = b.confirmation.length === 0;
 }
@@ -3386,11 +3443,15 @@ async function drawBalanceChart() {
     card.hidden = true;
     return;
   }
+  // A mixture's overlay is over its triangle of three components; a study's of factors, over two of them.
+  const triangle = b.overlay.kind === "ternary";
   const factors = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f]));
-  const axes = Object.fromEntries([b.overlay.x, b.overlay.y].map((name) => [name, withUnits(name, factors[name]?.units ?? "")]));
-  const figure = () => overlayFigure(b.overlay, b.responses, axes);
+  const axes = triangle ? {} : Object.fromEntries([b.overlay.x, b.overlay.y].map((name) => [name, withUnits(name, factors[name]?.units ?? "")]));
+  const figure = () => (triangle ? blendOverlayFigure(b.overlay, b.responses) : overlayFigure(b.overlay, b.responses, axes));
   card.hidden = false;
-  card.querySelector("figcaption").textContent = overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  card.querySelector("figcaption").textContent = triangle
+    ? blendOverlayCaption(b.overlay, b.responses)
+    : overlayCaption(b.overlay, state.design.spec.factors, b.responses);
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
   } catch {
@@ -4517,8 +4578,8 @@ $("#sigma").onchange = () => {
 $("#tab-simulate").onclick = () => selectTab("simulate");
 $("#tab-real").onclick = () => selectTab("real");
 $("#to-learn").onclick = () => showPhase("learn");
-$("#add-confirmation").onclick = () => addConfirmationRuns();
-$("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, "the balanced settings");
+$("#add-confirmation").onclick = () => addConfirmationRuns(state.best?.confirm_at, blendStudy() ? "the best blend" : "the best settings");
+$("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, blendStudy() ? "the balanced blend" : "the balanced settings");
 $("#remove-balance-confirmation").onclick = removeConfirmationRuns;
 $("#balance-goals").addEventListener("input", goalChanged);
 $("#balance-reset").onclick = () => {

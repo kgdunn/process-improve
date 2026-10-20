@@ -2303,7 +2303,7 @@
       "quote": "The optimum is found at lambda = 0.2"
      },
      "check": {
-      "manual": "the maximum of the Box-Cox likelihood, read off its plot; no check kind reads a Box-Cox power, though analyze_experiment's box_cox analysis computes one"
+      "manual": "the maximum of the Box-Cox likelihood, read off its plot rather than computed; the library's maximum for the 12-term model of the R code is λ = 0.270 (box_cox)"
      },
      "note": "the page's own R script finds 0.2626263 with MASS::boxcox on the 12-term model and then sets lambda = 0.2 'to match output in the page'"
     },
@@ -4351,7 +4351,7 @@
       "quote": "lambda = bc$x[which.max(bc$y)] lambda ##> [1] 0.2626263"
      },
      "check": {
-      "manual": "the maximum of MASS::boxcox's likelihood over a grid of 50 powers from -2 to 2, for the 12-term model; no check kind reads a Box-Cox power"
+      "manual": "the best of MASS::boxcox's grid of 100 powers from -2 to 2 (a step of 4/99), for the 12-term model: the grid point nearest the library's maximum, λ = 0.2697 (box_cox), which no grid limits"
      },
      "note": "the page prints 0.2; the script then sets lambda = 0.2 'to match output in the page'"
     },
@@ -13929,7 +13929,7 @@
       "quote": "F-statistic: 119.8 based on 5 and 5 degrees of freedom"
      },
      "check": {
-      "manual": "the overall F statistic of the regression, which no check kind computes"
+      "manual": "the overall F of the page's fit, which squares H2/WF6 in natural units (see the notes); with the coded square the table names, the library's model_summary gives 120.22 (f_statistic)"
      }
     },
     {
@@ -13961,7 +13961,7 @@
       "quote": "p-value: 3.358e-05"
      },
      "check": {
-      "manual": "the p-value of the overall F statistic, which no check kind computes"
+      "manual": "the p-value of the overall F of the page's fit, which squares H2/WF6 in natural units (see the notes); with the coded square the table names, the library's model_summary gives 3.328e-05 (f_p_value)"
      }
     },
     {
@@ -14006,7 +14006,11 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "df"
      }
     },
     {
@@ -14021,7 +14025,7 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "manual": "a number of the page's comparison, whose full model squares H2/WF6 in natural units (see the notes); with the coded square the table names, nested_test gives 0.024907"
      }
     },
     {
@@ -14036,7 +14040,7 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "manual": "a number of the page's comparison, whose full model squares H2/WF6 in natural units (see the notes); with the coded square the table names, nested_test gives 0.012454"
      }
     },
     {
@@ -14051,7 +14055,7 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "manual": "a number of the page's comparison, whose full model squares H2/WF6 in natural units (see the notes); with the coded square the table names, nested_test gives 2.097"
      }
     },
     {
@@ -14066,7 +14070,11 @@
       "quote": "Model 1 2 0.024802 0.01240 2.08 0.22"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "p"
      }
     },
     {
@@ -14270,7 +14278,9 @@
       "quote": "Lack-of-fit 5 0.032405 0.00065 0.58 0.73"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit degrees of freedom"
+      "kind": "lack_of_fit_df",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "response": "stress"
      }
     },
     {
@@ -14285,7 +14295,9 @@
       "quote": "Lack-of-fit 5 0.032405 0.00065 0.58 0.73"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit sum of squares, though the library's lack_of_fit result holds it (0.032405)"
+      "kind": "lack_of_fit_ss",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "response": "stress"
      }
     },
     {
@@ -14300,7 +14312,7 @@
       "quote": "Lack-of-fit 5 0.032405 0.00065 0.58 0.73"
      },
      "check": {
-      "manual": "no check kind reads the lack-of-fit mean square; the library's lack_of_fit result holds 0.0064811"
+      "manual": "the library's lack-of-fit mean square is 0.0064811 (lack_of_fit_ms), from the sum of squares and degrees of freedom checked beside it; the page prints 0.00065 for 0.0065, ten times too small (see the note)"
      },
      "note": "0.032405 / 5 = 0.006481: the page drops a zero, printing 0.00065 for 0.0065"
     },
@@ -15977,7 +15989,11 @@
       "quote": "##> 1 7 0.054435 ##> 2 5 0.029203 2 0.025232 2.1601 0.2108"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "ss"
      },
      "note": "the page prints 0.024802, 2.08 and 0.22 for its coded fits"
     },
@@ -15993,7 +16009,11 @@
       "quote": "##> 1 7 0.054435 ##> 2 5 0.029203 2 0.025232 2.1601 0.2108"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "f"
      },
      "note": "the page prints 0.024802, 2.08 and 0.22 for its coded fits"
     },
@@ -16009,7 +16029,11 @@
       "quote": "##> 1 7 0.054435 ##> 2 5 0.029203 2 0.025232 2.1601 0.2108"
      },
      "check": {
-      "manual": "an extra-sum-of-squares F test between two nested models, which no check kind computes"
+      "kind": "nested_test",
+      "model": "Pressure + H2WF6 + I(Pressure**2)",
+      "full": "Pressure + H2WF6 + Pressure:H2WF6 + I(Pressure**2) + I(H2WF6**2)",
+      "response": "stress",
+      "key": "p"
      },
      "note": "the page prints 0.024802, 2.08 and 0.22 for its coded fits"
     },
@@ -21416,7 +21440,9 @@
      },
      "check": [
       {
-       "manual": "the overall F statistic of the regression, which no check kind computes"
+       "kind": "f_statistic",
+       "model": "X1 + X2",
+       "printed": "112.1"
       },
       {
        "kind": "df_model",
