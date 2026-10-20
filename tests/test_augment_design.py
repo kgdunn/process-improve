@@ -441,7 +441,8 @@ class TestHardLimits:
         """Without hard limits these axial runs go out to the rotatable 1.68."""
         result = augment_design(_full_factorial_df(3), augmentation_type, hard_limits=["B"])
         assert result["alpha"] == pytest.approx(1.0)
-        assert pd.DataFrame(result["new_runs"]).abs().max().max() == pytest.approx(1.0)
+        # upgrade_to_rsm also returns a Block column, numbered 1 and 2; only the factors are settings
+        assert pd.DataFrame(result["new_runs"])[["A", "B", "C"]].abs().max().max() == pytest.approx(1.0)
         assert "the ranges of B are hard limits" in result["explanation"]
 
     @pytest.mark.parametrize("alpha", ["rotatable", "orthogonal", 1.2])
@@ -511,7 +512,7 @@ class TestUpgradeToRSM:
         center = pd.DataFrame({"A": [0.0, 0.0, 0.0], "B": [0.0, 0.0, 0.0]})
         df_with_centers = pd.concat([df, center], ignore_index=True)
         result = augment_design(df_with_centers, "upgrade_to_rsm", alpha="face_centered")
-        aug = pd.DataFrame(result["augmented_design"])
+        aug = pd.DataFrame(result["augmented_design"])[["A", "B"]]  # the factors, without the stages' Block
         # Count center points in augmented design
         center_mask = (aug.abs() < 1e-10).all(axis=1)
         n_centers = center_mask.sum()
@@ -560,6 +561,42 @@ class TestUpgradeToRSM:
         df = _full_factorial_df(2)
         result = augment_design(df, "upgrade_to_rsm")
         assert "central composite" in result["explanation"].lower() or "ccd" in result["explanation"].lower()
+
+    def test_davies_composite_design_comes_from_its_factorial(self) -> None:
+        """Davies 11.72: a 2^3 completed with one centre run and six axial runs at 2, trials 9 to 15 (#796)."""
+        cube = pd.DataFrame(list(itertools.product([-1, 1], repeat=3)), columns=["T", "c", "t"])
+        result = augment_design(cube, "upgrade_to_rsm", n_additional_runs=1, alpha=2.0)
+        assert result["n_runs_after"] == 15
+        runs = pd.DataFrame(result["augmented_design"])
+        second = {(0, 0, 0), (2, 0, 0), (-2, 0, 0), (0, 2, 0), (0, -2, 0), (0, 0, 2), (0, 0, -2)}
+        assert set(map(tuple, runs.loc[runs["Block"] == 2, ["T", "c", "t"]].to_numpy())) == second
+        assert (runs["Block"] == 1).sum() == 8
+        assert {run["Block"] for run in result["new_runs"]} == {2}
+
+    @pytest.mark.parametrize(("existing", "asked"), [(0, 1), (0, 3), (2, 2)])
+    def test_n_additional_runs_sets_the_second_stage_centre_runs(self, existing: int, asked: int) -> None:
+        """It was ignored: the centre runs were always topped up to five."""
+        design = pd.concat([_full_factorial_df(2), pd.DataFrame({"A": [0.0] * existing, "B": [0.0] * existing})])
+        result = augment_design(
+            design.reset_index(drop=True), "upgrade_to_rsm", alpha="face_centered", n_additional_runs=asked
+        )
+        assert result["n_runs_after"] - result["n_runs_before"] == 4 + asked
+
+    def test_the_stages_block_orthogonally_at_the_blocking_alpha(self) -> None:
+        """A 2^2 cube with three centre runs, then three more beside the axial runs: sqrt(2) (Montgomery 11.4)."""
+        design = pd.concat([_full_factorial_df(2), pd.DataFrame({"A": [0.0] * 3, "B": [0.0] * 3})])
+        design = design.reset_index(drop=True)
+        result = augment_design(design, "upgrade_to_rsm", alpha=np.sqrt(2), n_additional_runs=3)
+        assert result["orthogonal_blocking_alpha"] == pytest.approx(np.sqrt(2))
+        assert "the two stages block orthogonally" in result["explanation"]
+        rotatable = augment_design(design, "upgrade_to_rsm", alpha=1.5, n_additional_runs=3)
+        assert "the block effect is correlated with the estimates of the squared terms" in rotatable["explanation"]
+
+    def test_an_existing_block_column_keeps_its_labels(self) -> None:
+        """Runs already in blocks 1 and 2 keep them; the second stage is block 3."""
+        design = _full_factorial_df(2).assign(Block=[1, 1, 2, 2])
+        result = augment_design(design, "upgrade_to_rsm", alpha="face_centered", n_additional_runs=1)
+        assert [run["Block"] for run in result["augmented_design"]] == [1, 1, 2, 2, 3, 3, 3, 3, 3]
 
 
 # ---------------------------------------------------------------------------

@@ -122,6 +122,17 @@ class OptimizeResponsesInput(BaseModel):
             "to 1 for a mixture). The result then reports 'within_region'."
         ),
     )
+    flat_tolerance: float = Field(
+        1e-8,
+        ge=0.0,
+        lt=1.0,
+        description=(
+            "For 'stationary_point' and 'canonical_analysis': an eigenvalue of the pure-quadratic matrix at most "
+            "this share of the largest in size is read as zero, so the surface is classified as a ridge along it "
+            "(default 1e-8, rounding only). 0.05 reads a small estimated eigenvalue as flat, as the textbooks do; "
+            "the result's 'classification_note' says when one is below 5% of the largest."
+        ),
+    )
     random_state: int = Field(
         42,
         ge=0,
@@ -229,6 +240,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             n_pareto_points=spec.n_pareto_points,
             region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,
             random_state=spec.random_state,
+            flat_tolerance=spec.flat_tolerance,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

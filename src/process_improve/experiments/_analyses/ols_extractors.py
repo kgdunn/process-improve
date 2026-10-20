@@ -17,7 +17,7 @@ import statsmodels.api as sm
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
-from ._shared import is_block_term
+from ._shared import has_error_variance, is_block_term
 from .aliasing import estimable_effects
 
 _SATURATED_NOTE = (
@@ -210,8 +210,8 @@ def _run_effects(
     coefficient itself for a square, whose column runs from 0 to 1.
 
     Also returns ``effect_std_errors`` (the coefficient standard error times
-    the same span) when residual degrees of freedom are available; consumers such
-    as the Pareto plot use this to draw effect-level error bars.
+    the same span) when residual degrees of freedom or a prior sigma are available;
+    consumers such as the Pareto plot use this to draw effect-level error bars.
 
     Exactly aliased terms are reported as one effect per alias chain, named
     ``"A:B + C:D"``, since the design determines only their sum (#16). The
@@ -301,7 +301,7 @@ def _run_significance(
         "not_estimable_terms": [n for n, p in named if not np.isfinite(p)],
         "significance_level": alpha,
     }
-    if ols_result.df_resid <= 0:
+    if not has_error_variance(ols_result):
         result["significance_note"] = _SATURATED_NOTE
     return result
 

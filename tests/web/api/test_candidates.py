@@ -31,6 +31,13 @@ def test_every_design_is_made_as_plan_makes_it_and_all_are_scored(api):
     assert listed["result"]["values"] == scored["values"]
 
 
+def test_a_design_taken_from_the_comparison_keeps_the_studys_seed(api):
+    plan = api.ok("api_compare_plan", {"factors": FACTORS, "model": "main_effects", "random_state": 1792419802})
+    assert {d["spec"]["random_state"] for d in plan["designs"]} == {1792419802}
+    listed = api.ok("api_candidates", {"factors": FACTORS, "model": "main_effects", "random_state": 1792419802})
+    assert {m["design"]["spec"]["options"]["random_state"] for m in listed["made"]} == {1792419802}
+
+
 def test_a_design_s_warnings_stay_with_it(api):
     """An even number of factors and the DSD's own center run leave its staged analysis no error df."""
     listed = api.ok("api_candidates", {"factors": factors_named(*"ABCD"), "model": "main_effects"})

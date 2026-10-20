@@ -37,7 +37,11 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import dmatrix
 
-from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS
+from process_improve.experiments.designs_mixture_constrained import (
+    SCHEFFE_DEGREE,
+    SCHEFFE_MODELS,
+    cubic_difference_term,
+)
 
 _CRITERIA = ("aicc", "aic", "bic")
 
@@ -57,12 +61,14 @@ def _candidate_terms(factors: list[str], model: str | None, *, square_heredity: 
     needs its main effect in the model only with ``square_heredity``.
     """
     if model in SCHEFFE_MODELS:
-        degree = {"scheffe_linear": 1, "scheffe_quadratic": 2, "scheffe_special_cubic": 3}[model]
-        return [
+        blends = [
             _Term(":".join(combo), frozenset())
-            for size in range(2, degree + 1)
+            for size in range(2, SCHEFFE_DEGREE[model] + 1)
             for combo in itertools.combinations(factors, size)
         ]
+        if model == "scheffe_cubic":
+            blends += [_Term(cubic_difference_term(a, b), frozenset()) for a, b in itertools.combinations(factors, 2)]
+        return blends
     terms = [_Term(f, frozenset()) for f in factors]
     if model == "main_effects":
         return terms
