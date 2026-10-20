@@ -7,7 +7,9 @@ for designed experiments:
 
 - **Strong heredity.** An interaction ``A:B`` may enter only once ``A`` and ``B`` are
   in, and a square ``I(A ** 2)`` only once ``A`` is; a main effect may leave only
-  when no interaction or square built on it remains.
+  when no interaction or square built on it remains. A caller may free the squares
+  from it (``square_heredity=False``): a factor whose best setting is in the middle of
+  its range has a square and no main effect.
 - **AICc**, ``AIC + 2K(K + 1) / (N - K - 1)``, by default, where ``K = p + 1``
   counts the ``p`` regression coefficients and the error variance (Hurvich and
   Tsai 1989; Burnham and Anderson 2002, section 2.4). It equals AIC when the runs
@@ -35,7 +37,11 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import dmatrix
 
-from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS
+from process_improve.experiments.designs_mixture_constrained import (
+    SCHEFFE_DEGREE,
+    SCHEFFE_MODELS,
+    cubic_difference_term,
+)
 
 _CRITERIA = ("aicc", "aic", "bic")
 
@@ -48,24 +54,27 @@ class _Term:
     parents: frozenset[str]
 
 
-def _candidate_terms(factors: list[str], model: str | None) -> list[_Term]:
+def _candidate_terms(factors: list[str], model: str | None, *, square_heredity: bool = True) -> list[_Term]:
     """Terms the search may use: main effects, plus 2FIs for interactions, plus squares for quadratic.
 
-    For a Scheffe model, the non-linear blending terms (the linear ones are always in).
+    For a Scheffe model, the non-linear blending terms (the linear ones are always in). A square
+    needs its main effect in the model only with ``square_heredity``.
     """
     if model in SCHEFFE_MODELS:
-        degree = {"scheffe_linear": 1, "scheffe_quadratic": 2, "scheffe_special_cubic": 3}[model]
-        return [
+        blends = [
             _Term(":".join(combo), frozenset())
-            for size in range(2, degree + 1)
+            for size in range(2, SCHEFFE_DEGREE[model] + 1)
             for combo in itertools.combinations(factors, size)
         ]
+        if model == "scheffe_cubic":
+            blends += [_Term(cubic_difference_term(a, b), frozenset()) for a, b in itertools.combinations(factors, 2)]
+        return blends
     terms = [_Term(f, frozenset()) for f in factors]
     if model == "main_effects":
         return terms
     terms += [_Term(f"{a}:{b}", frozenset({a, b})) for a, b in itertools.combinations(factors, 2)]
     if model == "quadratic":
-        terms += [_Term(f"I({f} ** 2)", frozenset({f})) for f in factors]
+        terms += [_Term(f"I({f} ** 2)", frozenset({f} if square_heredity else ())) for f in factors]
     return terms
 
 
@@ -141,6 +150,28 @@ def _stepwise(score: _Scorer, terms: list[_Term], start: frozenset[str]) -> tupl
         current, best = candidate, value
 
 
+def _search(score: _Scorer, terms: list[_Term], n: int) -> tuple[frozenset[str], float, str]:
+    """Search backward from every term when they leave two residual degrees of freedom, else forward from none."""
+    direction = "backward" if n - score.n_full >= 2 else "forward"
+    start = frozenset(t.name for t in terms) if direction == "backward" else frozenset()
+    selected, value = _stepwise(score, terms, start)
+    return selected, value, direction
+
+
+def _proposed_terms(design_df: pd.DataFrame, response_col: str, factor_cols: list[str], model: str) -> list[str]:
+    """Return the terms of a standard ``model`` that the stepwise search (AICc) selects, squares free of heredity.
+
+    The same search as :func:`_run_model_selection`, except that a square may enter before its
+    main effect does: a factor whose best setting is in the middle of its range has a square and
+    no main effect, and strong heredity would keep that square out for ever.
+    """
+    terms = _candidate_terms(factor_cols, model, square_heredity=False)
+    data = design_df[design_df[[response_col, *factor_cols]].notna().all(axis=1)]
+    y = data[response_col].to_numpy(dtype=float)
+    selected, _, _ = _search(_Scorer(data, y, terms, "aicc"), terms, len(y))
+    return [t.name for t in terms if t.name in selected]
+
+
 def _run_model_selection(
     design_df: pd.DataFrame,
     response_col: str,
@@ -182,11 +213,7 @@ def _run_model_selection(
     terms = _candidate_terms(factor_cols, searched)
     data = design_df[design_df[[response_col, *factor_cols]].notna().all(axis=1)]
     y = data[response_col].to_numpy(dtype=float)
-    score = _Scorer(data, y, terms, criterion, fixed=fixed)
-
-    direction = "backward" if len(y) - score.n_full >= 2 else "forward"
-    start = frozenset(t.name for t in terms) if direction == "backward" else frozenset()
-    selected, value = _stepwise(score, terms, start)
+    selected, value, direction = _search(_Scorer(data, y, terms, criterion, fixed=fixed), terms, len(y))
 
     names = [t.name for t in terms if t.name in selected]  # in candidate order: mains, 2FIs, squares
     if mixture:

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -297,6 +297,32 @@ def _assign_blocks(
     return exchange_blocks(numeric, n_blocks, rng if rng is not None else np.random.default_rng())
 
 
+def _given_blocks(matrix: np.ndarray, factors: list[Factor], n_blocks: int, generators: list[str]) -> Blocking:
+    """Block a regular two-level factorial by the interaction words the user gives."""
+    numeric = _numeric_codes(matrix, factors)
+    if not is_regular_two_level(numeric):
+        raise ValueError(
+            "block_generators confound interaction words with blocks, which needs a regular two-level "
+            "factorial; this design is not one."
+        )
+    return confounding_blocks(numeric, n_blocks, [f.name for f in factors], generators)
+
+
+def _blocking_metadata(blocking: Blocking) -> dict[str, Any]:
+    """Describe how the blocks were made, for ``metadata["blocking"]``."""
+    info: dict[str, Any] = {
+        "method": blocking.method,
+        "generators": blocking.generators,
+        "confounded_with": blocking.confounded_with,
+        "model": blocking.model,
+    }
+    if blocking.aliases:
+        info["aliases"] = blocking.aliases
+    if blocking.orthogonal is not None:
+        info["orthogonal"] = blocking.orthogonal
+    return info
+
+
 def _run_order(
     n_runs: int, blocking: Blocking | None, rng: np.random.Generator | None, n_leading_fixed: int
 ) -> np.ndarray:
@@ -380,6 +406,7 @@ def build_design_result(  # noqa: PLR0913
     n_leading_fixed: int = 0,
     randomize: bool = True,
     center_rows: np.ndarray | None = None,
+    block_generators: list[str] | None = None,
 ) -> DesignResult:
     """Post-process a raw design matrix into a complete DesignResult.
 
@@ -436,6 +463,9 @@ def build_design_result(  # noqa: PLR0913
     center_rows : np.ndarray or None
         Boolean mask of the rows of *coded_matrix* that are centre runs the design
         built in (a CCD's, a DSD's). Like the appended ones, they are not replicated.
+    block_generators : list[str] or None
+        The interaction words that define the blocks of a regular two-level
+        factorial, in place of the words the library would choose.
 
     Returns
     -------
@@ -486,6 +516,8 @@ def build_design_result(  # noqa: PLR0913
                 "n_blocks cannot be combined with fixed_runs here: the fixed runs were already made. A D-, A- or "
                 "I-optimal design from the built-in exchange puts them in a block of their own."
             )
+        elif block_generators is not None:
+            blocking = _given_blocks(matrix, factors, n_blocks, block_generators)
         else:
             blocking = _assign_blocks(matrix, factors, design_type, n_blocks, rng)
     perm = _run_order(n_runs, blocking, rng, n_leading_fixed)
@@ -502,14 +534,7 @@ def build_design_result(  # noqa: PLR0913
         block_assignments = blocking.labels[perm].tolist()
         design_coded["Block"] = block_assignments
         design_actual["Block"] = block_assignments
-        metadata["blocking"] = {
-            "method": blocking.method,
-            "generators": blocking.generators,
-            "confounded_with": blocking.confounded_with,
-            "model": blocking.model,
-        }
-        if blocking.orthogonal is not None:
-            metadata["blocking"]["orthogonal"] = blocking.orthogonal
+        metadata["blocking"] = _blocking_metadata(blocking)
 
     # 6. Whole plots: a split-plot design's runs carry their whole plot, as Block does.
     if metadata and "whole_plot" in metadata:

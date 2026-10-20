@@ -135,7 +135,32 @@ terms (pure quadratics and two-factor interactions).  Because the
 inflated by that shared offset and depends on the coding.  The metric instead
 residualises each second-order column against the intercept-and-main-effect
 block first, giving a coding-invariant measure.  It returns ``max_abs_r``,
-``mean_abs_r``, and the full ``matrix``.
+``mean_abs_r``, the full ``matrix``, and ``by_pair``: the largest and the mean
+:math:`|r|`, and the number of pairs, for each kind of pair Jones and Nachtsheim
+(2011) tabulate for definitive screening designs: ``two_squares``,
+``square_and_own_interaction``, ``square_and_other_interaction`` and
+``two_interactions``. Under the full quadratic model of a DSD this is their Table 3.
+
+Correlation of estimates
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``estimate_correlation`` compares what the fit *estimates* rather than the columns:
+:math:`r_{ij} = c_{ij} / \sqrt{c_{ii} c_{jj}}` with :math:`c = (X^\top X)^{-1}`, for the
+model's second-order terms (JMP's "correlation of estimates"). A large :math:`|r_{ij}|`
+means the runs cannot tell the two effects apart, so an active square can show up as an
+interaction. It returns ``terms``, ``matrix`` and ``by_pair``, the same summary by kind of pair
+as ``correlation``. A definitive screening design cannot fit the full quadratic model in all its
+factors, so its estimates are compared in the projections onto three factors, where it can (Jones
+and Nachtsheim's Table 4):
+
+.. code-block:: python
+
+   from process_improve.experiments import Factor, evaluate_projections, generate_design
+
+   dsd = generate_design([Factor(name=f"x{i}", low=-1, high=1) for i in range(1, 7)], "dsd")
+   found = evaluate_projections(dsd, 3, model="quadratic", metric="estimate_correlation")
+   first = found["projections"][0]["metrics"]["estimate_correlation"]
+   first["by_pair"]["square_and_other_interaction"]["mean_abs_r"]  # 0.483
 
 Alias (bias) matrix
 ~~~~~~~~~~~~~~~~~~~~~
@@ -220,6 +245,22 @@ Power
 ``effect_size`` for a single power value per term, or omit it for a power curve
 over a range of effect sizes.  ``effect_size`` is the anticipated coefficient in
 coded units, which for a two-level factor is half its high-minus-low effect.
+
+``screening_power`` asks instead how likely a screening design is to find one active term of
+each kind, in the model an analyst would fit to find it: Jones and Nachtsheim's (2011) six
+hypotheses, a linear effect, a quadratic effect or an interaction, each tested alone among the
+main effects (hypotheses 1 to 3) or in the full quadratic model of two factors (4 to 6). It
+averages each test's power over every factor or pair of factors, at Table 7's coefficients of
+1, 2 and 3 times sigma unless ``effect_size`` is given, and it ignores ``model``. A test that a
+design cannot make is marked ``"aliased"`` (every square of a two-level design with centre runs
+has the same column) or ``"not estimable"``:
+
+.. code-block:: python
+
+   from process_improve.experiments import evaluate_design
+
+   study = evaluate_design(dsd, metric="screening_power")["screening_power"]
+   [(h["hypothesis"], h["status"], h["average_power"]) for h in study["hypotheses"]]
 
 Fractional-factorial structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -467,10 +508,69 @@ Factor ``D`` is not in the model, so it has no effect, and its estimate differs 
 zero by the noise alone. The terms are named as ``analyze_experiment`` names them;
 ``A*B``, ``B:A``, ``C**2`` and ``C^2`` are accepted too.
 
+.. _simulating-designs:
+
+Simulating the Studies a Design Would Give
+------------------------------------------
+
+The measures above take the model as known and complete. Two things they cannot see decide
+how a screening study goes: a term outside the model (an interaction that a 12-run
+Plackett-Burman design was not built to estimate) biases the effects inside it, and the
+analysis has to choose the model from the same noisy runs.
+:func:`~process_improve.experiments.simulate_design_performance` sees both. It makes each
+design many times on a :class:`~process_improve.experiments.TrueProcess`, the process you
+expect, and judges every simulated study the way
+:func:`~process_improve.experiments.recommend_next_step` judges real runs (see
+:doc:`next_step`).
+
+.. code-block:: python
+
+   from process_improve.experiments import Factor, TrueProcess, generate_design, simulate_design_performance
+
+   factors = [Factor(name=n, low=-1, high=1) for n in "ABCDEFGH"]
+   truth = TrueProcess({"Intercept": 100, "A": 10, "C": 7, "G": -6, "A:C": 8}, sigma=3)
+   designs = {
+       "PB": generate_design(factors, "plackett_burman", n_center_points=0),
+       "PB + 3 centre": generate_design(factors, "plackett_burman", n_center_points=3),
+       "2^(8-4) + 3 centre": generate_design(factors, "fractional_factorial", resolution=4, n_center_points=3),
+       "DSD + 5 centre": generate_design(factors, "dsd", n_center_points=5),
+   }
+   report = simulate_design_performance(designs, truth, n_simulations=200)
+   for label, design in report["designs"].items():
+       print(f"{label:28} {design['found_all']:.2f} {design['false_alarms']:.2f} {design['nothing_stood_out']:.2f}")
+
+.. code-block:: text
+
+   PB [n=12]                    0.53 0.21 0.41
+   PB + 3 centre [n=15]         0.94 0.32 0.01
+   2^(8-4) + 3 centre [n=19]    1.00 0.48 0.00
+   DSD + 5 centre [n=21]        0.99 0.55 0.00
+
+The columns are the share of studies that find every true term, the mean number of terms
+found that are not true, and the share in which nothing stood out from the noise. A share
+from 200 studies is within about 0.07 of its limit (95%). The 12-run Plackett-Burman design
+finds the process in half of the studies: the ``A:C`` interaction biases every main effect
+outside it, and with no runs to spare for error, nothing stands out in two studies of five.
+Three centre runs give it the degrees of freedom to see the interaction. The false alarms are
+the price of testing every term at 0.05: a design that tests more terms raises more of them. A true term counts as found when
+the analysis finds it, or a term the design makes identical to it: ``D`` for ``A:B`` in a
+resolution III fraction whose generator is ``D = AB``, or the curvature at the centre runs
+for a square. The design can do no better than that, so it is no false alarm.
+
+With ``goal="maximize"`` (or ``"minimize"``, or ``"target"`` with a ``target``), each study
+also predicts its best settings, and the report says how far the true response there falls
+short of the true best inside the ranges, in the response's units and in noise standard
+deviations. ``report["true_optimum"]`` holds the true best. Each design's ``summary`` says the
+main numbers in a sentence, and ``found`` gives each true term's share.
+
+The simulation is also an MCP tool, ``simulate_design_performance``, which takes each
+design's coded runs as ``generate_design`` returns them; ``compare_designs`` is one too.
+
 See Also
 --------
 
 - :func:`~process_improve.experiments.compare_designs` - several designs, one model.
+- :func:`~process_improve.experiments.simulate_design_performance` - several designs, by simulated studies.
 - :func:`~process_improve.experiments.evaluate_design` - full API reference.
 - :func:`~process_improve.experiments.evaluate_all` - compute every metric in
   one call.

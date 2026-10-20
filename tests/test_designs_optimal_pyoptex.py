@@ -161,7 +161,7 @@ class TestDispatchDefaults:
 
     def test_two_hard_to_change_factors_dispatch(self) -> None:
         """Split-plot dispatch with two htc factors reports both in metadata."""
-        design, meta = dispatch_d_optimal(_continuous(3), budget=12, hard_to_change=["A", "B"])
+        design, meta = dispatch_d_optimal(_continuous(3), budget=12, hard_to_change=["A", "B"], backend="pyoptex")
         assert design.shape[0] == 12
         assert meta["hard_to_change"] == ["A", "B"]
         assert meta["backend"] == "pyoptex"
@@ -354,9 +354,13 @@ class TestDefaultBackend:
         result = generate_design(_continuous(3), design_type="i_optimal", budget=10, n_center_points=0)
         assert result.metadata["backend"] == "candidate_exchange"
 
-    def test_split_plot_still_uses_pyoptex(self) -> None:
+    def test_split_plot_uses_the_built_in_search_unless_pyoptex_is_asked_for(self) -> None:
         result = generate_design(_continuous(3), design_type="d_optimal", budget=12, hard_to_change=["A"])
-        assert result.metadata["backend"] == "pyoptex"
+        assert result.metadata["backend"] == "split_plot_exchange"
+        asked = generate_design(
+            _continuous(3), design_type="d_optimal", budget=12, hard_to_change=["A"], backend="pyoptex"
+        )
+        assert asked.metadata["backend"] == "pyoptex"
 
     def test_pyoptex_cannot_take_constraints(self) -> None:
         from process_improve.experiments.factor import Constraint

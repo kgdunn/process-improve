@@ -17,6 +17,7 @@ import pytest
 
 from process_improve.multivariate._common import SpecificationWarning
 from process_improve.multivariate._impute import impute_low_rank
+from process_improve.multivariate._pls import _held_out_scores
 from process_improve.multivariate.methods import PLS
 
 N_ROWS, N_COLS, RANK = 80, 12, 3
@@ -260,12 +261,11 @@ class TestTheSurroundingApi:
         with pytest.raises(ValueError, match="md_method must be one of"):
             _fit(_with_gaps(X, 0.20, 0), Y, "scp")
 
-    @pytest.mark.xfail(strict=True, reason="#676: held-out rows with a missing X cell get NaN CV predictions")
     def test_select_n_components_predicts_every_held_out_row(self) -> None:
         """#676: a held-out row with a missing X cell still gets a cross-validated prediction.
 
-        Each fold's model copes with missing cells, but the held-out rows are scored by a
-        plain product with the direct weights, so one gap makes that row's prediction NaN:
+        Each fold's model copes with missing cells, but the held-out rows were scored by a
+        plain product with the direct weights, so one gap made that row's prediction NaN:
         21 of these 40 rows.
         """
         rng = np.random.default_rng(1)
@@ -275,6 +275,59 @@ class TestTheSurroundingApi:
 
         result = PLS.select_n_components(
             gappy, y, cv=5, n_repeats=1, max_components=2, n_permutations=19, random_state=0
+        )
+        assert np.isfinite(result.cv_predictions.to_numpy()).all()
+
+
+class TestHeldOutRowsWithGaps:
+    """#676: cross-validation scores a held-out row as the model with that many components would."""
+
+    @pytest.fixture
+    def fold(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        X, Y = _dataset(3)
+        gappy = _with_gaps(X, 0.15, 3)
+        x_train, y_train = gappy.iloc[:40], Y.iloc[:40]
+        x_test = gappy.iloc[40:]
+        assert x_test.isna().any(axis=1).sum() > 0, "some held-out rows have a gap"
+        return x_train, y_train, x_test
+
+    @pytest.mark.parametrize("n_components", [1, 2, 3])
+    def test_the_scores_are_those_of_a_model_with_that_many_components(self, fold, n_components: int) -> None:
+        """The fold model has five components; the first ``n_components`` give the smaller model's scores.
+
+        With gaps in the training block, the direct weights of the first components change with
+        the number fitted, so the first columns of the fold model's were not the smaller model's.
+        """
+        x_train, y_train, x_test = fold
+        large = PLS(n_components=5, scale=False).fit(x_train, y_train)
+        small = PLS(n_components=n_components, scale=False).fit(x_train, y_train)
+        got = _held_out_scores(large, x_train.to_numpy(), x_test.to_numpy(), n_components)
+        np.testing.assert_allclose(got, small.project(x_test).scores.to_numpy(), atol=1e-8)
+
+    @pytest.mark.parametrize("rule", ["1se", "min", "q2_increment", "randomization"])
+    def test_a_count_some_row_cannot_be_scored_at_is_not_recommended(self, rule: str) -> None:
+        """Four columns, every row missing one: no row determines four scores, so that count has no RMSECV."""
+        rng = np.random.default_rng(5)
+        X = pd.DataFrame(rng.normal(size=(30, 4)), columns=list("abcd"))
+        y = pd.DataFrame({"y": X.to_numpy() @ [1.0, -2.0, 0.5, 1.5] + 0.3 * rng.normal(size=30)})
+        gappy = X.mask(np.eye(4, dtype=bool)[np.arange(30) % 4])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SpecificationWarning)  # NIPALS on these gaps reaches its cap once
+            result = PLS.select_n_components(
+                gappy, y, cv=5, n_repeats=1, selection_rule=rule, n_permutations=19, random_state=0
+            )
+        assert np.isfinite(result.rmsecv["total"].loc[1:3]).all()
+        assert np.isnan(result.rmsecv["total"].loc[4])
+        assert result.n_components < 4
+        assert np.isfinite(result.cv_predictions.to_numpy()).all()
+        if rule == "randomization":
+            assert np.isnan(result.randomization_pvalues.loc[4]), "a count left out is not judged"
+            assert np.isfinite(result.randomization_pvalues.loc[1:3]).all()
+
+    def test_nested_cross_validation_predicts_every_row(self) -> None:
+        X, Y = _dataset(4)
+        result = PLS.nested_cv(
+            _with_gaps(X, 0.15, 4), Y, max_components=3, outer_cv=3, inner_cv=3, n_inner_repeats=1, random_state=0
         )
         assert np.isfinite(result.cv_predictions.to_numpy()).all()
 

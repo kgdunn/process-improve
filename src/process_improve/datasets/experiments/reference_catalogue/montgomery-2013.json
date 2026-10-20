@@ -201236,7 +201236,7 @@
     "coded": false,
     "notes": "Table 14.16, temperature by temperature, its nine columns in turn (replicate 1's methods 1 to 3, then replicate 2's and 3's)"
    },
-   "notes": "Table 14.18 fits the replicates × B and replicates × AB interactions apart (Equation 14.15); JMP's REML (Table 14.19) pools them into the subplot error (Equation 14.16), and names the replicates' variance Whole Plots and that of the batches, replicates × method, Subplots. The library's split-plot analysis (split_plot) fits the replicates as fixed and the batches as its whole plots, so it reproduces JMP's Subplots and Residual components and its fixed-effect tests; its formula sum-codes the factors, without which the main effects' tests are not those of the analysis of variance. Table 14.18's caption cites Table 14.14 for the data of Table 14.16, and the text calls the replicates × temperature interaction AC.",
+   "notes": "Table 14.18 fits the replicates × B and replicates × AB interactions apart (Equation 14.15); JMP's REML (Table 14.19) pools them into the subplot error (Equation 14.16), and names the replicates' variance Whole Plots and that of the batches, replicates × method, Subplots. The library's split-plot analysis (split_plot) fits the replicates as fixed and the batches as its whole plots, so it reproduces JMP's Subplots and Residual components and its fixed-effect tests; its formula sum-codes the factors, though the tests are the same under any coding of them (#805). Table 14.18's caption cites Table 14.14 for the data of Table 14.16, and the text calls the replicates × temperature interaction AC.",
    "expected": [
     {
      "what": "n_runs",

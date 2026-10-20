@@ -9,11 +9,13 @@ from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.compare import DesignComparison, compare_designs
+from process_improve.experiments.crossed_arrays import cross_arrays
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.designs_omars import is_omars, omars_properties
 from process_improve.experiments.designs_omars_ilp import generate_omars
+from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
@@ -21,6 +23,7 @@ from process_improve.experiments.least_squares_means import Comparisons, least_s
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.multistratum import multistratum_anova
+from process_improve.experiments.next_step import recommend_next_step
 from process_improve.experiments.omars import OmarsResult, analyze_omars
 from process_improve.experiments.omars_trade_off import (
     OmarsTradeOffTableEntry,
@@ -33,6 +36,7 @@ from process_improve.experiments.omars_trade_off import (
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.pseudocomponents import from_pseudocomponents, to_pseudocomponents
 from process_improve.experiments.random_effects import (
     expected_mean_squares,
     intraclass_correlation_interval,
@@ -40,12 +44,14 @@ from process_improve.experiments.random_effects import (
 )
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.run_order import run_order_trends, time_trends, trend_robust_run_order
+from process_improve.experiments.run_sheet import read_run_sheet, run_sheet
 from process_improve.experiments.separating import (
     NotSeparableError,
     constraint_through_cuts,
     separating_constraint,
 )
 from process_improve.experiments.sequential import NoSteepestDirectionError, next_design, steepest_path
+from process_improve.experiments.simulate import simulate_design_performance
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
@@ -56,6 +62,7 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
+from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
@@ -88,6 +95,8 @@ __all__ = [
     "c",
     "compare_designs",
     "constraint_through_cuts",
+    "cross_arrays",
+    "defining_relation",
     "definitive_screening_runs",
     "doe_knowledge",
     "evaluate_all",
@@ -95,6 +104,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "from_pseudocomponents",
     "full_factorial",
     "gather",
     "generate_design",
@@ -102,6 +112,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "interaction_components",
     "intraclass_correlation_interval",
     "is_omars",
     "least_squares_means",
@@ -119,14 +130,19 @@ __all__ = [
     "optimize_responses",
     "popcorn",
     "predict",
+    "read_run_sheet",
+    "recommend_next_step",
     "recommend_strategy",
     "rename_factors",
     "run_order_trends",
+    "run_sheet",
     "separating_constraint",
+    "simulate_design_performance",
     "steepest_path",
     "summary",
     "supplement",
     "time_trends",
+    "to_pseudocomponents",
     "trade_off_table",
     "trend_robust_run_order",
     "variance_components",

@@ -6910,7 +6910,7 @@
       "kind": "anova_sum_sq",
       "term": "Square",
       "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "the library's Type II ANOVA cannot separate squares, times and days: every time and every day lies in one square, so the three terms are aliased and statsmodels' anova_lm(typ=2) gives meaningless rows (11 df each, and sums of squares larger than the total); the book's sequential split, squares first, is right"
+      "disagreement": "every time and every day lies in one square, so adjusted for the times and days the squares have no degrees of freedom left: the library's Type II analysis cannot test them, and its note points to multistratum_anova with strata Square/Time + Square/Day, which gives 0.356075. The book's sequential split, squares first, is right"
      }
     },
     {
@@ -6926,7 +6926,7 @@
       "kind": "anova_sum_sq",
       "term": "Time",
       "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "the library's Type II ANOVA cannot separate squares, times and days: every time and every day lies in one square, so the three terms are aliased and statsmodels' anova_lm(typ=2) gives meaningless rows (11 df each, and sums of squares larger than the total); the book's sequential split, squares first, is right"
+      "disagreement": "the data give 6.79396 for the times within squares (6.7939556 in exact arithmetic), which rounds to 6.7940; the book prints 6.7939"
      }
     },
     {
@@ -6941,8 +6941,7 @@
      "check": {
       "kind": "anova_sum_sq",
       "term": "Day",
-      "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "the library's Type II ANOVA cannot separate squares, times and days: every time and every day lies in one square, so the three terms are aliased and statsmodels' anova_lm(typ=2) gives meaningless rows (11 df each, and sums of squares larger than the total); the book's sequential split, squares first, is right"
+      "model": "Square + Time + Day + Twist + Draw"
      }
     },
     {
@@ -6955,7 +6954,7 @@
       "quote": "35 12·0279"
      },
      "check": {
-      "manual": "the Type II rows of this model do not add to the total (see the rows for squares, times and days); the total itself is the corrected sum of squares of the 36 results, 12.0279"
+      "manual": "the Type II rows of this model leave out the squares, which cannot be tested beside the times and days, so they add to the total less the squares' 0.3561; the total itself is the corrected sum of squares of the 36 results, 12.0279"
      }
     }
    ]

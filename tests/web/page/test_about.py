@@ -45,6 +45,24 @@ def test_what_it_says_the_server_keeps_is_what_the_server_is_configured_to_keep(
     assert f"kept for {hours // 24} days" in text
 
 
+def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
+    """Sent only on Send, the screenshot unless unticked, the study only if ticked, and the relay's code a link away."""
+    text = about()
+    bullet = re.search(r"<li><strong>Feedback</strong>(.+?)</li>", text)[1]
+    assert "only when you press Send" in bullet
+    form = " ".join(source("feedback.js").split())
+    assert '<input type="checkbox" id="feedback-screenshot" name="screenshot" checked>' in form
+    assert "a screenshot of the tab unless you untick it" in bullet
+    assert '<input type="checkbox" id="feedback-study" name="study">' in form
+    assert "your study only if you tick it" in bullet
+    assert "the email provider that sends the site's mail" in bullet
+    assert f'<a href="{REPOSITORY}blob/main/deploy/factorial/feedback_relay.py"' in bullet
+    assert "Read the code" in bullet
+    relay = source_of("deploy/factorial/feedback_relay.py")
+    assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in relay, "no request line in the log"
+    assert "but for a report you send with" in " ".join(source("index.html").split()), "the footer names it too"
+
+
 def test_the_build_it_prints_is_the_build_script_s():
     text = source("about.html")
     command = re.search(r"uv run python (scripts/build_web_app\.py) (.+)\n", text)

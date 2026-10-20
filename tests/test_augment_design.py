@@ -433,6 +433,46 @@ class TestAddAxialPoints:
         assert "quadratic" in result["explanation"].lower()
 
 
+class TestHardLimits:
+    """Axial runs stay inside the ranges of the factors whose ranges are limits of the process."""
+
+    @pytest.mark.parametrize("augmentation_type", ["add_axial_points", "upgrade_to_rsm"])
+    def test_axial_runs_sit_on_the_faces_by_default(self, augmentation_type: str) -> None:
+        """Without hard limits these axial runs go out to the rotatable 1.68."""
+        result = augment_design(_full_factorial_df(3), augmentation_type, hard_limits=["B"])
+        assert result["alpha"] == pytest.approx(1.0)
+        assert pd.DataFrame(result["new_runs"]).abs().max().max() == pytest.approx(1.0)
+        assert "the ranges of B are hard limits" in result["explanation"]
+
+    @pytest.mark.parametrize("alpha", ["rotatable", "orthogonal", 1.2])
+    def test_axial_runs_past_a_hard_limit_are_refused(self, alpha: str | float) -> None:
+        with pytest.raises(ValueError, match="puts axial runs past the hard limits of B"):
+            augment_design(_full_factorial_df(3), "upgrade_to_rsm", alpha=alpha, hard_limits=["B"])
+
+    def test_an_axial_distance_inside_the_limits_is_kept(self) -> None:
+        result = augment_design(_full_factorial_df(3), "add_axial_points", alpha=0.8, hard_limits=["B"])
+        assert result["alpha"] == pytest.approx(0.8)
+        assert "hard limits" not in result["explanation"]
+
+    def test_a_hard_limit_on_a_column_that_is_not_a_factor_is_refused(self) -> None:
+        with pytest.raises(ValueError, match=r"hard_limits names \['Z'\], which are not factors"):
+            augment_design(_full_factorial_df(3), "add_axial_points", hard_limits=["Z"])
+
+    def test_the_tool_takes_hard_limits(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        design = _full_factorial_df(2).to_dict(orient="records")
+        made = execute_tool_call(
+            "augment_design", {"existing_design": design, "augmentation_type": "upgrade_to_rsm", "hard_limits": ["A"]}
+        )
+        assert made["alpha"] == pytest.approx(1.0)
+        refused = execute_tool_call(
+            "augment_design",
+            {"existing_design": design, "augmentation_type": "add_axial_points", "alpha": 1.5, "hard_limits": ["A"]},
+        )
+        assert "past the hard limits of A" in refused["error"]
+
+
 # ---------------------------------------------------------------------------
 # Upgrade to RSM
 # ---------------------------------------------------------------------------
@@ -656,6 +696,16 @@ class TestAddRunsOptimal:
             _full_factorial_df(2), "add_runs_optimal", target_model="A + B + A:B + I(A ** 2)", n_additional_runs=2
         )
         assert result["n_runs_after"] == 6
+
+    @pytest.mark.slow
+    def test_custom_formula_runs_can_be_polished(self) -> None:
+        """Under pandas 3 patsy's model rows are read-only, and moving a run in the polish raised ValueError."""
+        names = list("ABCDEFGH")
+        factors = [Factor(name=n, low=-1, high=1) for n in names]
+        dsd = generate_design(factors, design_type="dsd", n_center_points=5).design[names]
+        model = "A + B + D + G + H + A:B + I(D ** 2) + I(H ** 2) + A:D + A:G + A:H + B:D + B:G + B:H + D:G + D:H + G:H"
+        result = augment_design(dsd, "add_runs_optimal", target_model=model, n_additional_runs=6, random_state=0)
+        assert result["n_runs_after"] == 27
 
 
 # ---------------------------------------------------------------------------
