@@ -26,6 +26,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_split_plot
    :members: split_plot_design, SplitPlotOptions, strip_plot_design, StripPlotLayout, StripPlotOptions, CRITERIA
 
+.. automodule:: process_improve.experiments.designs_covariates
+   :members: covariate_design, CovariateOptions
+
 .. automodule:: process_improve.experiments.designs_mixture
    :members: dispatch_mixture
 
