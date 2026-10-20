@@ -1,0 +1,9 @@
+# What CodeQL analyses (.github/workflows/codeql.yml): this repository's own code.
+#
+# web/vendor holds third-party code copied byte for byte from its published release; each file's
+# header names its source and its digest, which tests/web/page/test_feedback.py checks. A finding in
+# it is the upstream project's to fix, in a release this repository would then copy, so it is not
+# analysed here.
+name: process-improve
+paths-ignore:
+  - web/vendor

@@ -130,6 +130,12 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+Run Sheets
+~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.run_sheet
+   :members: run_sheet, read_run_sheet
+
 Strategy Recommender
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -141,6 +147,18 @@ Strategy Recommender
 .. automodule:: process_improve.experiments.strategy.engine
    :members: recommend_strategy
    :show-inheritance:
+
+The Next Round
+~~~~~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.next_step
+   :members: recommend_next_step, ACTIONS
+
+Simulated Studies
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: process_improve.experiments.simulate
+   :members: simulate_design_performance
 
 .. automodule:: process_improve.experiments.strategy.models
    :members:

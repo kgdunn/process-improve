@@ -1438,7 +1438,7 @@ def polish_runs(
     """
     coded, cats = coded.copy(), cats.copy()
     levels = np.linspace(-1.0, 1.0, lattice.n_levels)
-    x = lattice.model_rows(coded, cats)
+    x = np.array(lattice.model_rows(coded, cats), dtype=float)  # a copy: patsy's rows can be read-only under pandas 3
     n_moves = 0
     for _ in range(_MAX_PASSES):
         points, owner = _coordinate_moves(coded, levels)
