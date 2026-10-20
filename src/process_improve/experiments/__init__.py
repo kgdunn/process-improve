@@ -9,11 +9,13 @@ from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.compare import DesignComparison, compare_designs
+from process_improve.experiments.crossed_arrays import cross_arrays
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.designs_omars import is_omars, omars_properties
 from process_improve.experiments.designs_omars_ilp import generate_omars
+from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
@@ -34,6 +36,7 @@ from process_improve.experiments.omars_trade_off import (
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.pseudocomponents import from_pseudocomponents, to_pseudocomponents
 from process_improve.experiments.random_effects import (
     expected_mean_squares,
     intraclass_correlation_interval,
@@ -58,6 +61,8 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
+from process_improve.experiments.surface_checks import pooled_pure_error, third_order_contrasts
+from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
@@ -89,6 +94,8 @@ __all__ = [
     "c",
     "compare_designs",
     "constraint_through_cuts",
+    "cross_arrays",
+    "defining_relation",
     "definitive_screening_runs",
     "doe_knowledge",
     "evaluate_all",
@@ -96,6 +103,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "from_pseudocomponents",
     "full_factorial",
     "gather",
     "generate_design",
@@ -103,6 +111,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "interaction_components",
     "intraclass_correlation_interval",
     "is_omars",
     "least_squares_means",
@@ -117,6 +126,7 @@ __all__ = [
     "omars_properties",
     "omars_trade_off_table",
     "optimize_responses",
+    "pooled_pure_error",
     "popcorn",
     "predict",
     "read_run_sheet",
@@ -129,7 +139,9 @@ __all__ = [
     "simulate_design_performance",
     "summary",
     "supplement",
+    "third_order_contrasts",
     "time_trends",
+    "to_pseudocomponents",
     "trade_off_table",
     "trend_robust_run_order",
     "variance_components",

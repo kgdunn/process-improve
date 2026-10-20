@@ -3922,7 +3922,7 @@
       "quote": "14 14 5 1 6 1 0.98 0.1429"
      },
      "check": {
-      "manual": "the ORTH-augmented design is not printed and the library does not build ORTH-augmented designs; n_ORTH = n1 + 2 with n1 = 12 (the DSD-augmented run size less two) gives 14"
+      "manual": "the ORTH-augmented design is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and n_ORTH = n1 + 2 with n1 = 12 (the DSD-augmented run size less two) gives 14"
      }
     },
     {
@@ -4012,7 +4012,7 @@
       "quote": "34 36 12 4 16 1 1.03 0.0588"
      },
      "check": {
-      "manual": "the ORTH-augmented design is not printed and the library does not build ORTH-augmented designs; n_ORTH = n1 + 4 with n1 = 32 (the DSD-augmented run size less two) gives 36"
+      "manual": "the ORTH-augmented design is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and n_ORTH = n1 + 4 with n1 = 32 (the DSD-augmented run size less two) gives 36"
      }
     },
     {
@@ -4134,7 +4134,7 @@
       "quote": "4 6 4 0.0364"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 4, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 4, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
      }
     },
     {
@@ -4149,7 +4149,7 @@
       "quote": "4 6 4 0.0364"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0364, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0364, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
      }
     },
     {
@@ -4164,7 +4164,7 @@
       "quote": "4 8 8 0.0513"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 8, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 8, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
      }
     },
     {
@@ -4179,7 +4179,7 @@
       "quote": "4 8 8 0.0513"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0513, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0513, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
      }
     },
     {
@@ -4194,7 +4194,7 @@
       "quote": "4 10 16 0.0762"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 16, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 16, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
      }
     },
     {
@@ -4209,7 +4209,7 @@
       "quote": "4 10 16 0.0762"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
      }
     },
     {
@@ -4224,7 +4224,7 @@
       "quote": "for m = 4 and c = 10, in which case fnz = 0.0762"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and the library does not build one; the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
      }
     },
     {

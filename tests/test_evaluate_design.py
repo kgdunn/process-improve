@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import ClassVar
 
 import numpy as np
@@ -966,6 +967,52 @@ class TestAliasMatrix:
         """OMARS keeps main effects clear of the omitted 2fi (main-row alias = 0)."""
         result = evaluate_design(_OMARS_25, model=_PURE_QUADRATIC_5, metric="alias_matrix")
         assert result["alias_matrix"]["max_abs_main_effect_rows"] == pytest.approx(0.0, abs=1e-9)
+
+
+#: Davies (1956), Table 11-21: a 2^(5-2) with x4 = x1x2x3 and x5 = -x2x3.
+_DAVIES = pd.DataFrame(
+    [(-1, -1, -1, -1, -1), (-1, -1, 1, 1, 1), (-1, 1, -1, 1, 1), (-1, 1, 1, -1, -1),
+     (1, -1, -1, 1, -1), (1, -1, 1, -1, 1), (1, 1, -1, -1, 1), (1, 1, 1, 1, -1)],
+    columns=["x1", "x2", "x3", "x4", "x5"],
+)  # fmt: skip
+#: A 2^2 with three centre runs (Box, Hunter and Hunter, Table 15.1).
+_FIRST_ORDER = pd.DataFrame(
+    [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0), (0, 0), (0, 0)], columns=["time", "temperature"]
+)
+
+
+def _alias(design: pd.DataFrame, model: str, alias_terms: str) -> pd.DataFrame:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # a saturated or small design warns about its residual degrees of freedom
+        out = evaluate_design(design, model=model, metric="alias_matrix", alias_terms=alias_terms)["alias_matrix"]
+    return pd.DataFrame(out["matrix"], index=out["model_terms"], columns=out["alias_terms"])
+
+
+class TestAliasMatrixWithTheSquares:
+    def test_davies_first_order_design_aliases_each_square_with_the_mean(self) -> None:
+        """Davies, 11.33 (p. 512): b0 -> b0 + b11 + b22 + b33 + b44 + b55, and b1 -> b1 - b45."""
+        alias = _alias(_DAVIES, "x1 + x2 + x3 + x4 + x5", "quadratic")
+        squares = [f"I(x{i} ** 2)" for i in range(1, 6)]
+        assert alias.loc["Intercept", squares].tolist() == pytest.approx([1.0] * 5)
+        assert alias.loc["x1", "x4:x5"] == pytest.approx(-1.0)
+        assert alias.loc[["x1", "x2", "x3", "x4", "x5"], squares].abs().max().max() == pytest.approx(0.0)
+
+    def test_centre_runs_dilute_the_squares_in_the_mean(self) -> None:
+        """A 2^2 with three centre runs: the mean carries 4/7 of each square."""
+        alias = _alias(_FIRST_ORDER, "time + temperature", "quadratic")
+        assert alias.loc["Intercept", ["I(time ** 2)", "I(temperature ** 2)"]].tolist() == pytest.approx([4 / 7] * 2)
+
+    def test_the_default_aliases_against_the_interactions_only(self) -> None:
+        assert not any(term.startswith("I(") for term in _alias(_DAVIES, "x1 + x2 + x3 + x4 + x5", "interactions"))
+
+    def test_a_square_in_the_model_and_a_categorical_factor_have_no_square_column(self) -> None:
+        design = _FIRST_ORDER.assign(catalyst=["A", "B", "A", "B", "A", "B", "A"])
+        alias = _alias(design, "time + temperature + catalyst + I(time ** 2)", "quadratic")
+        assert [term for term in alias.columns if term.startswith("I(")] == ["I(temperature ** 2)"]
+
+    def test_an_unknown_alias_set_is_refused(self) -> None:
+        with pytest.raises(ValueError, match=r"alias_terms must be one of \('interactions', 'quadratic'\)"):
+            evaluate_design(_DAVIES, model="x1 + x2", metric="alias_matrix", alias_terms="cubic")
 
 
 class TestFDS:

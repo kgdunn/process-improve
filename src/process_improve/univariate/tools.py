@@ -599,7 +599,10 @@ class TtestPairedSamplesInput(BaseModel):
         "The difference is defined as before - after (group_a - group_b). "
         "Each position i in group_a must correspond to the same subject/unit as position i in "
         "group_b (e.g. before/after measurements on the same individual). "
-        "Use ttest_two_samples instead for independent groups."
+        "Use ttest_two_samples instead for independent groups. The result holds the t statistic "
+        "as 't_value' (and, deprecated since 2.1.0, as 'z_value'), the standard deviation of the "
+        "differences as 'differences_std' and the standard error of their mean as "
+        "'std_error_of_mean_difference'."
     ),
     input_model=TtestPairedSamplesInput,
     examples="""
@@ -623,8 +626,10 @@ def ttest_paired_samples(spec: TtestPairedSamplesInput) -> dict:
     result = {
         "n_pairs": len(differences),
         "differences_mean": raw["Differences mean"],
-        "differences_std": raw["Standard deviation"],
-        "z_value": raw["z value"],
+        "differences_std": raw["Std dev of differences"],
+        "std_error_of_mean_difference": raw["Std error of mean difference"],
+        "t_value": raw["t value"],
+        "z_value": raw["t value"],  # deprecated since 2.1.0, removed in 3.0: the t statistic under its old name
         "conf_int_lower": raw["ConfInt: Lo"],
         "conf_int_upper": raw["ConfInt: Hi"],
         "p_value": raw["p value"],

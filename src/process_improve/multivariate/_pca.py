@@ -445,11 +445,15 @@ def _pca_ckf_press(
     Returns
     -------
     press : np.ndarray of shape (max_components,)
-        Total held-out sum of squared errors per component count.
+        Total held-out sum of squared errors per component count. NaN for a count that a
+        column group cannot evaluate, because it leaves fewer columns in than there are
+        components: a total over the other groups predicts fewer columns, and would read as
+        a better fit than any count every group evaluates (#675).
     per_fold_press : np.ndarray of shape (max_components, n_folds)
-        The same total, split by column group, so the 1-SE rule has a spread to work with.
+        The same total, split by column group, so the 1-SE rule has a spread to work with;
+        NaN for a group that cannot evaluate the count.
     per_column_press : np.ndarray of shape (max_components, n_features)
-        The same total, split by variable.
+        The same total, split by variable; NaN for the variables of such a group.
     null_model_ss : float
         ``SS(Z)``: what predicting every held-out value by its column mean gets wrong.
     per_column_null_ss : np.ndarray of shape (n_features,)
@@ -474,9 +478,9 @@ def _pca_ckf_press(
     # min(N - 1, K), within the min(N, K) components this SVD returns.
     assert max_components <= vt.shape[0], "internal: ckf asked for more components than the SVD has"
 
-    press = np.zeros(max_components)
+    press = np.full(max_components, np.nan)
     per_fold_press = np.full((max_components, n_folds), np.nan)
-    per_column_press = np.zeros((max_components, n_features))
+    per_column_press = np.full((max_components, n_features), np.nan)
     for a in range(1, max_components + 1):
         loadings = vt[:a, :].T  # (n_features, a)
         for fold, held_out in enumerate(groups):
@@ -491,7 +495,8 @@ def _pca_ckf_press(
             squared = residual**2
             per_column_press[a - 1, held_out] = squared.sum(axis=0)
             per_fold_press[a - 1, fold] = float(squared.sum())
-        press[a - 1] = float(np.nansum(per_fold_press[a - 1, :]))
+        if not np.isnan(per_fold_press[a - 1, :]).any():  # every column predicted, so the total is comparable
+            press[a - 1] = float(per_fold_press[a - 1, :].sum())
 
     per_column_null_ss = (Z**2).sum(axis=0)
     return press, per_fold_press, per_column_press, float(per_column_null_ss.sum()), per_column_null_ss
@@ -1818,7 +1823,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               deal of published chemometrics uses it, so a number that has to
               line up with a paper may need it, and because on a block with far
               more columns than samples it costs one decomposition rather than
-              ``n_folds * n_repeats * max_components``.
+              ``n_folds * n_repeats * max_components``. A component count that
+              leaves some group with fewer retained columns than components
+              cannot be scored there, so its PRESS and Q2 are NaN and it is
+              not recommended.
             - ``"ek"``: the two-model scheme of Eastment and Krzanowski
               (1982). An element is predicted by a score from a model without
               its column and a loading from a model without its row. This is

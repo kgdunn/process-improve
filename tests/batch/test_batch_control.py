@@ -1,5 +1,7 @@
 """Tests for the mid-course correction QP and the decision-point workflow."""
 
+import itertools
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -448,21 +450,18 @@ def test_multiplier_of_a_slack_cap_is_bisected_away(  # noqa: PLR0913
     assert both[slack] < 0.99 * caps[slack]
     assert 0.99 * caps[binding] <= both[binding] <= 1.01 * caps[binding]
     np.testing.assert_allclose(both.mv.to_numpy(), alone.mv.to_numpy(), atol=1e-4)
+    # #681: the leftover multiplier of the slack cap does not make that cap active.
+    assert not both.active_constraints[f"{slack}_cap"]
+    assert both.active_constraints[f"{binding}_cap"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="#681: cap_status reads 'ok' while a cap is violated",
-)
 def test_ok_status_means_both_binding_caps_hold(fitted: BatchPLS) -> None:
     """When both caps bind, an 'ok' status must mean both statistics sit within the 1% cap tolerance.
 
-    The polishing loop bisects the SPE multiplier checking only SPE, and the
-    T2 multiplier checking only T2. Here lowering the T2 multiplier pushes SPE
-    to about 1.27 times its cap; neither bisection can raise a multiplier
-    again, both polishing rounds end with the cap violated, and the status
-    stays 'ok'.
+    #681: the polishing loop bisected the SPE multiplier checking only SPE, and
+    the T2 multiplier checking only T2. Here lowering the T2 multiplier pushed
+    SPE to about 1.27 times its cap, and the status stayed 'ok'. A step is now
+    taken only when both caps hold.
     """
     batches, _ = _synthetic_batches()
     k = 5
@@ -475,8 +474,30 @@ def test_ok_status_means_both_binding_caps_hold(fitted: BatchPLS) -> None:
     unconstrained = midcourse_correction(fitted, **kwargs)
     spe_cap, t2_cap = 0.5 * unconstrained.spe, 0.1 * unconstrained.t2
     capped = midcourse_correction(fitted, spe_cap=spe_cap, t2_cap=t2_cap, **kwargs)
-    within_caps = capped.spe <= spe_cap * 1.01 and capped.t2 <= t2_cap * 1.01
-    assert within_caps or capped.solver.status == "cap_not_met"
+    assert capped.solver.status == "ok"
+    assert capped.spe <= spe_cap * 1.01
+    assert capped.t2 <= t2_cap * 1.01
+    assert capped.active_constraints["spe_cap"]
+    assert capped.active_constraints["t2_cap"], "far below its cap, but dropping its multiplier would break it"
+
+
+@pytest.mark.parametrize("batch_id", ["b0", "b3", "b7", "b11"])
+def test_ok_status_means_both_caps_hold_across_settings(fitted: BatchPLS, batch_id: str) -> None:
+    """#681: before the fix, 48 of 720 two-cap solves of a wider sweep read 'ok' with a cap over by more than 1%."""
+    batches, _ = _synthetic_batches()
+    for k, spe_factor, t2_factor in itertools.product([3, 5, 7], [0.2, 0.5], [0.1, 0.5]):
+        kwargs = {
+            "observed": _observed_series(fitted, batches[batch_id], k),
+            "free_columns": _free_columns(fitted, k),
+            "y_target": -2.0,
+            "weights": {"target": 10.0, "movement": 1e-3},
+        }
+        unconstrained = midcourse_correction(fitted, **kwargs)
+        caps = {"spe_cap": spe_factor * unconstrained.spe, "t2_cap": t2_factor * unconstrained.t2}
+        capped = midcourse_correction(fitted, **caps, **kwargs)
+        if capped.solver.status == "ok":
+            assert capped.spe <= caps["spe_cap"] * 1.01, (k, spe_factor, t2_factor)
+            assert capped.t2 <= caps["t2_cap"] * 1.01, (k, spe_factor, t2_factor)
 
 
 # --------------------------------------------------------------------------- #
