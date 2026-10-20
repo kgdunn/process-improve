@@ -441,7 +441,8 @@ class TestHardLimits:
         """Without hard limits these axial runs go out to the rotatable 1.68."""
         result = augment_design(_full_factorial_df(3), augmentation_type, hard_limits=["B"])
         assert result["alpha"] == pytest.approx(1.0)
-        assert pd.DataFrame(result["new_runs"]).abs().max().max() == pytest.approx(1.0)
+        # upgrade_to_rsm also returns a Block column, numbered 1 and 2; only the factors are settings
+        assert pd.DataFrame(result["new_runs"])[["A", "B", "C"]].abs().max().max() == pytest.approx(1.0)
         assert "the ranges of B are hard limits" in result["explanation"]
 
     @pytest.mark.parametrize("alpha", ["rotatable", "orthogonal", 1.2])
