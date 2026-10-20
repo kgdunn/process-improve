@@ -250,8 +250,11 @@ def internal_pls_nipals_fit_one_pc(
         # Step 4. q_i = Y't / t't. Regress columns of Y on t_i, and store slope coefficients in q_i.
         q_i = regress_a_space_on_b_row(y_space.T, t_i.T, y_present_map.T)
 
-        # Step 5. u_new = Yq / q'q. Regress rows of Y on q_i, and store slope coefficients in u_new
+        # Step 5. u_new = Yq / q'q. Regress rows of Y on q_i, and store slope coefficients in u_new.
+        # A row with no Y value carries no information about u, so it gets 0 rather than the NaN
+        # of its empty regression: it then has no weight in step 1, as a missing cell has none (#709).
         u_new = regress_a_space_on_b_row(y_space, q_i.T, y_present_map)
+        u_new[~np.asarray(y_present_map).any(axis=1)] = 0.0
 
         # Floor ``||u_i||`` so an all-zero starting vector (degenerate
         # Y column) doesn't produce NaN here. SEC-21 (#270) sub-item 1.

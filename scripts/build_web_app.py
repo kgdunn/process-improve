@@ -65,6 +65,8 @@ APP_FILES = (
     "store.js",
     "glossary.js",
     "terms.js",
+    "feedback.js",
+    "vendor/modern-screenshot.mjs",
     "worker.js",
     "runtime.json",
     "bootstrap.py",

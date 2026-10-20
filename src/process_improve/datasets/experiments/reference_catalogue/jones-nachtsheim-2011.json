@@ -1,0 +1,5726 @@
+{
+ "schema": 1,
+ "about": ["Part of the reference catalogue: designs from one published source, for testing that software reproduces them.", "Jones and Nachtsheim (2011) introduce definitive screening designs: three-level designs of 2m + 1 runs for m factors,", "fold-over pairs with one factor at its centre and a centre run. experiments: the six-factor design of Table 2 with its", "simulated response. designs: Figure 1's designs for m = 4 to 12, with the column correlations of Table 3, the relative", "efficiencies of Table 5, the powers of Table 7 and the projection counts of Table 8. Each expected item has its printed", "text, where it is printed (a page and a quotation) and a check, or manual: the reason it is not recomputed."],
+ "source": {
+  "key": "jones-nachtsheim-2011",
+  "authors": ["Bradley Jones", "Christopher J. Nachtsheim"],
+  "title": "A Class of Three-Level Designs for Definitive Screening in the Presence of Second-Order Effects",
+  "work": "Journal of Quality Technology",
+  "volume": "43",
+  "issue": "1",
+  "pages": "1-15",
+  "year": 2011,
+  "publisher": "American Society for Quality",
+  "doi": "10.1080/00224065.2011.11917841",
+  "url": "https://doi.org/10.1080/00224065.2011.11917841",
+  "cite": "Jones and Nachtsheim (2011), \"A Class of Three-Level Designs for Definitive Screening in the Presence of Second-Order Effects\", Journal of Quality Technology 43(1), 1-15",
+  "read": "2026-10-19, from a copy of the article's PDF (15 pages); numbers copied from its text and checked against the page images, Figure 1's nine designs read from the page image at 300 dpi",
+  "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "experiments": [
+  {
+   "name": "jones-nachtsheim-2011-six-factor-example",
+   "title": "A definitive screening design in six factors with a simulated response: its main-effect variances, efficiency and the AICc of three models",
+   "topics": ["general"],
+   "kind": "example",
+   "where": {
+    "section": "Design Structure: An Example; Suggestions for Analysis",
+    "pages": "3-4, 12-13",
+    "tables": ["Table 2"],
+    "figures": ["Figure 3"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "simulated response, from equation (8)",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "definitive screening design",
+    "details": "six fold-over pairs and a centre run, the m = 6 design of Figure 1",
+    "n_runs": 13
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "y"],
+    "rows": [
+     [1, 0, 1, -1, -1, -1, -1, 21.04],
+     [2, 0, -1, 1, 1, 1, 1, 10.48],
+     [3, 1, 0, -1, 1, 1, -1, 17.89],
+     [4, -1, 0, 1, -1, -1, 1, 10.07],
+     [5, -1, -1, 0, 1, -1, -1, 7.74],
+     [6, 1, 1, 0, -1, 1, 1, 21.01],
+     [7, -1, 1, 1, 0, 1, -1, 16.53],
+     [8, 1, -1, -1, 0, -1, 1, 20.38],
+     [9, 1, -1, 1, -1, 0, -1, 8.62],
+     [10, -1, 1, -1, 1, 0, 1, 7.8],
+     [11, 1, 1, 1, 1, -1, 0, 23.56],
+     [12, -1, -1, -1, -1, 1, 0, 15.24],
+     [13, 0, 0, 0, 0, 0, 0, 19.91]
+    ],
+    "coded": true,
+    "notes": "Table 2, in the printed order"
+   },
+   "expected": [
+    {
+     "what": "relative variance of a main effect",
+     "term": "the design of Table 2",
+     "value": "1/10",
+     "where": {
+      "page": 4,
+      "source_kind": "prose",
+      "quote": "The relative variance of each main effect in our design (Var(β̂i)/σ²) is 1/10, which compares with 1/12 for the Plackett-Burman design."
+     },
+     "check": {
+      "kind": "unit_std_error",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "variance": true,
+      "key": "max",
+      "expression": true
+     }
+    },
+    {
+     "what": "relative variance of a main effect",
+     "term": "12-run Plackett-Burman design with a centre run",
+     "value": "1/12",
+     "where": {
+      "page": 4,
+      "source_kind": "prose",
+      "quote": "The relative variance of each main effect in our design (Var(β̂i)/σ²) is 1/10, which compares with 1/12 for the Plackett-Burman design."
+     },
+     "check": {
+      "kind": "unit_std_error",
+      "model": "A + B + C + D + E + F",
+      "variance": true,
+      "key": "max",
+      "expression": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model, against the 12-run Plackett-Burman design with a centre run",
+     "value": "85.5%",
+     "where": {
+      "page": 4,
+      "source_kind": "prose",
+      "quote": "Compared with the 12-run Plackett-Burman design (Plackett and Burman, 1946) with one additional center run, the design in Table 2 has a relative D-efficiency of 85.5% for the model consisting of all first-order main effects."
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "d",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "percent": true,
+      "design_columns": 6,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "AICc",
+     "term": "best subset",
+     "value": "70.63",
+     "analysis": "-2 log L + 2k + 2k(k + 1)/(n - k - 1), k counting the error variance among the parameters, as JMP computes it",
+     "where": {
+      "page": 13,
+      "source_kind": "prose",
+      "quote": "The best model included columns x1, x2, x3, x23, and x11, with AICc = 70.63."
+     },
+     "check": {
+      "kind": "aicc",
+      "model": "x1 + x2 + x3 + x2:x3 + I(x1**2)"
+     }
+    },
+    {
+     "what": "AICc",
+     "term": "true model (8)",
+     "value": "71.25",
+     "analysis": "-2 log L + 2k + 2k(k + 1)/(n - k - 1), k counting the error variance among the parameters, as JMP computes it",
+     "where": {
+      "page": 13,
+      "source_kind": "prose",
+      "quote": "Running the true model (8) leads to AICc = 71.25."
+     },
+     "check": {
+      "kind": "aicc",
+      "model": "x1 + x2 + x3 + x4 + x2:x3 + I(x1**2)"
+     }
+    },
+    {
+     "what": "AICc",
+     "term": "forward stepwise",
+     "value": "83.72",
+     "analysis": "-2 log L + 2k + 2k(k + 1)/(n - k - 1), k counting the error variance among the parameters, as JMP computes it",
+     "where": {
+      "page": 13,
+      "source_kind": "prose",
+      "quote": "The final model found by the forward stepwise procedure in JMP added the effects x4 and x44, resulting in a Type I error from including the x44 term and having AICc = 83.72."
+     },
+     "check": {
+      "kind": "aicc",
+      "model": "x1 + x2 + x3 + x4 + x2:x3 + I(x1**2) + I(x4**2)"
+     }
+    },
+    {
+     "what": "power",
+     "term": "a linear effect of |beta|/sigma = 1",
+     "value": "0.821",
+     "analysis": "Table 7's average power for one linear effect in the six-factor design",
+     "where": {
+      "page": 13,
+      "source_kind": "prose",
+      "quote": "Our power study indicated that the probability of detecting such an effect is 0.821"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "coefficients of the simulation",
+     "term": "equation (8)",
+     "value": "yi = 20 + 4xi,1 + 3xi,2 - 2xi,3 - xi,4 + 5xi,2xi,3 + 6x2i,1 + εi",
+     "where": {
+      "page": 12,
+      "source_kind": "math",
+      "quote": "yi = 20 + 4xi,1 + 3xi,2 − 2xi,3 − xi,4 + 5xi,2 xi,3 + 6x2i,1 + εi"
+     },
+     "check": {
+      "manual": "the model the response was simulated from, with N(0, 1) errors; the fits above take the response as printed"
+     }
+    },
+    {
+     "what": "predictors",
+     "term": "most with AICc",
+     "value": "10",
+     "where": {
+      "page": 13,
+      "source_kind": "prose",
+      "quote": "(With n = 13, 10 is the maximum number of predictors that can be included with AICc)"
+     },
+     "check": {
+      "manual": "with k counting the error variance, as in the AICc values above, which reproduce, 2k(k + 1)/(n - k - 1) is defined for k <= 11, so for at most 9 predictors besides the intercept; 10 predictors leave n - k - 1 = 0"
+     }
+    }
+   ],
+   "notes": "The design is Figure 1's for m = 6 (jones-nachtsheim-2011-dsd-6-factors). The forward stepwise model is the true model (8) with x4^2 added, which is what reproduces its AICc."
+  }
+ ],
+ "designs": [
+  {
+   "name": "jones-nachtsheim-2011-dsd-4-factors",
+   "title": "The definitive screening design in 4 factors and 9 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "4 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 9,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4"],
+    "rows": [
+     [1, 0, 1, -1, -1],
+     [2, 0, -1, 1, 1],
+     [3, -1, 0, -1, 1],
+     [4, 1, 0, 1, -1],
+     [5, -1, -1, 0, -1],
+     [6, 1, 1, 0, 1],
+     [7, -1, 1, 1, 0],
+     [8, 1, -1, -1, 0],
+     [9, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 4",
+     "value": "9",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 4 ... 9 0000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 4
+      },
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 4",
+     "value": "4 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 4 0.000 0.000 0.707 0.707 0.400 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 4 0.000 0.000 0.707 0.707 0.400 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.707",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 4 0.000 0.000 0.707 0.707 0.400 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.707",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 4 0.000 0.000 0.707 0.707 0.400 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.400",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 4 0.000 0.000 0.707 0.707 0.400 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.500",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 4 0.000 0.000 0.707 0.707 0.400 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "two squares",
+     "value": "zero",
+     "analysis": "equation (4), 1/3 - 1/(m - 1), is zero for m = 4",
+     "where": {
+      "page": 7,
+      "source_kind": "prose",
+      "quote": "We note that, for m = 4 factors, the correlation is zero."
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "printed": "0"
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-5-factors",
+   "title": "The definitive screening design in 5 factors and 11 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "5 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 11,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5"],
+    "rows": [
+     [1, 0, 1, 1, -1, -1],
+     [2, 0, -1, -1, 1, 1],
+     [3, 1, 0, -1, -1, 1],
+     [4, -1, 0, 1, 1, -1],
+     [5, 1, -1, 0, 1, -1],
+     [6, -1, 1, 0, -1, 1],
+     [7, 1, -1, 1, 0, 1],
+     [8, -1, 1, -1, 0, -1],
+     [9, 1, 1, 1, 1, 0],
+     [10, -1, -1, -1, -1, 0],
+     [11, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 5",
+     "value": "11",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 5 ... 11 00000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 5
+      },
+      "relabel": "columns and signs",
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 13 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .25."
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 5",
+     "value": "5 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.156",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 5 0.156 0.156 0.518 0.726 0.312 0.774"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.156",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 5 0.156 0.156 0.518 0.726 0.312 0.774"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.518",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 5 0.156 0.156 0.518 0.726 0.312 0.774"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.726",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 5 0.156 0.156 0.518 0.726 0.312 0.774"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.312",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 5 0.156 0.156 0.518 0.726 0.312 0.774"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.774",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 5 0.156 0.156 0.518 0.726 0.312 0.774"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-6-factors",
+   "title": "The definitive screening design in 6 factors and 13 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "6 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 13,
+    "treatment_factors": 6
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6"],
+    "rows": [
+     [1, 0, 1, -1, -1, -1, -1],
+     [2, 0, -1, 1, 1, 1, 1],
+     [3, 1, 0, -1, 1, 1, -1],
+     [4, -1, 0, 1, -1, -1, 1],
+     [5, -1, -1, 0, 1, -1, -1],
+     [6, 1, 1, 0, -1, 1, 1],
+     [7, -1, 1, 1, 0, 1, -1],
+     [8, 1, -1, -1, 0, -1, 1],
+     [9, 1, -1, 1, -1, 0, -1],
+     [10, -1, 1, -1, 1, 0, 1],
+     [11, 1, 1, 1, 1, -1, 0],
+     [12, -1, -1, -1, -1, 1, 0],
+     [13, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 6",
+     "value": "13",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 6 ... 13 000000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 6
+      },
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 6",
+     "value": "6 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 6 0.000 0.000 0.465 0.465 0.357 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 6 0.000 0.000 0.465 0.465 0.357 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.465",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 6 0.000 0.000 0.465 0.465 0.357 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.465",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 6 0.000 0.000 0.465 0.465 0.357 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.357",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 6 0.000 0.000 0.465 0.465 0.357 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.500",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 6 0.000 0.000 0.465 0.465 0.357 0.500"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two squares",
+     "value": "0.087",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "mean",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two squares",
+     "value": "0.087",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.128",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.128",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.483",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.483",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.405",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.405",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 6 0.087 0.087 0.128 0.128 0.483 0.483 0.405 0.405"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model",
+     "value": "85.5",
+     "analysis": "against the orthogonal main-effects design of 12 runs (the first 6 columns of the library's Plackett-Burman design) with one centre run, the D-optimal design the paper compares with for even m",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 6 85.5 9.5"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "d",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "percent": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
+     }
+    },
+    {
+     "what": "average increase in standard errors",
+     "term": "main-effects model, percent",
+     "value": "9.5",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 6 85.5 9.5"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "se",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6",
+      "gain": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "number",
+     "value": "20",
+     "where": {
+      "page": 12,
+      "source_kind": "table",
+      "quote": "TABLE 8 ... 6 20"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "n_projections"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "full quadratic model estimable",
+     "value": "for every projection",
+     "where": {
+      "page": 12,
+      "source_kind": "prose",
+      "quote": "for every design we have examined, and for every projection, the full three-factor quadratic model is estimable"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "fraction_estimable",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.821",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 6 0.821 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "0.999",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 6 0.821 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2,
+      "disagreement": "The library's average power is 0.999912, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation."
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 6 0.821 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.883",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 6 0.883 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 6 0.883 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 6 0.883 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 1",
+     "value": "0.236",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 6 0.236 0.683 0.949"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 2",
+     "value": "0.683",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 6 0.236 0.683 0.949"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 3",
+     "value": "0.949",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 6 0.236 0.683 0.949"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 1",
+     "value": "0.623",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 6 0.623 0.993 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 2",
+     "value": "0.993",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 6 0.623 0.993 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 6 0.623 0.993 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 1",
+     "value": "0.548",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 6 0.548 0.982 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 2",
+     "value": "0.982",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 6 0.548 0.982 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6,
+      "disagreement": "The library's average power is 0.981490, 0.00001 below the printed 0.982's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 6 0.548 0.982 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 6
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 1",
+     "value": "0.774",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 6 0.774 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 2",
+     "value": "0.999",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 6 0.774 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 2,
+      "disagreement": "The library's average power is 0.999618, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation."
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 6 0.774 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 1",
+     "value": "0.257",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 6 0.257 0.734 0.970"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 1,
+      "disagreement": "The library's average power is 0.256477, 0.00002 below the printed 0.257's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 2",
+     "value": "0.734",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 6 0.257 0.734 0.970"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 3",
+     "value": "0.970",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 6 0.257 0.734 0.970"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 1",
+     "value": "0.681",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 6 0.681 0.998 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 2",
+     "value": "0.998",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 6 0.681 0.998 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 6 0.681 0.998 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-7-factors",
+   "title": "The definitive screening design in 7 factors and 15 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor 7",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "7 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 15,
+    "treatment_factors": 7
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7"],
+    "rows": [
+     [1, 0, 1, -1, 1, -1, 1, -1],
+     [2, 0, -1, 1, -1, 1, -1, 1],
+     [3, -1, 0, 1, -1, 1, 1, -1],
+     [4, 1, 0, -1, 1, -1, -1, 1],
+     [5, 1, -1, 0, 1, 1, 1, 1],
+     [6, -1, 1, 0, -1, -1, -1, -1],
+     [7, 1, -1, -1, 0, 1, -1, -1],
+     [8, -1, 1, 1, 0, -1, 1, 1],
+     [9, -1, -1, 1, 1, 0, -1, -1],
+     [10, 1, 1, -1, -1, 0, 1, 1],
+     [11, -1, 1, -1, 1, 1, 0, 1],
+     [12, 1, -1, 1, -1, -1, 0, -1],
+     [13, 1, 1, 1, 1, 1, -1, 0],
+     [14, -1, -1, -1, -1, -1, 1, 0],
+     [15, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 7",
+     "value": "15",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 7 ... 15 0000000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 7
+      },
+      "relabel": "columns and signs",
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 17 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .167."
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 7",
+     "value": "7 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.083",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 7 0.083 0.083 0.397 0.497 0.276 0.644"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.083",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 7 0.083 0.083 0.397 0.497 0.276 0.644"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.397",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 7 0.083 0.083 0.397 0.497 0.276 0.644"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.497",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 7 0.083 0.083 0.397 0.497 0.276 0.644"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.276",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 7 0.083 0.083 0.397 0.497 0.276 0.644"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.644",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 7 0.083 0.083 0.397 0.497 0.276 0.644"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two squares",
+     "value": "0.091",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "mean",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two squares",
+     "value": "0.091",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.129",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.129",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.369",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.369",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.038",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.038",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 7 0.091 0.091 0.129 0.129 0.369 0.369 0.038 0.038"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model",
+     "value": "84.1",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 7 84.1 14.3"
+     },
+     "check": {
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+     }
+    },
+    {
+     "what": "average increase in standard errors",
+     "term": "main-effects model, percent",
+     "value": "14.3",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 7 84.1 14.3"
+     },
+     "check": {
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "number",
+     "value": "35",
+     "where": {
+      "page": 12,
+      "source_kind": "table",
+      "quote": "TABLE 8 ... 7 35"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "n_projections"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "full quadratic model estimable",
+     "value": "for every projection",
+     "where": {
+      "page": 12,
+      "source_kind": "prose",
+      "quote": "for every design we have examined, and for every projection, the full three-factor quadratic model is estimable"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "fraction_estimable",
+      "printed": "1"
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-8-factors",
+   "title": "The definitive screening design in 8 factors and 17 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor 7",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor 8",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "8 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 17,
+    "treatment_factors": 8
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"],
+    "rows": [
+     [1, 0, -1, 1, 1, -1, 1, 1, 1],
+     [2, 0, 1, -1, -1, 1, -1, -1, -1],
+     [3, -1, 0, -1, 1, 1, 1, 1, -1],
+     [4, 1, 0, 1, -1, -1, -1, -1, 1],
+     [5, -1, -1, 0, 1, 1, -1, -1, 1],
+     [6, 1, 1, 0, -1, -1, 1, 1, -1],
+     [7, 1, -1, 1, 0, 1, 1, -1, -1],
+     [8, -1, 1, -1, 0, -1, -1, 1, 1],
+     [9, -1, -1, 1, -1, 0, -1, 1, -1],
+     [10, 1, 1, -1, 1, 0, 1, -1, 1],
+     [11, 1, -1, -1, -1, 1, 0, 1, 1],
+     [12, -1, 1, 1, 1, -1, 0, -1, -1],
+     [13, -1, 1, 1, -1, 1, 1, 0, 1],
+     [14, 1, -1, -1, 1, -1, -1, 0, -1],
+     [15, 1, 1, 1, 1, 1, -1, 1, 0],
+     [16, -1, -1, -1, -1, -1, 1, -1, 0],
+     [17, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 8",
+     "value": "17",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 8 ... 17 00000000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 8
+      },
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 8",
+     "value": "8 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 8 0.000 0.000 0.367 0.367 0.222 0.667"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 8 0.000 0.000 0.367 0.367 0.222 0.667"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.367",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 8 0.000 0.000 0.367 0.367 0.222 0.667"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.367",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 8 0.000 0.000 0.367 0.367 0.222 0.667"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.222",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 8 0.000 0.000 0.367 0.367 0.222 0.667"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.667",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 8 0.000 0.000 0.367 0.367 0.222 0.667"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two squares",
+     "value": "0.089",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "mean",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two squares",
+     "value": "0.089",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.121",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.121",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.411",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.411",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.181",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.181",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 8 0.089 0.089 0.121 0.121 0.411 0.411 0.181 0.181"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model",
+     "value": "88.8",
+     "analysis": "against the orthogonal main-effects design of 16 runs (the first 8 columns of the library's Plackett-Burman design) with one centre run, the D-optimal design the paper compares with for even m",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 8 88.8 6.9"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "d",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8",
+      "percent": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 15,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 8
+     }
+    },
+    {
+     "what": "average increase in standard errors",
+     "term": "main-effects model, percent",
+     "value": "6.9",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 8 88.8 6.9"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "se",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8",
+      "gain": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 15,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 8
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "number",
+     "value": "56",
+     "where": {
+      "page": 12,
+      "source_kind": "table",
+      "quote": "TABLE 8 ... 8 56"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "n_projections"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "full quadratic model estimable",
+     "value": "for every projection",
+     "where": {
+      "page": 12,
+      "source_kind": "prose",
+      "quote": "for every design we have examined, and for every projection, the full three-factor quadratic model is estimable"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "fraction_estimable",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.937",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 8 0.937 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 8 0.937 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 8 0.937 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.962",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 8 0.962 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1,
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 8 0.962 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2,
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 8 0.962 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3,
+      "design": {
+       "design_type": "fractional_factorial",
+       "k": 8,
+       "options": {
+        "resolution": 4,
+        "n_center_points": 1
+       }
+      }
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 1",
+     "value": "0.275",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 8 0.275 0.769 0.980"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 2",
+     "value": "0.769",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 8 0.275 0.769 0.980"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 3",
+     "value": "0.980",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 8 0.275 0.769 0.980"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 1",
+     "value": "0.843",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 8 0.843 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1,
+      "disagreement": "The library's average power is 0.842467, 0.00003 below the printed 0.843's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 8 0.843 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 8 0.843 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 1",
+     "value": "0.925",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 8 0.925 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 8 0.925 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 8 0.925 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 1",
+     "value": "0.292",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 8 0.292 0.802 0.987"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 1,
+      "disagreement": "The library's average power is 0.291472, 0.00003 below the printed 0.292's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 2",
+     "value": "0.802",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 8 0.292 0.802 0.987"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 3",
+     "value": "0.987",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 8 0.292 0.802 0.987"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 1",
+     "value": "0.883",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 8 0.883 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 8 0.883 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 8 0.883 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-9-factors",
+   "title": "The definitive screening design in 9 factors and 19 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor 7",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor 8",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x9",
+     "description": "factor 9",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "9 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 19,
+    "treatment_factors": 9
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9"],
+    "rows": [
+     [1, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+     [2, 0, -1, -1, -1, -1, -1, -1, -1, -1],
+     [3, 1, 0, 1, -1, 1, -1, -1, 1, -1],
+     [4, -1, 0, -1, 1, -1, 1, 1, -1, 1],
+     [5, -1, 1, 0, -1, 1, -1, 1, -1, -1],
+     [6, 1, -1, 0, 1, -1, 1, -1, 1, 1],
+     [7, -1, -1, 1, 0, 1, -1, -1, -1, 1],
+     [8, 1, 1, -1, 0, -1, 1, 1, 1, -1],
+     [9, 1, -1, 1, -1, 0, 1, 1, -1, -1],
+     [10, -1, 1, -1, 1, 0, -1, -1, 1, 1],
+     [11, -1, -1, -1, -1, 1, 0, 1, 1, 1],
+     [12, 1, 1, 1, 1, -1, 0, -1, -1, -1],
+     [13, 1, 1, -1, -1, 1, 1, 0, -1, 1],
+     [14, -1, -1, 1, 1, -1, -1, 0, 1, -1],
+     [15, -1, -1, -1, 1, 1, 1, -1, 0, -1],
+     [16, 1, 1, 1, -1, -1, -1, 1, 0, 1],
+     [17, -1, 1, 1, -1, -1, 1, -1, 1, 0],
+     [18, 1, -1, -1, 1, 1, -1, 1, -1, 0],
+     [19, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 9",
+     "value": "19",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 9 ... 19 000000000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 9
+      },
+      "relabel": "columns and signs",
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 21 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .125."
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 9",
+     "value": "9 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.054",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 9 0.054 0.054 0.331 0.392 0.243 0.740"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.054",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 9 0.054 0.054 0.331 0.392 0.243 0.740"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.331",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 9 0.054 0.054 0.331 0.392 0.243 0.740"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.392",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 9 0.054 0.054 0.331 0.392 0.243 0.740"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.243",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 9 0.054 0.054 0.331 0.392 0.243 0.740"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.740",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 9 0.054 0.054 0.331 0.392 0.243 0.740"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two squares",
+     "value": "0.085",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "mean",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two squares",
+     "value": "0.085",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.065",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.152",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.334",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.396",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.144",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.298",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 9 0.085 0.085 0.065 0.152 0.334 0.396 0.144 0.298"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model",
+     "value": "86.8",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 9 86.8 10.6"
+     },
+     "check": {
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+     }
+    },
+    {
+     "what": "average increase in standard errors",
+     "term": "main-effects model, percent",
+     "value": "10.6",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 9 86.8 10.6"
+     },
+     "check": {
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "number",
+     "value": "84",
+     "where": {
+      "page": 12,
+      "source_kind": "table",
+      "quote": "TABLE 8 ... 9 84"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "n_projections"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "full quadratic model estimable",
+     "value": "for every projection",
+     "where": {
+      "page": 12,
+      "source_kind": "prose",
+      "quote": "for every design we have examined, and for every projection, the full three-factor quadratic model is estimable"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "fraction_estimable",
+      "printed": "1"
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-10-factors",
+   "title": "The definitive screening design in 10 factors and 21 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor 7",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor 8",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x9",
+     "description": "factor 9",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x10",
+     "description": "factor 10",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "10 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 21,
+    "treatment_factors": 10
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10"],
+    "rows": [
+     [1, 0, 1, 1, -1, 1, 1, 1, 1, -1, 1],
+     [2, 0, -1, -1, 1, -1, -1, -1, -1, 1, -1],
+     [3, 1, 0, -1, 1, 1, -1, 1, 1, -1, -1],
+     [4, -1, 0, 1, -1, -1, 1, -1, -1, 1, 1],
+     [5, -1, 1, 0, -1, -1, -1, 1, -1, -1, -1],
+     [6, 1, -1, 0, 1, 1, 1, -1, 1, 1, 1],
+     [7, -1, 1, 1, 0, 1, -1, -1, 1, 1, -1],
+     [8, 1, -1, -1, 0, -1, 1, 1, -1, -1, 1],
+     [9, -1, -1, -1, -1, 0, 1, 1, 1, 1, -1],
+     [10, 1, 1, 1, 1, 0, -1, -1, -1, -1, 1],
+     [11, -1, 1, -1, 1, 1, 0, 1, -1, 1, 1],
+     [12, 1, -1, 1, -1, -1, 0, -1, 1, -1, -1],
+     [13, 1, 1, -1, -1, -1, -1, 0, 1, 1, 1],
+     [14, -1, -1, 1, 1, 1, 1, 0, -1, -1, -1],
+     [15, 1, 1, 1, 1, -1, 1, 1, 0, 1, -1],
+     [16, -1, -1, -1, -1, 1, -1, -1, 0, -1, 1],
+     [17, 1, 1, -1, -1, 1, 1, -1, -1, 0, -1],
+     [18, -1, -1, 1, 1, -1, -1, 1, 1, 0, 1],
+     [19, 1, -1, 1, -1, 1, -1, 1, -1, 1, 0],
+     [20, -1, 1, -1, 1, -1, 1, -1, 1, -1, 0],
+     [21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 10",
+     "value": "21",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 10 ... 21 0000000000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 10
+      },
+      "relabel": "columns and signs"
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 10",
+     "value": "10 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 10 0.000 0.000 0.312 0.312 0.250 0.750"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.000",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 10 0.000 0.000 0.312 0.312 0.250 0.750"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.312",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 10 0.000 0.000 0.312 0.312 0.250 0.750"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.312",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 10 0.000 0.000 0.312 0.312 0.250 0.750"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.250",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 10 0.000 0.000 0.312 0.312 0.250 0.750"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.750",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 10 0.000 0.000 0.312 0.312 0.250 0.750"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two squares",
+     "value": "0.080",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "mean",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two squares",
+     "value": "0.080",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.024",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.024",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.314",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.314",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.134",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.134",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 10 0.080 0.080 0.024 0.024 0.314 0.314 0.134 0.134"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model",
+     "value": "90.9",
+     "analysis": "against the orthogonal main-effects design of 20 runs (the first 10 columns of the library's Plackett-Burman design) with one centre run, the D-optimal design the paper compares with for even m",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 10 90.9 5.4"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "d",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10",
+      "percent": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "average increase in standard errors",
+     "term": "main-effects model, percent",
+     "value": "5.4",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 10 90.9 5.4"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "se",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10",
+      "gain": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "number",
+     "value": "120",
+     "where": {
+      "page": 12,
+      "source_kind": "table",
+      "quote": "TABLE 8 ... 10 120"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "n_projections"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "full quadratic model estimable",
+     "value": "for every projection",
+     "where": {
+      "page": 12,
+      "source_kind": "prose",
+      "quote": "for every design we have examined, and for every projection, the full three-factor quadratic model is estimable"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "fraction_estimable",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.980",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 10 0.980 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 10 0.980 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 10 0.980 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.989",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 10 0.989 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 10 0.989 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 10 0.989 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 1",
+     "value": "0.300",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 10 0.300 0.814 0.989"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 2",
+     "value": "0.814",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 10 0.300 0.814 0.989"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 3",
+     "value": "0.989",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 10 0.300 0.814 0.989"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 1",
+     "value": "0.944",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 10 0.944 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 10 0.944 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 10 0.944 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 1",
+     "value": "0.794",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 10 0.794 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 2",
+     "value": "0.999",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 10 0.794 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 10 0.794 0.999 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 19,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 10
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 1",
+     "value": "0.977",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 10 0.977 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 10 0.977 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 10 0.977 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 1",
+     "value": "0.310",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 10 0.310 0.832 0.992"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 2",
+     "value": "0.832",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 10 0.310 0.832 0.992"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 3",
+     "value": "0.992",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 10 0.310 0.832 0.992"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 1",
+     "value": "0.962",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 10 0.962 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 10 0.962 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 10 0.962 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-11-factors",
+   "title": "The definitive screening design in 11 factors and 23 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor 7",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor 8",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x9",
+     "description": "factor 9",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x10",
+     "description": "factor 10",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x11",
+     "description": "factor 11",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "11 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 23,
+    "treatment_factors": 11
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11"],
+    "rows": [
+     [1, 0, -1, 1, -1, -1, -1, -1, -1, 1, -1, 1],
+     [2, 0, 1, -1, 1, 1, 1, 1, 1, -1, 1, -1],
+     [3, -1, 0, -1, -1, 1, -1, -1, -1, -1, 1, 1],
+     [4, 1, 0, 1, 1, -1, 1, 1, 1, 1, -1, -1],
+     [5, -1, -1, 0, 1, 1, 1, 1, -1, -1, -1, 1],
+     [6, 1, 1, 0, -1, -1, -1, -1, 1, 1, 1, -1],
+     [7, -1, -1, -1, 0, -1, 1, 1, -1, 1, 1, -1],
+     [8, 1, 1, 1, 0, 1, -1, -1, 1, -1, -1, 1],
+     [9, 1, -1, -1, 1, 0, 1, -1, 1, 1, 1, 1],
+     [10, -1, 1, 1, -1, 0, -1, 1, -1, -1, -1, -1],
+     [11, -1, -1, 1, 1, -1, 0, -1, 1, -1, 1, -1],
+     [12, 1, 1, -1, -1, 1, 0, 1, -1, 1, -1, 1],
+     [13, -1, -1, -1, 1, 1, -1, 0, 1, 1, -1, -1],
+     [14, 1, 1, 1, -1, -1, 1, 0, -1, -1, 1, 1],
+     [15, -1, 1, 1, 1, -1, -1, 1, 0, 1, 1, 1],
+     [16, 1, -1, -1, -1, 1, 1, -1, 0, -1, -1, -1],
+     [17, -1, 1, -1, -1, -1, 1, -1, 1, 0, -1, 1],
+     [18, 1, -1, 1, 1, 1, -1, 1, -1, 0, 1, -1],
+     [19, 1, -1, -1, -1, -1, -1, 1, 1, -1, 0, 1],
+     [20, -1, 1, 1, 1, 1, 1, -1, -1, 1, 0, -1],
+     [21, 1, 1, -1, 1, -1, -1, -1, -1, -1, -1, 0],
+     [22, -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, 0],
+     [23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 11",
+     "value": "23",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 11 ... 23 00000000000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 11
+      },
+      "relabel": "columns and signs",
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 25 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .3."
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 11",
+     "value": "11 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.040",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 11 0.040 0.120 0.289 0.425 0.214 0.848"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.120",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 11 0.040 0.120 0.289 0.425 0.214 0.848"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.289",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 11 0.040 0.120 0.289 0.425 0.214 0.848"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.425",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 11 0.040 0.120 0.289 0.425 0.214 0.848"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.214",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 11 0.040 0.120 0.289 0.425 0.214 0.848"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.848",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 11 0.040 0.120 0.289 0.425 0.214 0.848"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two squares",
+     "value": "0.075",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "mean",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two squares",
+     "value": "0.075",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.087",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.087",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.284",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.284",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.022",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.022",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 11 0.075 0.075 0.087 0.087 0.284 0.284 0.022 0.022"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"],
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model",
+     "value": "89.1",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 11 89.1 8.1"
+     },
+     "check": {
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+     }
+    },
+    {
+     "what": "average increase in standard errors",
+     "term": "main-effects model, percent",
+     "value": "8.1",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 11 89.1 8.1"
+     },
+     "check": {
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "number",
+     "value": "165",
+     "where": {
+      "page": 12,
+      "source_kind": "table",
+      "quote": "TABLE 8 ... 11 165"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "n_projections"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "full quadratic model estimable",
+     "value": "for every projection",
+     "where": {
+      "page": 12,
+      "source_kind": "prose",
+      "quote": "for every design we have examined, and for every projection, the full three-factor quadratic model is estimable"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "fraction_estimable",
+      "printed": "1"
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  },
+  {
+   "name": "jones-nachtsheim-2011-dsd-12-factors",
+   "title": "The definitive screening design in 12 factors and 25 runs, the best of 10,000 random starts of the authors' algorithm",
+   "topics": ["general"],
+   "kind": "design",
+   "where": {
+    "section": "Design Properties",
+    "pages": "5-12",
+    "tables": ["Table 3", "Table 5", "Table 7", "Table 8"],
+    "figures": ["Figure 1"]
+   },
+   "factors": [
+    {
+     "name": "x1",
+     "description": "factor 1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x2",
+     "description": "factor 2",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x3",
+     "description": "factor 3",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x4",
+     "description": "factor 4",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x5",
+     "description": "factor 5",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x6",
+     "description": "factor 6",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x7",
+     "description": "factor 7",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x8",
+     "description": "factor 8",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x9",
+     "description": "factor 9",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x10",
+     "description": "factor 10",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x11",
+     "description": "factor 11",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "x12",
+     "description": "factor 12",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "definitive screening design",
+    "details": "12 fold-over pairs and a centre run (Table 1's structure)",
+    "n_runs": 25,
+    "treatment_factors": 12
+   },
+   "runs": {
+    "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12"],
+    "rows": [
+     [1, 0, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 1],
+     [2, 0, 1, 1, -1, 1, -1, 1, -1, -1, -1, 1, -1],
+     [3, -1, 0, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1],
+     [4, 1, 0, -1, -1, -1, -1, -1, -1, -1, 1, 1, 1],
+     [5, 1, 1, 0, -1, 1, 1, -1, 1, 1, -1, 1, 1],
+     [6, -1, -1, 0, 1, -1, -1, 1, -1, -1, 1, -1, -1],
+     [7, 1, -1, -1, 0, 1, -1, 1, -1, 1, -1, -1, 1],
+     [8, -1, 1, 1, 0, -1, 1, -1, 1, -1, 1, 1, -1],
+     [9, 1, 1, 1, 1, 0, -1, 1, 1, 1, 1, 1, 1],
+     [10, -1, -1, -1, -1, 0, 1, -1, -1, -1, -1, -1, -1],
+     [11, 1, -1, 1, -1, 1, 0, 1, 1, -1, 1, -1, 1],
+     [12, -1, 1, -1, 1, -1, 0, -1, -1, 1, -1, 1, -1],
+     [13, 1, 1, 1, 1, -1, 1, 0, -1, -1, -1, -1, 1],
+     [14, -1, -1, -1, -1, 1, -1, 0, 1, 1, 1, 1, -1],
+     [15, -1, -1, 1, 1, 1, -1, -1, 0, -1, -1, 1, 1],
+     [16, 1, 1, -1, -1, -1, 1, 1, 0, 1, 1, -1, -1],
+     [17, 1, -1, 1, 1, 1, 1, -1, -1, 0, 1, 1, -1],
+     [18, -1, 1, -1, -1, -1, -1, 1, 1, 0, -1, -1, 1],
+     [19, 1, 1, -1, 1, 1, -1, -1, 1, -1, 0, -1, -1],
+     [20, -1, -1, 1, -1, -1, 1, 1, -1, 1, 0, 1, 1],
+     [21, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1, 0, 1],
+     [22, 1, -1, 1, -1, -1, -1, -1, 1, 1, -1, 0, -1],
+     [23, 1, -1, -1, 1, -1, 1, 1, 1, -1, -1, 1, 0],
+     [24, -1, 1, 1, -1, 1, -1, -1, -1, 1, 1, -1, 0],
+     [25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "coded": true,
+    "notes": "Figure 1, in the printed order: + for +1, - for -1"
+   },
+   "expected": [
+    {
+     "what": "runs",
+     "term": "m = 12",
+     "value": "25",
+     "analysis": "the printed design against the library's definitive screening design in as many factors, whatever the order of the runs, factors and signs",
+     "where": {
+      "page": 5,
+      "source_kind": "figure",
+      "quote": "m = 12 ... 25 000000000000"
+     },
+     "check": {
+      "kind": "same_runs",
+      "design": {
+       "design_type": "dsd",
+       "k": 12
+      },
+      "relabel": "columns and signs",
+      "disagreement": "The library's 12-factor design comes from a conference matrix of order 12 and is orthogonal for main effects. Figure 1's, found by the paper's search, is not (two main effects are correlated by up to .182): 'we have not been able to find an orthogonal design for m = 12' (p. 5)."
+     }
+    },
+    {
+     "what": "fold-over pairs",
+     "term": "m = 12",
+     "value": "12 fold-over pairs and an overall center point",
+     "where": {
+      "page": 2,
+      "source_kind": "prose",
+      "quote": "For m factors, there are 2m + 1 runs based on m fold-over pairs and an overall center point."
+     },
+     "check": {
+      "kind": "design_structure",
+      "key": "foldover",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.010",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 12 0.010 0.067 0.274 0.347 0.221 0.610"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.067",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 12 0.010 0.067 0.274 0.347 0.221 0.610"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,qs",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.274",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 12 0.010 0.067 0.274 0.347 0.221 0.610"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.347",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 12 0.010 0.067 0.274 0.347 0.221 0.610"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "qq,st",
+      "key": "max"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.221",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 12 0.010 0.067 0.274 0.347 0.221 0.610"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "mean"
+     }
+    },
+    {
+     "what": "column correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.610",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 3 ... 12 0.010 0.067 0.274 0.347 0.221 0.610"
+     },
+     "check": {
+      "kind": "term_correlations",
+      "pairs": "st,uv",
+      "key": "max"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two squares",
+     "value": "0.071",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "mean",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two squares",
+     "value": "0.071",
+     "analysis": "the correlations of the estimated squares, from (X'X)^-1, in the model of every main effect and every square (2m + 1 terms, as many as runs): the reading that reproduces this column for every m",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,ss",
+      "key": "max",
+      "terms": "squares"
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction in its factor",
+     "value": "0.083",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction in its factor",
+     "value": "0.083",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,qs",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of a square and an interaction without it",
+     "value": "0.304",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of a square and an interaction without it",
+     "value": "0.304",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "qq,st",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "mean |r| of two interactions",
+     "value": "0.113",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "mean",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "estimate correlation",
+     "term": "max |r| of two interactions",
+     "value": "0.113",
+     "analysis": "the correlations of the estimates, from (X'X)^-1, of the full quadratic model of the projection onto x1, x2 and x3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "TABLE 4 ... 12 0.071 0.071 0.083 0.083 0.304 0.304 0.113 0.113"
+     },
+     "check": {
+      "kind": "estimate_correlations",
+      "pairs": "st,uv",
+      "key": "max",
+      "factors": ["x1", "x2", "x3"]
+     }
+    },
+    {
+     "what": "relative D-efficiency",
+     "term": "main-effects model",
+     "value": "89.8",
+     "analysis": "against the orthogonal main-effects design of 24 runs (the first 12 columns of the library's Plackett-Burman design) with one centre run, the D-optimal design the paper compares with for even m",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 12 89.8 7.6"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "d",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10 + x11 + x12",
+      "percent": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 23,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 12
+     }
+    },
+    {
+     "what": "average increase in standard errors",
+     "term": "main-effects model, percent",
+     "value": "7.6",
+     "where": {
+      "page": 9,
+      "source_kind": "table",
+      "quote": "TABLE 5 ... 12 89.8 7.6"
+     },
+     "check": {
+      "kind": "relative_efficiency",
+      "criterion": "se",
+      "model": "x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10 + x11 + x12",
+      "gain": true,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 23,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "design_columns": 12
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "number",
+     "value": "220",
+     "where": {
+      "page": 12,
+      "source_kind": "table",
+      "quote": "TABLE 8 ... 12 220"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "n_projections"
+     }
+    },
+    {
+     "what": "three-factor projections",
+     "term": "full quadratic model estimable",
+     "value": "for every projection",
+     "where": {
+      "page": 12,
+      "source_kind": "prose",
+      "quote": "for every design we have examined, and for every projection, the full three-factor quadratic model is estimable"
+     },
+     "check": {
+      "kind": "projections",
+      "size": 3,
+      "key": "fraction_estimable",
+      "printed": "1"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.994",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 12 0.994 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 12 0.994 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 1 (one linear effect) 12 0.994 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 1",
+     "value": "0.997",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 12 0.997 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 1,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 12 0.997 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 2,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 1, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 1 12 0.997 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a}",
+      "terms": ["{a}"],
+      "over": "factors",
+      "effect_size": 3,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 1",
+     "value": "0.317",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 12 0.317 0.840 0.993"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 2",
+     "value": "0.840",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 12 0.317 0.840 0.993"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 2, |beta|/sigma = 3",
+     "value": "0.993",
+     "analysis": "the power of the t test of one quadratic effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 2 (one quadratic effect) 12 0.317 0.840 0.993"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + I({a} ** 2)",
+      "terms": ["I({a} ** 2)"],
+      "over": "factors",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 1",
+     "value": "0.982",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 12 0.982 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1,
+      "disagreement": "The library's average power is 0.981484, 0.00002 below the printed 0.982's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 12 0.982 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 3, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 3 (one interaction effect) 12 0.982 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 1",
+     "value": "0.993",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 12 0.993 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 12 0.993 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
+     }
+    },
+    {
+     "what": "average power, orthogonal design",
+     "term": "hypothesis 3, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the same test in the paper's orthogonal alternative with one centre run (see the entry's notes)",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Orthogonal designs ... Hypothesis 3 12 0.993 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{all} + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3,
+      "design": {
+       "design_type": "plackett_burman",
+       "k": 11,
+       "options": {
+        "n_center_points": 1
+       }
+      },
+      "fold_over": true
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 1",
+     "value": "0.993",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 12 0.993 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 12 0.993 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 4, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one linear effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 4 (one linear effect in two-factor full quadratic model) 12 0.993 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}", "{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 1",
+     "value": "0.322",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 12 0.322 0.848 0.994"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 2",
+     "value": "0.848",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 12 0.322 0.848 0.994"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 5, |beta|/sigma = 3",
+     "value": "0.994",
+     "analysis": "the power of the t test of one quadratic effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 5 (one quadratic effect in two-factor full quadratic model) 12 0.322 0.848 0.994"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["I({a} ** 2)", "I({b} ** 2)"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 1",
+     "value": "0.988",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 12 0.988 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 1
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 2",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 12 0.988 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 2
+     }
+    },
+    {
+     "what": "average power",
+     "term": "hypothesis 6, |beta|/sigma = 3",
+     "value": "1",
+     "analysis": "the power of the t test of one interaction effect in two-factor full quadratic model, averaged over every choice of factors; alpha = 0.05",
+     "where": {
+      "page": 11,
+      "source_kind": "table",
+      "quote": "TABLE 7 ... Hypothesis 6 (one interaction effect in two-factor full quadratic model) 12 0.988 1 1"
+     },
+     "check": {
+      "kind": "average_power",
+      "model": "{a} + {b} + I({a} ** 2) + I({b} ** 2) + {a}:{b}",
+      "terms": ["{a}:{b}"],
+      "over": "pairs",
+      "effect_size": 3
+     }
+    }
+   ],
+   "notes": "Read from Figure 1's page image; every run holds the fold-over structure of Table 1 (runs 2k - 1 and 2k opposite, their zero in factor k), which checks the reading. The orthogonal alternatives of Table 7 are, with one centre run, the first m columns of the library's Plackett-Burman design of 2m runs for m = 6 and 10, the library's 2^(8-4) of resolution IV for m = 8, and for m = 12 the 12-run Plackett-Burman design folded over, the sign of its halves the twelfth factor (p. 11 says only 'Plackett-Burman designs'; the first twelve columns of the library's 24-run design give an average power of 0.867, and 200 random choices of twelve 0.855 to 0.894, for hypothesis 3 at |beta|/sigma = 1, where the fold-over gives the printed 0.993)."
+  }
+ ],
+ "not_captured": ["The rows of Tables 3 and 4 for m = 13 to 20: their designs are not printed (p. 5 gives a download address at asq.org).", "Table 4's caption, 'full quadratic models involving any three active factors', describes two models. Its |r_qq,ss| columns are the correlations of the estimated squares in the model of every main effect and every square, which the full quadratic model of three factors does not reproduce (0.059 for m = 6, against the printed 0.087). Its other six columns are those of the full quadratic model of one projection onto three factors, not an average over projections: every projection gives the same numbers for m = 6, 8 and 10, but for m = 7 and 12 only 14 of 35 and 130 of 220 do (x1, x2 and x3 among them), and for m = 9 and 11 the projection onto x1, x2 and x3 is not one of them (see the disagreements).", "Table 8's D-efficiencies (average, minimum and maximum over the three-factor projections): they are relative to a design the paper does not name. The library's absolute D-efficiency of each projection (42.35 for each of m = 6's 20) is on another scale, but its spread agrees: every projection of m = 6, 8 and 10 has the same D-efficiency, as p. 12 says, and the largest over the smallest is 1.199, 1.079, 1.071 and 1.033 for m = 7, 9, 11 and 12, where the printed columns give 0.97/0.81, 0.95/0.88, 0.95/0.89 and 0.94/0.90.", "Table 7's 'Aliased' and 'N.E.' cells for the orthogonal designs. Hypothesis 2's model, the main effects and one square, can be fitted in a two-level design with a centre run (the library gives an average power of 0.124 at |beta|/sigma = 1 for the 12-run Plackett-Burman design's six columns), because a square is then the contrast of the centre run with the others; but every square has the same column, so the test cannot say which factor's square is active, which is what the paper calls mutually aliased. In the 2^(8-4) the interaction of hypothesis 3 can be estimated in its model (average power 0.927 at |beta|/sigma = 1) but is aliased with three other interactions outside it, as p. 12 says. Hypotheses 4 to 6 need the squares of two factors, never separately estimable in these designs (N.E.).", "Table 6, the six hypotheses: captured as the models and terms of Table 7's power checks, not as numbers.", "Equations (4) to (6), the correlations between second-order columns as functions of m: checked where Table 3 prints them (zero for |r_qq,qs| and one constant |r_qq,st| for even m, and equation (4) at m = 4), not as formulas; the proofs of the appendix.", "Figure 2 (the correlations of equations (4) and (6) for 4 to 40 factors) and Figure 3 (the column correlations of the six-factor design): plots.", "Corner-point balance of the two-factor projections (p. 12): for even m each projection is a central composite design with m/2 - 1 replicates of the corners, for odd m the corners are replicated (m/2 - 1) +/- 1/2 times; a count the catalogue's check kinds do not read.", "The algorithm of the paper's search (coordinate exchange from 10,000 random starting designs, pp. 4-5), and the forward stepwise and best-subset analyses of the example, beyond the AICc of the models they end with."]
+}
