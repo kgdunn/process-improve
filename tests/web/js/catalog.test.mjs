@@ -491,13 +491,22 @@ describe("what a design is copied as", () => {
     const code = pythonCode(CATALOG.designs[2], detail);
     assert.match(code, /from process_improve\.experiments import Factor, generate_design/);
     assert.match(code, /Factor\(name="B", low=-1, high=1\),/);
-    assert.match(code, /generate_design\(factors, design_type="ccd", n_center_points=3, alpha="face_centered"\)/);
+    assert.match(code, /design = generate_design\(\n {4}factors,\n {4}design_type="ccd",\n {4}n_center_points=3,\n {4}alpha="face_centered",\n\)/);
   });
 
   test("a published design is its entry in the reference catalogue", () => {
-    const code = pythonCode(CATALOG.designs[0], { listed: "experiments" });
-    assert.match(code, /from process_improve\.experiments\.reference_catalogue import reference_experiments/);
-    assert.match(code, /reference_experiments\("bhh"\) if e\["name"\] == "pilot-plant"/);
+    const code = pythonCode(CATALOG.designs[0], { listed: "experiments", factors: [{ name: "T" }], coded_runs: [[-1]] });
+    assert.match(code, /from process_improve\.experiments\.reference_catalogue import \(\n {4}reference_experiments,\n\)/);
+    assert.match(code, /entries = reference_experiments\("bhh"\)\nby_name = \{item\["name"\]: item for item in entries\}\nentry = by_name\["pilot-plant"\]/);
+    assert.match(code, /factors = pd\.DataFrame\(entry\["factors"\], columns=columns\)/);
+    assert.match(code, /table = pd\.DataFrame\(runs\["rows"\], columns=runs\["columns"\]\)/);
+  });
+
+  test("a published design with no printed runs prints what the source says of it, and needs no pandas", () => {
+    const code = pythonCode(CATALOG.designs[0], { listed: "designs", factors: [], coded_runs: null, response_values: {} });
+    assert.match(code, /\n {4}reference_designs,\n/);
+    assert.doesNotMatch(code, /pandas|runs\["rows"\]/);
+    assert.match(code, /print\(entry\["design"\]\)$/);
   });
 
   test("the CSV holds the coded runs and the printed results", () => {

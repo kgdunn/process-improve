@@ -584,7 +584,10 @@ export function sourceLine(design, catalog) {
 // ---------------------------------------------------------------- what a design is copied as
 const repr = (value) => (typeof value === "string" ? JSON.stringify(value) : String(value));
 
-/** The Python that gives a reader the design: the library call that makes it, or the catalogue entry that holds it. */
+/**
+ * The Python that gives a reader the design: the library call that makes it, or the catalogue entry that holds it.
+ * It is written to be read: one step a line, each step with a comment, and no line wider than the box shows.
+ */
 export function pythonCode(design, detail) {
   const spec = detail?.spec;
   if (spec && !spec.array) {
@@ -592,14 +595,18 @@ export function pythonCode(design, detail) {
       const kind = f.type === "mixture" ? ', type="mixture"' : "";
       return `    Factor(name=${repr(f.name)}, low=${repr(f.low)}, high=${repr(f.high)}${kind}),`;
     });
-    const options = Object.entries(spec.options ?? {}).map(([key, value]) => `, ${key}=${repr(value)}`).join("");
+    const options = Object.entries(spec.options ?? {}).map(([key, value]) => `    ${key}=${repr(value)},`);
     return [
       "from process_improve.experiments import Factor, generate_design",
       "",
       "factors = [",
       ...factors,
       "]",
-      `design = generate_design(factors, design_type=${repr(spec.design_type)}${options})`,
+      "design = generate_design(",
+      "    factors,",
+      `    design_type=${repr(spec.design_type)},`,
+      ...options,
+      ")",
       "print(design.design)",
     ].join("\n");
   }
@@ -611,13 +618,49 @@ export function pythonCode(design, detail) {
       "print(array)",
     ].join("\n");
   }
+  return catalogueCode(design, detail);
+}
+
+/** Whether the source prints the entry's runs: the page holds them coded, or holds the results printed beside them. */
+const printsRuns = (detail) => Boolean(detail?.coded_runs?.length || Object.keys(detail?.response_values ?? {}).length);
+
+/** The Python that reads a published design's entry from the reference catalogue, and prints its factors and runs. */
+function catalogueCode(design, detail) {
   const listed = detail?.listed === "designs" ? "reference_designs" : "reference_experiments";
-  return [
-    `from process_improve.experiments.reference_catalogue import ${listed}`,
+  const factors = Boolean(detail?.factors?.length);
+  const runs = printsRuns(detail);
+  const lines = [
+    ...(factors || runs ? ["import pandas as pd", ""] : []),
+    "from process_improve.experiments.reference_catalogue import (",
+    `    ${listed},`,
+    ")",
     "",
-    `entry = next(e for e in ${listed}(${repr(design.source)}) if e["name"] == ${repr(design.id)})`,
-    'print(entry["factors"], entry["runs"], sep="\\n")',
-  ].join("\n");
+    "# Every entry of this source, looked up by its name.",
+    `entries = ${listed}(${repr(design.source)})`,
+    'by_name = {item["name"]: item for item in entries}',
+    `entry = by_name[${repr(design.id)}]`,
+  ];
+  if (factors) {
+    lines.push(
+      "",
+      "# The factors: their names, ranges and units.",
+      'columns = ["name", "low", "high", "units"]',
+      'factors = pd.DataFrame(entry["factors"], columns=columns)',
+      "print(factors)",
+    );
+  }
+  if (runs) {
+    lines.push(
+      "",
+      "# The runs, in the units and the order the source prints them.",
+      'runs = entry["runs"]',
+      'table = pd.DataFrame(runs["rows"], columns=runs["columns"])',
+      "print(table)",
+    );
+  } else {
+    lines.push("", "# The source prints no table of runs: this is what it says of the design.", 'print(entry["design"])');
+  }
+  return lines.join("\n");
 }
 
 const csvCell = (value) => {
