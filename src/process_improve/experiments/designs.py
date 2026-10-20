@@ -95,6 +95,11 @@ def _dispatch_fractional_factorial(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_screening import dispatch_fractional_factorial  # noqa: PLC0415
 
+    if _three_level_fraction(factors, kwargs.get("generators")):
+        from process_improve.experiments.designs_three_level import dispatch_three_level_fraction  # noqa: PLC0415
+
+        codes = [_factor_codes(f) for f in factors]
+        return dispatch_three_level_fraction(factors, kwargs["generators"], codes, kwargs.get("resolution"))
     return dispatch_fractional_factorial(
         factors,
         resolution=kwargs.get("resolution"),
@@ -263,14 +268,23 @@ _CATEGORICAL_ANY_LEVELS = frozenset({"full_factorial", "taguchi", *_OPTIMAL_FAMI
 _CATEGORICAL_TWO_LEVELS = frozenset({"fractional_factorial", "plackett_burman", "dsd"})
 
 
-def _refuse_unsupported_categorical(factors: list[Factor], design_type: str) -> None:
+#: Levels of every factor of a three-level fractional factorial (:mod:`.designs_three_level`).
+_THREE_LEVELS = 3
+
+
+def _three_level_fraction(factors: list[Factor], generators: list[str] | None) -> bool:
+    """Say whether a fractional factorial is a 3^(k-p) fraction: generators given, and three levels to every factor."""
+    return bool(generators) and bool(factors) and all(len(set(f.levels or [])) == _THREE_LEVELS for f in factors)
+
+
+def _refuse_unsupported_categorical(factors: list[Factor], design_type: str, generators: list[str] | None) -> None:
     """Raise one clear message when ``design_type`` cannot place a categorical factor."""
     categorical = [f for f in factors if f.type == FactorType.categorical]
     if not categorical or design_type in _CATEGORICAL_ANY_LEVELS:
         return
     if design_type in _CATEGORICAL_TWO_LEVELS:
         many = [f.name for f in categorical if len(f.levels or []) != 2]
-        if not many:
+        if not many or (design_type == "fractional_factorial" and _three_level_fraction(factors, generators)):
             return
         raise ValueError(
             f"design_type={design_type!r} takes two-level categorical factors only; {many} have more levels. "
@@ -587,6 +601,20 @@ def _refuse_unused_arguments(
         )
 
 
+def _blocks_from_generators(design_type: str, block_generators: list[str], n_blocks: int | None) -> int:
+    """Return the number of blocks the block generators make, refusing them on a design they cannot block."""
+    if design_type not in ("full_factorial", "fractional_factorial"):
+        raise ValueError(
+            "block_generators confound interaction words with blocks in a two-level full or fractional "
+            f"factorial; design_type={design_type!r} is blocked otherwise. Leave block_generators unset."
+        )
+    if isinstance(block_generators, str) or not block_generators:
+        raise ValueError(
+            f"block_generators must be a list of one or more words, such as ['ADE', 'BCE']; got {block_generators!r}."
+        )
+    return 2 ** len(block_generators) if n_blocks is None else n_blocks
+
+
 def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
     """Mark the runs with every non-categorical factor at its centre (0 in coded units)."""
     columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
@@ -749,6 +777,7 @@ def generate_design(  # noqa: PLR0913
     candidates: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = 42,
     backend: str = "auto",
+    block_generators: list[str] | None = None,
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -833,7 +862,12 @@ def generate_design(  # noqa: PLR0913
     generators : list[str] or None
         Explicit generators for fractional factorials (and the cube of a CCD with
         ``cube="fractional"``), e.g. ``["D=ABC", "E=AC"]``; ``"D=-ABC"`` gives the
-        alternate fraction. Any other design type raises ``ValueError``.
+        alternate fraction. When every factor has three levels (a continuous factor with
+        three ``levels``, or a categorical factor with three), the generators make a
+        3^(k-p) fraction in arithmetic modulo 3: ``"D=A2BC2"`` sets
+        x_D = 2 x_A + x_B + 2 x_C (mod 3), the digits 0, 1 and 2 being each factor's
+        levels from the lowest (see :mod:`~process_improve.experiments.designs_three_level`).
+        Any other design type raises ``ValueError``.
     alpha : str, float, or None
         Axial distance for CCD designs: ``"rotatable"``, ``"face_centered"``,
         ``"inscribed"``, ``"orthogonal"`` (the default), or a positive number. Any
@@ -898,6 +932,15 @@ def generate_design(  # noqa: PLR0913
         candidate exchange, and the optional pyoptex package only for a split-plot
         design (``hard_to_change``), so the same call gives the same design whether or
         not pyoptex is installed. ``"pyoptex"`` asks for pyoptex's coordinate exchange.
+    block_generators : list[str] or None
+        The interaction words that define the blocks of a two-level full or fractional
+        factorial, in place of the words the library would choose: ``["ADE", "BCE"]``
+        makes four blocks, with ADE, BCE and their product ABCD confounded with them
+        (join names longer than one letter with ``*``). *n_blocks*, when given, must be
+        2 to the power of their number. Words that confound a main effect, depend on
+        each other, or lie in the fraction's defining relation are refused. For a
+        fraction, ``metadata["blocking"]["aliases"]`` lists each confounded word's
+        aliases, which go with it to the blocks.
 
     Returns
     -------
@@ -964,8 +1007,10 @@ def generate_design(  # noqa: PLR0913
     refuse_reserved_names(factors)
     _refuse_mixture_process(factors)
     _refuse_mixture_in_box_family(factors, design_type)
-    _refuse_unsupported_categorical(factors, design_type)
+    _refuse_unsupported_categorical(factors, design_type, generators)
     _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)
+    if block_generators is not None:
+        n_blocks = _blocks_from_generators(design_type, block_generators, n_blocks)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
@@ -1044,6 +1089,7 @@ def generate_design(  # noqa: PLR0913
         is_actual=design_type == "mixture" or all_mixture,
         n_leading_fixed=int(meta.get("n_fixed_runs", 0)),
         randomize=not split_plot,
+        block_generators=block_generators,
     )
 
 

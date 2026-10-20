@@ -60,6 +60,7 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
+from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
@@ -107,6 +108,7 @@ __all__ = [
     "get_omars_trade_off_table_entry",
     "get_trade_off_table_entry",
     "grocery",
+    "interaction_components",
     "intraclass_correlation_interval",
     "is_omars",
     "least_squares_means",
