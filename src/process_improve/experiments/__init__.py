@@ -36,6 +36,7 @@ from process_improve.experiments.omars_trade_off import (
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.projections import evaluate_projections
+from process_improve.experiments.pseudocomponents import from_pseudocomponents, to_pseudocomponents
 from process_improve.experiments.random_effects import (
     expected_mean_squares,
     intraclass_correlation_interval,
@@ -101,6 +102,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "from_pseudocomponents",
     "full_factorial",
     "gather",
     "generate_design",
@@ -136,6 +138,7 @@ __all__ = [
     "summary",
     "supplement",
     "time_trends",
+    "to_pseudocomponents",
     "trade_off_table",
     "trend_robust_run_order",
     "variance_components",
