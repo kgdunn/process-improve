@@ -19,6 +19,17 @@ runs:
       uses: astral-sh/setup-uv@v7
       with:
         python-version: ${{ inputs.python-version }}
+    - name: Take only releases whose upload ended an hour ago
+      # A release still being uploaded to PyPI can show only some of its wheels, and an
+      # install that finds none for its platform fails before any test runs (#812). Each
+      # file is compared with this time, so a release is used once all of it is up. The
+      # time is fixed here and exported, so every later uv command in the job resolves
+      # against the same cutoff. GNU date (Linux, Git Bash on Windows) takes -d; BSD date
+      # (macOS) takes -v.
+      shell: bash
+      run: |
+        cutoff=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)
+        echo "UV_EXCLUDE_NEWER=$cutoff" >> "$GITHUB_ENV"
     - name: Install the project (editable)
       # `defaults.run.shell` from the calling job does not reach a composite
       # action, so the shell is named here. The jobs that set one use

@@ -93,6 +93,16 @@ class AugmentDesignInput(BaseModel):
             "the axial runs on the faces (alpha = 1) unless alpha is given, and refuse an alpha above 1."
         ),
     )
+    region: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Limits on the settings that every new run keeps to, as {'factors': [...], 'constraints': [...]}: "
+            "pass metadata['region'] from generate_design, whose factors' low and high are the design's -1 and +1. "
+            "add_runs_optimal then chooses runs inside the limits, add_center_points moves the centre runs to the "
+            "region's central setting when the centre breaks a limit, and any other new run that breaks a limit "
+            "is refused with the run and the limit named."
+        ),
+    )
 
 
 @tool_spec(
@@ -132,6 +142,10 @@ class AugmentDesignInput(BaseModel):
     # "Add 6 D-optimal runs to improve my design"
         -> ``augment_design(existing_design=[...], augmentation_type="add_runs_optimal",
                 n_additional_runs=6, target_model="interactions")``
+
+    # "One run could not be made; add 4 runs that keep to the new limit 3*T + 5*D <= 600"
+        -> ``augment_design(existing_design=[...], augmentation_type="add_runs_optimal",
+                n_additional_runs=4, region={"factors": [...], "constraints": ["3*T + 5*D <= 600"]})``
     """,
     category="experiments",
     rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
@@ -153,6 +167,7 @@ def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
             random_state=spec.random_state,
             factor_names=spec.factor_names,
             hard_limits=spec.hard_limits,
+            region=spec.region,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

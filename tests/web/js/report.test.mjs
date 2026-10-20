@@ -80,6 +80,16 @@ describe("the stamp", () => {
     assert.match(orderWords({ design_type: "given", options: { grown: true } }), /then the runs added, drawn at random with seed 42/);
   });
 
+  test("names the study's own seed, and how the runs added to it were drawn", () => {
+    const seeded = { ...spec, options: { ...spec.options, random_state: 1792419802 } };
+    assert.equal(orderWords(seeded), "Drawn at random with seed 1792419802.");
+    assert.equal(orderWords({ design_type: "given", options: { random_state: 1792419802 } }), "As given.");
+    assert.equal(
+      orderWords({ design_type: "given", options: { grown: true, random_state: 1792419802 } }),
+      "As the study had them, then each set of runs added, drawn at random with seed 1792419802 plus the number of runs before it.",
+    );
+  });
+
   test("counts the runs with results, entered or simulated, with the process, noise and seed", () => {
     const none = { y: [null, null, null, null] };
     assert.equal(resultWords(none, { y: [null, null, null, null] }, null, 4), "None yet.");
@@ -128,6 +138,12 @@ describe("the stamp", () => {
       ["Made", "With", "Run order", "Results"],
     );
     assert.equal(unknown[1][1], "process-improve, from its source, in Factorial at https://factori.al/");
+    const undesigned = stampRows({ ...facts, spec: null, results: {}, marks: {}, sha: null, link: null });
+    assert.deepEqual(
+      undesigned.map(([label]) => label),
+      ["Made", "With", "On"],
+      "a page with no design yet, as the Feedback dialog stamps one",
+    );
   });
 });
 

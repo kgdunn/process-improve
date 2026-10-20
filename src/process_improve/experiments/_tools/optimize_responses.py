@@ -36,8 +36,10 @@ class OptimizeResponsesInput(BaseModel):
         description=(
             "Per-response optimisation goals. Each entry: response (str, matched against the model's "
             "response_name so the two lists need not be in the same order), "
-            "goal ('maximize'|'minimize'|'target'), low, high, optional target, "
+            "goal ('maximize'|'minimize'|'target'|'in_range'), low, high, optional target, "
             "weight, weight_high, importance. Required for 'desirability' method. "
+            "'in_range' holds that response between low and high and leaves it out of the composite; "
+            "at least one goal must be of another kind. "
             "'weight' shapes that response's own desirability ramp; 'importance' sets how much the "
             "response counts relative to the others in the composite. They are different things."
         ),
@@ -122,6 +124,17 @@ class OptimizeResponsesInput(BaseModel):
             "to 1 for a mixture). The result then reports 'within_region'."
         ),
     )
+    flat_tolerance: float = Field(
+        1e-8,
+        ge=0.0,
+        lt=1.0,
+        description=(
+            "For 'stationary_point' and 'canonical_analysis': an eigenvalue of the pure-quadratic matrix at most "
+            "this share of the largest in size is read as zero, so the surface is classified as a ridge along it "
+            "(default 1e-8, rounding only). 0.05 reads a small estimated eigenvalue as flat, as the textbooks do; "
+            "the result's 'classification_note' says when one is below 5% of the largest."
+        ),
+    )
     random_state: int = Field(
         42,
         ge=0,
@@ -157,7 +170,8 @@ def _as_bounds(
         "when the trade-off itself is the thing worth seeing rather than one desirability-weighted point). "
         "Each fitted_model must include coefficients and factor_names, which analyze_experiment returns "
         "(with analysis_type='coefficients'), and response_name; its result can be passed as it is. "
-        "For desirability, each goal specifies whether to maximize, minimize, or target a value. "
+        "For desirability, each goal specifies whether to maximize, minimize, or target a value, or to "
+        "hold the response within limits ('in_range'). "
         "The desirability result also carries a 'responses' list, pairing each model's coefficients "
         "with its specification limits, which can be passed straight to visualize_doe(plot_type='overlay') "
         "to see the region where every response is simultaneously within specification."
@@ -178,6 +192,12 @@ def _as_bounds(
         -> ``optimize_responses(fitted_models=[model1, model2],
                 goals=[{"response": "yield", "goal": "maximize", "low": 30, "high": 50},
                        {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
+                method="desirability")``
+
+    # "Maximise yield, but keep the molecular weight between 3200 and 3400"
+        -> ``optimize_responses(fitted_models=[yield_model, mn_model],
+                goals=[{"response": "yield", "goal": "maximize", "low": 70, "high": 80},
+                       {"response": "mn", "goal": "in_range", "low": 3200, "high": 3400}],
                 method="desirability")``
 
     # "Optimize two responses, counting yield twice as heavily as cost"
@@ -229,6 +249,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             n_pareto_points=spec.n_pareto_points,
             region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,
             random_state=spec.random_state,
+            flat_tolerance=spec.flat_tolerance,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
