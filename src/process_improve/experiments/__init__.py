@@ -18,6 +18,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
+from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
@@ -79,6 +80,7 @@ __all__ = [
     "DesignResult",
     "Expt",
     "Factor",
+    "GaussianProcessFit",
     "Model",
     "MomentAberrationResult",
     "NotSeparableError",
@@ -108,6 +110,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "fit_gaussian_process",
     "from_pseudocomponents",
     "full_factorial",
     "gather",

@@ -169855,7 +169855,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... X-Axis 65.40254 ... R-axis 3603.2483"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169868,7 +169868,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... Total Sensitivity Main Effect ... Interaction"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169881,7 +169881,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... Mu 734.54584"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169894,7 +169894,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... Sigma 212205.18"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169907,7 +169907,7 @@
       "quote": "Table 11.17 JMP output for the Gaussian process model for the CFD experiment in Table 11.16 ... Model Report ... −2*LogLikelihood 132.98004"
      },
      "check": {
-      "manual": "the library fits no Gaussian process model"
+      "manual": "JMP fitted the design points to the digits of Table 11.18, which Table 11.16 rounds to three decimals; fit_gaussian_process on the rounded runs agrees to within what that rounding moves (tests/test_gaussian_process.py)"
      }
     },
     {
@@ -169920,7 +169920,7 @@
       "quote": "Table 11.18 The JMP Gaussian process prediction model for the CFD experiment ... ŷ = 734.545842514493 + (−1943.3447961328 * Exp(..."
      },
      "check": {
-      "manual": "the library fits no Gaussian process model; the weights are R^-1(y − jμ) for the correlation matrix of Equation 11.23 at the fitted θ"
+      "manual": "the weights are R^-1(y − jμ) for the correlation matrix of Equation 11.23 at the fitted θ; JMP fitted the design points to the digits of Table 11.18, and the weights move with their rounding to Table 11.16's three decimals far more than the estimates do (fit_gaussian_process gives them as weights; tests/test_gaussian_process.py)"
      }
     }
    ]
