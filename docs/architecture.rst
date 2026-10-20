@@ -43,8 +43,9 @@ Conventions every subpackage follows
   ``hotellings_t2_``) and are set only in ``fit()``, never in ``__init__``.
 - **Optional dependencies live in extras.** Plotting (plotly / ridgeplot),
   the batch and MCP layers are installed via ``[plotting]`` / ``[batch]`` /
-  ``[mcp]`` extras (ENG-13); every design array, Taguchi included, is in the
-  core, and split-plot designs use pyoptex, installed separately. Modules
+  ``[mcp]`` extras (ENG-13); every design array, Taguchi and split-plot
+  designs included, is in the core, and pyoptex, installed separately, is an
+  optional backend for the optimal designs. Modules
   import optional dependencies through a ``_MissingExtra``
   stand-in so a missing optional dependency only fails when the feature is
   actually used, not at import time.

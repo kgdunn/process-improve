@@ -23,6 +23,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_optimal
    :members: dispatch_d_optimal, dispatch_i_optimal, dispatch_a_optimal
 
+.. automodule:: process_improve.experiments.designs_split_plot
+   :members: split_plot_design, SplitPlotOptions, CRITERIA
+
 .. automodule:: process_improve.experiments.designs_mixture
    :members: dispatch_mixture
 

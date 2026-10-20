@@ -914,9 +914,11 @@ def generate_design(  # noqa: PLR0913
         ``"maxpro"`` space-filling designs. Other design types do not enforce them and set
         ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
-        Names of hard-to-change factors, for a split-plot design. Only the optimal
-        families build one, so any other *design_type* raises ``ValueError``; with
-        *design_type* unset, a D-optimal design is chosen.
+        Names of hard-to-change factors, for a split-plot design: they are set once for
+        each whole plot, and the design is D-, I- or A-optimal on the generalised least
+        squares information ``X'V^-1 X``, with the whole-plot variance half the run-to-run
+        variance. Only the optimal families build one, so any other *design_type* raises
+        ``ValueError``; with *design_type* unset, a D-optimal design is chosen.
     model_type : str
         Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
         ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"``, ``"k_optimal"``) are built
@@ -948,10 +950,12 @@ def generate_design(  # noqa: PLR0913
         same call gives the same design). ``None`` draws fresh entropy; see
         :doc:`/development/reproducibility`.
     backend : {"auto", "exchange", "pyoptex"}
-        Engine for the optimal families. ``"auto"`` (default) uses the built-in
-        candidate exchange, and the optional pyoptex package only for a split-plot
-        design (``hard_to_change``), so the same call gives the same design whether or
-        not pyoptex is installed. ``"pyoptex"`` asks for pyoptex's coordinate exchange.
+        Engine for the optimal families. ``"auto"`` (default) and ``"exchange"`` use the
+        built-in engines, so the same call gives the same design whether or not the
+        optional pyoptex package is installed: the coordinate exchange of
+        :func:`~process_improve.experiments.designs_split_plot.split_plot_design` for a
+        split-plot design (``hard_to_change``), the candidate exchange otherwise.
+        ``"pyoptex"`` asks for pyoptex's coordinate exchange.
     block_generators : list[str] or None
         The interaction words that define the blocks of a two-level full or fractional
         factorial, in place of the words the library would choose: ``["ADE", "BCE"]``
@@ -1088,10 +1092,8 @@ def generate_design(  # noqa: PLR0913
         n_runs = _total_runs(coded_matrix.shape[0], own_center_rows, extra_center_points, n_replicates)
         _refuse_over_budget(design_type, n_runs, budget)
 
-    # A split-plot optimal design from pyoptex keeps its run order: the whole plots are part of the solution.
-    split_plot = (
-        design_type in _OPTIMAL_FAMILIES and meta.get("backend") == "pyoptex" and bool(meta.get("hard_to_change"))
-    )
+    # A split-plot optimal design keeps its run order: the whole plots are part of the solution.
+    split_plot = design_type in _OPTIMAL_FAMILIES and "whole_plot" in meta
 
     return build_design_result(
         coded_matrix=coded_matrix,

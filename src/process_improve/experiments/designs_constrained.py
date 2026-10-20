@@ -1955,8 +1955,8 @@ def constrained_optimal_design(
 ) -> tuple[np.ndarray, dict]:
     """Generate a D-, I-, A- or E-optimal design from a candidate set, every chosen run satisfying ``constraints``.
 
-    This is also the optimal-design backend when pyoptex is not installed, with
-    ``constraints`` empty. Runs in ``options.fixed_runs`` are kept as given, even
+    This is also the optimal-design backend without constraints, unless the design is a
+    split-plot design or pyoptex is asked for. Runs in ``options.fixed_runs`` are kept as given, even
     outside the region (with a warning); ``metadata["n_fixed_runs_outside_region"]``
     counts them.
 
