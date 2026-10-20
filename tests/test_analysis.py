@@ -740,6 +740,31 @@ class TestConfidenceIntervals:
         assert "ci_low" in ci[0]
         assert "ci_high" in ci[0]
 
+    def test_the_coefficients_intervals_are_at_the_significance_level(self) -> None:
+        """At 0.10 each coefficient's interval is b +/- t(0.95, df) s, in both scales, as confidence_intervals gives it.
+
+        The ``coefficients`` table kept its 95% intervals whatever the level asked for.
+        """
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "confidence_intervals"],
+            significance_level=0.10,
+            coding="coded",
+        )
+        assert result["confidence_level"] == pytest.approx(0.90)
+        t = stats.t.ppf(0.95, result["model_summary"]["df_residual"])
+        for row in [*result["coefficients"], *result["coefficients_actual"]]:
+            half = t * row["std_error"]
+            assert row["ci_low"] == pytest.approx(row["coefficient"] - half)
+            assert row["ci_high"] == pytest.approx(row["coefficient"] + half)
+
+        def bounds(rows: list[dict]) -> dict[str, tuple[float, float]]:
+            return {row["term"]: (row["ci_low"], row["ci_high"]) for row in rows}
+
+        assert bounds(result["confidence_intervals"]) == pytest.approx(bounds(result["coefficients"]))
+
 
 # ---------------------------------------------------------------------------
 # Prediction
