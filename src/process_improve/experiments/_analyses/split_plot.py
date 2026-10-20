@@ -46,6 +46,7 @@ and the same Satterthwaite and Kenward-Roger machinery is applied to them
 
 from __future__ import annotations
 
+import ast
 import re
 from collections.abc import Collection
 from dataclasses import dataclass
@@ -53,7 +54,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import EvalEnvironment, dmatrices
+from patsy import EvalEnvironment, EvalFactor, ModelDesc, Term, dmatrices, dmatrix
 from patsy.builtins import C, Sum
 from scipy import optimize, stats
 
@@ -519,6 +520,106 @@ def _readable(label: str) -> str:
     return _SUM_CODED.sub(r"\1", label)
 
 
+def _sum_code(code: str) -> str:
+    """Return a categorical factor's code with sum-to-zero contrasts: ``x`` and ``C(x)`` become ``_pi_C(x, _pi_Sum)``.
+
+    A ``C(...)`` call keeps its data and its ``levels``, and loses any other contrast; one with
+    ``Sum`` contrasts already is returned as it is.
+    """
+    call = ast.parse(code, mode="eval").body
+    if isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id in {"C", _CODER} and call.args:
+        keywords = {kw.arg: kw.value for kw in call.keywords}
+        contrast = call.args[1] if len(call.args) > 1 else keywords.get("contrast")
+        helper = contrast.func if isinstance(contrast, ast.Call) else contrast
+        if isinstance(helper, ast.Name) and helper.id in {"Sum", _SUM}:
+            return code
+        levels = call.args[2] if len(call.args) > 2 else keywords.get("levels")
+        tail = [] if levels is None else [f"levels={ast.unparse(levels)}"]
+        return f"{_CODER}({', '.join([ast.unparse(call.args[0]), _SUM, *tail])})"
+    return f"{_CODER}({code}, {_SUM})"
+
+
+def to_sum_coding(X: pd.DataFrame, df: pd.DataFrame) -> np.ndarray | None:
+    """Return ``M`` such that ``M @ beta`` are the coefficients of ``X``'s model under sum-to-zero coding.
+
+    The split-plot tests are marginal (Type III): each term adjusted for all the others. Under
+    sum-to-zero contrasts that is the usual test, a categorical main effect averaged over the
+    levels of the factors it interacts with. Under patsy's default treatment coding, the
+    coefficients of a main effect beside its own interaction are its effect at one reference
+    level of the other factor, so a test on them depends on how the factor is coded (#805).
+
+    Recoding every categorical factor to sum-to-zero contrasts keeps each term's columns and
+    their span, so the recoded matrix is ``X @ A`` for a square ``A``, and the same fitted
+    values give ``beta = A beta_sum``: ``M`` is ``A^-1``. The terms are then tested on
+    ``M @ beta``, and the coefficients stay in the coding asked for.
+
+    Parameters
+    ----------
+    X : pd.DataFrame
+        The fixed-effects model matrix, as patsy built it (it carries a ``design_info``).
+    df : pd.DataFrame
+        The runs ``X`` was built from.
+
+    Returns
+    -------
+    np.ndarray of shape (p, p) or None
+        ``M``, or None when every categorical factor is sum-coded already.
+
+    Raises
+    ------
+    RuntimeError
+        If the recoded matrix does not span ``X``'s columns, which would be a bug.
+    """
+    info = X.design_info
+    recoded = {
+        factor: EvalFactor(_sum_code(factor.name()))
+        for factor, factor_info in info.factor_infos.items()
+        if factor_info.type == "categorical"
+    }
+    recoded = {factor: new for factor, new in recoded.items() if new.name() != factor.name()}
+    if not recoded:
+        return None
+    terms = [Term([recoded.get(factor, factor) for factor in term.factors]) for term in info.terms]
+    summed = dmatrix(ModelDesc([], terms), df, eval_env=sum_coding_env(), NA_action="raise")
+    columns = np.asarray(X, dtype=float)
+    transform = np.linalg.lstsq(columns, np.asarray(summed, dtype=float), rcond=None)[0]
+    scale = 1.0 + float(np.abs(columns).max())
+    if list(summed.design_info.term_slices.values()) != list(info.term_slices.values()) or not np.allclose(
+        columns @ transform, summed, rtol=0.0, atol=1e-9 * scale
+    ):
+        raise RuntimeError(
+            "internal: the sum-coded model matrix does not span the columns of the model as given; this is a bug."
+        )
+    return np.linalg.inv(transform)
+
+
+@dataclass(frozen=True)
+class _Recoded(_WaldTests):
+    """A fit's estimates under other contrasts, ``M @ beta``, with their covariances and derivatives."""
+
+    beta: np.ndarray
+    cov_beta: np.ndarray
+    cov_beta_kr: np.ndarray
+    dcov: np.ndarray
+    vc_cov: np.ndarray
+
+
+def _tested(fit: _WaldTests, to_sum: np.ndarray | None) -> _WaldTests:
+    """Return ``fit`` with the coefficients its terms are tested on: under sum-to-zero coding (:func:`to_sum_coding`).
+
+    The variance parameters do not depend on the coding, so their covariance is kept as it is.
+    """
+    if to_sum is None:
+        return fit
+    return _Recoded(
+        beta=to_sum @ fit.beta,
+        cov_beta=to_sum @ fit.cov_beta @ to_sum.T,
+        cov_beta_kr=to_sum @ fit.cov_beta_kr @ to_sum.T,
+        dcov=np.einsum("ij,kjl,ml->kim", to_sum, fit.dcov, to_sum),
+        vc_cov=fit.vc_cov,
+    )
+
+
 def _constant_within(X: pd.DataFrame, whole_plots: np.ndarray) -> np.ndarray:
     """Whether each model column is constant inside every whole plot, so belongs to the whole-plot stratum."""
     grouped = X.groupby(whole_plots)
@@ -639,7 +740,9 @@ def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[
     df : pd.DataFrame
         The runs: the response, the factors and the whole-plot labels, with no missing values.
     formula : str
-        The model, as a patsy formula; see :func:`sum_coded` for categorical factors.
+        The model, as a patsy formula. The coefficients are in the coding it gives each
+        categorical factor; the tests are under sum-to-zero coding whatever it gives (see
+        :func:`to_sum_coding`).
     spec : SplitPlotSpec
         The whole-plot column, the significance level, the block terms and the method.
 
@@ -651,15 +754,16 @@ def run_split_plot(df: pd.DataFrame, formula: str, spec: SplitPlotSpec) -> dict[
     """
     whole_plot, alpha, blocks, information = spec.whole_plot, spec.alpha, spec.blocks, spec.information
     y, X = dmatrices(formula, df, eval_env=sum_coding_env(), NA_action="raise", return_type="dataframe")
+    to_sum = to_sum_coding(X, df)
     if not isinstance(whole_plot, str):
         if len(whole_plot) > 1:
-            return _run_crossed(df, y.to_numpy(dtype=float).ravel(), X, spec)
+            return _run_crossed(df, y.to_numpy(dtype=float).ravel(), X, spec, to_sum)
         whole_plot = whole_plot[0]
     labels = df[whole_plot].to_numpy()  # by position: NA_action="raise" keeps every row, in order
     fit = fit_reml(y.to_numpy(dtype=float).ravel(), X.to_numpy(dtype=float), labels, information)
     whole_plot_columns = _constant_within(X, labels)
     kenward_roger = spec.df_method == "kenward_roger"
-    tests = _term_tests(fit, X, whole_plot_columns, blocks, kenward_roger=kenward_roger)
+    tests = _term_tests(_tested(fit, to_sum), X, whole_plot_columns, blocks, kenward_roger=kenward_roger)
     factor_tests = [row for row in tests if row["source"] != "Block"]
     result: dict[str, Any] = {
         "split_plot": {
@@ -706,7 +810,9 @@ def _whole_plot_blups(fit: RemlFit, y: np.ndarray, X: np.ndarray, labels: np.nda
     return {str(name): float(value) for name, value in zip(names, predicted, strict=True)}
 
 
-def _run_crossed(df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPlotSpec) -> dict[str, Any]:
+def _run_crossed(
+    df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPlotSpec, to_sum: np.ndarray | None
+) -> dict[str, Any]:
     """Analyse runs with several crossed random effects, as :func:`run_split_plot` does with one.
 
     The result has one variance component, one error df and one set of BLUPs per grouping,
@@ -719,7 +825,7 @@ def _run_crossed(df: pd.DataFrame, y: np.ndarray, X: pd.DataFrame, spec: SplitPl
     fit = fit_crossed_reml(y, X.to_numpy(dtype=float), groupings, spec.information)
     constant = {name: _constant_within(X, labels) for name, labels in zip(names, groupings, strict=True)}
     kenward_roger = spec.df_method == "kenward_roger"
-    tests = _term_tests(fit, X, constant, spec.blocks, kenward_roger=kenward_roger)
+    tests = _term_tests(_tested(fit, to_sum), X, constant, spec.blocks, kenward_roger=kenward_roger)
     factor_tests = [row for row in tests if row["source"] != "Block"]
     variances = dict(zip(names, map(float, fit.variances), strict=True))
     result: dict[str, Any] = {
