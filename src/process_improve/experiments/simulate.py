@@ -328,12 +328,14 @@ def _summary(report: dict[str, Any], truth: TrueProcess) -> str:
 
 
 # --------------------------------------------------------------------------- the true optimum
-def _true_best(truth: TrueProcess, names: list[str], goal: SimGoal, target: float | None) -> dict[str, Any]:
-    """Return the coded settings inside the ranges where the true process best meets the goal.
+def _true_best(
+    truth: TrueProcess, names: list[str], goal: SimGoal, target: float | None, span: float = 1.0
+) -> dict[str, Any]:
+    """Return the coded settings within ``span`` of the centre where the true process best meets the goal.
 
     A grid of :data:`_GRID_LEVELS` levels per factor (corners included) finds the neighbourhood of
     the best, and L-BFGS-B, with the polynomial's exact gradient, refines the five best grid points.
-    The inert factors are left at the centre.
+    The inert factors are left at the centre. ``span`` is 1 for the ranges themselves.
     """
     used = [n for n in names if n in truth.factors]
     terms = [{"term": t, "coefficient": v} for t, v in truth.coefficients.items()]
@@ -346,14 +348,14 @@ def _true_best(truth: TrueProcess, names: list[str], goal: SimGoal, target: floa
             return miss**2, 2 * miss * slope
         return (-value, -slope) if goal == "maximize" else (value, slope)
 
-    candidates = _grid(len(used))
+    candidates = span * _grid(len(used))
     values = b0 + candidates @ b + np.einsum("ij,jk,ik->i", candidates, big_b, candidates)
     order = np.argsort(_loss(values, goal, target))[:5]
     best_z, best_value = candidates[order[0]], math.inf
     for start in candidates[order] if used else []:  # a process with no factor in it has nothing to search
-        found = optimize.minimize(loss, start, jac=True, bounds=[(-1.0, 1.0)] * len(used), method="L-BFGS-B")
+        found = optimize.minimize(loss, start, jac=True, bounds=[(-span, span)] * len(used), method="L-BFGS-B")
         if float(found.fun) < best_value:
-            best_value, best_z = float(found.fun), np.clip(found.x, -1.0, 1.0)
+            best_value, best_z = float(found.fun), np.clip(found.x, -span, span)
     coded = dict.fromkeys(names, 0.0) | {n: float(v) for n, v in zip(used, best_z, strict=True)}
     value = float(truth.mean(pd.DataFrame([coded])).item())
     return {

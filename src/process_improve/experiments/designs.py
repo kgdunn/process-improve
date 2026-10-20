@@ -95,6 +95,11 @@ def _dispatch_fractional_factorial(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_screening import dispatch_fractional_factorial  # noqa: PLC0415
 
+    if _three_level_fraction(factors, kwargs.get("generators")):
+        from process_improve.experiments.designs_three_level import dispatch_three_level_fraction  # noqa: PLC0415
+
+        codes = [_factor_codes(f) for f in factors]
+        return dispatch_three_level_fraction(factors, kwargs["generators"], codes, kwargs.get("resolution"))
     return dispatch_fractional_factorial(
         factors,
         resolution=kwargs.get("resolution"),
@@ -263,14 +268,23 @@ _CATEGORICAL_ANY_LEVELS = frozenset({"full_factorial", "taguchi", *_OPTIMAL_FAMI
 _CATEGORICAL_TWO_LEVELS = frozenset({"fractional_factorial", "plackett_burman", "dsd"})
 
 
-def _refuse_unsupported_categorical(factors: list[Factor], design_type: str) -> None:
+#: Levels of every factor of a three-level fractional factorial (:mod:`.designs_three_level`).
+_THREE_LEVELS = 3
+
+
+def _three_level_fraction(factors: list[Factor], generators: list[str] | None) -> bool:
+    """Say whether a fractional factorial is a 3^(k-p) fraction: generators given, and three levels to every factor."""
+    return bool(generators) and bool(factors) and all(len(set(f.levels or [])) == _THREE_LEVELS for f in factors)
+
+
+def _refuse_unsupported_categorical(factors: list[Factor], design_type: str, generators: list[str] | None) -> None:
     """Raise one clear message when ``design_type`` cannot place a categorical factor."""
     categorical = [f for f in factors if f.type == FactorType.categorical]
     if not categorical or design_type in _CATEGORICAL_ANY_LEVELS:
         return
     if design_type in _CATEGORICAL_TWO_LEVELS:
         many = [f.name for f in categorical if len(f.levels or []) != 2]
-        if not many:
+        if not many or (design_type == "fractional_factorial" and _three_level_fraction(factors, generators)):
             return
         raise ValueError(
             f"design_type={design_type!r} takes two-level categorical factors only; {many} have more levels. "
@@ -357,6 +371,17 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
 # ---------------------------------------------------------------------------
 
 _DEFAULT_CENTER_POINTS = 3
+
+
+def _default_center_points(factors: list[Factor]) -> int:
+    """Return the centre runs a design gets when none are asked for: none when every factor is categorical.
+
+    A categorical factor has no centre, so a "centre run" of a design with only categorical factors
+    repeats one of its cells: a 3 x 3 factorial would get three of its diagonal cells twice.
+    """
+    if factors and all(f.type == FactorType.categorical for f in factors):
+        return 0
+    return _DEFAULT_CENTER_POINTS
 
 
 class _RunOverhead(NamedTuple):
@@ -509,6 +534,43 @@ _OWN_CENTER_RUNS = frozenset({"dsd", "omars", "omars_ilp"})
 _FIXED_SIZE = frozenset({"full_factorial", "fractional_factorial", "plackett_burman", "box_behnken", "ccd", "taguchi"})
 
 
+def _center_points_by_rule(
+    n_center_points: int | str | None,
+    design_type: str | None,
+    factors: list[Factor],
+    alpha: str | float | None,
+    ccd: dict[str, Any],
+) -> tuple[int | None, str | float | None]:
+    """Turn a rule named for a CCD's centre runs into their number, and the axial distance it assumes.
+
+    Box and Hunter's rules hold for a rotatable design in one block, so the design is made rotatable.
+    *ccd* holds the composite design's ``cube``, ``generators``, ``resolution``, ``n_replicates`` and
+    ``n_blocks``. A number of centre runs (or ``None``) passes through unchanged.
+    """
+    if not isinstance(n_center_points, str):
+        return n_center_points, alpha
+    from process_improve.experiments.designs_response_surface import (  # noqa: PLC0415
+        _fractional_cube,
+        ccd_center_points,
+    )
+
+    if design_type != "ccd":
+        raise ValueError(
+            f"n_center_points={n_center_points!r} names a rule for a central composite design; "
+            f"design_type={design_type!r} takes a number of centre runs."
+        )
+    if alpha not in (None, "rotatable") or (ccd["n_blocks"] or 1) > 1:
+        raise ValueError(
+            f"n_center_points={n_center_points!r} is Box and Hunter's rule for a rotatable CCD in one block; "
+            f"with alpha={alpha!r} and n_blocks={ccd['n_blocks']!r}, give the number of centre runs instead."
+        )
+    k = len(factors)
+    cube_runs = (
+        2**k if ccd["cube"] == "full" else len(_fractional_cube(factors, ccd["generators"], ccd["resolution"])[0])
+    )
+    return ccd_center_points(n_center_points, cube_runs, k, ccd["n_replicates"]), "rotatable"
+
+
 def _check_counts(n_center_points: int | None, n_replicates: int, n_blocks: int | None) -> None:
     """Raise for a centre-point, replicate or block count that cannot be meant literally."""
     if n_center_points is not None and (int(n_center_points) != n_center_points or n_center_points < 0):
@@ -537,6 +599,20 @@ def _refuse_unused_arguments(
             + (" with cube='full'" if design_type == "ccd" else "")
             + " does not use them. Use design_type='fractional_factorial', or a CCD with cube='fractional'."
         )
+
+
+def _blocks_from_generators(design_type: str, block_generators: list[str], n_blocks: int | None) -> int:
+    """Return the number of blocks the block generators make, refusing them on a design they cannot block."""
+    if design_type not in ("full_factorial", "fractional_factorial"):
+        raise ValueError(
+            "block_generators confound interaction words with blocks in a two-level full or fractional "
+            f"factorial; design_type={design_type!r} is blocked otherwise. Leave block_generators unset."
+        )
+    if isinstance(block_generators, str) or not block_generators:
+        raise ValueError(
+            f"block_generators must be a list of one or more words, such as ['ADE', 'BCE']; got {block_generators!r}."
+        )
+    return 2 ** len(block_generators) if n_blocks is None else n_blocks
 
 
 def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
@@ -575,7 +651,7 @@ def _extra_center_points(
 ) -> int:
     """Centre runs to append to the dispatched design."""
     if design_type in _ADDS_CENTER_POINTS:
-        return _DEFAULT_CENTER_POINTS if n_center_points is None else n_center_points
+        return _default_center_points(factors) if n_center_points is None else n_center_points
     if design_type in _OWN_CENTER_RUNS and n_center_points is not None:
         return max(n_center_points - _center_runs_built_in(coded_matrix, factors), 0)
     return 0
@@ -687,7 +763,7 @@ def generate_design(  # noqa: PLR0913
     factors: list[Factor],
     design_type: str | None = None,
     budget: int | None = None,
-    n_center_points: int | None = None,
+    n_center_points: int | str | None = None,
     n_replicates: int = 1,
     n_blocks: int | None = None,
     resolution: int | None = None,
@@ -701,6 +777,7 @@ def generate_design(  # noqa: PLR0913
     candidates: pd.DataFrame | None = None,
     random_state: int | np.random.Generator | None = 42,
     backend: str = "auto",
+    block_generators: list[str] | None = None,
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -736,18 +813,23 @@ def generate_design(  # noqa: PLR0913
         foldover size within it). A family whose size the design structure fixes
         (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
         ``ValueError`` when it needs more runs than *budget*.
-    n_center_points : int or None
+    n_center_points : int, str or None
         Number of centre runs in the whole design: they are not replicated with
         *n_replicates*. ``None`` (the default) means 3 for the full and
         fractional factorials, Plackett-Burman, CCD and Box-Behnken designs, and the
-        design's own centre runs for the others. CCD and Box-Behnken designs place
+        design's own centre runs for the others. A design whose factors are all
+        categorical has no centre, so ``None`` gives it none: a 3 x 3 factorial has
+        9 runs. Give a number to add runs to it anyway. CCD and Box-Behnken designs place
         them within the design structure. For a DSD or OMARS design it is the total
         number of centre runs, at least the one the design has (two for a DSD with
         categorical factors). A DSD or OMARS design that leaves the full second-order
         model no error degrees of freedom (the default for an even number of factors)
         warns, since :func:`analyze_omars` could not test its effects; extra centre runs
         fix that. Any other design type takes no centre points, so a positive value
-        raises ``ValueError``.
+        raises ``ValueError``. For a CCD, ``"uniform_precision"`` or ``"orthogonal"``
+        sets the number by Box and Hunter's rule for a rotatable design in one block
+        (:func:`~process_improve.experiments.designs_response_surface.ccd_center_points`),
+        and makes the design rotatable: four factors get 7 or 12 centre runs.
     n_replicates : int
         Number of replicates of the design's runs, centre runs excepted (default 1 =
         no replication): a 2^3 factorial with ``n_center_points=3`` and
@@ -780,7 +862,12 @@ def generate_design(  # noqa: PLR0913
     generators : list[str] or None
         Explicit generators for fractional factorials (and the cube of a CCD with
         ``cube="fractional"``), e.g. ``["D=ABC", "E=AC"]``; ``"D=-ABC"`` gives the
-        alternate fraction. Any other design type raises ``ValueError``.
+        alternate fraction. When every factor has three levels (a continuous factor with
+        three ``levels``, or a categorical factor with three), the generators make a
+        3^(k-p) fraction in arithmetic modulo 3: ``"D=A2BC2"`` sets
+        x_D = 2 x_A + x_B + 2 x_C (mod 3), the digits 0, 1 and 2 being each factor's
+        levels from the lowest (see :mod:`~process_improve.experiments.designs_three_level`).
+        Any other design type raises ``ValueError``.
     alpha : str, float, or None
         Axial distance for CCD designs: ``"rotatable"``, ``"face_centered"``,
         ``"inscribed"``, ``"orthogonal"`` (the default), or a positive number. Any
@@ -849,6 +936,15 @@ def generate_design(  # noqa: PLR0913
         :func:`~process_improve.experiments.designs_split_plot.split_plot_design` for a
         split-plot design (``hard_to_change``), the candidate exchange otherwise.
         ``"pyoptex"`` asks for pyoptex's coordinate exchange.
+    block_generators : list[str] or None
+        The interaction words that define the blocks of a two-level full or fractional
+        factorial, in place of the words the library would choose: ``["ADE", "BCE"]``
+        makes four blocks, with ADE, BCE and their product ABCD confounded with them
+        (join names longer than one letter with ``*``). *n_blocks*, when given, must be
+        2 to the power of their number. Words that confound a main effect, depend on
+        each other, or lie in the fraction's defining relation are refused. For a
+        fraction, ``metadata["blocking"]["aliases"]`` lists each confounded word's
+        aliases, which go with it to the blocks.
 
     Returns
     -------
@@ -880,6 +976,9 @@ def generate_design(  # noqa: PLR0913
     if not factors:
         raise ValueError("At least one factor must be provided.")
     constraints = _as_constraints(constraints)
+    ccd = {"cube": cube, "generators": generators, "resolution": resolution, "n_replicates": n_replicates}
+    ccd["n_blocks"] = n_blocks
+    n_center_points, alpha = _center_points_by_rule(n_center_points, design_type, factors, alpha, ccd)
     _check_counts(n_center_points, n_replicates, n_blocks)
 
     auto_selected = design_type is None
@@ -895,7 +994,7 @@ def generate_design(  # noqa: PLR0913
                 "generators": generators,
                 "model_type": model_type,
                 "overhead": _RunOverhead(
-                    _DEFAULT_CENTER_POINTS if n_center_points is None else n_center_points, n_replicates
+                    _default_center_points(factors) if n_center_points is None else n_center_points, n_replicates
                 ),
             },
         )
@@ -912,8 +1011,10 @@ def generate_design(  # noqa: PLR0913
     refuse_reserved_names(factors)
     _refuse_mixture_process(factors)
     _refuse_mixture_in_box_family(factors, design_type)
-    _refuse_unsupported_categorical(factors, design_type)
+    _refuse_unsupported_categorical(factors, design_type, generators)
     _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)
+    if block_generators is not None:
+        n_blocks = _blocks_from_generators(design_type, block_generators, n_blocks)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
@@ -922,7 +1023,7 @@ def generate_design(  # noqa: PLR0913
     # Build kwargs for the dispatch handler
     dispatch_kwargs: dict[str, Any] = {
         "budget": budget,
-        "n_center_points": _DEFAULT_CENTER_POINTS if n_center_points is None else n_center_points,
+        "n_center_points": _default_center_points(factors) if n_center_points is None else n_center_points,
         "center_runs": max(n_center_points or 1, 1),
         "resolution": resolution,
         "generators": generators,
@@ -990,6 +1091,7 @@ def generate_design(  # noqa: PLR0913
         is_actual=design_type == "mixture" or all_mixture,
         n_leading_fixed=int(meta.get("n_fixed_runs", 0)),
         randomize=not split_plot,
+        block_generators=block_generators,
     )
 
 
