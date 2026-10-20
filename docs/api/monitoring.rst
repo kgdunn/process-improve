@@ -10,3 +10,11 @@ Process Monitoring
    :members:
    :undoc-members:
    :show-inheritance:
+
+Evolutionary operation
+----------------------
+
+.. automodule:: process_improve.monitoring.evop
+   :members:
+   :undoc-members:
+   :show-inheritance:
