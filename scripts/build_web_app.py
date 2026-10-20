@@ -65,6 +65,7 @@ APP_FILES = (
     "store.js",
     "glossary.js",
     "terms.js",
+    "dialogs.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     "worker.js",

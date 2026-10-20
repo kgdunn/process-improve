@@ -915,9 +915,20 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
 #more { display: block; margin: 12px auto 0; }
 #more[hidden] { display: none; }
 dialog.detail { width: min(980px, 100vw - 32px); }
-.detail__facts { margin-top: 4px; font-weight: 600; }
-.detail__cite a { overflow-wrap: anywhere; }
-.detail__ok { color: var(--ok); }
+/* A design's detail opens on the same three cells for every design: the design, where it comes from, and its use. */
+.detail__head { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 10px; }
+.detail__cell { min-width: 0; margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.detail__cell h3 {
+  margin: 0 0 6px; color: var(--muted); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.detail__cell p { margin: 6px 0 0; }
+.detail__list { margin: 0; padding: 0; list-style: none; }
+.detail__list li { margin: 2px 0; }
+.detail__facts { font-weight: 600; }
+.detail__cite { overflow-wrap: anywhere; }
+.detail .detail__actions { flex-direction: column; align-items: stretch; margin: 0; gap: 6px; }
+.detail__family { margin: 0 0 8px; }
+@media (max-width: 720px) { .detail__head { grid-template-columns: minmax(0, 1fr); } }
 .detail__runs { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .detail__runs .scroll { flex: 1 1 320px; max-height: 420px; margin: 0; overflow: auto; }
 .detail__code {

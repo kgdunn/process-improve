@@ -8,6 +8,8 @@ and takes no limits on the settings.
 
 from __future__ import annotations
 
+import re
+
 from tests.web.e2e._page import calls, candidates_done, choose, generate, practise, reveal, set_aim, type_limit
 
 
@@ -45,7 +47,7 @@ def test_its_run_sheet_spreads_each_factor_and_learn_fits_the_aim_s_model(blank_
     assert page.locator("#analysis table").first.locator("tbody tr").count() == 7, "the intercept, 3 mains and 3 pairs"
     code = page.text_content("#py-run code")
     assert code.startswith("import math\n"), "the code rounds the settings as the run sheet lists them"
-    assert 'generate_design(factors, design_type="maximin_lhs", random_state=42, budget=12)' in code
+    assert re.search(r'generate_design\(factors, design_type="maximin_lhs", random_state=\d+, budget=12\)', code)
 
 
 def test_the_designs_for_a_model_never_list_it_and_limits_rule_it_out(blank_page):

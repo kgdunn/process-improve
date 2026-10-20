@@ -202,11 +202,12 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
-import { briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
+import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
+import { closeOnBackdrop } from "./dialogs.js";
 import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -358,6 +359,7 @@ const state = {
   commit: null, // the commit the app was built from, as its manifest names it
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
   example: false, // the worked example is on the page, as the build made it or as run again here
+  exampleBrief: null, // the worked example's brief, as briefKey gives it
   version: null, // the process-improve release Python runs, once it has started
   runtime: null, // the Python, packages and Pyodide it runs on, which a report names
 };
@@ -1330,13 +1332,38 @@ function picturedRuns() {
   return d.rows.map((row) => Object.fromEntries(d.columns.map((name, j) => [name, Number(row[j])])));
 }
 
-/** Make the run sheet the plan describes; resolves to true when it is on the page. */
-async function generate() {
+/** Whether the next run sheet made takes the place of the study on the page: one begun here, with no result typed in. */
+const replacesStudy = () => Boolean(state.campaign?.replaceable) && !Object.values(state.marks).some((marks) => marks.includes("entered"));
+
+/** A new study's seed, the moment it first needs one, in seconds; null until then, and again once a study takes it. */
+let draftSeed = null;
+
+/**
+ * The seed the next run sheet's runs are put in random order with, which the comparison's designs are made with too.
+ * The run sheet on the page keeps its own while the next takes its place: a study begun here, kept for its life,
+ * or the worked example, while its brief is as built, so its comparison's designs are the build's. Else it is a
+ * new study's, the moment it first needed one.
+ */
+function studySeed() {
+  const keeps = replacesStudy() || (state.example && briefKey() === state.exampleBrief);
+  const kept = keeps ? state.design?.spec?.options?.random_state : undefined;
+  if (Number.isInteger(kept)) return kept;
+  draftSeed ??= Math.floor(Date.now() / 1000);
+  return draftSeed;
+}
+
+/**
+ * Make the run sheet the plan describes; resolves to true when it is on the page. ``randomState`` is the seed its
+ * runs are put in random order with, the study's unless it is given. A design taken from the comparison is used as
+ * it was made only when it was made with that seed.
+ */
+async function generate({ randomState } = {}) {
   cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
   let key = planKey();
   const factors = readFactors();
   const responses = readResponses({ fresh: true });
-  const picked = state.picked?.key === key ? state.picked : null;
+  const seeded = randomState ?? studySeed();
+  const picked = state.picked?.key === key && state.picked.design.spec.options?.random_state === seeded ? state.picked : null;
   const design = picked && (await pickedDesign(picked, factors));
   if (design) {
     // The design the Design tab made for this plan already: the same runs, with the brief's words on them, and a
@@ -1372,6 +1399,7 @@ async function generate() {
     constraints: currentLimits(),
     runs: $("#design-type").value === GIVEN ? givenRuns() : undefined,
     blocks: $("#design-type").value === GIVEN ? givenBlocks() : undefined,
+    random_state: seeded,
   };
   const reply = await call("api_make_design", spec);
   button.disabled = false;
@@ -1446,8 +1474,9 @@ function madeRunSheet(design, warnings, key) {
  */
 function showDesign(design, warnings = [], { save = true } = {}) {
   flushSave();
-  const replaces = state.campaign?.replaceable && !Object.values(state.marks).some((marks) => marks.includes("entered"));
+  const replaces = replacesStudy();
   state.campaign = save ? { ...(replaces ? state.campaign : newCampaign()), title: titleOf(design.spec) } : null;
+  if (save && !replaces) draftSeed = null; // the new study took it: the next takes a seed of its own
   state.example = !save;
   state.design = design;
   $("#share-out").hidden = true;
@@ -1501,20 +1530,26 @@ let candidateTimer = null;
 let candidateTicket = 0;
 let candidatesRunning = false;
 
-/** What api_candidates is asked for the brief as it is now. */
-function candidateRequest() {
+/** The brief as the comparison reads it: the factors, the aim, the response and what is known of it, the limits. */
+function briefRequest() {
   const factors = readFactors();
   const info = readResponseInfo();
   const response = responseName(info.label, factors.map((f) => f.name));
   return { factors, model: currentAim(), response, response_info: info, constraints: currentLimits() };
 }
 
+/** What api_candidates is asked for the brief as it is now: its designs are made with the next run sheet's seed. */
+const candidateRequest = () => ({ ...briefRequest(), random_state: studySeed() });
+
 /** What makes two briefs' designs the same: the factors, the aim, the limits, and the noise and change power is for. */
-function candidateKey(request = candidateRequest()) {
+function briefKey(request = briefRequest()) {
   const { noise = null, smallest_change: change = null } = request.response_info;
   const limits = request.constraints.map((limit) => positional(limit.expression, request.factors.map((f) => f.name)));
   return JSON.stringify([request.factors, request.model, noise, change, limits]);
 }
+
+/** What makes two comparisons the same: the brief, and the seed their designs' runs are put in random order with. */
+const candidateKey = (request = candidateRequest()) => JSON.stringify([briefKey(request), request.random_state]);
 
 /** Whether the brief is ready for its designs: two factors or more, each as Python takes it. */
 const briefReady = () => factorCount() >= 2 && !factorsUnready && !limitsUnready();
@@ -3608,6 +3643,7 @@ async function showBuiltExample() {
   $("#sigma").value = example.inputs.sigma;
   showScenarioHint();
   showDesign(example.design, [], { save: false });
+  state.exampleBrief = briefKey(); // its comparison, run sheet and seed are the build's while its brief is
   state.planKey = planKey();
   selectTab("simulate");
   state.simulation = example.simulation;
@@ -3665,9 +3701,10 @@ async function runExample() {
   showScenarioHint();
   seed = example.seed;
   selectTab("simulate");
-  if (!(await generate())) return;
+  if (!(await generate({ randomState: RUN_ORDER_SEED }))) return; // the worked example's runs, as the build made them
   state.campaign = null; // the worked example, run here, is not saved
   state.example = true;
+  state.exampleBrief = briefKey();
   history.replaceState(null, "", `${location.pathname}?${EXAMPLE_PARAM}=${WORKED}`);
   $("#demo-version").textContent = `process-improve ${state.version ?? ""}`.trim();
   $("#demo-when").textContent = "in this tab, just now";
@@ -3702,6 +3739,7 @@ function newStudy() {
     example: false,
     widened: false,
   });
+  draftSeed = null; // a new study, which takes a seed of its own
   clearTimeout(analysisTimer);
   setResponse({ response: "" }, { columns: false });
   $("#response-known").open = false;
@@ -4462,6 +4500,7 @@ $("#restore-plan").onclick = () => {
 $("#search").onclick = () => findCandidates({ search: true });
 $("#compare").onclick = showComparison;
 $("#compare-close").onclick = () => $("#compare-dialog").close();
+closeOnBackdrop($("#compare-dialog"));
 $("#run-example").onclick = runExample;
 $("#simulate").onclick = simulateResults;
 $("#reroll").onclick = () => {
