@@ -123,11 +123,21 @@ together by several. A curved limit's share is counted over a fixed Sobol sample
 points instead, so it is the same on every run and within about 0.005 of the exact value
 (0.042 here, against 0.041 exactly). Beside straight limits, the sample counts only what
 the curved limit takes from the exact share the straight ones leave, so the two limits
-together keep 0.849, as they do exactly.
+together keep 0.849, as they do exactly. When the straight limits leave too thin a region
+for any of the 16384 points, points spread uniformly through that region take their place,
+so its share does not read as 0.
 :meth:`~process_improve.experiments.region.DesignRegion.is_empty` says whether any
 setting is left at all, and
 :meth:`~process_improve.experiments.region.DesignRegion.centroid` gives a central setting
 that can be run: where to hold the factors a plot does not show.
+
+For a mixture, the share is of the blends the components' ranges allow (the whole simplex
+when every range is 0 to 1). A mixture's limits are straight, so the share is exact:
+
+.. code-block:: python
+
+   blends = [Factor(name=name, type="mixture") for name in ("A", "B", "C")]
+   print(DesignRegion(blends, ["A <= 0.5"]).volume_fraction())  # 0.75, all but the corner where A > 0.5
 
 A limit can also narrow a factor's range everywhere, which the ranges then overstate:
 

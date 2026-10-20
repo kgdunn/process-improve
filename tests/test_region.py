@@ -21,7 +21,7 @@ from scipy.spatial import ConvexHull, QhullError
 
 from process_improve.experiments import Constraint, DesignRegion, Factor, rename_factors
 from process_improve.experiments import _region_geometry as geometry
-from process_improve.experiments._region_geometry import box_share
+from process_improve.experiments._region_geometry import box_share, uniform_points_inside
 from process_improve.experiments.designs import _as_constraints
 from process_improve.experiments.factor import as_constraints
 
@@ -449,10 +449,31 @@ class TestExactShare:
         assert region._exact_share() is None
         assert region.volume_fraction() == pytest.approx(exact, abs=1e-4)
 
-    def test_straight_limits_too_thin_for_any_point_leave_the_share_to_all_the_points(self):
-        # T within 0.0001 of its top is 2e-6 of the box: no point of the sample lies in it.
-        region = DesignRegion(HEAT_FACTORS, ["T >= 149.9999", "T * D <= 9000"])
-        assert region._straight_share() == pytest.approx(2e-6, rel=1e-6)
+    @pytest.mark.parametrize(
+        ("ceiling", "fraction"),
+        [
+            pytest.param(9000, 1.0, id="T*D <= 9000 takes nothing"),
+            pytest.param(6000, 0.5, id="T*D <= 6000 takes D above 40"),
+            pytest.param(4000, 1 / 6, id="T*D <= 4000 leaves D up to 26.7"),
+        ],
+    )
+    def test_a_straight_part_too_thin_for_the_sample_gets_points_of_its_own(self, ceiling, fraction):
+        """T within 0.0001 of its top is 2e-6 of the box, and no point of the box's sample lies in it (#810 item 2).
+
+        Points uniform on that slab count what the curved limit takes from it. Counted over the
+        box's points, every share here read 0.
+        """
+        region = DesignRegion(HEAT_FACTORS, ["T >= 149.9999", f"T * D <= {ceiling}"])
+        assert not region._sample_allowed().any()
+        straight = region._straight_share()
+        assert straight == pytest.approx(2e-6, rel=1e-6)
+        assert region.volume_fraction() / straight == pytest.approx(fraction, abs=1e-3)
+
+    def test_a_thin_part_the_sampler_cannot_cover_keeps_the_share_of_all_the_points(self):
+        """The sampler stops at five factors: with six, the share stays the fraction of the box's points."""
+        factors = [Factor(name=name, low=-1, high=1) for name in "ABCDEF"]
+        region = DesignRegion(factors, ["A + B <= 0.0001", "A + B >= -0.0001", "A*C <= 0"])
+        assert region._straight_share() == pytest.approx(1e-4, rel=1e-4), "the band |A + B| <= 0.0001"
         assert region.volume_fraction() == 0.0
 
     def test_a_region_with_no_volume_keeps_nothing(self):
@@ -502,6 +523,59 @@ class TestBoxShare:
         # Two rows that share the middle factor: the share would come from the polytope's volume.
         a = np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]) / np.sqrt(2)
         assert box_share(a, np.array([0.5, 0.5])) is None
+
+
+class TestUniformPointsInside:
+    """Points uniform on a polytope, read off a fixed sequence (#810 item 2)."""
+
+    def test_the_share_of_the_points_is_the_share_of_the_volume(self):
+        cube = np.array(list(itertools.product([-1.0, 1.0], repeat=3)))
+        points = uniform_points_inside(cube, 2**14)
+        assert points is not None
+        assert points.shape == (2**14, 3)
+        assert np.mean(points[:, 0] > 0.5) == pytest.approx(0.25, abs=1e-3), "a quarter of the cube"
+        assert np.mean(points.sum(axis=1) > 2) == pytest.approx(1 / 48, abs=1e-3), "the corner beyond A + B + C = 2"
+
+    def test_the_points_centre_on_the_centroid_of_the_area_not_of_the_vertices(self):
+        """Four of the five vertices sit at one end, so their mean is not the centroid of the area."""
+        kite = np.array([[0.0, 0.0], [4.0, -1.0], [4.0, 1.0], [4.1, -0.5], [4.1, 0.5]])
+        points = uniform_points_inside(kite, 2**14)
+        assert points is not None
+        area = ConvexHull(kite)
+        assert area.volume == pytest.approx(4.15)
+        assert points.mean(axis=0) == pytest.approx([2.717, 0.0], abs=2e-3)
+
+    def test_every_point_lies_in_the_hull_and_the_points_are_the_same_each_time(self):
+        pentagon = np.array([[math.cos(t), math.sin(t)] for t in np.linspace(0, 2 * math.pi, 5, endpoint=False)])
+        points = uniform_points_inside(pentagon, 1000)
+        assert points is not None
+        hull = ConvexHull(pentagon)
+        assert np.all(points @ hull.equations[:, :2].T + hull.equations[:, 2] <= 1e-12)
+        np.testing.assert_array_equal(points, uniform_points_inside(pentagon, 1000))
+
+    def test_one_factor_is_cut_into_equal_cells(self):
+        points = uniform_points_inside(np.array([[-0.5], [0.25]]), 4)
+        assert points is not None
+        assert sorted(points.ravel()) == pytest.approx([-0.40625, -0.21875, -0.03125, 0.15625])
+
+    @pytest.mark.parametrize(
+        "vertices",
+        [
+            pytest.param(np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]), id="on a line"),
+            pytest.param(np.array([[0.0, 0.0], [1.0, 1.0]]), id="too few vertices"),
+            pytest.param(np.array(list(itertools.product([-1.0, 1.0], repeat=6))), id="six factors"),
+        ],
+    )
+    def test_no_points_for_a_flat_hull_or_more_than_five_factors(self, vertices):
+        assert uniform_points_inside(vertices, 8) is None
+
+    def test_a_precision_failure_of_the_hull_gives_no_points(self, monkeypatch):
+        def fail(*_args: object) -> None:
+            raise QhullError("a precision failure")
+
+        monkeypatch.setattr(geometry, "ConvexHull", fail)
+        assert uniform_points_inside(np.eye(3), 8) is None
+        assert uniform_points_inside(np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]), 8) is None
 
 
 class TestIsEmpty:
@@ -1485,7 +1559,6 @@ class TestSliceSlack:
 @pytest.mark.parametrize(
     ("method", "args"),
     [
-        ("volume_fraction", ()),
         ("centroid", ()),
         ("is_empty", ()),
         ("implied_bounds", ()),
@@ -1501,6 +1574,35 @@ class TestSliceSlack:
 def test_box_diagnostics_refuse_a_mixture(method, args):
     with pytest.raises(ValueError, match="mixture proportions"):
         getattr(DesignRegion(MIXTURE, ["x0 <= 0.5"]), method)(*args)
+
+
+@pytest.mark.parametrize(
+    ("factors", "constraints", "share"),
+    [
+        pytest.param(MIXTURE, ["x0 <= 0.5"], 0.75, id="a-corner-cut-off"),
+        pytest.param(MIXTURE, ["x0 + x1 <= 0.6"], 0.6**2, id="a-smaller-simplex"),
+        pytest.param([Factor(name=f"x{i}", type="mixture") for i in range(4)], ["x0 <= 0.5"], 1 - 0.5**3, id="four"),
+        pytest.param(MIXTURE[:2], ["x0 <= 0.3"], 0.3, id="two-components"),
+        pytest.param(MIXTURE, [], 1.0, id="no-limits"),
+        pytest.param(MIXTURE, ["x0 >= 0.7", "x1 >= 0.7"], 0.0, id="empty"),
+        pytest.param(MIXTURE, ["x0 >= 0.5", "x0 <= 0.5"], 0.0, id="flat"),
+    ],
+)
+def test_a_mixture_s_share_is_the_volume_its_limits_leave_of_the_simplex(factors, constraints, share):
+    """#810 item 3: exact, from the polytopes' hulls; a mixture region used to raise."""
+    assert DesignRegion(factors, constraints).volume_fraction() == pytest.approx(share, abs=1e-12)
+
+
+def test_a_mixture_s_share_is_of_the_blends_its_ranges_allow():
+    """x0 at most 0.5 leaves 3/4 of the simplex; within that, x0 <= 0.25 leaves (1 - 0.75^2) / 0.75."""
+    factors = [Factor(name="x0", type="mixture", low=0.0, high=0.5), *MIXTURE[1:]]
+    assert DesignRegion(factors, ["x0 <= 0.25"]).volume_fraction() == pytest.approx((1 - 0.75**2) / 0.75)
+
+
+def test_a_share_of_mixtures_with_no_volume_is_refused():
+    one_blend = np.array([[1.0, 0.0, 0.0]])
+    with pytest.raises(ValueError, match="no volume"):
+        geometry.simplex_share(one_blend, one_blend)
 
 
 @pytest.mark.parametrize("module", ["_region_geometry", "region", "compare", "separating", "designs_constrained"])
