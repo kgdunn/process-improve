@@ -81,12 +81,17 @@ def _local(references: list[str]) -> set[str]:
 
 
 def test_every_file_the_page_loads_is_published(build_script):
-    """What index.html, app.js and worker.js load must be copied by the build, or written by it."""
+    """What index.html, app.js and worker.js load must be copied by the build, or written by it.
+
+    feedback.js imports the screenshot's module only when a reader asks for a screenshot: it is published all the same.
+    """
     loaded = _local(re.findall(r'(?:href|src)="([^"]+)"', source("index.html")))
     loaded |= _local(re.findall(r'from "\./([^"]+)"', source("app.js")))
     for name in ("app.js", "worker.js"):
         loaded |= _local(re.findall(r'(?:fetch|new Worker)\("([^"]+)"', source(name)))
+    loaded |= _local(re.findall(r'import\("\./([^"]+)"\)', source("feedback.js")))
     assert {"style.css", "app.js", "worker.js", "bootstrap.py", "demo.json"} <= loaded, "the search found the loads"
+    assert "vendor/modern-screenshot.mjs" in loaded
     assert loaded - BUILT <= set(build_script.APP_FILES)
     assert all((WEB / name).is_file() for name in build_script.APP_FILES)
 
@@ -194,10 +199,13 @@ def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_
 
 
 def test_the_page_reads_only_what_the_manifest_holds():
-    """worker.js installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there."""
+    """worker.js installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there,
+    and a report from the Feedback dialog names the commit.
+    """
     read = set(re.findall(r"const \{ (\w+)(?:: \w+)? \} = await manifest", source("worker.js")))
-    read |= set(re.findall(r"\(await res\.json\(\)\)\.(\w+)", source("app.js")))
-    assert read == {"wheel", "plotly", "plotly_js"}
+    for names in re.findall(r"const \{ ([^}]+) \} = await res\.json\(\)", source("app.js")):
+        read |= {name.split(":")[0].strip() for name in names.split(",")}
+    assert read == {"wheel", "plotly", "plotly_js", "commit"}
 
 
 # --------------------------------------------------------------------------- the book's examples

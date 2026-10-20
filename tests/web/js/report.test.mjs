@@ -128,6 +128,12 @@ describe("the stamp", () => {
       ["Made", "With", "Run order", "Results"],
     );
     assert.equal(unknown[1][1], "process-improve, from its source, in Factorial at https://factori.al/");
+    const undesigned = stampRows({ ...facts, spec: null, results: {}, marks: {}, sha: null, link: null });
+    assert.deepEqual(
+      undesigned.map(([label]) => label),
+      ["Made", "With", "On"],
+      "a page with no design yet, as the Feedback dialog stamps one",
+    );
   });
 });
 

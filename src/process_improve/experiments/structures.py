@@ -447,6 +447,19 @@ def supplement(x: Column, **kwargs: object) -> Column:
     # lo = 4, hi = 5)
 
 
+def _gathered_length(key: str, value: object) -> int:
+    """Return the number of rows ``value`` gives ``gather()``; raise ``TypeError``, naming ``key``, if none."""
+    if isinstance(value, pd.Series | pd.DataFrame | list | tuple) or (
+        isinstance(value, np.ndarray) and value.ndim == 1
+    ):
+        return len(value)
+    what = f"a {value.ndim}-dimensional array" if isinstance(value, np.ndarray) else f"a {type(value).__name__}"
+    raise TypeError(
+        f"gather() cannot make a column of {key!r}, {what}: pass a Column, a list, a tuple, a one-dimensional "
+        "array, a Series, or a DataFrame for several columns."
+    )
+
+
 def gather(*args: Column, title: str | None = None, **kwargs: Column | list) -> Expt:
     """
     Gathers the named inputs together as columns for a data frame.
@@ -460,7 +473,10 @@ def gather(*args: Column, title: str | None = None, **kwargs: Column | list) -> 
     expt = gather(A=A, B=B, y=y, title='My experiment in factors A and B')
 
     A multi-column input (a ``pandas.DataFrame``, e.g. a categorical factor
-    expanded into several indicator columns) is gathered column by column.
+    expanded into several indicator columns) is gathered column by column. A
+    list, a tuple or a one-dimensional NumPy array is a column of values. Any
+    other input raises a ``TypeError`` that names it (#677); it was dropped
+    without a word before.
 
     Positional arguments are accepted for columns that already carry a name
     (``pi_name`` or the pandas ``.name``): ``gather(A, B, y=y)``. A nameless
@@ -490,14 +506,14 @@ def gather(*args: Column, title: str | None = None, **kwargs: Column | list) -> 
 
     # Every input is merged positionally (row i with row i), so they must all
     # contribute the same number of rows.
-    lengths = {len(value) for value in kwargs.values()}
+    lengths = {_gathered_length(key, value) for key, value in kwargs.items()}
     if len(lengths) > 1:
         msg = f"All inputs to gather() must have the same length; got lengths {sorted(lengths)}."
         raise ValueError(msg)
 
     for key, value in kwargs.items():
-        if isinstance(value, list):
-            out[key] = value
+        if isinstance(value, list | tuple | np.ndarray):
+            out[key] = list(value)
         elif isinstance(value, pd.DataFrame):
             # A block of two or more columns: gather each column separately.
             # A single-column frame keeps the original key as its name.
