@@ -54,6 +54,9 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.designs_three_level
+   :members: dispatch_three_level_fraction
+
 .. automodule:: process_improve.experiments.models
    :members:
    :undoc-members:

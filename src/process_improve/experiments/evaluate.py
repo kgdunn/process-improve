@@ -38,6 +38,7 @@ from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
+from process_improve.experiments.designs_three_level import MODULUS
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
@@ -1532,7 +1533,7 @@ def _compute_minimum_aberration(ctx: _EvalContext) -> dict[str, Any]:
         return {
             "minimum_aberration": {
                 "wordlength_pattern": [],
-                "note": "Not a fractional factorial design.",
+                "note": "Not a two-level fractional factorial design.",
             }
         }
 
@@ -1922,7 +1923,9 @@ def evaluate_design(  # noqa: PLR0913
 
     if isinstance(design_matrix, DesignResult):
         design_type = design_matrix.design_type
-        generators = design_matrix.generators
+        # A three-level fraction's generators work modulo 3, and the relation and alias metrics below
+        # modulo 2, so they read its recorded relation and resolution instead.
+        generators = None if design_matrix.metadata.get("modulus") == MODULUS else design_matrix.generators
         defining_relation = design_matrix.defining_relation
         resolution = design_matrix.resolution
         factor_names = list(design_matrix.factor_names)

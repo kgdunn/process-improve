@@ -95,6 +95,11 @@ def _dispatch_fractional_factorial(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_screening import dispatch_fractional_factorial  # noqa: PLC0415
 
+    if _three_level_fraction(factors, kwargs.get("generators")):
+        from process_improve.experiments.designs_three_level import dispatch_three_level_fraction  # noqa: PLC0415
+
+        codes = [_factor_codes(f) for f in factors]
+        return dispatch_three_level_fraction(factors, kwargs["generators"], codes, kwargs.get("resolution"))
     return dispatch_fractional_factorial(
         factors,
         resolution=kwargs.get("resolution"),
@@ -263,14 +268,23 @@ _CATEGORICAL_ANY_LEVELS = frozenset({"full_factorial", "taguchi", *_OPTIMAL_FAMI
 _CATEGORICAL_TWO_LEVELS = frozenset({"fractional_factorial", "plackett_burman", "dsd"})
 
 
-def _refuse_unsupported_categorical(factors: list[Factor], design_type: str) -> None:
+#: Levels of every factor of a three-level fractional factorial (:mod:`.designs_three_level`).
+_THREE_LEVELS = 3
+
+
+def _three_level_fraction(factors: list[Factor], generators: list[str] | None) -> bool:
+    """Say whether a fractional factorial is a 3^(k-p) fraction: generators given, and three levels to every factor."""
+    return bool(generators) and bool(factors) and all(len(set(f.levels or [])) == _THREE_LEVELS for f in factors)
+
+
+def _refuse_unsupported_categorical(factors: list[Factor], design_type: str, generators: list[str] | None) -> None:
     """Raise one clear message when ``design_type`` cannot place a categorical factor."""
     categorical = [f for f in factors if f.type == FactorType.categorical]
     if not categorical or design_type in _CATEGORICAL_ANY_LEVELS:
         return
     if design_type in _CATEGORICAL_TWO_LEVELS:
         many = [f.name for f in categorical if len(f.levels or []) != 2]
-        if not many:
+        if not many or (design_type == "fractional_factorial" and _three_level_fraction(factors, generators)):
             return
         raise ValueError(
             f"design_type={design_type!r} takes two-level categorical factors only; {many} have more levels. "
@@ -848,7 +862,12 @@ def generate_design(  # noqa: PLR0913
     generators : list[str] or None
         Explicit generators for fractional factorials (and the cube of a CCD with
         ``cube="fractional"``), e.g. ``["D=ABC", "E=AC"]``; ``"D=-ABC"`` gives the
-        alternate fraction. Any other design type raises ``ValueError``.
+        alternate fraction. When every factor has three levels (a continuous factor with
+        three ``levels``, or a categorical factor with three), the generators make a
+        3^(k-p) fraction in arithmetic modulo 3: ``"D=A2BC2"`` sets
+        x_D = 2 x_A + x_B + 2 x_C (mod 3), the digits 0, 1 and 2 being each factor's
+        levels from the lowest (see :mod:`~process_improve.experiments.designs_three_level`).
+        Any other design type raises ``ValueError``.
     alpha : str, float, or None
         Axial distance for CCD designs: ``"rotatable"``, ``"face_centered"``,
         ``"inscribed"``, ``"orthogonal"`` (the default), or a positive number. Any
@@ -988,7 +1007,7 @@ def generate_design(  # noqa: PLR0913
     refuse_reserved_names(factors)
     _refuse_mixture_process(factors)
     _refuse_mixture_in_box_family(factors, design_type)
-    _refuse_unsupported_categorical(factors, design_type)
+    _refuse_unsupported_categorical(factors, design_type, generators)
     _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)
     if block_generators is not None:
         n_blocks = _blocks_from_generators(design_type, block_generators, n_blocks)
