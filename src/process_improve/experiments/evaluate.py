@@ -113,6 +113,11 @@ class _EvalContext:
     categorical_coding: str = "effect"
     integration: str = "sample"  # the region average: "sample" or "exact" (quadrature over the cube)
     max_search: str = "sample"  # the region maximum: "sample" or "optimize" (a local search from the best points)
+    random_effects: dict[str, tuple[np.ndarray, float]] | None = None  # each effect's group labels and variance ratio
+
+    def information(self, X: np.ndarray) -> np.ndarray:
+        """Return ``X'X``, or ``X' V^-1 X`` when the runs share random effects (:func:`_random_effects_information`)."""
+        return X.T @ X if not self.random_effects else _random_effects_information(X, self.random_effects)
 
     @property
     def patsy_data(self) -> dict[str, Any] | pd.DataFrame:
@@ -324,6 +329,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         categorical_coding=req.categorical_coding,
         integration=req.integration,
         max_search=req.max_search,
+        random_effects=req.random_effects,
     )
 
 
@@ -849,6 +855,87 @@ def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
     }
 
 
+#: The kinds of pair of second-order terms, in Jones and Nachtsheim's (2011) notation: two squares
+#: (qq, ss), a square and an interaction in its factor (qq, qs), a square and an interaction without
+#: it (qq, st), and two interactions (st, uv), with a factor in common or not.
+SECOND_ORDER_PAIRS = ("two_squares", "square_and_own_interaction", "square_and_other_interaction", "two_interactions")
+
+
+def _second_order_factors(name: str, factor_names: list[str]) -> tuple[str, ...] | None:
+    """Return the factor of a square ``I(A ** 2)``, or the two of an interaction ``A:B``; ``None`` for another column.
+
+    An interaction column of a categorical factor (``A:C[S.y]``) names that factor.
+    """
+    names = sorted(factor_names, key=len, reverse=True)  # "AB" before "A"
+    pattern = re.compile("|".join(rf"(?<![\w.]){re.escape(f)}(?![\w])" for f in names))
+    parts = name.split(":")
+    found = [pattern.findall(part) for part in parts]
+    if any(len(set(f)) != 1 for f in found):
+        return None
+    if len(parts) == 1:
+        return (found[0][0],) if re.fullmatch(r"I\(.+\*\*\s*2\)", name) else None
+    first, second = found[0][0], found[1][0]
+    powers = any("**" in part for part in parts)
+    return (first, second) if len(parts) == 2 and first != second and not powers else None
+
+
+def _second_order_pair(first: tuple[str, ...], second: tuple[str, ...]) -> str:
+    """Name the kind of a pair of second-order terms (see :data:`SECOND_ORDER_PAIRS`)."""
+    if len(first) == len(second):
+        return "two_squares" if len(first) == 1 else "two_interactions"
+    square, interaction = (first, second) if len(first) == 1 else (second, first)
+    return "square_and_own_interaction" if square[0] in interaction else "square_and_other_interaction"
+
+
+def _compute_estimate_correlation(ctx: _EvalContext) -> dict[str, Any]:
+    """Correlations between the estimates of the model's second-order terms, from ``(X'X)^-1``.
+
+    Where ``correlation`` compares the second-order *columns* of the design, this compares the
+    *estimates* the fit makes of them: ``r_ij = c_ij / sqrt(c_ii c_jj)`` with ``c = (X'X)^-1``,
+    the correlations JMP prints as the "correlation of estimates". A large ``|r_ij|`` means the
+    data cannot tell the two effects apart: an active square can show up as an interaction, or
+    the reverse. The sizes are summarised by kind of pair as Jones and Nachtsheim (2011) tabulate
+    them for definitive screening designs: ``max_abs_r_<kind>`` and ``mean_abs_r_<kind>`` for each
+    kind of :data:`SECOND_ORDER_PAIRS` the model has, and for ``second_order``, every pair of
+    second-order terms. A model of every main effect and every square gives their Table 4's
+    correlations of two squares; :func:`~process_improve.experiments.evaluate_projections` with
+    ``model="quadratic"`` gives the others for each projection, and averages them.
+
+    Returns ``terms``, ``matrix`` (the correlations, as nested lists) and the summaries.
+    """
+    if ctx.is_singular:
+        return {"estimate_correlation": None, "note": "Design is rank-deficient for the specified model."}
+    assert ctx.XtX_inv is not None  # guaranteed by not is_singular
+    second_idx = [i for i, c in enumerate(ctx.column_names) if _term_order(c) == 2]
+    terms = [ctx.column_names[i] for i in second_idx]
+    if len(second_idx) < 2:
+        return {
+            "estimate_correlation": {
+                "terms": terms,
+                "matrix": [[1.0]] if second_idx else [],
+                "note": "Fewer than two second-order terms; no pairwise correlation.",
+            }
+        }
+    inverse = ctx.XtX_inv[np.ix_(second_idx, second_idx)]
+    scale = np.sqrt(np.diag(inverse))
+    corr = inverse / np.outer(scale, scale)
+    factors = [_second_order_factors(t, ctx.factor_names) for t in terms]
+    sizes: dict[str, list[float]] = {"second_order": []}
+    for i, j in itertools.combinations(range(len(terms)), 2):
+        first, second = factors[i], factors[j]
+        if first is not None and first == second:
+            continue  # two columns of one term (a categorical factor's levels): their coding, not the design
+        sizes["second_order"].append(abs(float(corr[i, j])))
+        if first is not None and second is not None:
+            sizes.setdefault(_second_order_pair(first, second), []).append(abs(float(corr[i, j])))
+    result: dict[str, Any] = {"terms": terms, "matrix": corr.tolist()}
+    for kind in ("second_order", *SECOND_ORDER_PAIRS):
+        if kind in sizes:
+            result[f"max_abs_r_{kind}"] = max(sizes[kind])
+            result[f"mean_abs_r_{kind}"] = float(np.mean(sizes[kind]))
+    return {"estimate_correlation": result}
+
+
 def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, list[str]]:
     """Build the two-factor-interaction columns *not* already in the model.
 
@@ -1100,6 +1187,134 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
     else:
         result.update(_power_alias_exposure(ctx, [name for _, name in terms]))
     return result
+
+
+#: Jones and Nachtsheim's (2011) power study (their Table 6): each hypothesis the test of one kind
+#: of term, in the model it is made in, averaged over every factor or pair of factors it can be asked of.
+SCREENING_HYPOTHESES = (
+    (1, "linear effect", "the constant and the factor"),
+    (2, "quadratic effect", "main effects and the square"),
+    (3, "interaction effect", "main effects and the interaction"),
+    (4, "linear effect", "full quadratic model of the two factors"),
+    (5, "quadratic effect", "full quadratic model of the two factors"),
+    (6, "interaction effect", "full quadratic model of the two factors"),
+)
+
+#: Table 7's coefficients, in units of sigma, when no ``effect_size`` is given.
+_SCREENING_EFFECT_SIZES = (1.0, 2.0, 3.0)
+
+
+def _screening_tests(x: np.ndarray) -> dict[int, list[tuple[np.ndarray, list[int], set[tuple[int, ...]]]]]:
+    """Return each hypothesis's tests: a model matrix, the columns tested, and the second-order terms it holds.
+
+    A square is keyed by its factor ``(a,)``, an interaction by its two ``(a, b)``.
+    """
+    n, k = x.shape
+    ones, pairs = np.ones((n, 1)), list(itertools.combinations(range(k), 2))
+    tests: dict[int, list[tuple[np.ndarray, list[int], set[tuple[int, ...]]]]] = {
+        h: [] for h, _, _ in SCREENING_HYPOTHESES
+    }
+    tests[1] = [(np.column_stack([ones, x[:, a]]), [1], set()) for a in range(k)]
+    tests[2] = [(np.column_stack([ones, x, x[:, a] ** 2]), [k + 1], {(a,)}) for a in range(k)]
+    tests[3] = [(np.column_stack([ones, x, x[:, a] * x[:, b]]), [k + 1], {(a, b)}) for a, b in pairs]
+    for a, b in pairs:
+        model = np.column_stack([ones, x[:, a], x[:, b], x[:, a] ** 2, x[:, b] ** 2, x[:, a] * x[:, b]])
+        held = {(a,), (b,), (a, b)}
+        tests[4].append((model, [1, 2], held))
+        tests[5].append((model, [3, 4], held))
+        tests[6].append((model, [5], held))
+    return tests
+
+
+def _is_aliased(model: np.ndarray, j: int, outside: np.ndarray) -> bool:
+    """Say whether a second-order column outside the model is indistinguishable from model column ``j``.
+
+    It is when it lies in the span of the model's columns but not of the others: the fit then
+    cannot tell the two effects apart, which Jones and Nachtsheim (2011) call direct aliasing.
+    """
+    others = np.delete(model, j, axis=1)
+    project = others @ np.linalg.pinv(others)
+    tested = model[:, j] - project @ model[:, j]
+    rest = outside - project @ outside
+    tested_norm, rest_norms = np.linalg.norm(tested), np.linalg.norm(rest, axis=0)
+    scale = np.linalg.norm(outside, axis=0) + 1.0
+    live = rest_norms > 1e-8 * scale
+    if not live.any() or tested_norm == 0:
+        return False
+    cosine = np.abs(tested @ rest[:, live]) / (tested_norm * rest_norms[live])
+    return bool((cosine > 1 - 1e-9).any())
+
+
+def _compute_screening_power(ctx: _EvalContext) -> dict[str, Any]:
+    """Average power of the tests of a screening study, Jones and Nachtsheim's (2011) Tables 6 and 7.
+
+    How likely the design is to detect one active term of each kind, in the model an analyst
+    would fit to find it (their Table 6): (1) a linear effect, with the constant alone beside it; (2) a
+    quadratic effect, the main effects and that square; (3) an interaction, the main effects and that interaction;
+    and (4) to (6) a linear effect, a quadratic effect or the interaction in the full quadratic
+    model of two factors. Each test is the t test of one coefficient against zero, its power as
+    for the ``power`` metric (a coefficient of ``effect_size``, in units of ``sigma``, at level
+    ``alpha``; Table 7's 1, 2 and 3 times sigma when no ``effect_size`` is given), and the powers
+    are averaged over every factor or pair of factors the test can be asked of. The ``model``
+    argument is not used: each hypothesis has its own models.
+
+    A test is not estimable when its model is rank-deficient or leaves no residual degrees of
+    freedom, and aliased when a second-order term outside its model cannot be told apart from the
+    term tested (every square of a two-level design with centre runs; an interaction of a
+    resolution IV fraction). Neither has a power; the averages are over the other tests, and a
+    hypothesis none of whose tests remains is reported as ``"aliased"`` or ``"not estimable"``,
+    as Table 7 marks them. Only numeric factors can be studied this way.
+    """
+    if ctx.is_scheffe or any(not pd.api.types.is_numeric_dtype(ctx.design_df[f]) for f in ctx.factor_names):
+        return {
+            "screening_power": None,
+            "note": "The screening power study needs numeric factors only; it does not apply to mixture models "
+            "or categorical factors.",
+        }
+    sigma = ctx.sigma if ctx.sigma is not None else 1.0
+    sizes = [ctx.effect_size] if ctx.effect_size is not None else [e * sigma for e in _SCREENING_EFFECT_SIZES]
+    x = ctx.design_df[ctx.factor_names].to_numpy(dtype=float)
+    k = x.shape[1]
+    every = {(a,): x[:, a] ** 2 for a in range(k)} | {
+        (a, b): x[:, a] * x[:, b] for a, b in itertools.combinations(range(k), 2)
+    }
+    every_test, hypotheses = _screening_tests(x), []
+    for number, effect, model in SCREENING_HYPOTHESES:
+        powers, n_tests, n_aliased, n_not_estimable = [], 0, 0, 0
+        for matrix, tested, held in every_test[number]:
+            n_tests += len(tested)
+            scaled, lengths = _unit_length_columns(matrix)
+            df_resid = matrix.shape[0] - matrix.shape[1]
+            if int(np.linalg.matrix_rank(scaled)) < matrix.shape[1] or df_resid <= 0:
+                n_not_estimable += len(tested)
+                continue
+            inverse = np.linalg.inv(ctx.information(scaled)) / np.outer(lengths, lengths)
+            outside = np.column_stack([column for term, column in every.items() if term not in held] or [x[:, :0]])
+            for j in tested:
+                if _is_aliased(matrix, j, outside):
+                    n_aliased += 1
+                    continue
+                powers.append([float(_coefficient_power(e / sigma, inverse[j, j], df_resid, ctx.alpha)) for e in sizes])
+        if not n_tests:
+            continue
+        status = "estimable" if powers else "aliased" if n_aliased else "not estimable"
+        found = np.array(powers) if powers else None
+        hypotheses.append(
+            {
+                "hypothesis": number,
+                "effect": effect,
+                "model": model,
+                "status": status,
+                "n_tests": n_tests,
+                "n_aliased": n_aliased,
+                "n_not_estimable": n_not_estimable,
+                "average_power": None if found is None else found.mean(axis=0).tolist(),
+                "min_power": None if found is None else found.min(axis=0).tolist(),
+            }
+        )
+    return {
+        "screening_power": {"effect_sizes": sizes, "sigma": float(sigma), "alpha": ctx.alpha, "hypotheses": hypotheses}
+    }
 
 
 #: Smallest alias weight treated as a real bias rather than rounding noise.
@@ -1597,6 +1812,7 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "information_matrix": _compute_information_matrix,
     "estimable_interactions": _compute_estimable_interactions,
     "correlation": _compute_correlation,
+    "estimate_correlation": _compute_estimate_correlation,
     "alias_matrix": _compute_alias_matrix,
     "fds": _compute_fds,
     "prediction_variance": _compute_prediction_variance,
@@ -1604,6 +1820,7 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "condition_number": _compute_condition_number,
     "scaled_condition_number": _compute_scaled_condition_number,
     "power": _compute_power,
+    "screening_power": _compute_screening_power,
     "degrees_of_freedom": _compute_degrees_of_freedom,
     "alias_structure": _compute_alias_structure,
     "confounding": _compute_confounding,
@@ -1797,10 +2014,14 @@ def evaluate_design(  # noqa: PLR0913
         One or more metric names to compute, or the special value ``"all"`` to
         compute every metric.  Valid names: ``"d_efficiency"``,
         ``"average_prediction_variance"`` (the I-criterion), ``"g_efficiency"``, ``"a_optimality"``,
-        ``"e_optimality"``, ``"correlation"``, ``"alias_matrix"``, ``"fds"``,
+        ``"e_optimality"``, ``"correlation"``, ``"estimate_correlation"`` (the
+        correlations between the estimated second-order effects, by kind of pair),
+        ``"alias_matrix"``, ``"fds"``,
         ``"prediction_variance"``, ``"vif"``, ``"condition_number"``,
         ``"scaled_condition_number"`` (with each column of the model matrix scaled to
-        unit length, so the factors' units do not count), ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
+        unit length, so the factors' units do not count), ``"power"``, ``"screening_power"`` (the
+        average power of each kind of test of a screening study, Jones and Nachtsheim's Table 7;
+        it ignores *model*), ``"degrees_of_freedom"``, ``"alias_structure"``,
         ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
         ``"clear_effects"``, ``"minimum_aberration"``, ``"moment_aberration"``.
         ``"g_efficiency"`` is ``100 * p / (N * max d(x))`` (Atkinson, Donev and

@@ -51,7 +51,9 @@ class EvaluateDesignInput(BaseModel):
             "Options: d_efficiency, average_prediction_variance, g_efficiency, a_optimality, "
             "e_optimality, information_matrix, estimable_interactions, fds, prediction_variance, vif, "
             "condition_number, scaled_condition_number, "
-            "correlation, power, degrees_of_freedom, alias_structure, alias_matrix, "
+            "correlation, estimate_correlation (correlations between estimated second-order effects, by kind "
+            "of pair), power, screening_power (average power of each kind of screening test; ignores the model), "
+            "degrees_of_freedom, alias_structure, alias_matrix, "
             "confounding, resolution, defining_relation, clear_effects, "
             "minimum_aberration, moment_aberration."
         ),

@@ -137,6 +137,28 @@ residualises each second-order column against the intercept-and-main-effect
 block first, giving a coding-invariant measure.  It returns ``max_abs_r``,
 ``mean_abs_r``, and the full ``matrix``.
 
+Correlation of estimates
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``estimate_correlation`` compares what the fit *estimates* rather than the columns:
+:math:`r_{ij} = c_{ij} / \sqrt{c_{ii} c_{jj}}` with :math:`c = (X^\top X)^{-1}`, for the
+model's second-order terms (JMP's "correlation of estimates"). A large :math:`|r_{ij}|`
+means the runs cannot tell the two effects apart, so an active square can show up as an
+interaction. Jones and Nachtsheim (2011) summarise these correlations by kind of pair, and the
+metric does too: ``max_abs_r_<kind>`` and ``mean_abs_r_<kind>`` for ``two_squares``,
+``square_and_own_interaction``, ``square_and_other_interaction`` and ``two_interactions``,
+and for ``second_order``, every pair. A definitive screening design cannot fit the full
+quadratic model in all its factors, so its correlations are read on the projections onto three
+factors, where it can:
+
+.. code-block:: python
+
+   from process_improve.experiments import Factor, evaluate_projections, generate_design
+
+   dsd = generate_design([Factor(name=f"x{i}", low=-1, high=1) for i in range(1, 7)], "dsd")
+   found = evaluate_projections(dsd, 3, model="quadratic", metric="estimate_correlation")
+   found["averages"]["mean_abs_r_square_and_other_interaction"]  # 0.483, their Table 4
+
 Alias (bias) matrix
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -220,6 +242,22 @@ Power
 ``effect_size`` for a single power value per term, or omit it for a power curve
 over a range of effect sizes.  ``effect_size`` is the anticipated coefficient in
 coded units, which for a two-level factor is half its high-minus-low effect.
+
+``screening_power`` asks instead how likely a screening design is to find one active term of
+each kind, in the model an analyst would fit to find it: Jones and Nachtsheim's (2011) six
+hypotheses, a linear effect, a quadratic effect or an interaction, each tested alone among the
+main effects (hypotheses 1 to 3) or in the full quadratic model of two factors (4 to 6). It
+averages each test's power over every factor or pair of factors, at Table 7's coefficients of
+1, 2 and 3 times sigma unless ``effect_size`` is given, and it ignores ``model``. A test that a
+design cannot make is marked ``"aliased"`` (every square of a two-level design with centre runs
+has the same column) or ``"not estimable"``:
+
+.. code-block:: python
+
+   from process_improve.experiments import evaluate_design
+
+   study = evaluate_design(dsd, metric="screening_power")["screening_power"]
+   [(h["hypothesis"], h["status"], h["average_power"]) for h in study["hypotheses"]]
 
 Fractional-factorial structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
