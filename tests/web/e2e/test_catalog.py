@@ -9,6 +9,7 @@ whose catalog also holds ``BOOK_DESIGN``, a case study the book prints.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -209,6 +210,18 @@ def test_a_word_of_an_application_s_name_finds_its_designs(book_context, site):
     assert shown(page) == [BOOK_DESIGN]
 
 
+def test_a_design_whose_runs_differ_in_leverage_draws_them_and_names_the_heaviest(context, site):
+    """The face-centred CCD leans on its corners more than on its centre: a bar each, and the runs it leans on most."""
+    page = open_catalog(context, site, f"#d={CCD}")
+    page.wait_for_selector("#detail[open] canvas.leverage")
+    words = page.text_content("#detail-body .detail__leverage")
+    assert re.match(r"\d+ runs carry the most weight, with leverage 0\.\d\d; the least is 0\.\d\d\.$", words), words
+    assert "how much the model leans on it" in page.text_content("#detail-body")
+    assert "determinant" not in page.text_content("#detail-body"), "the caption says what leverage is, in words"
+    projectivity = next(line for line in page.locator("#detail-body p").all_text_contents() if "two-level" in line)
+    assert projectivity == "Its 8 two-level runs, of 17, hold every combination of its 3 factors' levels."
+
+
 def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context, site):
     """The pilot plant is the library's 2^3 factorial: each lists the other as the same design."""
     page = open_catalog(context, site)
@@ -219,7 +232,8 @@ def test_a_design_s_detail_says_what_it_withstands_and_where_else_it_is(context,
     text = " ".join(page.text_content("#detail-body").split())
     assert "If any one run is lost, the design still estimates two-factor interactions" in text
     assert "Its two-level runs hold every combination of its 3 factors' levels." in text
-    assert page.locator("#detail-body canvas.leverage").count() == 1
+    assert page.locator("#detail-body canvas.leverage").count() == 0, "equal bars would add nothing to the sentence"
+    assert page.text_content("#detail-body .detail__leverage").startswith("Every run has the same leverage, 0.88:")
     page.click(f"#detail-body .detail__twins [data-id='{CUBE}']")
     page.wait_for_function(
         "document.querySelector('#detail-title').textContent.startsWith('Full factorial, 3 factors')"

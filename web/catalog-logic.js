@@ -525,8 +525,15 @@ export function runLossLine(design, model) {
   return `${n} of its ${design.n_runs} runs cannot be lost: ${without}.`;
 }
 
-/** What a design's projections hold, in sentences: onto how many factors it fits the quadratic, its projectivity. */
-export function projectionLines(design) {
+/** How many of a design's coded runs are two-level runs: every setting at -1 or +1, the runs projectivity counts. */
+export const cubeRuns = (runs) => runs.filter((row) => row.every((v) => v !== null && Math.abs(Math.abs(v) - 1) < 1e-6)).length;
+
+/**
+ * What a design's projections hold, in sentences: onto how many factors it fits the quadratic, its projectivity.
+ * Projectivity is a count over the two-level runs; when ``runs``, the coded runs, hold others too, the sentence
+ * says how many of them it is about.
+ */
+export function projectionLines(design, runs = []) {
   const lines = [];
   const p = design.quadratic_projection;
   if (p && p >= 2) {
@@ -538,13 +545,42 @@ export function projectionLines(design) {
   }
   const q = design.projectivity;
   if (q && q >= 2) {
-    lines.push(
-      q === design.n_factors
-        ? `Its two-level runs hold every combination of its ${q} factors' levels.`
-        : `Projectivity ${q}: any ${q} of its factors hold all ${2 ** q} combinations of their two levels.`,
-    );
+    const cube = cubeRuns(runs);
+    const some = cube < runs.length ? `${cube} two-level runs, of ${runs.length}` : "";
+    if (q === design.n_factors) {
+      lines.push(`Its ${some ? `${some},` : "two-level runs"} hold every combination of its ${q} factors' levels.`);
+    } else {
+      const within = some ? `in its ${some}, ` : "";
+      lines.push(`Projectivity ${q}: ${within}any ${q} of its factors hold all ${2 ** q} combinations of their two levels.`);
+    }
   }
   return lines;
+}
+
+/** Leverages this close are the same: the catalog rounds each to four decimals. */
+const SAME_LEVERAGE = 1e-4;
+
+/**
+ * What a design's leverage says, in words, from each run's (``leverage``, in run order). When every run has the
+ * same, one sentence says so, and ``even`` is true: a chart of equal bars would add nothing. Else the sentence
+ * names the runs the model leans on most.
+ */
+export function leverageWords(leverage) {
+  if (!leverage?.length) return { even: false, text: "" };
+  const most = Math.max(...leverage);
+  const least = Math.min(...leverage);
+  if (most - least < SAME_LEVERAGE) {
+    const terms = Math.round(leverage.reduce((sum, h) => sum + h, 0));
+    return {
+      even: true,
+      text:
+        `Every run has the same leverage, ${most.toFixed(2)}: the model's ${terms} coefficients are spread evenly ` +
+        `over its ${leverage.length} runs, so it leans on no run more than another.`,
+    };
+  }
+  const top = leverage.flatMap((h, i) => (most - h < SAME_LEVERAGE ? [String(i + 1)] : []));
+  const who = top.length > 5 ? `${top.length} runs carry` : top.length === 1 ? `Run ${top[0]} carries` : `Runs ${joined(top)} carry`;
+  return { even: false, text: `${who} the most weight, with leverage ${most.toFixed(2)}; the least is ${least.toFixed(2)}.` };
 }
 
 /**

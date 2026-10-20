@@ -257,7 +257,8 @@ def design_facets(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, Any]:
         ``run_loss_model``, ``survives_run_loss``, ``critical_runs``, ``worst_d_ratio`` and
         ``leverage`` (see :func:`~process_improve.experiments.design_measures.run_loss`); and
         ``quadratic_projection`` and ``projectivity`` (see
-        :mod:`~process_improve.experiments.design_measures`).
+        :mod:`~process_improve.experiments.design_measures`; ``None`` for a design with a categorical
+        factor of three or more labels, whose coding makes it arbitrary).
     """
     n_runs, n_factors = coded.shape
     numeric = [j for j, kind in enumerate(kinds) if kind == "numeric"]
@@ -284,8 +285,21 @@ def design_facets(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, Any]:
         "worst_d_ratio": None if loss is None else loss["worst_d_ratio"],
         "leverage": None if loss is None else loss["leverage"],
         "quadratic_projection": quadratic_projection(coded, kinds),
-        "projectivity": None if "mixture" in kinds else projectivity(coded),
+        "projectivity": projectivity(coded) if _two_level_labels(coded, kinds) else None,
     }
+
+
+def _two_level_labels(coded: np.ndarray, kinds: list[str]) -> bool:
+    """Say whether projectivity means something for these runs: no mixture, and no categorical factor of 3+ labels.
+
+    Projectivity counts the combinations of the runs at -1 and +1. A categorical factor of more labels
+    is coded across that range in the order its labels are listed, so which two of its labels sit at
+    -1 and +1 is arbitrary, and so is any count over them.
+    """
+    if "mixture" in kinds:
+        return False
+    labelled = [j for j, kind in enumerate(kinds) if kind == "categorical"]
+    return all(len(np.unique(coded[~np.isnan(coded[:, j]), j].round(6))) <= 2 for j in labelled)
 
 
 def _runs_per_parameter(n_runs: int, k: int, models: dict[str, bool | None]) -> float | None:

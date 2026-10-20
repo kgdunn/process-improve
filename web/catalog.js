@@ -36,6 +36,7 @@ import {
   minimumRuns,
   nextSteps,
   parseLimit,
+  leverageWords,
   projectionLines,
   pythonCode,
   results,
@@ -912,13 +913,17 @@ function detailBody(design, detail) {
 }
 
 /**
- * Draw each run's leverage as a bar, with a line at 1: a run at 1 cannot be lost, since without it the model
- * matrix loses its rank. Those runs are drawn in vermillion, the others in the page's accent.
+ * Draw each run's leverage as a bar, on a scale of 0 to 1, with a dashed line at 1: a run at 1 cannot be lost,
+ * since without it the model matrix loses its rank. Those runs are drawn in vermillion, the others in the page's
+ * accent. The scale's labels are at the left, and the line's at its right end.
  */
 function drawLeverage(canvas, leverage) {
   const ratio = window.devicePixelRatio || 1;
-  const width = Math.min(640, Math.max(160, 12 * leverage.length));
-  const height = 72;
+  const left = 30; // the scale's labels
+  const top = 16; // the line's label, above it
+  const bottom = 6;
+  const width = Math.min(640, Math.max(220, left + 12 * leverage.length));
+  const height = 96;
   canvas.width = Math.round(width * ratio);
   canvas.height = Math.round(height * ratio);
   canvas.style.width = `${width}px`;
@@ -927,18 +932,24 @@ function drawLeverage(canvas, leverage) {
   if (!g) return;
   g.scale(ratio, ratio);
   const colours = palette();
-  const step = width / leverage.length;
-  const top = 6;
+  const y = (h) => height - bottom - (height - bottom - top) * h;
+  const step = (width - left) / leverage.length;
   leverage.forEach((h, i) => {
     g.fillStyle = h >= 0.999999 ? "#D55E00" : colours.accent;
-    const bar = (height - top) * h;
-    g.fillRect(i * step + 1, height - bar, Math.max(step - 2, 1), bar);
+    g.fillRect(left + i * step + 1, y(h), Math.max(step - 2, 1), y(0) - y(h));
   });
+  g.fillStyle = colours.muted;
+  g.font = "11px system-ui, sans-serif";
+  g.textAlign = "right";
+  g.textBaseline = "middle";
+  for (const h of [0, 0.5, 1]) g.fillText(String(h), left - 6, y(h));
+  g.textBaseline = "bottom";
+  g.fillText("1: cannot be lost", width, y(1) - 3);
   g.strokeStyle = colours.muted;
   g.setLineDash([4, 3]);
   g.beginPath();
-  g.moveTo(0, top);
-  g.lineTo(width, top);
+  g.moveTo(left, y(1));
+  g.lineTo(width, y(1));
   g.stroke();
 }
 
@@ -946,18 +957,20 @@ function drawLeverage(canvas, leverage) {
 function measures(design, detail) {
   const out = [];
   const loss = runLossLine(design, detail.run_loss_model);
-  const projections = projectionLines(design);
+  const projections = projectionLines(design, detail.coded_runs ?? []);
   if (loss || projections.length) out.push(element("h3", { text: "What it withstands" }));
   if (loss) {
     out.push(element("p", { text: loss }));
-    if (detail.leverage?.length) {
+    const leverage = leverageWords(detail.leverage);
+    if (leverage.text && !leverage.even) {
       const canvas = element("canvas", { class: "leverage", "aria-hidden": "true" });
       drawLeverage(canvas, detail.leverage);
       out.push(
         canvas,
-        element("p", { class: "hint", text: "Each run's leverage, in run order. Losing a run scales the determinant of X'X by one less its leverage, so a run at the line, 1, cannot be lost." }),
+        element("p", { class: "hint", text: "A run's leverage, from 0 to 1, is how much the model leans on it. At 1, the model cannot be fitted without that run. The bars are in run order." }),
       );
     }
+    if (leverage.text) out.push(element("p", { class: "detail__leverage", text: leverage.text }));
   }
   out.push(...projections.map((line) => element("p", { text: line })));
   const twins = sameDesigns(catalog, design);

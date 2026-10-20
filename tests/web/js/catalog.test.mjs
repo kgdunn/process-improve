@@ -10,6 +10,7 @@ import {
   applicationLine,
   applications,
   caseFacts,
+  cubeRuns,
   topicCounts,
   topicOrder,
   placesAfter,
@@ -47,6 +48,7 @@ import {
   INDEX_FIELDS,
   minimumRuns,
   parseQuery,
+  leverageWords,
   projectionLines,
   pythonCode,
   results,
@@ -472,6 +474,33 @@ describe("what a design withstands, in words", () => {
     assert.deepEqual(projectionLines(design({ quadratic_projection: 0, projectivity: 3, n_factors: 11 })), [
       "Projectivity 3: any 3 of its factors hold all 8 combinations of their two levels.",
     ]);
+  });
+
+  test("projectivity says how many runs it is about when only some are two-level runs", () => {
+    const ccd = design({ quadratic_projection: 0, projectivity: 3, n_factors: 3 });
+    assert.equal(cubeRuns(CCD), 8);
+    assert.deepEqual(projectionLines(ccd, CCD), ["Its 8 two-level runs, of 17, hold every combination of its 3 factors' levels."]);
+    assert.deepEqual(projectionLines(ccd, CUBE), ["Its two-level runs hold every combination of its 3 factors' levels."]);
+    const wide = design({ quadratic_projection: 0, projectivity: 2, n_factors: 3 });
+    assert.deepEqual(projectionLines(wide, CCD), [
+      "Projectivity 2: in its 8 two-level runs, of 17, any 2 of its factors hold all 4 combinations of their two levels.",
+    ]);
+  });
+
+  test("leverage in words: one sentence when every run has the same, else the runs that carry the most", () => {
+    const even = leverageWords(Array(120).fill(0.5));
+    assert.equal(even.even, true);
+    assert.equal(
+      even.text,
+      "Every run has the same leverage, 0.50: the model's 60 coefficients are spread evenly over its 120 runs, so it leans on no run more than another.",
+    );
+    assert.deepEqual(leverageWords([0.95, 0.95, 0.95, 0.95, 0.2]), {
+      even: false,
+      text: "Runs 1, 2, 3 and 4 carry the most weight, with leverage 0.95; the least is 0.20.",
+    });
+    assert.equal(leverageWords([0.3, 1, 0.3]).text, "Run 2 carries the most weight, with leverage 1.00; the least is 0.30.");
+    assert.match(leverageWords([...Array(6).fill(0.9), 0.1]).text, /^6 runs carry the most weight/);
+    assert.deepEqual(leverageWords(null), { even: false, text: "" });
   });
 
   test("the same design elsewhere", () => {
