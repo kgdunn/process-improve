@@ -32,7 +32,8 @@ import ast
 import keyword
 import logging
 import math
-from collections.abc import Callable, Iterator, Mapping
+import unicodedata
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -109,19 +110,55 @@ _FUNCTIONS: dict[str, Callable[[Any], Any]] = {
 _FLIP: dict[type[ast.cmpop], bool] = {ast.Lt: False, ast.LtE: False, ast.Gt: True, ast.GtE: True}
 
 
-def _compile(node: ast.expr, names: set[str]) -> _Evaluator:
+def nfkc(name: str) -> str:
+    """Return ``name`` in Unicode NFKC form: how Python's parser spells it in an expression (#808).
+
+    The parser rewrites every identifier into this form, so a factor named with a
+    decomposed accent (``e`` and a combining acute) or a full-width letter (``\uff34``) reaches
+    a parsed limit as the composed accent or the plain ``T``.
+    """
+    return unicodedata.normalize("NFKC", name)
+
+
+def _shown(name: str) -> str:
+    """Return ``name`` quoted, with its code points when it is not ASCII, so two names that print alike read apart."""
+    return repr(name) if name.isascii() else f"{name!r} ({' '.join(f'U+{ord(c):04X}' for c in name)})"
+
+
+def factor_lookup(names: Iterable[str]) -> dict[str, str]:
+    """Map each factor name's NFKC form, the name a parsed limit holds, to the name as given.
+
+    Raises
+    ------
+    ValueError
+        If two names share an NFKC form, so a limit could not tell which factor it names.
+    """
+    lookup: dict[str, str] = {}
+    for name in sorted(names):  # sorted, so a refusal names the two in one order whatever order they came in
+        other = lookup.setdefault(nfkc(name), name)
+        if other != name:
+            raise ValueError(
+                f"The factors {_shown(other)} and {_shown(name)} read as the same name, {nfkc(name)!r}, in a "
+                "limit: Python's parser writes every name in its Unicode NFKC form. Rename one of them."
+            )
+    return lookup
+
+
+def _compile(node: ast.expr, names: Mapping[str, str]) -> _Evaluator:
     """Turn one arithmetic node into a function of the factor values.
 
     Only numbers, factor names, ``+ - * / **``, unary signs and the functions in
-    ``_FUNCTIONS`` are accepted; anything else raises ``ValueError``.
+    ``_FUNCTIONS`` are accepted; anything else raises ``ValueError``. ``names`` is
+    :func:`factor_lookup`'s map, from the parsed spelling of a factor's name to its name.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, int | float) and not isinstance(node.value, bool):
         number = float(node.value)
         return lambda _env: number
     if isinstance(node, ast.Name):
-        name = node.id
-        if name not in names:
-            raise ValueError(f"Unknown name {name!r}; constraints may use the continuous factors {sorted(names)}.")
+        name = names.get(node.id)
+        if name is None:
+            known = ", ".join(_shown(n) for n in sorted(names.values()))
+            raise ValueError(f"Unknown name {_shown(node.id)}; constraints may use the continuous factors [{known}].")
         return lambda env: env[name]
     if isinstance(node, ast.BinOp) and type(node.op) in _BINARY_OPS:
         fn, lhs, rhs = _BINARY_OPS[type(node.op)], _compile(node.left, names), _compile(node.right, names)
@@ -157,7 +194,9 @@ def parse_constraint(expression: str, names: set[str]) -> list[_Evaluator]:
         Strict and non-strict comparisons are treated alike, since the boundary
         of a continuous region has no volume.
     names : set[str]
-        Names that may appear in the expression (the continuous factors).
+        Names that may appear in the expression (the continuous factors). A name is
+        matched through its Unicode NFKC form, as Python's parser writes it, so a factor
+        named with a decomposed accent or a full-width letter can appear in a limit.
 
     Returns
     -------
@@ -169,7 +208,8 @@ def parse_constraint(expression: str, names: set[str]) -> list[_Evaluator]:
     ------
     ValueError
         For an expression that is too long, is not a comparison, uses ``==`` or
-        ``!=``, or uses a name or syntax outside the allowed set.
+        ``!=``, or uses a name or syntax outside the allowed set; or for two names
+        that share an NFKC form.
     """
     if len(expression) > MAX_EXPRESSION_LENGTH:
         raise ValueError(f"Constraint expression is longer than {MAX_EXPRESSION_LENGTH} characters.")
@@ -180,7 +220,8 @@ def parse_constraint(expression: str, names: set[str]) -> list[_Evaluator]:
     compare = tree if isinstance(tree, ast.Compare) else None
     if compare is None:
         raise ValueError(f"Constraint {expression!r} must be an inequality, e.g. 'A + B <= 10'.")
-    terms = [_compile(compare.left, names)] + [_compile(c, names) for c in compare.comparators]
+    lookup = factor_lookup(names)
+    terms = [_compile(compare.left, lookup)] + [_compile(c, lookup) for c in compare.comparators]
     sides = [compare.left, *compare.comparators]
 
     inequalities = []
@@ -252,7 +293,8 @@ def rename_factors(expression: str, names: Mapping[str, str]) -> str:
     expression : str
         A constraint, e.g. ``"3*T + 5*D <= 600"``, as :func:`parse_constraint` accepts.
     names : Mapping[str, str]
-        Old name to new name. Names the expression does not use are ignored.
+        Old name to new name. Names the expression does not use are ignored. An old
+        name is matched through its Unicode NFKC form, as :func:`parse_constraint` does.
 
     Returns
     -------
@@ -285,11 +327,12 @@ def rename_factors(expression: str, names: Mapping[str, str]) -> str:
     for new in names.values():
         if not (isinstance(new, str) and new.isidentifier() and not keyword.iskeyword(new)):
             raise ValueError(f"{new!r} cannot be a factor name in a constraint: it is not a valid identifier.")
-    renamed = [names.get(name, name) for name in used]
-    if len(set(renamed)) < len(renamed):
-        merged = sorted(name for name in used if renamed.count(names.get(name, name)) > 1)
+    parsed = {nfkc(old): new for old, new in names.items()}  # the tree holds the NFKC spelling of each name
+    renamed = [parsed.get(name, name) for name in used]
+    if len({nfkc(name) for name in renamed}) < len(renamed):
+        merged = sorted(name for name in used if [nfkc(r) for r in renamed].count(nfkc(parsed.get(name, name))) > 1)
         raise ValueError(f"Renaming {expression!r} with {dict(names)} would merge the factors {merged} into one.")
-    text = ast.unparse(_Renamer(names).visit(tree))
+    text = ast.unparse(_Renamer(parsed).visit(tree))
     parse_constraint(text, set(renamed))
     return text
 
@@ -1480,7 +1523,7 @@ def polish_runs(
     """
     coded, cats = coded.copy(), cats.copy()
     levels = np.linspace(-1.0, 1.0, lattice.n_levels)
-    x = lattice.model_rows(coded, cats)
+    x = np.array(lattice.model_rows(coded, cats), dtype=float)  # a copy: patsy's rows can be read-only under pandas 3
     n_moves = 0
     for _ in range(_MAX_PASSES):
         points, owner = _coordinate_moves(coded, levels)

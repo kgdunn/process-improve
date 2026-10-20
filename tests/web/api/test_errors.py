@@ -828,6 +828,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda _: {**HALF_FRACTION, "kind": "foldover"},
         "The runs of a fold-over would fall outside your limits on the settings.",
     ),
+    "add runs: none called for": (
+        "api_add_runs",
+        _runs(kind="recommended"),  # the worked example's results call for a new study, not runs added to this one
+        "The results call for no runs to add to this study: see what the next step says.",
+    ),
     "add runs: a mixture": (
         "api_add_runs",
         _mixed(kind="replicate"),

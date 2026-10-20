@@ -11,6 +11,7 @@ commit given. It exits 0 then, or 1 when the time allowed runs out. Standard lib
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import sys
 import time
@@ -28,7 +29,7 @@ def published_commit(app: str) -> str | None:
     try:
         with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310 - the app's own https URL
             return json.load(response).get("commit")
-    except (OSError, ValueError):  # not served yet, or not a manifest yet
+    except (OSError, ValueError, http.client.HTTPException):  # not served, not a manifest, or cut short by a deploy
         return None
 
 

@@ -730,9 +730,13 @@ class DesignRegion:
             constraint that is not affine, compares only numbers, or chains two different
             combinations of factors (``"A <= B <= 2"``).
         """
-        from process_improve.experiments.designs_constrained import _compile, _factor_names  # noqa: PLC0415
+        from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+            _compile,
+            _factor_names,
+            factor_lookup,
+        )
 
-        names = set(self.names)
+        names = factor_lookup(self.names)
         out: list[tuple[dict[str, float], float | None, float | None] | None] = []
         for constraint in self.constraints:
             # parse_constraint checked, when the region was built, that the expression is a comparison.
@@ -1148,10 +1152,13 @@ def _exact_difference(first: ast.expr, second: ast.expr, names: list[str]) -> tu
 
     None unless both sides are affine by their syntax (see :func:`_exact_affine`).
     """
+    from process_improve.experiments.designs_constrained import nfkc  # noqa: PLC0415
+
     left, right = _exact_affine(first), _exact_affine(second)
     if left is None or right is None:
         return None
-    coefficients = np.array([float(left[0].get(n, 0) - right[0].get(n, 0)) for n in names])
+    # The parsed names are in NFKC form (#808), the factors' names as given.
+    coefficients = np.array([float(left[0].get(nfkc(n), 0) - right[0].get(nfkc(n), 0)) for n in names])
     return coefficients, float(right[1] - left[1])
 
 

@@ -8,6 +8,8 @@ User Guide
    cross_validation
    showcase
    doe_strategy
+   next_step
+   run_sheets
    doe_coverage
    design_catalog
    design_evaluation

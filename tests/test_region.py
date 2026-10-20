@@ -9,6 +9,7 @@ import json
 import math
 import time
 import tracemalloc
+import unicodedata
 import warnings
 from fractions import Fraction
 
@@ -98,6 +99,45 @@ class TestConstraintsAsText:
 # ---------------------------------------------------------------------------
 # Renaming factors inside a constraint
 # ---------------------------------------------------------------------------
+
+
+#: A factor name with a decomposed accent (e and a combining acute) and one with a full-width T: Python's parser
+#: writes both, in a limit, in their NFKC forms, the composed accent and the plain T (#808).
+_NORMALISED = ["Te\u0301mp", "\uff34"]
+
+
+class TestNamesPythonNormalises:
+    """A limit names a factor through its NFKC form, the spelling Python's parser gives it (#808)."""
+
+    @pytest.mark.parametrize("name", _NORMALISED)
+    @pytest.mark.parametrize("spelling", ["as given", "nfkc"])
+    def test_a_limit_on_the_factor_holds(self, name: str, spelling: str) -> None:
+        """It was refused with 'Unknown name', naming two strings that print alike."""
+        typed = name if spelling == "as given" else unicodedata.normalize("NFKC", name)
+        region = DesignRegion([Factor(name=name, low=0, high=10), Factor(name="Y", low=0, high=1)], [f"{typed} <= 5"])
+        assert region.volume_fraction() == pytest.approx(0.5)
+        assert region.feasible(np.array([[1.0, 0.0], [-1.0, 0.0]])).tolist() == [False, True]
+        assert region.linear_forms() == [({name: 1.0}, None, 5.0)]  # keyed by the name as given
+
+    def test_two_factors_that_read_as_one_name_are_refused(self) -> None:
+        factors = [Factor(name="\uff34", low=0, high=10), Factor(name="T", low=0, high=1)]
+        with pytest.raises(ValueError, match=r"factors 'T' and '\uff34' \(U\+FF34\) read as the same name, 'T'"):
+            DesignRegion(factors, ["T <= 5"])
+
+    def test_an_unknown_name_shows_the_code_points_of_one_that_is_not_ascii(self) -> None:
+        """The refusal never names two strings that print alike without telling them apart."""
+        decomposed = _NORMALISED[0]
+        with pytest.raises(ValueError, match=r"factors \['Te\u0301mp' \(U\+0054 U\+0065 U\+0301 U\+006D U\+0070\)"):
+            DesignRegion([Factor(name=decomposed, low=0, high=10)], ["Z <= 5"])
+
+    @pytest.mark.parametrize("name", _NORMALISED)
+    def test_the_factor_can_be_renamed_in_a_limit(self, name: str) -> None:
+        assert rename_factors(f"{name} + Y <= 5", {name: "Temp"}) == "Temp + Y <= 5"
+        assert rename_factors("Temp + Y <= 5", {"Temp": name}) == f"{name} + Y <= 5"
+
+    def test_a_rename_onto_a_name_that_reads_as_another_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="would merge the factors"):
+            rename_factors("A + T <= 5", {"A": "\uff34"})
 
 
 class TestRenameFactors:

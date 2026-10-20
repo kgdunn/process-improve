@@ -137,16 +137,17 @@ def _standardised(ols_result: RegressionResultsWrapper) -> np.ndarray:
     return np.asarray(ols_result.params, dtype=float) * columns.std(axis=0, ddof=1) / response.std(ddof=1)
 
 
-def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
-    """Coefficients with standard errors, t-values, p-values, CIs and standardised coefficients."""
+def _run_coefficients(ols_result: RegressionResultsWrapper, alpha: float = 0.05) -> dict[str, Any]:
+    """Coefficients with standard errors, t-values, p-values, CIs at level 1 - alpha and standardised coefficients."""
+    ci = ols_result.conf_int(alpha=alpha)
     summary_df = pd.DataFrame(
         {
             "coefficient": ols_result.params,
             "std_error": ols_result.bse,
             "t_value": ols_result.tvalues,
             "p_value": ols_result.pvalues,
-            "ci_low": ols_result.conf_int()[0],
-            "ci_high": ols_result.conf_int()[1],
+            "ci_low": ci[0],
+            "ci_high": ci[1],
             "standardised_coefficient": _standardised(ols_result),
         }
     )
@@ -164,7 +165,7 @@ def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
                 "standardised_coefficient": float(row["standardised_coefficient"]),
             }
         )
-    return {"coefficients": records}
+    return {"coefficients": records, "confidence_level": 1.0 - alpha}
 
 
 def _run_significance(
