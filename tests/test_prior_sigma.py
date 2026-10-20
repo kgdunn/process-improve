@@ -74,6 +74,21 @@ class TestCoefficients:
         half = stats.norm.ppf(0.975) * 0.75
         assert (row["ci_low"], row["ci_high"]) == pytest.approx((row["coefficient"] - half, row["coefficient"] + half))
 
+    def test_the_intervals_take_the_level_asked_for(self, first_order: pd.DataFrame) -> None:
+        """At significance_level=0.10 the interval is the normal 90% one, not the t's or the 95% one."""
+        result = analyze_experiment(
+            first_order,
+            response_column="y",
+            model="main_effects",
+            analysis_type="coefficients",
+            sigma=1.5,
+            significance_level=0.10,
+        )
+        assert result["confidence_level"] == pytest.approx(0.90)
+        row = _rows(result)["time"]
+        half = stats.norm.ppf(0.95) * 0.75
+        assert (row["ci_low"], row["ci_high"]) == pytest.approx((row["coefficient"] - half, row["coefficient"] + half))
+
     def test_davies_11_5_a_three_by_three(self) -> None:
         """Sigma² = 0.6 from earlier experiments: b0 = 81.22 ± 0.58 and b1 = 1.97 ± 0.32, V(b0) = 0.5555 sigma²."""
         runs = _runs("davies-1956.json", "davies-near-stationary-3x3").drop(columns="Trial")
