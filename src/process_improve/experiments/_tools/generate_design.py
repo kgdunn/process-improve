@@ -105,6 +105,14 @@ class GenerateDesignInput(BaseModel):
         "full",
         description="CCD cube portion: the full 2^k factorial or a resolution V fraction.",
     )
+    categorical_method: Literal["dsd", "orth"] = Field(
+        "dsd",
+        description=(
+            "For a DSD with two-level categorical factors: 'dsd' (DSD-augment, the default: main effects clear "
+            "of second-order effects) or 'orth' (ORTH-augment: main effects orthogonal to each other, for two "
+            "more centre runs with two or more categorical factors)."
+        ),
+    )
     model_type: str = Field(
         "interactions",
         description=(
@@ -223,6 +231,7 @@ def generate_design_tool(spec: GenerateDesignInput) -> dict[str, Any]:
             generators=spec.generators,
             alpha=spec.alpha,
             cube=spec.cube,
+            categorical_method=spec.categorical_method,
             constraints=[Constraint(expression=e) for e in spec.constraints] if spec.constraints else None,
             hard_to_change=spec.hard_to_change,
             model_type=spec.model_type,
