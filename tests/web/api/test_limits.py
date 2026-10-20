@@ -50,6 +50,14 @@ def test_a_limit_comes_back_in_the_text_a_study_stores(api, typed, stored):
     assert described(api, typed)["constraints"][0]["expression"] == stored
 
 
+@pytest.mark.parametrize("name", ["Te\u0301mp", "\uff34"])
+def test_a_factor_whose_name_python_normalises_can_have_a_limit(api, name):
+    """A decomposed accent or a full-width letter: the limit was refused, naming two strings that print alike (#808)."""
+    shown = described(api, f"{name} <= 0", factors=[*factors_named(name), *factors_named("Y")])
+    assert "problem" not in shown["constraints"][0]
+    assert shown["constraints"][0]["expression"] == f"{name} <= 0"
+
+
 def test_a_limit_that_cannot_be_read_leaves_the_others_described(api):
     shown = described(api, "T + Z <= 300", HEAT)
     problem, heat = shown["constraints"]

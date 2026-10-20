@@ -930,7 +930,7 @@ class TestSplitPlot:
             n_center_points=0,
         )
         assert result.metadata.get("hard_to_change") == ["A"]
-        assert result.metadata.get("backend") == "pyoptex"
+        assert result.metadata.get("backend") == "split_plot_exchange"
 
 
 class TestHardToChangeRefused:

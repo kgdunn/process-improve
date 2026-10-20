@@ -44,6 +44,26 @@ touch /var/log/caddy/factorial-access.log
 chown caddy:caddy /var/log/caddy/factorial-access.log
 chmod 640 /var/log/caddy/factorial-access.log
 
+# The feedback relay and its unit. Its settings and the SMTP password are made once, empty, where
+# only root can read them, and kept after that: running this again never touches what was filled in.
+install -o root -g root -m 755 "$here/feedback_relay.py" /usr/local/bin/factorial-feedback
+install -o root -g root -m 644 "$here/factorial-feedback.service" /etc/systemd/system/factorial-feedback.service
+install -d -o root -g root -m 700 /etc/factorial
+[ -e /etc/factorial/feedback.env ] || install -o root -g root -m 600 "$here/feedback.env.example" /etc/factorial/feedback.env
+[ -e /etc/factorial/smtp-password ] || install -o root -g root -m 600 /dev/null /etc/factorial/smtp-password
+systemctl daemon-reload
+# A relay already set up is restarted, so it runs the copy just installed; one not yet set up waits for its settings.
+if grep -q '^FEEDBACK_TO=.' /etc/factorial/feedback.env; then
+    systemctl enable --quiet factorial-feedback
+    systemctl restart factorial-feedback
+    feedback="The feedback relay runs the copy just installed."
+else
+    feedback="The feedback relay waits for its settings: fill in /etc/factorial/feedback.env and
+/etc/factorial/smtp-password (README.md, \"Feedback\"), then: sudo systemctl enable --now factorial-feedback"
+fi
+
+echo
+echo "$feedback"
 echo
 echo "Done. Next, in /etc/caddy/Caddyfile, replace the whole factori.al { ... } block with:"
 echo "    import /etc/caddy/factorial.caddy"

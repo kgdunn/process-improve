@@ -15441,14 +15441,42 @@
      "what": "autocorrelation",
      "term": "lags 1 and 2",
      "value": "-0.29, -0.13; numerator -231.11",
+     "analysis": "the library's autocorrelation of the 210 yields at lags 1 and 2",
      "where": {
       "page": 585,
       "source_kind": "prose",
       "quote": "For example, for k = 2 ... = -231.11/1734.6 = -0.13 ... the value of r1 is -0.29"
      },
-     "check": {
-      "manual": "time-series quantities, which no check computes (they reproduce)"
-     }
+     "check": [
+      {
+       "kind": "classical_test",
+       "function": "autocorrelation",
+       "kwargs": {
+        "lags": [
+         1,
+         2
+        ]
+       },
+       "key": "autocorrelation.0",
+       "printed": "-0.29"
+      },
+      {
+       "kind": "classical_test",
+       "function": "autocorrelation",
+       "kwargs": {
+        "lags": [
+         1,
+         2
+        ]
+       },
+       "key": "autocorrelation.1",
+       "printed": "-0.13"
+      },
+      {
+       "manual": "the numerator of r2, the sum of (yt - ȳ)(yt+2 - ȳ), which autocorrelation does not return; the 210 yields give -231.10, and r2 = -231.10/1734.59",
+       "printed": "-231.11"
+      }
+     ]
     },
     {
      "what": "std_error",
@@ -17136,7 +17164,10 @@
       "quote": "The estimated variance of yB - yA is s²(1/nB + 1/nA) = 39.73(1/6 + 1/5) = 14.57"
      },
      "check": {
-      "manual": "the square of the standard error of the difference, which is checked as 3.82"
+      "kind": "effect_std_error",
+      "term": "fertilizer",
+      "model": "fertilizer",
+      "squared": true
      }
     },
     {
@@ -17531,7 +17562,7 @@
       "quote": "s²d = (3.030 - 1.681)/9 = 0.149"
      },
      "check": {
-      "manual": "the variance of the 10 differences, which no kind reads directly (it is 0.1499; the block model's residual mean square is half of it)"
+      "manual": "the variance of the 10 differences, (3.030 - 1.681)/9 = 0.14989, which rounds to 0.150; the book truncates it to 0.149 (half of it is the block model's residual mean square)"
      }
     },
     {
@@ -17544,7 +17575,7 @@
       "quote": "sd = √0.149 = 0.386"
      },
      "check": {
-      "manual": "the standard deviation of the 10 differences (it is 0.387)"
+      "manual": "the standard deviation of the 10 differences, the block model's residual standard error times √2: 0.38715, which rounds to 0.387; the book's 0.386 is the square root of its 0.149"
      }
     },
     {
@@ -17646,7 +17677,7 @@
       "quote": "t0 = (0.41 - 0.10)/0.12 = 2.6; Pr(t > 2.6) ≈ 0.014"
      },
      "check": {
-      "manual": "a test against a stated difference of 0.10, which no check computes (2.53 from the unrounded standard error)"
+      "manual": "the t of the 10 differences against a difference of 0.10: ttest_one_sample with mu = 0.10 gives 2.532 (classical_test, key t_value); the book divides by the standard error rounded to 0.12, (0.41 - 0.10)/0.12 = 2.58"
      }
     },
     {
@@ -17659,7 +17690,7 @@
       "quote": "Pr(t > 2.6) ≈ 0.014"
      },
      "check": {
-      "manual": "a test against a stated difference of 0.10, which no check computes (0.016 from the unrounded standard error)"
+      "manual": "the one-sided p of the same test: ttest_one_sample with mu = 0.10 gives 0.0161 (classical_test, key p_value_greater); the book's 0.014 is Pr(t > 2.6) on 9 degrees of freedom, 0.0144, for its t rounded to 2.6"
      }
     },
     {
@@ -20027,14 +20058,26 @@
      "what": "nonadditivity",
      "term": "Tukey",
      "value": "SNA = 2.00, F = 0.10",
+     "analysis": "Tukey's one degree of freedom for nonadditivity in the library's fit of blends and treatments",
      "where": {
       "page": 222,
       "source_kind": "table",
       "quote": "an associated sum of squares SNA for transformable nonadditivity having one degree of freedom is given by P²/Q = 2.00 ... F = 0.10"
      },
-     "check": {
-      "manual": "Tukey's one degree of freedom for nonadditivity (P = 86, Q = 3696, θ = 0.023, remainder 224 on 11 df), which no check computes"
-     }
+     "check": [
+      {
+       "kind": "nonadditivity",
+       "model": "blend + treatment",
+       "key": "ss",
+       "printed": "2.00"
+      },
+      {
+       "kind": "nonadditivity",
+       "model": "blend + treatment",
+       "key": "f",
+       "printed": "0.10"
+      }
+     ]
     },
     {
      "what": "coefficient",
@@ -22287,7 +22330,7 @@
       "quote": "P = 4Σ(...) = 0.1104, Q = 4Σ(...)² = 0.0793, SNA = P²/Q = 0.1537 ... F = 6.9"
      },
      "check": {
-      "manual": "Tukey's one degree of freedom for nonadditivity on the cell averages, which no check computes"
+      "manual": "Tukey's SNA is 0.1537 (nonadditivity, key ss) and the remainder 0.0964, which the table prints in thousandths; its F of 6.9 tests SNA against the within-cell mean square, 0.0222 on 36 degrees of freedom, not the residual the nonadditivity check pools over all 48 runs"
      }
     },
     {
@@ -22367,7 +22410,7 @@
       "quote": "26.2 {45.4 22.3"
      },
      "check": {
-      "manual": "Tukey's split of the reciprocal-scale interaction, which no check computes"
+      "manual": "the reciprocal scale's interaction mean square, 0.262, split into SNA, 0.4543 (nonadditivity on the rate, key ss), and the remainder's mean square, 0.2233, all printed in hundredths; no check scales a number so"
      }
     },
     {
@@ -22422,14 +22465,78 @@
      "what": "ss",
      "term": "S_lambda table",
      "value": "1.333 0.664 0.463 0.401 0.359 0.333 0.323 0.326 0.343 0.375 0.424 0.635 1.051",
+     "analysis": "the residual sum of squares of the scaled power transform after fitting poisons and treatments, at the table's powers -2.5, -2.0, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0, 0.5 and 1.0",
      "where": {
       "page": 239,
       "source_kind": "table",
       "quote": "λ -2.5 -2.0 ... 1.00; Sλ 1.333 0.664 ... 1.051"
      },
-     "check": {
-      "manual": "the residual sums of squares of the scaled power transforms after fitting rows and columns, which no check reads; they reproduce except at λ = -2.5 (1.136, not 1.333) and to 0.001 at λ = 0 and 0.5 (0.423, 0.634)"
-     }
+     "check": [
+      {
+       "manual": "the table's S at λ = -2.5, 0 and 0.5: the data give 1.136, 0.4230 and 0.6340 (box_cox, keys sse.-2.5, sse.0 and sse.0.5); 1.333 is a misprint, and 0.424 and 0.635 are each 0.001 above the data's",
+       "printed": "1.333 0.424 0.635"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-2",
+       "printed": "0.664"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1.6",
+       "printed": "0.463"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1.4",
+       "printed": "0.401"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1.2",
+       "printed": "0.359"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-1",
+       "printed": "0.333"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.8",
+       "printed": "0.323"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.6",
+       "printed": "0.326"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.4",
+       "printed": "0.343"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.-0.2",
+       "printed": "0.375"
+      },
+      {
+       "kind": "box_cox",
+       "model": "poison + treatment",
+       "key": "sse.1",
+       "printed": "1.051"
+      }
+     ]
     },
     {
      "what": "ss",
@@ -25537,7 +25644,7 @@
       "quote": "doffs within reps 30.7169 8 sB² = 3.8396 0.7"
      },
      "check": {
-      "manual": "the doffs' sum of squares less the replicates', 63.8844 - 33.1675, both checked; a model with doffs nested in replicates is the aliased case the library cannot yet separate"
+      "manual": "multistratum_anova with the strata replicate/doff gives 30.7179, the doffs' 63.8844 (checked) less the replicates' 33.1665; the book subtracts its replicates' 33.1675, a recorded disagreement"
      }
     }
    ]
@@ -26862,26 +26969,38 @@
      "what": "ss",
      "term": "runs within replicates",
      "value": "14,770.44",
+     "analysis": "the stratum of runs within replicates in the library's multistratum_anova",
      "where": {
       "page": 257,
       "source_kind": "table",
       "quote": "runs 6 14,770.44 2461.74 23.35"
      },
      "check": {
-      "manual": "the runs' sum of squares within replicates, on 6 df; runs and emery papers are both nested in replicates, the aliased case the library cannot yet separate"
+      "kind": "multistratum",
+      "model": "position + holder + treatment",
+      "strata": "replicate/run + replicate/paper",
+      "key": "ss",
+      "term": "Residual",
+      "stratum": "replicate:run"
      }
     },
     {
      "what": "ss",
      "term": "emery papers within replicates",
      "value": "6,108.94",
+     "analysis": "the stratum of emery papers within replicates in the library's multistratum_anova",
      "where": {
       "page": 257,
       "source_kind": "table",
       "quote": "emery papers 6 6,108.94 1018.16 9.66"
      },
      "check": {
-      "manual": "the papers' sum of squares within replicates, on 6 df; nested in replicates like the runs"
+      "kind": "multistratum",
+      "model": "position + holder + treatment",
+      "strata": "replicate/run + replicate/paper",
+      "key": "ss",
+      "term": "Residual",
+      "stratum": "replicate:paper"
      }
     },
     {
@@ -30983,7 +31102,10 @@
       "quote": "the estimated variance of an effect is (1/8 + 1/8)8 = 2"
      },
      "check": {
-      "manual": "the square of the standard error of an effect, 1.4, which is checked (it reproduces: 2)"
+      "kind": "effect_std_error",
+      "term": "T",
+      "model": "T * C * K",
+      "squared": true
      }
     },
     {
@@ -32971,7 +33093,10 @@
       "quote": "an estimated value for the variance of an effect, having five degrees of freedom, is 1.50/5 = 0.30"
      },
      "check": {
-      "manual": "the square of the standard error of an effect, 0.55, which is checked (it reproduces: 0.30)"
+      "kind": "effect_std_error",
+      "term": "catalyst",
+      "model": "(catalyst + temperature + pressure + concentration) ** 2",
+      "squared": true
      }
     },
     {
@@ -33007,14 +33132,119 @@
      "what": "normal_plot",
      "term": "P",
      "value": "3.3 10.0 16.7 23.3 30.0 36.7 43.3 50.0 56.7 63.3 70.0 76.7 83.3 90.0 96.7",
+     "analysis": "the plotting positions 100(i - 1/2)/15 of the 15 effects of the library's fit, i their rank",
      "where": {
       "page": 331,
       "source_kind": "table",
       "quote": "Table 10.9 ... P = 100(i - 1/2)/15"
      },
-     "check": {
-      "manual": "plotting positions for a normal plot of 15 effects, 100(i - 1/2)/15, which no check computes; the effects ordered beside them are those of Table 10.8, checked there"
-     }
+     "check": [
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 1,
+       "printed": "3.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 2,
+       "printed": "10.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 3,
+       "printed": "16.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 4,
+       "printed": "23.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 5,
+       "printed": "30.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 6,
+       "printed": "36.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 7,
+       "printed": "43.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 8,
+       "printed": "50.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 9,
+       "printed": "56.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 10,
+       "printed": "63.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 11,
+       "printed": "70.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 12,
+       "printed": "76.7"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 13,
+       "printed": "83.3"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 14,
+       "printed": "90.0"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "catalyst * temperature * pressure * concentration",
+       "key": "position",
+       "rank": 15,
+       "printed": "96.7"
+      }
+     ]
     },
     {
      "what": "coefficient",
@@ -34162,7 +34392,7 @@
       "quote": "Sλ̂ = 2.59 ... S = 3.73 (Figure 10.10 b)"
      },
      "check": {
-      "manual": "the residual sum of squares of the scaled power transform at its minimum, and the book's critical value, which no check reads"
+      "manual": "2.59 is the profile's value at λ = 0 (2.5875, box_cox key sse.0), the log the analysis goes on with, not its least value, 2.539 at λ = -0.052; 3.73 is the critical value 2.59(1 + t²/11), with t read from a table"
      }
     },
     {
@@ -36371,7 +36601,10 @@
       "quote": "Estimated variance of effect = 4.19/4 = 1.05."
      },
      "check": {
-      "manual": "the square of the standard error of an effect, 4.19/4, which no check reads (the standard error 1.023 is the library's)"
+      "kind": "effect_std_error",
+      "term": "seat",
+      "model": "seat * generator * pressure",
+      "squared": true
      }
     },
     {
@@ -37495,26 +37728,42 @@
      "what": "normal_plot",
      "term": "P",
      "value": "1.6 ... 98.4",
+     "analysis": "the first and last plotting positions 100(i - 1/2)/31 of the 31 effects of the library's fit of the 2^5",
      "where": {
       "page": 375,
       "source_kind": "table",
       "quote": "Figure 12.1 ... P (%) 1.6 ... 98.4"
      },
-     "check": {
-      "manual": "plotting positions of the normal plots, 100(i - 1/2)/m, which no check computes"
-     }
+     "check": [
+      {
+       "kind": "normal_plot",
+       "model": "feed * catalyst * agitation * temperature * concentration",
+       "key": "position",
+       "rank": 1,
+       "printed": "1.6"
+      },
+      {
+       "kind": "normal_plot",
+       "model": "feed * catalyst * agitation * temperature * concentration",
+       "key": "position",
+       "rank": 31,
+       "printed": "98.4"
+      }
+     ]
     },
     {
      "what": "fraction_runs",
      "term": "5 = 1234",
      "value": "2, 3, 5, 8, 9, 12, 14, 15, 17, 20, 22, 23, 26, 27, 29, 32",
+     "analysis": "the runs whose settings make the half fraction 5 = 1234, the factors 1 to 5 by name",
      "where": {
       "page": 377,
       "source_kind": "table",
       "quote": "the 16 runs marked with asterisks in Table 12.1"
      },
      "check": {
-      "manual": "the runs of the half fraction 5 = 1234, whose settings give them; the half fraction's effects are checked on these runs below"
+      "kind": "fraction_runs",
+      "generator": "concentration = feed·catalyst·agitation·temperature"
      }
     },
     {
@@ -46484,7 +46733,10 @@
       "quote": "V(b) = s²/Σx² = 8.0837/35208 = 0.0002296 (14.15)"
      },
      "check": {
-      "manual": "the square of the standard error of b, which is checked (it reproduces)"
+      "kind": "std_error",
+      "term": "x",
+      "model": "x - 1",
+      "squared": true
      }
     },
     {
@@ -47243,14 +47495,24 @@
      "what": "ss",
      "term": "pure error, lack of fit",
      "value": "SE = 0.59, SL = 0.74",
+     "analysis": "the pure-error and lack-of-fit sums of squares of the library's lack-of-fit test",
      "where": {
       "page": 466,
       "source_kind": "table",
       "quote": "(5.75 - 4.79)² + (9.09 - 8.59)² = 0.59 = SE (14.37) ... SL = SR - SE = 1.33 - 0.59 = 0.74 (14.38)"
      },
-     "check": {
-      "manual": "the sums of squares for pure error and lack of fit, whose mean squares are checked"
-     }
+     "check": [
+      {
+       "kind": "pure_error_ss",
+       "model": "x1 + x2 - 1",
+       "printed": "0.59"
+      },
+      {
+       "kind": "lack_of_fit_ss",
+       "model": "x1 + x2 - 1",
+       "printed": "0.74"
+      }
+     ]
     },
     {
      "what": "lack_of_fit_f",
@@ -47320,7 +47582,7 @@
       "quote": "V(b2) = 1/(1 - ρ²) s²/Σx2² = (1/0.3193)(0.3309/3.635) = 0.2851"
      },
      "check": {
-      "manual": "the square of the standard error of b2, which is checked (it reproduces)"
+      "manual": "the square of b2's standard error: the data give 0.2866 (0.5353², std_error squared); the book's 0.2851 is 0.534², from its residual mean square of 0.3309, recorded as a disagreement beside it"
      }
     },
     {
@@ -47828,13 +48090,19 @@
      "what": "std_error",
      "term": "a = ȳ",
      "value": "1.12",
+     "analysis": "the standard error of the fitted line at the average velocity, x̄ = 2.679: s/√7",
      "where": {
       "page": 478,
       "source_kind": "prose",
       "quote": "S.E.(a) = s/√n = 1.12"
      },
      "check": {
-      "manual": "the standard error of the fitted line at x̄, s/√7, which no check reads (it reproduces)"
+      "kind": "prediction",
+      "model": "x",
+      "point": {
+       "x": 2.679
+      },
+      "bound": "std_error"
      }
     },
     {
@@ -48050,14 +48318,24 @@
      "what": "ss",
      "term": "lack of fit, straight line",
      "value": "SL = 659.40, MS 164.85",
+     "analysis": "the lack-of-fit sum of squares and mean square of the straight line, from the library's lack-of-fit test",
      "where": {
       "page": 481,
       "source_kind": "table",
       "quote": "Table 14.11 ... lack of fit SL = 659.40 4 164.85"
      },
-     "check": {
-      "manual": "the lack-of-fit sum of squares and mean square, whose ratio to pure error is checked"
-     }
+     "check": [
+      {
+       "kind": "lack_of_fit_ss",
+       "model": "x",
+       "printed": "659.40"
+      },
+      {
+       "kind": "lack_of_fit_ms",
+       "model": "x",
+       "printed": "164.85"
+      }
+     ]
     },
     {
      "what": "lack_of_fit_f",
@@ -51424,14 +51702,41 @@
      "what": "ss",
      "term": "samples",
      "value": "869.7, 15, 58.0",
+     "analysis": "the stratum of samples within batches in the library's multistratum_anova, batch/sample",
      "where": {
       "page": 582,
       "source_kind": "table",
       "quote": "Table 17A.2 ... samples 869.7 15 58.0"
      },
-     "check": {
-      "manual": "the samples-within-batches sum of squares and mean square, the nested term the library's Type II analysis cannot separate from batches (they reproduce: 869.75 and 57.98)"
-     }
+     "check": [
+      {
+       "kind": "multistratum",
+       "model": "1",
+       "strata": "batch/sample",
+       "term": "Residual",
+       "stratum": "batch:sample",
+       "key": "ss",
+       "printed": "869.7"
+      },
+      {
+       "kind": "multistratum",
+       "model": "1",
+       "strata": "batch/sample",
+       "term": "Residual",
+       "stratum": "batch:sample",
+       "key": "df",
+       "printed": "15"
+      },
+      {
+       "kind": "multistratum",
+       "model": "1",
+       "strata": "batch/sample",
+       "term": "Residual",
+       "stratum": "batch:sample",
+       "key": "ms",
+       "printed": "58.0"
+      }
+     ]
     },
     {
      "what": "ss_residual",
@@ -55874,7 +56179,7 @@
      "what": "curvature",
      "term": "b11 + b22",
      "value": "-0.50",
-     "analysis": "the curvature check: the factorial average less the centre average; the library reports the centre average less the factorial average, so the sign is turned",
+     "analysis": "the curvature check: the factorial average less the centre average, as the library reports it",
      "where": {
       "page": 516,
       "source_kind": "prose",
@@ -55891,8 +56196,7 @@
        5,
        6,
        7
-      ],
-      "printed": "0.50"
+      ]
      }
     },
     {
@@ -56374,8 +56678,7 @@
      },
      "check": {
       "kind": "curvature_difference",
-      "model": "time * temperature",
-      "printed": "0.50"
+      "model": "time * temperature"
      }
     }
    ]
@@ -56704,8 +57007,7 @@
        4,
        5,
        6
-      ],
-      "printed": "5.28"
+      ]
      }
     },
     {
@@ -59524,13 +59826,58 @@
      "what": "classification",
      "term": "(c) stationary ridge",
      "value": "a line of maxima",
+     "analysis": "the book reads the eigenvalue 0.0017, beside -9.02, as zero, and the slope of 0.005 along it as none; flat_tolerance=0.05 does the same",
      "where": {
       "page": 531,
       "source_kind": "prose",
       "quote": "Here there is not a single point maximum but a line of maxima. We have a stationary ridge."
      },
      "check": {
-      "manual": "the library classifies this surface as a saddle point, from an eigenvalue of 0.0017 that the book reads as zero; it has no ridge class"
+      "kind": "library_text",
+      "function": "optimize_responses",
+      "args": [
+       [
+        {
+         "response_name": "y",
+         "factor_names": [
+          "x1",
+          "x2"
+         ],
+         "coefficients": [
+          {
+           "term": "Intercept",
+           "coefficient": 83.93
+          },
+          {
+           "term": "x1",
+           "coefficient": 10.23
+          },
+          {
+           "term": "x2",
+           "coefficient": 5.59
+          },
+          {
+           "term": "I(x1 ** 2)",
+           "coefficient": -6.95
+          },
+          {
+           "term": "I(x2 ** 2)",
+           "coefficient": -2.07
+          },
+          {
+           "term": "x1:x2",
+           "coefficient": -7.59
+          }
+         ]
+        }
+       ]
+      ],
+      "kwargs": {
+       "method": "canonical_analysis",
+       "flat_tolerance": 0.05
+      },
+      "key": "canonical_analysis.classification",
+      "printed": "stationary_ridge"
      }
     }
    ]

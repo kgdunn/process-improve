@@ -200,23 +200,23 @@ class TestCandidates:
         ],
     )
     def test_a_point_within_the_tolerance_passes_however_a_limit_is_scaled(self, limit: str, length: float) -> None:
-        """Within 1e-9 of a straight boundary, in coded units, a point passes; a gentle gradient reaches further.
+        """Within 1e-9 of a straight boundary, in coded units, a point passes, and further out it fails.
 
-        A coded gradient shorter than 1 keeps the tolerance in the limit's own units, a coded distance
-        of 1e-9 divided by that length, as DesignRegion.feasible does.
+        A coded gradient shorter than 1 used to keep the tolerance in the limit's own units, a coded
+        distance of 1e-9 divided by that length (#807), as DesignRegion.feasible did.
         """
         region = _Region([TEMP, DOSE], [], parse_constraint(limit, {"T", "D"}))
-        assert region._gradient_lengths()[0] == pytest.approx(max(length, 1.0))
+        assert region._value_scales()[0] == pytest.approx(length)
 
         # Coded, 3*T + 5*D - 600 is 75*t + 100*d - 25: its boundary passes through (0.5, -0.125), normal (0.6, 0.8).
         def passes(distance: float) -> bool:
             point = np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]])
             return bool(region.slack(point)[0] <= _FEASIBILITY_TOL)
 
-        reach = _FEASIBILITY_TOL / min(length, 1.0)
         assert passes(0.5 * _FEASIBILITY_TOL)
-        assert passes(0.9 * reach)
-        assert not passes(1.1 * reach)
+        assert passes(0.9 * _FEASIBILITY_TOL)
+        assert not passes(1.1 * _FEASIBILITY_TOL)
+        assert not passes(2 * _FEASIBILITY_TOL)
         held = DesignRegion([TEMP, DOSE], [limit])
         for distance in (0.5e-9, 2e-9, 5e-8, 1e-6):
             point = np.array([[0.5 + 0.6 * distance, -0.125 + 0.8 * distance]])
@@ -272,6 +272,26 @@ def test_exchange_beats_random_subsets() -> None:
 
 
 class TestGenerateDesign:
+    @pytest.mark.parametrize(
+        "design_type", ["d_optimal", "i_optimal", "sobol", "maximin", pytest.param("maxpro", marks=pytest.mark.slow)]
+    )
+    def test_a_limit_on_a_factor_in_any_units_gives_the_same_coded_design(self, design_type: str) -> None:
+        """The runs keep ``X + r*Y <= r`` however small the range ``r`` of X, and sit where they do for ``r = 1``.
+
+        With ``r = 1e-9`` the limit's tolerance of 1e-9 in its own units was as wide as the range of X, so the
+        engine and the region's sampler let every setting pass and half the runs broke the limit (#807).
+        """
+        coded = []
+        for span in (1e-12, 1e-9, 1e-6, 1.0):
+            factors = [Factor(name="X", low=0.0, high=span), Factor(name="Y", low=0, high=1)]
+            limit = f"X + {span!r}*Y <= {span!r}"
+            runs = generate_design(factors, design_type=design_type, budget=8, constraints=[limit], random_state=3)
+            actual = runs.design_actual
+            assert (actual["X"] + span * actual["Y"] <= span * (1 + 1e-9)).all(), span
+            coded.append(np.column_stack([actual["X"] / span * 2 - 1, actual["Y"] * 2 - 1]))
+        for each in coded[:-1]:
+            np.testing.assert_allclose(each, coded[-1], atol=1e-9)
+
     def test_worked_example(self) -> None:
         result = generate_design([TEMP, DOSE], budget=10, constraints=[HEAT], model_type="quadratic")
         assert result.design_type == "d_optimal"  # chosen automatically because of the constraint

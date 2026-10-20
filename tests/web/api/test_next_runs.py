@@ -276,7 +276,7 @@ def test_the_fold_over_clears_every_main_effect_and_blocks_its_runs(api):
     before = {tuple(-v for v in run) for run in sheet[names][:8].to_numpy().tolist()}
     assert {tuple(run) for run in sheet[names][8:].to_numpy().tolist()} == before
     assert folded["spec"]["design_type"] == "given"
-    assert folded["spec"]["options"] == {"grown": True, "n_blocks": 2}
+    assert folded["spec"]["options"] == {"grown": True, "random_state": 42, "n_blocks": 2}
     notes = folded["facts"]["notes"]
     assert notes[0] == "Runs 9 to 16 fold the design over: each is a run made before, every setting switched."
     assert notes[1].startswith("Main effects are clear of two-factor interactions")
@@ -328,7 +328,7 @@ def test_center_runs_are_no_block_of_their_own(api):
     cube = make(api, design_type="full_factorial", factors=FACTORS, n_center_points=0)
     grown = added(api, cube, "center")
     assert "Block" not in grown["columns"]
-    assert grown["spec"]["options"] == {"grown": True}
+    assert grown["spec"]["options"] == {"grown": True, "random_state": 42}
     sheet = run_sheet(grown)
     assert sheet[["T", "P", "F"]][8:].to_numpy().tolist() == [[175.0, 2.0, 15.0]] * 3
     assert grown["facts"]["notes"][0] == "Runs 9 to 11 are at the center of the ranges, to test for curvature."
@@ -380,3 +380,33 @@ def test_runs_as_given_in_one_block_are_in_none(api, blocks):
     made = make(api, design_type="given", factors=factors_named("A", "B"), runs=runs, blocks=blocks)
     assert "Block" not in made["columns"]
     assert made["spec"]["options"] == {}
+
+
+# --------------------------------------------------------------------------- the study's seed
+def test_the_runs_added_are_drawn_with_the_studys_seed_plus_the_runs_before(api):
+    """Each set of runs added has an order of its own, drawn from the study's seed, which the study keeps."""
+    cube = make(api, design_type="full_factorial", factors=FACTORS, n_center_points=0, random_state=1792419802)
+    grown = added(api, cube, "center")
+    assert grown["spec"]["options"] == {"grown": True, "random_state": 1792419802}
+    std = run_sheet(grown)["Std order"][8:].to_numpy() - 9
+    assert std.tolist() == np.random.default_rng(1792419802 + 8).permutation(3).tolist()
+    again = added(api, grown, "axial")
+    assert again["spec"]["options"]["random_state"] == 1792419802
+    std = run_sheet(again)["Std order"][11:].to_numpy() - 12
+    assert std.tolist() == np.random.default_rng(1792419802 + 11).permutation(len(std)).tolist()
+
+
+def test_a_study_saved_without_a_seed_draws_the_runs_added_with_the_pages_seed(api):
+    """A study saved before each study had a seed keeps the one seed its report names, and gains none."""
+    runs = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+    given = make(api, design_type="given", factors=factors_named("A", "B"), runs=runs)
+    grown = added(api, given, "center")
+    assert grown["spec"]["options"] == {"grown": True}
+    std = run_sheet(grown)["Std order"][4:].to_numpy() - 5
+    assert std.tolist() == np.random.default_rng(42).permutation(len(std)).tolist()
+
+
+def test_runs_as_given_keep_the_studys_seed(api):
+    runs = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+    made = make(api, design_type="given", factors=factors_named("A", "B"), runs=runs, random_state=1792419802)
+    assert made["spec"]["options"] == {"random_state": 1792419802}
