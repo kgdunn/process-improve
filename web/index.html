@@ -44,16 +44,19 @@
     <div class="brand">
       <!-- The mark: a 2^3 factorial and its centre run, seen down the cube's diagonal, in the page's colours.
            tools/branding/app_mark.py draws it from generate_design and writes favicon.svg; test_brand.py
-           keeps the two in step. -->
-      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-        <g class="mark__edges"><polygon points="14.68,42 32,52 49.32,42 49.32,22 32,12 14.68,22"/><line x1="32" y1="32" x2="14.68" y2="22"/><line x1="32" y1="32" x2="32" y2="52"/><line x1="32" y1="32" x2="49.32" y2="22"/></g>
-        <g class="mark__runs"><circle cx="14.68" cy="42" r="6"/><circle cx="32" cy="52" r="6"/><circle cx="49.32" cy="42" r="6"/><circle cx="49.32" cy="22" r="6"/><circle cx="32" cy="12" r="6"/><circle cx="14.68" cy="22" r="6"/></g>
-        <circle class="mark__centre" cx="32" cy="32" r="6"/>
-      </svg>
-      <div>
-        <h1>Factorial</h1>
-        <p class="tagline">Sense it. Test it. Im<b>prove</b> it.</p>
-      </div>
+           keeps the two in step. The mark and the name are a link to the page itself, so a press opens it
+           afresh, as a reload does. -->
+      <a href="./" class="brand__home" aria-label="Factorial: the home page">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <g class="mark__edges"><polygon points="14.68,42 32,52 49.32,42 49.32,22 32,12 14.68,22"/><line x1="32" y1="32" x2="14.68" y2="22"/><line x1="32" y1="32" x2="32" y2="52"/><line x1="32" y1="32" x2="49.32" y2="22"/></g>
+          <g class="mark__runs"><circle cx="14.68" cy="42" r="6"/><circle cx="32" cy="52" r="6"/><circle cx="49.32" cy="42" r="6"/><circle cx="49.32" cy="22" r="6"/><circle cx="32" cy="12" r="6"/><circle cx="14.68" cy="22" r="6"/></g>
+          <circle class="mark__centre" cx="32" cy="32" r="6"/>
+        </svg>
+        <div>
+          <h1>Factorial</h1>
+          <p class="tagline">Sense it. Test it. Im<b>prove</b> it.</p>
+        </div>
+      </a>
       <!-- Feedback (feedback.js): a report to the maintainer, which leaves the page only when the reader presses Send. -->
       <button type="button" id="feedback" class="feedback-button" data-feedback="general">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4.5h16v11H10l-4.5 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 11.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Feedback</span></button>
