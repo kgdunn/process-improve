@@ -4023,9 +4023,12 @@ function libraryItem(record) {
   open.disabled = here;
   open.onclick = () => openSaved(record);
   const about = el("span", "hint", `${progress(doneRuns(record))}, saved ${timeAgo(record.updated)}`);
-  item.append(open, about);
+  // The study (its title and how far it has got) in one column, and Delete in a second at the row's right end.
+  const study = el("span", "library__study", "");
+  study.append(open, about);
+  item.append(study);
   if (here) {
-    item.append(el("span", "hint", "on the page now"));
+    study.append(el("span", "hint", "on the page now"));
     return item;
   }
   const forget = el("button", "link", "Delete");
