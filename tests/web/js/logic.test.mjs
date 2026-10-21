@@ -695,6 +695,13 @@ describe("the designs that can learn the brief", () => {
     assert.deepEqual(comparisonOrder(none), [0, 1], "with none that fits, the order is kept");
   });
 
+  test("the designs the reader hides go to the far right, after those that cannot fit, in the same order", () => {
+    const [full, dsd, boxBehnken] = result.designs;
+    assert.deepEqual(comparisonOrder(result, new Set([boxBehnken])), [1, 3, 0, 2]);
+    assert.deepEqual(comparisonOrder(result, new Set([full, dsd])), [2, 3, 1, 0], "fitting first, as shown");
+    assert.deepEqual(comparisonOrder(result, new Set(result.designs)), comparisonOrder(result), "all hidden: as before");
+  });
+
   test("are listed by their runs, those that fit first, with their spare runs and power", () => {
     const rows = candidateRows(result, made);
     assert.deepEqual(rows.map((r) => r.design_type), ["d_optimal", "dsd", "box_behnken", "full_factorial"]);

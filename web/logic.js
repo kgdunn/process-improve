@@ -620,12 +620,15 @@ export function candidateRows(result, made) {
 
 /**
  * The order of the detailed comparison's columns: the designs that can fit the model first, then those that cannot,
- * whose measures are mostly blank, each group in the order scored. Each is the design's place in ``result.designs``.
+ * whose measures are mostly blank, each group in the order scored; and the designs the reader has hidden (their
+ * labels in ``hidden``) after all of those, in the same order. Each is the design's place in ``result.designs``.
  */
-export function comparisonOrder(result) {
+export function comparisonOrder(result, hidden = new Set()) {
   const places = result.designs.map((_, i) => i);
   const fits = (i) => Boolean(result.values[result.designs[i]]?.fits);
-  return [...places.filter(fits), ...places.filter((i) => !fits(i))];
+  const ordered = [...places.filter(fits), ...places.filter((i) => !fits(i))];
+  const shown = (i) => !hidden.has(result.designs[i]);
+  return [...ordered.filter(shown), ...ordered.filter((i) => !shown(i))];
 }
 
 /**
