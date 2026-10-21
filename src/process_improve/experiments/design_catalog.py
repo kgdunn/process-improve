@@ -289,7 +289,7 @@ def design_facets(coded: np.ndarray, kinds: Sequence[str]) -> dict[str, Any]:
     }
 
 
-def _two_level_labels(coded: np.ndarray, kinds: list[str]) -> bool:
+def _two_level_labels(coded: np.ndarray, kinds: Sequence[str]) -> bool:
     """Say whether projectivity means something for these runs: no mixture, and no categorical factor of 3+ labels.
 
     Projectivity counts the combinations of the runs at -1 and +1. A categorical factor of more labels
