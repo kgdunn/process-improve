@@ -19,6 +19,7 @@ from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
+from process_improve.experiments.incomplete_blocks import bibd_analysis
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
@@ -96,6 +97,7 @@ __all__ = [
     "analyze_experiment",
     "analyze_omars",
     "augment_design",
+    "bibd_analysis",
     "box_behnken_runs",
     "c",
     "compare_designs",
