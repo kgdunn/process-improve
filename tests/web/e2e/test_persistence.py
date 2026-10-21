@@ -69,13 +69,13 @@ def hide(page) -> None:
 
 
 def test_the_worked_example_is_not_saved(context, page):
-    assert page.is_hidden("#library")
+    assert page.text_content("#library-count") == "0"
     again = context.new_page()
     again.goto(page.url)
     first_paint_done(again)
     assert again.is_visible("#demo-banner"), "its address shows it again"
     assert again.is_hidden(BANNER)
-    assert again.is_hidden("#library")
+    assert again.text_content("#library-count") == "0"
 
 
 def test_a_reader_who_comes_back_picks_up_where_they_left_off(context, page):
