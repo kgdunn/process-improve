@@ -175,6 +175,16 @@ def test_a_factor_nested_in_another_is_fitted_within_each_of_its_levels_as_stats
     assert "Supplier[3]·Batch[a]" in labels, "batch a's effect within the third supplier"
 
 
+def test_a_term_of_two_level_factors_is_their_product_with_or_without_the_terms_below_it(api):
+    """A two-level design's three-factor effect: T·S·P without S·P is the product of the -1/+1 columns, not S nested."""
+    supplier = {"name": "S", "low": "A", "high": "B", "units": ""}
+    design = made(api, [T, supplier, FACTORS[1]])
+    y = [float(i % 3) for i in range(len(run_sheet(design)))]
+    model = {"terms": [["T"], ["S"], ["P"], ["T", "S"], ["T", "S", "P"]]}
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": y, "model": model})
+    assert analysis["formula"].endswith("T:S:P"), "one column, the effect a two-level design estimates"
+
+
 def test_a_nested_model_s_best_settings_hold_the_outer_factor_s_indicators(api, batches):
     design, y = batches
     held = held_of(design)
@@ -265,6 +275,30 @@ def test_dunnett_s_intervals_are_scipy_s_for_levels_of_equal_runs(api):
     for v, low, high in zip(found["versus"], expected.low, expected.high, strict=True):
         assert [v["ci_low"], v["ci_high"]] == pytest.approx([low, high], abs=2e-3)
         assert v["differs"] == (low > 0 or high < 0)
+
+
+def test_dunnett_s_intervals_for_levels_of_unequal_runs_are_scipy_s(diets):
+    """Box, Hunter and Hunter's diets, 4, 6, 6 and 8 animals: each comparison with diet A as scipy gives it."""
+    from scipy import stats
+
+    others = [DIETS[d] for d in "BCD"]
+    expected = stats.dunnett(*others, control=DIETS["A"], random_state=1).confidence_interval(0.95)
+    for v, low, high in zip(diets["several"]["versus"], expected.low, expected.high, strict=True):
+        assert [v["ci_low"], v["ci_high"]] == pytest.approx([low, high], abs=5e-3), v["level"]
+
+
+def test_a_control_of_more_runs_lowers_the_correlation_of_the_comparisons(api):
+    """Eight runs at the control, four at each other level: the comparisons correlate by 4 / (4 + 8), not 1/2."""
+    from scipy import stats
+
+    rng = np.random.default_rng(5)
+    groups = {"A": list(50 + rng.normal(0, 1, 8)), **{level: list(52 + rng.normal(0, 1, 4)) for level in "BCD"}}
+    factor = {"name": "Diet", "type": "categorical", "levels": list("ABCD")}
+    runs = [level for level, values in groups.items() for _ in values]
+    found = compared(api, factor, runs, [v for values in groups.values() for v in values])["several"]
+    expected = stats.dunnett(*(groups[x] for x in "BCD"), control=groups["A"], random_state=1).confidence_interval()
+    for v, low, high in zip(found["versus"], expected.low, expected.high, strict=True):
+        assert [v["ci_low"], v["ci_high"]] == pytest.approx([low, high], abs=2e-3), v["level"]
 
 
 def test_the_control_is_the_first_level_unless_another_is_named(diets, api):

@@ -826,16 +826,19 @@ def _indicators(index: np.ndarray, k: int) -> np.ndarray:
 def _nested(terms: list[str], spec: dict) -> dict[str, str]:
     """Find the terms in which a categorical factor takes its indicators, as patsy codes them, and name it for each.
 
-    A categorical factor of a term takes its indicators, not its contrasts, when the model lacks the term without
-    it: in ``Supplier + Supplier:Batch`` the term less Supplier is Batch, which the model lacks, so Supplier takes
-    its indicators and the term holds Batch's effect within each supplier. A term in which two factors would need
-    them is refused: the model cannot tell it from the terms it lacks.
+    In a term with a categorical factor of three levels or more, a categorical factor takes its indicators, not
+    its contrasts, when the model lacks the term without it: in ``Supplier + Supplier:Batch`` the term less
+    Supplier is Batch, which the model lacks, so Supplier takes its indicators and the term holds Batch's effect
+    within each supplier. A term in which two factors would need them is refused: the model cannot tell it from
+    the terms it lacks. A term of two-level and numeric factors stays the product of their -1/+1 columns, the
+    effect a two-level design estimates, with the terms below it in the model or not.
     """
     categorical = set(_categorical_names(spec))
+    several = {f["name"] for f in spec["factors"] if _several(f)}
     present = {frozenset()} | {frozenset(t.split(":")) for t in terms if not t.startswith("I(")}
     out = {}
     for term in terms:
-        parts = [] if term.startswith("I(") else term.split(":")
+        parts = [] if term.startswith("I(") or not several & set(term.split(":")) else term.split(":")
         full = [p for p in parts if p in categorical and len(parts) > 1 and frozenset(parts) - {p} not in present]
         if len(full) > 1:
             lacking = _listed([_pretty(":".join(q for q in parts if q != p)) for p in reversed(full)], last="or")
@@ -2565,8 +2568,7 @@ def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any
         )
     c = next((i for i, name in enumerate(names) if str(name) == str(control)), 0)
     others = [i for i in range(k) if i != c]
-    correlation = float(n[c] / (n[c] + np.mean(n[others])))  # n0 / (n0 + n): one half for equal runs
-    d = dunnett_value(CONFIDENCE, k - 1, df, correlation=correlation)
+    d = _dunnett_critical(n[others], n[c], df)
     versus = []
     for i in others:
         se = s * math.sqrt(1 / n[i] + 1 / n[c])
@@ -2581,6 +2583,16 @@ def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any
             }
         )
     return {"test": test, "pairs": pairs, "control": names[c], "versus": versus, "q": q, "d": d}
+
+
+def _dunnett_critical(runs: np.ndarray, control_runs: int, df: int) -> float:
+    """Return Dunnett's critical value for levels of these runs against a control of ``control_runs``.
+
+    Two comparisons with the control share its average, so they are correlated: level i's and level j's by
+    sqrt(c_i c_j), with c_i = n_i / (n_i + n_0), which is one half when every level has as many runs as the
+    control. The library's ``dunnett_value`` takes each level's c_i, so the value is exact for unequal runs too.
+    """
+    return dunnett_value(CONFIDENCE, len(runs), df, correlation=(runs / (runs + control_runs)).tolist())
 
 
 def _level(factor: dict, setting: float, values: np.ndarray, runs: list[int]) -> dict[str, Any]:
