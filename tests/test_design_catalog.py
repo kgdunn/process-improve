@@ -184,6 +184,17 @@ def test_a_level_printed_as_a_number_is_coded_as_the_level_listed_as_text():
     np.testing.assert_array_equal(published_runs(entry), [[-1.0], [0.0], [1.0]])
 
 
+def test_two_levels_listed_high_first_are_coded_low_first_as_the_source_codes_them():
+    """Montgomery's mortars, listed modified then unmodified, with unmodified the low: it is coded -1."""
+    mortar = {"name": "mortar", "type": "categorical", "levels": ["modified", "unmodified"]}
+    mortar |= {"low": "unmodified", "high": "modified"}
+    entry = {
+        "factors": [mortar],
+        "runs": {"columns": ["mortar", "y"], "rows": [["unmodified", 16.9], ["modified", 16.6]]},
+    }
+    np.testing.assert_array_equal(published_runs(entry), [[-1.0], [1.0]])
+
+
 def test_a_table_of_coded_runs_that_prints_a_categorical_factor_s_levels_codes_them():
     """Goos and Jones's suppliers 1, 2 and 3 beside coded settings: the suppliers are levels, the settings codes."""
     factors = [

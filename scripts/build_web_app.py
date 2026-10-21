@@ -428,12 +428,13 @@ def taguchi_options(record: dict[str, Any]) -> dict[str, Any] | str:
 def _page_levels(factor: dict[str, Any]) -> list[str] | None:
     """Return a categorical factor's levels as the page labels them, in the source's order; None if it refuses them.
 
-    The source lists them, or gives the two as its low and high. A label may read as a number, such as lot 1 or 2:
-    the factor is categorical because the source says so.
+    The source lists them, or gives the two as its low and high, which then go low first, as the catalog codes
+    them. A label may read as a number, such as lot 1 or 2: the factor is categorical because the source says so.
     """
-    raw = factor.get("levels") or [factor.get("low"), factor.get("high")]
+    from process_improve.experiments.design_catalog import _levels  # noqa: PLC0415 - the docs environment has it
+
     try:
-        return list(load_bootstrap()._categorical_factor(str(factor["name"]), raw).levels or [])
+        return list(load_bootstrap()._categorical_factor(str(factor["name"]), _levels(factor)).levels or [])
     except ValueError:
         return None
 

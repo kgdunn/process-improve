@@ -546,8 +546,17 @@ def shown_where(where: dict[str, Any] | str | None) -> dict[str, Any] | str | No
 
 # --------------------------------------------------------------------------- published records
 def _levels(factor: dict[str, Any]) -> list[Any]:
-    """Return a categorical factor's levels in order: its ``levels``, else its low and high labels."""
-    return list(factor.get("levels") or [factor.get("low"), factor.get("high")])
+    """Return a categorical factor's levels in order: its ``levels``, else its low and high labels.
+
+    Two levels go low first, as the source codes them (-1 at its low, +1 at its high), in whatever
+    order they are listed.
+    """
+    levels = list(factor.get("levels") or [factor.get("low"), factor.get("high")])
+    low, high = factor.get("low"), factor.get("high")
+    if low is None or high is None:
+        return levels
+    same = sorted(map(_level_label, levels)) == sorted(map(_level_label, (low, high)))  # the two, listed in any order
+    return [low, high] if same else levels
 
 
 def _level_label(value: object) -> str:
