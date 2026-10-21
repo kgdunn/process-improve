@@ -60678,7 +60678,13 @@
       "quote": "the first new experiment, R1, should be conducted at (3.14, -1)."
      },
      "check": {
-      "manual": "the step in x2 the book chooses, dividing g by its smaller component; it sets the path's increments"
+      "kind": "steepest_path",
+      "key": "x2",
+      "units": "coded",
+      "model": "x1 + x2",
+      "per": "x2",
+      "change": -25,
+      "steps": 1
      }
     },
     {

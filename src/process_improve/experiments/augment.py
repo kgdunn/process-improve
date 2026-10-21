@@ -120,8 +120,11 @@ def _alias_changes(before: pd.DataFrame, after: pd.DataFrame, factor_names: list
     reported as separated when the two columns are uncorrelated there: a pair that
     is merely correlated (a semifold leaves ``|r| = 1/3``) still cannot be estimated
     independently, and a pair the new runs do not touch stays fully aliased.
-    Interactions of three or more factors are not considered.
+    Interactions of three or more factors are not considered, and mixture blends get no
+    lines: their proportions sum to 1, so they have no main effects to alias.
     """
+    if _are_blends(after[factor_names]):
+        return []
     cols_before = _effect_columns(before, factor_names)
     cols_after = _effect_columns(after, factor_names)
     names = [n for n in cols_before if n in cols_after]
@@ -382,6 +385,99 @@ def _auto_select_fold_factor(ctx: _AugmentContext) -> str:
     return best_factor
 
 
+#: Within this of 1, the proportions of a run sum to 1. Proportions printed to four decimals stay inside it.
+_BLEND_TOL = 1e-3
+
+#: The augmentations a mixture design takes. The others would add runs that are not blends.
+_FOR_BLENDS = frozenset({"add_axial_points", "add_center_points", "replicate"})
+
+
+def _are_blends(design: pd.DataFrame) -> bool:
+    """Return True when every run is a mixture blend: two or more proportions in [0, 1] that sum to 1."""
+    if design.shape[1] < 2 or not all(pd.api.types.is_numeric_dtype(t) for t in design.dtypes):
+        return False
+    values = design.to_numpy(dtype=float)
+    inside = bool(((values >= -_BLEND_TOL) & (values <= 1 + _BLEND_TOL)).all())
+    return inside and bool(np.allclose(values.sum(axis=1), 1.0, rtol=0.0, atol=_BLEND_TOL))
+
+
+def _simplex(design: pd.DataFrame) -> tuple[np.ndarray, float]:
+    """Return the lowest proportions L of the blends and the span 1 - sum(L) of the simplex they span.
+
+    The simplex has the vertices L + (1 - sum(L)) e_i: the whole simplex when every L is 0, and
+    an L-pseudocomponent simplex otherwise.
+
+    Raises
+    ------
+    ValueError
+        If a vertex of that simplex is not among the runs. The runs then come from a region that
+        is not a simplex (a component has an upper bound), and a point placed on the simplex
+        could fall outside it.
+    """
+    values = design.to_numpy(dtype=float)
+    low = values.min(axis=0)
+    span = 1.0 - float(low.sum())
+    vertices = low + span * np.eye(values.shape[1])
+    missing = [
+        name
+        for name, vertex in zip(design.columns, vertices, strict=True)
+        if not (np.abs(values - vertex) <= _BLEND_TOL).all(axis=1).any()
+    ]
+    if missing:
+        msg = (
+            f"The blends do not reach every vertex of the simplex they span: none is the vertex richest in "
+            f"{missing}. Their region is not a simplex, so its axial check blends and centroid are not known "
+            "from the runs."
+        )
+        raise ValueError(msg)
+    return low, span
+
+
+def _blend_text(blend: np.ndarray) -> str:
+    """Write a blend as its proportions to four significant figures."""
+    return "(" + ", ".join(f"{v:.4g}" for v in blend) + ")"
+
+
+def _augment_axial_check_blends(ctx: _AugmentContext, df: pd.DataFrame) -> dict[str, Any]:
+    """Add a mixture design's axial check blends: one on each axis, midway between the centroid and a vertex.
+
+    On the simplex of the runs, the blend on the axis of component i has (k + 1) / (2k) of
+    component i and 1 / (2k) of each other component (Cornell 2002).
+    """
+    if ctx.alpha is not None:
+        msg = (
+            "alpha sets the distance of a star point. The runs are mixture blends, and their axial points are "
+            "the axial check blends, midway between the centroid and each vertex: leave alpha unset."
+        )
+        raise ValueError(msg)
+    k = len(ctx.factor_names)
+    low, span = _simplex(df)
+    blends = low + span * (np.eye(k) + 1.0 / k) / 2.0
+    axial_df = pd.DataFrame(blends, columns=ctx.factor_names)
+    augmented = pd.concat([df, axial_df], ignore_index=True)
+
+    notes = [
+        (
+            f"The runs are mixture blends, so the axial points are the {k} axial check blends, each midway "
+            f"between the centroid of the simplex and one vertex, such as {_blend_text(blends[0])}."
+        ),
+        "They put runs inside the simplex, where the fit of the model can be checked.",
+    ]
+    explanation, before_m, after_m = _explain_changes(
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
+    )
+
+    return {
+        "augmented_design": augmented.to_dict(orient="records"),
+        "new_runs": axial_df.to_dict(orient="records"),
+        "n_runs_before": len(ctx.existing_design),
+        "n_runs_after": len(augmented),
+        "explanation": explanation,
+        "before_metrics": before_m,
+        "after_metrics": after_m,
+    }
+
+
 def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
     """Append center point rows (all zeros in coded units).
 
@@ -390,11 +486,22 @@ def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
     """
     df = ctx.existing_design[ctx.factor_names].copy()
     n_center = ctx.n_additional_runs if ctx.n_additional_runs is not None else 3
-    centre = np.zeros(len(ctx.factor_names))
-    notes = [
-        f"Added {n_center} center point(s) at the midpoint of all factors.",
-        "Center points enable testing for curvature (quadratic effects).",
-    ]
+    if _are_blends(df):
+        low, span = _simplex(df)
+        centre = low + span / len(ctx.factor_names)
+        notes = [
+            (
+                "The runs are mixture blends, so the center point is the centroid of the simplex, "
+                f"{_blend_text(centre)}: added {n_center} run(s) there."
+            ),
+            "Repeated, the centroid gives an estimate of the pure error.",
+        ]
+    else:
+        centre = np.zeros(len(ctx.factor_names))
+        notes = [
+            f"Added {n_center} center point(s) at the midpoint of all factors.",
+            "Center points enable testing for curvature (quadratic effects).",
+        ]
     if ctx.region is not None and not ctx.region.feasible(centre[None, :])[0]:
         broken = ", ".join(ctx.region.broken_limits(centre[None, :])[0])
         centre = _coded_centre(ctx.region)
@@ -468,8 +575,10 @@ def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
-    """Add 2k axial (star) points to create a CCD structure."""
+    """Add 2k axial (star) points to create a CCD structure, or a mixture design's axial check blends."""
     df = ctx.existing_design[ctx.factor_names].copy()
+    if _are_blends(df):
+        return _augment_axial_check_blends(ctx, df)
     k = len(ctx.factor_names)
 
     alpha_value = _axial_distance(ctx, df)
@@ -1124,7 +1233,11 @@ def augment_design(  # noqa: PLR0913
     augmentation_type : str
         One of ``"foldover"``, ``"semifold"``, ``"add_center_points"``,
         ``"add_axial_points"``, ``"add_runs_optimal"``, ``"upgrade_to_rsm"``,
-        ``"add_blocks"``, ``"replicate"``.
+        ``"add_blocks"``, ``"replicate"``. A mixture design, whose runs are blends
+        (proportions that sum to 1), takes three of them: ``"add_axial_points"`` adds
+        its axial check blends, each midway between the centroid of the simplex and a
+        vertex, ``"add_center_points"`` adds runs at the centroid, and ``"replicate"``
+        copies the runs.
     target_model : str or None
         Desired model after augmentation: ``"main_effects"``,
         ``"interactions"``, ``"quadratic"``. ``"add_runs_optimal"`` chooses
@@ -1199,7 +1312,10 @@ def augment_design(  # noqa: PLR0913
         factor without looking like one (see *factor_names*), if *hard_limits*
         names a column that is not a factor, if axial runs would pass a hard
         limit, if *region* does not hold exactly the design's numeric factors or
-        leaves no setting, or if a new run would break one of its limits.
+        leaves no setting, or if a new run would break one of its limits. For a
+        mixture design, also if the augmentation is not one of the three it takes,
+        if *alpha* is given for its axial points, or if its blends do not reach
+        every vertex of the simplex they span (the region is then not a simplex).
 
     Examples
     --------
@@ -1227,6 +1343,13 @@ def augment_design(  # noqa: PLR0913
         )
         raise ValueError(msg)
     factor_names = _resolve_factor_names(existing_design, factor_names)
+    if augmentation_type not in _FOR_BLENDS and _are_blends(existing_design[factor_names]):
+        msg = (
+            f"augmentation_type={augmentation_type!r} is for factors in coded units, and the runs are mixture "
+            "blends (the proportions of each run sum to 1). A mixture design takes 'add_axial_points' (its axial "
+            "check blends), 'add_center_points' (its centroid) or 'replicate'."
+        )
+        raise ValueError(msg)
     unknown = sorted(set(hard_limits or []) - set(factor_names))
     if unknown:
         raise ValueError(f"hard_limits names {unknown}, which are not factors of the design: {factor_names}.")

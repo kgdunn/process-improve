@@ -143,6 +143,16 @@ class OptimizeResponsesInput(BaseModel):
             "Try another seed to check that the optimum does not depend on where the search began."
         ),
     )
+    n_alternatives: int = Field(
+        0,
+        ge=0,
+        le=10,
+        description=(
+            "For 'desirability': how many other settings that do almost as well to report beside the best, "
+            "under 'alternatives': local optima with at least 95% of the best composite desirability, at "
+            "least 0.5 apart in coded units. Useful when another setting is cheaper, safer or easier to run."
+        ),
+    )
 
 
 def _as_bounds(
@@ -249,6 +259,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             n_pareto_points=spec.n_pareto_points,
             region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,
             random_state=spec.random_state,
+            n_alternatives=spec.n_alternatives,
             flat_tolerance=spec.flat_tolerance,
         )
         return clean(result)

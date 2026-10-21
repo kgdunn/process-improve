@@ -89,6 +89,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.least_squares_means
    :members: least_squares_means
 
+.. automodule:: process_improve.experiments.yates
+   :members: yates_table, reverse_yates
+
 .. automodule:: process_improve.experiments.layouts
    :members: tukey_nonadditivity, estimate_missing
 
@@ -106,6 +109,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.compare
    :members:
    :show-inheritance:
+
+.. automodule:: process_improve.experiments.incomplete_blocks
+   :members: bibd_analysis
 
 .. automodule:: process_improve.experiments.variance_dispersion
    :members: variance_dispersion
@@ -129,6 +135,11 @@ Designed Experiments
    :show-inheritance:
 
 .. automodule:: process_improve.experiments.optimization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.sequential
    :members:
    :undoc-members:
    :show-inheritance:

@@ -19,6 +19,7 @@ from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
+from process_improve.experiments.incomplete_blocks import bibd_analysis
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
@@ -54,6 +55,7 @@ from process_improve.experiments.separating import (
     constraint_through_cuts,
     separating_constraint,
 )
+from process_improve.experiments.sequential import NoSteepestDirectionError, next_design, steepest_path
 from process_improve.experiments.simulate import simulate_design_performance
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
@@ -71,6 +73,7 @@ from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.variance_dispersion import variance_dispersion
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
+from process_improve.experiments.yates import reverse_yates, yates_table
 
 __all__ = [
     "Column",
@@ -84,6 +87,7 @@ __all__ = [
     "GaussianProcessFit",
     "Model",
     "MomentAberrationResult",
+    "NoSteepestDirectionError",
     "NotSeparableError",
     "NotTwoLevelError",
     "OmarsResult",
@@ -96,6 +100,7 @@ __all__ = [
     "analyze_experiment",
     "analyze_omars",
     "augment_design",
+    "bibd_analysis",
     "box_behnken_runs",
     "c",
     "compare_designs",
@@ -131,6 +136,7 @@ __all__ = [
     "marginal_means_prediction",
     "moment_aberration",
     "multistratum_anova",
+    "next_design",
     "omars_anchor_entry",
     "omars_minimum_runs",
     "omars_properties",
@@ -143,11 +149,13 @@ __all__ = [
     "recommend_next_step",
     "recommend_strategy",
     "rename_factors",
+    "reverse_yates",
     "run_order_trends",
     "run_sheet",
     "sampling_scheme_variance",
     "separating_constraint",
     "simulate_design_performance",
+    "steepest_path",
     "summary",
     "supplement",
     "third_order_contrasts",
@@ -159,4 +167,5 @@ __all__ = [
     "variance_components",
     "variance_dispersion",
     "visualize_doe",
+    "yates_table",
 ]

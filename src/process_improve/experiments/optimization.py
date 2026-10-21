@@ -602,10 +602,10 @@ def _steepest_path(  # noqa: PLR0913
     direction: str = "ascent",
     factor_ranges: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, Any]:
-    """Generate a table of steps along the steepest ascent (or descent).
+    """Return the path of steepest ascent (or descent) from the design centre, for ``optimize_responses``.
 
-    Uses only the first-order (linear) coefficients to determine
-    direction.  Steps start at the design centre (all coded = 0).
+    :func:`~process_improve.experiments.sequential.steepest_path` sets the path out; this steps
+    ``step_size``, a distance in coded units, as ``optimize_responses`` does.
 
     Parameters
     ----------
@@ -616,9 +616,8 @@ def _steepest_path(  # noqa: PLR0913
     step_size : float
         Euclidean distance, in coded units, between successive points on the
         path (default 0.5). Each step moves every factor in proportion to its
-        linear coefficient, so a factor moves by ``step_size * b_j / ||b||``;
-        this is not the textbook convention of a unit step in the factor with
-        the largest coefficient. Must be positive.
+        linear coefficient, so a factor moves by ``step_size * b_j / ||b||``.
+        Must be positive.
     n_steps : int
         Number of steps to take away from the design centre (default 10).
         The returned ``steps`` list has ``n_steps + 1`` entries because it
@@ -631,7 +630,8 @@ def _steepest_path(  # noqa: PLR0913
     Returns
     -------
     dict
-        ``steps`` list and ``direction_vector``.
+        The path as :func:`~process_improve.experiments.sequential.steepest_path` returns it,
+        or ``{"error": ...}`` when every linear coefficient is zero.
 
     Raises
     ------
@@ -639,53 +639,20 @@ def _steepest_path(  # noqa: PLR0913
         If *step_size* is not a positive finite number or *n_steps* < 1: a
         negative step would walk the path the wrong way.
     """
+    from process_improve.experiments.sequential import NoSteepestDirectionError, steepest_path  # noqa: PLC0415
+
     if not (np.isfinite(step_size) and step_size > 0):
         msg = f"step_size must be a positive number of coded units; got {step_size}."
         raise ValueError(msg)
     if n_steps < 1:
         msg = f"n_steps must be at least 1; got {n_steps}."
         raise ValueError(msg)
-    evaluator = _build_model_evaluator(coefficients, factor_names)
-
-    # Extract linear coefficients only
-    name_to_idx = {n: i for i, n in enumerate(factor_names)}
-    b = np.zeros(len(factor_names))
-    for entry in coefficients:
-        components = _parse_term(entry["term"])
-        if len(components) == 1 and components[0] in name_to_idx:
-            b[name_to_idx[components[0]]] = float(entry["coefficient"])
-
-    if np.allclose(b, 0):
+    model = {"coefficients": coefficients, "factor_names": factor_names, "factor_coding": factor_ranges or {}}
+    goal = "minimize" if direction == "descent" else "maximize"
+    try:
+        return steepest_path(model, step_size, n_steps, goal=goal)
+    except NoSteepestDirectionError:
         return {"error": "All linear coefficients are zero - no steepest direction."}
-
-    # Direction: normalize, then scale by step_size
-    norm = np.linalg.norm(b)
-    direction_vec = b / norm
-    if direction == "descent":
-        direction_vec = -direction_vec
-
-    steps = []
-    for step_num in range(n_steps + 1):
-        x_coded = direction_vec * step_size * step_num
-        predicted = float(evaluator(x_coded))
-
-        step_entry: dict[str, Any] = {
-            "step": step_num,
-            "coded": {n: float(x_coded[i]) for i, n in enumerate(factor_names)},
-            "predicted_response": predicted,
-        }
-
-        if factor_ranges:
-            step_entry["actual"] = _coded_to_actual(step_entry["coded"], factor_ranges)
-
-        steps.append(step_entry)
-
-    return {
-        "direction": direction,
-        "direction_vector": {n: float(direction_vec[i]) for i, n in enumerate(factor_names)},
-        "step_size": step_size,
-        "steps": steps,
-    }
 
 
 def _resolve_search_bounds(
@@ -888,6 +855,23 @@ def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion
     return region
 
 
+def _multistart_results(
+    objective: Callable[[np.ndarray], float],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+    options: dict[str, Any] | None = None,
+) -> list[optimize.OptimizeResult]:
+    """Run SLSQP from every start in ``space``; return the accepted results, best first (ties in start order)."""
+    results = []
+    for x0 in space.starts:
+        res = optimize.minimize(
+            objective, x0, method="SLSQP", bounds=space.bounds, constraints=space.constraints, options=options
+        )
+        if accept(res.x) and np.isfinite(res.fun):
+            results.append(res)
+    return sorted(results, key=lambda res: res.fun)
+
+
 def _multistart_slsqp(
     objective: Callable[[np.ndarray], float],
     space: _SearchSpace,
@@ -895,14 +879,8 @@ def _multistart_slsqp(
     options: dict[str, Any] | None = None,
 ) -> optimize.OptimizeResult | None:
     """Run SLSQP from every start in ``space``; return the best accepted result, or ``None``."""
-    best = None
-    for x0 in space.starts:
-        res = optimize.minimize(
-            objective, x0, method="SLSQP", bounds=space.bounds, constraints=space.constraints, options=options
-        )
-        if accept(res.x) and np.isfinite(res.fun) and (best is None or res.fun < best.fun):
-            best = res
-    return best
+    results = _multistart_results(objective, space, accept, options)
+    return results[0] if results else None
 
 
 def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.ndarray) -> bool | None:
@@ -1025,6 +1003,60 @@ def _no_optimum(region: DesignRegion | None, limits: list[dict[str, Any]]) -> Ex
     return RuntimeError("optimization produced no result" if region is None else "no start converged inside the region")
 
 
+#: An alternative's composite desirability is at least this share of the best's.
+_ALTERNATIVE_SHARE = 0.95
+
+#: An alternative lies at least this far, in coded units, from the best and from every other alternative.
+_ALTERNATIVE_DISTANCE = 0.5
+
+
+@dataclass(frozen=True)
+class _Scored:
+    """What a desirability result reports at a setting: the models and their goals, and how settings are shown."""
+
+    factor_names: list[str]
+    names: list[str]
+    evaluators: list[Callable[[np.ndarray], float]]
+    goals: list[dict[str, Any]]
+    importances: list[float] | None
+    factor_ranges: dict[str, dict[str, float]] | None
+    region: DesignRegion | None
+
+    def at(self, x: np.ndarray) -> dict[str, Any]:
+        """Return the settings, the predicted responses and their desirabilities at coded settings ``x``."""
+        predictions = {name: float(f(x)) for name, f in zip(self.names, self.evaluators, strict=True)}
+        each = [individual_desirability(predictions[name], g) for name, g in zip(self.names, self.goals, strict=True)]
+        point: dict[str, Any] = {
+            "optimal_coded": {n: float(x[i]) for i, n in enumerate(self.factor_names)},
+            "predicted_responses": predictions,
+            "individual_desirability": {name: float(d) for name, d in zip(self.names, each, strict=True)},
+            "composite_desirability": float(overall_desirability(each, self.goals, self.importances)),
+        }
+        if self.region is not None:
+            point["within_region"] = _within_region(self.region, self.factor_names, x)
+        if self.factor_ranges:
+            point["optimal_actual"] = _coded_to_actual(point["optimal_coded"], self.factor_ranges)
+        return point
+
+
+def _alternatives(results: list[optimize.OptimizeResult], n_alternatives: int) -> list[np.ndarray]:
+    """Return up to ``n_alternatives`` other optima of a search: nearly as good as the best, and far from it.
+
+    The results are taken best first. One is kept when its composite desirability is at least
+    :data:`_ALTERNATIVE_SHARE` of the best's and it lies at least :data:`_ALTERNATIVE_DISTANCE`
+    from the best and from every alternative kept before it, so each is a different choice.
+    """
+    if n_alternatives == 0 or not results or -results[0].fun <= 0.0:
+        return []
+    kept = [results[0].x]
+    for res in results[1:]:
+        if -res.fun < _ALTERNATIVE_SHARE * -results[0].fun or len(kept) > n_alternatives:
+            break
+        if min(float(np.linalg.norm(res.x - x)) for x in kept) >= _ALTERNATIVE_DISTANCE:
+            kept.append(res.x)
+    return kept[1:]
+
+
 def _optimize_desirability(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
@@ -1036,6 +1068,7 @@ def _optimize_desirability(  # noqa: PLR0913
     region: DesignRegion | None = None,
     *,
     align_goals: bool = True,
+    n_alternatives: int = 0,
 ) -> dict[str, Any]:
     """Optimise composite desirability using scipy SLSQP.
 
@@ -1060,12 +1093,16 @@ def _optimize_desirability(  # noqa: PLR0913
     align_goals : bool
         False when the caller has already aligned *goals* with
         :func:`_align_goals_to_models`, so a positional pairing is not warned about twice.
+    n_alternatives : int
+        How many other optima to report (see :func:`_alternatives`). Asking for any searches
+        from ten more starts for each.
 
     Returns
     -------
     dict
         Optimal settings, predicted responses, individual and composite
-        desirability, and ``within_region`` when a region is given.
+        desirability, ``within_region`` when a region is given, and
+        ``alternatives`` when *n_alternatives* is above 0.
     """
     if align_goals:
         goals = _align_goals_to_models(fitted_models, goals)
@@ -1085,7 +1122,7 @@ def _optimize_desirability(  # noqa: PLR0913
 
     # Start from the centre of the searched region, then sample across it, so
     # that widening the bounds actually widens where the search looks.
-    space = _search_space(factor_names, search_bounds, region, rng, n_starts=10)
+    space = _search_space(factor_names, search_bounds, region, rng, n_starts=10 + 10 * n_alternatives)
     limits = _response_limits(evaluators, goals)
     space.constraints.extend(limits)
 
@@ -1098,12 +1135,11 @@ def _optimize_desirability(  # noqa: PLR0913
     # tie at D = 0 it is the setting reported.
     if (closest := _closest_to_specification(evaluators, goals, space, accept)) is not None:
         space.starts.insert(0, closest)
-    best_result = _multistart_slsqp(neg_composite, space, accept)
-
-    if best_result is None:
+    results = _multistart_results(neg_composite, space, accept)
+    if not results:
         raise _no_optimum(region, limits)
 
-    x_opt = best_result.x
+    best_result = results[0]
     composite_d = float(-best_result.fun)
     if composite_d <= 0.0:
         warnings.warn(
@@ -1114,24 +1150,11 @@ def _optimize_desirability(  # noqa: PLR0913
             stacklevel=4,
         )
 
-    # Evaluate individual responses and desirabilities at optimum
     names = [m.get("response_name", "response") for m in fitted_models]
-    predictions = {name: float(f(x_opt)) for name, f in zip(names, evaluators, strict=True)}
-    result: dict[str, Any] = {
-        "optimal_coded": {n: float(x_opt[i]) for i, n in enumerate(factor_names)},
-        "predicted_responses": predictions,
-        "individual_desirability": {
-            name: float(individual_desirability(predictions[name], g)) for name, g in zip(names, goals, strict=True)
-        },
-        "composite_desirability": composite_d,
-        "optimizer_success": bool(best_result.success),
-    }
-    if region is not None:
-        result["within_region"] = _within_region(region, factor_names, x_opt)
-
-    if factor_ranges:
-        result["optimal_actual"] = _coded_to_actual(result["optimal_coded"], factor_ranges)
-
+    scored = _Scored(factor_names, names, evaluators, goals, importances, factor_ranges, region)
+    result = scored.at(best_result.x) | {"optimizer_success": bool(best_result.success)}
+    if n_alternatives:
+        result["alternatives"] = [scored.at(x) for x in _alternatives(results, n_alternatives)]
     return result
 
 
@@ -1815,7 +1838,8 @@ def _ranges_from_coding(
             msg = (
                 f"The coefficients of {name!r} are in actual units ({spans}), but optimize_responses evaluates "
                 "models at coded settings, -1 to +1. Fit it with analyze_experiment(..., coding='coded'), or with "
-                "coding set to the factor ranges, and pass that result."
+                "coding set to the factor ranges, and pass that result. A split-plot fit is made on the runs as "
+                "given: code its factors to -1 and +1 before fitting it."
             )
             raise ValueError(msg)
         for factor, how in coding.items():
@@ -1878,6 +1902,14 @@ def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> No
         raise ValueError(msg)
 
 
+def _check_alternatives(n_alternatives: int) -> int:
+    """Return ``n_alternatives``, refusing anything but a whole number of at least 0."""
+    if isinstance(n_alternatives, bool) or not isinstance(n_alternatives, int) or n_alternatives < 0:
+        msg = f"n_alternatives must be a whole number of at least 0; got {n_alternatives!r}."
+        raise ValueError(msg)
+    return n_alternatives
+
+
 def _desirability_result(  # noqa: PLR0913
     *,
     fitted_models: list[dict[str, Any]],
@@ -1890,6 +1922,7 @@ def _desirability_result(  # noqa: PLR0913
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
     region: DesignRegion | None = None,
     random_state: int | np.random.Generator | None = 42,
+    n_alternatives: int = 0,
 ) -> dict[str, Any]:
     """Assemble the full desirability result: optimum, intervals, and plot input.
 
@@ -1920,6 +1953,7 @@ def _desirability_result(  # noqa: PLR0913
         search_bounds=search_bounds,
         region=region,
         align_goals=False,
+        n_alternatives=n_alternatives,
     )
 
     if fitted_results is not None:
@@ -1954,6 +1988,7 @@ def optimize_responses(  # noqa: PLR0913
     n_pareto_points: int = 21,
     region: DesignRegion | None = None,
     random_state: int | np.random.Generator | None = 42,
+    n_alternatives: int = 0,
     flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
@@ -2075,6 +2110,13 @@ def optimize_responses(  # noqa: PLR0913
         ``"desirability"`` and ``"pareto_front"``; the other methods are
         deterministic. The default of 42 keeps results reproducible; try another
         seed to check that an optimum does not depend on where the search began.
+    n_alternatives : int
+        For ``"desirability"``: how many other settings that do almost as well to
+        report beside the best, under ``"alternatives"``. Each is a local optimum of
+        the multistart search whose composite desirability is at least 95% of the
+        best's, at least 0.5 apart in coded units from the best and from every other
+        alternative, best first. Asking for any searches from ten more starts for
+        each. The default of 0 reports none and leaves the search as it was.
     flat_tolerance : float
         For ``"stationary_point"`` and ``"canonical_analysis"``: an eigenvalue of
         the pure-quadratic matrix ``B`` at most this share of the largest in size
@@ -2181,6 +2223,7 @@ def optimize_responses(  # noqa: PLR0913
             search_bounds=search_bounds,
             region=region,
             random_state=random_state,
+            n_alternatives=_check_alternatives(n_alternatives),
         )
 
     elif method == "ridge_analysis":

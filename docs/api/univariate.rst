@@ -10,6 +10,11 @@ Error transmission
 ------------------
 
 .. automodule:: process_improve.univariate.error_transmission
+
+Serial correlation
+------------------
+
+.. automodule:: process_improve.univariate.serial_correlation
    :members:
    :undoc-members:
 
