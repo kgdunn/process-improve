@@ -104,7 +104,7 @@ def test_the_brief_lists_the_responses_in_a_table_and_says_the_first_sizes_the_d
         page.text_content("#first-sizes")
         == "The first response sizes the design, so the page asks what you know of it."
     )
-    assert page.text_content("#response-known summary") == "What you know of Yield already"
+    assert page.text_content("#response-known summary") == "What you know of Yield already (optional)"
     rows = page.locator("#responses tbody tr")
     assert rows.count() == 3
     assert rows.nth(1).locator("[name=target]").is_disabled(), "a target only for a goal of hitting one"

@@ -1637,8 +1637,8 @@ function renderCandidates(busy = null) {
   else if (current && c.error) note = ["hint error", c.error];
   else if (current) note = null;
   else if (pythonFailure) note = ["hint error", "The designs are made with Python, which could not start here."];
-  else if (briefReady() && !pythonReady) note = ["hint", "The designs that can learn this are listed once Python has started."];
-  else if (busy || briefReady()) note = ["hint busy", busy ?? "Making and scoring the designs that can learn this..."];
+  else if (briefReady() && !pythonReady) note = ["hint", "The designs that can help you learn this are listed once Python has started."];
+  else if (busy || briefReady()) note = ["hint busy", busy ?? "Making and scoring the designs that can help you learn this..."];
   const waiting = current && !c.result && c.waiting?.length ? [waitingNote(c), ...noteList(c.notes.map(prettyTerm))] : [];
   const listed = !briefReady() || mixture ? [] : c?.result ? candidateList(c, current) : waiting;
   $("#plan-empty").hidden = Boolean(note) || listed.length > 0;
@@ -3838,33 +3838,45 @@ let draftTimer = null;
 function saveDraft() {
   if (state.design || state.example) return;
   clearTimeout(draftTimer);
-  draftTimer = setTimeout(() => {
-    const draft = {
-      response: responseFields(),
-      responses: responseRows()
-        .slice(1)
-        .map((tr) => rowFields(tr)), // the later responses: each one's name, units, goal and target, as typed
-      factors: factorRows().map((tr) => ({
-        name: box(tr, "name").value,
-        low: box(tr, "low").value,
-        high: box(tr, "high").value,
-        units: box(tr, "units").value,
-      })),
-      aim: aimChosen ? currentAim() : null,
-      limits: currentLimits(),
-      // A mixture's factor table reads as components, blank bounds and all, so the draft keeps the design with it.
-      design: mixturePlanned() ? $("#design-type").value : null,
-    };
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      /* storage refused: the brief holds for this visit */
-    }
-  }, 300);
+  draftTimer = setTimeout(writeDraft, 300);
+}
+
+function writeDraft() {
+  draftTimer = null;
+  if (state.design || state.example) return;
+  const draft = {
+    response: responseFields(),
+    responses: responseRows()
+      .slice(1)
+      .map((tr) => rowFields(tr)), // the later responses: each one's name, units, goal and target, as typed
+    factors: factorRows().map((tr) => ({
+      name: box(tr, "name").value,
+      low: box(tr, "low").value,
+      high: box(tr, "high").value,
+      units: box(tr, "units").value,
+    })),
+    aim: aimChosen ? currentAim() : null,
+    limits: currentLimits(),
+    // A mixture's factor table reads as components, blank bounds and all, so the draft keeps the design with it.
+    design: mixturePlanned() ? $("#design-type").value : null,
+  };
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    /* storage refused: the brief holds for this visit */
+  }
+}
+
+/** Write a draft still waiting for its moment, at once: the page calls this when the reader leaves, as flushSave does. */
+function flushDraft() {
+  if (draftTimer === null) return;
+  clearTimeout(draftTimer);
+  writeDraft();
 }
 
 function clearDraft() {
   clearTimeout(draftTimer);
+  draftTimer = null;
   try {
     localStorage.removeItem(DRAFT_KEY);
   } catch {
@@ -4011,9 +4023,12 @@ function libraryItem(record) {
   open.disabled = here;
   open.onclick = () => openSaved(record);
   const about = el("span", "hint", `${progress(doneRuns(record))}, saved ${timeAgo(record.updated)}`);
-  item.append(open, about);
+  // The study (its title and how far it has got) in one column, and Delete in a second at the row's right end.
+  const study = el("span", "library__study", "");
+  study.append(open, about);
+  item.append(study);
   if (here) {
-    item.append(el("span", "hint", "on the page now"));
+    study.append(el("span", "hint", "on the page now"));
     return item;
   }
   const forget = el("button", "link", "Delete");
@@ -4640,9 +4655,11 @@ drop.ondrop = (e) => {
   drop.classList.remove("over");
   if (e.dataTransfer.files[0]) readUpload(e.dataTransfer.files[0]);
 };
-// A reader who closes the tab, or puts the phone away, straight after typing a result keeps it.
+// A reader who closes the tab, reloads it, or puts the phone away, straight after typing a result or a brief keeps it.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") flushSave();
+  if (document.visibilityState !== "hidden") return;
+  flushSave();
+  flushDraft();
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
 // A report of a problem: the study goes only when the reader ticks it, with its results, packed as a link carries it.

@@ -58,6 +58,16 @@ def page_url(context) -> str:
     return context.pages[0].url.split("#")[0]
 
 
+def hide(page) -> None:
+    """Hide the page, as closing the tab, reloading it or putting the phone away does."""
+    page.evaluate(
+        """() => {
+            Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+            document.dispatchEvent(new Event("visibilitychange"));
+        }"""
+    )
+
+
 def test_the_worked_example_is_not_saved(context, page):
     assert page.is_hidden("#library")
     again = context.new_page()
@@ -160,12 +170,7 @@ def test_a_result_typed_just_before_the_page_is_hidden_is_saved(context, site):
     saved(page, 1)
     page.clock.pause_at(page.evaluate("Date.now()"))
     page.fill("#design-table input[data-index='0']", "12.5")
-    page.evaluate(
-        """() => {
-            Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
-            document.dispatchEvent(new Event("visibilitychange"));
-        }"""
-    )
+    hide(page)
     # The browser writes it in the background; the page's timers stay stopped.
     assert saved_studies(page, lambda saved: saved[0]["responses"][0] == 12.5)[0]["responses"][0] == 12.5
 
@@ -189,6 +194,32 @@ def test_your_studies_opens_an_earlier_study_and_deletes_one(page):
     saved(page, 1)
     page.click("#library-list >> role=button[name='Undo']")
     saved(page, 2)
+
+
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": 744, "height": 1000}}, {"viewport": {"width": 390, "height": 844}, "is_mobile": True}],
+    ids=["ipad-mini", "phone"],
+)
+def test_your_studies_puts_delete_at_the_right_end_of_each_row(page):
+    """Each row's Delete, and its Undo once pressed, ends where the row ends, however long the title is."""
+    generate(page, design_type="full_factorial", n_center_points=0)
+    practise(page)
+    page.fill("#design-table input[data-index='0']", "12.5")  # a result typed in: this study is kept
+    generate(page, design_type="ccd", n_center_points=2)
+    saved(page, 2)
+    page.click("#library summary")
+
+    def right_ends(name: str) -> tuple[float, float]:
+        button = page.locator("#library-list").get_by_role("button", name=name)
+        row = button.locator("xpath=ancestor::li")
+        return tuple(round(b["x"] + b["width"]) for b in (button.bounding_box(), row.bounding_box()))
+
+    end, row = right_ends(f"Delete {YIELD}Full factorial (2-level) in T, P and F")
+    assert end == row
+    page.click(f"#library-list >> role=button[name='Delete {YIELD}Full factorial (2-level) in T, P and F']")
+    end, row = right_ends("Undo")
+    assert end == row
 
 
 def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context, context, page, site):
@@ -348,6 +379,37 @@ def test_a_brief_not_yet_made_into_a_run_sheet_is_kept_as_a_draft(context, fresh
     assert [f["name"] for f in factor_table(again)] == ["T", "P"]
     assert again.is_checked('input[name="aim"][value="interactions"]')
     assert again.text_content("#study-title") == "Purity (%), target 99.5"
+
+
+def test_a_brief_typed_just_before_the_page_is_hidden_is_kept(context, site):
+    """A press on the logo, or a reload, straight after typing in the brief keeps what was typed.
+
+    The page writes the draft a moment after the last change. Its timers are stopped once the page
+    has opened, so the draft can only be written by the page being hidden.
+    """
+    context.clock.install()
+    page = context.new_page()
+    page.goto(site)
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    page.clock.pause_at(page.evaluate("Date.now()"))
+    page.fill("#response", "Purity")
+    assert page.evaluate("localStorage.getItem('factorial-draft')") is None, "not yet: its moment has not come"
+    hide(page)
+    assert json.loads(page.evaluate("localStorage.getItem('factorial-draft')"))["response"]["label"] == "Purity"
+
+
+def test_the_logo_opens_the_home_page_afresh(page, site):
+    """The mark and the name link to the page's own address: what a reload finds there, not the worked example."""
+    with page.expect_navigation():
+        page.click(".brand__home .mark")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    assert page.url == site
+    assert page.text_content("#study-title") == "A new study", "the worked example is not kept"
+    name_response(page, "Purity", "%")
+    with page.expect_navigation():
+        page.click(".brand__home h1")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    assert page.input_value("#response") == "Purity", "the brief, as it was left"
 
 
 def test_making_the_run_sheet_turns_the_draft_into_a_saved_study(context, blank_page):

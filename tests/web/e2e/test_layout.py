@@ -61,6 +61,39 @@ def test_on_a_phone_the_brief_opens_plan_and_the_other_phases_take_the_width(pag
     assert box(page, "#step-run")["width"] > 340
 
 
+def hero_boxes(page) -> list[dict]:
+    """Return the boxes of the three ways in: a new study, the worked example and the catalog."""
+    return [button.bounding_box() for button in page.locator(".hero__action").all()]
+
+
+#: An iPad at full size, on its side and upright, an iPad mini upright, and a window down to just wider than a phone.
+TABLETS = [{"viewport": {"width": width, "height": 1000}} for width in (1024, 820, 768, 744, 600, 521)]
+
+
+@pytest.mark.parametrize("context_options", TABLETS, ids=lambda options: f"{options['viewport']['width']}px")
+def test_wider_than_a_phone_the_three_ways_in_share_one_row(fresh_page):
+    """A narrower row sets the buttons smaller; in a wide font a label takes two lines, and the button stays."""
+    fresh_page.add_style_tag(content=WIDE_FONT)
+    boxes = hero_boxes(fresh_page)
+    assert len({round(b["y"]) for b in boxes}) == 1, "one row"
+    assert len({round(b["height"]) for b in boxes}) == 1, "one height, a label on two lines or not"
+    assert overflowing(fresh_page) == []
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
+def test_on_a_desktop_the_three_ways_in_keep_their_full_size(fresh_page):
+    sizes = fresh_page.eval_on_selector_all(".hero__action", "all => all.map((b) => getComputedStyle(b).fontSize)")
+    assert sizes == ["16.8px"] * 3, "1.05rem"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_on_a_phone_the_three_ways_in_stack_at_full_width(fresh_page):
+    boxes = hero_boxes(fresh_page)
+    assert boxes == sorted(boxes, key=lambda b: b["y"]), "a new study first"
+    assert len({round(b["y"]) for b in boxes}) == 3, "one under the other"
+    assert {round(b["width"]) for b in boxes} == {round(box(fresh_page, ".hero")["width"])}
+
+
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}, "color_scheme": "light"}])
 def test_a_desktop_shows_the_brief_beside_every_phase(page):
     assert min(background(page)) > 192, "a light background"
