@@ -196,6 +196,32 @@ def test_your_studies_opens_an_earlier_study_and_deletes_one(page):
     saved(page, 2)
 
 
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": 744, "height": 1000}}, {"viewport": {"width": 390, "height": 844}, "is_mobile": True}],
+    ids=["ipad-mini", "phone"],
+)
+def test_your_studies_puts_delete_at_the_right_end_of_each_row(page):
+    """Each row's Delete, and its Undo once pressed, ends where the row ends, however long the title is."""
+    generate(page, design_type="full_factorial", n_center_points=0)
+    practise(page)
+    page.fill("#design-table input[data-index='0']", "12.5")  # a result typed in: this study is kept
+    generate(page, design_type="ccd", n_center_points=2)
+    saved(page, 2)
+    page.click("#library summary")
+
+    def right_ends(name: str) -> tuple[float, float]:
+        button = page.locator("#library-list").get_by_role("button", name=name)
+        row = button.locator("xpath=ancestor::li")
+        return tuple(round(b["x"] + b["width"]) for b in (button.bounding_box(), row.bounding_box()))
+
+    end, row = right_ends(f"Delete {YIELD}Full factorial (2-level) in T, P and F")
+    assert end == row
+    page.click(f"#library-list >> role=button[name='Delete {YIELD}Full factorial (2-level) in T, P and F']")
+    end, row = right_ends("Undo")
+    assert end == row
+
+
 def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context, context, page, site):
     generate(page, design_type="full_factorial", n_center_points=2)
     practise(page)

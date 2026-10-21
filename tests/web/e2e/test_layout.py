@@ -66,8 +66,8 @@ def hero_boxes(page) -> list[dict]:
     return [button.bounding_box() for button in page.locator(".hero__action").all()]
 
 
-#: An iPad at full size, upright and on its side, and a window down to just wider than a phone.
-TABLETS = [{"viewport": {"width": width, "height": 1000}} for width in (1024, 820, 768, 600, 521)]
+#: An iPad at full size, on its side and upright, an iPad mini upright, and a window down to just wider than a phone.
+TABLETS = [{"viewport": {"width": width, "height": 1000}} for width in (1024, 820, 768, 744, 600, 521)]
 
 
 @pytest.mark.parametrize("context_options", TABLETS, ids=lambda options: f"{options['viewport']['width']}px")
