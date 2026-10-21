@@ -73,6 +73,7 @@ from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.variance_dispersion import variance_dispersion
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
+from process_improve.experiments.yates import reverse_yates, yates_table
 
 __all__ = [
     "Column",
@@ -148,6 +149,7 @@ __all__ = [
     "recommend_next_step",
     "recommend_strategy",
     "rename_factors",
+    "reverse_yates",
     "run_order_trends",
     "run_sheet",
     "sampling_scheme_variance",
@@ -165,4 +167,5 @@ __all__ = [
     "variance_components",
     "variance_dispersion",
     "visualize_doe",
+    "yates_table",
 ]
