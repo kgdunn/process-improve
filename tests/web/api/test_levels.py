@@ -250,3 +250,37 @@ def test_the_best_settings_hold_each_level_in_turn(api):
     plots = api.ok("api_plots", {**held, "responses": y, "model": "main_effects", "best": best["coded"]})
     assert plots["contour_factors"] == ["T", "P"]
     assert plots["held"] == [{"name": "Catalyst", "value": "B"}], "the surface is drawn at the best catalyst"
+
+
+# --------------------------------------------------------------------------- the designs Design lists
+def candidates(api, factors: list[dict], model: str = "main_effects") -> dict:
+    return api.ok("api_candidates", {"factors": factors, "model": model, "response": "y", "random_state": 7})
+
+
+def test_one_factor_of_three_levels_is_sized_for_the_power_of_its_f_test(api):
+    found = candidates(api, [CATALYST])
+    plan = found["levels"]
+    assert plan["n"] == 6
+    assert [row["runs"] for row in plan["rows"][:3]] == [6, 9, 12], "three runs a row, one at each level"
+    [design] = found["made"]
+    assert design["design"]["n_runs"] == 18
+    [sized] = found["result"]["designs"]
+    assert found["result"]["values"][sized]["power_main"] == pytest.approx(
+        next(row["power"] for row in plan["rows"] if row["n"] == 6)
+    ), "the plan's power is the F test's the design list scores"
+
+
+def test_the_two_level_designs_are_left_out_saying_why(api):
+    found = candidates(api, [CATALYST, T, FACTORS[1]], model="interactions")
+    reasons = {d["design_type"]: d["reason"] for d in found["left_out"]}
+    assert reasons["fractional_factorial"] == reasons["plackett_burman"] == "levels"
+    assert [m["design_type"] for m in found["made"]] == ["full_factorial", "taguchi"]
+
+
+def test_designs_with_a_factor_of_several_levels_are_scored_on_its_terms_together(api):
+    found = candidates(api, [CATALYST, T, FACTORS[1]], model="interactions")
+    values = found["result"]["values"]
+    full = next(v for label, v in values.items() if label.startswith("Full factorial"))
+    assert full["fits"] is True
+    assert 0 < full["power_interaction"] <= full["power_main"] < 1
+    assert found["result"]["terms"][:3] == ["Intercept", "Catalyst_L1", "Catalyst_L2"]

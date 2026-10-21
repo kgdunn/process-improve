@@ -4226,7 +4226,7 @@ def compare_plan(request: dict) -> dict:
     for design_type in DESIGNS:
         if design_type in SPACE_FILLING:
             continue  # made for no model, so not one to compare on a model
-        why = _left_out(design_type, k, labelled=labelled, limited=bool(limits))
+        why = _left_out(design_type, k, labelled=labelled, limited=bool(limits), several=bool(_several_names(factors)))
         if why:
             left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})
             continue
@@ -4274,11 +4274,12 @@ LEVEL_RUNS = (2, 3, 4, 5, 6, 8, 10, 15, 20, 30, MAX_LEVEL_RUNS)
 
 
 def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, Any] | None:
-    """Size a design in one factor, its two levels compared: the power of its t-test for each number of runs at each.
+    """Size a design in one factor, its levels compared: the power of its test for each number of runs at each level.
 
     The change is the reader's smallest change worth finding, over the run-to-run noise, or two noise standard
-    deviations without them, as designs are compared (:func:`_effect_size`). The power is the one-way analysis of
-    variance's (``one_way_power``), which for two levels is the two-sided t-test's, and the model's test of the
+    deviations without them, as designs are compared (:func:`_effect_size`), between two of the factor's levels,
+    the others midway, where it is hardest to find (``least_favourable_means``). The power is the one-way analysis
+    of variance's (``one_way_power``), which for two levels is the two-sided t-test's, and the model's test of the
     factor. ``n`` is the fewest runs at each level that reach :data:`LEVEL_POWER`, or :data:`MAX_LEVEL_RUNS` when
     none does (``reached`` says which). None for more factors, or for a numeric factor the study aims to see curve,
     which a third level shows.
@@ -4286,21 +4287,26 @@ def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, A
     if len(factors) != 1 or (factors[0].type != "categorical" and model in (MAIN_QUADRATIC, "quadratic")):
         return None
     info = _response_info(request.get("response_info"))
-    means = least_favourable_means(2 * _effect_size({k: info.get(k) for k in ("noise", "smallest_change")}), 2)
+    k = len(factors[0].levels or []) if factors[0].type == "categorical" else 2
+    difference = 2 * _effect_size({key: info.get(key) for key in ("noise", "smallest_change")})
+    means = least_favourable_means(difference, k)
     try:
         n = int(one_way_sample_size(LEVEL_POWER, 1.0, means, max_n=MAX_LEVEL_RUNS)["n"])
     except ValueError:  # no number of runs the page makes reaches it
         n = MAX_LEVEL_RUNS
-    rows = [{"n": m, "runs": 2 * m, "power": one_way_power(m, 1.0, means)["power"]} for m in sorted({*LEVEL_RUNS, n})]
+    rows = [{"n": m, "runs": k * m, "power": one_way_power(m, 1.0, means)["power"]} for m in sorted({*LEVEL_RUNS, n})]
     reached = next(row["power"] for row in rows if row["n"] == n) >= LEVEL_POWER
     return {"n": n, "power": LEVEL_POWER, "reached": reached, "rows": rows}
 
 
-def _left_out(design_type: str, k: int, *, labelled: bool, limited: bool) -> dict[str, Any] | None:
+def _left_out(
+    design_type: str, k: int, *, labelled: bool, limited: bool, several: bool = False
+) -> dict[str, Any] | None:
     """Say why the comparison leaves a design out for this brief, or None when it is in.
 
     ``reason`` is ``factors`` for a factor count outside the design's (with its ``low`` and ``high``),
-    ``categorical`` for a design of numeric factors with a categorical one in the brief, and
+    ``categorical`` for a design of numeric factors with a categorical one in the brief, ``levels``
+    for a two-level design with a categorical factor of three levels or more (``several``), and
     ``limits`` for a design that cannot keep its runs inside limits on the settings, in that order.
     """
     info = DESIGNS[design_type]
@@ -4308,6 +4314,8 @@ def _left_out(design_type: str, k: int, *, labelled: bool, limited: bool) -> dic
         return {"reason": "factors", "low": info["min_factors"], "high": info["max_factors"]}
     if labelled and design_type not in CATEGORICAL_DESIGNS:
         return {"reason": "categorical"}
+    if several and design_type not in SEVERAL_LEVEL_DESIGNS:
+        return {"reason": "levels"}
     if limited and design_type not in REGION_DESIGNS:
         return {"reason": "limits"}
     return None
@@ -4380,6 +4388,96 @@ def compare(request: dict) -> dict:
     return result
 
 
+def _powers(request: dict) -> dict[str, Any]:
+    """Score designs with a categorical factor of three levels or more: their runs, spare runs, and power.
+
+    The comparison's measures are for factors coded from -1 to +1, which such a factor is not, so each
+    design is scored on the model the reader aims to learn, over the columns it is fitted on: its spare
+    runs, and, for each kind of term, the power of the F test of the term the hardest to find. A term of a
+    factor of several levels is tested over its contrasts together; the change it is to find is the
+    reader's, between two of its levels, the others on the average (see :func:`_least_favourable`). The reply
+    has the comparison's shape, so Design lists the designs as it lists any.
+    """
+    effect = _effect_size(request)
+    model = request.get("model") or "main_quadratic"
+    designs, values, terms = [], {}, []
+    for item in request.get("designs") or []:
+        spec = _checked_spec(item.get("spec") or {})
+        names = [f["name"] for f in spec["factors"]]
+        aimed = _model_terms(model, names, _categorical_names(spec)) if model != "main_quadratic" else None
+        aimed = aimed if aimed is not None else _model_terms(MAIN_QUADRATIC, names, _categorical_names(spec))
+        columns = _model_columns(spec)
+        frame = _design_frame(_runs_frame(item, spec), spec)
+        expanded = _expanded_terms(aimed, spec)
+        x = _model_matrix(frame, ["Intercept", *expanded], columns)
+        n, p = x.shape
+        rank = int(np.linalg.matrix_rank(x))
+        fits = rank == p
+        df = n - p if fits else 0
+        power: dict[str, float | None] = {"main": None, "interaction": None, "quadratic": None}
+        if fits and df > 0:
+            inverse = np.linalg.inv(x.T @ x)
+            for term in aimed:
+                kind = "quadratic" if term.startswith("I(") else "interaction" if ":" in term else "main"
+                members = _expanded_terms([term], spec)
+                index = [expanded.index(m) + 1 for m in members]  # after the intercept
+                b = _least_favourable(members, spec, effect)
+                found = _group_power(b, inverse[np.ix_(index, index)], df)
+                power[kind] = found if power[kind] is None else min(power[kind], found)  # type: ignore[type-var]
+        sized = f"{item['label']} [n={n}]"
+        designs.append(sized)
+        values[sized] = {
+            "runs": n,
+            "fits": fits,
+            "residual_df": df,
+            "power_main": power["main"],
+            "power_interaction": power["interaction"],
+            "power_quadratic": power["quadratic"],
+        }
+        terms = ["Intercept", *expanded]
+    return {
+        "model": model,
+        "terms": terms,
+        "effect_size": effect,
+        "significance_level": 0.05,
+        "designs": designs,
+        "values": values,
+        "measures": [],
+        "display": {},
+        "fds": {},
+    }
+
+
+def _least_favourable(members: list[str], spec: dict, effect: float) -> np.ndarray:
+    """Return the coefficients of a term's columns at the change worth finding, where it is hardest to find.
+
+    A numeric or two-level factor's coefficient of ``effect`` noise standard deviations is the change, as
+    the comparison scores power. A factor of several levels has that change between its first two
+    levels, the others on the average: its first contrast's coefficient is -``effect``, its second's
+    +``effect``, the rest 0; an interaction's columns take the product.
+    """
+    several = {f["name"] for f in spec["factors"] if _several(f)}
+
+    def size(member: str) -> float:
+        value = effect
+        for part in member.split(":"):
+            stem, _, j = part.rpartition(LEVEL_JOIN)
+            if stem in several:
+                value *= {"1": -1.0, "2": 1.0}.get(j, 0.0)
+        return value
+
+    return np.array([size(m) for m in members])
+
+
+def _group_power(b: np.ndarray, block: np.ndarray, df: int) -> float:
+    """Return the power of the F test of a term's columns together at the 5% level: noncentrality b' V^-1 b."""
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    noncentrality = float(b @ np.linalg.solve(block, b))
+    critical = stats.f.ppf(0.95, len(b), df)
+    return float(stats.ncf.sf(critical, len(b), df, noncentrality))
+
+
 #: From this many factors, the optimal designs' search for a model beyond main effects takes seconds
 #: to tens of seconds (an I-optimal design in six factors, about 20 s in the browser), so the designs
 #: listed as the reader types leave them out until the reader asks for the search.
@@ -4418,7 +4516,8 @@ def candidates(request: dict) -> dict:
     info = _response_info(request.get("response_info"))
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
     asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
-    result = compare(asked) if made else None
+    several = made and any(_several(f) for f in made[0]["design"]["spec"]["factors"])
+    result = (_powers(asked) if several else compare(asked)) if made else None
     return {
         "model": plan["model"],
         "made": made,
