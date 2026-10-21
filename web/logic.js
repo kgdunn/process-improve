@@ -764,12 +764,13 @@ export function standouts(result, made) {
 
 /**
  * Why Design lists none of some designs the page offers, a sentence for each reason: the factor count a design takes,
- * by the bound the brief's count breaks, and the designs of numeric factors when the brief has a categorical one.
- * ``leftOut`` is api_candidates', ``k`` the brief's factor count and ``categorical`` the names of its categorical
- * factors. Limits on the settings leave designs out too, and the comparison's own note says so, so they get no
- * sentence here.
+ * by the bound the brief's count breaks, the designs of numeric factors when the brief has a categorical one, and the
+ * two-level designs when it has a categorical factor of three levels or more. ``leftOut`` is api_candidates', ``k``
+ * the brief's factor count, ``categorical`` the names of its categorical factors and ``several`` its factors of three
+ * levels or more. Limits on the settings leave designs out too, and the comparison's own note says so, so they get
+ * no sentence here.
  */
-export function leftOutSentences(leftOut, k, categorical = []) {
+export function leftOutSentences(leftOut, k, categorical = [], several = []) {
   const said = [];
   const bounds = new Map();
   for (const d of leftOut.filter((one) => one.reason === "factors")) {
@@ -784,6 +785,11 @@ export function leftOutSentences(leftOut, k, categorical = []) {
   if (numeric.length && categorical.length) {
     const are = categorical.length === 1 ? "is" : "are";
     said.push(`${listNames(numeric)} ${verb(numeric, "needs", "need")} numeric factors, and ${listNames(categorical)} ${are} categorical.`);
+  }
+  const twoLevel = leftOut.filter((one) => one.reason === "levels").map((d) => d.label);
+  if (twoLevel.length && several.length) {
+    const levels = several.map((f) => `${f.name} has ${levelsOf(f).length}`);
+    said.push(`${listNames(twoLevel)} ${verb(twoLevel, "takes", "take")} factors of two levels, and ${listNames(levels)}.`);
   }
   return said;
 }

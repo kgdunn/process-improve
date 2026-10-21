@@ -852,6 +852,20 @@ describe("the designs that can learn the brief", () => {
     assert.deepEqual(leftOutSentences([], 4), []);
   });
 
+  test("the two-level designs left out for a factor of three levels or more say how many it has", () => {
+    const leftOut = [
+      { design_type: "fractional_factorial", label: "Fractional factorial (2-level)", reason: "levels" },
+      { design_type: "plackett_burman", label: "Plackett-Burman", reason: "levels" },
+    ];
+    const catalyst = categoricalFactor("Catalyst", ["A", "B", "C"]);
+    assert.deepEqual(leftOutSentences(leftOut, 2, ["Catalyst"], [catalyst]), [
+      "Fractional factorial (2-level) and Plackett-Burman are not listed: they take factors of two levels, and Catalyst has 3.",
+    ]);
+    assert.deepEqual(leftOutSentences(leftOut.slice(1), 2, ["Catalyst", "Lot"], [catalyst, categoricalFactor("Lot", ["1", "2", "3", "4"])]), [
+      "Plackett-Burman is not listed: it takes factors of two levels, and Catalyst has 3 and Lot has 4.",
+    ]);
+  });
+
   test("a design that takes a number of runs opens on its own: ten a factor, or the model's coefficients and spare", () => {
     assert.equal(defaultBudget("maximin_lhs", 3, "interactions"), 3 * SPACE_FILLING_RUNS, "a space-filling design has no model");
     assert.equal(defaultBudget("d_optimal", 3, "interactions"), 7 + 4);

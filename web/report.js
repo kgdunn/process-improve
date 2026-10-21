@@ -6,7 +6,7 @@
 // The functions here turn the study's data into HTML and know nothing of the page; app.js adds what Learn shows,
 // copied from the page, and its charts as images.
 
-import { GOALS, escape, isCategorical, listNames, responsesOf } from "./logic.js";
+import { GOALS, escape, isCategorical, isSeveral, levelsOf, listNames, responsesOf } from "./logic.js";
 
 /**
  * The seed a design's runs are put in random order with when its specification names none: the worked example's,
@@ -123,13 +123,19 @@ const goalOf = (r) => (r.goal === "target" && r.target !== undefined ? `${GOALS.
 
 /**
  * The brief: the factors (or a mixture's components) with their ranges, the responses with their goals, the aim in
- * the words Design gives it (``aim``, "" for none), and the limits on the settings.
+ * the words Design gives it (``aim``, "" for none), and the limits on the settings. With a categorical factor of
+ * three levels or more, each factor's levels are one column: a range, or the labels in their order.
  */
 export function briefHtml(spec, { aim = "", mixture = false } = {}) {
-  const factors = tableHtml(
-    [mixture ? "Component" : "Factor", mixture ? "Least" : "Low", mixture ? "Most" : "High", "Units"],
-    spec.factors.map((f) => [f.name, String(f.low), String(f.high), isCategorical(f) ? "" : (f.units ?? "")]),
-  );
+  const factors = spec.factors.some(isSeveral)
+    ? tableHtml(
+        ["Factor", "Levels", "Units"],
+        spec.factors.map((f) => (isCategorical(f) ? [f.name, levelsOf(f).join(", "), ""] : [f.name, `${f.low} to ${f.high}`, f.units ?? ""])),
+      )
+    : tableHtml(
+        [mixture ? "Component" : "Factor", mixture ? "Least" : "Low", mixture ? "Most" : "High", "Units"],
+        spec.factors.map((f) => [f.name, String(f.low), String(f.high), isCategorical(f) ? "" : (f.units ?? "")]),
+      );
   const responses = tableHtml(
     ["Response", "Units", "Goal"],
     responsesOf(spec).map((r) => [r.label || r.name, r.units ?? "", goalOf(r)]),

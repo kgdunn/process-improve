@@ -1949,7 +1949,8 @@ function candidateList(c, current) {
   const unfit = rows.filter((r) => !r.fits);
   if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
   const categorical = readFactors().filter(isCategorical).map((f) => f.name);
-  for (const why of leftOutSentences(c.left_out ?? [], factorCount(), categorical)) parts.push(el("p", "hint left-out", why));
+  const several = readFactors().filter(isSeveral);
+  for (const why of leftOutSentences(c.left_out ?? [], factorCount(), categorical, several)) parts.push(el("p", "hint left-out", why));
   if (c.waiting?.length) parts.push(waitingNote(c));
   parts.push(...noteList(c.notes.map(prettyTerm)));
   return parts;
