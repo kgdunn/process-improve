@@ -13,6 +13,8 @@ from process_improve.experiments import (
     Constraint,
     DesignRegion,
     Factor,
+    analyze_experiment,
+    evaluate_design,
     generate_design,
 )
 from process_improve.experiments.designs_mixture_process import mixture_process_model
@@ -382,3 +384,72 @@ class TestRefusals:
     def test_conflicting_process_constraints(self) -> None:
         with pytest.raises(ValueError, match="No process setting satisfies"):
             generate_design(list(self.FACTORS), budget=16, constraints=["T >= 90"])
+
+
+class TestEvaluateDesign:
+    """evaluate_design reads the model and the region a mixture-process design was generated for."""
+
+    FACTORS = (*BLENDS, *SETTINGS)
+
+    def test_d_efficiency_is_for_the_recorded_model(self) -> None:
+        result = generate_design(list(self.FACTORS), design_type="d_optimal", model_type="quadratic", budget=20)
+        x = _model_rows(result.design, list(self.FACTORS), "quadratic")
+        expected = 100 * np.exp(_log_det(x) / x.shape[1]) / len(x)
+        assert evaluate_design(result)["d_efficiency"] == pytest.approx(expected)
+
+    def test_average_variance_is_over_the_mixture_process_region(self) -> None:
+        """The exchange's I-criterion and evaluate_design's average are over the same region."""
+        result = generate_design(list(self.FACTORS), design_type="i_optimal", budget=16, constraints=["x1 <= 0.4"])
+        average = evaluate_design(result, metric="average_prediction_variance")["average_prediction_variance"]
+        assert average == pytest.approx(result.metadata["trace_criterion"], rel=0.02)
+
+    def test_a_model_name_is_a_mixture_process_model(self) -> None:
+        result = generate_design(list(self.FACTORS), budget=16)
+        freedom = evaluate_design(result, model="main_effects", metric="degrees_of_freedom")["degrees_of_freedom"]
+        assert freedom["model"] == 4  # five terms, which span the mean as the blending terms sum to 1
+        assert freedom["residual"] == 16 - 5
+
+    def test_table_6_2_worst_prediction_variance(self) -> None:
+        """Goos and Jones (2011), p. 120: the worst relative variance of prediction is two-thirds."""
+        region = DesignRegion([*MILLS, *COOLANT])
+        result = evaluate_design(TABLE_6_2, model=TABLE_6_2_MODEL, region=region, metric="g_efficiency")
+        assert result["max_prediction_variance"] == pytest.approx(2 / 3)
+        assert result["g_efficiency"] == pytest.approx(100.0)
+
+    def test_power_leaves_out_the_blending_terms_only(self) -> None:
+        region = DesignRegion([*MILLS, *COOLANT])
+        result = evaluate_design(TABLE_6_2, model=TABLE_6_2_MODEL, region=region, metric="power", effect_size=1.0)
+        assert set(result["power"]) == {"mill1:mill2", "mill1:mill3", "mill2:mill3", "spray", "oil"}
+        assert "not tested against zero" in result["notes"]["power"]
+
+
+#: A response in the interactions model: blending, one nonlinear blend, two blend-by-process terms, T by S.
+TRUE_COEFFICIENTS = {"x1": 10.0, "x2": 12.0, "x3": 8.0, "x1:x2": 6.0, "x1:T": 2.0, "x3:S": -1.5, "T:S": 0.8}
+
+
+@pytest.fixture(scope="module")
+def simulated_runs() -> tuple[pd.DataFrame, str]:
+    """Return a 20-run interactions design with a simulated response, and the formula recorded for it."""
+    result = generate_design([*BLENDS, *SETTINGS], budget=20, random_state=2)
+    design = result.design.drop(columns="RunOrder")
+    terms = {name: np.prod([design[n] for n in name.split(":")], axis=0) for name in TRUE_COEFFICIENTS}
+    noise = np.random.default_rng(0).normal(0.0, 0.05, len(design))
+    y = sum(coefficient * terms[name] for name, coefficient in TRUE_COEFFICIENTS.items()) + noise
+    return design.assign(y=y), result.metadata["formula"]
+
+
+class TestAnalyzeExperiment:
+    """The recorded formula fits mixture-process data, with coefficients on the proportions' scale."""
+
+    def test_coefficients_are_recovered(self, simulated_runs: tuple[pd.DataFrame, str]) -> None:
+        data, formula = simulated_runs
+        out = analyze_experiment(data, responses=data[["y"]], model=formula, analysis_type="coefficients")
+        table = pd.DataFrame(out["coefficients"]).set_index("term")
+        expected = pd.Series(TRUE_COEFFICIENTS).reindex(table.index, fill_value=0.0)
+        assert (np.abs(table["coefficient"] - expected) < 4 * table["std_error"]).all()
+        assert table.loc["x1", "coefficient"] == pytest.approx(10.0, abs=0.2)
+
+    def test_coded_components_are_refused(self, simulated_runs: tuple[pd.DataFrame, str]) -> None:
+        data, formula = simulated_runs
+        with pytest.raises(ValueError, match=r"mixture components \['x1', 'x2', 'x3'\] have no coded scale"):
+            analyze_experiment(data, responses=data[["y"]], model=formula, analysis_type="coefficients", coding="coded")

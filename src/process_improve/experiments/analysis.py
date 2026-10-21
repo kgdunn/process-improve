@@ -234,6 +234,28 @@ def _looks_like_mixture(df: pd.DataFrame, factor_cols: list[str]) -> bool:
     return in_unit_interval and bool(np.allclose(finite.sum(axis=1), 1.0, atol=1e-6))
 
 
+def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
+    """Return the factors that are mixture components beside other factors, or none.
+
+    They are the numeric factors whose settings all lie between 0 and 1, when there are at
+    least two of them, other factors besides, and every run's settings of them sum to 1: the
+    data of a mixture-process design. A process factor whose own settings lie between 0 and 1
+    hides them, and none are found.
+    """
+    numeric = [c for c in factor_cols if _is_numeric(df[c])]
+    values = df[numeric].to_numpy(dtype=float)
+    finite = values[np.isfinite(values).all(axis=1)]
+    if finite.size == 0:
+        return []
+    shares = [
+        c for c, column in zip(numeric, finite.T, strict=True) if np.all((column >= -1e-9) & (column <= 1 + 1e-9))
+    ]
+    if len(shares) < 2 or len(shares) == len(factor_cols):
+        return []
+    total = finite[:, [numeric.index(c) for c in shares]].sum(axis=1)
+    return shares if np.allclose(total, 1.0, atol=1e-6) else []
+
+
 def _references(rhs: str, column: str) -> bool:
     """Whether the formula right-hand side ``rhs`` names the data column ``column``."""
     return re.search(rf"(?<![\w.]){re.escape(column)}(?!\w)", rhs) is not None
@@ -497,11 +519,13 @@ def _resolve_coding(
 ) -> str | Mapping[str, Mapping[str, float]]:
     """Check ``coding`` and return the scale it means: ``"actual"``, ``"coded"``, or ranges per numeric factor.
 
-    ``"auto"``, the default, is ``"coded"`` except for a mixture model, which has no coded
-    scale and keeps ``"actual"``. ``None`` means ``"auto"``.
+    ``"auto"``, the default, is ``"coded"`` except for a mixture model, and for data with
+    mixture components beside process factors: components have no coded scale, so these keep
+    ``"actual"``. ``None`` means ``"auto"``.
     """
+    components = _mixture_components(df, factor_cols)
     if coding is None or coding == "auto":
-        return "actual" if model in SCHEFFE_MODELS else "coded"
+        return "actual" if model in SCHEFFE_MODELS or components else "coded"
     resolved: str | Mapping[str, Mapping[str, float]]
     if isinstance(coding, Mapping):
         for name, bounds in coding.items():
@@ -523,6 +547,12 @@ def _resolve_coding(
         raise ValueError(
             "A Scheffe mixture model has no coded scale: its components are proportions that sum to 1, and "
             "coding each one from -1 to +1 would break that. Use coding='actual', or 'auto'."
+        )
+    if resolved != "actual" and components:
+        raise ValueError(
+            f"The mixture components {components} have no coded scale: they are proportions that sum to 1, and "
+            "coding each one from -1 to +1 would break that. Use coding='actual', or 'auto', and give the process "
+            "factors in the units the coefficients should be in."
         )
     return resolved
 
@@ -586,16 +616,21 @@ class _Fit:
         terms above it are zero. On the factors as given that is wherever their units put
         zero (0 degC, say, far outside the experiment, and somewhere else again in kelvin);
         coded, it is the centre of the design. Only numeric factors are coded, so the term
-        names do not change. The fit itself is kept for a mixture model, whose components
-        are proportions, and when coding would change the model rather than re-express it,
-        as for an interaction without its main effects. When the units are so unequal that
+        names do not change. The fit itself is kept for a mixture model and for data with
+        mixture components beside process factors, whose components are proportions, and
+        when coding would change the model rather than re-express it, as for an interaction
+        without its main effects. When the units are so unequal that
         the fit as given lost rank in floating point, the coded fit, which has not, is used.
         """
         numeric = [c for c in self.factor_cols if _is_numeric(self.df[c])]
         coded_df = self.df.copy()
         for col in numeric:
             coded_df[col] = _code_factor(self.df[col])[0]
-        if self.model in SCHEFFE_MODELS or coded_df[numeric].equals(self.df[numeric]):
+        if (
+            self.model in SCHEFFE_MODELS
+            or _mixture_components(self.df, self.factor_cols)
+            or coded_df[numeric].equals(self.df[numeric])
+        ):
             return self.ols
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # the rank warning was already given for the fit
