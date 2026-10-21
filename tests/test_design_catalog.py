@@ -177,6 +177,26 @@ def test_printed_settings_are_coded_from_the_factor_s_range():
     assert np.isnan(coded[2]).all(), "a blank and an unknown label are no settings"
 
 
+def test_a_level_printed_as_a_number_is_coded_as_the_level_listed_as_text():
+    """Davies's lots, listed as "1" to "3" and printed as 1 to 3: each is coded at its place among the levels."""
+    lots = {"name": "Lot", "type": "categorical", "levels": ["1", "2", "3"]}
+    entry = {"factors": [lots], "runs": {"columns": ["Lot", "y"], "rows": [[1, 5.0], [2.0, 6.0], ["3", 7.0]]}}
+    np.testing.assert_array_equal(published_runs(entry), [[-1.0], [0.0], [1.0]])
+
+
+def test_a_table_of_coded_runs_that_prints_a_categorical_factor_s_levels_codes_them():
+    """Goos and Jones's suppliers 1, 2 and 3 beside coded settings: the suppliers are levels, the settings codes."""
+    factors = [
+        {"name": "x", "low": 0, "high": 10, "type": "numeric"},
+        {"name": "supplier", "type": "categorical", "levels": [1, 2, 3], "low": 1, "high": 3},
+    ]
+    rows = [[-1, 1, 5.0], [1, 2, 6.0], [0, 3, 7.0]]
+    entry = {"factors": factors, "runs": {"columns": ["x", "supplier", "y"], "rows": rows, "coded": True}}
+    np.testing.assert_array_equal(published_runs(entry), [[-1.0, -1.0], [1.0, 0.0], [0.0, 1.0]])
+    codes = {**entry, "runs": {**entry["runs"], "rows": [[-1, -1, 5.0], [1, 0, 6.0], [0, 1, 7.0]]}}
+    np.testing.assert_array_equal(published_runs(codes), [[-1.0, -1.0], [1.0, 0.0], [0.0, 1.0]], "codes stay codes")
+
+
 def test_where_a_source_prints_an_entry_is_said_in_a_few_words():
     assert design_catalog._where(None) == ""
     assert design_catalog._where("Table 3, p. 12") == "Table 3, p. 12"

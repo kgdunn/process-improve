@@ -550,14 +550,32 @@ def _levels(factor: dict[str, Any]) -> list[Any]:
     return list(factor.get("levels") or [factor.get("low"), factor.get("high")])
 
 
+def _level_label(value: object) -> str:
+    """Write a categorical level as text to match on, so a level printed as 2 or 2.0 is the level listed as "2"."""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return str(value).strip()
+
+
+def _prints_levels(column: list[Any], factor: dict[str, Any]) -> bool:
+    """Say whether a categorical factor's column prints its levels: every setting printed is one of them."""
+    labels = {_level_label(v) for v in _levels(factor)}
+    printed = [v for v in column if v is not None and not isinstance(v, bool)]
+    return factor.get("type") == "categorical" and bool(printed) and all(_level_label(v) in labels for v in printed)
+
+
 def _coded_value(value: object, factor: dict[str, Any], *, coded: bool) -> float:
-    """Code one printed setting: -1 at the factor's low level, +1 at its high level; NaN when it is no setting."""
+    """Code one printed setting: -1 at the factor's low level, +1 at its high level; NaN when it is no setting.
+
+    A categorical factor's levels are spread evenly from -1 at its first to +1 at its last. A level is found by its
+    text, so a lot printed as the number 2 is the level listed as "2".
+    """
     if isinstance(value, bool) or value is None:
         return float("nan")
     if isinstance(value, str) or (factor.get("type") == "categorical" and not coded):
-        levels = _levels(factor)
-        if value in levels and len(levels) > 1:
-            return -1 + 2 * levels.index(value) / (len(levels) - 1)
+        labels = [_level_label(v) for v in _levels(factor)]
+        if _level_label(value) in labels and len(labels) > 1:
+            return -1 + 2 * labels.index(_level_label(value)) / (len(labels) - 1)
         try:
             value = float(value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
@@ -589,9 +607,15 @@ def published_runs(entry: dict[str, Any]) -> np.ndarray | None:
     at = {name: i for i, name in enumerate(runs["columns"])}
     if not all(f["name"] in at for f in factors):
         return None
+    # A table of coded runs may still print a categorical factor's levels, such as supplier 1, 2 and 3, not their codes.
     coded = bool(runs.get("coded"))
+    labelled = {f["name"] for f in factors if _prints_levels([row[at[f["name"]]] for row in runs["rows"]], f)}
     return np.array(
-        [[_coded_value(row[at[f["name"]]], f, coded=coded) for f in factors] for row in runs["rows"]], dtype=float
+        [
+            [_coded_value(row[at[f["name"]]], f, coded=coded and f["name"] not in labelled) for f in factors]
+            for row in runs["rows"]
+        ],
+        dtype=float,
     )
 
 
