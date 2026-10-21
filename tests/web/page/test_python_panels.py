@@ -834,3 +834,56 @@ def test_the_code_for_one_factor_tests_its_two_levels_as_the_page_does(api, node
 
 def test_a_study_of_more_factors_shows_no_comparison_code(node):
     assert "randomization_test" not in page_code(node, "analyseCode", "interactions", True)
+
+
+# --------------------------------------------------------------------------- one factor of three levels or more
+LOT = {"name": "Lot", "type": "categorical", "levels": ["1", "2", "3", "4"], "units": ""}
+
+
+@pytest.mark.parametrize("blank", [False, True], ids=["every run", "a run still to do"])
+def test_the_code_for_one_factor_of_four_levels_tests_them_as_the_page_does(api, node, blank):
+    """Four lots, four runs each, their labels numbers: the code's tests give the page's, against the control picked."""
+    spec = {"design_type": "full_factorial", "factors": [LOT], "n_replicates": 4, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    simulated = api.ok("api_simulate", {**held, "scenario": "main_effects", "sigma": 1, "seed": 2})
+    responses = [None, *simulated["responses"][1:]] if blank else simulated["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses, "control": "3"})
+    several = analysis["comparison"]["several"]
+    assert several["control"] == "3"
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], not blank, held["spec"], None, {"compared": True, "control": "3"}]),
+    )
+    assert '"Lot_L1": runs["Lot"].map({"1": 1.0, "2": 0.0, "3": 0.0, "4": -1.0}),' in code
+    shown = run(code)
+    assert_same_fit(shown, analysis)
+    assert shown["anova"].statistic == pytest.approx(several["test"]["f_value"])
+    assert shown["anova"].pvalue == pytest.approx(several["test"]["p_value"])
+    tukey, low_high = shown["tukey"], shown["tukey"].confidence_interval(0.95)
+    order = LOT["levels"]
+    for pair in several["pairs"]:
+        i, j = order.index(pair["from"]), order.index(pair["to"])  # the page's pair is the later level less the earlier
+        assert tukey.statistic[j, i] == pytest.approx(pair["estimate"])
+        assert [low_high.low[j, i], low_high.high[j, i]] == pytest.approx([pair["ci_low"], pair["ci_high"]])
+        assert tukey.pvalue[j, i] == pytest.approx(pair["p_value"], abs=1e-6)
+    if not blank:  # with the same runs at each level, Dunnett's intervals are the page's, to scipy's integration
+        intervals = shown["dunnett"].confidence_interval(0.95)
+        for x, low, high in zip(several["versus"], intervals.low, intervals.high, strict=True):
+            assert [low, high] == pytest.approx([x["ci_low"], x["ci_high"]], abs=2e-3), x["level"]
+
+
+def test_the_best_settings_code_holds_a_factor_of_three_levels_as_the_page_does(api, node):
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [catalyst, *FACTORS[:2]], "n_center_points": 0}
+    held = aimed(held_of(api.ok("api_make_design", spec)), "maximize")
+    simulation = api.ok("api_simulate", {**held, "scenario": "main_effects", "sigma": 0.5, "seed": 3})
+    request = {**held, "responses": simulation["responses"]}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    assert set(best["search"]["held"]) == {"Catalyst_L1", "Catalyst_L2"}, "the catalyst is held at its best level"
+    code = best_panel(node, held, simulation["responses"], (analysis, best), simulation)
+    level = next(s["value"] for s in best["settings"] if s["name"] == "Catalyst")
+    assert f"# The page tried each level and found Catalyst at {level} best" in code
+    assert_same_best(run(code), best, held["spec"])

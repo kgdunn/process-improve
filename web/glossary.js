@@ -17,9 +17,8 @@ export const GLOSSARY = {
     "Something you can change to influence the response, set differently from run to run, such as a temperature, " +
     "a speed or a supplier.",
   categorical:
-    "A factor with labels rather than a range of numbers, such as supplier A, B or C: two to eight levels, each any " +
-    "text, in the order you give them. A two-level design takes one of two levels, coded -1 and +1; a full factorial " +
-    "or a Taguchi array takes more.",
+    "A factor with labels rather than numbers, such as supplier A, B or C: two to eight levels, in your order. A " +
+    "two-level design takes two levels, coded -1 and +1; a full factorial or a Taguchi array takes more.",
   limit:
     "Some combinations of settings are unsafe, infeasible or not of interest. A limit rules them out: an " +
     "inequality in the factors' own units, such as T + 25*P <= 250, which every run must meet.",
@@ -112,7 +111,7 @@ export const GLOSSARY = {
     "The test of whether the averages at three levels or more differ at all: it sets how far the levels' averages " +
     "spread against how far the runs at each level spread about their own average, which is the noise.",
   tukey:
-    "Tukey's intervals: one for the difference between each pair of levels, each made wider so that all of them " +
+    "Tukey's intervals: one for the difference between each pair of levels, each made wider so that all " +
     "together hold their true differences 95% of the time. A pair whose interval holds no zero differs by more than " +
     "the noise.",
   dunnett:

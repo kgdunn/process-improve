@@ -24,8 +24,29 @@ const kwargs = (options) =>
     .map(([k, v]) => `${k}=${repr(v)}`)
     .join(", ");
 
-/** Whether a factor is categorical: its levels are labels, which the page holds as its low and high. */
-const labelled = (f) => typeof f.low === "string";
+/** Whether a factor is categorical: it says so, or its two levels are labels, held as its low and high. */
+const labelled = (f) => f.type === "categorical" || typeof f.low === "string";
+
+/** A categorical factor's levels, in their order: those it lists, or its two labels. */
+const levelsOf = (f) => f.levels ?? [f.low, f.high];
+
+/** Whether a factor is categorical of three levels or more, which the model fits as its contrasts. */
+const isSeveral = (f) => labelled(f) && levelsOf(f).length > 2;
+
+/** What joins a factor's name to the number of its contrast column; mirrors bootstrap.LEVEL_JOIN. */
+export const LEVEL_JOIN = "_L";
+
+/**
+ * A level of a factor of three levels or more as its contrast columns, as bootstrap._contrasts codes it: a column for
+ * each level but the last, +1 at its own level, -1 at the last level, and 0 elsewhere.
+ */
+function contrastsAt(f, level) {
+  const levels = levelsOf(f);
+  const at = levels.indexOf(level);
+  return Object.fromEntries(
+    levels.slice(0, -1).map((_, j) => [`${f.name}${LEVEL_JOIN}${j + 1}`, at === levels.length - 1 ? -1 : at === j ? 1 : 0]),
+  );
+}
 
 /**
  * The page's mixture designs, as bootstrap.MIXTURES names them; each is the library's design type "mixture",
@@ -46,7 +67,7 @@ function factorList(factors, threeLevels = false, name = "factors", mixture = fa
   const units = (f) => (f.units ? `, units=${repr(f.units)}` : "");
   const rows = factors.map((f) =>
     labelled(f)
-      ? `    Factor(name=${repr(f.name)}, type="categorical", levels=[${repr(f.low)}, ${repr(f.high)}]),`
+      ? `    Factor(name=${repr(f.name)}, type="categorical", levels=${repr(levelsOf(f))}),`
       : `    Factor(name=${repr(f.name)}${mixture ? ', type="mixture"' : ""}, low=${f.low}, high=${f.high}${levels(f)}${units(f)}),`,
   );
   const said = threeLevels ? "  # each numeric factor at its low, center and high values" : "";
@@ -148,11 +169,22 @@ function columnLines(key, values, indent = "        ") {
 
 /**
  * How the page codes a factor's settings, as a line of the ``X`` literal: (setting - centre) /
- * half-range for a number, and -1 and +1 for a category's two labels. The centre and half-range
- * are worked out as bootstrap.py works them out, so the coded values agree to the last digit.
+ * half-range for a number, and -1 and +1 for a category's two labels. A factor of three levels or
+ * more is a line for each of its contrast columns. The centre and half-range are worked out as
+ * bootstrap.py works them out, so the coded values agree to the last digit.
  */
 function codedLine(f) {
   const column = `runs[${repr(f.name)}]`;
+  if (isSeveral(f)) {
+    const coded = levelsOf(f).map((level) => contrastsAt(f, level));
+    return [
+      `        # ${f.name}: a column for each level but the last, +1 at its level, -1 at the last level, 0 elsewhere.`,
+      ...Object.keys(coded[0]).map((name) => {
+        const map = levelsOf(f).map((level, i) => `${repr(level)}: ${coded[i][name].toFixed(1)}`);
+        return `        ${repr(name)}: ${column}.map({${map.join(", ")}}),`;
+      }),
+    ].join("\n");
+  }
   if (labelled(f)) return `        ${repr(f.name)}: ${column}.map({${repr(f.low)}: -1.0, ${repr(f.high)}: 1.0}),`;
   const centre = (f.high + f.low) / 2;
   const half = (f.high - f.low) / 2;
@@ -281,7 +313,7 @@ export function resultsCode(design, results, simulation = null) {
  * is its column then. ``vifModel``, the terms fitted as a formula, is given when the page shows their
  * VIFs: the code then works them out from the same runs, as the page's VIF column has them.
  */
-export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false } = {}) {
+export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false, control = null } = {}) {
   const fitted = complete ? "X, y" : "X[done], y[done]";
   const own = Boolean(spec?.response) && spec.response !== responseNames(spec)[0];
   const vif = vifModel
@@ -303,7 +335,7 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     ")",
     'print(analysis["coefficients"])',
     ...vif,
-    ...(compared ? comparisonCode(spec, complete) : []),
+    ...(compared ? (isSeveral(spec.factors[0]) ? severalCode(spec, complete, control) : comparisonCode(spec, complete)) : []),
   ].join("\n");
 }
 
@@ -334,10 +366,38 @@ function comparisonCode(spec, complete) {
   ];
 }
 
+/**
+ * A study of one categorical factor at three levels or more (``compared``): its levels tested as the page tests them,
+ * with scipy, which the library is built on. The one-way analysis of variance asks whether the averages differ at all,
+ * Tukey's intervals compare every pair of levels, and Dunnett's each level with the control, the level the page
+ * compares them with. Dunnett's intervals are the page's when each level has the same runs; with unequal runs the
+ * page takes the comparisons' average correlation, and scipy each one's own.
+ */
+function severalCode(spec, complete, control) {
+  const f = spec.factors[0];
+  const levels = levelsOf(f);
+  const base = levels.includes(control) ? control : levels[0];
+  const done = complete ? "" : "done & ";
+  return [
+    "",
+    `# The ${levels.length} levels of ${f.name} compared: whether their averages differ at all, every pair of levels by`,
+    `# Tukey's intervals, and each level against the control, ${base}, by Dunnett's intervals.`,
+    "from scipy import stats",
+    "",
+    `levels, control = ${repr(levels)}, ${repr(base)}`,
+    `groups = {level: y[${done}(runs[${repr(f.name)}] == level)] for level in levels}`,
+    ...(complete ? [] : ["groups = {level: g for level, g in groups.items() if len(g)}  # a level with no result yet is left out"]),
+    "anova = stats.f_oneway(*groups.values())",
+    "tukey = stats.tukey_hsd(*groups.values())",
+    "dunnett = stats.dunnett(*(g for level, g in groups.items() if level != control), control=groups[control])",
+    'print(anova, tukey, dunnett, sep="\\n")',
+  ];
+}
+
 /** How the code shown holds some columns of the model at a value: as bootstrap._held_at does, line for line. */
 const HELD_AT = [
   "def held_at(coefficients, held):",
-  '    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at -1 or +1."""',
+  '    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at its level."""',
   "    model = {}",
   "    for c in coefficients:",
   '        parts = c["term"].split(":")',
@@ -348,12 +408,37 @@ const HELD_AT = [
   "",
 ];
 
+/** The columns a factor is fitted as: its own, or a factor of three levels or more's contrasts. */
+const columnsOf = (f) => (isSeveral(f) ? Object.keys(contrastsAt(f, levelsOf(f)[0])) : [f.name]);
+
+/** The level a categorical factor is held at, as its columns are held: -1 or +1 for two levels, else its contrasts. */
+function heldLevel(f, held) {
+  if (!isSeveral(f)) return held[f.name] < 0 ? f.low : f.high;
+  return levelsOf(f).find((level) => Object.entries(contrastsAt(f, level)).every(([name, v]) => held[name] === v));
+}
+
+/**
+ * The best settings in the columns the model is fitted on: each in coded units as the page found it, a categorical
+ * factor of three levels or more as the contrasts of its best level.
+ */
+function codedPoint(best, spec) {
+  const level = (f) => best.settings?.find((s) => s.name === f.name)?.value;
+  return Object.assign(
+    {},
+    ...Object.entries(best.coded).map(([name, v]) => {
+      const f = spec.factors.find((one) => one.name === name);
+      return f && isSeveral(f) ? contrastsAt(f, level(f)) : { [name]: v };
+    }),
+  );
+}
+
 /** What the code shown says of the held columns: each categorical factor at the level found best, the blocks at their average. */
 function heldComment(held, factors) {
   const levels = factors
-    .filter((f) => labelled(f) && f.name in held)
-    .map((f) => `${f.name} at ${held[f.name] < 0 ? f.low : f.high}`);
-  const blocks = Object.keys(held).some((name) => !factors.some((f) => f.name === name));
+    .filter((f) => labelled(f) && columnsOf(f).every((name) => name in held))
+    .map((f) => `${f.name} at ${heldLevel(f, held)}`);
+  const columns = factors.flatMap(columnsOf);
+  const blocks = Object.keys(held).some((name) => !columns.includes(name));
   const said = [];
   if (levels.length) said.push(`The page tried each level and found ${levels.join(" and ")} best: the model is held there.`);
   if (blocks) said.push("The blocks are held at the average block, as the equation is.");
@@ -375,7 +460,8 @@ export function bestCode(best, spec, model, complete = true) {
   const response = spec.response || "y";
   const searched = Boolean(best.search?.goal);
   const fitted = complete ? "X, y" : "X[done], y[done]";
-  const levels = Object.fromEntries(spec.factors.filter(labelled).map((f) => [f.name, best.coded[f.name]]));
+  const point = codedPoint(best, spec);
+  const levels = Object.fromEntries(spec.factors.filter(labelled).flatMap((f) => columnsOf(f).map((name) => [name, point[name]])));
   const imports = [
     ...(holds && searched ? ["import math"] : []),
     "import pandas as pd",
@@ -384,7 +470,7 @@ export function bestCode(best, spec, model, complete = true) {
   ];
   const at = searched
     ? `at = pd.DataFrame([{**best["optimal_coded"]${Object.keys(levels).length ? `, **${repr(levels)}` : ""}}])`
-    : `at = pd.DataFrame([${repr(best.coded)}])`;
+    : `at = pd.DataFrame([${repr(point)}])`;
   const prediction = [
     "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
     at,
@@ -536,7 +622,7 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * analyseCode). ``analyses`` lists each response's ``{response, model, best, vifModel}`` for a
  * study of several responses; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, version, url, best = null, analyses = null, balance = null }) {
+export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, control = null, version, url, best = null, analyses = null, balance = null }) {
   const names = responseNames(design.spec);
   const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
   const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
@@ -554,10 +640,10 @@ export function notebook({ title, design, responses, sources, simulation, model,
     codeCell("results", resultsCode(design, results, simulated ? simulation : null)),
   ];
   // Each response's analysis, and its best settings when it has a goal: the first's alone for a study of one response.
-  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel, compared }] : []);
+  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel, compared, control }] : []);
   const fitted = fittedRuns(design);
   let step = 3;
-  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null, compared: levels = false } of each) {
+  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null, compared: levels = false, control: base = null } of each) {
     if (fittedModel === null || fittedModel === undefined) continue;
     const spec = forResponse(design.spec, response);
     const values = results[response] ?? [];
@@ -566,7 +652,7 @@ export function notebook({ title, design, responses, sources, simulation, model,
     const id = names.length > 1 ? `-${names.indexOf(response) + 1}` : ""; // a cell's id is ASCII, as nbformat asks
     cells.push(
       markdownCell(`analysis-step${id}`, names.length > 1 ? `## ${step}. The analysis of ${words}` : `## ${step}. The analysis`),
-      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels })),
+      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels, control: base })),
     );
     step += 1;
     if (found?.settings) {

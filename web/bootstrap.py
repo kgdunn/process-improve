@@ -5340,7 +5340,7 @@ def _level_combinations(spec: dict, in_model: set[str]) -> list[dict[str, float]
 
 
 def _held_at(coefficients: list[dict], held: dict[str, float]) -> list[dict]:
-    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at -1 or +1.
+    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at its level.
 
     Each term loses the columns held, its coefficient multiplied by their values, and the terms that
     are then the same are added together, in the order each first appears. The code the page shows

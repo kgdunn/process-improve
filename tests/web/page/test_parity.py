@@ -247,6 +247,8 @@ def test_a_categorical_factor_s_levels_are_held_to_bootstrap_s_limits(bootstrap,
     assert held == [list(bootstrap.SEVERAL_LEVEL_DESIGNS), bootstrap.MAX_LEVELS, bootstrap.LABEL_MOST]
     stored = javascript(node, source("campaign.js"), [("MAX_LEVELS", []), ("LABEL_MOST", [])])
     assert stored == [bootstrap.MAX_LEVELS, bootstrap.LABEL_MOST], "a study file holds what the page takes"
+    joined = javascript(node, source("python.js"), [("LEVEL_JOIN", [])])
+    assert joined == [bootstrap.LEVEL_JOIN], "the code shown names a level's contrast column as the analysis does"
 
 
 def test_the_page_names_runs_as_given_as_bootstrap_does(bootstrap, node):

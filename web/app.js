@@ -2619,8 +2619,8 @@ async function eachAnalysis() {
   for (const name of resultNames()) {
     if (!state.results[name].some((v) => v !== null)) continue;
     if (name === state.shown && state.analysis) {
-      const compared = Boolean(state.analysis.comparison?.difference);
-      out.push({ response: name, model: state.analysis.formula ?? state.analysis.model, best: state.best, vifModel: vifTerms(state.analysis), compared });
+      const model = state.analysis.formula ?? state.analysis.model;
+      out.push({ response: name, model, best: state.best, vifModel: vifTerms(state.analysis), ...comparedOf(state.analysis) });
       continue;
     }
     const request = analysisRequest(name);
@@ -2632,7 +2632,7 @@ async function eachAnalysis() {
       model: analysis.result.formula ?? analysis.result.model,
       best: best.ok ? best.result : null,
       vifModel: vifTerms(analysis.result),
-      compared: Boolean(analysis.result.comparison?.difference),
+      ...comparedOf(analysis.result),
     });
   }
   return out;
@@ -2654,7 +2654,7 @@ async function downloadNotebook() {
     simulation: state.simulation,
     model: state.analysis ? (state.analysis.formula ?? state.analysis.model) : null,
     vifModel: state.analysis ? vifTerms(state.analysis) : null,
-    compared: Boolean(state.analysis?.comparison?.difference),
+    ...comparedOf(state.analysis),
     version: state.version,
     url: `${location.origin}${location.pathname}`,
     best: state.best,
@@ -2990,6 +2990,12 @@ function analysisRequest(name = state.shown) {
   };
 }
 
+/** Whether an analysis compares one factor's levels, which its code then does too, and the control Dunnett's take. */
+const comparedOf = (analysis) => ({
+  compared: Boolean(analysis?.comparison?.difference || analysis?.comparison?.several),
+  control: analysis?.comparison?.several?.control ?? null,
+});
+
 /** The control the reader picked for Dunnett's intervals, while it is a level of the study's one categorical factor. */
 function chosenControl() {
   const factors = state.design?.spec.factors ?? [];
@@ -3067,8 +3073,7 @@ function renderAnalysis(reply) {
   const vif = showsVif(r.coefficients); // a column only when some term is correlated enough for the note
   setStatus("Analysis complete.");
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  const compared = Boolean(r.comparison?.difference);
-  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, { compared }));
+  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
   const parts = [
     ...comparisonParts(r),
