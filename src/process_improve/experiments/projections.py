@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections import Counter
 from typing import Any
 
 import numpy as np
@@ -164,7 +165,8 @@ def evaluate_projections(
         per projection with its ``factors``, whether it is ``estimable``, and its metrics'
         results under ``metrics``; and ``averages``, each number a metric returns (such as
         ``"d_efficiency"`` and ``"max_prediction_variance"`` for ``"g_efficiency"``) averaged
-        over the projections that estimate the model.
+        over the projections that estimate the model. A number that two of the metrics return
+        under one name is kept apart, named after its metric (``"vif.A"`` and ``"power.A"``).
 
     Raises
     ------
@@ -189,17 +191,33 @@ def evaluate_projections(
             found.pop("notes", None)
         projections.append({"factors": factors, "estimable": estimable, "metrics": found})
     usable = [p for p in projections if p["estimable"]]
-    numbers: dict[str, list[float]] = {}
-    for p in usable:
-        for name, value in p["metrics"].items():
-            entries = value.items() if isinstance(value, dict) else [(name, value)]
-            for key, number in entries:
-                if isinstance(number, (int, float)) and not isinstance(number, bool) and math.isfinite(number):
-                    numbers.setdefault(key, []).append(float(number))
     return {
         "n_projections": len(projections),
         "n_estimable": len(usable),
         "fraction_estimable": len(usable) / len(projections) if projections else float("nan"),
         "projections": projections,
-        "averages": {key: float(np.mean(values)) for key, values in numbers.items()},
+        "averages": _averages([p["metrics"] for p in usable]),
+    }
+
+
+def _averages(results: list[dict[str, Any]]) -> dict[str, float]:
+    """Average each number the metrics return over the projections, keeping apart numbers that share a name.
+
+    A result's own number keeps its name (``"d_efficiency"``), and so does a number inside a result's
+    dict (``"max_abs_r"`` of ``"correlation"``) that no other result returns. When two results
+    return a number under one name, as ``"vif"`` and ``"power"`` both key theirs by model term, the
+    one inside a dict is named after its result as well (``"vif.A"``, ``"power.A"``), so different
+    quantities are never averaged together.
+    """
+    numbers: dict[tuple[str, str], list[float]] = {}
+    for found in results:
+        for name, value in found.items():
+            entries = value.items() if isinstance(value, dict) else [(name, value)]
+            for key, number in entries:
+                if isinstance(number, (int, float)) and not isinstance(number, bool) and math.isfinite(number):
+                    numbers.setdefault((name, key), []).append(float(number))
+    owners = Counter(key for _, key in numbers)
+    return {
+        key if owners[key] == 1 or name == key else f"{name}.{key}": float(np.mean(values))
+        for (name, key), values in numbers.items()
     }
