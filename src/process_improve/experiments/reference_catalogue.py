@@ -2481,14 +2481,17 @@ def _classical_test(experiment: dict, check: dict) -> float:
     ``"randomization_test"`` or ``"autocorrelation"`` (from :mod:`process_improve.univariate.classical`).
     ``check["x"]`` and ``check["y"]`` pick each group's runs, as a list of 1-based positions or a
     ``{column: value}`` that the runs must match; ``check["x"]`` left out takes every run, in order.
-    ``check["kwargs"]`` go to the function as they are, and ``check["key"]`` reads its result.
+    ``check["subtract"]``, a stated difference, is taken from each response of the second group, or
+    of the only one, so that the test of no difference tests that difference. ``check["kwargs"]``
+    go to the function as they are, and ``check["key"]`` reads its result.
     """
     first = _group(experiment, check, "x")
     if first is None:
         _, responses = _coded_runs(experiment, None)
         first = responses[check.get("response") or responses.columns[0]].astype(float).tolist()
     second = _group(experiment, check, "y")
-    args = [first] if second is None else [first, second]
+    shift = float(check.get("subtract", 0.0))
+    args = [[v - shift for v in first]] if second is None else [first, [v - shift for v in second]]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         found = _CLASSICAL[check["function"]](*args, **check.get("kwargs", {}))
