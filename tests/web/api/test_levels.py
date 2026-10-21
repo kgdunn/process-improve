@@ -146,6 +146,46 @@ def test_the_anova_is_of_type_ii_as_statsmodels_gives_it_for_unbalanced_runs(api
         assert rows[source]["F"] == pytest.approx(table.loc[row, "F"]), source
 
 
+SUPPLIER = {"name": "Supplier", "type": "categorical", "levels": ["1", "2", "3"], "units": ""}
+BATCH = {"name": "Batch", "type": "categorical", "levels": ["a", "b", "c", "d"], "units": ""}
+NESTED = {"terms": [["Supplier"], ["Supplier", "Batch"]]}
+
+
+@pytest.fixture(scope="module")
+def batches(api) -> tuple[dict, list[float]]:
+    """Batches a to d of each of three suppliers, twice each, a supplier's batches its own: Batch nested in Supplier."""
+    design = made(api, [SUPPLIER, BATCH], n_replicates=2)
+    sheet = run_sheet(design)
+    rng = np.random.default_rng(3)
+    return design, (sheet["Supplier"].astype(int) + rng.normal(size=len(sheet))).round(3).tolist()
+
+
+def test_a_factor_nested_in_another_is_fitted_within_each_of_its_levels_as_statsmodels_fits_it(api, batches):
+    """Supplier + Supplier:Batch: Batch's effect within each supplier, 3 x 3 columns, as patsy codes it."""
+    design, y = batches
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": y, "model": NESTED})
+    sheet = run_sheet(design)
+    frame = pd.DataFrame({"S": sheet["Supplier"].astype(str), "B": sheet["Batch"], "y": y})
+    table = anova_lm(ols("y ~ S + S:B", frame).fit(), typ=2)
+    rows = {a["source"]: a for a in analysis["anova"]}
+    assert (rows["Supplier"]["df"], rows["Supplier:Batch"]["df"], rows["Residual"]["df"]) == (2, 9, 12)
+    for source, row in [("Supplier", "S"), ("Supplier:Batch", "S:B"), ("Residual", "Residual")]:
+        assert rows[source]["sum_sq"] == pytest.approx(table.loc[row, "sum_sq"]), source
+    labels = [c["label"] for c in analysis["coefficients"]]
+    assert "Supplier[3]·Batch[a]" in labels, "batch a's effect within the third supplier"
+
+
+def test_a_nested_model_s_best_settings_hold_the_outer_factor_s_indicators(api, batches):
+    design, y = batches
+    held = held_of(design)
+    held["spec"]["response_info"] = {"goal": "maximize"}
+    best = api.ok("api_best_settings", {**held, "responses": y, "model": NESTED})
+    kept = set(best["search"]["held"])
+    assert {"Supplier_I1", "Supplier_I2", "Supplier_I3", "Supplier_L1", "Supplier_L2"} <= kept
+    plain = api.ok("api_best_settings", {**held, "responses": y, "model": "main_effects"})
+    assert not any("_I" in name for name in plain["search"]["held"]), "a model with no nesting holds no indicators"
+
+
 def test_a_model_of_chosen_terms_takes_the_factor_whole(api, catalysts):
     design, _ = catalysts
     chosen = {"terms": [["Catalyst"], ["T"]]}

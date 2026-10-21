@@ -280,6 +280,19 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _supplied(model={"terms": [["T"], ["S", "S"]]}),
         "S is categorical, so it has no square: it is +1 at both its levels.",
     ),
+    "an interaction of two categorical factors without either": (
+        "api_analyze_runs",
+        _supplied(
+            spec={
+                **SUPPLIED["spec"],
+                "factors": [{"name": "M", "low": "X", "high": "Y", "units": ""}, SUPPLIED["spec"]["factors"][1]],
+            },
+            columns=["Std order", "Run order", "M", "S", "y"],
+            rows=[[1, 1, "X", "A", None], [2, 2, "Y", "A", None], [3, 3, "X", "B", None], [4, 4, "Y", "B", None]],
+            model={"terms": [["M", "S"]]},
+        ),
+        "The term M·S needs M or S in the model too: add one of them, or take it out.",
+    ),
     # The request itself, which only a script could get wrong.
     "a request that is not an object": (
         "api_make_design",

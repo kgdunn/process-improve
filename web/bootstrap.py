@@ -339,6 +339,11 @@ LABEL_MOST = 64
 #: (The library refuses a double underscore in a name.)
 LEVEL_JOIN = "_L"
 
+#: What joins a factor's name to the number of a level in the name of its indicator column, 1 at that level and 0
+#: elsewhere: ``Supplier_I1``. A model takes a factor's indicators where another factor is nested in it, as
+#: Batch is in ``Supplier + Supplier:Batch``, so the term holds Batch's effect within each supplier.
+INDICATOR_JOIN = "_I"
+
 #: The levels a Taguchi array can run each numeric factor at: low and high, or low, centre and high.
 #: The array is the smallest standard one with a column for every factor (``dispatch_taguchi``).
 TAGUCHI_LEVELS = (2, 3)
@@ -679,7 +684,11 @@ def _factors(spec: dict) -> list[Factor]:
             raise ValueError(f"Factor {name}: the low value must be below the high value.")
         factors.append(Factor(name=name, low=low, high=high, units=str(f.get("units", ""))))
     columns = {
-        f"{f.name}{LEVEL_JOIN}{j}" for f in factors if f.type == "categorical" for j in range(1, len(f.levels or []))
+        f"{f.name}{join}{j}"
+        for f in factors
+        if f.type == "categorical"
+        for join, most in ((LEVEL_JOIN, len(f.levels or []) - 1), (INDICATOR_JOIN, len(f.levels or [])))
+        for j in range(1, most + 1)
     }
     if taken := sorted(set(names) & columns):
         raise ValueError(f"Factor {taken[0]}: rename it, as the page names a column of another factor's levels so.")
@@ -782,17 +791,59 @@ def _level_at(factor: dict, coded: float) -> str:
 
 
 def _held_columns(hold: dict[str, float], spec: dict) -> dict[str, float]:
-    """Write coded settings over the columns the model is fitted on: a factor of several levels as its contrasts."""
+    """Write coded settings over the columns the model is fitted on: a factor of several levels as its contrasts.
+
+    A categorical factor's indicators are written too, 1 at its level and 0 at the others, for a model with a factor
+    nested in it; a model without them leaves them unused.
+    """
     out: dict[str, float] = {}
     for f in spec["factors"]:
         if f["name"] not in hold:
             continue
+        if _categorical(f):
+            levels = _levels_of(f)
+            at = levels.index(_level_at(f, hold[f["name"]]))
+            out.update({name: float(j == at) for j, name in enumerate(_indicator_names(f))})
         if not _several(f):
             out[f["name"]] = hold[f["name"]]
             continue
         levels = _levels_of(f)
         index = np.array([levels.index(_level_at(f, hold[f["name"]]))])
         out.update(zip(_contrast_names(f), _contrasts(index, len(levels))[0], strict=True))
+    return out
+
+
+def _indicator_names(factor: dict) -> list[str]:
+    """Name a categorical factor's indicator columns, one for each of its levels: ``Supplier_I1``, ``Supplier_I2``."""
+    return [f"{factor['name']}{INDICATOR_JOIN}{j}" for j in range(1, len(_levels_of(factor)) + 1)]
+
+
+def _indicators(index: np.ndarray, k: int) -> np.ndarray:
+    """Return the indicator columns of a factor of ``k`` levels: column j is 1 at level j and 0 elsewhere."""
+    return (index[:, None] == np.arange(k)[None, :]).astype(float)
+
+
+def _nested(terms: list[str], spec: dict) -> dict[str, str]:
+    """Find the terms in which a categorical factor takes its indicators, as patsy codes them, and name it for each.
+
+    A categorical factor of a term takes its indicators, not its contrasts, when the model lacks the term without
+    it: in ``Supplier + Supplier:Batch`` the term less Supplier is Batch, which the model lacks, so Supplier takes
+    its indicators and the term holds Batch's effect within each supplier. A term in which two factors would need
+    them is refused: the model cannot tell it from the terms it lacks.
+    """
+    categorical = set(_categorical_names(spec))
+    present = {frozenset()} | {frozenset(t.split(":")) for t in terms if not t.startswith("I(")}
+    out = {}
+    for term in terms:
+        parts = [] if term.startswith("I(") else term.split(":")
+        full = [p for p in parts if p in categorical and len(parts) > 1 and frozenset(parts) - {p} not in present]
+        if len(full) > 1:
+            lacking = _listed([_pretty(":".join(q for q in parts if q != p)) for p in reversed(full)], last="or")
+            raise ValueError(
+                f"The term {_pretty(term)} needs {lacking} in the model too: add one of them, or take it out."
+            )
+        if full:
+            out[term] = full[0]
     return out
 
 
@@ -818,39 +869,56 @@ def _model_columns(spec: dict) -> list[str]:
     return [c for f in spec["factors"] for c in (_contrast_names(f) if _several(f) else [f["name"]])]
 
 
-def _expanded_terms(terms: list[str], spec: dict) -> list[str]:
+def _expanded_terms(terms: list[str], spec: dict, model: list[str] | None = None) -> list[str]:
     """Write a model's terms, named over the factors, over the columns the model is fitted on.
 
     A categorical factor of three levels or more is its contrasts: its main effect is a column per
     level but the last, and its interaction with another factor is each of those columns times the
-    other factor's. A square is a numeric factor's, and stays as it is.
+    other factor's. A factor another is nested in is its indicators in that term (:func:`_nested`),
+    judged in ``model``, the whole model, when ``terms`` are only some of its terms. A square is a
+    numeric factor's, and stays as it is.
     """
     columns = {f["name"]: _contrast_names(f) if _several(f) else [f["name"]] for f in spec["factors"]}
+    indicators = {f["name"]: _indicator_names(f) for f in spec["factors"] if _categorical(f)}
+    nested = _nested(terms if model is None else model, spec)
     out = []
     for term in terms:
         if term.startswith("I("):
             out.append(term)
             continue
-        out += [":".join(product) for product in itertools.product(*(columns[name] for name in term.split(":")))]
+        each = [indicators[name] if nested.get(term) == name else columns[name] for name in term.split(":")]
+        out += [":".join(product) for product in itertools.product(*each)]
     return out
 
 
 def _fitted_model(model: str | list[str], spec: dict) -> tuple[str | list[str], list[str]]:
     """Return the model as it is fitted, and the columns it is fitted on.
 
-    Without a categorical factor of three levels or more, these are the model itself and the
-    factors' names. With one, its terms written over the columns (:func:`_expanded_terms`), since a
-    named model would multiply a factor's own contrasts together.
+    Without a categorical factor of three levels or more, or one another is nested in, these are the
+    model itself and the factors' names. Otherwise its terms written over the columns
+    (:func:`_expanded_terms`), since a named model would multiply a factor's own contrasts together,
+    and the columns with the indicators of each factor another is nested in.
     """
     names = [f["name"] for f in spec["factors"]]
-    if not any(_several(f) for f in spec["factors"]):
+    terms = _model_terms(model, names, _categorical_names(spec))
+    nested = _nested(terms, spec)
+    if not any(_several(f) for f in spec["factors"]) and not nested:
         return model, names
-    return _expanded_terms(_model_terms(model, names, _categorical_names(spec)), spec), _model_columns(spec)
+    factors = {f["name"]: f for f in spec["factors"]}
+    indicators = [c for name in dict.fromkeys(nested.values()) for c in _indicator_names(factors[name])]
+    return _expanded_terms(terms, spec), [*_model_columns(spec), *indicators]
 
 
 def _level_words(text: str, spec: dict) -> str:
-    """Write a fitted column of a factor of several levels as the page shows it: ``Catalyst_L1`` as ``Catalyst[A]``."""
+    """Write a fitted column of a categorical factor as the page shows it: ``Catalyst_L1`` as ``Catalyst[A]``.
+
+    A contrast column and an indicator column of the same level read alike: the term each is in says which it is.
+    """
     for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            for j, column in enumerate(_indicator_names(f)):
+                text = re.sub(rf"\b{re.escape(column)}\b", f"{f['name']}[{levels[j]}]", text)
         if _several(f):
             levels = _levels_of(f)
             for j, column in enumerate(_contrast_names(f)):
@@ -2256,7 +2324,7 @@ def _analysis(
     done = y.notna()
     pending = runs.loc[~done, "Run order"].astype(int).tolist() if "Run order" in runs else []
 
-    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
     n_terms = _n_terms(len(columns), fitted)
     if pending and done.sum() < n_terms:
         complete = int(done.sum())
@@ -2336,6 +2404,10 @@ def _grouped_anova(rows: list[dict], frame: pd.DataFrame, y: pd.Series, formula:
     for term in terms:
         sources.setdefault(_source_of(term, spec), []).append(term)
     grouped = {source: members for source, members in sources.items() if len(members) > 1}
+    # A source within a grouped one, as Supplier is within Supplier:Batch when Batch is nested in it, is
+    # worked out here too: the fit cannot tell that Supplier_I1:Batch contains Supplier.
+    inner = {s for s in sources if any(set(g.split(":")) > set(s.split(":")) for g in grouped)}
+    grouped |= {source: sources[source] for source in inner}
     if not grouped:
         return rows
     full = _sse(frame, y, terms)
@@ -2377,10 +2449,14 @@ def _grouped_anova(rows: list[dict], frame: pd.DataFrame, y: pd.Series, formula:
 def _source_of(term: str, spec: dict) -> str:
     """Name the source a fitted term belongs to, over the factors: ``Catalyst_L1:T`` is part of ``Catalyst:T``."""
     several = {f["name"] for f in spec["factors"] if _several(f)}
+    categorical = set(_categorical_names(spec))
 
     def factor(part: str) -> str:
         stem, join, j = part.rpartition(LEVEL_JOIN)
-        return stem if join and stem in several and j.isdigit() else part
+        if join and stem in several and j.isdigit():
+            return stem
+        stem, join, j = part.rpartition(INDICATOR_JOIN)
+        return stem if join and stem in categorical and j.isdigit() else part
 
     return ":".join(factor(part) for part in term.replace("·", ":").split(":"))
 
@@ -3261,11 +3337,12 @@ def _level_indices(column: pd.Series, factor: dict) -> np.ndarray:
     return np.array(found, dtype=int)
 
 
-def _design_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
+def _design_frame(runs: pd.DataFrame, spec: dict, columns: list[str] | tuple[str, ...] = ()) -> pd.DataFrame:
     """Return the runs as the analysis fits them: the coded settings, and each run's block if it has one.
 
     A categorical factor of three levels or more is fitted as its contrasts (:func:`_contrasts`), a
-    column per level but the last, in place of its one coded column.
+    column per level but the last, in place of its one coded column. A factor whose indicators the
+    model's ``columns`` name has them too (:func:`_nested`).
     """
     frame = _coded(runs, spec["factors"])
     for f in spec["factors"]:
@@ -3275,6 +3352,10 @@ def _design_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
             frame = frame.drop(columns=f["name"])
             for j, name in enumerate(_contrast_names(f)):
                 frame.insert(at + j, name, _contrasts(index, len(_levels_of(f)))[:, j])
+        if _categorical(f) and set(_indicator_names(f)) & set(columns):
+            index = _level_indices(runs[f["name"]], f)
+            for j, name in enumerate(_indicator_names(f)):
+                frame[name] = _indicators(index, len(_levels_of(f)))[:, j]
     if _blocked(spec):
         frame[BLOCK] = runs[BLOCK].to_numpy()
     return frame
@@ -3668,7 +3749,7 @@ def plots(request: dict) -> dict:
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
     done = y.notna().to_numpy()
-    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
         fit = _fit_estimable(coded, y, fitted, columns, categorical)
@@ -4437,7 +4518,7 @@ def _powers(request: dict) -> dict[str, Any]:
             inverse = np.linalg.inv(x.T @ x)
             for term in aimed:
                 kind = "quadratic" if term.startswith("I(") else "interaction" if ":" in term else "main"
-                members = _expanded_terms([term], spec)
+                members = _expanded_terms([term], spec, aimed)
                 index = [expanded.index(m) + 1 for m in members]  # after the intercept
                 b = _least_favourable(members, spec, effect)
                 found = _group_power(b, inverse[np.ix_(index, index)], df)
@@ -5222,7 +5303,7 @@ def best_settings(request: dict) -> dict:
         "sensitivity": _sensitivity(reduced, numeric, x, region, in_model),
         "confirm_at": _practical(spec, point, region),
         "confirmation": _confirmation(every_run, spec, fitted),
-        "search": {"held": found["held"], "goal": found["goal"]},
+        "search": {"held": _used(found["held"], fitted.out["coefficients"]), "goal": found["goal"]},
     }
     return reply
 
@@ -5292,8 +5373,8 @@ def _fitted(runs: pd.DataFrame, spec: dict, model: str | list[str]) -> _FittedMo
     done = y.notna().to_numpy()
     if not done.any():
         raise ValueError("Enter results first: the best settings are found on the model fitted to them.")
-    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
     fitted, columns = _fitted_model(model, spec)
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
     with _listening():
         fit = _fit_estimable(
             coded, y[done].reset_index(drop=True).rename(spec["response"]), fitted, columns, _categorical_names(spec)
@@ -5322,6 +5403,12 @@ def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np
         else:
             columns.append(np.prod([coded[p].to_numpy(dtype=float) for p in _parts(term)], axis=0))
     return np.column_stack(columns)
+
+
+def _used(held: dict[str, float], coefficients: list[dict]) -> dict[str, float]:
+    """Keep the held columns the model's terms hold: a factor's indicators only where another factor is nested in it."""
+    used = {part for c in coefficients for part in _parts(c["term"])}
+    return {name: value for name, value in held.items() if name in used}
 
 
 def _parts(term: str) -> tuple[str, ...]:
@@ -6159,7 +6246,11 @@ def balance(request: dict) -> dict:
         "confirm_at": _practical(whole, point, region),
         "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
         "overlay": _overlay(whole, found, goals, region),
-        "search": {"held": found["held"], "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+        "search": {
+            "held": _used(found["held"], [c for fit in fits.values() for c in fit.out["coefficients"]]),
+            "goals": goals,
+            "formulas": {n: fit.formula for n, fit in fits.items()},
+        },
     }
 
 

@@ -36,6 +36,28 @@ const isSeveral = (f) => labelled(f) && levelsOf(f).length > 2;
 /** What joins a factor's name to the number of its contrast column; mirrors bootstrap.LEVEL_JOIN. */
 export const LEVEL_JOIN = "_L";
 
+/** What joins a factor's name to the number of its indicator column; mirrors bootstrap.INDICATOR_JOIN. */
+export const INDICATOR_JOIN = "_I";
+
+/** A categorical factor's indicator columns that a model's formula uses, each with its level, for a factor nested in it. */
+function indicatorsIn(formula, f) {
+  if (!labelled(f) || typeof formula !== "string") return [];
+  return levelsOf(f)
+    .map((level, j) => ({ name: `${f.name}${INDICATOR_JOIN}${j + 1}`, level }))
+    .filter(({ name }) => new RegExp(`\\b${name}\\b`).test(formula));
+}
+
+/**
+ * The lines that add a categorical factor's indicators to ``X`` where the model nests another factor in it, as
+ * bootstrap._nested codes it: 1 at the level and 0 elsewhere, so the term holds the other factor within each level.
+ */
+function indicatorLines(spec, formula) {
+  const lines = (spec?.factors ?? []).flatMap((f) =>
+    indicatorsIn(formula, f).map(({ name, level }) => `X[${repr(name)}] = (runs[${repr(f.name)}] == ${repr(level)}).astype(float)`),
+  );
+  return lines.length ? ["# A factor nested in another: an indicator for each level of the other, 1 at it and 0 elsewhere.", ...lines] : [];
+}
+
 /**
  * A level of a factor of three levels or more as its contrast columns, as bootstrap._contrasts codes it: a column for
  * each level but the last, +1 at its own level, -1 at the last level, and 0 elsewhere.
@@ -328,6 +350,7 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     `from process_improve.experiments import analyze_experiment${vifModel ? ", evaluate_design" : ""}`,
     "",
     ...(own ? [`y = runs[${repr(spec.response)}]${responseComment(spec)}`] : []),
+    ...indicatorLines(spec, model),
     ...(complete ? [] : ["done = y.notna()  # leave out the runs still to do, as the page does"]),
     "analysis = analyze_experiment(",
     `    ${fitted}, model=${repr(model)}, analysis_type=["coefficients", "anova", "lack_of_fit"],`,
@@ -437,7 +460,8 @@ function heldComment(held, factors) {
   const levels = factors
     .filter((f) => labelled(f) && columnsOf(f).every((name) => name in held))
     .map((f) => `${f.name} at ${heldLevel(f, held)}`);
-  const columns = factors.flatMap(columnsOf);
+  const indicators = factors.flatMap((f) => (labelled(f) ? levelsOf(f).map((_, j) => `${f.name}${INDICATOR_JOIN}${j + 1}`) : []));
+  const columns = [...factors.flatMap(columnsOf), ...indicators];
   const blocks = Object.keys(held).some((name) => !columns.includes(name));
   const said = [];
   if (levels.length) said.push(`The page tried each level and found ${levels.join(" and ")} best: the model is held there.`);
@@ -461,7 +485,13 @@ export function bestCode(best, spec, model, complete = true) {
   const searched = Boolean(best.search?.goal);
   const fitted = complete ? "X, y" : "X[done], y[done]";
   const point = codedPoint(best, spec);
-  const levels = Object.fromEntries(spec.factors.filter(labelled).flatMap((f) => columnsOf(f).map((name) => [name, point[name]])));
+  const chosen = (f) => best.settings?.find((s) => s.name === f.name)?.value;
+  const levels = Object.fromEntries(
+    spec.factors.filter(labelled).flatMap((f) => [
+      ...columnsOf(f).map((name) => [name, point[name]]),
+      ...indicatorsIn(model, f).map(({ name, level }) => [name, level === chosen(f) ? 1 : 0]),
+    ]),
+  );
   const imports = [
     ...(holds && searched ? ["import math"] : []),
     "import pandas as pd",
@@ -470,7 +500,7 @@ export function bestCode(best, spec, model, complete = true) {
   ];
   const at = searched
     ? `at = pd.DataFrame([{**best["optimal_coded"]${Object.keys(levels).length ? `, **${repr(levels)}` : ""}}])`
-    : `at = pd.DataFrame([${repr(point)}])`;
+    : `at = pd.DataFrame([${repr({ ...point, ...levels })}])`;
   const prediction = [
     "# The prediction there, with its 95% confidence interval for the mean and prediction interval for one new run.",
     at,

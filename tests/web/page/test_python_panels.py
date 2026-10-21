@@ -887,3 +887,29 @@ def test_the_best_settings_code_holds_a_factor_of_three_levels_as_the_page_does(
     level = next(s["value"] for s in best["settings"] if s["name"] == "Catalyst")
     assert f"# The page tried each level and found Catalyst at {level} best" in code
     assert_same_best(run(code), best, held["spec"])
+
+
+def test_the_code_fits_a_factor_nested_in_another_as_the_page_does(api, node):
+    """Supplier + Supplier:Batch, Batch's effect within each supplier: the code adds Supplier's indicators to X."""
+    supplier = {"name": "Supplier", "type": "categorical", "levels": ["1", "2", "3"], "units": ""}
+    batch = {"name": "Batch", "type": "categorical", "levels": ["a", "b", "c", "d"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [supplier, batch], "n_replicates": 2, "n_center_points": 0}
+    held = aimed(held_of(api.ok("api_make_design", spec)), "maximize")
+    sheet = run_sheet(held)
+    responses = (sheet["Supplier"].astype(int) * 2 + np.arange(len(sheet)) % 5 * 0.3).tolist()
+    model = {"terms": [["Supplier"], ["Supplier", "Batch"]]}
+    request = {**held, "responses": responses, "model": model}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    code = panel(  # as the page writes it: the analysis's code is given the study's specification
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True, held["spec"]]),
+        ("bestCode", [best, held["spec"], analysis["formula"], True]),
+    )
+    assert 'X["Supplier_I1"] = (runs["Supplier"] == "1").astype(float)' in code
+    namespace = run(code)
+    assert_same_fit(namespace, analysis)
+    shown = namespace["prediction"]["predictions"][0]
+    assert shown["predicted"] == pytest.approx(best["predicted"], abs=1e-6)
