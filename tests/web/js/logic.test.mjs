@@ -26,6 +26,8 @@ import {
   candidateTerms,
   combinations,
   compareCells,
+  comparedRow,
+  rowDecimals,
   defaultResolution,
   escape,
   factorType,
@@ -336,6 +338,52 @@ describe("words and numbers", () => {
       "Drawn over T and P, the two factors with the largest main effects, with F at 16.67 L/min, since the center " +
         "of the ranges cannot be run; grey: settings outside your limits; the dots are the runs.",
     );
+  });
+});
+
+describe("a row of the detailed comparison", () => {
+  const texts = (values, direction = "lower", ranked) => comparedRow(values, direction, ranked).map((c) => c.text);
+  const goods = (values, direction = "lower", ranked) =>
+    comparedRow(values, direction, ranked).map((c) => (c.good === null ? null : Math.round(c.good * 1000) / 1000));
+
+  test("prints whole numbers whole, as a count or an eigenvalue that happens to be whole", () => {
+    assert.deepEqual(texts([9, 11, 15]), ["9", "11", "15"]);
+    assert.deepEqual(texts([4.000000000001, 6, 5]), ["4", "6", "5"], "a float's last bit does not make it fractional");
+  });
+
+  test("gives the row's largest value two significant figures, with one number of decimals for the row", () => {
+    assert.deepEqual(texts([0.2143, 0.25, 0.1414]), ["0.21", "0.25", "0.14"]);
+    assert.deepEqual(texts([4.82, 4, 7.343]), ["4.8", "4.0", "7.3"]);
+    assert.deepEqual(texts([48.2, 52.9]), ["48", "53"]);
+    assert.equal(rowDecimals([0.8312, 2.04]), 1, "the smaller values take the largest's decimals");
+  });
+
+  test("takes a decimal more while two values more than 1% apart would print alike, two at most", () => {
+    assert.equal(rowDecimals([0.2998, 0.2953, 0.071]), 3, "both print 0.30, and differ by 1.5%");
+    assert.deepEqual(texts([0.2998, 0.2953, 0.071]), ["0.300", "0.295", "0.071"]);
+    assert.equal(rowDecimals([0.2143, 0.2141]), 2, "0.1% apart: alike is right");
+    assert.equal(rowDecimals([1, 1.011, 1.5]), 2);
+    assert.equal(rowDecimals([0.0102, 0.01, 5]), 3, "two decimals more at most, though 0.010 and 0.010 are 2% apart");
+  });
+
+  test("scores each value from 0, the row's worst, to 1, its best, in the direction the measure prefers", () => {
+    assert.deepEqual(goods([0.2, 0.3, 0.4], "lower"), [1, 0.5, 0]);
+    assert.deepEqual(goods([0.2, 0.3, 0.4], "higher"), [0, 0.5, 1]);
+    assert.deepEqual(goods([0.2143, 0.2141, 0.3], "lower"), [1, 1, 0], "values printed alike score alike");
+  });
+
+  test("leaves unscored a missing value, a row with no direction, and a row where every design prints the same", () => {
+    assert.deepEqual(comparedRow([0.2, null], "lower"), [{ text: "0.20", good: null }, { text: "", good: null }]);
+    assert.deepEqual(goods([9, 11, 15], ""), [null, null, null]);
+    assert.deepEqual(goods([0.5, 0.5], "higher"), [null, null]);
+    assert.deepEqual(goods([null, null], "higher"), [null, null]);
+  });
+
+  test("scores only the designs ranked, and only they set the best and the worst", () => {
+    const values = [0.071, 0.606, 0.354, 1];
+    const ranked = [true, true, true, false];
+    assert.deepEqual(texts(values, "lower", ranked), ["0.07", "0.61", "0.35", "1.00"], "the decimals of the ranked");
+    assert.deepEqual(goods(values, "lower", ranked), [1, 0, 0.481, null], "(0.61 - 0.35) / (0.61 - 0.07)");
   });
 });
 

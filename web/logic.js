@@ -752,6 +752,54 @@ export const listNames = (names) =>
 /** A number to four significant figures, or nothing for a value the fit could not give. */
 export const fmt = (x) => (x === null || x === undefined ? "" : Number(x).toPrecision(4));
 
+const isNumber = (v) => typeof v === "number" && Number.isFinite(v);
+const isWhole = (v) => Math.abs(v - Math.round(v)) < 1e-9 * Math.max(1, Math.abs(v));
+/** Two values a reader should see as different: more than 1% apart. */
+const apart = (a, b) => Math.abs(a - b) > 0.01 * Math.max(Math.abs(a), Math.abs(b));
+
+/**
+ * The decimals one row of the detailed comparison prints with, the same for every design so the
+ * row's numbers line up. A row of whole numbers prints whole. Otherwise the row starts at two
+ * significant figures of its largest value, and takes one more decimal, twice at most, while two
+ * values more than 1% apart would print alike.
+ */
+export function rowDecimals(numbers) {
+  if (!numbers.length || numbers.every(isWhole)) return 0;
+  const largest = Math.max(...numbers.map(Math.abs));
+  const first = Math.max(0, 1 - Math.floor(Math.log10(largest)));
+  const alike = (d) => numbers.some((a, i) => numbers.slice(i + 1).some((b) => apart(a, b) && a.toFixed(d) === b.toFixed(d)));
+  let decimals = first;
+  while (decimals < first + 2 && alike(decimals)) decimals += 1;
+  return decimals;
+}
+
+/**
+ * One row of the detailed comparison as the page shows it: each design's value as text, and how
+ * near it is to the row's best. `good` runs from 0, the row's worst, to 1, its best, read off the
+ * printed numbers so that values printed alike score alike. Only the designs `ranked` marks are
+ * scored, and only they set the row's decimals, best and worst: a design that cannot fit the model
+ * prints its value, unscored. `good` is null for those, for a missing value, for a measure that
+ * prefers no direction (the feasibility rows), and when every design scored prints the same.
+ *
+ * @param {(number|null)[]} values each design's value, in the table's order
+ * @param {string} direction "higher" or "lower", whichever the measure prefers; "" for neither
+ * @param {boolean[]} [ranked] which designs are scored; all of them when left out
+ * @returns {{text: string, good: number|null}[]}
+ */
+export function comparedRow(values, direction, ranked = values.map(() => true)) {
+  const rankedNumbers = values.filter((v, j) => isNumber(v) && ranked[j]);
+  const decimals = rowDecimals(rankedNumbers.length ? rankedNumbers : values.filter(isNumber));
+  const printed = values.map((v) => (isNumber(v) ? Number(v.toFixed(decimals)) : null));
+  const scored = printed.filter((v, j) => v !== null && ranked[j]);
+  const low = Math.min(...scored);
+  const spread = Math.max(...scored) - low;
+  const directed = spread > 0 && (direction === "higher" || direction === "lower");
+  return printed.map((v, j) => ({
+    text: v === null ? "" : v.toFixed(decimals),
+    good: v === null || !ranked[j] || !directed ? null : direction === "higher" ? (v - low) / spread : 1 - (v - low) / spread,
+  }));
+}
+
 /** A p-value to four decimals, or "< 0.0001". */
 export const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
 
