@@ -36,6 +36,10 @@ import {
   minimumRuns,
   nextSteps,
   parseLimit,
+  labelOf,
+  leverageWords,
+  levelsText,
+  manyLabels,
   projectionLines,
   pythonCode,
   results,
@@ -868,36 +872,14 @@ function detailBody(design, detail) {
 
   body.push(...measures(design, detail), ...projections(design, detail), ...steps(design));
 
-  const runs = detail.coded_runs ?? [];
-  if (runs.length) {
-    const k = runs[0].length;
-    const canvas = element("canvas", { class: "glyph glyph--large", "aria-hidden": "true" });
-    const cell = Math.max(6, Math.min(22, Math.floor(260 / k)));
-    drawGlyph(canvas, runs.slice(0, 400), { across: false, width: cell * k, height: Math.min(400, runs.length) * Math.max(3, Math.min(10, Math.floor(480 / runs.length))) });
-    const names = (detail.factors ?? []).map((f) => f.name);
-    const responses = Object.keys(detail.response_values ?? {});
-    body.push(
-      element("h3", { text: "Runs, in coded units" }),
-      element("p", { class: "hint", text: "-1 is a factor's low level and +1 its high level; blue is low, grey the centre, vermillion high." }),
-      element(
-        "div",
-        { class: "detail__runs" },
-        canvas,
-        table(
-          ["Run", ...names, ...responses],
-          runs.slice(0, 400).map((row, i) => [String(i + 1), ...row.map(fmt), ...responses.map((r) => fmt(detail.response_values[r][i]))]),
-          "data",
-          (i) => (outcome?.judged && outcome.outside.includes(i) ? "row--outside" : ""),
-        ),
-      ),
-    );
-  }
+  if (detail.coded_runs?.length) body.push(...runsTable(detail, outcome));
   if (detail.factors?.length) {
     body.push(
       element("h3", { text: "Factors" }),
       table(
-        ["Name", "Low", "High", "Units", "Type", "Description"],
-        detail.factors.map((f) => [f.name, fmt(f.low), fmt(f.high), f.units ?? "", f.type ?? "", f.description ?? ""]),
+        ["Name", "Levels", "Units", "Type", "Description"],
+        detail.factors.map((f) => [f.name, levelsText(f), f.units ?? "", f.type ?? "", f.description ?? ""]),
+        "data factors-table",
       ),
     );
   }
@@ -911,52 +893,69 @@ function detailBody(design, detail) {
   return body;
 }
 
+/** The most runs a design's detail lists. */
+const RUNS_SHOWN = 400;
+
+/** A run's coded setting, tinted as the run matrix colours it: blue at -1, grey at 0, vermillion at +1. */
+const settingCell = (value) =>
+  element("td", { class: "setting", style: value === null || value === undefined ? null : `--tint: ${settingColour(value)}` }, fmt(value));
+
+/** A run's leverage, as a bar from 0 to 1 beside its value; vermillion at 1, where the run cannot be lost. */
+function leverageCell(h) {
+  const bar = element("span", { class: "lev__bar", style: `width: ${Math.round(100 * Math.min(1, Math.max(0, h)))}%` });
+  return element(
+    "td",
+    { class: h >= 0.999999 ? "lev lev--one" : "lev" },
+    element("span", { class: "lev__track", "aria-hidden": "true" }, bar),
+    h.toFixed(2),
+  );
+}
+
 /**
- * Draw each run's leverage as a bar, with a line at 1: a run at 1 cannot be lost, since without it the model
- * matrix loses its rank. Those runs are drawn in vermillion, the others in the page's accent.
+ * The runs, one row each, in one table: each coded setting tinted by its value, a categorical factor of more than
+ * two labels by its label instead, the results the source prints, and each run's leverage when the runs' leverages
+ * differ. Colour, settings and leverage share the row, so they line up and scroll together.
  */
-function drawLeverage(canvas, leverage) {
-  const ratio = window.devicePixelRatio || 1;
-  const width = Math.min(640, Math.max(160, 12 * leverage.length));
-  const height = 72;
-  canvas.width = Math.round(width * ratio);
-  canvas.height = Math.round(height * ratio);
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  const g = canvas.getContext("2d");
-  if (!g) return;
-  g.scale(ratio, ratio);
-  const colours = palette();
-  const step = width / leverage.length;
-  const top = 6;
-  leverage.forEach((h, i) => {
-    g.fillStyle = h >= 0.999999 ? "#D55E00" : colours.accent;
-    const bar = (height - top) * h;
-    g.fillRect(i * step + 1, height - bar, Math.max(step - 2, 1), bar);
-  });
-  g.strokeStyle = colours.muted;
-  g.setLineDash([4, 3]);
-  g.beginPath();
-  g.moveTo(0, top);
-  g.lineTo(width, top);
-  g.stroke();
+function runsTable(detail, outcome) {
+  const factors = detail.factors ?? [];
+  const responses = Object.keys(detail.response_values ?? {});
+  const words = leverageWords(detail.leverage);
+  const leverage = words.text && !words.even ? detail.leverage : null;
+  const labelled = factors.map(manyLabels);
+  const rows = detail.coded_runs.slice(0, RUNS_SHOWN).map((row, i) => [
+    String(i + 1),
+    ...row.map((v, j) => (labelled[j] ? (labelOf(factors[j], v) ?? fmt(v)) : settingCell(v))),
+    ...responses.map((r) => fmt(detail.response_values[r][i])),
+    ...(leverage ? [leverageCell(leverage[i])] : []),
+  ]);
+  const coded = labelled.some((l) => !l);
+  const said = coded ? ["-1 is a factor's low level and +1 its high level, tinted blue at -1, grey at 0 and vermillion at +1."] : [];
+  if (labelled.some(Boolean)) said.push("A categorical factor of more than two labels shows its label.");
+  if (leverage) said.push("Leverage, from 0 to 1, is how much the model leans on a run: at 1, the model cannot be fitted without it.");
+  return [
+    element("h3", { text: coded ? "Runs, in coded units" : "Runs" }),
+    element("p", { class: "hint", text: said.join(" ") }),
+    table(
+      ["Run", ...factors.map((f) => f.name), ...responses, ...(leverage ? ["Leverage"] : [])],
+      rows,
+      "data runs-table",
+      (i) => (outcome?.judged && outcome.outside.includes(i) ? "row--outside" : ""),
+    ),
+  ];
 }
 
 /** What a design withstands: losing a run, and being projected onto fewer factors; and where else it is printed. */
 function measures(design, detail) {
   const out = [];
   const loss = runLossLine(design, detail.run_loss_model);
-  const projections = projectionLines(design);
+  const projections = projectionLines(design, detail.coded_runs ?? []);
   if (loss || projections.length) out.push(element("h3", { text: "What it withstands" }));
   if (loss) {
     out.push(element("p", { text: loss }));
-    if (detail.leverage?.length) {
-      const canvas = element("canvas", { class: "leverage", "aria-hidden": "true" });
-      drawLeverage(canvas, detail.leverage);
-      out.push(
-        canvas,
-        element("p", { class: "hint", text: "Each run's leverage, in run order. Losing a run scales the determinant of X'X by one less its leverage, so a run at the line, 1, cannot be lost." }),
-      );
+    const leverage = leverageWords(detail.leverage);
+    if (leverage.text) {
+      const where = leverage.even ? "" : " Each run's leverage is in the table of runs, below.";
+      out.push(element("p", { class: "detail__leverage", text: `${leverage.text}${where}` }));
     }
   }
   out.push(...projections.map((line) => element("p", { text: line })));

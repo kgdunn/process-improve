@@ -929,15 +929,26 @@ dialog.detail { width: min(980px, 100vw - 32px); }
 .detail .detail__actions { flex-direction: column; align-items: stretch; margin: 0; gap: 6px; }
 .detail__family { margin: 0 0 8px; }
 @media (max-width: 720px) { .detail__head { grid-template-columns: minmax(0, 1fr); } }
-.detail__runs { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-.detail__runs .scroll { flex: 1 1 320px; max-height: 420px; margin: 0; overflow: auto; }
+/* A design's runs: one table, its header kept in view as it scrolls, each coded setting tinted by its value. */
+.detail .scroll:has(> table.runs-table) { max-height: 420px; overflow: auto; }
+table.runs-table thead th { position: sticky; top: 0; background: var(--panel); }
+table.runs-table td.setting { background: color-mix(in srgb, var(--tint, transparent) 34%, transparent); }
+table.runs-table td.lev { white-space: nowrap; }
+.lev__track {
+  display: inline-block; width: 56px; height: 8px; margin-right: 6px; vertical-align: middle; overflow: hidden;
+  border-radius: 4px; background: color-mix(in srgb, var(--muted) 25%, transparent);
+}
+.lev__bar { display: block; height: 100%; background: var(--accent); }
+.lev--one .lev__bar { background: #D55E00; }
+.detail table.data th { padding: 4px 10px; }
+table.factors-table th, table.factors-table td { text-align: left; }
+table.factors-table td:nth-child(2) { white-space: nowrap; }
 .detail__code {
   overflow-x: auto; padding: 10px 12px; border-radius: 6px; font-size: 0.86rem; background: var(--bg);
   border: 1px solid var(--line);
 }
 .detail__rights { font-size: 0.8rem; }
 .detail .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-.leverage { display: block; max-width: 100%; margin: 4px 0; }
 .detail__twins { margin: 4px 0 12px; padding-left: 1.2em; }
 .detail__twins li { margin: 2px 0; }
 .detail__twins .link { padding: 0; text-align: left; }

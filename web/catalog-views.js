@@ -40,6 +40,7 @@ const titled = (node, text) => {
 };
 
 /** A table in a box that scrolls; ``rowClass`` gives each row's class from its index, such as a run outside a limit. */
+/** A table of heads and rows: a cell is text, a node, or a <td> made with its own class and style, used as it is. */
 export function table(head, rows, className = "data", rowClass = () => "") {
   return element(
     "div",
@@ -48,7 +49,13 @@ export function table(head, rows, className = "data", rowClass = () => "") {
       "table",
       { class: className },
       element("thead", {}, element("tr", {}, ...head.map((h) => element("th", { scope: "col", text: h })))),
-      element("tbody", {}, ...rows.map((row, i) => element("tr", { class: rowClass(i) || null }, ...row.map((cell) => element("td", {}, cell ?? ""))))),
+      element(
+        "tbody",
+        {},
+        ...rows.map((row, i) =>
+          element("tr", { class: rowClass(i) || null }, ...row.map((cell) => (cell?.tagName === "TD" ? cell : element("td", {}, cell ?? "")))),
+        ),
+      ),
     ),
   );
 }

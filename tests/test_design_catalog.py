@@ -431,6 +431,16 @@ def test_generated_records_are_the_designs_the_library_makes(records):
     assert all(r["source"] is None and r["year"] is None for r in generated)
 
 
+def test_a_categorical_factor_of_more_labels_leaves_no_projectivity():
+    """Which two of twenty parts sit at -1 and +1 is arbitrary, so their combinations count for nothing."""
+    parts = np.repeat(np.linspace(-1, 1, 20), 6)
+    operators = np.tile(np.repeat([-1.0, 0.0, 1.0], 2), 20)
+    gauge = design_facets(np.column_stack([parts, operators]), ["categorical", "categorical"])
+    assert gauge["projectivity"] is None
+    cube = np.array([[a, b] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
+    assert design_facets(cube, ["categorical", "numeric"])["projectivity"] == 2, "two labels are two levels"
+
+
 @pytest.mark.slow
 def test_generated_records_carry_the_measures_of_their_runs(records):
     by_id = {r["id"]: r for r in records}

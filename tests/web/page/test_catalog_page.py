@@ -19,6 +19,11 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import design_catalog
+from process_improve.experiments.reference_catalogue import (
+    reference_designs,
+    reference_experiments,
+    reference_sources,
+)
 from tests.web._support import javascript, source
 
 LOGIC = "catalog-logic.js"
@@ -90,12 +95,38 @@ def test_the_python_copied_for_a_generated_design_makes_that_design(node, name):
     assert runs == Counter(tuple(row) for row in record["coded_runs"])
 
 
+def _published_code(node, name: str, source_key: str, listed: str) -> str:
+    """Return the Python the page copies for a published design, from its record as the catalog's build writes it."""
+    entries = reference_designs(source_key) if listed == "designs" else reference_experiments(source_key)
+    entry = next(e for e in entries if e["name"] == name)
+    record = design_catalog._published_record(entry, reference_sources()[source_key])
+    detail = {key: record[key] for key in ("factors", "coded_runs", "response_values")} | {"listed": listed}
+    (code,) = javascript(node, source(LOGIC), [("pythonCode", [{"id": name, "source": source_key}, detail])])
+    return code
+
+
 def test_the_python_copied_for_a_published_design_reads_its_catalogue_entry(node):
-    design = {"id": "bhh-pilot-plant-2-3", "source": "box-hunter-hunter-1978"}
-    (code,) = javascript(node, source(LOGIC), [("pythonCode", [design, {"listed": "experiments"}])])
-    entry = _run(code)["entry"]
-    assert entry["name"] == "bhh-pilot-plant-2-3"
-    assert entry["runs"]["rows"][0][-1] == 60
+    code = _published_code(node, "bhh-pilot-plant-2-3", "box-hunter-hunter-1978", "experiments")
+    names = _run(code)
+    assert names["entry"]["name"] == "bhh-pilot-plant-2-3"
+    assert names["table"]["y"].iloc[0] == 60, "the runs as the source prints them, results and all"
+    assert list(names["factors"]["name"]) == ["T", "C", "K"]
+    assert "next(" not in code, "one step a line"
+    assert max(map(len, code.splitlines())) <= 80, "no line wider than the box shows"
+
+
+@pytest.mark.parametrize(
+    ("name", "source_key", "runs"),
+    [
+        ("nunez-ares-2023-design-2-oa", "nunez-ares-et-al-2023", 48),
+        ("bhh-blocking-2k-factorials", "box-hunter-hunter-1978", 0),
+    ],
+)
+def test_the_python_copied_for_a_catalogue_design_runs_with_or_without_printed_runs(node, name, source_key, runs):
+    """A design the source prints as a table gives its runs; one it only describes prints what the source says."""
+    names = _run(_published_code(node, name, source_key, "designs"))
+    assert names["entry"]["name"] == name
+    assert len(names["table"]) == runs if runs else "table" not in names
 
 
 #: Applications chosen in the page's filter, each compared with what ``search_catalog`` keeps for them.

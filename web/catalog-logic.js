@@ -460,6 +460,33 @@ export function settingColour(value) {
   return v < 0 ? hex(mix(MID, LOW, -v)) : hex(mix(MID, HIGH, v));
 }
 
+/** Whether a factor is categorical with more than two labels: its coded settings are places in its list of labels. */
+export const manyLabels = (factor) => factor?.type === "categorical" && (factor.levels?.length ?? 0) > 2;
+
+/** How near a coded setting must sit to a label's place, as a share of the step between two labels. */
+const LABEL_NEAR = 0.25;
+
+/**
+ * The label a categorical factor's coded setting stands for: its labels are coded evenly from -1, the first, to +1,
+ * the last, in the order the catalogue lists them. Null when the setting is missing or falls between two labels.
+ */
+export function labelOf(factor, coded) {
+  if (coded === null || coded === undefined) return null;
+  const n = factor.levels.length;
+  const place = ((coded + 1) * (n - 1)) / 2;
+  const at = Math.round(place);
+  return Math.abs(place - at) < LABEL_NEAR && at >= 0 && at < n ? String(factor.levels[at]) : null;
+}
+
+/** A factor's levels in a few words: a numeric factor's range, a categorical factor's labels or how many it has. */
+export function levelsText(factor) {
+  const labels = factor.levels ?? [];
+  if (factor.type === "categorical" && labels.length > 2) return `${labels[0]} to ${labels.at(-1)} (${labels.length} labels)`;
+  if (factor.type === "categorical") return (labels.length ? labels : [factor.low, factor.high]).filter((v) => v !== null && v !== undefined).join(", ");
+  if (factor.low === null || factor.low === undefined) return "";
+  return factor.high === null || factor.high === undefined ? String(factor.low) : `${factor.low} to ${factor.high}`;
+}
+
 // ---------------------------------------------------------------- words for a design
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -525,8 +552,15 @@ export function runLossLine(design, model) {
   return `${n} of its ${design.n_runs} runs cannot be lost: ${without}.`;
 }
 
-/** What a design's projections hold, in sentences: onto how many factors it fits the quadratic, its projectivity. */
-export function projectionLines(design) {
+/** How many of a design's coded runs are two-level runs: every setting at -1 or +1, the runs projectivity counts. */
+export const cubeRuns = (runs) => runs.filter((row) => row.every((v) => v !== null && Math.abs(Math.abs(v) - 1) < 1e-6)).length;
+
+/**
+ * What a design's projections hold, in sentences: onto how many factors it fits the quadratic, its projectivity.
+ * Projectivity is a count over the two-level runs; when ``runs``, the coded runs, hold others too, the sentence
+ * says how many of them it is about.
+ */
+export function projectionLines(design, runs = []) {
   const lines = [];
   const p = design.quadratic_projection;
   if (p && p >= 2) {
@@ -538,13 +572,42 @@ export function projectionLines(design) {
   }
   const q = design.projectivity;
   if (q && q >= 2) {
-    lines.push(
-      q === design.n_factors
-        ? `Its two-level runs hold every combination of its ${q} factors' levels.`
-        : `Projectivity ${q}: any ${q} of its factors hold all ${2 ** q} combinations of their two levels.`,
-    );
+    const cube = cubeRuns(runs);
+    const some = cube < runs.length ? `${cube} two-level runs, of ${runs.length}` : "";
+    if (q === design.n_factors) {
+      lines.push(`Its ${some ? `${some},` : "two-level runs"} hold every combination of its ${q} factors' levels.`);
+    } else {
+      const within = some ? `in its ${some}, ` : "";
+      lines.push(`Projectivity ${q}: ${within}any ${q} of its factors hold all ${2 ** q} combinations of their two levels.`);
+    }
   }
   return lines;
+}
+
+/** Leverages this close are the same: the catalog rounds each to four decimals. */
+const SAME_LEVERAGE = 1e-4;
+
+/**
+ * What a design's leverage says, in words, from each run's (``leverage``, in run order). When every run has the
+ * same, one sentence says so, and ``even`` is true: a chart of equal bars would add nothing. Else the sentence
+ * names the runs the model leans on most.
+ */
+export function leverageWords(leverage) {
+  if (!leverage?.length) return { even: false, text: "" };
+  const most = Math.max(...leverage);
+  const least = Math.min(...leverage);
+  if (most - least < SAME_LEVERAGE) {
+    const terms = Math.round(leverage.reduce((sum, h) => sum + h, 0));
+    return {
+      even: true,
+      text:
+        `Every run has the same leverage, ${most.toFixed(2)}: the model's ${terms} coefficients are spread evenly ` +
+        `over its ${leverage.length} runs, so it leans on no run more than another.`,
+    };
+  }
+  const top = leverage.flatMap((h, i) => (most - h < SAME_LEVERAGE ? [String(i + 1)] : []));
+  const who = top.length > 5 ? `${top.length} runs carry` : top.length === 1 ? `Run ${top[0]} carries` : `Runs ${joined(top)} carry`;
+  return { even: false, text: `${who} the most weight, with leverage ${most.toFixed(2)}; the least is ${least.toFixed(2)}.` };
 }
 
 /**
@@ -584,7 +647,10 @@ export function sourceLine(design, catalog) {
 // ---------------------------------------------------------------- what a design is copied as
 const repr = (value) => (typeof value === "string" ? JSON.stringify(value) : String(value));
 
-/** The Python that gives a reader the design: the library call that makes it, or the catalogue entry that holds it. */
+/**
+ * The Python that gives a reader the design: the library call that makes it, or the catalogue entry that holds it.
+ * It is written to be read: one step a line, each step with a comment, and no line wider than the box shows.
+ */
 export function pythonCode(design, detail) {
   const spec = detail?.spec;
   if (spec && !spec.array) {
@@ -592,14 +658,18 @@ export function pythonCode(design, detail) {
       const kind = f.type === "mixture" ? ', type="mixture"' : "";
       return `    Factor(name=${repr(f.name)}, low=${repr(f.low)}, high=${repr(f.high)}${kind}),`;
     });
-    const options = Object.entries(spec.options ?? {}).map(([key, value]) => `, ${key}=${repr(value)}`).join("");
+    const options = Object.entries(spec.options ?? {}).map(([key, value]) => `    ${key}=${repr(value)},`);
     return [
       "from process_improve.experiments import Factor, generate_design",
       "",
       "factors = [",
       ...factors,
       "]",
-      `design = generate_design(factors, design_type=${repr(spec.design_type)}${options})`,
+      "design = generate_design(",
+      "    factors,",
+      `    design_type=${repr(spec.design_type)},`,
+      ...options,
+      ")",
       "print(design.design)",
     ].join("\n");
   }
@@ -611,13 +681,49 @@ export function pythonCode(design, detail) {
       "print(array)",
     ].join("\n");
   }
+  return catalogueCode(design, detail);
+}
+
+/** Whether the source prints the entry's runs: the page holds them coded, or holds the results printed beside them. */
+const printsRuns = (detail) => Boolean(detail?.coded_runs?.length || Object.keys(detail?.response_values ?? {}).length);
+
+/** The Python that reads a published design's entry from the reference catalogue, and prints its factors and runs. */
+function catalogueCode(design, detail) {
   const listed = detail?.listed === "designs" ? "reference_designs" : "reference_experiments";
-  return [
-    `from process_improve.experiments.reference_catalogue import ${listed}`,
+  const factors = Boolean(detail?.factors?.length);
+  const runs = printsRuns(detail);
+  const lines = [
+    ...(factors || runs ? ["import pandas as pd", ""] : []),
+    "from process_improve.experiments.reference_catalogue import (",
+    `    ${listed},`,
+    ")",
     "",
-    `entry = next(e for e in ${listed}(${repr(design.source)}) if e["name"] == ${repr(design.id)})`,
-    'print(entry["factors"], entry["runs"], sep="\\n")',
-  ].join("\n");
+    "# Every entry of this source, looked up by its name.",
+    `entries = ${listed}(${repr(design.source)})`,
+    'by_name = {item["name"]: item for item in entries}',
+    `entry = by_name[${repr(design.id)}]`,
+  ];
+  if (factors) {
+    lines.push(
+      "",
+      "# The factors: their names, ranges and units.",
+      'columns = ["name", "low", "high", "units"]',
+      'factors = pd.DataFrame(entry["factors"], columns=columns)',
+      "print(factors)",
+    );
+  }
+  if (runs) {
+    lines.push(
+      "",
+      "# The runs, in the units and the order the source prints them.",
+      'runs = entry["runs"]',
+      'table = pd.DataFrame(runs["rows"], columns=runs["columns"])',
+      "print(table)",
+    );
+  } else {
+    lines.push("", "# The source prints no table of runs: this is what it says of the design.", 'print(entry["design"])');
+  }
+  return lines.join("\n");
 }
 
 const csvCell = (value) => {

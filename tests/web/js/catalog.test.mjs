@@ -10,6 +10,7 @@ import {
   applicationLine,
   applications,
   caseFacts,
+  cubeRuns,
   topicCounts,
   topicOrder,
   placesAfter,
@@ -47,6 +48,10 @@ import {
   INDEX_FIELDS,
   minimumRuns,
   parseQuery,
+  labelOf,
+  leverageWords,
+  levelsText,
+  manyLabels,
   projectionLines,
   pythonCode,
   results,
@@ -474,6 +479,55 @@ describe("what a design withstands, in words", () => {
     ]);
   });
 
+  test("projectivity says how many runs it is about when only some are two-level runs", () => {
+    const ccd = design({ quadratic_projection: 0, projectivity: 3, n_factors: 3 });
+    assert.equal(cubeRuns(CCD), 8);
+    assert.deepEqual(projectionLines(ccd, CCD), ["Its 8 two-level runs, of 17, hold every combination of its 3 factors' levels."]);
+    assert.deepEqual(projectionLines(ccd, CUBE), ["Its two-level runs hold every combination of its 3 factors' levels."]);
+    const wide = design({ quadratic_projection: 0, projectivity: 2, n_factors: 3 });
+    assert.deepEqual(projectionLines(wide, CCD), [
+      "Projectivity 2: in its 8 two-level runs, of 17, any 2 of its factors hold all 4 combinations of their two levels.",
+    ]);
+  });
+
+  test("a categorical factor of more than two labels reads back its label from its coded setting", () => {
+    const part = { name: "part", type: "categorical", levels: Array.from({ length: 20 }, (_, i) => String(i + 1)) };
+    assert.equal(manyLabels(part), true);
+    assert.equal(manyLabels({ type: "categorical", levels: ["A", "B"] }), false, "two labels are a factor's two levels");
+    assert.equal(manyLabels({ type: "numeric", levels: [1, 2, 3] }), false);
+    assert.equal(labelOf(part, -1), "1");
+    assert.equal(labelOf(part, -1 + (2 * 2) / 19), "3", "the third label of twenty");
+    assert.equal(labelOf(part, Number((-0.789).toFixed(3))), "3", "as the catalog rounds it");
+    assert.equal(labelOf(part, 1), "20");
+    assert.equal(labelOf(part, 0), null, "between two labels");
+    assert.equal(labelOf(part, null), null);
+  });
+
+  test("a factor's levels in a few words", () => {
+    const labels = Array.from({ length: 20 }, (_, i) => String(i + 1));
+    assert.equal(levelsText({ type: "categorical", low: "1", high: "2", levels: labels }), "1 to 20 (20 labels)");
+    assert.equal(levelsText({ type: "categorical", levels: ["A", "B"] }), "A, B");
+    assert.equal(levelsText({ type: "categorical", low: "old", high: "new" }), "old, new");
+    assert.equal(levelsText({ type: "numeric", low: 150, high: 200 }), "150 to 200");
+    assert.equal(levelsText({ type: "numeric" }), "");
+  });
+
+  test("leverage in words: one sentence when every run has the same, else the runs that carry the most", () => {
+    const even = leverageWords(Array(120).fill(0.5));
+    assert.equal(even.even, true);
+    assert.equal(
+      even.text,
+      "Every run has the same leverage, 0.50: the model's 60 coefficients are spread evenly over its 120 runs, so it leans on no run more than another.",
+    );
+    assert.deepEqual(leverageWords([0.95, 0.95, 0.95, 0.95, 0.2]), {
+      even: false,
+      text: "Runs 1, 2, 3 and 4 carry the most weight, with leverage 0.95; the least is 0.20.",
+    });
+    assert.equal(leverageWords([0.3, 1, 0.3]).text, "Run 2 carries the most weight, with leverage 1.00; the least is 0.30.");
+    assert.match(leverageWords([...Array(6).fill(0.9), 0.1]).text, /^6 runs carry the most weight/);
+    assert.deepEqual(leverageWords(null), { even: false, text: "" });
+  });
+
   test("the same design elsewhere", () => {
     const twin = design({ id: "twin", design_class: "cube" });
     const catalog = { ...CATALOG, designs: [...CATALOG.designs, twin] };
@@ -491,13 +545,22 @@ describe("what a design is copied as", () => {
     const code = pythonCode(CATALOG.designs[2], detail);
     assert.match(code, /from process_improve\.experiments import Factor, generate_design/);
     assert.match(code, /Factor\(name="B", low=-1, high=1\),/);
-    assert.match(code, /generate_design\(factors, design_type="ccd", n_center_points=3, alpha="face_centered"\)/);
+    assert.match(code, /design = generate_design\(\n {4}factors,\n {4}design_type="ccd",\n {4}n_center_points=3,\n {4}alpha="face_centered",\n\)/);
   });
 
   test("a published design is its entry in the reference catalogue", () => {
-    const code = pythonCode(CATALOG.designs[0], { listed: "experiments" });
-    assert.match(code, /from process_improve\.experiments\.reference_catalogue import reference_experiments/);
-    assert.match(code, /reference_experiments\("bhh"\) if e\["name"\] == "pilot-plant"/);
+    const code = pythonCode(CATALOG.designs[0], { listed: "experiments", factors: [{ name: "T" }], coded_runs: [[-1]] });
+    assert.match(code, /from process_improve\.experiments\.reference_catalogue import \(\n {4}reference_experiments,\n\)/);
+    assert.match(code, /entries = reference_experiments\("bhh"\)\nby_name = \{item\["name"\]: item for item in entries\}\nentry = by_name\["pilot-plant"\]/);
+    assert.match(code, /factors = pd\.DataFrame\(entry\["factors"\], columns=columns\)/);
+    assert.match(code, /table = pd\.DataFrame\(runs\["rows"\], columns=runs\["columns"\]\)/);
+  });
+
+  test("a published design with no printed runs prints what the source says of it, and needs no pandas", () => {
+    const code = pythonCode(CATALOG.designs[0], { listed: "designs", factors: [], coded_runs: null, response_values: {} });
+    assert.match(code, /\n {4}reference_designs,\n/);
+    assert.doesNotMatch(code, /pandas|runs\["rows"\]/);
+    assert.match(code, /print\(entry\["design"\]\)$/);
   });
 
   test("the CSV holds the coded runs and the printed results", () => {
