@@ -58,6 +58,16 @@ def page_url(context) -> str:
     return context.pages[0].url.split("#")[0]
 
 
+def hide(page) -> None:
+    """Hide the page, as closing the tab, reloading it or putting the phone away does."""
+    page.evaluate(
+        """() => {
+            Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+            document.dispatchEvent(new Event("visibilitychange"));
+        }"""
+    )
+
+
 def test_the_worked_example_is_not_saved(context, page):
     assert page.is_hidden("#library")
     again = context.new_page()
@@ -160,12 +170,7 @@ def test_a_result_typed_just_before_the_page_is_hidden_is_saved(context, site):
     saved(page, 1)
     page.clock.pause_at(page.evaluate("Date.now()"))
     page.fill("#design-table input[data-index='0']", "12.5")
-    page.evaluate(
-        """() => {
-            Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
-            document.dispatchEvent(new Event("visibilitychange"));
-        }"""
-    )
+    hide(page)
     # The browser writes it in the background; the page's timers stay stopped.
     assert saved_studies(page, lambda saved: saved[0]["responses"][0] == 12.5)[0]["responses"][0] == 12.5
 
@@ -348,6 +353,37 @@ def test_a_brief_not_yet_made_into_a_run_sheet_is_kept_as_a_draft(context, fresh
     assert [f["name"] for f in factor_table(again)] == ["T", "P"]
     assert again.is_checked('input[name="aim"][value="interactions"]')
     assert again.text_content("#study-title") == "Purity (%), target 99.5"
+
+
+def test_a_brief_typed_just_before_the_page_is_hidden_is_kept(context, site):
+    """A press on the logo, or a reload, straight after typing in the brief keeps what was typed.
+
+    The page writes the draft a moment after the last change. Its timers are stopped once the page
+    has opened, so the draft can only be written by the page being hidden.
+    """
+    context.clock.install()
+    page = context.new_page()
+    page.goto(site)
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    page.clock.pause_at(page.evaluate("Date.now()"))
+    page.fill("#response", "Purity")
+    assert page.evaluate("localStorage.getItem('factorial-draft')") is None, "not yet: its moment has not come"
+    hide(page)
+    assert json.loads(page.evaluate("localStorage.getItem('factorial-draft')"))["response"]["label"] == "Purity"
+
+
+def test_the_logo_opens_the_home_page_afresh(page, site):
+    """The mark and the name link to the page's own address: what a reload finds there, not the worked example."""
+    with page.expect_navigation():
+        page.click(".brand__home .mark")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    assert page.url == site
+    assert page.text_content("#study-title") == "A new study", "the worked example is not kept"
+    name_response(page, "Purity", "%")
+    with page.expect_navigation():
+        page.click(".brand__home h1")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    assert page.input_value("#response") == "Purity", "the brief, as it was left"
 
 
 def test_making_the_run_sheet_turns_the_draft_into_a_saved_study(context, blank_page):
