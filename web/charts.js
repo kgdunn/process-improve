@@ -546,20 +546,26 @@ export function coxFigure(cox, { response, units = "", best = null }, colours = 
 // Only a colon between two names is a product, so a sentence's own colons are left alone.
 export const prettyTerm = (term) => term.replace(/I\((\w+) \*\* 2\)/g, "$1²").replace(/(\w):(?=\w)/g, "$1·");
 
+/** Plotly's default sequence of trace colours, so a curve's colour can be fixed whatever else is drawn. */
+const PLOTLY_COLOURS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
+
 /**
  * FDS curves of several designs on one chart: each design's prediction variance, in units
  * of the noise variance, sorted over points spread evenly through the cube. The right end
  * of a curve is its worst case, G.
  */
-export function fdsFigure(fds, { region = false } = {}) {
+export function fdsFigure(fds, { region = false, hidden = new Set() } = {}) {
   const over = region ? "the settings you can run" : "the cube"; // with limits, the curves are over what they leave
-  const data = Object.entries(fds).map(([label, curve]) => ({
+  // A design the reader hides is not drawn. Plotly would then hand its colour to the next curve, so each curve's
+  // colour is fixed by its place in the list, in Plotly's own sequence.
+  const data = Object.entries(fds).map(([label, curve], i) => ({
     type: "scatter",
     mode: "lines",
     name: label,
+    visible: !hidden.has(label),
     x: curve.fraction,
     y: curve.variance,
-    line: { width: 2 },
+    line: { width: 2, color: PLOTLY_COLOURS[i % PLOTLY_COLOURS.length] },
     hovertemplate: `${label}: %{y:.3g} or less over %{x:.0%} of ${over}<extra></extra>`,
   }));
   return {

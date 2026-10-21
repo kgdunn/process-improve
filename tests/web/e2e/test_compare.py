@@ -10,6 +10,8 @@ taken from it into the plan.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from tests.web._support import FACTORS, factors_named
@@ -38,9 +40,17 @@ def picked(page) -> str:
 
 
 def design_columns(page) -> list[str]:
-    heads = page.locator("#comparison thead th").all_text_contents()
+    """Return the designs' names as the detailed comparison's columns run, left to right."""
+    heads = page.locator("#comparison thead tr").first.locator("th").all_text_contents()
     assert heads[:2] == ["Measure", "Better"]
-    return [head.removesuffix("Use this design") for head in heads[2:]]
+    return heads[2:]
+
+
+def flip(page, design: str) -> None:
+    """Tap the switch that shows or hides a design in the detailed comparison, and let its column settle."""
+    page.get_by_role("switch", name=f"Show {design}").locator("xpath=..").click()
+    # The table's own slide: the status line's icon animates for as long as Python is busy.
+    page.wait_for_function("document.querySelector('#comparison table').getAnimations({ subtree: true }).length === 0")
 
 
 def test_the_designs_that_can_learn_the_brief_are_made_and_scored_as_it_is_typed(fresh_page):
@@ -243,11 +253,91 @@ def test_the_designs_that_cannot_fit_the_model_are_compared_at_the_right(page, f
     reveal(page, "#compare")
     page.click("#compare")
     assert design_columns(page) == fitting + unfit
-    muted = page.locator("#comparison thead th.unfit").all_text_contents()
-    assert [head.removesuffix("Use this design") for head in muted] == unfit
-    assert page.locator("#comparison thead th.unfit.first").count() == 1, "one line sets them apart"
+    names = page.locator("#comparison thead tr").first
+    assert names.locator("th.unfit").all_text_contents() == unfit
+    assert names.locator("th.unfit.first").count() == 1, "one line sets them apart"
     fit_row = page.locator("#comparison tbody tr", has_text="Fits the model?").locator("td").all_text_contents()
     assert all(cell.startswith("no") for cell in fit_row[-len(unfit) :])
+
+
+def test_the_detailed_comparison_shades_each_row_towards_its_best(page):
+    """Among the designs that fit the model, a row's best is bold and the most shaded, its worst not shaded at all.
+
+    The designs that cannot fit the model are not shaded. A row prints as many digits as tell its designs apart.
+    """
+    reveal(page, "#compare")
+    page.click("#compare")
+    rows = page.evaluate(
+        """() => [...document.querySelectorAll('#comparison tbody tr:not(.group)')].map((tr) => ({
+            measure: tr.cells[0].textContent,
+            cells: [...tr.cells].slice(2).map((td) => ({
+                text: td.textContent,
+                unfit: td.classList.contains('unfit'),
+                good: td.classList.contains('scored') ? Number(td.style.getPropertyValue('--good')) : null,
+                best: td.classList.contains('row-best'),
+                bold: Number(getComputedStyle(td).fontWeight) >= 700,
+                shade: getComputedStyle(td).backgroundColor,
+            })),
+        }))"""
+    )
+    scored = [row for row in rows if any(c["good"] is not None for c in row["cells"])]
+    assert len(scored) >= 6, "the averages, the worst cases, D, max |r| and power"
+    for row in scored:
+        fitting = [c for c in row["cells"] if not c["unfit"] and c["good"] is not None]
+        assert not any(c["good"] is not None for c in row["cells"] if c["unfit"]), row["measure"]
+        best = [c for c in fitting if c["best"]]
+        assert best, row["measure"]
+        assert all(c["good"] == 1 and c["bold"] for c in best), row["measure"]
+        worst = [c for c in fitting if c["good"] == 0]
+        assert worst, row["measure"]
+        assert best[0]["shade"] != worst[0]["shade"], row["measure"]
+    averages = next(row for row in rows if row["measure"].startswith("A/p"))
+    assert all(re.fullmatch(r"0\.\d\d", c["text"]) for c in averages["cells"] if c["text"]), "two significant figures"
+    runs = next(row for row in rows if row["measure"] == "Runs")
+    assert all(c["good"] is None and c["text"].isdigit() for c in runs["cells"]), "a count, whole and unshaded"
+
+
+def test_the_designs_heads_are_a_switch_to_show_each_then_the_button_to_use_it(page):
+    reveal(page, "#compare")
+    page.click("#compare")
+    designs = design_columns(page)
+    heads = page.locator("#comparison thead tr")
+    assert heads.count() == 3, "the names, a row of switches, a row of buttons"
+    assert heads.nth(1).locator("th").first.text_content() == "Show"
+    assert all(page.get_by_role("switch", name=f"Show {d}").is_checked() for d in designs), "every design shown"
+    uses = heads.nth(2).get_by_role("button").all()
+    assert [b.get_attribute("aria-label") for b in uses] == [f"Use this design: {d}" for d in designs]
+
+
+def test_a_design_hidden_moves_past_a_thick_line_in_grey_and_leaves_the_charts(page, first_paint):
+    """Hiding a design sets it aside: the shading re-ranks without it, and showing it puts it back where it was."""
+    reveal(page, "#compare")
+    page.click("#compare")
+    charts = 1 + len(first_paint["comparison"]["result"]["designs"])
+    page.wait_for_function(f"document.querySelectorAll('#compare-charts .js-plotly-plot').length === {charts}")
+    before = design_columns(page)
+    best = page.locator("#comparison tbody tr", has_text="A/p, average").locator("td.row-best")
+    leader = best.first.get_attribute("data-design")  # the design with the best A/p
+    flip(page, leader)
+    after = design_columns(page)
+    assert after == [d for d in before if d != leader] + [leader], "to the far right"
+    hidden = page.locator(f'#comparison [data-design="{leader}"]')
+    assert all("set-aside" in (c.get_attribute("class") or "") for c in hidden.all()), "every cell of it, in grey"
+    assert page.locator("#comparison thead tr").first.locator("th.parted").get_attribute("data-design") == leader
+    groups = page.locator("#comparison tbody tr.group")
+    assert groups.locator("td.parted").count() == groups.count(), "the line runs through the group rows"
+    assert best.count() == 1, "the next design leads the row"
+    assert best.get_attribute("data-design") != leader
+    fds = "document.querySelector('#compare-charts figure.fds .js-plotly-plot')"
+    page.wait_for_function(  # Plotly redraws the curves a moment after the switch
+        f"(leader) => !{fds}._fullData.some((t) => t.name === leader && t.visible === true)", arg=leader
+    )
+    assert page.locator(f'#compare-charts figure[data-design="{leader}"]').is_hidden()
+
+    flip(page, leader)
+    assert design_columns(page) == before, "back where it was"
+    assert page.locator("#comparison .set-aside, #comparison .parted").count() == 0
+    assert page.locator(f'#compare-charts figure[data-design="{leader}"]').is_visible()
 
 
 def test_the_arrows_stay_beside_the_measures_as_the_designs_scroll(page):
@@ -289,8 +379,7 @@ def test_a_design_taken_from_the_detailed_comparison_reaches_the_run_sheet_as_ma
     chosen = next(m for m in first_paint["comparison"]["made"] if m["design_type"] == "d_optimal")
     reveal(page, "#compare")
     page.click("#compare")
-    column = page.locator("#comparison thead th", has_text=chosen["label"])
-    column.get_by_role("button", name="Use this design").click()
+    page.get_by_role("button", name=f"Use this design: {chosen['label']}").click()
     assert page.is_hidden("#compare-dialog")
     assert page.input_value("#design-type") == "d_optimal"
     assert page.text_content("#badge-plan") == "changed", "the run sheet on the page is the Box-Behnken design's"

@@ -116,6 +116,7 @@ import {
   cellText,
   changeWords,
   compareCells,
+  comparedRow,
   comparisonOrder,
   completeRuns,
   componentProblem,
@@ -1792,7 +1793,8 @@ async function showComparison() {
     return;
   }
   dialog.dataset.key = c.key;
-  renderComparison(c.result, c.made, c.notes);
+  c.hidden ??= new Set(); // the designs the reader has hidden, kept while this comparison stands
+  renderComparison(c.result, c.made, c.notes, c.hidden);
   showPython(
     "compare",
     compareCode(
@@ -1802,34 +1804,62 @@ async function showComparison() {
       c.made[0]?.design.spec.constraints ?? [],
     ),
   );
-  await drawComparison(c.result, readFactors().length);
+  await drawComparison(c.result, readFactors().length, c.hidden);
 }
 
 let comparisonFit = null; // watches whether the comparison table fits its box
 
-function renderComparison(result, made, notes) {
+/** A cell of one design's column in the detailed comparison, holding text or an element, and the design's label. */
+function designCell(tag, label, content) {
+  const cell = el(tag, "", typeof content === "string" ? content : "");
+  if (typeof content !== "string") cell.append(content);
+  cell.dataset.design = label;
+  return cell;
+}
+
+/**
+ * The detailed comparison as a table: a column per design, a row per measure. Three rows head the designs: their
+ * names; a switch to show or hide each, so the reader can set designs aside for reasons the measures do not hold;
+ * and the button that takes one into the plan. Every cell of a design's column carries its label, so that
+ * arrangeComparison can order the columns and fill in the values.
+ */
+function renderComparison(result, made, notes, hidden) {
   const out = $("#comparison");
   out.hidden = false;
   const t = el("table", "data compare", "");
-  const head = el("tr", "", "");
   const measureHead = el("th", "", "Measure");
-  head.append(measureHead, el("th", "", "Better"));
-  // The designs that can fit the model come first; those that cannot, their columns mostly blank, go to the right.
-  const order = comparisonOrder(result);
-  const fits = (label) => Boolean(result.values[label]?.fits);
-  const firstUnfit = result.designs[order.find((i) => !fits(result.designs[i]))];
-  const cellClass = (label) => (fits(label) ? "" : label === firstUnfit ? "unfit first" : "unfit");
-  for (const i of order) {
-    const label = result.designs[i];
-    const th = el("th", cellClass(label), label);
-    const use = el("button", "link", "Use this design");
+  const names = el("tr", "", "");
+  names.append(measureHead, el("th", "", "Better"));
+  const shows = el("tr", "shows", "");
+  shows.append(el("th", "", "Show"), el("th", "", ""));
+  const uses = el("tr", "uses", "");
+  uses.append(el("th", "", ""), el("th", "", ""));
+  result.designs.forEach((label, i) => {
+    // The page's switch, as the factors table has it for a factor's type: a checkbox drawn as a track and a knob.
+    const toggle = el("input", "", "");
+    toggle.type = "checkbox";
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("aria-label", `Show ${label}`);
+    toggle.checked = !hidden.has(label);
+    toggle.onchange = () => {
+      if (toggle.checked) hidden.delete(label);
+      else hidden.add(label);
+      arrangeComparison(t, result, hidden, { slide: true });
+      showComparedCharts(result, hidden);
+    };
+    const control = el("label", "switch", "");
+    control.append(toggle, el("span", "switch__track", ""));
+    const use = el("button", "link", "");
     use.type = "button";
+    use.append("Use this", el("br", "", ""), "design"); // two lines in every column, however narrow
+    use.setAttribute("aria-label", `Use this design: ${label}`);
     use.onclick = () => useDesign(made[i]);
-    th.append(el("br", "", ""), use);
-    head.append(th);
-  }
+    names.append(designCell("th", label, label));
+    shows.append(designCell("th", label, control));
+    uses.append(designCell("th", label, use));
+  });
   const thead = el("thead", "", "");
-  thead.append(head);
+  thead.append(names, shows, uses);
   const tbody = el("tbody", "", "");
   let group = null;
   result.measures.forEach((m, row) => {
@@ -1840,11 +1870,11 @@ function renderComparison(result, made, notes) {
       const tr = el("tr", "group", "");
       const td = el("td", "", "");
       td.append(el("span", "", group)); // a span, so the label can stay in view as the table scrolls
-      td.colSpan = result.designs.length + 2;
       tr.append(td);
       tbody.append(tr);
     }
     const tr = el("tr", "", "");
+    tr.dataset.measure = String(row);
     const name = el("td", "", "");
     if (m.group === "Feasibility") {
       name.append(term(m.label, { definition: m.description, alone: true }));
@@ -1854,13 +1884,12 @@ function renderComparison(result, made, notes) {
       name.append(to);
     }
     tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
-    for (const i of order) {
-      const label = result.designs[i];
-      tr.append(el("td", cellClass(label), result.display[label][row]));
-    }
+    // "Fits the model?" is words, as the library has it; arrangeComparison writes the numbers.
+    for (const label of result.designs) tr.append(designCell("td", label, m.key === "fits" ? result.display[label][row] : ""));
     tbody.append(tr);
   });
   t.append(thead, tbody);
+  arrangeComparison(t, result, hidden);
   const wrap = el("div", "scroll", "");
   wrap.append(t);
   // A phone or a narrow window shows only the first few designs, so say that the rest are there.
@@ -1892,6 +1921,88 @@ function renderComparison(result, made, notes) {
   );
 }
 
+/**
+ * Put the detailed comparison's columns in order, and write and shade its values. The designs shown come first:
+ * those that fit the model, then those that cannot, after a dashed line. The designs hidden follow a thick line, in
+ * light grey. Each row is printed and shaded over the designs shown that fit the model (see comparedRow), so hiding
+ * a row's best passes its bold to the next. With `slide`, each column moves from where it was to where it now is.
+ */
+function arrangeComparison(t, result, hidden, { slide = false } = {}) {
+  const before = slide ? columnLefts(t) : null;
+  const labels = comparisonOrder(result, hidden).map((i) => result.designs[i]);
+  const fits = (label) => Boolean(result.values[label]?.fits);
+  const shown = (label) => !hidden.has(label);
+  const firstUnfit = labels.find((label) => shown(label) && !fits(label));
+  const firstHidden = labels.find((label) => !shown(label));
+  const ranked = labels.map((label) => shown(label) && fits(label));
+  const hiddenCount = labels.filter((label) => !shown(label)).length;
+  for (const tr of t.rows) {
+    if (tr.classList.contains("group")) {
+      spanGroup(tr, labels.length - hiddenCount, hiddenCount);
+      continue;
+    }
+    const cells = new Map([...tr.querySelectorAll("[data-design]")].map((cell) => [cell.dataset.design, cell]));
+    tr.append(...labels.map((label) => cells.get(label)));
+    const m = tr.dataset.measure === undefined ? null : result.measures[Number(tr.dataset.measure)];
+    const values = labels.map((label) => result.values[label]?.[m?.key] ?? null);
+    const scores = m && m.key !== "fits" ? comparedRow(values, m.direction, ranked) : null;
+    labels.forEach((label, j) => {
+      const cell = cells.get(label);
+      cell.classList.toggle("unfit", !fits(label));
+      cell.classList.toggle("first", label === firstUnfit);
+      cell.classList.toggle("set-aside", !shown(label));
+      cell.classList.toggle("parted", label === firstHidden);
+      if (!scores) return;
+      const { text, good } = scores[j];
+      cell.textContent = text;
+      cell.classList.toggle("scored", good !== null);
+      cell.classList.toggle("row-best", good === 1);
+      if (good === null) cell.style.removeProperty("--good");
+      else cell.style.setProperty("--good", good.toFixed(2));
+    });
+  }
+  if (before) slideColumns(t, before);
+}
+
+/** A group's heading spans the designs shown; a second cell spans those hidden, so the thick line runs through it. */
+function spanGroup(tr, shown, hiddenCount) {
+  const [heading, aside] = tr.cells;
+  heading.colSpan = 2 + shown;
+  if (!hiddenCount) {
+    aside?.remove();
+    return;
+  }
+  const cell = aside ?? tr.appendChild(el("td", "parted", ""));
+  cell.colSpan = hiddenCount;
+}
+
+/** Where each design's column starts on the screen, by the design's label. */
+const columnLefts = (t) =>
+  new Map([...t.rows[0].querySelectorAll("[data-design]")].map((cell) => [cell.dataset.design, cell.getBoundingClientRect().left]));
+
+/** Slide each design's cells from where its column started, `before`, to where it starts now. */
+function slideColumns(t, before) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const after = columnLefts(t);
+  for (const cell of t.querySelectorAll("[data-design]")) {
+    const dx = before.get(cell.dataset.design) - after.get(cell.dataset.design);
+    if (Math.abs(dx) < 1) continue;
+    cell.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 350, easing: "ease-in-out" });
+  }
+}
+
+/** Show the designs shown, and only those, in the charts: their curves in the FDS plot, and their correlation maps. */
+function showComparedCharts(result, hidden) {
+  const box = $("#compare-charts");
+  for (const card of box.querySelectorAll("figure[data-design]")) {
+    const was = card.hidden;
+    card.hidden = hidden.has(card.dataset.design);
+    if (was && !card.hidden) resizeWithin(card); // a map drawn or resized while hidden is fitted to its card again
+  }
+  const fds = box.querySelector("figure.fds .plot");
+  if (fds && state.plotlyJs) draw(fds, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), state.plotlyJs, 380);
+}
+
 /** Take a design from the detailed comparison into the plan, and close the comparison. */
 function useDesign(item) {
   pickDesign(item.design_type);
@@ -1899,13 +2010,13 @@ function useDesign(item) {
   setStatus(`The ${item.label} design is chosen: make its run sheet when it is ready.`);
 }
 
-async function drawComparison(result, k) {
+async function drawComparison(result, k, hidden) {
   const box = $("#compare-charts");
   box.hidden = false;
   box.replaceChildren();
   const version = state.plotlyJs;
   if (!version) return;
-  const fds = el("figure", "chart wide", "");
+  const fds = el("figure", "chart wide fds", "");
   const fdsPlot = el("div", "plot", "");
   const caption = el(
     "figcaption",
@@ -1919,10 +2030,12 @@ async function drawComparison(result, k) {
   fds.append(fdsTitle, fdsPlot, caption);
   box.append(fds);
   try {
-    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region) }), version, 380);
+    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), version, 380);
     for (const label of result.designs) {
       const { terms, matrix } = result.correlations[label];
       const card = el("figure", "chart", "");
+      card.dataset.design = label;
+      card.hidden = hidden.has(label);
       const plot = el("div", "plot", "");
       const title = el("h3", "", "");
       title.append(term("Correlation map", { key: "correlation-map", alone: true }), `, ${label}`);
