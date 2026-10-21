@@ -58,7 +58,15 @@ from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
-from process_improve.univariate import randomization_interval, randomization_test, rank_sum_test, ttest_independent
+from process_improve.univariate import (
+    least_favourable_means,
+    one_way_power,
+    one_way_sample_size,
+    randomization_interval,
+    randomization_test,
+    rank_sum_test,
+    ttest_independent,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -301,6 +309,10 @@ SPARE_RUNS = 4
 
 #: The most times the page makes each run of a design, center runs excepted.
 MAX_REPLICATES = 10
+
+#: The most runs at each level of a design in one factor, which are its replicates: a comparison of two levels can
+#: need many more runs at each than a design of more factors repeats each of its runs.
+MAX_LEVEL_RUNS = 50
 
 #: The most blocks the page splits a design's runs into.
 MAX_BLOCKS = 8
@@ -1401,15 +1413,20 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
     """Refuse limits on the settings that no design on this page can keep to, and return the region they leave.
 
     The optimal designs are the only ones that place their runs inside limits, and on this page
-    they take numeric factors only; so the refusals come in that order, which names the real
-    conflict: a full factorial and a D-optimal design would otherwise each send the reader to
-    the other. ``design_type`` is the design asked for, or None when none is asked for yet.
+    they take numeric factors only, and two of them or more; so the refusals come in that order,
+    which names the real conflict: a full factorial and a D-optimal design would otherwise each send
+    the reader to the other. ``design_type`` is the design asked for, or None when none is asked for yet.
     """
     if labelled := [f.name for f in factors if f.type == "categorical"]:
         verb, which = ("is", "that factor") if len(labelled) == 1 else ("are", "those factors")
         raise ValueError(
             f"Limits on the settings work with numeric factors only on this page, and {_listed(labelled)} {verb} "
             f"categorical: remove the limits, or {which}."
+        )
+    if len(factors) == 1:  # the optimal designs, which keep to limits, take two factors or more
+        raise ValueError(
+            f"A limit on {factors[0].name} alone narrows its range: set its low and high to the settings you can "
+            "run, and remove the limit."
         )
     if design_type is not None and design_type not in REGION_DESIGNS:
         raise ValueError(
@@ -1736,10 +1753,14 @@ def _alpha(spec: dict) -> str | float:
 
 
 def _replicates(spec: dict) -> int:
-    """Read how many times each run is made, center runs excepted: 1 (no repeats) to :data:`MAX_REPLICATES`."""
+    """Read how many times each run is made, center runs excepted: 1 (no repeats) to :data:`MAX_REPLICATES`.
+
+    A design in one factor makes its two levels that many times each, up to :data:`MAX_LEVEL_RUNS`.
+    """
+    most = MAX_LEVEL_RUNS if len(spec.get("factors") or []) == 1 else MAX_REPLICATES
     replicates = _number(spec.get("n_replicates", 1))
-    if replicates is None or replicates != int(replicates) or not 1 <= replicates <= MAX_REPLICATES:
-        raise ValueError(f"Replicates must be a whole number from 1 to {MAX_REPLICATES}.")
+    if replicates is None or replicates != int(replicates) or not 1 <= replicates <= most:
+        raise ValueError(f"Replicates must be a whole number from 1 to {most}.")
     return int(replicates)
 
 
@@ -3237,9 +3258,10 @@ def plots(request: dict) -> dict:
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
         return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
 
-    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)}
+    # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
+    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)} if len(names) > 1 else {}
     truth = request.get("truth")
-    if truth:
+    if truth and len(names) > 1:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
         missing = [f for f in process.factors if f not in names]
         if missing:
@@ -3782,23 +3804,20 @@ def compare_plan(request: dict) -> dict:
     response = next(name for name in candidates if name.isidentifier() and name not in names)
     plan, left_out = [], []
     labelled = any(f.type == "categorical" for f in factors)
+    levels = _level_plan(request, factors, model)
     # A design taken from the comparison keeps the reader's description of the response, and aims to learn the
     # model it was compared on.
     described = _described({"response_info": request.get("response_info"), "aim": model})
     # The study's seed, so a design taken from the comparison keeps it.
     seeded = {"random_state": request["random_state"]} if "random_state" in request else {}
-    for design_type, info in DESIGNS.items():
+    for design_type in DESIGNS:
         if design_type in SPACE_FILLING:
             continue  # made for no model, so not one to compare on a model
         why = _left_out(design_type, k, labelled=labelled, limited=bool(limits))
         if why:
             left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})
             continue
-        options = dict(COMPARE_OPTIONS[design_type])
-        if "model_type" in info["options"]:
-            options["model_type"] = OPTIMAL_MODEL[model]
-        if "n_levels" in info["options"] and model in TAGUCHI_THREE_LEVELS:
-            options["n_levels"] = TAGUCHI_LEVELS[-1]
+        options = _compare_options(design_type, model, levels)
         spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
         spec.update(seeded)
         if limits:
@@ -3810,7 +3829,58 @@ def compare_plan(request: dict) -> dict:
             f"The D- and I-optimal designs are built for the {OPTIMAL_MODEL[model]} model, the smallest model "
             f"they can be built for that contains this one."
         )
-    return {"model": model, "designs": plan, "notes": notes, "left_out": left_out}
+    # Two levels estimate the factor's main effect alone, whatever else the aim names: they are scored on it.
+    scored = "main_effects" if levels else model
+    return {"model": scored, "designs": plan, "notes": notes, "left_out": left_out, "levels": levels}
+
+
+def _compare_options(design_type: str, model: str, levels: dict[str, Any] | None) -> dict[str, Any]:
+    """Return the options a design is compared with: the page's defaults, made for the comparison's model.
+
+    An optimal design is built for the model (see :data:`OPTIMAL_MODEL`), a Taguchi array runs its numeric factors
+    at three levels for a model with squares, and a design in one factor runs each of its two levels as often as
+    its plan (``levels``, from :func:`_level_plan`) asks, with no center runs.
+    """
+    options = dict(COMPARE_OPTIONS[design_type])
+    allowed = DESIGNS[design_type]["options"]
+    if levels:
+        options.update(n_center_points=0, n_replicates=levels["n"])
+    if "model_type" in allowed:
+        options["model_type"] = OPTIMAL_MODEL[model]
+    if "n_levels" in allowed and model in TAGUCHI_THREE_LEVELS:
+        options["n_levels"] = TAGUCHI_LEVELS[-1]
+    return options
+
+
+#: The power a design in one factor is sized for: the fewest runs at each of its two levels whose t-test has this
+#: chance of finding the smallest change worth finding.
+LEVEL_POWER = 0.8
+
+#: The runs at each level the plan of a design in one factor lists, beside the number that reaches its power.
+LEVEL_RUNS = (2, 3, 4, 5, 6, 8, 10, 15, 20, 30, MAX_LEVEL_RUNS)
+
+
+def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, Any] | None:
+    """Size a design in one factor, its two levels compared: the power of its t-test for each number of runs at each.
+
+    The change is the reader's smallest change worth finding, over the run-to-run noise, or two noise standard
+    deviations without them, as designs are compared (:func:`_effect_size`). The power is the one-way analysis of
+    variance's (``one_way_power``), which for two levels is the two-sided t-test's, and the model's test of the
+    factor. ``n`` is the fewest runs at each level that reach :data:`LEVEL_POWER`, or :data:`MAX_LEVEL_RUNS` when
+    none does (``reached`` says which). None for more factors, or for a numeric factor the study aims to see curve,
+    which a third level shows.
+    """
+    if len(factors) != 1 or (factors[0].type != "categorical" and model in (MAIN_QUADRATIC, "quadratic")):
+        return None
+    info = _response_info(request.get("response_info"))
+    means = least_favourable_means(2 * _effect_size({k: info.get(k) for k in ("noise", "smallest_change")}), 2)
+    try:
+        n = int(one_way_sample_size(LEVEL_POWER, 1.0, means, max_n=MAX_LEVEL_RUNS)["n"])
+    except ValueError:  # no number of runs the page makes reaches it
+        n = MAX_LEVEL_RUNS
+    rows = [{"n": m, "runs": 2 * m, "power": one_way_power(m, 1.0, means)["power"]} for m in sorted({*LEVEL_RUNS, n})]
+    reached = next(row["power"] for row in rows if row["n"] == n) >= LEVEL_POWER
+    return {"n": n, "power": LEVEL_POWER, "reached": reached, "rows": rows}
 
 
 def _left_out(design_type: str, k: int, *, labelled: bool, limited: bool) -> dict[str, Any] | None:
@@ -3943,6 +4013,7 @@ def candidates(request: dict) -> dict:
         "notes": notes,
         "result": result,
         "left_out": plan["left_out"],
+        "levels": plan["levels"],
     }
 
 

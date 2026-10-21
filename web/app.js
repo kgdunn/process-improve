@@ -20,6 +20,7 @@ import {
   chartImage,
   draw,
   fdsFigure,
+  levelsFigure,
   markBest,
   overlayFigure,
   paretoFigure,
@@ -85,10 +86,13 @@ import {
   CAPTIONS,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
+  COMPARISON_TESTS,
   CHOSEN_TERMS,
   FULL,
   GIVEN,
   GOALS,
+  MAX_LEVEL_RUNS,
+  MAX_REPLICATES,
   MAX_RESPONSES,
   MODES,
   NUMERIC,
@@ -118,6 +122,7 @@ import {
   compareCells,
   comparedRow,
   comparisonOrder,
+  comparisonSentence,
   completeRuns,
   componentProblem,
   defaultAim,
@@ -180,7 +185,6 @@ import {
   AIMS,
   BOOK_PARAM,
   EXAMPLE_PARAM,
-  CAMPAIGN_VERSION,
   LINK_KEY,
   WORKED,
   bookName,
@@ -196,6 +200,7 @@ import {
   progress,
   sameCampaign,
   shareable,
+  studyFormat,
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
@@ -1154,6 +1159,9 @@ function refreshDesign() {
   for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
   if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(defaultResolution(k));
 
+  // A design in one factor runs each level as often as its replicates say: more of them than a design of more factors.
+  $("#n_replicates").max = String(k === 1 ? MAX_LEVEL_RUNS : MAX_REPLICATES);
+
   // A Box-Behnken design or a rotatable CCD needs a center run to fit the squares; a DSD has one built in.
   const centre = $("#n_center_points");
   const centreNeeded = needsCentre(option.value, alpha, k);
@@ -1624,7 +1632,8 @@ function renderCandidates(busy = null) {
   const mixture = mixturePlanned() && factorCount() >= 2;
   const current = Boolean(c) && c.key === candidateKey() && !busy && !mixture;
   $("#compare").disabled = !current || !c.result;
-  $("#compare").hidden = !c?.result || mixture; // nothing to compare in detail before the brief's first designs
+  // Nothing to compare in detail before the brief's first designs, or for one factor, whose design is its two levels.
+  $("#compare").hidden = !c?.result || mixture || Boolean(c.levels);
   $("#search").hidden = !current || !c.waiting?.length;
   let note = null;
   const holding = limitsHold();
@@ -1642,7 +1651,7 @@ function renderCandidates(busy = null) {
   else if (briefReady() && !pythonReady) note = ["hint", "The designs that can help you learn this are listed once Python has started."];
   else if (busy || briefReady()) note = ["hint busy", busy ?? "Making and scoring the designs that can help you learn this..."];
   const waiting = current && !c.result && c.waiting?.length ? [waitingNote(c), ...noteList(c.notes.map(prettyTerm))] : [];
-  const listed = !briefReady() || mixture ? [] : c?.result ? candidateList(c, current) : waiting;
+  const listed = !briefReady() || mixture ? [] : c?.levels && c.result ? levelPlan(c, current) : c?.result ? candidateList(c, current) : waiting;
   $("#plan-empty").hidden = Boolean(note) || listed.length > 0;
   box.hidden = !note && !listed.length;
   box.dataset.stale = String(!current && !mixture);
@@ -1741,6 +1750,82 @@ function candidateList(c, current) {
   return parts;
 }
 
+/**
+ * A brief of one factor, its two levels compared (``c.levels``, as api_candidates plans them): a row for each number
+ * of runs at each level, with the power of the t-test to find the change worth finding, the row the form makes
+ * marked. Picking a row sets the design's replicates, which are its runs at each level.
+ */
+function levelPlan(c, current) {
+  const plan = c.levels;
+  const info = readResponseInfo();
+  const change = changeWords(info);
+  const power = term(`Power to find ${change}`, {
+    alone: true,
+    definition:
+      `The chance that the t-test of the two levels finds ${change} between them, at the ` +
+      `${Math.round(100 * c.result.significance_level)}% level.` +
+      (powerScale(info) ? "" : " To set your own, give the noise and the change under What you know of it already."),
+  });
+  const head = el("tr", "", "");
+  for (const word of ["Runs at each level", "Runs", power]) {
+    const th = el("th", "", "");
+    th.append(word);
+    head.append(th);
+  }
+  const thead = el("thead", "", "");
+  thead.append(head);
+  const tbody = el("tbody", "", "");
+  for (const row of plan.rows) {
+    const tr = el("tr", "", "");
+    tr.dataset.runs = String(row.n);
+    const label = el("label", "", "");
+    const radio = Object.assign(el("input", "", ""), { type: "radio", name: "level-runs", value: String(row.n), disabled: !current });
+    label.append(radio, String(row.n));
+    const first = el("td", "", "");
+    first.append(label);
+    tr.append(first, el("td", "", String(row.runs)), el("td", row.power < plan.power ? "low" : "", percent(row.power)));
+    if (current) tr.onclick = () => pickLevelRuns(row.n);
+    tbody.append(tr);
+  }
+  const t = el("table", "data pick levels-plan", "");
+  t.append(thead, tbody);
+  const wrap = el("div", "scroll", "");
+  wrap.append(t);
+  const most = plan.rows.at(-1);
+  const sized = plan.reached
+    ? `${plan.n} runs at each level, ${2 * plan.n} in all, are the fewest that give the t-test ${percent(plan.power)} ` +
+      `power to find ${change}. Pick a row for more runs or fewer.`
+    : `Even ${most.n} runs at each level, the most the page makes, give the t-test ${percent(most.power)} power to ` +
+      `find ${change}: a change this small against this much noise needs more runs than that.`;
+  return [
+    el("h3", "", "How many runs at each level"),
+    el("p", "hint", "With one factor, the design runs its two levels in random order, each the same number of times."),
+    wrap,
+    el("p", "hint", sized),
+  ];
+}
+
+/** Make the design of one factor with this many runs at each level, as the reader picked from the plan. */
+function pickLevelRuns(n) {
+  designChosen = true;
+  $("#design-type").value = "full_factorial";
+  $("#n_center_points").value = 0;
+  $("#n_replicates").value = n;
+  refreshDesign();
+  renderStudyBar();
+  saveDraft();
+}
+
+/** Mark the plan's row of the runs at each level the form makes: a full factorial with no center runs. */
+function markLevelRuns() {
+  const two = $("#design-type").value === "full_factorial" && Number($("#n_center_points").value) === 0;
+  for (const tr of document.querySelectorAll("#candidates .levels-plan tbody tr")) {
+    const on = two && tr.dataset.runs === $("#n_replicates").value;
+    tr.setAttribute("aria-selected", String(on));
+    tr.querySelector("input").checked = on;
+  }
+}
+
 /** Which designs wait for the reader to ask for their search, as Design says it beside the button. */
 function waitingNote(c) {
   const one = c.waiting.length === 1;
@@ -1760,7 +1845,8 @@ function markPicked() {
   const chosen = $("#design-type").value;
   const note = $("#candidates .picked");
   if (note) note.hidden = designChosen;
-  for (const tr of document.querySelectorAll("#candidates tbody tr")) {
+  markLevelRuns();
+  for (const tr of document.querySelectorAll("#candidates table:not(.levels-plan) tbody tr")) {
     const on = tr.dataset.design === chosen;
     tr.setAttribute("aria-selected", String(on));
     tr.querySelector("input").checked = on;
@@ -2321,7 +2407,8 @@ async function eachAnalysis() {
   for (const name of resultNames()) {
     if (!state.results[name].some((v) => v !== null)) continue;
     if (name === state.shown && state.analysis) {
-      out.push({ response: name, model: state.analysis.formula ?? state.analysis.model, best: state.best, vifModel: vifTerms(state.analysis) });
+      const compared = Boolean(state.analysis.comparison?.difference);
+      out.push({ response: name, model: state.analysis.formula ?? state.analysis.model, best: state.best, vifModel: vifTerms(state.analysis), compared });
       continue;
     }
     const request = analysisRequest(name);
@@ -2333,6 +2420,7 @@ async function eachAnalysis() {
       model: analysis.result.formula ?? analysis.result.model,
       best: best.ok ? best.result : null,
       vifModel: vifTerms(analysis.result),
+      compared: Boolean(analysis.result.comparison?.difference),
     });
   }
   return out;
@@ -2354,6 +2442,7 @@ async function downloadNotebook() {
     simulation: state.simulation,
     model: state.analysis ? (state.analysis.formula ?? state.analysis.model) : null,
     vifModel: state.analysis ? vifTerms(state.analysis) : null,
+    compared: Boolean(state.analysis?.comparison?.difference),
     version: state.version,
     url: `${location.origin}${location.pathname}`,
     best: state.best,
@@ -2758,9 +2847,11 @@ function renderAnalysis(reply) {
   const vif = showsVif(r.coefficients); // a column only when some term is correlated enough for the note
   setStatus("Analysis complete.");
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null));
+  const compared = Boolean(r.comparison?.difference);
+  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, { compared }));
   const mixture = isMixture(r.spec?.design_type);
   const parts = [
+    ...comparisonParts(r),
     el("p", "equation", r.equation),
     said("hint", mixture ? "In proportions: each component's share of the blend." : "In coded units."),
     ...noteList(fitLines(r), "fit"),
@@ -2849,6 +2940,81 @@ function renderAnalysis(reply) {
 
 /** The study's specification as the response Learn shows reads it: that response as its ``response``. */
 const shownSpec = () => forResponse(state.design.spec, state.shown);
+
+/** The words the comparison of one factor's levels is said and drawn in: the response's, and the factor's units. */
+function comparisonWords() {
+  const { label, units } = responseWords(shownSpec());
+  return { response: label, units, factorUnits: state.design.spec.factors[0]?.units ?? "" };
+}
+
+/**
+ * A study of one factor, its levels compared (``r.comparison``, as the analysis gives it): the difference between
+ * the two levels and how sure it is, in a sentence; each level's runs summarised; and the difference tested four
+ * ways, each test's name a word the glossary opens. The model's equation and coefficients follow, as for any study.
+ */
+function comparisonParts(r) {
+  const c = r.comparison;
+  if (!c) return [];
+  const d = c.difference;
+  const words = comparisonWords();
+  const at = (level) => (words.factorUnits ? `${level} ${words.factorUnits}` : String(level));
+  const sentence = comparisonSentence(c, words);
+  const parts = [
+    el("h3", "", d ? `Whether ${at(d.to)} differs from ${at(d.from)}` : "Each level's results"),
+    ...(sentence ? [said("", sentence)] : []),
+    table(
+      ["Level", "Runs", "Average", "Std. dev.", "95% interval"],
+      c.levels.map((l) => [String(l.level), l.n, fmt(l.mean), fmt(l.std_dev), l.ci_low === null ? "" : `${fmt(l.ci_low)} to ${fmt(l.ci_high)}`]),
+      { "95% interval": "confidence-interval" },
+    ),
+  ];
+  if (!d) {
+    if (c.levels.length === 2) parts.push(said("hint", "A difference is tested once each level has two runs or more."));
+    return parts;
+  }
+  const tests = table(
+    ["Test", "95% interval", "p-value"],
+    d.tests.map((t) => [
+      `${COMPARISON_TESTS[t.test].name}: ${COMPARISON_TESTS[t.test].how}`,
+      t.ci_low === null || t.ci_low === undefined ? "" : `${fmt(t.ci_low)} to ${fmt(t.ci_high)}`,
+      pval(t.p_value),
+    ]),
+    { "95% interval": "interval", "p-value": "p-value" },
+  );
+  // Each test's name opens what the test is; the words after it say what it rests on.
+  const body = tests.querySelector("table");
+  body._cell = (row, col) => {
+    if (col !== 0) return null;
+    const [name, how] = row[0].split(": ");
+    const key = Object.values(COMPARISON_TESTS).find((t) => t.name === name).key;
+    return `<span class="term" data-term="${key}">${escape(name)}</span>: ${escape(how)}`;
+  };
+  fillBody(body, body._rows);
+  const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, tested four ways`);
+  parts.push(heading, tests, ...noteList(comparisonNotes(r)));
+  return parts;
+}
+
+/** What the comparison's numbers rest on: the model's coefficient as half the difference, and the randomization test's count. */
+function comparisonNotes(r) {
+  const d = r.comparison.difference;
+  const notes = [];
+  const coefficient = r.coefficients.find((c) => c.term === r.comparison.factor);
+  if (coefficient) {
+    notes.push(
+      `The model's coefficient of ${r.comparison.factor}, ${fmt(coefficient.coefficient)}, is half the difference: in ` +
+        `coded units ${d.from} is -1 and ${d.to} is +1, two units apart.`,
+    );
+  }
+  const shuffled = d.tests.find((t) => t.test === "randomization");
+  if (shuffled && !shuffled.exact) {
+    notes.push(`The runs can be split more ways than the randomization test counts: it draws ${shuffled.n_arrangements} of the splits at random.`);
+  } else if (shuffled && shuffled.ci_low === null) {
+    notes.push(`The runs can be split ${shuffled.n_arrangements} ways, too few for the randomization test to give a 95% interval.`);
+  }
+  if (d.true !== null && d.true !== undefined) notes.push(`The true difference, in the process the results were simulated from: ${fmt(d.true)}.`);
+  return notes;
+}
 
 /**
  * The fit at a glance, a line each. With several responses the completed runs are those with every result in, as the
@@ -3091,7 +3257,9 @@ async function drawCharts(request, mine, given = null) {
       if (ternary.grid.true) figures.true_ternary = () => ternaryFigure(ternary, { ...words, range, values: "true" });
     }
     if (cox) figures.cox = () => coxFigure(cox, { ...words, best: blend && cox.through === "best" ? blend.predicted : null });
-    for (const key of ["contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
+    const levels = state.analysis?.comparison;
+    if (levels) figures.levels = () => levelsFigure(levels, comparisonWords());
+    for (const key of ["levels", "contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
       const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
       const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
@@ -4077,7 +4245,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: CAMPAIGN_VERSION,
+    v: studyFormat(spec),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -4788,6 +4956,7 @@ $("#trade-off-table").addEventListener("click", (e) => {
 });
 $("#n_levels").onchange = markStale;
 for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
+for (const id of ["#design-type", "#n_center_points", "#n_replicates"]) $(id).addEventListener("input", markLevelRuns);
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process
   // and the analysis follow the plan as it now is.

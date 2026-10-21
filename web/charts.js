@@ -542,6 +542,71 @@ export function coxFigure(cox, { response, units = "", best = null }, colours = 
   };
 }
 
+/** What the chart of one factor's levels marks beside each level's runs. */
+export const LEVEL_AVERAGE = "Average, with its 95% interval";
+
+/**
+ * How far a run's dot sits from its level's line, a fraction of the space between two levels: spread by the run's
+ * number, so dots at the same result stand apart, and the same run sits in the same place each time it is drawn.
+ */
+export const spreadOf = (run) => ((((run * 0.6180339887) % 1) + 1) % 1 - 0.5) * 0.3;
+
+/**
+ * A study of one factor (``comparison``, as the analysis gives it): every run's result as a dot at its level, and
+ * beside the dots the level's average with its 95% interval, from that level's runs alone. The spread of the dots
+ * within a level is the noise a difference between the levels is judged against.
+ */
+export function levelsFigure(comparison, { response, units = "", factorUnits = "" }, colours = palette()) {
+  const levels = comparison.levels;
+  const at = levels.map((_, i) => i);
+  const named = levels.map((level) => (typeof level.level === "number" ? `${level.level}` : level.level));
+  const runs = {
+    type: "scatter",
+    mode: "markers",
+    name: "Runs",
+    x: levels.flatMap((level, i) => level.runs.map((r) => i + spreadOf(r.run))),
+    y: levels.flatMap((level) => level.runs.map((r) => r.value)),
+    customdata: levels.flatMap((level, i) => level.runs.map((r) => [r.run, named[i]])),
+    marker: { color: withAlpha(colours.accent, 0.7), size: 8, line: { width: 1, color: colours.accent } },
+    hovertemplate: "Run %{customdata[0]}, at %{customdata[1]}: %{y:.4g}<extra></extra>",
+  };
+  const spread = levels.map((level) => level.ci_low !== null && level.ci_low !== undefined);
+  const averages = {
+    type: "scatter",
+    mode: "markers",
+    name: LEVEL_AVERAGE,
+    x: at.map((i) => i + 0.3),
+    y: levels.map((level) => level.mean),
+    customdata: named,
+    marker: { color: colours.fg, size: 11, symbol: "line-ew", line: { width: 3, color: colours.fg } },
+    error_y: {
+      type: "data",
+      symmetric: false,
+      array: levels.map((level, i) => (spread[i] ? level.ci_high - level.mean : 0)),
+      arrayminus: levels.map((level, i) => (spread[i] ? level.mean - level.ci_low : 0)),
+      color: colours.fg,
+      thickness: 2,
+      width: 6,
+    },
+    hovertemplate: "Average at %{customdata}: %{y:.4g}<extra></extra>",
+  };
+  return {
+    data: [runs, averages],
+    layout: {
+      xaxis: {
+        title: { text: withUnits(comparison.factor, factorUnits) },
+        tickvals: at,
+        ticktext: named,
+        range: [-0.6, levels.length - 0.4],
+        zeroline: false,
+      },
+      yaxis: { title: { text: withUnits(response, units) } },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+    },
+  };
+}
+
 /** Write a model term as the page shows it: ``I(T ** 2)`` as ``T²`` and ``T:P`` as ``T·P``. */
 // Only a colon between two names is a product, so a sentence's own colons are left alone.
 export const prettyTerm = (term) => term.replace(/I\((\w+) \*\* 2\)/g, "$1²").replace(/(\w):(?=\w)/g, "$1·");

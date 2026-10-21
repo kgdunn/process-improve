@@ -739,6 +739,15 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(9)))),
         "With limits on the settings, the page makes designs in up to 8 factors; you have 9.",
     ),
+    "a limit on one factor alone": (
+        "api_make_design",
+        lambda _: {
+            "design_type": "full_factorial",
+            "factors": FACTORS[:1],
+            "constraints": [{"expression": "T <= 190"}],
+        },
+        "A limit on T alone narrows its range: set its low and high to the settings you can run, and remove the limit.",
+    ),
     "limits that leave nothing": (
         "api_make_design",
         _limited("d_optimal", "T + P >= 300"),

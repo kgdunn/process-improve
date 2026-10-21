@@ -145,3 +145,81 @@ def test_simulated_results_carry_the_true_difference(api):
 
 def test_a_study_of_two_factors_has_no_comparison(api, held, simulated):
     assert api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})["comparison"] is None
+
+
+# --------------------------------------------------------------------------- how many runs at each level
+def planned(api, factor: dict = SUPPLIER, model: str = "main_effects", info: dict | None = None) -> dict:
+    """Make and score the designs for a brief of one factor, as Design does."""
+    request = {"factors": [factor], "model": model, "response": "y", "response_info": info, "random_state": 7}
+    return api.ok("api_candidates", request)
+
+
+def test_a_design_in_one_factor_is_sized_for_the_power_its_plan_asks(api, bootstrap):
+    """Two noise standard deviations, the default change, take 6 runs at each level for 80% power; 5 give 79%."""
+    found = planned(api)
+    plan = found["levels"]
+    power = {row["n"]: row["power"] for row in plan["rows"]}
+    assert (plan["n"], plan["reached"], plan["power"]) == (6, True, bootstrap.LEVEL_POWER)
+    assert power[5] < bootstrap.LEVEL_POWER <= power[6]
+    assert [row["runs"] for row in plan["rows"]] == [2 * row["n"] for row in plan["rows"]]
+    [made] = found["made"]
+    assert made["design"]["spec"]["options"] | {"random_state": 0} == {
+        "random_state": 0,
+        "n_center_points": 0,
+        "n_replicates": 6,
+    }
+    assert made["design"]["n_runs"] == 12
+
+
+def test_the_plan_s_power_is_the_power_the_designs_are_compared_on(api):
+    """The t-test of two levels is the model's test of the factor: its power is the comparison's main-effect power."""
+    found = planned(api, info={"noise": 2, "smallest_change": 3})
+    plan = found["levels"]
+    assert plan["n"] == 9
+    label = found["result"]["designs"][0]
+    shown = found["result"]["values"][label]["power_main"]
+    assert shown == pytest.approx(next(row["power"] for row in plan["rows"] if row["n"] == 9))
+
+
+def test_a_change_too_small_for_any_design_the_page_makes_is_said(api, bootstrap):
+    plan = planned(api, info={"noise": 1, "smallest_change": 0.3})["levels"]
+    assert (plan["n"], plan["reached"]) == (bootstrap.MAX_LEVEL_RUNS, False)
+
+
+def test_a_categorical_factor_is_scored_on_its_main_effect_whatever_the_aim(api):
+    """A categorical factor cannot curve: its two levels fit the main effect, which the plan's power is for."""
+    found = planned(api, model="main_quadratic")
+    assert found["model"] == "main_effects"
+    assert found["levels"]["n"] == 6
+    assert found["result"]["values"][found["result"]["designs"][0]]["fits"] is True
+    assert found["made"][0]["design"]["spec"]["aim"] == "main_quadratic", "the reader's aim is kept"
+
+
+def test_a_numeric_factor_the_study_aims_to_see_curve_keeps_its_center_runs(api):
+    found = planned(api, factor=FACTORS[0], model="main_quadratic")
+    assert found["levels"] is None
+    assert found["made"][0]["design"]["spec"]["options"]["n_center_points"] == 3
+
+
+def test_one_factor_s_levels_take_more_replicates_than_a_design_of_more_factors(api, bootstrap):
+    most = bootstrap.MAX_LEVEL_RUNS
+    assert api.ok("api_make_design", comparison(SUPPLIER, n_replicates=most, n_center_points=0))["n_runs"] == 2 * most
+    error = api.error("api_make_design", comparison(SUPPLIER, n_replicates=most + 1))
+    assert error == f"Replicates must be a whole number from 1 to {most}."
+    two = {"design_type": "full_factorial", "factors": FACTORS[:2], "n_replicates": bootstrap.MAX_REPLICATES + 1}
+    assert (
+        api.error("api_make_design", two) == f"Replicates must be a whole number from 1 to {bootstrap.MAX_REPLICATES}."
+    )
+
+
+def test_a_brief_of_more_factors_has_no_plan_of_levels(api):
+    request = {"factors": FACTORS, "model": "main_effects", "response": "y", "random_state": 7}
+    assert api.ok("api_compare_plan", request)["levels"] is None
+
+
+def test_a_limit_on_one_factor_alone_is_refused_with_what_to_do_instead(api):
+    """No design on the page keeps one factor inside a limit: its range says the same, and that the page takes."""
+    request = comparison(FACTORS[0], n_replicates=3, constraints=[{"expression": "T <= 190"}])
+    assert api.error("api_make_design", request) == (
+        "A limit on T alone narrows its range: set its low and high to the settings you can run, and remove the limit."
+    )
