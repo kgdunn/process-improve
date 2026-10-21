@@ -1097,7 +1097,7 @@ class TestNoConvergedStart:
         from process_improve.experiments import optimization
 
         monkeypatch.setattr(optimization, "_closest_to_specification", lambda *_args: None)
-        monkeypatch.setattr(optimization, "_multistart_slsqp", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(optimization, "_multistart_results", lambda *_args, **_kwargs: [])
         model = {"response_name": "y", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
         goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 45.0}]
         with pytest.raises(RuntimeError, match=f"^{message}$"):

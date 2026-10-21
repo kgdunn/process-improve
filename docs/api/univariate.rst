@@ -14,6 +14,13 @@ Reference distributions from past records
    :undoc-members:
    :show-inheritance:
 
+Serial correlation
+------------------
+
+.. automodule:: process_improve.univariate.serial_correlation
+   :members:
+   :undoc-members:
+
 Results against a stated value
 ------------------------------
 
