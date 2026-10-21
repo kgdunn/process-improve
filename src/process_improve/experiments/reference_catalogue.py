@@ -89,6 +89,7 @@ from process_improve.experiments.random_effects import expected_mean_squares
 from process_improve.experiments.random_effects import fixed_columns as _fixed_columns
 from process_improve.experiments.run_order import run_order_trends
 from process_improve.experiments.separating import constraint_through_cuts
+from process_improve.experiments.sequential import steepest_path
 from process_improve.experiments.trade_off import minimum_aberration_generators
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
@@ -929,25 +930,21 @@ def _steepest_path(out: dict, check: dict, experiment: dict) -> float:
     """Return a setting, in actual units, on the library's path of steepest ascent, set out as a source sets it out.
 
     A source steps along the path by a round change in one factor (``check["change"]`` actual units
-    of ``check["per"]``) and moves the others in proportion; the setting of ``check["key"]`` after
-    ``check["steps"]`` such steps is returned, or its change from the centre with ``"from_centre": true``.
-    ``"units": "coded"`` returns it in coded units, as a source that steps in coded units prints it.
-    A source that steps a distance rho in coded units along the gradient, to rho b / ||b||, gives
-    ``check["radius"]`` instead of ``change`` and ``per``.
+    of ``check["per"]``, its sign as the source prints it) and moves the others in proportion; the
+    setting of ``check["key"]`` after ``check["steps"]`` such steps is returned, or its change from
+    the centre with ``"from_centre": true``. ``"units": "coded"`` returns it in coded units, as a
+    source that steps in coded units prints it. A source that steps a distance rho in coded units
+    along the gradient, to rho b / ||b||, gives ``check["radius"]`` instead of ``change`` and ``per``.
     """
-    model, ranges = _response_model(out, experiment), _factor_ranges(experiment)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        if "radius" in check:
-            size = float(check["radius"])
-        else:
-            unit = optimize_responses([model], method="steepest_ascent", step_size=1.0, n_steps=1, factor_ranges=ranges)
-            start, one = (step["actual"] for step in unit["steepest_path"]["steps"])
-            size = check["change"] / (one[check["per"]] - start[check["per"]])  # the coded step making that change
-        path = optimize_responses(
-            [model], method="steepest_ascent", step_size=size, n_steps=check.get("steps", 1), factor_ranges=ranges
-        )
-    steps = path["steepest_path"]["steps"]
+    model = _response_model(out, experiment)
+    model["factor_coding"] = {
+        name: span for name, span in _factor_ranges(experiment).items() if name in model["factor_names"]
+    }
+    step = float(check["radius"]) if "radius" in check else {check["per"]: abs(check["change"])}
+    path = steepest_path(model, step, check.get("steps", 1))
+    if "change" in check and path["increment"]["coded"][check["per"]] * check["change"] < 0:
+        raise ValueError(f"The path moves {check['per']} the other way from the source's change of {check['change']}.")
+    steps = path["steps"]
     units = check.get("units", "actual")
     setting = steps[-1][units][check["key"]]
     return setting - steps[0][units][check["key"]] if check.get("from_centre") else setting

@@ -602,10 +602,10 @@ def _steepest_path(  # noqa: PLR0913
     direction: str = "ascent",
     factor_ranges: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, Any]:
-    """Generate a table of steps along the steepest ascent (or descent).
+    """Return the path of steepest ascent (or descent) from the design centre, for ``optimize_responses``.
 
-    Uses only the first-order (linear) coefficients to determine
-    direction.  Steps start at the design centre (all coded = 0).
+    :func:`~process_improve.experiments.sequential.steepest_path` sets the path out; this steps
+    ``step_size``, a distance in coded units, as ``optimize_responses`` does.
 
     Parameters
     ----------
@@ -616,9 +616,8 @@ def _steepest_path(  # noqa: PLR0913
     step_size : float
         Euclidean distance, in coded units, between successive points on the
         path (default 0.5). Each step moves every factor in proportion to its
-        linear coefficient, so a factor moves by ``step_size * b_j / ||b||``;
-        this is not the textbook convention of a unit step in the factor with
-        the largest coefficient. Must be positive.
+        linear coefficient, so a factor moves by ``step_size * b_j / ||b||``.
+        Must be positive.
     n_steps : int
         Number of steps to take away from the design centre (default 10).
         The returned ``steps`` list has ``n_steps + 1`` entries because it
@@ -631,7 +630,8 @@ def _steepest_path(  # noqa: PLR0913
     Returns
     -------
     dict
-        ``steps`` list and ``direction_vector``.
+        The path as :func:`~process_improve.experiments.sequential.steepest_path` returns it,
+        or ``{"error": ...}`` when every linear coefficient is zero.
 
     Raises
     ------
@@ -639,53 +639,20 @@ def _steepest_path(  # noqa: PLR0913
         If *step_size* is not a positive finite number or *n_steps* < 1: a
         negative step would walk the path the wrong way.
     """
+    from process_improve.experiments.sequential import NoSteepestDirectionError, steepest_path  # noqa: PLC0415
+
     if not (np.isfinite(step_size) and step_size > 0):
         msg = f"step_size must be a positive number of coded units; got {step_size}."
         raise ValueError(msg)
     if n_steps < 1:
         msg = f"n_steps must be at least 1; got {n_steps}."
         raise ValueError(msg)
-    evaluator = _build_model_evaluator(coefficients, factor_names)
-
-    # Extract linear coefficients only
-    name_to_idx = {n: i for i, n in enumerate(factor_names)}
-    b = np.zeros(len(factor_names))
-    for entry in coefficients:
-        components = _parse_term(entry["term"])
-        if len(components) == 1 and components[0] in name_to_idx:
-            b[name_to_idx[components[0]]] = float(entry["coefficient"])
-
-    if np.allclose(b, 0):
+    model = {"coefficients": coefficients, "factor_names": factor_names, "factor_coding": factor_ranges or {}}
+    goal = "minimize" if direction == "descent" else "maximize"
+    try:
+        return steepest_path(model, step_size, n_steps, goal=goal)
+    except NoSteepestDirectionError:
         return {"error": "All linear coefficients are zero - no steepest direction."}
-
-    # Direction: normalize, then scale by step_size
-    norm = np.linalg.norm(b)
-    direction_vec = b / norm
-    if direction == "descent":
-        direction_vec = -direction_vec
-
-    steps = []
-    for step_num in range(n_steps + 1):
-        x_coded = direction_vec * step_size * step_num
-        predicted = float(evaluator(x_coded))
-
-        step_entry: dict[str, Any] = {
-            "step": step_num,
-            "coded": {n: float(x_coded[i]) for i, n in enumerate(factor_names)},
-            "predicted_response": predicted,
-        }
-
-        if factor_ranges:
-            step_entry["actual"] = _coded_to_actual(step_entry["coded"], factor_ranges)
-
-        steps.append(step_entry)
-
-    return {
-        "direction": direction,
-        "direction_vector": {n: float(direction_vec[i]) for i, n in enumerate(factor_names)},
-        "step_size": step_size,
-        "steps": steps,
-    }
 
 
 def _resolve_search_bounds(
