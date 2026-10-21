@@ -299,21 +299,25 @@ def _refuse_unsupported_categorical(factors: list[Factor], design_type: str, gen
     )
 
 
-def _refuse_mixture_process(factors: list[Factor]) -> None:
-    """Raise one clear error for mixture components mixed with process factors, which no engine here supports.
-
-    The proportions must sum to 1 while the process factors range freely, so neither
-    the mixture engine nor the factor-box engines can place the runs. Crossing a
-    mixture design with a design in the process factors is the classical answer.
-    """
+def _is_mixture_process(factors: list[Factor]) -> bool:
+    """Say whether the factors are mixture components together with process factors."""
     is_mixture = [f.type == FactorType.mixture for f in factors]
-    if any(is_mixture) and not all(is_mixture):
-        process = [f.name for f, m in zip(factors, is_mixture, strict=True) if not m]
+    return any(is_mixture) and not all(is_mixture)
+
+
+def _refuse_mixture_process(factors: list[Factor], design_type: str) -> None:
+    """Raise when mixture components beside process factors are given to a family that cannot place them.
+
+    The proportions must sum to 1 while the process factors range freely, so only the
+    optimal families, which choose runs from candidates in that region, build these designs
+    (see :mod:`~process_improve.experiments.designs_mixture_process`).
+    """
+    if _is_mixture_process(factors) and design_type not in _OPTIMAL_FAMILIES:
+        process = [f.name for f in factors if f.type != FactorType.mixture]
         raise ValueError(
-            f"Mixture-process designs (mixture components together with process factors {process}) are not "
-            "supported. Generate a mixture design for the components and a design for the process factors, "
-            "then cross them: every blend at every process setting, e.g. "
-            "mixture.design_actual.merge(process.design_actual, how='cross')."
+            f"Mixture components together with process factors {process} need an optimal design: use "
+            f"design_type='d_optimal' (or one of {sorted(_OPTIMAL_FAMILIES - {'d_optimal'})}), or leave design_type "
+            f"unset; design_type={design_type!r} cannot place them."
         )
 
 
@@ -425,9 +429,9 @@ def _auto_select(
     k_mixture = sum(1 for f in factors if f.type == FactorType.mixture)
     k = len(factors) - k_mixture
 
-    # Mixture factors dominate
-    if k_mixture > 0 and k_mixture == len(factors):
-        return "mixture"
+    # Mixture factors dominate; beside process factors, only the optimal designs place them
+    if k_mixture > 0:
+        return "mixture" if k_mixture == len(factors) else "d_optimal"
 
     # Constraints or split-plot -> D-optimal
     if constraints or hard_to_change:
@@ -500,15 +504,26 @@ def _auto_select_by_budget(  # noqa: PLR0911
     return "plackett_burman"
 
 
-def _model_that_fits(factors: list[Factor], model_type: str, budget: int) -> str:
-    """Return *model_type*, or the largest smaller model an automatically chosen optimal design can fit in *budget*."""
+def _n_parameters(factors: list[Factor], model_type: str) -> int:
+    """Return the number of coefficients in the model ``model_type`` names for these factors."""
     from process_improve.experiments.designs_optimal import _n_model_parameters  # noqa: PLC0415
 
+    if _is_mixture_process(factors):
+        from process_improve.experiments.designs_mixture_process import mixture_process_model  # noqa: PLC0415
+
+        mixture = [f.name for f in factors if f.type == FactorType.mixture]
+        process = [f.name for f in factors if f.type != FactorType.mixture]
+        return mixture_process_model(mixture, process, model_type).n_parameters
+    return _n_model_parameters(factors, model_type)
+
+
+def _model_that_fits(factors: list[Factor], model_type: str, budget: int) -> str:
+    """Return *model_type*, or the largest smaller model an automatically chosen optimal design can fit in *budget*."""
     order = ["quadratic", "interactions", "main_effects"]
     if model_type not in order:
         return model_type
     for candidate in order[order.index(model_type) :]:
-        if _n_model_parameters(factors, candidate) <= budget:
+        if _n_parameters(factors, candidate) <= budget:
             if candidate != model_type:
                 logger.warning(
                     "A budget of %d runs cannot estimate the %r model, so the automatically chosen D-optimal "
@@ -1033,7 +1048,7 @@ def generate_design(  # noqa: PLR0913
     _refuse_optimal_only_arguments(design_type, candidates, fixed_runs, hard_to_change, factors)
     _refuse_duplicate_names(factors)
     refuse_reserved_names(factors)
-    _refuse_mixture_process(factors)
+    _refuse_mixture_process(factors, design_type)
     _refuse_mixture_in_box_family(factors, design_type)
     _refuse_unsupported_categorical(factors, design_type, generators)
     _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)

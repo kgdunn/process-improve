@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
 from patsy import dmatrix
 
-from process_improve.experiments import DesignRegion, Factor
+from process_improve.experiments import (
+    Constraint,
+    DesignRegion,
+    Factor,
+    generate_design,
+)
 from process_improve.experiments.designs_mixture_process import mixture_process_model
 
 #: Three bounded components and two process factors, used for the region and the designs.
@@ -193,3 +200,185 @@ class TestRegion:
     def test_box_diagnostics_are_refused(self) -> None:
         with pytest.raises(ValueError, match="describes a box of factor settings"):
             DesignRegion([*BLENDS, *SETTINGS]).centroid()
+
+
+#: Goos and Jones (2011), Table 6.2: the 12-run D-optimal design for the reflectivity of aluminium sheet. The
+#: three mills share the reduction in thickness (each 0.1 to 0.8 of it), and spray volume and oil-water are
+#: two-level process variables, here -1 (Low) and +1 (High). The model is the second-order Scheffé model in the
+#: mills plus the main effects of the two process variables.
+TABLE_6_2 = pd.DataFrame(
+    [
+        [0.1, 0.8, 0.1, -1, -1],
+        [0.8, 0.1, 0.1, -1, -1],
+        [0.1, 0.45, 0.45, -1, -1],
+        [0.1, 0.1, 0.8, 1, -1],
+        [0.45, 0.45, 0.1, 1, -1],
+        [0.45, 0.1, 0.45, 1, -1],
+        [0.45, 0.1, 0.45, -1, 1],
+        [0.1, 0.1, 0.8, -1, 1],
+        [0.45, 0.45, 0.1, -1, 1],
+        [0.8, 0.1, 0.1, 1, 1],
+        [0.1, 0.8, 0.1, 1, 1],
+        [0.1, 0.45, 0.45, 1, 1],
+    ],
+    columns=["mill1", "mill2", "mill3", "spray", "oil"],
+)
+MILLS = [Factor(name=f"mill{i}", type="mixture", low=0.1, high=0.8) for i in (1, 2, 3)]
+COOLANT = [Factor(name="spray", low=-1, high=1), Factor(name="oil", low=-1, high=1)]
+TABLE_6_2_MODEL = "scheffe_quadratic + main_effects"
+
+
+def _model_rows(design: pd.DataFrame, factors: list[Factor], model_type: str) -> np.ndarray:
+    mixture = [f.name for f in factors if f.type.value == "mixture"]
+    process = [f.name for f in factors if f.type.value != "mixture"]
+    model = mixture_process_model(mixture, process, model_type)
+    return model.matrix({n: design[n].to_numpy(dtype=float) for n in mixture + process})
+
+
+def _log_det(x: np.ndarray) -> float:
+    return float(np.linalg.slogdet(x.T @ x)[1])
+
+
+@pytest.fixture(scope="module")
+def design() -> pd.DataFrame:
+    """Return the library's 12-run D-optimal design for the model of Table 6.2 (every seed tried finds the optimum)."""
+    result = generate_design(
+        [*MILLS, *COOLANT], design_type="d_optimal", model_type=TABLE_6_2_MODEL, budget=12, random_state=3
+    )
+    return result.design.drop(columns="RunOrder").round(6)
+
+
+class TestPublishedDesign:
+    """The D-optimal design of Goos and Jones (2011), Table 6.2, is found again."""
+
+    def test_as_informative_as_the_published_design(self, design: pd.DataFrame) -> None:
+        factors = [*MILLS, *COOLANT]
+        ours = _log_det(_model_rows(design, factors, TABLE_6_2_MODEL))
+        assert ours == pytest.approx(_log_det(_model_rows(TABLE_6_2, factors, TABLE_6_2_MODEL)), abs=1e-9)
+
+    def test_six_blends_each_twice_once_at_each_process_setting(self, design: pd.DataFrame) -> None:
+        """Goos and Jones, p. 119: six mill combinations, each twice, once at each level of each coolant factor."""
+        blends = design.groupby(["mill1", "mill2", "mill3"])
+        assert blends.ngroups == 6
+        assert (blends.size() == 2).all()
+        assert (blends["spray"].sum() == 0).all()
+        assert (blends["oil"].sum() == 0).all()
+        assert sorted(map(tuple, design[["mill1", "mill2", "mill3"]].drop_duplicates().to_numpy())) == sorted(
+            map(tuple, TABLE_6_2[["mill1", "mill2", "mill3"]].drop_duplicates().to_numpy())
+        )
+
+    def test_each_coolant_combination_three_times(self, design: pd.DataFrame) -> None:
+        assert (design.groupby(["spray", "oil"]).size() == 3).all()
+
+    def test_leverage_is_two_thirds_at_every_run(self, design: pd.DataFrame) -> None:
+        """Goos and Jones, p. 120: the worst relative variance of prediction is two-thirds, 8 terms over 12 runs."""
+        x = _model_rows(design, [*MILLS, *COOLANT], TABLE_6_2_MODEL)
+        leverage = np.einsum("ij,jk,ik->i", x, np.linalg.inv(x.T @ x), x)
+        np.testing.assert_allclose(leverage, 8 / 12)
+
+
+class TestGenerateDesign:
+    """generate_design builds mixture-process designs with the optimal families."""
+
+    FACTORS = (*BLENDS, *SETTINGS)
+
+    def test_automatic_choice_is_d_optimal_for_the_interactions_model(self) -> None:
+        result = generate_design(list(self.FACTORS))
+        assert result.design_type == "d_optimal"
+        assert result.metadata["model_type"] == "interactions"
+        assert result.n_runs == result.metadata["n_parameters"] + 3 == 16
+
+    def test_blends_are_proportions_and_settings_actual_units(self) -> None:
+        result = generate_design(list(self.FACTORS), budget=16)
+        names = [f.name for f in BLENDS]
+        for frame in (result.design, result.design_actual):
+            np.testing.assert_allclose(frame[names].sum(axis=1), 1.0)
+            assert frame[names].min().min() >= 0.1 - 1e-9
+            assert frame[names].max().max() <= 0.6 + 1e-9
+        assert set(result.design["T"]) <= {-1.0, 0.0, 1.0}
+        np.testing.assert_allclose(result.design_actual["T"], 50 + 30 * result.design["T"])
+
+    def test_recorded_region_holds_every_run(self) -> None:
+        constraints = ["x1 + x2 <= 0.7", "T + 0.1*S <= 90"]
+        result = generate_design(list(self.FACTORS), budget=16, constraints=constraints)
+        region = DesignRegion.from_dict(result.metadata["region"])
+        assert region.kind == "mixture_process"
+        runs = result.design[region.names].to_numpy(dtype=float)
+        assert region.feasible(runs).all()
+        assert result.metadata["constraints_enforced"]
+
+    def test_squared_process_factors_get_a_middle_level(self) -> None:
+        result = generate_design(list(self.FACTORS), design_type="d_optimal", model_type="quadratic", budget=20)
+        assert result.metadata["n_parameters"] == 15
+        assert (result.design["T"] == 0).any()
+        assert (result.design["S"] == 0).any()
+
+    @pytest.mark.parametrize(
+        "design_type", ["d_optimal", "i_optimal", "a_optimal", "e_optimal", "g_optimal", "k_optimal"]
+    )
+    def test_every_optimal_family(self, design_type: str) -> None:
+        result = generate_design(list(self.FACTORS), design_type=design_type, model_type="main_effects", budget=8)
+        x = _model_rows(result.design, list(self.FACTORS), "main_effects")
+        assert result.n_runs == 8
+        assert np.linalg.matrix_rank(x) == 5
+        assert result.metadata["optimality_criterion"] == design_type
+
+    def test_i_optimal_beats_d_optimal_on_average_variance(self) -> None:
+        def average_variance(design_type: str) -> float:
+            result = generate_design(list(self.FACTORS), design_type=design_type, budget=16, random_state=0)
+            region = DesignRegion.from_dict(result.metadata["region"])
+            sample = pd.DataFrame(region.sample(20_000, np.random.default_rng(5)), columns=region.names)
+            x = _model_rows(result.design, list(self.FACTORS), "interactions")
+            f = _model_rows(sample, list(self.FACTORS), "interactions")
+            return float(np.mean(np.einsum("ij,jk,ik->i", f, np.linalg.inv(x.T @ x), f)))
+
+        assert average_variance("i_optimal") < average_variance("d_optimal")
+
+    def test_a_small_budget_gets_a_smaller_model_when_chosen_automatically(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.WARNING):
+            result = generate_design(list(self.FACTORS), model_type="quadratic", budget=10)
+        assert result.metadata["model_type"] == "main_effects"
+        assert "cannot estimate the 'quadratic' model" in caplog.text
+
+    def test_a_budget_below_the_model_size_is_raised(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING):
+            result = generate_design(list(self.FACTORS), design_type="d_optimal", budget=10)
+        assert result.n_runs == 13
+        assert result.metadata["budget_requested"] == 10
+
+
+class TestRefusals:
+    FACTORS = (*BLENDS, *SETTINGS)
+
+    @pytest.mark.parametrize("design_type", ["mixture", "full_factorial", "ccd", "latin_hypercube", "sobol"])
+    def test_other_families_are_refused(self, design_type: str) -> None:
+        with pytest.raises(ValueError, match=r"process factors \['T', 'S'\] need an optimal design"):
+            generate_design(list(self.FACTORS), design_type=design_type, budget=16)
+
+    @pytest.mark.parametrize(
+        ("argument", "value"),
+        [
+            ("hard_to_change", ["T"]),
+            ("n_blocks", 2),
+            ("fixed_runs", pd.DataFrame([[0.3, 0.3, 0.4, 0.0, 0.0]], columns=["x1", "x2", "x3", "T", "S"])),
+            ("candidates", pd.DataFrame([[0.3, 0.3, 0.4, 50.0, 200.0]], columns=["x1", "x2", "x3", "T", "S"])),
+        ],
+    )
+    def test_options_not_supported_yet(self, argument: str, value: object) -> None:
+        with pytest.raises(ValueError, match=f"Mixture-process designs do not take {argument} yet"):
+            generate_design(list(self.FACTORS), design_type="d_optimal", budget=16, **{argument: value})
+
+    def test_categorical_process_factor(self) -> None:
+        factors = [*BLENDS, Factor(name="catalyst", type="categorical", levels=["A", "B"])]
+        with pytest.raises(ValueError, match=r"must be continuous; \['catalyst'\] are categorical"):
+            generate_design(factors, design_type="d_optimal", budget=12)
+
+    def test_a_constraint_joining_blends_and_settings(self) -> None:
+        with pytest.raises(ValueError, match="names both mixture components"):
+            generate_design(list(self.FACTORS), budget=16, constraints=[Constraint(expression="x1 + 0.001*T <= 0.6")])
+
+    def test_conflicting_process_constraints(self) -> None:
+        with pytest.raises(ValueError, match="No process setting satisfies"):
+            generate_design(list(self.FACTORS), budget=16, constraints=["T >= 90"])

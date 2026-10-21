@@ -16,7 +16,8 @@ Two engines, chosen per request by :func:`_dispatch_optimal`:
 pyoptex's continuous factors take the levels ``{-1, 0, 1}``, or five levels from -1 to
 1 under a quadratic model.
 
-Mixture factors always use ``designs_mixture_constrained.py``.
+Mixture factors always use ``designs_mixture_constrained.py``, and mixture components
+together with process factors ``designs_mixture_process.py``.
 """
 
 from __future__ import annotations
@@ -571,6 +572,25 @@ def _dispatch_mixture_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.
     )
 
 
+def _dispatch_mixture_process_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
+    """Optimal design for mixture components and process factors, over the product of their regions."""
+    from process_improve.experiments.designs_constrained import ConstrainedOptions  # noqa: PLC0415
+    from process_improve.experiments.designs_mixture_process import mixture_process_design  # noqa: PLC0415
+
+    asked = {
+        "fixed_runs": req.fixed_runs is not None,
+        "hard_to_change": bool(req.hard_to_change),
+        "candidates": req.candidates is not None,
+        "n_blocks": bool(req.n_blocks and req.n_blocks > 1),
+        "backend='pyoptex'": req.backend == "pyoptex",
+    }
+    given = [name for name, used in asked.items() if used]
+    if given:
+        raise ValueError(f"Mixture-process designs do not take {', '.join(given)} yet.")
+    options = ConstrainedOptions(model_type=req.model_type, criterion=criterion)
+    return mixture_process_design(req.factors, req.budget, req.constraints, options, req.random_state)
+
+
 def _split_plot_refusal(criterion: str, req: _OptimalRequest) -> str | None:
     """Why the built-in split-plot search cannot build this request, or ``None`` when it can."""
     from process_improve.experiments.designs_split_plot import CRITERIA  # noqa: PLC0415
@@ -645,7 +665,8 @@ def _pyoptex_blocker(criterion: str, req: _OptimalRequest) -> str | None:
 def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray, dict]:
     """Route a D-, I-, A- or E-optimal request to the backend that can honour it.
 
-    - Mixture factors go to the constrained-simplex engine with a Scheffé model.
+    - Mixture factors go to the constrained-simplex engine with a Scheffé model, and
+      mixture components beside process factors to the mixture-process engine.
     - By default the built-in engines run, so the design does not depend on whether pyoptex
       is installed: for a split-plot design (``hard_to_change``) the coordinate exchange of
       :func:`~process_improve.experiments.designs_split_plot.split_plot_design`, otherwise the
@@ -660,6 +681,8 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
 
     if req.factors and all(f.type == FactorType.mixture for f in req.factors):
         return _dispatch_mixture_optimal(criterion, req)
+    if any(f.type == FactorType.mixture for f in req.factors):
+        return _dispatch_mixture_process_optimal(criterion, req)
     if req.model_type not in _PYOPTEX_MODEL_MAP:
         raise ValueError(
             f"model_type={req.model_type!r} is not supported for {criterion}; choose from "
