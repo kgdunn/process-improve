@@ -49,7 +49,8 @@ def design_columns(page) -> list[str]:
 def flip(page, design: str) -> None:
     """Tap the switch that shows or hides a design in the detailed comparison, and let its column settle."""
     page.get_by_role("switch", name=f"Show {design}").locator("xpath=..").click()
-    page.wait_for_function("document.getAnimations().length === 0")
+    # The table's own slide: the status line's icon animates for as long as Python is busy.
+    page.wait_for_function("document.querySelector('#comparison table').getAnimations({ subtree: true }).length === 0")
 
 
 def test_the_designs_that_can_learn_the_brief_are_made_and_scored_as_it_is_typed(fresh_page):
@@ -328,8 +329,9 @@ def test_a_design_hidden_moves_past_a_thick_line_in_grey_and_leaves_the_charts(p
     assert best.count() == 1, "the next design leads the row"
     assert best.get_attribute("data-design") != leader
     fds = "document.querySelector('#compare-charts figure.fds .js-plotly-plot')"
-    shown = page.evaluate(f"{fds}._fullData.filter((t) => t.visible === true).map((t) => t.name)")
-    assert leader not in shown
+    page.wait_for_function(  # Plotly redraws the curves a moment after the switch
+        f"(leader) => !{fds}._fullData.some((t) => t.name === leader && t.visible === true)", arg=leader
+    )
     assert page.locator(f'#compare-charts figure[data-design="{leader}"]').is_hidden()
 
     flip(page, leader)
