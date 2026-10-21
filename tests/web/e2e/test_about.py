@@ -11,7 +11,7 @@ from tests.web._support import WEB
 
 def test_the_footer_opens_it_with_the_versions_this_copy_loads(page, plotly_js):
     runtime = json.loads((WEB / "runtime.json").read_text(encoding="utf-8"))
-    page.click("footer >> text=Read more here")
+    page.click("footer >> text=how Factorial works")
     page.wait_for_url("**/about.html")
     page.wait_for_function("document.querySelector('#stack-pyodide').textContent.startsWith('Pyodide ')")
     assert page.text_content("#stack-pyodide") == f"Pyodide {runtime['pyodide']}"

@@ -26,7 +26,7 @@ def source_of(path: str) -> str:
 
 
 def test_the_app_s_footer_links_to_it():
-    assert '<a href="about.html">Read more here</a>' in " ".join(source("index.html").split())
+    assert '<a href="about.html">how Factorial works</a>' in " ".join(source("index.html").split())
 
 
 def test_every_link_into_the_repository_names_a_path_that_exists():
@@ -60,7 +60,11 @@ def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
     assert "Read the code" in bullet
     relay = source_of("deploy/factorial/feedback_relay.py")
     assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in relay, "no request line in the log"
-    assert "but for a report you send with" in " ".join(source("index.html").split()), "the footer names it too"
+    footer = " ".join(source("index.html").split())
+    assert "nothing on our server" in footer
+    assert 'Send us <button type="button" class="link" data-feedback="general">Feedback</button>.' in footer, (
+        "the footer names the one report sent to the server"
+    )
 
 
 def test_the_build_it_prints_is_the_build_script_s():
