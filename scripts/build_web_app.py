@@ -62,6 +62,7 @@ APP_FILES = (
     "best.js",
     "report.js",
     "campaign.js",
+    "study-file.js",
     "store.js",
     "glossary.js",
     "terms.js",

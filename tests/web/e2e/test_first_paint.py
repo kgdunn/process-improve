@@ -179,4 +179,4 @@ def test_without_a_built_example_the_worked_example_runs_live(context, site, con
     ]
     assert page.text_content("#analysis .equation") == first_paint["analysis"]["equation"]
     assert phase(page) == "learn"
-    assert page.is_hidden("#library"), "the worked example run here is not saved"
+    assert page.text_content("#library-count") == "0", "the worked example run here is not saved"

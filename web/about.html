@@ -58,13 +58,48 @@
         and <code>analyze_experiment</code>.</li>
       <li><strong>The charts</strong> are process-improve's own Plotly figures, drawn in the page with
         <a href="https://plotly.com/javascript/" target="_blank" rel="noopener">Plotly.js</a>.</li>
-      <li><strong>Your studies</strong> are saved in this browser's IndexedDB as you work, the 30 most recent, and a
+      <li><strong>Your studies</strong> are saved in this browser's IndexedDB as you work, every one of them, and a
         brief not yet made into a run sheet is kept in its local storage. Clearing this site's data in the browser
-        deletes them.</li>
+        deletes them: <a href="#h-file">the study file</a> keeps a copy elsewhere.</li>
       <li><strong>A link to a study</strong> holds the study itself, compressed, after the <code>#</code>. A browser
         does not send that part of an address to any server: the link travels only where you paste it.</li>
       <li><strong>The workbook and the notebook</strong> (<code>.xlsx</code> and <code>.ipynb</code>) are written in
         the tab and saved by your browser, as any download is.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-file">
+    <h2 id="h-file">The study file</h2>
+    <p><strong>Download all</strong>, under Your studies, saves every study as one JSON file, and
+      <strong>Share</strong> beside a study sends that study alone, as a file of its own (it reads
+      <strong>Download</strong> in a browser that cannot share a file). Drop the file on the dropzone under Your
+      studies, in any browser: a file of one study opens it on the page, and a file of several adds them all. A study
+      already kept in that browser is not saved twice, and none is overwritten.</p>
+    <p>The file is plain JSON, readable without Factorial (<code>web/study-file.js</code> writes and reads it):</p>
+    <pre><code>{
+  "format": "factorial-studies",
+  "version": 1,
+  "exported": "2026-10-21T08:30:00.000Z",
+  "app": { "name": "Factorial", "url": "https://factori.al/", "process_improve": "1.4.0" },
+  "studies": [
+    { "id": "8f1c…", "created": "…", "updated": "…", "sha256": "ab12…",
+      "study": { "v": 1, "title": "…", "design": { … }, "responses": [ … ], … } }
+  ]
+}</code></pre>
+    <p>A study is whole: its brief, its design and run sheet, each response's results and where each came from, the
+      process they were simulated from, and the models. The file is built to grow with Factorial:</p>
+    <ul>
+      <li><strong>New things are new keys.</strong> A reader skips a key it does not know, at any level, so a later
+        Factorial adds what it needs beside what is there: a response measured as a curve, a categorical factor of
+        several levels, a what-if analysis, or a model inverted to find the settings for a target.</li>
+      <li><strong>Each study names its format</strong>, <code>"v"</code>. It goes up when a study holds something an
+        earlier Factorial could not keep. That Factorial then refuses the study, and says so, rather than open part of
+        it; the other studies in the file open. The file's own <code>"version"</code> goes up only for a change an
+        earlier Factorial would misread.</li>
+      <li><strong>A study keeps its <code>"id"</code></strong> through files and copies, so a later study can name the
+        one it builds on: a design that follows another and its model, with factors added or dropped.</li>
+      <li><strong>Each study carries the SHA-256 of its contents</strong>, so a study changed by hand is told apart
+        from one as Factorial saved it. It still opens, and Factorial says so.</li>
     </ul>
   </section>
 

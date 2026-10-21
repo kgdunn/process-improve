@@ -91,3 +91,15 @@ def test_it_writes_no_version_into_the_page():
     assert runtime["pyodide"] not in text
     for pinned in runtime["micropip"]:
         assert pinned.split("==")[1] not in text, pinned
+
+
+def test_what_it_says_of_the_study_file_is_what_study_file_js_writes():
+    """The format and version in its example are study-file.js's, and it links nowhere the page does not."""
+    code = source("study-file.js")
+    form = re.search(r'export const FILE_FORMAT = "([^"]+)";', code)
+    version = re.search(r"export const FILE_VERSION = (\d+);", code)
+    assert form
+    assert version
+    assert f'"format": "{form.group(1)}"' in about()
+    assert f'"version": {version.group(1)},' in about()
+    assert '<a href="#h-file">the study file</a>' in about(), "Your studies points to it"

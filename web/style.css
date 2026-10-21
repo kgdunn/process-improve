@@ -837,6 +837,11 @@ table.balance-table tfoot th { text-align: left; }
   padding: 4px 0; border-bottom: 1px solid var(--line);
 }
 .library__study { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.library__actions { display: inline-flex; gap: 14px; }
+/* Where studies are kept, with Download all beside it; and the dropzone for a study file under the list. */
+.library__intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.library__intro .button { flex: none; }
+.library__drop { margin: 12px 0 4px; padding: 16px; font-size: 0.92rem; }
 .library li .link { padding: 2px 0; text-align: left; }
 .library li .link:disabled { color: var(--fg); font-weight: 600; cursor: default; opacity: 1; }
 .banner.error { border-color: var(--error); color: var(--error); }

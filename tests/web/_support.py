@@ -56,6 +56,7 @@ APP_SOURCES = (
     "best.js",
     "report.js",
     "campaign.js",
+    "study-file.js",
     "store.js",
     "glossary.js",
     "terms.js",

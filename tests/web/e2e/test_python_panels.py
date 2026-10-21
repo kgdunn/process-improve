@@ -71,6 +71,8 @@ def test_after_an_upload_the_panels_show_the_workbook_s_design_and_results(page,
     reveal(page, "#tab-real")
     page.click("#tab-real")
     page.set_input_files("#upload", path)
+    # The page reads the file before it calls Python, and is idle meanwhile: wait for the call, then for its answer.
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
     assert 'design_type="ccd"' in code(page, "design")
     assert "TrueProcess" not in code(page, "run"), "the results were read, not simulated"

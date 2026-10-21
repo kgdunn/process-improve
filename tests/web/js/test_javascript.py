@@ -25,6 +25,7 @@ SUITES = (
     "best.test.mjs",
     "report.test.mjs",
     "campaign.test.mjs",
+    "study-file.test.mjs",
     "picture.test.mjs",
     "catalog.test.mjs",
     "feedback.test.mjs",

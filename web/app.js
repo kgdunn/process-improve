@@ -199,6 +199,7 @@ import {
   timeAgo,
   unpackCampaign,
 } from "./campaign.js";
+import { fileStem, readStudyFile, studyFile } from "./study-file.js";
 import {
   adoptLimits,
   currentLimits,
@@ -4122,8 +4123,8 @@ async function saveNow() {
 /** List the studies saved in this browser, each to open or delete; the one on the page is marked. */
 async function refreshLibrary() {
   const saved = await savedCampaigns();
-  $("#library").hidden = saved.length === 0;
   $("#library-count").textContent = String(saved.length);
+  $("#download-all").disabled = saved.length === 0;
   $("#library-list").replaceChildren(...saved.map(libraryItem));
 }
 
@@ -4136,10 +4137,12 @@ function libraryItem(record) {
   open.disabled = here;
   open.onclick = () => openSaved(record);
   const about = el("span", "hint", `${progress(doneRuns(record))}, saved ${timeAgo(record.updated)}`);
-  // The study (its title and how far it has got) in one column, and Delete in a second at the row's right end.
+  // The study (its title and how far it has got) in one column, and Share and Delete in a second at the row's right end.
   const study = el("span", "library__study", "");
   study.append(open, about);
-  item.append(study);
+  const actions = el("span", "library__actions", "");
+  actions.append(shareButton(record, title));
+  item.append(study, actions);
   if (here) {
     study.append(el("span", "hint", "on the page now"));
     return item;
@@ -4158,9 +4161,120 @@ function libraryItem(record) {
     item.replaceChildren(el("span", "hint", `Deleted ${title}.`), undo);
     const left = (await savedCampaigns()).length;
     $("#library-count").textContent = String(left);
+    $("#download-all").disabled = left === 0;
   };
-  item.append(forget);
+  actions.append(forget);
   return item;
+}
+
+// ---------------------------------------------------------------- the study file
+/** Whether this browser can hand a file to the system's share sheet (an iPad's, a phone's), not only save it. */
+const SHARES_FILES = (() => {
+  try {
+    return Boolean(navigator.canShare?.({ files: [new File(["{}"], "study.factorial.json", { type: "application/json" })] }));
+  } catch {
+    return false;
+  }
+})();
+
+/** The study file of `records`, the studies as this browser keeps them, as a file named `name`. */
+async function studyFileOf(records, name) {
+  const app = { url: `${location.origin}${location.pathname}`, process_improve: state.version };
+  const json = await studyFile(records, { app });
+  return new File([`${JSON.stringify(json, null, 2)}\n`], name, { type: "application/json" });
+}
+
+/**
+ * A study's Share: its study file, handed to the share sheet (Mail, Messages, AirDrop, Files) where the browser can
+ * share a file, else saved as a download, and the button then says Download. A browser shares only straight after
+ * a tap, so the file is made as the finger or the focus reaches the button, and is ready when the tap lands.
+ */
+function shareButton(record, title) {
+  const button = el("button", "link", SHARES_FILES ? "Share" : "Download");
+  button.type = "button";
+  button.setAttribute("aria-label", `${button.textContent} ${title}`);
+  let file = null;
+  const make = () => (file ??= studyFileOf([record], `${fileStem(title)}.factorial.json`));
+  button.onpointerdown = make;
+  button.onfocus = make;
+  button.onclick = async () => {
+    const ready = await make();
+    if (!SHARES_FILES) {
+      download(ready, ready.name);
+      return;
+    }
+    try {
+      await navigator.share({ files: [ready], title });
+    } catch (err) {
+      if (err.name !== "AbortError") download(ready, ready.name); // the sheet would not take it: save it instead
+    }
+  };
+  return button;
+}
+
+/** Today in this browser's time zone, as a file name carries it: 2026-10-21. */
+function today() {
+  const now = new Date();
+  return [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
+}
+
+/** Save every study kept here as one study file: a copy to keep elsewhere, or to open in another browser. */
+async function downloadAll() {
+  const file = await studyFileOf(await savedCampaigns(), `factorial-studies-${today()}.json`);
+  download(file, file.name);
+}
+
+/**
+ * Open a study file. A file of one study puts it on the page, as a link does; a file of several adds them all to
+ * Your studies. A study the very same as one kept here is not saved twice, and nothing kept here is overwritten: a
+ * study with the id of a different one here comes in beside it, under an id of its own.
+ */
+async function openStudyFile(file) {
+  let read;
+  try {
+    read = await readStudyFile(await file.text());
+  } catch (err) {
+    showBanner(err.message, true);
+    return;
+  }
+  const kept = new Map((await savedCampaigns()).map((record) => [record.id, record]));
+  const sameAs = (record, study) => {
+    try {
+      return canonicalJson(checkCampaign(record)) === canonicalJson(study);
+    } catch {
+      return false; // a study kept here that this page cannot read is not the same as any
+    }
+  };
+  const opened = [];
+  let already = 0;
+  for (const { id, created, updated, study } of read.studies) {
+    const here = id === null ? undefined : kept.get(id);
+    if (here && sameAs(here, study)) {
+      already += 1;
+      opened.push(here);
+      continue;
+    }
+    const record = { ...study, id: here || id === null ? newCampaign().id : id, created, updated };
+    await saveCampaign(record);
+    opened.push(record);
+  }
+  const refused = read.refused.map(({ title, reason }) => `${title} (${reason})`);
+  const changed = read.studies.filter((s) => s.changed).map((s) => s.study.title || "A study");
+  const notes = [
+    changed.length ? ` Changed by hand since it was saved: ${listNames(changed)}.` : "",
+    refused.length ? ` Not opened: ${refused.join("; ")}.` : "",
+  ].join("");
+  if (opened.length === 1 && read.studies.length === 1) {
+    const [record] = opened;
+    const where = already ? "It was already saved in this browser." : "It is saved in this browser now, under Your studies.";
+    await openCampaign(checkCampaign(record), { id: record.id, created: record.created }, `Opened ${record.title || "a study"} from ${file.name}. ${where}${notes}`);
+    return;
+  }
+  await refreshLibrary();
+  $("#library").open = true;
+  const added = opened.length - already;
+  const counted = `${added} ${added === 1 ? "study" : "studies"} added from ${file.name}${already ? `, ${already} already here` : ""}.`;
+  showBanner(`${counted}${notes}`, opened.length === 0);
 }
 
 /** A saved study's runs as its progress counts them: a run is done when every response has its result. */
@@ -4752,22 +4866,35 @@ for (const button of document.querySelectorAll("details.python .copy")) {
     setTimeout(() => (button.textContent = "Copy the code"), done === "Copied" ? 1500 : 4000);
   };
 }
-$("#upload").onchange = (e) => {
-  const file = e.target.files[0];
-  e.target.value = ""; // so choosing the same file again reads it again
-  if (file) readUpload(file);
-};
-const drop = $("#drop");
-drop.ondragover = (e) => {
-  e.preventDefault();
-  drop.classList.add("over");
-};
-drop.ondragleave = () => drop.classList.remove("over");
-drop.ondrop = (e) => {
-  e.preventDefault();
-  drop.classList.remove("over");
-  if (e.dataTransfer.files[0]) readUpload(e.dataTransfer.files[0]);
-};
+/** A dropzone: a file dropped on `zone`, or chosen with its `input`, goes to `read`. */
+function dropZone(zone, input, read) {
+  input.onchange = () => {
+    const [file] = input.files;
+    input.value = ""; // so choosing the same file again reads it again
+    if (file) read(file);
+  };
+  zone.ondragover = (e) => {
+    e.preventDefault();
+    zone.classList.add("over");
+  };
+  zone.ondragleave = () => zone.classList.remove("over");
+  zone.ondrop = (e) => {
+    e.preventDefault();
+    zone.classList.remove("over");
+    if (e.dataTransfer.files[0]) read(e.dataTransfer.files[0]);
+  };
+}
+dropZone($("#drop"), $("#upload"), readUpload); // Run: a filled-in workbook
+dropZone($("#study-drop"), $("#study-upload"), openStudyFile); // Your studies: a study file
+// A file dropped anywhere else does nothing, rather than replace the page with the file.
+for (const type of ["dragover", "drop"]) {
+  window.addEventListener(type, (e) => {
+    if (e.defaultPrevented || !e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "none";
+  });
+}
+$("#download-all").onclick = downloadAll;
 // A reader who closes the tab, reloads it, or puts the phone away, straight after typing a result or a brief keeps it.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "hidden") return;

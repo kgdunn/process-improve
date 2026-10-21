@@ -1,15 +1,13 @@
 // Where the page keeps the reader's designs: IndexedDB, in this browser, on this device only.
-// Nothing leaves the machine. A browser may clear it (Safari does after seven days without a
-// visit, unless the app is installed), so the page also offers the workbook and a link.
+// Nothing leaves the machine. Every study is kept: a study is a few kilobytes. A browser may
+// clear it (Safari does after seven days without a visit, unless the app is installed), so the
+// page also offers the study file (study-file.js), the workbook and a link.
 //
 // Every call resolves, and to nothing rather than an error when the browser refuses storage
 // (a private window in some browsers): the page then works as it did before it could save.
 
 const DATABASE = "factorial";
 const CAMPAIGNS = "campaigns";
-
-/** How many designs the page keeps; saving one more drops the one opened longest ago. */
-export const KEEP = 30;
 
 let database = null;
 
@@ -47,13 +45,9 @@ export async function savedCampaigns() {
   return all.sort((a, b) => b.updated - a.updated);
 }
 
-/** Save a design (a new one, or a newer copy of one saved before), keeping only the KEEP most recent. */
+/** Save a design: a new one, or a newer copy of one saved before. */
 export async function saveCampaign(record) {
-  const saved = await transaction("readwrite", (store) => store.put(record));
-  if (saved === null) return false;
-  const all = await savedCampaigns();
-  for (const old of all.slice(KEEP)) await forgetCampaign(old.id);
-  return true;
+  return (await transaction("readwrite", (store) => store.put(record))) !== null;
 }
 
 /** Remove a saved design. */

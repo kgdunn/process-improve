@@ -557,13 +557,6 @@ def test_every_marked_word_has_a_definition_and_every_definition_a_word(node):
         assert "\u2014" not in text, key
 
 
-def test_the_list_of_saved_designs_says_how_many_store_js_keeps():
-    """The page tells the reader that only the most recent designs are kept; the number is store.js's."""
-    keep = re.search(r"export const KEEP = (\d+);", source("store.js"))
-    assert keep
-    assert f"The {keep.group(1)} most recent are kept." in " ".join(source("index.html").split())
-
-
 def test_confirmation_runs_are_marked_and_counted_as_bootstrap_marks_and_counts_them(bootstrap, node):
     """The run sheet's column, its mark, how many runs the page adds, and how far each factor moves for the chart."""
     asked = ["CONFIRMATION", "CONFIRMS", "CONFIRMATION_RUNS", "NUDGE"]
