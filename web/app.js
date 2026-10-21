@@ -116,6 +116,7 @@ import {
   cellText,
   changeWords,
   compareCells,
+  comparedRow,
   comparisonOrder,
   completeRuns,
   componentProblem,
@@ -1854,10 +1855,22 @@ function renderComparison(result, made, notes) {
       name.append(to);
     }
     tr.append(name, el("td", "arrow", m.direction === "higher" ? "↑" : m.direction === "lower" ? "↓" : ""));
-    for (const i of order) {
-      const label = result.designs[i];
-      tr.append(el("td", cellClass(label), result.display[label][row]));
-    }
+    // Each value with as few digits as tell the designs apart, tinted by how near it is to the row's best among the
+    // designs that fit the model, the best in bold too, so the cue does not rest on colour alone. "Fits the model?"
+    // is words, as the library has it.
+    const labels = order.map((i) => result.designs[i]);
+    const values = labels.map((label) => result.values[label]?.[m.key] ?? null);
+    const cells = m.key === "fits" ? null : comparedRow(values, m.direction, labels.map(fits));
+    labels.forEach((label, j) => {
+      const td = el("td", cellClass(label), cells ? cells[j].text : result.display[label][row]);
+      const good = cells?.[j].good ?? null;
+      if (good !== null) {
+        td.classList.add("scored");
+        td.style.setProperty("--good", good.toFixed(2));
+      }
+      if (good === 1) td.classList.add("row-best");
+      tr.append(td);
+    });
     tbody.append(tr);
   });
   t.append(thead, tbody);

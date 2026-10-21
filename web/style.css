@@ -730,6 +730,10 @@ table.compare th:nth-child(2), table.compare tr:not(.group) td:nth-child(2) {
 }
 /* The designs that cannot fit the model, at the right: muted, and set apart from those that can. */
 table.compare .unfit { color: var(--muted); }
+/* A light green behind each value, the stronger the nearer it is to its row's best: --good runs from 0,
+   the row's worst and untinted, to 1, its best, which is bold too. */
+table.compare td.scored { background: color-mix(in srgb, var(--ok) calc(var(--good) * 26%), transparent); }
+table.compare td.row-best { font-weight: 700; }
 table.compare .unfit.first { border-left: 1px dashed var(--line); }
 table.compare tr.group span { position: sticky; left: 10px; display: inline-block; }
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
