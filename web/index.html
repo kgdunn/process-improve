@@ -77,10 +77,18 @@
       <a href="catalog/" class="button hero__action hero__action--catalog" id="catalog-link">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Browse the design catalog</a>
     </div>
-    <details id="library" class="library" hidden>
+    <!-- Your studies (store.js), and the study file (study-file.js) that carries them out of this browser and back. -->
+    <details id="library" class="library">
       <summary>Your studies (<span id="library-count">0</span>), kept in this browser</summary>
-      <p class="hint">Saved as you work, in this browser only.</p>
+      <p class="library__intro"><span class="hint">Saved as you work, in this browser only. Download them all to keep
+        a copy, or to move them to another device.</span>
+        <button type="button" id="download-all" class="button" disabled>Download all (.json)</button></p>
       <ul id="library-list"></ul>
+      <label id="study-drop" class="drop library__drop">
+        <input id="study-upload" type="file" accept=".json,application/json">
+        <span>Drop a study file (.json) here, or click to choose it. A file of one study opens it; a file of several
+          adds them all here.</span>
+      </label>
     </details>
   </header>
 
