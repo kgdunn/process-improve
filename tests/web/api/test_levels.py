@@ -252,6 +252,17 @@ def test_the_best_settings_hold_each_level_in_turn(api):
     assert plots["held"] == [{"name": "Catalyst", "value": "B"}], "the surface is drawn at the best catalyst"
 
 
+def test_renaming_a_factor_keeps_its_levels_and_changing_a_level_needs_a_new_run_sheet(api):
+    design = made(api, [CATALYST, T], n_replicates=2)
+    held = held_of(design)
+    renamed = api.ok("api_relabel", {"design": held, "factors": [{**CATALYST, "name": "Cat"}, T]})
+    assert {"Cat", "T"} <= set(renamed["columns"])
+    assert renamed["spec"]["factors"][0]["levels"] == ["A", "B", "C"]
+    for levels in (["A", "B", "D"], ["C", "B", "A"]):
+        message = api.error("api_relabel", {"design": held, "factors": [{**CATALYST, "levels": levels}, T]})
+        assert "making the run sheet again" in message
+
+
 # --------------------------------------------------------------------------- the designs Design lists
 def candidates(api, factors: list[dict], model: str = "main_effects") -> dict:
     return api.ok("api_candidates", {"factors": factors, "model": model, "response": "y", "random_state": 7})

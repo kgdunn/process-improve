@@ -4016,8 +4016,11 @@ def relabel(request: dict) -> dict:
     renamed = _factors({"factors": request.get("factors"), "design_type": spec["design_type"]})
     before = spec["factors"]
     after = [_factor_spec(f) for f in renamed]
-    levels = [(f["low"], f["high"]) for f in before]
-    if [(f["low"], f["high"]) for f in after] != levels:
+
+    def settings(f: dict) -> object:
+        return ("labels", _levels_of(f)) if _categorical(f) else ("range", f["low"], f["high"])
+
+    if [settings(f) for f in after] != [settings(f) for f in before]:
         raise ValueError("Only the factors' names and units can change without making the run sheet again.")
     columns = [str(c) for c in design.get("columns") or []]
     for taken in (*(r["name"] for r in _responses(spec)), *([BLOCK] if BLOCK in columns else [])):
