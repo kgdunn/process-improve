@@ -2325,9 +2325,11 @@ def _grouped_anova(rows: list[dict], frame: pd.DataFrame, y: pd.Series, formula:
     """Test each term of a factor of several levels as one source, its contrasts together.
 
     The fit lists each contrast as a source of one degree of freedom. A factor of k levels is one
-    source of k - 1, and so is its interaction with another factor: its sum of squares is how much
-    the residual sum of squares grows when its columns are left out of the model, and its F is that
-    over its degrees of freedom, against the residual mean square of the whole model.
+    source of k - 1, and so is its interaction with another factor. Its sum of squares is of Type II,
+    as the fit's other rows are: how much the residual sum of squares grows when its columns are
+    left out of the model without the terms that contain it (the catalyst's interaction with T,
+    for the catalyst). Its F is that over its degrees of freedom, against the residual mean square
+    of the whole model.
     """
     terms = [t.strip() for t in formula.rsplit("~", maxsplit=1)[-1].split("+") if t.strip() and t.strip() != BLOCK]
     sources: dict[str, list[str]] = {}
@@ -2352,10 +2354,23 @@ def _grouped_anova(rows: list[dict], frame: pd.DataFrame, y: pd.Series, formula:
         if source in done:
             continue
         done.add(source)
-        ss = _sse(frame, y, [t for t in terms if t not in members]) - full
-        f_value = (ss / len(members)) / mse if mse > 0 else math.nan
+        held = set(source.split(":"))
+        kept = [t for t in terms if not set(_source_of(t, spec).split(":")) > held]  # the terms that contain it out
+        ss = _sse(frame, y, [t for t in kept if t not in members]) - _sse(frame, y, kept)
+        mean_sq = ss / len(members)
+        f_value = mean_sq / mse if mse > 0 else math.nan
         p_value = float(stats.f.sf(f_value, len(members), df_resid)) if math.isfinite(f_value) else None
-        out.append({**row, "source": source, "df": len(members), "sum_sq": ss, "F": f_value, "p_value": p_value})
+        out.append(
+            {
+                **row,
+                "source": source,
+                "df": len(members),
+                "sum_sq": ss,
+                "mean_sq": mean_sq,
+                "F": f_value,
+                "p_value": p_value,
+            }
+        )
     return out
 
 

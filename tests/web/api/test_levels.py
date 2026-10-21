@@ -9,7 +9,10 @@ and tests the factor as one source with a degree of freedom per level but one.
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
+from statsmodels.formula.api import ols
+from statsmodels.stats.anova import anova_lm
 
 from tests.web._support import FACTORS, fill_workbook, held_of, run_sheet, sheets_of
 
@@ -122,6 +125,25 @@ def test_the_grouped_sum_of_squares_is_what_leaving_the_factor_out_costs(api, ca
     expected = 4 * sum((m - y.mean()) ** 2 for m in means.values())
     catalyst = next(a for a in analysis["anova"] if a["source"] == "Catalyst")
     assert catalyst["sum_sq"] == pytest.approx(expected)
+    assert catalyst["mean_sq"] == pytest.approx(expected / 2), "its mean square is over its two degrees of freedom"
+    residual = next(a for a in analysis["anova"] if a["source"] == "Residual")
+    assert catalyst["F"] == pytest.approx(catalyst["mean_sq"] / residual["mean_sq"])
+
+
+def test_the_anova_is_of_type_ii_as_statsmodels_gives_it_for_unbalanced_runs(api):
+    """Three runs left out, unevenly: each source's sum of squares is statsmodels' Type II, the catalyst's grouped."""
+    design = made(api, [CATALYST, T], n_replicates=3)
+    y = results(design, noise=0.5)
+    for i in (0, 4, 7):
+        y[i] = None
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": y, "model": "interactions"})
+    sheet = run_sheet(design)
+    frame = pd.DataFrame({"Catalyst": sheet["Catalyst"], "T": (sheet["T"] - 175) / 25, "y": y}).dropna()
+    table = anova_lm(ols("y ~ C(Catalyst, Sum) * T", frame).fit(), typ=2)
+    rows = {a["source"]: a for a in analysis["anova"]}
+    for source, row in [("Catalyst", "C(Catalyst, Sum)"), ("T", "T"), ("Catalyst:T", "C(Catalyst, Sum):T")]:
+        assert rows[source]["sum_sq"] == pytest.approx(table.loc[row, "sum_sq"]), source
+        assert rows[source]["F"] == pytest.approx(table.loc[row, "F"]), source
 
 
 def test_a_model_of_chosen_terms_takes_the_factor_whole(api, catalysts):
