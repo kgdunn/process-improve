@@ -91,6 +91,8 @@ def test_correlated_terms_show_their_vifs_in_a_column_and_a_note(page, api, tmp_
     reveal(page, "#tab-real")
     page.click("#tab-real")
     page.set_input_files("#upload", path)
+    # The page reads the file before it calls Python, and is idle meanwhile: wait for the call, then for its answer.
+    page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
     coefficients = page.locator("#analysis table").first.locator("thead th button.sort").all_text_contents()
     assert coefficients == ["Term", "Coefficient", "Std. error", "95% interval", "p-value", "VIF"]
