@@ -209,7 +209,53 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "two labels the same": (
         "api_make_design",
         _make(factors=[FACTORS[0], {"name": "S", "low": "A", "high": "A", "units": ""}]),
-        "Factor S: its two labels must differ.",
+        "Factor S: A is listed twice; its levels must differ.",
+    ),
+    "levels that read as the same number": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": ["1", "1.0"]}]),
+        "Factor S: 1.0 and 1 read as the same number; its levels must differ.",
+    ),
+    "levels that are no list": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": "A, B"}]),
+        "Factor S: list its levels, each a label.",
+    ),
+    "more levels than the page takes": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": list("ABCDEFGHJ")}]),
+        "Factor S: give it 2 to 8 levels; it has 9.",
+    ),
+    "a blank level": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": ["A", " "]}]),
+        "Factor S: a level is blank; give each level a label.",
+    ),
+    "a level too long": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": ["A", "x" * 65]}]),
+        "Factor S: the level 'xxxxxxxxxxxxxxxxxxxx'... is longer than 64 characters.",
+    ),
+    "a name taken by another factor's levels": (
+        "api_make_design",
+        _make(
+            factors=[
+                {"name": "S", "type": "categorical", "levels": ["A", "B", "C"]},
+                {"name": "S_L1", "low": 1, "high": 2, "units": ""},
+            ]
+        ),
+        "Factor S_L1: rename it, as the page names a column of another factor's levels so.",
+    ),
+    "three levels in a two-level design": (
+        "api_make_design",
+        _make(
+            design_type="fractional_factorial",
+            factors=[*FACTORS, {"name": "S", "type": "categorical", "levels": ["A", "B", "C"]}],
+        ),
+        (
+            "The Fractional factorial (2-level) design runs each categorical factor at two levels, and S has more: "
+            "choose a full factorial or a Taguchi design."
+        ),
     ),
     "a label a spreadsheet reads as blank": (
         "api_make_design",
