@@ -4137,7 +4137,7 @@ function libraryItem(record) {
   open.disabled = here;
   open.onclick = () => openSaved(record);
   const about = el("span", "hint", `${progress(doneRuns(record))}, saved ${timeAgo(record.updated)}`);
-  // The study (its title and how far it has got) in one column, and Share and Delete in a second at the row's right end.
+  // The study (its title and how far it has got), then Share, then Delete: the list's three columns (style.css).
   const study = el("span", "library__study", "");
   study.append(open, about);
   const actions = el("span", "library__actions", "");
@@ -4147,12 +4147,12 @@ function libraryItem(record) {
     study.append(el("span", "hint", "on the page now"));
     return item;
   }
-  const forget = el("button", "link", "Delete");
+  const forget = el("button", "link library__delete", "Delete");
   forget.type = "button";
   forget.setAttribute("aria-label", `Delete ${title}`);
   forget.onclick = async () => {
     await forgetCampaign(record.id);
-    const undo = el("button", "link", "Undo");
+    const undo = el("button", "link library__delete", "Undo");
     undo.type = "button";
     undo.onclick = async () => {
       await saveCampaign(record);
@@ -4190,7 +4190,7 @@ async function studyFileOf(records, name) {
  * a tap, so the file is made as the finger or the focus reaches the button, and is ready when the tap lands.
  */
 function shareButton(record, title) {
-  const button = el("button", "link", SHARES_FILES ? "Share" : "Download");
+  const button = el("button", "link library__share", SHARES_FILES ? "Share" : "Download");
   button.type = "button";
   button.setAttribute("aria-label", `${button.textContent} ${title}`);
   let file = null;

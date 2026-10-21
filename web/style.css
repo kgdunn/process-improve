@@ -829,15 +829,23 @@ table.balance-table tfoot th { text-align: left; }
 
 /* Your studies: what this browser keeps, each to open or delete. */
 .library { margin: 12px 0 0; font-size: 0.92rem; }
-.library ul { list-style: none; padding: 0; margin: 6px 0 0; }
-/* Two columns: the study, its title and progress wrapping as they need, and Delete (or Undo once it is pressed)
-   at the row's right end, level with the study's last line. */
+/* The list is one grid of three columns: the study (its title and progress, wrapping as they need), Share, and
+   Delete. Each row takes them as a subgrid, so every Share lines up under the one above it, the study on the page
+   included, which has no Delete; each sits level with its study's last line. A browser without subgrid gives each
+   row three columns of its own. */
+.library ul {
+  list-style: none; padding: 0; margin: 6px 0 0; display: grid; grid-template-columns: 1fr auto auto; column-gap: 14px;
+}
 .library li {
-  display: grid; grid-template-columns: 1fr auto; align-items: last baseline; gap: 2px 12px;
-  padding: 4px 0; border-bottom: 1px solid var(--line);
+  display: grid; grid-column: 1 / -1; grid-template-columns: 1fr auto auto; grid-template-columns: subgrid;
+  align-items: last baseline; row-gap: 2px; padding: 4px 0; border-bottom: 1px solid var(--line);
 }
 .library__study { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
-.library__actions { display: inline-flex; gap: 14px; }
+.library__actions { display: contents; }
+.library__share { grid-column: 2; }
+.library__delete { grid-column: 3; justify-self: end; }
+/* Once a study is deleted, its row says so across the first two columns, with Undo where Delete was. */
+.library li > .hint { grid-column: 1 / 3; }
 /* Where studies are kept, with Download all beside it; and the dropzone for a study file under the list. */
 .library__intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
 .library__intro .button { flex: none; }
