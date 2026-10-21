@@ -37,8 +37,8 @@ PROSE = r"""
 
 #: The most words of running text each screen may show, in a desktop window or on a phone: about a tenth
 #: more than it shows now. On a desktop the brief stays beside Run and Learn, so a screen there reads a
-#: little more; on a phone the comparison says that its table scrolls sideways. The footer's seven words
-#: on Feedback, the one report that reaches the server, are on every screen.
+#: little more; on a phone the comparison says that its table scrolls sideways. The footer's words on
+#: how Factorial works and on Feedback, the one report sent to the server, are on every screen.
 BUDGET = {
     "a first visit": 92,  # with the footer's words on Feedback
     "the designs for a brief": 155,  # with the sentence on why Design picked the design it holds

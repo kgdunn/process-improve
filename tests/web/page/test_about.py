@@ -61,7 +61,10 @@ def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
     relay = source_of("deploy/factorial/feedback_relay.py")
     assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in relay, "no request line in the log"
     footer = " ".join(source("index.html").split())
-    assert "Feedback</button>: it reaches our server only when you press Send." in footer, "the footer says it too"
+    assert "nothing on our server" in footer
+    assert 'Send us <button type="button" class="link" data-feedback="general">Feedback</button>.' in footer, (
+        "the footer names the one report sent to the server"
+    )
 
 
 def test_the_build_it_prints_is_the_build_script_s():
