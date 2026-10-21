@@ -67,16 +67,21 @@ def studentized_range_value(p: float, k: int, df: float) -> float:
     return float(stats.studentized_range.ppf(p, k, df))
 
 
-def _dunnett_probability(d: float, k: int, df: float, correlation: float, two_sided: bool) -> float:
-    """Return the probability that all ``k`` comparisons with the control lie within ``d`` (or below it)."""
+def _dunnett_probability(d: float, shares: np.ndarray, df: float, two_sided: bool) -> float:
+    r"""Return the probability that every comparison with the control lies within ``d`` (or below it).
+
+    Comparison i is :math:`\sqrt{c_i} W + \sqrt{1 - c_i} E_i` over the estimated standard deviation, with
+    ``shares`` :math:`c_i` and W, the control's part, common to all of them; given W and the standard
+    deviation the comparisons are independent, so the probability is a product, integrated over both.
+    """
     nodes, weights = np.polynomial.hermite_e.hermegauss(48)
     weights = weights / math.sqrt(2 * math.pi)
-    root, rest = math.sqrt(correlation), math.sqrt(1 - correlation)
+    root, rest = np.sqrt(shares)[:, None], np.sqrt(1 - shares)[:, None]
 
     def given_scale(s: float) -> float:
         upper = stats.norm.cdf((d * s - root * nodes) / rest)
         inside = upper - stats.norm.cdf((-d * s - root * nodes) / rest) if two_sided else upper
-        return float(np.sum(weights * inside**k))
+        return float(np.sum(weights * np.prod(inside, axis=0)))
 
     if math.isinf(df):
         return given_scale(1.0)
@@ -84,7 +89,9 @@ def _dunnett_probability(d: float, k: int, df: float, correlation: float, two_si
     return float(integrate.quad(lambda s: given_scale(s) * density.pdf(s), 0, np.inf, limit=200)[0])
 
 
-def dunnett_value(p: float, k: int, df: float, alternative: str = "two-sided", correlation: float = 0.5) -> float:
+def dunnett_value(
+    p: float, k: int, df: float, alternative: str = "two-sided", correlation: float | Sequence[float] = 0.5
+) -> float:
     r"""Return Dunnett's critical value: the point of the largest of ``k`` t statistics against one control.
 
     Each of ``k`` treatments is compared with one control on ``df`` error degrees of freedom; with
@@ -103,9 +110,13 @@ def dunnett_value(p: float, k: int, df: float, alternative: str = "two-sided", c
         The error degrees of freedom; ``numpy.inf`` for a known variance.
     alternative : {"two-sided", "greater"}
         Whether a treatment may differ from the control in either direction or only exceed it.
-    correlation : float
-        The correlation of two comparisons, :math:`n_0 / (n_0 + n)` for a control of :math:`n_0` runs
-        and treatments of :math:`n`; 0.5 when they are equal.
+    correlation : float or sequence of float
+        The correlation of two comparisons, :math:`n / (n + n_0)` for a control of :math:`n_0` runs
+        and treatments of :math:`n` each; 0.5 when they are equal. Two comparisons share the control's
+        average, which is all their covariance, :math:`\sigma^2 / n_0`, against a variance of
+        :math:`\sigma^2 (1/n + 1/n_0)` each. For treatments of unequal runs, one value for each of the
+        ``k``, :math:`c_i = n_i / (n_i + n_0)`: comparisons i and j then correlate by
+        :math:`\sqrt{c_i c_j}`, and ``d`` is exact for them, as for equal runs.
 
     Returns
     -------
@@ -114,12 +125,16 @@ def dunnett_value(p: float, k: int, df: float, alternative: str = "two-sided", c
     """
     if alternative not in ("two-sided", "greater"):
         raise ValueError(f"alternative must be 'two-sided' or 'greater'; got {alternative!r}.")
-    if not 0 < p < 1 or k < 1 or not 0 <= correlation < 1:
-        raise ValueError("p must lie between 0 and 1, k must be at least 1, and correlation in [0, 1).")
+    refused = "p must lie between 0 and 1, k must be at least 1, and correlation in [0, 1)."
+    if not 0 < p < 1 or k < 1:
+        raise ValueError(refused)
+    shares = np.full(k, correlation, dtype=float) if np.ndim(correlation) == 0 else np.asarray(correlation, float)
+    if not np.all((shares >= 0) & (shares < 1)):
+        raise ValueError(refused)
+    if shares.shape != (k,):
+        raise ValueError(f"Give one correlation, or one for each of the {k} treatments; got {shares.size}.")
     two_sided = alternative == "two-sided"
-    return float(
-        optimize.brentq(lambda d: _dunnett_probability(d, k, df, correlation, two_sided) - p, 1e-6, 50, xtol=1e-10)
-    )
+    return float(optimize.brentq(lambda d: _dunnett_probability(d, shares, df, two_sided) - p, 1e-6, 50, xtol=1e-10))
 
 
 def _p_values(statistic: float, distribution: Any) -> dict[str, float]:  # noqa: ANN401 - a frozen scipy distribution
