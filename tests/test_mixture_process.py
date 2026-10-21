@@ -16,6 +16,7 @@ from process_improve.experiments import (
     analyze_experiment,
     evaluate_design,
     generate_design,
+    optimize_responses,
 )
 from process_improve.experiments.designs_mixture_process import mixture_process_model
 
@@ -453,3 +454,23 @@ class TestAnalyzeExperiment:
         data, formula = simulated_runs
         with pytest.raises(ValueError, match=r"mixture components \['x1', 'x2', 'x3'\] have no coded scale"):
             analyze_experiment(data, responses=data[["y"]], model=formula, analysis_type="coefficients", coding="coded")
+
+
+def _true_response(points: pd.DataFrame) -> np.ndarray:
+    terms = {name: np.prod([points[n] for n in name.split(":")], axis=0) for name in TRUE_COEFFICIENTS}
+    return sum(coefficient * terms[name] for name, coefficient in TRUE_COEFFICIENTS.items())
+
+
+def test_optimum_is_a_blend_in_the_region_and_beats_a_dense_sample(simulated_runs: tuple[pd.DataFrame, str]) -> None:
+    """optimize_responses searches the mixture-process region: blends that sum to 1, settings within it."""
+    data, formula = simulated_runs
+    fit = analyze_experiment(data, responses=data[["y"]], model=formula, analysis_type="coefficients")
+    model = {"response_name": "y", "factor_names": ["x1", "x2", "x3", "T", "S"], **fit}
+    region = DesignRegion([*BLENDS, *SETTINGS])
+    goal = [{"response": "y", "goal": "maximize", "low": 5, "high": 20}]
+    best = optimize_responses([model], goal, region=region)["desirability"]
+    optimum = pd.DataFrame([best["optimal_coded"]])
+    assert best["within_region"] is True
+    assert optimum[["x1", "x2", "x3"]].sum(axis=1).iloc[0] == pytest.approx(1.0)
+    sample = pd.DataFrame(region.sample(50_000, np.random.default_rng(1)), columns=region.names)
+    assert _true_response(optimum)[0] >= _true_response(sample).max() - 0.05

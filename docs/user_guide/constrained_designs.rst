@@ -441,3 +441,101 @@ and Lenth's method is not applied.
 ``evaluate_design`` defaults to the Scheffé quadratic model for a mixture
 design and samples its constrained simplex. ``optimize_responses`` with the mixture
 region searches the polytope and returns a blend that sums to one.
+
+Mixture components with process factors
+---------------------------------------
+
+A formulation is usually made under process conditions that also matter, such as a cure
+temperature or a mixing speed. Give the components and the process factors together, and
+``generate_design`` builds one optimal design over the product of the constrained simplex
+and the process box.
+
+.. code-block:: python
+
+   factors = [
+       Factor(name="mill1", type="mixture", low=0.1, high=0.8),
+       Factor(name="mill2", type="mixture", low=0.1, high=0.8),
+       Factor(name="mill3", type="mixture", low=0.1, high=0.8),
+       Factor(name="spray", low=-1, high=1),
+       Factor(name="oil", low=-1, high=1),
+   ]
+   mills = generate_design(factors, model_type="scheffe_quadratic + main_effects", budget=12)
+   print(mills.design_type, mills.n_runs)  # d_optimal 12
+   print(mills.metadata["formula"])
+   # -1 + mill1 + mill2 + mill3 + mill1:mill2 + mill1:mill3 + mill2:mill3 + spray + oil
+
+This is the rolling-mill study of Goos and Jones (2011, section 6.2). Three mills share the
+reduction in thickness of an aluminium sheet, and two coolant settings are the process
+factors. The D-optimal design runs each of the six blends of the ``{3, 2}`` lattice twice,
+once at each level of each coolant factor, as their Table 6.2 does.
+
+The candidate runs are every candidate blend (the vertices, edge points, face centroids and
+centroid of the constrained simplex) at every candidate process setting (the grid, and the
+points where a constraint crosses it). The runs are chosen from them by the same exchange as
+the other optimal designs. A constraint limits either the components or the process factors;
+a constraint that names both is refused.
+
+The model sets how the two kinds of factor combine. The counts are for three components and
+two process factors.
+
+.. list-table::
+   :header-rows: 1
+
+   * - ``model_type``
+     - Terms
+     - Terms for 3 and 2
+   * - ``"main_effects"``
+     - ``x_i`` and ``z_k``
+     - 5
+   * - ``"interactions"``
+     - ``x_i``, ``x_i x_j``, ``x_i z_k`` and ``z_k z_l``
+     - 13
+   * - ``"quadratic"`` (or ``"kcv"``)
+     - Those and ``z_k^2``: the model of Kowalski, Cornell and Vining (2000)
+     - 15
+   * - ``"scheffe_quadratic + main_effects"``
+     - A Scheffé model plus a process model without its intercept
+     - 8
+   * - ``"scheffe_quadratic * interactions"``
+     - Each Scheffé term times each process term, the intercept included
+     - 24
+
+The first three are the polynomial of that order in all the factors, less the terms that
+``sum(x) = 1`` makes redundant. The intercept is ``sum(x_i)``, a square ``x_i^2`` is ``x_i``
+less its products with the other components, and a process main effect ``z_k`` is
+``sum(x_i z_k)``. Any Scheffé model can go on the left of ``+`` or ``*``, and
+``"main_effects"``, ``"interactions"`` or ``"quadratic"`` on the right.
+
+Both ``design`` and ``design_actual`` hold the components as proportions. The process
+factors are coded in the first and in their own units in the second. The design records its
+model's formula and its region, and ``evaluate_design`` uses both:
+
+.. code-block:: python
+
+   quality = evaluate_design(mills, metric=["d_efficiency", "g_efficiency"])
+   print(round(quality["max_prediction_variance"], 3))  # 0.667
+
+The largest prediction variance over the region is ``p / N = 8 / 12``. No 12-run design for
+this model can do better, since the variances at the runs average ``p / N``. Goos and Jones
+give the same two-thirds.
+
+Fit the runs with the recorded formula. ``analyze_experiment`` keeps the components as
+proportions, so the blending coefficients read as those of a Scheffé model do:
+
+.. code-block:: python
+
+   runs = mills.design.drop(columns="RunOrder")
+   # A simulated response stands in for the measurements here.
+   rng = np.random.default_rng(2)
+   runs["reflectivity"] = (
+       4.6 * runs["mill1"] + 5.0 * runs["mill2"] + 6.3 * runs["mill3"] + rng.normal(0, 0.01, len(runs))
+   )
+   fit = analyze_experiment(
+       runs, response_column="reflectivity", model=mills.metadata["formula"], analysis_type="coefficients"
+   )
+   print([round(row["coefficient"], 1) for row in fit["coefficients"][:3]])  # [4.6, 5.0, 6.3]
+
+``optimize_responses`` with the design's region searches blends that sum to one at process
+settings inside the region. Categorical process factors, split-plot designs
+(``hard_to_change``), fixed runs, candidate sets and blocks are not yet available for
+mixture-process designs, and ``generate_design`` refuses them.

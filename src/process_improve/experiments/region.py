@@ -192,6 +192,11 @@ class DesignRegion:
         ]
 
     @property
+    def mixture_names(self) -> list[str]:
+        """Names of the columns that hold mixture proportions, which sum to 1: all of a mixture's, none of a box's."""
+        return [self.names[j] for j in self._mixture_columns]
+
+    @property
     def is_constrained(self) -> bool:
         """True unless the region is the plain box or the full simplex."""
         if self.kind == "mixture_process":

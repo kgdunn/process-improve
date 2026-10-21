@@ -117,7 +117,10 @@ class GenerateDesignInput(BaseModel):
         "interactions",
         description=(
             "Model the optimal and mixture designs are built for: 'main_effects', 'interactions' or "
-            "'quadratic' (mixtures also accept 'linear', 'special_cubic', 'cubic' and the 'scheffe_*' names)."
+            "'quadratic' (mixtures also accept 'linear', 'special_cubic', 'cubic' and the 'scheffe_*' names). "
+            "With mixture components beside process factors these name the polynomial of that order in all of "
+            "them ('quadratic' is the Kowalski-Cornell-Vining model); 'scheffe_quadratic + main_effects' adds a "
+            "Scheffe model and a process model, and 'scheffe_quadratic * interactions' crosses them."
         ),
     )
     constraints: list[str] | None = Field(
@@ -181,7 +184,8 @@ def _jsonable(value: Any) -> Any:  # noqa: ANN401
         "OMARS, Taguchi, supersaturated (fewer runs than factors) and space-filling designs "
         "(Latin hypercube, maximin, MaxPro, uniform, Sobol, Halton). Constraints in actual units, a candidate set, "
         "fixed runs and blocks are supported. "
-        "Each factor needs a name and type ('continuous', 'categorical', or 'mixture'). "
+        "Each factor needs a name and type ('continuous', 'categorical', or 'mixture'); mixture components "
+        "beside continuous process factors get an optimal mixture-process design. "
         "Continuous factors require 'low' and 'high' bounds. Categorical factors require 'levels'. "
         "If design_type is not specified, one is auto-selected based on the number of factors and budget. "
         "Returns the design matrix in both coded (-1/+1) and actual units, run order, and metadata, "
