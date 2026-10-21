@@ -200,8 +200,10 @@ Workflows in `.github/workflows/`:
 
 - **run-tests.yml**: `lint` (`ruff check .` and `ruff format --check .`, two
   independent gates), `typecheck` (blocking `mypy src/process_improve`), `test`
-  (the full suite without coverage, over Python 3.10-3.13 and
-  ubuntu/windows/macos; ubuntu/3.13 is the `coverage` job instead), `coverage`
+  (the full suite without coverage, over Python 3.10-3.13; a pull request runs
+  ubuntu only, and pushes to main, the nightly schedule and manual runs add
+  windows and macos at 3.10 and 3.13; ubuntu/3.13 is the `coverage` job
+  instead), `coverage`
   (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
   `--shard`), `coverage-report` (combines the shards for the 96% gate and the
   diff-cover patch gate), `test-under-dash-O` (the suite with
@@ -210,6 +212,10 @@ Workflows in `.github/workflows/`:
   suite; `--affected-since` is for local iteration only. `CI passed` is the one
   check to require in branch protection: it fails unless every other job except
   `coverage-report` succeeded. All jobs install with `uv sync --dev --all-extras`.
+- **main-status.yml**: the README badge; passes or fails as the latest run of
+  the tests on main that was not cancelled. Merges to main share one
+  concurrency group, so a merge that lands while one run goes and another waits
+  cancels the waiting run; the next run tests every merge before it.
 - **docs.yml**: strict Sphinx build (`-W`, notebooks executed) and GitHub Pages deploy on main.
   On main it also sends the browser app (the same build its smoke tests just
   passed) to https://factori.al/ (`deploy-factorial`) and smoke-tests it there
@@ -226,8 +232,8 @@ Workflows in `.github/workflows/`:
 - **codeql.yml**: weekly and per-PR security scanning.
 - **readme-links.yml**: requests every external link in `README.md` and
   `SKLEARN_COMPATIBILITY.md`, weekly (a failure opens an issue) and on PRs that
-  touch them. Links inside the repository are checked offline on every PR by
-  `tests/test_readme_guards.py`.
+  touch them. Links inside the repository, and the badges of its own workflows,
+  are checked offline on every PR by `tests/test_readme_guards.py`.
 
 Docs are Sphinx with the PyData theme, NumPy docstrings via `sphinx.ext.napoleon`; build with `cd docs && make html`.
 

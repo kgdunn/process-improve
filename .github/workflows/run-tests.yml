@@ -13,8 +13,11 @@ on:
     branches: [main]
   pull_request:
     branches: ['**']
-  # schedule:
-  #   - cron: "0 4 * * *"
+  # Nightly, so the Windows and macOS jobs, which a pull request does not run, and a new release of a
+  # dependency are tested on a day nothing is merged. 04:17 UTC, off the hour most schedules start on.
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
 
 # The workflow only reads the repository; the default token needs no
 # write scopes (codecov uploads use their own OIDC/token path).
@@ -126,9 +129,13 @@ jobs:
         # Linux (#449). The two intermediate versions run on ubuntu only: that is 8 jobs
         # rather than the 12-job full product, and the OS extremes at min and max Python
         # catch platform problems without doubling the bill.
+        # A pull request runs the ubuntu jobs only. The 4 Windows and macOS jobs run on
+        # each push to main and nightly: they rarely fail where ubuntu passes, and on
+        # every pull request commit they held the runner queue for hours when many
+        # pull requests were open at once.
         # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
         python-version: ["3.10", "3.13"]
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
         experimental: [false]
         exclude:
           - python-version: "3.13"
