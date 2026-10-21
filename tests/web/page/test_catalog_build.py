@@ -195,7 +195,7 @@ def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_scri
         ({"blocked": True}, "the page opens designs without blocks or whole plots"),
         ({"coded_runs": None}, "the source prints no complete table of runs"),
         ({"n_mixture": 3}, "the page makes mixtures of its own, but takes no mixture's runs as given"),
-        ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a categorical factor has more than the two levels the page takes"),
+        ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a run sets a categorical factor between two of its levels"),
     ],
     ids=["blocked", "no-runs", "mixture", "a-third-level"],
 )
@@ -350,3 +350,57 @@ def test_the_errata_and_the_feed_are_written_beside_the_index(catalog):
     assert [e.find("{http://www.w3.org/2005/Atom}id").text for e in entries] == [
         "https://factori.al/catalog/#src=box-hunter-hunter-1978"
     ]
+
+
+# --------------------------------------------------------------------------- categorical factors of several levels
+@pytest.fixture(scope="module")
+def several() -> dict[str, dict]:
+    """Designs with a categorical factor of three levels or more, labels that read as numbers among them."""
+    names = (
+        "bhh-blood-coagulation",
+        "davies-vulcanised-rubber-5x3x4",
+        "montgomery-syrup-loss",
+        "bhh-yarn-latin-squares",
+    )
+    return {r["id"]: r for r in catalog_sample(names)}
+
+
+def test_four_diets_open_with_their_runs_as_given_each_at_its_label(build_script, several):
+    """Box, Hunter and Hunter's blood coagulation times: one factor, diets A to D, in study format 3."""
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign(several["bhh-blood-coagulation"])
+    assert reason == ""
+    [diet] = campaign["design"]["spec"]["factors"]
+    assert (diet["type"], diet["levels"]) == ("categorical", ["A", "B", "C", "D"])
+    assert {row[2] for row in campaign["design"]["rows"]} == {"A", "B", "C", "D"}
+    assert campaign["v"] == build_script.LEVELS_FORMAT
+
+
+def test_a_factorial_of_five_three_and_four_numbered_levels_is_made_by_the_page(build_script, several):
+    """Davies's vulcanised rubber: levels 1 to 5, 1 to 3 and 1 to 4 are labels, and the page makes the 60 runs."""
+    with no_bytecode():
+        campaign, reason, tried = build_script.published_campaign(several["davies-vulcanised-rubber-5x3x4"])
+    assert (reason, tried) == ("", True)
+    levels = [f["levels"] for f in campaign["design"]["spec"]["factors"]]
+    assert levels == [["1", "2", "3", "4", "5"], ["1", "2", "3"], ["1", "2", "3", "4"]]
+    assert campaign["design"]["n_runs"] == 60
+
+
+def test_numbered_nozzles_are_labels_not_a_range(build_script, several):
+    """Montgomery's syrup loss: nozzles 1, 2 and 3, once read as a numeric range from 1 to 2."""
+    record = several["montgomery-syrup-loss"]
+    with no_bytecode():
+        campaign, reason, _ = build_script.published_campaign(record)
+        if campaign is None:
+            campaign, reason = build_script.given_campaign(record)
+    assert reason == ""
+    nozzle = next(f for f in campaign["design"]["spec"]["factors"] if f["name"] == "nozzle")
+    assert (nozzle["type"], nozzle["levels"]) == ("categorical", ["1", "2", "3"])
+
+
+def test_a_factor_of_more_levels_than_the_page_takes_says_so(build_script, several):
+    with no_bytecode():
+        assert build_script.given_campaign(several["bhh-yarn-latin-squares"]) == (
+            None,
+            "a categorical factor has more than the 8 levels the page takes",
+        )
