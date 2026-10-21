@@ -39,6 +39,7 @@ from process_improve.univariate.metrics import (
     ttest_paired_from_df,
     variance_decomposition,
 )
+from process_improve.univariate.serial_correlation import difference_variance, fit_ma1
 from process_improve.univariate.stated_values import grand_mean_test, ttest_new_observation, variance_about
 from process_improve.univariate.tools import (
     confidence_interval_tool,
@@ -66,9 +67,11 @@ __all__ = [
     "confidence_interval_tool",
     "detect_outliers",
     "detect_outliers_esd",
+    "difference_variance",
     "distribution_fit",
     "dunnett_value",
     "f_value",
+    "fit_ma1",
     "get_univariate_tool_specs",
     "grand_mean_test",
     "holm_bonferroni",
