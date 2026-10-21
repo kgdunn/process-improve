@@ -6,6 +6,11 @@ Univariate Statistics
    :undoc-members:
    :show-inheritance:
 
+Error transmission
+------------------
+
+.. automodule:: process_improve.univariate.error_transmission
+
 Serial correlation
 ------------------
 
