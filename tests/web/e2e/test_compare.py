@@ -10,6 +10,8 @@ taken from it into the plan.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from tests.web._support import FACTORS, factors_named
@@ -248,6 +250,43 @@ def test_the_designs_that_cannot_fit_the_model_are_compared_at_the_right(page, f
     assert page.locator("#comparison thead th.unfit.first").count() == 1, "one line sets them apart"
     fit_row = page.locator("#comparison tbody tr", has_text="Fits the model?").locator("td").all_text_contents()
     assert all(cell.startswith("no") for cell in fit_row[-len(unfit) :])
+
+
+def test_the_detailed_comparison_shades_each_row_towards_its_best(page):
+    """Among the designs that fit the model, a row's best is bold and the most shaded, its worst not shaded at all.
+
+    The designs that cannot fit the model are not shaded. A row prints as many digits as tell its designs apart.
+    """
+    reveal(page, "#compare")
+    page.click("#compare")
+    rows = page.evaluate(
+        """() => [...document.querySelectorAll('#comparison tbody tr:not(.group)')].map((tr) => ({
+            measure: tr.cells[0].textContent,
+            cells: [...tr.cells].slice(2).map((td) => ({
+                text: td.textContent,
+                unfit: td.classList.contains('unfit'),
+                good: td.classList.contains('scored') ? Number(td.style.getPropertyValue('--good')) : null,
+                best: td.classList.contains('row-best'),
+                bold: Number(getComputedStyle(td).fontWeight) >= 700,
+                shade: getComputedStyle(td).backgroundColor,
+            })),
+        }))"""
+    )
+    scored = [row for row in rows if any(c["good"] is not None for c in row["cells"])]
+    assert len(scored) >= 6, "the averages, the worst cases, D, max |r| and power"
+    for row in scored:
+        fitting = [c for c in row["cells"] if not c["unfit"] and c["good"] is not None]
+        assert not any(c["good"] is not None for c in row["cells"] if c["unfit"]), row["measure"]
+        best = [c for c in fitting if c["best"]]
+        assert best, row["measure"]
+        assert all(c["good"] == 1 and c["bold"] for c in best), row["measure"]
+        worst = [c for c in fitting if c["good"] == 0]
+        assert worst, row["measure"]
+        assert best[0]["shade"] != worst[0]["shade"], row["measure"]
+    averages = next(row for row in rows if row["measure"].startswith("A/p"))
+    assert all(re.fullmatch(r"0\.\d\d", c["text"]) for c in averages["cells"] if c["text"]), "two significant figures"
+    runs = next(row for row in rows if row["measure"] == "Runs")
+    assert all(c["good"] is None and c["text"].isdigit() for c in runs["cells"]), "a count, whole and unshaded"
 
 
 def test_the_arrows_stay_beside_the_measures_as_the_designs_scroll(page):
