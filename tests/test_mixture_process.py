@@ -672,3 +672,42 @@ class TestPublishedDesignWithLabels:
         )
         assert quality["average_prediction_variance"] == pytest.approx(0.483, abs=0.005)  # the catalogue's 0.483
         assert quality["max_prediction_variance"] == pytest.approx(2 / 3)
+
+
+@pytest.fixture(scope="module")
+def catalyst_runs() -> tuple[pd.DataFrame, str]:
+    """Return a 24-run design with a three-level catalyst, a simulated response, and the formula recorded."""
+    result = generate_design(WITH_CATALYST, budget=24, random_state=2)
+    design = result.design.drop(columns="RunOrder")
+    y = (
+        10 * design["x1"]
+        + 12 * design["x2"]
+        + 8 * design["x3"]
+        + 6 * design["x1"] * design["x2"]
+        + 2 * design["x1"] * design["T"]
+        + 1.5 * design["x3"] * (design["catalyst"] == "C")
+        + np.random.default_rng(0).normal(0.0, NOISE_SD, len(design))
+    )
+    return design.assign(y=y.astype(float)), result.metadata["formula"]
+
+
+class TestCategoricalAnalysis:
+    def test_full_rank_fit_that_recovers_the_blending(self, catalyst_runs: tuple[pd.DataFrame, str]) -> None:
+        data, formula = catalyst_runs
+        out = analyze_experiment(data, response_column="y", model=formula, analysis_type="coefficients", sigma=NOISE_SD)
+        assert out["model_summary"]["rank_deficient"] is False
+        table = pd.DataFrame(out["coefficients"]).set_index("term")
+        assert "T:catalyst[S.A]" in table.index
+        # Sum-to-zero coding: x3 is the average over the catalysts, 8 + 1.5 / 3; C is 1.5 above it, A and B 0.5 below.
+        assert table.loc["x3", "coefficient"] == pytest.approx(8.5, abs=5 * table.loc["x3", "std_error"])
+        assert table.loc["x3:catalyst[S.A]", "coefficient"] == pytest.approx(
+            -0.5, abs=5 * table.loc["x3:catalyst[S.A]", "std_error"]
+        )
+
+    @pytest.mark.parametrize("analysis_type", ["effects", "lenth_method"])
+    def test_effects_are_refused_beside_components(
+        self, catalyst_runs: tuple[pd.DataFrame, str], analysis_type: str
+    ) -> None:
+        data, formula = catalyst_runs
+        with pytest.raises(ValueError, match="mixture components, which are proportions that sum to 1, have none"):
+            analyze_experiment(data, response_column="y", model=formula, analysis_type=analysis_type)

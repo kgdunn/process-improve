@@ -75,6 +75,7 @@ from process_improve.experiments._analyses.split_plot import (
 )
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
+from process_improve.experiments.designs_mixture_process import ReducedRankFormula
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 logger = logging.getLogger(__name__)
@@ -254,6 +255,21 @@ def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
         return []
     total = finite[:, [numeric.index(c) for c in shares]].sum(axis=1)
     return shares if np.allclose(total, 1.0, atol=1e-6) else []
+
+
+def _coded_formula(formula: str, df: pd.DataFrame, factor_cols: list[str]) -> str:
+    """Return ``formula``, beside mixture components with each categorical factor coded in ``L - 1`` columns.
+
+    A model of mixture components has no intercept, so patsy would give a categorical
+    factor a column for every level wherever the term below it is absent, and those
+    columns would add up to ones the blends already span (see
+    :class:`~process_improve.experiments.designs_mixture_process.ReducedRankFormula`).
+    Any other formula is returned as it is.
+    """
+    categorical = [c for c in factor_cols if not _is_numeric(df[c])]
+    if not categorical or not _mixture_components(df, factor_cols):
+        return formula
+    return ReducedRankFormula(formula, categorical)
 
 
 def _references(rhs: str, column: str) -> bool:
@@ -838,7 +854,18 @@ def _handlers(
         # The usual ANOVA, significance and effects test each blending coefficient
         # against zero, which means nothing for a mixture.
         handlers.update(_mixture_handlers(fit))
+    elif _mixture_components(fit.df, fit.factor_cols):
+        handlers.update(dict.fromkeys(("effects", "lenth_method"), _no_effects_beside_components))
     return handlers
+
+
+def _no_effects_beside_components() -> dict[str, Any]:
+    """Refuse effects for data with mixture components beside process factors."""
+    raise ValueError(
+        "Effects are measured between each factor's -1 and +1 settings, and mixture components, which are "
+        "proportions that sum to 1, have none. Use analysis_type='coefficients' for the blending coefficients "
+        "in proportions, or 'anova'."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1235,10 +1262,12 @@ def analyze_experiment(  # noqa: PLR0913
     raw_response = df[response_col].astype(float)
     rhs = formula.split("~", 1)[1]
     transformed, transform_info = transform_response(
-        raw_response.to_numpy(), transform, exog=lambda: np.asarray(dmatrix(rhs, df), dtype=float)
+        raw_response.to_numpy(),
+        transform,
+        exog=lambda: np.asarray(dmatrix(_coded_formula(rhs, df, factor_cols), df), dtype=float),
     )
     df[response_col] = transformed
-    ols_result = smf.ols(formula, data=df).fit()
+    ols_result = smf.ols(_coded_formula(formula, df, factor_cols), data=df).fit()
     logger.debug("analyze_experiment: fitted %r on %d observations; analyses=%s", formula, len(df), types)
 
     results: dict[str, Any] = {
@@ -1365,7 +1394,7 @@ def _coded_model_matrix(df: pd.DataFrame, rhs: str, factor_cols: list[str], mode
         for col in factor_cols:
             if _is_numeric(df[col]):
                 coded[col] = _code_factor(df[col])[0]
-    return dmatrix(rhs, coded, return_type="dataframe")
+    return dmatrix(_coded_formula(rhs, coded, factor_cols), coded, return_type="dataframe")
 
 
 def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dict[str, Any]:
