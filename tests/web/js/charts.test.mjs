@@ -180,6 +180,16 @@ describe("the comparison's charts", () => {
     assert.deepEqual(figure.data[1].y, [0.3, 0.6]);
   });
 
+  test("a design the reader hides is not drawn, and every other curve keeps its colour", () => {
+    const curve = { fraction: [0, 1], variance: [0.2, 0.9] };
+    const fds = { "BBD [n=15]": curve, "CCD [n=17]": curve, "DSD [n=11]": curve };
+    const all = fdsFigure(fds);
+    const some = fdsFigure(fds, { hidden: new Set(["BBD [n=15]"]) });
+    assert.deepEqual(some.data.map((t) => t.visible), [false, true, true]);
+    assert.deepEqual(some.data.map((t) => t.line.color), all.data.map((t) => t.line.color));
+    assert.equal(new Set(all.data.map((t) => t.line.color)).size, 3, "a colour each");
+  });
+
   test("with limits on the settings, the curves run over the settings you can run, not the cube", () => {
     const fds = { "D-optimal [n=14]": { fraction: [0, 1], variance: [0.2, 0.5] } };
     assert.equal(fdsFigure(fds).layout.xaxis.title.text, "Fraction of the cube");
