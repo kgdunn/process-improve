@@ -38,9 +38,10 @@ from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
+from process_improve.experiments.designs_mixture_process import mixture_process_model
 from process_improve.experiments.designs_three_level import MODULUS
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
-from process_improve.experiments.factor import DesignResult
+from process_improve.experiments.factor import DesignResult, FactorType
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.true_process import _canonical
@@ -113,6 +114,7 @@ class _EvalContext:
     fds_resolution: int | None = None
     design_type: str | None = None
     is_scheffe: bool = False  # a Scheffé mixture model (no intercept; linear blending terms)
+    blending_terms: frozenset[str] = frozenset()  # the linear blending terms of a mixture or mixture-process model
     categorical_coding: str = "effect"
     integration: str = "sample"  # the region average: "sample" or "exact" (quadrature over the cube)
     max_search: str = "sample"  # the region maximum: "sample" or "optimize" (a local search from the best points)
@@ -283,6 +285,18 @@ def _random_effects_information(X: np.ndarray, random_effects: dict[str, tuple[n
     return X.T @ X - sums.T @ np.linalg.solve(np.diag(np.concatenate(ratios)) + Z.T @ Z, sums)
 
 
+def _blending_terms(req: _EvalRequest) -> frozenset[str]:
+    """Return the model's linear blending terms: a Scheffé model's factors, a mixture-process model's components.
+
+    The components sum to 1, so these terms are not tested against zero.
+    """
+    if req.model in SCHEFFE_MODELS:
+        return frozenset(req.factor_names)
+    if isinstance(req.region, DesignRegion) and req.region.kind == "mixture_process":
+        return frozenset(f.name for f in req.region.factors if f.type == FactorType.mixture)
+    return frozenset()
+
+
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
     X, column_names, design_info = _build_model_matrix(
@@ -330,6 +344,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         fds_resolution=req.fds_resolution,
         design_type=req.design_type,
         is_scheffe=req.model in SCHEFFE_MODELS,
+        blending_terms=_blending_terms(req),
         categorical_coding=req.categorical_coding,
         integration=req.integration,
         max_search=req.max_search,
@@ -616,12 +631,12 @@ def _points_in_design_region(ctx: _EvalContext, region: DesignRegion) -> tuple[p
 
 
 def _region_label(region: str | DesignRegion | pd.DataFrame) -> str:
-    """Name the region in results: the string as given, ``"mixture"`` / ``"constrained"``, or ``"candidates"``."""
+    """Name the region in results: the string as given, its kind, ``"constrained"`` for a box, or ``"candidates"``."""
     if isinstance(region, str):
         return region
     if isinstance(region, pd.DataFrame):
         return "candidates"
-    return region.kind if region.kind == "mixture" else "constrained"
+    return region.kind if region.kind != "box" else "constrained"
 
 
 def _is_cube(region: str | DesignRegion | pd.DataFrame) -> bool:
@@ -654,7 +669,7 @@ def _resolve_region(
     spec = design_matrix.metadata.get("region") if isinstance(design_matrix, DesignResult) else None
     if spec:
         recorded = DesignRegion.from_dict(spec)
-        if recorded.kind == "mixture" or recorded.is_constrained:
+        if recorded.kind != "box" or recorded.is_constrained:
             return recorded
     return "cuboidal"
 
@@ -673,6 +688,27 @@ def _mixture_model(model: str | None, design_matrix: pd.DataFrame | DesignResult
     with contextlib.suppress(ValueError):  # not a model name: an explicit formula
         return scheffe_model(model)
     return model
+
+
+def _mixture_process_formula(
+    model: str | None, design_matrix: pd.DataFrame | DesignResult, region: DesignRegion
+) -> str:
+    """Return the formula to evaluate a mixture-process design with.
+
+    A mixture-process model name (``"interactions"``, ``"scheffe_quadratic + main_effects"``,
+    ...) becomes its formula, as :func:`generate_design` built it; an explicit formula is
+    kept. Without a model, the one the design was generated for is used, else the
+    ``"interactions"`` model.
+    """
+    if model is None:
+        recorded = design_matrix.metadata.get("model_type") if isinstance(design_matrix, DesignResult) else None
+        model = recorded or "interactions"
+    mixture = [f.name for f in region.factors if f.type == FactorType.mixture]
+    process = [f.name for f in region.factors if f.type != FactorType.mixture]
+    try:
+        return mixture_process_model(mixture, process, model).formula_rhs()
+    except ValueError:  # not a model name: an explicit formula
+        return model
 
 
 def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
@@ -1022,7 +1058,9 @@ def _omitted_squares(ctx: _EvalContext) -> tuple[np.ndarray, list[str]]:
     squares = [
         Term([EvalFactor(f"I({name} ** 2)")])
         for name in ctx.factor_names
-        if pd.api.types.is_numeric_dtype(ctx.design_df[name]) and EvalFactor(f"I({name} ** 2)").name() not in present
+        if name not in ctx.blending_terms  # a component's square is in its blending terms (x^2 = x - sum x x_j)
+        and pd.api.types.is_numeric_dtype(ctx.design_df[name])
+        and EvalFactor(f"I({name} ** 2)").name() not in present
     ]
     if not squares:
         return np.empty((ctx.N, 0)), []
@@ -1237,7 +1275,7 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
     terms = [
         (i, name)
         for i, name in enumerate(ctx.column_names)
-        if not _is_intercept_col(name) and not (ctx.is_scheffe and name in ctx.factor_names)
+        if not _is_intercept_col(name) and name not in ctx.blending_terms
     ]
 
     def power_at(coefficient: float, i: int) -> float:
@@ -1256,12 +1294,12 @@ def _compute_power(ctx: _EvalContext) -> dict[str, Any]:
             },
             "sigma": float(sigma),
         }
-    if ctx.is_scheffe:
+    if ctx.blending_terms:
         result["note"] = (
             "The linear blending terms are not tested against zero, so they have no power here; the "
             "mixture analysis tests them jointly for equality."
         )
-    else:
+    if not ctx.is_scheffe:
         result.update(_power_alias_exposure(ctx, [name for _, name in terms]))
     return result
 
@@ -1342,7 +1380,7 @@ def _compute_screening_power(ctx: _EvalContext) -> dict[str, Any]:
     hypothesis none of whose tests remains is reported as ``"aliased"`` or ``"not estimable"``,
     as Table 7 marks them. Only numeric factors can be studied this way.
     """
-    if ctx.is_scheffe or any(not pd.api.types.is_numeric_dtype(ctx.design_df[f]) for f in ctx.factor_names):
+    if ctx.blending_terms or any(not pd.api.types.is_numeric_dtype(ctx.design_df[f]) for f in ctx.factor_names):
         return {
             "screening_power": None,
             "note": "The screening power study needs numeric factors only; it does not apply to mixture models "
@@ -2085,7 +2123,11 @@ def evaluate_design(  # noqa: PLR0913
         ``"scheffe_quadratic"``, ``"special_cubic"`` to
         ``"scheffe_special_cubic"``, ``"cubic"`` to ``"scheffe_cubic"``), and
         ``None`` means the model the design was generated for, else
-        ``"scheffe_quadratic"``; otherwise ``None`` means
+        ``"scheffe_quadratic"``. Over a mixture-process region a mixture-process model
+        name (``"interactions"``, ``"scheffe_quadratic + main_effects"``, ...; see
+        :func:`~process_improve.experiments.designs_mixture_process.mixture_process_model`)
+        becomes that model, and ``None`` means the model the design was generated for,
+        else ``"interactions"``. Otherwise ``None`` means
         ``"interactions"``.  A formula may name a ``Block`` column (``"A + B +
         Block"``) to include the blocks as a categorical factor; otherwise the
         blocks are left out and a note says so.
@@ -2126,8 +2168,9 @@ def evaluate_design(  # noqa: PLR0913
         ``"cuboidal"`` is ``[-1, 1]^k``; ``"spherical"`` is the ball of radius
         ``sqrt(k)``. A :class:`~process_improve.experiments.DesignRegion`
         restricts the average and the maximum to settings that satisfy its
-        constraints (a box) or lie on its constrained simplex (a mixture): a
-        constrained design should not be judged on corners it may not visit.
+        constraints (a box), lie on its constrained simplex (a mixture), or both (a
+        mixture-process region): a constrained design should not be judged on corners
+        it may not visit.
         A DataFrame is a discrete region, such as the candidate points an optimal
         design was chosen from: one row per point and a column per factor, in the
         design's units (coded, for a :class:`DesignResult`). The average and the
@@ -2255,6 +2298,8 @@ def evaluate_design(  # noqa: PLR0913
     region = _resolve_region(region, design_matrix, factor_names)
     if isinstance(region, DesignRegion) and region.kind == "mixture":
         model = _mixture_model(model, design_matrix)
+    elif isinstance(region, DesignRegion) and region.kind == "mixture_process":
+        model = _mixture_process_formula(model, design_matrix, region)
 
     # --- Build context ---
     ctx = _build_context(

@@ -1196,17 +1196,18 @@ def _build_reasoning(
 def _refuse_unplannable(factors: list[Factor], hard_to_change_factors: list[str] | None) -> None:
     """Raise for inputs no stage can be built for, naming what to change.
 
-    Mixture components with process factors are refused by ``generate_design``, a split
-    plot cannot hold mixture components, and a hard-to-change name must be a factor.
+    No staged plan is made for mixture components with process factors (``generate_design``
+    builds one optimal design for them), a split plot cannot hold mixture components, and a
+    hard-to-change name must be a factor.
     """
     names = [f.name for f in factors]
     is_mixture = [f.type.value == "mixture" for f in factors]
     if any(is_mixture) and not all(is_mixture):
         process = [name for name, mixture in zip(names, is_mixture, strict=True) if not mixture]
         raise ValueError(
-            f"Mixture-process problems (mixture components together with process factors {process}) are not "
-            "supported: generate_design cannot build their stages. Plan the mixture components and the "
-            "process factors as separate studies, or cross a mixture design with a process design."
+            f"Mixture-process problems (mixture components together with process factors {process}) get no "
+            "staged plan. generate_design builds one optimal design for them, for example "
+            "generate_design(factors, design_type='d_optimal', model_type='interactions')."
         )
     unknown = [name for name in hard_to_change_factors or [] if name not in names]
     if unknown:

@@ -48,6 +48,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.designs_mixture_constrained
    :members: constrained_mixture_design, extreme_vertices, mixture_candidates, mixture_inequalities, scheffe_matrix
 
+.. automodule:: process_improve.experiments.designs_mixture_process
+   :members: mixture_process_design, mixture_process_model, MixtureProcessModel, split_constraints
+
 .. automodule:: process_improve.experiments.designs_supersaturated
    :members: dispatch_supersaturated, hadamard, e_s2, e_s2_lower_bound, n_fully_aliased
 

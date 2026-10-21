@@ -336,10 +336,17 @@ class TestInputsAreValidatedUpFront:
         factors = [Factor(name=f"x{i}", type="mixture", low=0, high=1) for i in range(3)]
         assert generate_design(factors, design_type="d_optimal", model_type="linear", budget=6).n_runs == 6
 
-    @pytest.mark.parametrize("design_type", [None, "d_optimal", "mixture"])
-    def test_mixture_process_gets_one_clear_answer(self, design_type: str | None) -> None:
-        """Each engine's error used to send the user to the other."""
+    @pytest.mark.parametrize("design_type", [None, "d_optimal"])
+    def test_mixture_process_is_built_by_the_optimal_engine(self, design_type: str | None) -> None:
+        """Each engine's error used to send the user to the other; the optimal engine now builds the design."""
         factors = [*(Factor(name=f"x{i}", type="mixture", low=0, high=1) for i in range(3))]
         factors.append(Factor(name="T", low=20, high=80))
-        with pytest.raises(ValueError, match=r"Mixture-process designs .*\['T'\].*cross"):
-            generate_design(factors, design_type=design_type, budget=15)
+        result = generate_design(factors, design_type=design_type, budget=15)
+        assert result.design_type == "d_optimal"
+        assert result.n_runs == 15
+
+    def test_mixture_process_gets_one_clear_answer_elsewhere(self) -> None:
+        factors = [*(Factor(name=f"x{i}", type="mixture", low=0, high=1) for i in range(3))]
+        factors.append(Factor(name="T", low=20, high=80))
+        with pytest.raises(ValueError, match=r"process factors \['T'\] need an optimal design"):
+            generate_design(factors, design_type="mixture", budget=15)

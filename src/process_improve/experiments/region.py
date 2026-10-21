@@ -11,12 +11,14 @@ the same region can drive the three places it matters:
 - :func:`~process_improve.experiments.optimize_responses` searches for an optimum
   inside it, so the recommended settings are ones the plant can run.
 
-Two kinds of region exist, and each works in its own *design units*:
+Three kinds of region exist, and each works in its own *design units*:
 
 - ``"box"``: continuous (and categorical) factors, in coded units ``[-1, 1]``, with
   optional inequality constraints written in actual units;
 - ``"mixture"``: mixture components, as proportions summing to 1, with optional
-  component bounds and linear inequality constraints.
+  component bounds and linear inequality constraints;
+- ``"mixture_process"``: mixture components and process factors together, the product
+  of a mixture region and a box region. Each constraint limits one of the two parts.
 
 ``generate_design`` records the region it used in ``DesignResult.metadata["region"]``
 as a plain dict, which :meth:`DesignRegion.from_dict` turns back into a region.
@@ -96,11 +98,13 @@ class DesignRegion:
     Parameters
     ----------
     factors : list[Factor]
-        Either all mixture components, or continuous and categorical factors.
+        Mixture components, continuous and categorical factors, or mixture components
+        together with process factors.
     constraints : Sequence[Constraint | dict | str] or None
         Inequalities in actual units (proportions for mixtures): ``Constraint`` objects,
         their dict form (as :meth:`to_dict` writes it) or bare expressions such as
-        ``"3*T + 5*D <= 600"``, mixed freely.
+        ``"3*T + 5*D <= 600"``, mixed freely. In a mixture-process region each one names
+        components only or process factors only.
 
     Examples
     --------
@@ -116,14 +120,14 @@ class DesignRegion:
         self.factors = list(factors)
         self.constraints: list[Constraint] = as_constraints(constraints) or []
         is_mixture = [f.type == FactorType.mixture for f in self.factors]
-        if any(is_mixture) and not all(is_mixture):
-            raise ValueError(
-                "A region is either all mixture components or none; mixture-process regions are not supported."
-            )
-        self.kind: Literal["box", "mixture"] = "mixture" if all(is_mixture) and self.factors else "box"
+        self.kind: Literal["box", "mixture", "mixture_process"] = "box"
+        if any(is_mixture):
+            self.kind = "mixture" if all(is_mixture) else "mixture_process"
         #: Names of the numeric columns the region acts on, in order.
         self.names = [f.name for f in self.factors if f.type != FactorType.categorical]
         numeric = [f for f in self.factors if f.type != FactorType.categorical]
+        #: The columns that hold mixture proportions, which sum to 1.
+        self._mixture_columns = [j for j, f in enumerate(numeric) if f.type == FactorType.mixture]
         self._low = np.array([f.low for f in numeric], dtype=float)
         self._high = np.array([f.high for f in numeric], dtype=float)
         self._centre, self._half = (self._low + self._high) / 2.0, (self._high - self._low) / 2.0
@@ -136,6 +140,8 @@ class DesignRegion:
 
     def _build_inequalities(self) -> list[_Inequality]:
         """Return functions of design-unit points (n, k), each feasible where ``<= 0``."""
+        if self.kind == "mixture_process":
+            return self._build_parts()
         if self.kind == "mixture":
             from process_improve.experiments.designs_mixture_constrained import mixture_inequalities  # noqa: PLC0415
 
@@ -161,9 +167,40 @@ class DesignRegion:
 
         return [wrap(g) for g in gs]
 
+    def _build_parts(self) -> list[_Inequality]:
+        """Split a mixture-process region into its mixture part and its process part.
+
+        Each part keeps its own inequalities, lifted here to act on its columns of the
+        whole region's points.
+        """
+        from process_improve.experiments.designs_mixture_process import split_constraints  # noqa: PLC0415
+
+        mixture = [f for f in self.factors if f.type == FactorType.mixture]
+        process = [f for f in self.factors if f.type != FactorType.mixture]
+        on_mixture, on_process = split_constraints(self.constraints, mixture, process)
+        #: The two parts, and the columns of the whole region's points that each acts on.
+        self._parts = (DesignRegion(mixture, on_mixture), DesignRegion(process, on_process))
+        self._part_columns = tuple([self.names.index(n) for n in part.names] for part in self._parts)
+
+        def lift(g: _Inequality, columns: list[int]) -> _Inequality:
+            return lambda x: g(np.atleast_2d(x)[:, columns])
+
+        return [
+            lift(g, columns)
+            for part, columns in zip(self._parts, self._part_columns, strict=True)
+            for g in part.inequalities
+        ]
+
+    @property
+    def mixture_names(self) -> list[str]:
+        """Names of the columns that hold mixture proportions, which sum to 1: all of a mixture's, none of a box's."""
+        return [self.names[j] for j in self._mixture_columns]
+
     @property
     def is_constrained(self) -> bool:
         """True unless the region is the plain box or the full simplex."""
+        if self.kind == "mixture_process":
+            return any(part.is_constrained for part in self._parts)
         if self.kind == "mixture":
             return bool(self.constraints) or any(f.low > 0 or f.high < 1 for f in self.factors)  # type: ignore[operator]
         return bool(self.constraints)
@@ -211,10 +248,12 @@ class DesignRegion:
 
     @property
     def bounds(self) -> list[tuple[float, float]]:
-        """Per-column bounds in design units: ``(-1, 1)`` for a box, ``(low, high)`` for a mixture."""
-        if self.kind == "mixture":
-            return [(float(f.low), float(f.high)) for f in self.factors]  # type: ignore[arg-type]
-        return [(-1.0, 1.0)] * len(self.names)
+        """Per-column bounds in design units: ``(-1, 1)`` for a process factor, ``(low, high)`` for a component."""
+        numeric = [f for f in self.factors if f.type != FactorType.categorical]
+        return [
+            (float(f.low), float(f.high)) if f.type == FactorType.mixture else (-1.0, 1.0)  # type: ignore[arg-type]
+            for f in numeric
+        ]
 
     def feasible(self, x: np.ndarray, tol: float = _TOL) -> np.ndarray:
         """Return a boolean per row of ``x`` (design units): inside the bounds and every constraint.
@@ -222,7 +261,8 @@ class DesignRegion:
         Parameters
         ----------
         x : np.ndarray
-            Points ``(n, k)`` in design units (coded for a box, proportions for a mixture).
+            Points ``(n, k)`` in design units (coded for a box, proportions for a mixture,
+            both for a mixture-process region).
         tol : float
             How far a point may lie outside. For a straight limit of a box region it is a
             distance in coded units (the limit's value divided by the length of its coded
@@ -244,8 +284,8 @@ class DesignRegion:
         x = np.atleast_2d(np.asarray(x, dtype=float))
         low, high = np.array(self.bounds, dtype=float).reshape(-1, 2).T
         ok = np.all((x >= low - tol) & (x <= high + tol), axis=1)
-        if self.kind == "mixture":
-            ok &= np.abs(x.sum(axis=1) - 1.0) <= 1e-6
+        if self.kind != "box":
+            ok &= np.abs(x[:, self._mixture_columns].sum(axis=1) - 1.0) <= 1e-6
         for g, widen in zip(self._inequalities, self._widen(), strict=True):
             ok &= g(x) <= tol * widen
         return ok
@@ -312,7 +352,13 @@ class DesignRegion:
         passed.
         """
         if "widen" not in self._cache:
-            widen = self._linear().widen if self.kind == "box" else [1.0] * len(self._inequalities)
+            widen: np.ndarray | list[float]
+            if self.kind == "mixture_process":
+                widen = np.concatenate([part._widen() for part in self._parts])
+            elif self.kind == "box":
+                widen = self._linear().widen
+            else:
+                widen = [1.0] * len(self._inequalities)
             self._cache["widen"] = np.asarray(widen, dtype=float).reshape(len(self._inequalities))
         return self._cache["widen"]
 
@@ -334,6 +380,12 @@ class DesignRegion:
         k = len(self.names)
         if k == 0:  # only categorical factors: no continuous dimension to sample
             return np.empty((n, 0))
+        if self.kind == "mixture_process":
+            # The region is the product of its parts, so independent uniform draws of each are uniform on it.
+            points = np.empty((n, k))
+            for part, columns in zip(self._parts, self._part_columns, strict=True):
+                points[:, columns] = part.sample(n, rng)
+            return points
         if self.kind == "mixture":
             low = np.array([f.low for f in self.factors], dtype=float)
 
@@ -366,8 +418,11 @@ class DesignRegion:
         """Return points on the region's boundary, in design units: where worst-case variance sits.
 
         For a mixture these are the extreme vertices and edge midpoints; for a box, the
-        feasible grid points and the points where each constraint crosses a grid edge.
+        feasible grid points and the points where each constraint crosses a grid edge; for
+        a mixture-process region, every such blend at every such process setting.
         """
+        if self.kind == "mixture_process":
+            return self._crossed_support_points()
         if self.kind == "mixture":
             from process_improve.experiments.designs_mixture_constrained import mixture_candidates  # noqa: PLC0415
 
@@ -380,11 +435,23 @@ class DesignRegion:
         coded, _cats, _ = build_candidates(_Region(continuous, [], self._actual_inequalities), n_levels=3)
         return coded
 
+    def _crossed_support_points(self) -> np.ndarray:
+        """Return each support point of the mixture part at each support point of the process part."""
+        blends, settings = (
+            part.support_points() if columns else np.empty((1, 0))
+            for part, columns in zip(self._parts, self._part_columns, strict=True)
+        )
+        points = np.empty((len(blends) * len(settings), len(self.names)))
+        mixture_columns, process_columns = self._part_columns
+        points[:, mixture_columns] = np.repeat(blends, len(settings), axis=0)
+        points[:, process_columns] = np.tile(settings, (len(blends), 1))
+        return points
+
     # -- diagnostics of a box region (actual units in, actual units out) -------
 
     def _require_box(self, method: str) -> None:
-        """Raise for a mixture region, where a box diagnostic has no meaning."""
-        if self.kind == "mixture":
+        """Raise for a region with mixture components, where a box diagnostic has no meaning."""
+        if self.kind != "box":
             raise ValueError(
                 f"DesignRegion.{method}() describes a box of factor settings; this region holds mixture "
                 "proportions that sum to 1, where it does not apply."
@@ -524,7 +591,9 @@ class DesignRegion:
         For a mixture region the share is of the blends the components' ranges allow (the
         whole simplex when every range is 0 to 1), and it is exact: a mixture's constraints
         are straight, so it is the volume of the polytope they leave over that of the
-        polytope the ranges leave, each the hull of its extreme vertices (#810).
+        polytope the ranges leave, each the hull of its extreme vertices (#810). A
+        mixture-process region is the product of its two parts, so its share is the product
+        of theirs.
 
         Parameters
         ----------
@@ -555,8 +624,8 @@ class DesignRegion:
             raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
         if not self.constraints:
             return 1.0
-        if self.kind == "mixture":
-            return self._mixture_share()
+        if self.kind != "box":
+            return self._mixture_share(n_samples)
         share = self._exact_share()
         if share is None:
             share = self._integrated_share()
@@ -588,11 +657,14 @@ class DesignRegion:
         points = None if vertices is None else uniform_points_inside(vertices, n_samples)
         return None if points is None else float(np.mean(self.feasible(points)))
 
-    def _mixture_share(self) -> float:
+    def _mixture_share(self, n_samples: int) -> float:
         """Return the share of the blends the components' ranges allow that the constraints leave, exactly (#810).
 
         A mixture's constraints are straight, so both are polytopes, each the hull of its extreme vertices.
+        A mixture-process region's share is the product of its parts' shares.
         """
+        if self.kind == "mixture_process":
+            return float(np.prod([part.volume_fraction(n_samples) for part in self._parts]))
         from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
             extreme_vertices,
             mixture_inequalities,

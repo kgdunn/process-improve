@@ -805,8 +805,10 @@ def _search_space(
     random points in it. With a box region its constraints become inequality
     constraints on top of that box. A mixture region replaces the box: its component
     bounds become the bounds, ``sum(x) = 1`` an equality constraint, and its linear
-    constraints inequalities. The starts are then drawn uniformly from the feasible
-    set itself, since a start outside it can leave SLSQP stranded at an infeasible point.
+    constraints inequalities. A mixture-process region does both: the components'
+    part as a mixture region's, the process factors' as a box region's. The starts are
+    then drawn uniformly from the feasible set itself, since a start outside it can
+    leave SLSQP stranded at an infeasible point.
     """
     bounds = _resolve_search_bounds(search_bounds, factor_names)
     lows, highs = np.array(bounds).T
@@ -818,14 +820,15 @@ def _search_space(
         msg = f"The region's factors {region.names} do not match the model's factors {factor_names}."
         raise ValueError(msg)
     idx = [factor_names.index(n) for n in region.names]  # region column j is model column idx[j]
-    if region.kind == "mixture":
-        bounds = [region.bounds[region.names.index(n)] for n in factor_names]
+    components = [factor_names.index(n) for n in region.mixture_names]
+    for j in components:
+        bounds[j] = region.bounds[region.names.index(factor_names[j])]
     constraints: list[dict[str, Any]] = [
         {"type": "ineq", "fun": lambda x, g=g: -float(g(x[idx][None, :])[0])} for g in region.inequalities
     ]
-    if region.kind == "mixture":
-        constraints.append({"type": "eq", "fun": lambda x: float(x.sum() - 1.0)})
-    if region.kind == "mixture":
+    if components:
+        constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0)})
+    if region.kind != "box":
         samples = region.sample(n_starts, rng)
     else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
         box = (lows[idx], highs[idx])
@@ -888,13 +891,17 @@ def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.n
 
     A box region's own ``[-1, 1]`` cube is not imposed: the search box
     (``search_bounds``) bounds the search, and the region adds its constraints on top.
+    Nor is it for the process factors of a mixture-process region, whose components
+    must still sum to 1.
     """
     if region is None:
         return None
     point = x[[factor_names.index(n) for n in region.names]][None, :]
-    if region.kind == "box":
-        return all(float(g(point)[0]) <= 1e-6 for g in region.inequalities)
-    return bool(region.feasible(point, tol=1e-6)[0])
+    if region.kind == "mixture":
+        return bool(region.feasible(point, tol=1e-6)[0])
+    inside = all(float(g(point)[0]) <= 1e-6 for g in region.inequalities)
+    components = [region.names.index(n) for n in region.mixture_names]
+    return inside and abs(float(point[0, components].sum()) - 1.0) <= 1e-6 if components else inside
 
 
 def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.ndarray:
@@ -1813,6 +1820,7 @@ def _span(coding: dict[str, Any]) -> tuple[float, float]:
 def _ranges_from_coding(
     fitted_models: list[dict[str, Any]],
     factor_ranges: dict[str, dict[str, float]] | None,
+    components: Sequence[str] = (),
 ) -> dict[str, dict[str, float]] | None:
     """Check that each model is on the coded scale, and add the factor ranges its coding implies.
 
@@ -1821,7 +1829,8 @@ def _ranges_from_coding(
     coded settings, so a model whose coefficients are in actual units would be searched
     over the wrong region (-1 to +1 degC, say). A coded model instead says which actual
     settings its coded optimum stands for. A model without these keys, such as one
-    written out by hand, is taken to be coded, as before.
+    written out by hand, is taken to be coded, as before. Mixture ``components`` (those
+    of the region searched) are proportions on either scale, so they are left out.
 
     Raises
     ------
@@ -1831,7 +1840,7 @@ def _ranges_from_coding(
     """
     implied: dict[str, dict[str, float]] = {}
     for i, model in enumerate(fitted_models):
-        coding = model.get("factor_coding") or {}
+        coding = {f: how for f, how in (model.get("factor_coding") or {}).items() if f not in components}
         name = model.get("response_name", f"fitted_models[{i}]")
         if coding and model.get("coding") == "actual":
             spans = ", ".join(f"{factor} from {how['low']} to {how['high']}" for factor, how in coding.items())
@@ -2181,7 +2190,7 @@ def optimize_responses(  # noqa: PLR0913
         raise ValueError(msg)
 
     _check_fitted_models(fitted_models, method)
-    factor_ranges = _ranges_from_coding(fitted_models, factor_ranges)
+    factor_ranges = _ranges_from_coding(fitted_models, factor_ranges, region.mixture_names if region else ())
 
     # Use factor_names from the first model as the canonical ordering
     factor_names = fitted_models[0]["factor_names"]

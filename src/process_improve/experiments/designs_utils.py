@@ -151,7 +151,8 @@ def matrix_to_columns(
     is_actual : bool
         If ``True``, the matrix values are already in actual (real-world)
         units (e.g. mixture proportions).  If ``False`` (default), values
-        are in coded -1/+1 units.
+        are in coded -1/+1 units, except for mixture components, which are
+        proportions in both (a mixture-process design).
 
     Returns
     -------
@@ -180,7 +181,7 @@ def matrix_to_columns(
                 lo=factor.low,
                 hi=factor.high,
                 units=factor.units,
-                coded=not is_actual,
+                coded=not is_actual and factor.type != FactorType.mixture,
             )
         columns.append(col)
     return columns

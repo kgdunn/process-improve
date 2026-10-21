@@ -1073,7 +1073,7 @@ def _checked_region(region: DesignRegion | dict[str, Any] | None, factor_names: 
     if region is None:
         return None
     region = DesignRegion.from_dict(region) if isinstance(region, dict) else region
-    if region.kind == "mixture":
+    if region.kind != "box":
         raise ValueError("augment_design takes a region of process factors; this region holds mixture components.")
     categorical = [f.name for f in region.factors if f.type == FactorType.categorical]
     if categorical:

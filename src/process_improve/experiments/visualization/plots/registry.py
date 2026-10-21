@@ -257,10 +257,10 @@ class BasePlot(ABC):
             region = DesignRegion.from_dict(self.region)
         else:
             raise TypeError(f"region must be a DesignRegion or its dict form, not {type(self.region).__name__}.")
-        if region.kind == "mixture":
+        if region.kind != "box":
             raise ValueError(
-                "A mixture region holds proportions that sum to 1, so it cannot be drawn over two factors with "
-                "the others held; draw a box region of factor settings instead."
+                "A mixture region (or a mixture-process one) holds proportions that sum to 1, so it cannot be drawn "
+                "over two factors with the others held; draw a box region of factor settings instead."
             )
         return region
 
