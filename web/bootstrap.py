@@ -59,12 +59,14 @@ from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
 from process_improve.univariate import (
+    dunnett_value,
     least_favourable_means,
     one_way_power,
     one_way_sample_size,
     randomization_interval,
     randomization_test,
     rank_sum_test,
+    studentized_range_value,
     ttest_independent,
 )
 
@@ -771,6 +773,27 @@ def _level_index(value: object, levels: list[str]) -> int | None:
     number = _number(text)
     matches = [i for i, level in enumerate(levels) if number is not None and _number(level) == number]
     return matches[0] if len(matches) == 1 else None
+
+
+def _level_at(factor: dict, coded: float) -> str:
+    """Return the level of a categorical factor nearest its coded setting: -1 its first, +1 its last."""
+    levels = _levels_of(factor)
+    return levels[min(len(levels) - 1, max(0, round((coded + 1) / 2 * (len(levels) - 1))))]
+
+
+def _held_columns(hold: dict[str, float], spec: dict) -> dict[str, float]:
+    """Write coded settings over the columns the model is fitted on: a factor of several levels as its contrasts."""
+    out: dict[str, float] = {}
+    for f in spec["factors"]:
+        if f["name"] not in hold:
+            continue
+        if not _several(f):
+            out[f["name"]] = hold[f["name"]]
+            continue
+        levels = _levels_of(f)
+        index = np.array([levels.index(_level_at(f, hold[f["name"]]))])
+        out.update(zip(_contrast_names(f), _contrasts(index, len(levels))[0], strict=True))
+    return out
 
 
 def _contrast_names(factor: dict) -> list[str]:
@@ -2204,11 +2227,15 @@ def analyze(request: dict) -> dict:
     return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
-def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None) -> dict:
+def _analysis(
+    runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None, *, control: object = None
+) -> dict:
     """Fit the model to the completed runs of a run sheet, from a workbook or from the page.
 
     With the true process the results were simulated from, each coefficient also
-    carries the true value of what it estimates (see :func:`_add_true_values`).
+    carries the true value of what it estimates (see :func:`_add_true_values`). A study of
+    one categorical factor of three levels or more compares each level with ``control``,
+    one of its levels, the first unless named (see :func:`_comparison`).
     """
     runs = _design_runs(runs)
     if _mixture(spec):
@@ -2266,7 +2293,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     notes = [_level_words(note, spec) for note in fit["notes"]]
     order = runs.loc[done, "Run order"].astype(int).tolist() if "Run order" in runs else None
     comparison = _comparison(
-        _coded(runs, factors)[done].reset_index(drop=True), y[done].to_numpy(dtype=float), spec, order
+        _coded(runs, factors)[done].reset_index(drop=True), y[done].to_numpy(dtype=float), spec, order, control
     )
     if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
         true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
@@ -2365,15 +2392,18 @@ CONFIDENCE = 0.95
 ARRANGEMENTS = 200_000
 
 
-def _comparison(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None) -> dict | None:
-    """Compare one factor's levels: each level's results, and at two levels the difference between them.
+def _comparison(
+    coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None, control: object = None
+) -> dict | None:
+    """Compare one factor's levels: each level's results, and the differences between them.
 
     Each level lists its runs (their run order and result), their average, standard deviation and the
     interval for the average from those runs alone. With the runs at the low and the high only, two
     or more at each, ``difference`` is the high's average less the low's, tested four ways: the
     t-test with one variance for both levels (the model's own test), Welch's t-test with each level's
     own variance, the randomization test, which counts the arrangements of the runs the random order
-    could have made, and Wilcoxon's rank-sum test. A study of more factors, or in blocks, has none.
+    could have made, and Wilcoxon's rank-sum test. A categorical factor run at three levels or more
+    has ``several`` instead (:func:`_several_levels`). A study of more factors, or in blocks, has none.
     """
     factors = spec["factors"]
     if len(factors) != 1 or _blocked(spec):
@@ -2385,16 +2415,86 @@ def _comparison(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int]
         _level(factor, setting, y[x == setting], [r for r, at in zip(runs, x, strict=True) if at == setting])
         for setting in np.unique(x)
     ]
-    out: dict[str, Any] = {"factor": factor["name"], "levels": levels, "difference": None}
+    out: dict[str, Any] = {"factor": factor["name"], "levels": levels, "difference": None, "several": None}
+    if len(levels) > 2 and _categorical(factor):  # two levels have their difference
+        out["several"] = _several_levels(levels, control)
+        return out
     low, high = y[x == -1], y[x == 1]
     if len(levels) == 2 and min(len(low), len(high)) >= 2:  # two levels, two runs each, for a variance
         out["difference"] = _difference(low, high, factor, spec.get("options", {}).get("random_state", 0))
     return out
 
 
+def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any] | None:
+    """Compare three levels or more: the one-way analysis of variance, Tukey's pairs, and Dunnett's against a control.
+
+    Every test rests on the pooled standard deviation of the runs about their level's average. The
+    F test asks whether the levels' averages differ at all. Tukey's intervals (``pairs``), one for
+    each pair of levels, hold every difference between pairs together 95% of the time, from the
+    studentized range of the k averages (Tukey and Kramer's, for levels of unequal runs). Dunnett's
+    intervals (``versus``) compare each level with the control alone, so there are fewer of them and
+    each is narrower; the control is the level named, the first unless another is. None when the
+    runs leave no degree of freedom for the error.
+    """
+    groups = [np.array([r["value"] for r in level["runs"]]) for level in levels]
+    names = [level["level"] for level in levels]
+    n = np.array([len(g) for g in groups])
+    k, df = len(groups), int(n.sum()) - len(groups)
+    if df < 1:
+        return None
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    means = np.array([g.mean() for g in groups])
+    mse = sum(float(((g - g.mean()) ** 2).sum()) for g in groups) / df
+    s = math.sqrt(mse)
+    grand = float(np.concatenate(groups).mean())
+    between = float((n * (means - grand) ** 2).sum()) / (k - 1)
+    f_value = between / mse if mse > 0 else math.inf
+    test = {
+        "f_value": f_value,
+        "df_between": k - 1,
+        "df_within": df,
+        "p_value": float(stats.f.sf(f_value, k - 1, df)) if math.isfinite(f_value) else 0.0,
+        "std_dev": s,
+    }
+    q = studentized_range_value(CONFIDENCE, k, df)
+    pairs = []
+    for i, j in itertools.combinations(range(k), 2):
+        se = s * math.sqrt((1 / n[i] + 1 / n[j]) / 2)
+        difference = float(means[j] - means[i])
+        pairs.append(
+            {
+                "from": names[i],
+                "to": names[j],
+                "estimate": difference,
+                "ci_low": difference - q * se,
+                "ci_high": difference + q * se,
+                "p_value": float(stats.studentized_range.sf(abs(difference) / se, k, df)) if se > 0 else 0.0,
+            }
+        )
+    c = next((i for i, name in enumerate(names) if str(name) == str(control)), 0)
+    others = [i for i in range(k) if i != c]
+    correlation = float(n[c] / (n[c] + np.mean(n[others])))  # n0 / (n0 + n): one half for equal runs
+    d = dunnett_value(CONFIDENCE, k - 1, df, correlation=correlation)
+    versus = []
+    for i in others:
+        se = s * math.sqrt(1 / n[i] + 1 / n[c])
+        difference = float(means[i] - means[c])
+        versus.append(
+            {
+                "level": names[i],
+                "estimate": difference,
+                "ci_low": difference - d * se,
+                "ci_high": difference + d * se,
+                "differs": bool(abs(difference) > d * se),
+            }
+        )
+    return {"test": test, "pairs": pairs, "control": names[c], "versus": versus, "q": q, "d": d}
+
+
 def _level(factor: dict, setting: float, values: np.ndarray, runs: list[int]) -> dict[str, Any]:
     """Summarise one level's results: its runs, their average, standard deviation and the interval for the average."""
-    name = (factor["low"] if setting < 0 else factor["high"]) if _categorical(factor) else _actual(factor, setting)
+    name = _level_at(factor, setting) if _categorical(factor) else _actual(factor, setting)
     n = len(values)
     sd = float(values.std(ddof=1)) if n > 1 else None
     half = float(_critical_t(n - 1) * sd / math.sqrt(n)) if sd is not None else None
@@ -3336,7 +3436,7 @@ def simulate(request: dict) -> dict:
             process = _scenario_process(key, names, request, _categorical_names(spec), **known)
         values = process.simulate(settings, random_state=seed + SEED_STEP * place)
         decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
-        truth = _truth(process)
+        truth = _contrast_truth(_truth(process), spec)
         simulated.append(
             {
                 "sigma": process.sigma,
@@ -3355,6 +3455,40 @@ def simulate(request: dict) -> dict:
     return reply
 
 
+def _contrast_truth(truth: list[dict], spec: dict) -> list[dict]:
+    """Write a simulated process over the columns the model is fitted on.
+
+    The process moves the response by its coefficient times a factor's coded setting, so a
+    categorical factor of k levels moves it evenly across its levels, from -c at the first to +c at
+    the last. Over the factor's contrasts (:func:`_contrasts`) that is the coefficient c times each
+    level's code, for each level but the last, and the same for each of its interactions: a term's
+    coefficient is spread over the products of its factors' contrasts, each times their levels' codes.
+    """
+    several = {f["name"]: f for f in spec["factors"] if _several(f)}
+    if not several:
+        return truth
+    out: dict[str, float] = {}
+    for t in truth:
+        term, value = str(t["term"]), float(t["coefficient"])
+        if term == "Intercept" or term.startswith("I("):
+            out[term] = out.get(term, 0.0) + value
+            continue
+        choices = []
+        for name in term.split(":"):
+            if name in several:
+                codes = np.linspace(-1.0, 1.0, len(_levels_of(several[name])))
+                choices.append(list(zip(_contrast_names(several[name]), codes[:-1], strict=True)))
+            else:
+                choices.append([(name, 1.0)])
+        for product in itertools.product(*choices):
+            column = ":".join(name for name, _ in product)
+            out[column] = out.get(column, 0.0) + value * math.prod(code for _, code in product)
+    return [
+        {"term": term, "label": _level_words(_pretty(term), spec), "coefficient": round(value, 12) + 0.0}
+        for term, value in out.items()
+    ]
+
+
 def analyze_runs(request: dict) -> dict:
     """Fit the model to the runs the page holds, with the responses typed or simulated there.
 
@@ -3366,7 +3500,7 @@ def analyze_runs(request: dict) -> dict:
     runs = _runs_frame(request, spec)
     spec = _for_response(spec, request.get("response"))
     model = request.get("model") or spec["model"]
-    return _analysis(runs, spec, model, request.get("truth"))
+    return _analysis(runs, spec, model, request.get("truth"), control=request.get("control"))
 
 
 def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
@@ -3514,6 +3648,7 @@ def plots(request: dict) -> dict:
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
+    fitted, columns = _fitted_model(model, spec)
     runs = _design_runs(every_run)
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
@@ -3521,12 +3656,14 @@ def plots(request: dict) -> dict:
     coded = _design_frame(runs, spec)[done].reset_index(drop=True)
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
-        fit = _fit_estimable(coded, y, model, names, categorical)
+        fit = _fit_estimable(coded, y, fitted, columns, categorical)
         out = analyze_experiment(
             coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"], coding="actual"
         )
     rows = coded.assign(**{response: y}).to_dict("records")
-    pair = _contour_pair(out["coefficients"], names)
+    # A factor of several levels is no axis: the surface holds it at its average level, its contrasts at 0.
+    axes = [f["name"] for f in spec["factors"] if not _several(f)]
+    pair = _contour_pair(out["coefficients"], axes)
     shading, held = _shading(spec, pair)
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
@@ -3536,11 +3673,12 @@ def plots(request: dict) -> dict:
         return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
 
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
-    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)} if len(names) > 1 else {}
+    surface = len(pair) > 1
+    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)} if surface else {}
     truth = request.get("truth")
-    if truth and len(names) > 1:
+    if truth and surface:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
-        missing = [f for f in process.factors if f not in names]
+        missing = [f for f in process.factors if f not in columns]
         if missing:
             raise ValueError(f"The true process names factors the design does not have: {missing}.")
         figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair, **shading)
@@ -3584,12 +3722,10 @@ def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, f
         coded = float(raw[f["name"]])
         hold[f["name"]] = coded
         value = (
-            (f["low"] if coded < 0 else f["high"])
-            if _categorical(f)
-            else (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+            _level_at(f, coded) if _categorical(f) else (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
         )
         held.append({"name": f["name"], "value": value})
-    return hold, held
+    return _held_columns(hold, spec), held
 
 
 def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -4948,7 +5084,7 @@ def best_settings(request: dict) -> dict:
     sense = _sense(goal, target, predicted, reached=bool(reached))
     gradient = _gradient(reduced, [f["name"] for f in numeric], x)
     tiny = 1e-9 * max(found["spread"], 1.0)
-    in_model = _factors_in(coefficients, names)
+    in_model = _factors_in(coefficients, spec)
     reply |= {
         "predicted": predicted,
         "reached": reached,
@@ -4983,12 +5119,13 @@ class _FittedModel:
     same terms, and zero in each block contrast, which is the average block, as the equation is written.
     """
 
-    def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str]) -> None:
+    def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str], spec: dict | None = None) -> None:
         from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
         self.out = fit["out"]
         self.formula = fit["formula"]
         self.names = names
+        self.spec = spec  # with a factor of several levels, whose point's level is written over its contrasts
         self.terms = [c["term"] for c in self.out["coefficients"]]
         self.beta = np.array([c["coefficient"] for c in self.out["coefficients"]], dtype=float)
         x = _model_matrix(coded, self.terms, names)
@@ -5002,6 +5139,8 @@ class _FittedModel:
 
     def row(self, point: dict[str, float]) -> np.ndarray:
         """Return a point's row of the model matrix, its settings coded, in the average block."""
+        if self.spec is not None:
+            point = {**point, **_held_columns(point, self.spec)}
         frame = pd.DataFrame([{name: point[name] for name in self.names}])
         return _model_matrix(frame, self.terms, self.names)[0]
 
@@ -5037,11 +5176,12 @@ def _fitted(runs: pd.DataFrame, spec: dict, model: str | list[str]) -> _FittedMo
     if not done.any():
         raise ValueError("Enter results first: the best settings are found on the model fitted to them.")
     coded = _design_frame(runs, spec)[done].reset_index(drop=True)
+    fitted, columns = _fitted_model(model, spec)
     with _listening():
         fit = _fit_estimable(
-            coded, y[done].reset_index(drop=True).rename(spec["response"]), model, names, _categorical_names(spec)
+            coded, y[done].reset_index(drop=True).rename(spec["response"]), fitted, columns, _categorical_names(spec)
         )
-    return _FittedModel(fit, coded, names)
+    return _FittedModel(fit, coded, columns, spec if columns != names else None)
 
 
 def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np.ndarray:
@@ -5076,15 +5216,25 @@ def _parts(term: str) -> tuple[str, ...]:
     return tuple(term.split(":"))
 
 
-def _factors_in(coefficients: list[dict], names: list[str]) -> set[str]:
-    """Return the factors some term of the fitted model names, block contrasts aside."""
-    return {p for c in coefficients if not _block_contrast(c["term"], names) for p in _parts(c["term"])}
+def _factors_in(coefficients: list[dict], spec: dict) -> set[str]:
+    """Return the factors some term of the fitted model names, block contrasts aside: a contrast names its factor."""
+    columns = _model_columns(spec)
+    return {
+        _source_of(p, spec) for c in coefficients if not _block_contrast(c["term"], columns) for p in _parts(c["term"])
+    }
 
 
 def _spec_region(spec: dict) -> DesignRegion | None:
     """Return the region the limits on the settings leave, or None for a study without limits."""
     limits = spec.get("constraints") or []
     return _region(_factors(spec), [limit["expression"] for limit in limits]) if limits else None
+
+
+def _level_combinations(spec: dict, in_model: set[str]) -> list[dict[str, float]]:
+    """List every combination of the levels of the categorical factors in the model, each level by its code."""
+    labelled = [f for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
+    codes = [np.linspace(-1.0, 1.0, len(_levels_of(f))).tolist() for f in labelled]
+    return [dict(zip([f["name"] for f in labelled], levels, strict=True)) for levels in itertools.product(*codes)]
 
 
 def _held_at(coefficients: list[dict], held: dict[str, float]) -> list[dict]:
@@ -5176,30 +5326,28 @@ def _search(
     """
     from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a goal asks for it
 
-    names = [f["name"] for f in spec["factors"]]
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     numeric_names = [f["name"] for f in numeric]
-    in_model = _factors_in(coefficients, names)
+    in_model = _factors_in(coefficients, spec)
     if not in_model or all(c["coefficient"] == 0 for c in coefficients if _parts(c["term"])):
         return None
-    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
-    blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], names)}
-    combinations = [
-        dict(zip(labelled, levels, strict=True)) for levels in itertools.product((-1.0, 1.0), repeat=len(labelled))
-    ]
+    blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], _model_columns(spec))}
+    combinations = _level_combinations(spec, in_model)
     if len(combinations) > SEARCHED_LEVELS:
         points = _sample(len(numeric), region)
         scores = [
             max(
                 _objective(goal, v, target)
-                for v in _predict(_held_at(coefficients, {**blocks, **levels}), numeric_names, points)
+                for v in _predict(
+                    _held_at(coefficients, {**blocks, **_held_columns(levels, spec)}), numeric_names, points
+                )
             )
             for levels in combinations
         ]
         combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
     best: dict[str, Any] | None = None
     for levels in combinations:
-        held = {**blocks, **levels}
+        held = {**blocks, **_held_columns(levels, spec)}
         model = _held_at(coefficients, held)
         sought = _goal(goal, target, model, spec["response"])
         spread = sum(abs(c["coefficient"]) for c in model if c["term"] != "Intercept")
@@ -5313,7 +5461,7 @@ def _settings_reply(
     for f in spec["factors"]:
         coded = point[f["name"]]
         if _categorical(f):
-            level = f["low"] if coded < 0 else f["high"]
+            level = _level_at(f, coded)
             settings.append(
                 {
                     "name": f["name"],
@@ -5495,7 +5643,7 @@ def _practical(spec: dict, point: dict[str, float], region: DesignRegion | None)
         for f in factors:
             coded = point[f["name"]]
             if _categorical(f):
-                values[f["name"]] = f["low"] if coded < 0 else f["high"]
+                values[f["name"]] = _level_at(f, coded)
                 continue
             decimals = 3 - math.floor(math.log10(f["high"] - f["low"])) + extra
             exact = (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
@@ -5884,7 +6032,7 @@ def balance(request: dict) -> dict:
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
     point = _full_point(whole, found["x"], found["levels"])
-    in_model = set().union(*(_factors_in(fit.out["coefficients"], names) for fit in fits.values()))
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
     still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
     return {
@@ -5996,22 +6144,21 @@ def _balance_search(
     """
     from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
 
-    names = [f["name"] for f in spec["factors"]]
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     numeric_names = [f["name"] for f in numeric]
     coefficients = {
         name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
         for name, fit in fits.items()
     }
-    in_model = set().union(*(_factors_in(c, names) for c in coefficients.values()))
-    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
-    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], names)}
-    combinations = [dict(zip(labelled, v, strict=True)) for v in itertools.product((-1.0, 1.0), repeat=len(labelled))]
+    in_model = set().union(*(_factors_in(c, spec) for c in coefficients.values()))
+    columns = _model_columns(spec)
+    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], columns)}
+    combinations = _level_combinations(spec, in_model)
     desirable = [_desirability_of(g) for g in goals]
     weights = [g["importance"] for g in goals]
 
     def held_models(levels: dict[str, float]) -> dict[str, list[dict]]:
-        return {name: _held_at(c, {**blocks, **levels}) for name, c in coefficients.items()}
+        return {name: _held_at(c, {**blocks, **_held_columns(levels, spec)}) for name, c in coefficients.items()}
 
     def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
         predicted = [_predict(models[g["response"]], numeric_names, points) for g in goals]
@@ -6044,7 +6191,7 @@ def _balance_search(
             best = {
                 "x": x,
                 "levels": levels,
-                "held": {**blocks, **levels},
+                "held": {**blocks, **_held_columns(levels, spec)},
                 "models": models,
                 "D": value,
                 "heard": heard,
@@ -6172,7 +6319,7 @@ def _acceptable(goal: dict, z: np.ndarray) -> tuple[np.ndarray, list[float]]:
 def _in_units(factor: dict, coded: float) -> float | str:
     """Return a factor's coded setting in its own units, or a categorical factor's level."""
     if _categorical(factor):
-        return factor["low"] if coded < 0 else factor["high"]
+        return _level_at(factor, coded)
     return (factor["low"] + factor["high"]) / 2 + coded * (factor["high"] - factor["low"]) / 2
 
 
@@ -6677,7 +6824,7 @@ def _last(sheet: pd.DataFrame, column: str) -> int:
 def _setting(factor: dict, coded: float) -> float | str:
     """Return a coded setting in the factor's own units, rounded off as a run sheet lists it, or a category's level."""
     if _categorical(factor):
-        return factor["low"] if coded < 0 else factor["high"]
+        return _level_at(factor, coded)
     return float(f"{_in_units(factor, coded):.12g}")
 
 

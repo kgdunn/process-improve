@@ -140,3 +140,113 @@ def test_the_workbook_keeps_labels_that_read_as_numbers(api):
     assert sorted(set(runs["Lot"].astype(str))) == ["1", "2", "3", "4"]
     analysis = api.ok("api_analyze", {"xlsx_base64": workbook, "model": "main_effects"})
     assert [a["source"] for a in analysis["anova"]] == ["Lot", "T", "Residual"]
+
+
+# --------------------------------------------------------------------------- one factor of several levels compared
+#: Box, Hunter and Hunter's blood coagulation times (their Table 6.1) for four diets, of unequal runs.
+DIETS = {
+    "A": [62, 60, 63, 59],
+    "B": [63, 67, 71, 64, 65, 66],
+    "C": [68, 66, 71, 67, 68, 68],
+    "D": [56, 62, 60, 61, 63, 64, 63, 59],
+}
+DIET = {"name": "Diet", "type": "categorical", "levels": list(DIETS), "units": ""}
+
+
+def compared(api, factor: dict, runs: list[str], y: list[float], control: str | None = None) -> dict:
+    """Return the comparison of one factor's levels, its runs as given."""
+    design = api.ok("api_make_design", {"design_type": "given", "factors": [factor], "runs": [[r] for r in runs]})
+    request = {**held_of(design), "responses": y, **({"control": control} if control else {})}
+    return api.ok("api_analyze_runs", request)["comparison"]
+
+
+@pytest.fixture(scope="module")
+def diets(api) -> dict:
+    runs = [diet for diet, times in DIETS.items() for _ in times]
+    return compared(api, DIET, runs, [t for times in DIETS.values() for t in times])
+
+
+def test_the_levels_are_tested_together_by_the_one_way_anova(diets):
+    test = diets["several"]["test"]
+    assert (test["df_between"], test["df_within"]) == (3, 20)
+    assert test["f_value"] == pytest.approx(13.57, abs=0.01), "Box, Hunter and Hunter's F"
+    assert test["p_value"] < 0.001
+    assert diets["difference"] is None
+
+
+def test_tukey_s_intervals_are_every_pair_s_as_scipy_gives_them(diets):
+    from scipy import stats
+
+    expected = stats.tukey_hsd(*DIETS.values())
+    interval = expected.confidence_interval(0.95)
+    names = list(DIETS)
+    for pair in diets["several"]["pairs"]:
+        i, j = names.index(pair["from"]), names.index(pair["to"])
+        assert pair["estimate"] == pytest.approx(-expected.statistic[i, j]), "the later level less the earlier"
+        assert pair["p_value"] == pytest.approx(expected.pvalue[i, j], abs=1e-4)
+        assert [pair["ci_low"], pair["ci_high"]] == pytest.approx([-interval.high[i, j], -interval.low[i, j]], abs=1e-3)
+    assert len(diets["several"]["pairs"]) == 6
+
+
+def test_dunnett_s_intervals_are_scipy_s_for_levels_of_equal_runs(api):
+    from scipy import stats
+
+    rng = np.random.default_rng(4)
+    groups = {level: list(50 + i + rng.normal(0, 1, 4)) for i, level in enumerate("ABCD")}
+    factor = {"name": "Diet", "type": "categorical", "levels": list("ABCD")}
+    runs = [level for level, values in groups.items() for _ in values]
+    found = compared(api, factor, runs, [v for values in groups.values() for v in values], control="B")["several"]
+    assert found["control"] == "B"
+    others = [groups[level] for level in "ACD"]
+    expected = stats.dunnett(*others, control=groups["B"]).confidence_interval(0.95)
+    assert [v["level"] for v in found["versus"]] == ["A", "C", "D"]
+    for v, low, high in zip(found["versus"], expected.low, expected.high, strict=True):
+        assert [v["ci_low"], v["ci_high"]] == pytest.approx([low, high], abs=2e-3)
+        assert v["differs"] == (low > 0 or high < 0)
+
+
+def test_the_control_is_the_first_level_unless_another_is_named(diets, api):
+    assert diets["several"]["control"] == "A"
+    runs = [diet for diet, times in DIETS.items() for _ in times]
+    y = [t for times in DIETS.values() for t in times]
+    assert compared(api, DIET, runs, y, control="nobody")["several"]["control"] == "A"
+
+
+def test_labels_that_read_as_numbers_are_compared_as_levels(api):
+    lots = {"name": "Lot", "type": "categorical", "levels": ["3", "1", "2"]}
+    found = compared(api, lots, ["1", "1", "2", "2", "3", "3"], [10, 11, 12, 13, 20, 21])
+    assert [level["level"] for level in found["levels"]] == ["3", "1", "2"], "in the order listed, not as numbers"
+    assert found["several"]["control"] == "3"
+
+
+# --------------------------------------------------------------------------- simulated, and the best settings
+def test_a_simulated_process_spreads_a_factor_s_effect_over_its_levels(api):
+    """The reactor moves the response by -c at the first catalyst and +c at the last: over the contrasts, -c and 0."""
+    design = made(api, [CATALYST, T], n_replicates=2)
+    held = held_of(design)
+    simulated = api.ok("api_simulate", {**held, "scenario": "main_effects", "sigma": 0.5, "seed": 2})
+    truth = {t["term"]: t["coefficient"] for t in simulated["truth"]}
+    assert set(truth) >= {"Catalyst_L1", "Catalyst_L2", "T"}
+    assert truth["Catalyst_L2"] == 0, "the middle level lies on the average"
+    assert "Catalyst[A]" in simulated["equation"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"], "truth": simulated["truth"]})
+    true = {c["label"]: c["true_value"] for c in analysis["coefficients"]}
+    assert true["Catalyst[A]"] == truth["Catalyst_L1"]
+
+
+def test_the_best_settings_hold_each_level_in_turn(api):
+    design = made(api, [CATALYST, T, FACTORS[1]])
+    held = held_of(design)
+    held["spec"]["response_info"] = {"goal": "maximize"}
+    sheet = run_sheet(design)
+    effects = {"A": 0.0, "B": 4.0, "C": -2.0}
+    y = [
+        50 + effects[c] + 2 * (t - 175) / 25 - (p - 2)
+        for c, t, p in zip(sheet["Catalyst"], sheet["T"], sheet["P"], strict=True)
+    ]
+    best = api.ok("api_best_settings", {**held, "responses": y, "model": "main_effects"})
+    assert {s["name"]: s["value"] for s in best["settings"]} == {"Catalyst": "B", "T": 200, "P": 1}
+    assert best["predicted"] == pytest.approx(57.0)
+    plots = api.ok("api_plots", {**held, "responses": y, "model": "main_effects", "best": best["coded"]})
+    assert plots["contour_factors"] == ["T", "P"]
+    assert plots["held"] == [{"name": "Catalyst", "value": "B"}], "the surface is drawn at the best catalyst"
