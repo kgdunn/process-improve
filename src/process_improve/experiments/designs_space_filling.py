@@ -304,6 +304,21 @@ def _run_count(n_runs: float | None, default: int) -> int:
     return int(n)
 
 
+def _refuse_unfillable(factors: list[Factor]) -> None:
+    """Raise for factors no space-filling design here can fill: a categorical factor, or components beside others."""
+    if any(f.type == FactorType.categorical for f in factors):
+        raise ValueError(
+            "Space-filling designs need continuous or mixture factors; a categorical level has no distance."
+        )
+    is_mixture = [f.type == FactorType.mixture for f in factors]
+    if any(is_mixture) and not all(is_mixture):
+        raise ValueError(
+            "Space-filling designs fill a box or a simplex, not both: give mixture components only, or process "
+            "factors only. An optimal design ('d_optimal', 'i_optimal') places mixture components and process "
+            "factors together."
+        )
+
+
 def space_filling_design(
     factors: list[Factor],
     n_runs: int | None,
@@ -356,10 +371,7 @@ def space_filling_design(
     """
     if method not in SPACE_FILLING_METHODS:
         raise ValueError(f"Unknown space-filling method {method!r}; choose from {', '.join(SPACE_FILLING_METHODS)}.")
-    if any(f.type == FactorType.categorical for f in factors):
-        raise ValueError(
-            "Space-filling designs need continuous or mixture factors; a categorical level has no distance."
-        )
+    _refuse_unfillable(factors)
     rng = check_random_state(random_state)
     region = DesignRegion(factors, constraints)
     on_box = region.kind == "box" and not region.is_constrained

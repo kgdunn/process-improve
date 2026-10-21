@@ -41,18 +41,24 @@ The mixture model on the left of ``+`` or ``*`` is a Scheffé model name
 
 from __future__ import annotations
 
+import ast
 import itertools
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve.experiments.designs_constrained import _factor_names, nfkc
 from process_improve.experiments.designs_mixture_constrained import (
     SCHEFFE_DEGREE,
     cubic_difference_term,
     scheffe_model,
 )
+
+if TYPE_CHECKING:
+    from process_improve.experiments.factor import Constraint, Factor
 
 #: The process models, and the order-based mixture-process models, by name.
 PROCESS_MODELS = ("main_effects", "interactions", "quadratic")
@@ -250,3 +256,37 @@ def mixture_process_model(mixture: list[str], process: list[str], model_type: st
             + beyond_main
         )
     return MixtureProcessModel(order, tuple(terms))
+
+
+def split_constraints(
+    constraints: list[Constraint], mixture: list[Factor], process: list[Factor]
+) -> tuple[list[Constraint], list[Constraint]]:
+    """Return the constraints on the components and the constraints on the process factors.
+
+    A mixture-process region is the product of the constrained simplex and the
+    constrained process box, so each constraint must name factors of one side only. A
+    constraint that cannot be parsed, or names no factor, goes to the process side,
+    whose parser then gives its usual message.
+
+    Raises
+    ------
+    ValueError
+        If a constraint names both a component and a process factor.
+    """
+    on_mixture = {nfkc(f.name) for f in mixture}
+    on_process = {nfkc(f.name) for f in process}
+    blends: list[Constraint] = []
+    settings: list[Constraint] = []
+    for constraint in constraints:
+        try:
+            named = set(_factor_names(ast.parse(constraint.expression, mode="eval")))
+        except SyntaxError:
+            named = set()
+        if named & on_mixture and named & on_process:
+            raise ValueError(
+                f"Constraint {constraint.expression!r} names both mixture components "
+                f"{sorted(named & on_mixture)} and process factors {sorted(named & on_process)}. A constraint must "
+                "limit the blends or the process settings, not both together."
+            )
+        (blends if named & on_mixture else settings).append(constraint)
+    return blends, settings

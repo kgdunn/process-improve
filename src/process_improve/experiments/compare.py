@@ -1057,10 +1057,10 @@ def _region_over(region: DesignRegion, names: Sequence[str]) -> DesignRegion | N
         If the region is a mixture region, names a factor the designs do not have, or
         leaves no setting at all.
     """
-    if region.kind == "mixture":
+    if region.kind != "box":
         raise ValueError(
-            "compare_designs scores designs over a box of factor settings; a mixture region, of proportions that "
-            "sum to 1, cannot be compared over."
+            "compare_designs scores designs over a box of factor settings; a mixture region (or a mixture-process "
+            "one), of proportions that sum to 1, cannot be compared over."
         )
     missing = [f.name for f in region.factors if f.name not in names]
     if missing:

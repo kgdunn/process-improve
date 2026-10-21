@@ -88,8 +88,8 @@ class TestInputErrors:
             constrained_mixture_design(BOUNDED, None, [Constraint(expression="x3 >= 0.5")])
 
     def test_mixing_mixture_and_process_factors(self) -> None:
-        with pytest.raises(ValueError, match="all mixture components or none"):
-            DesignRegion([*BOUNDED, Factor(name="T", low=0, high=1)])
+        """Components beside a process factor make a mixture-process region (see tests/test_mixture_process.py)."""
+        assert DesignRegion([*BOUNDED, Factor(name="T", low=0, high=1)]).kind == "mixture_process"
 
     def test_unknown_mixture_model(self) -> None:
         with pytest.raises(

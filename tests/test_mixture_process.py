@@ -7,7 +7,16 @@ import pandas as pd
 import pytest
 from patsy import dmatrix
 
+from process_improve.experiments import DesignRegion, Factor
 from process_improve.experiments.designs_mixture_process import mixture_process_model
+
+#: Three bounded components and two process factors, used for the region and the designs.
+BLENDS = [
+    Factor(name="x1", type="mixture", low=0.1, high=0.6),
+    Factor(name="x2", type="mixture", low=0.1, high=0.6),
+    Factor(name="x3", type="mixture", low=0.1, high=0.6),
+]
+SETTINGS = [Factor(name="T", low=20, high=80, units="degC"), Factor(name="S", low=100, high=300, units="rpm")]
 
 
 def _points(q: int, m: int, n: int = 60, seed: int = 0) -> pd.DataFrame:
@@ -128,3 +137,59 @@ class TestModelNames:
     def test_combined_name_is_normalised(self) -> None:
         model = mixture_process_model(*_names(3, 2), "quadratic*main_effects")
         assert model.name == "scheffe_quadratic * main_effects"
+
+
+class TestRegion:
+    """A mixture-process region is the product of a mixture region and a box region."""
+
+    def test_kind_columns_and_bounds(self) -> None:
+        region = DesignRegion([BLENDS[0], SETTINGS[0], *BLENDS[1:], SETTINGS[1]])
+        assert region.kind == "mixture_process"
+        assert region.names == ["x1", "T", "x2", "x3", "S"]
+        assert region.bounds == [(0.1, 0.6), (-1.0, 1.0), (0.1, 0.6), (0.1, 0.6), (-1.0, 1.0)]
+
+    def test_feasible_needs_blends_summing_to_one_and_settings_in_the_box(self) -> None:
+        region = DesignRegion([*BLENDS, *SETTINGS], ["x1 + x2 <= 0.7", "T + S <= 300"])
+        points = np.array(
+            [
+                [0.3, 0.3, 0.4, 0.0, 0.0],  # feasible
+                [0.3, 0.3, 0.3, 0.0, 0.0],  # the blend sums to 0.9
+                [0.4, 0.4, 0.2, 0.0, 0.0],  # x1 + x2 = 0.8
+                [0.3, 0.3, 0.4, 1.2, 0.0],  # T beyond its range
+                [0.3, 0.3, 0.4, 1.0, 1.0],  # T + S = 380 in actual units
+            ]
+        )
+        np.testing.assert_array_equal(region.feasible(points), [True, False, False, False, False])
+
+    def test_sample_is_feasible_and_spread_over_both_parts(self) -> None:
+        region = DesignRegion([*BLENDS, *SETTINGS], ["x1 <= 0.4"])
+        points = region.sample(4000, np.random.default_rng(1))
+        assert region.feasible(points).all()
+        np.testing.assert_allclose(points[:, :3].sum(axis=1), 1.0)
+        np.testing.assert_allclose(points[:, 3:].mean(axis=0), 0.0, atol=0.05)
+
+    def test_support_points_cross_the_parts(self) -> None:
+        region = DesignRegion([*BLENDS, *SETTINGS])
+        blends = DesignRegion(BLENDS).support_points()
+        settings = DesignRegion(SETTINGS).support_points()
+        points = region.support_points()
+        assert len(points) == len(blends) * len(settings)
+        assert region.feasible(points).all()
+
+    def test_volume_fraction_is_the_product_of_the_parts(self) -> None:
+        region = DesignRegion([Factor(name=n, type="mixture") for n in "ABC"] + SETTINGS[:1], ["A <= 0.5", "T <= 50"])
+        assert region.volume_fraction() == pytest.approx(0.75 * 0.5)
+
+    def test_round_trip_keeps_the_kind(self) -> None:
+        region = DesignRegion([*BLENDS, *SETTINGS], ["x1 <= 0.4"])
+        again = DesignRegion.from_dict(region.to_dict())
+        assert again.kind == "mixture_process"
+        assert again.is_constrained
+
+    def test_a_constraint_joining_both_parts_is_refused(self) -> None:
+        with pytest.raises(ValueError, match=r"names both mixture components \['x1'\] and process factors \['T'\]"):
+            DesignRegion([*BLENDS, *SETTINGS], ["x1 + 0.01*T <= 1"])
+
+    def test_box_diagnostics_are_refused(self) -> None:
+        with pytest.raises(ValueError, match="describes a box of factor settings"):
+            DesignRegion([*BLENDS, *SETTINGS]).centroid()
