@@ -222,6 +222,32 @@ def test_your_studies_puts_delete_at_the_right_end_of_each_row(page):
     assert end == row
 
 
+@pytest.mark.parametrize(
+    "context_options",
+    [{"viewport": {"width": 744, "height": 1000}}, {"viewport": {"width": 390, "height": 844}, "is_mobile": True}],
+    ids=["ipad-mini", "phone"],
+)
+def test_your_studies_lines_up_every_share_and_every_delete(page):
+    """Share sits in one column down the list, the study on the page (with no Delete) included; Delete in another."""
+    for design_type in ("full_factorial", "ccd"):
+        generate(page, design_type=design_type, n_center_points=2)
+        practise(page)
+        page.fill("#design-table input[data-index='0']", "12.5")  # a result typed in: this study is kept
+    generate(page, design_type="box_behnken")
+    saved(page, 3)
+    page.click("#library summary")
+    lefts = page.eval_on_selector_all(
+        ".library__share", "all => all.map((b) => Math.round(b.getBoundingClientRect().left))"
+    )
+    rights = page.eval_on_selector_all(
+        ".library__delete", "all => all.map((b) => Math.round(b.getBoundingClientRect().right))"
+    )
+    assert len(lefts) == 3, "every study, the one on the page too"
+    assert len(set(lefts)) == 1, lefts
+    assert len(rights) == 2, "every study but the one on the page"
+    assert len(set(rights)) == 1, rights
+
+
 def test_a_link_opens_the_design_and_its_results_in_another_browser(open_context, context, page, site):
     generate(page, design_type="full_factorial", n_center_points=2)
     practise(page)
