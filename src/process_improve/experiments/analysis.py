@@ -1381,10 +1381,28 @@ def _design_rank(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str)
     The rank of the model matrix in the factors' own units can come out lower than the
     design's in floating point when the units are very unequal (pascals beside kelvin)
     or a span is tiny next to its distance from zero. Coding each numeric factor to
-    -1/+1 removes both without changing which terms the runs can separate. A mixture
-    model's components are proportions and are not coded.
+    -1/+1 removes both without changing which terms the runs can separate, as long as
+    the coding re-expresses the model. A model that is not hierarchical can span other
+    columns once coded: ``A:B`` without ``B``, or a factor nested in another through the
+    other's 0/1 indicators, ``I1:B + I2:B``, which coded are ``(2*I1 - 1)*B`` and its
+    negative. Its rank is then its own, of its columns as given scaled to unit length,
+    which no choice of units changes. A mixture model's components are proportions and
+    are not coded.
     """
-    return int(np.linalg.matrix_rank(np.asarray(_coded_model_matrix(df, rhs, factor_cols, model), dtype=float)))
+    coded = np.asarray(_coded_model_matrix(df, rhs, factor_cols, model), dtype=float)
+    rank = int(np.linalg.matrix_rank(coded))
+    if model in SCHEFFE_MODELS:
+        return rank
+    given = _unit_columns(np.asarray(dmatrix(rhs, df, return_type="dataframe"), dtype=float))
+    if int(np.linalg.matrix_rank(np.hstack([_unit_columns(coded), given]))) == rank:
+        return rank  # the columns as given lie in the coded ones' span: coding re-expressed the model
+    return int(np.linalg.matrix_rank(given))
+
+
+def _unit_columns(matrix: np.ndarray) -> np.ndarray:
+    """Return a matrix with each column scaled to unit length, so its rank does not depend on the units."""
+    norms = np.linalg.norm(matrix, axis=0)
+    return matrix / np.where(norms > 0, norms, 1.0)
 
 
 def _coded_model_matrix(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str) -> pd.DataFrame:

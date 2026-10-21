@@ -222,6 +222,30 @@ class TestRankDeficiency:
         assert summary["model"] == "interactions"
         assert "model_note" not in summary
 
+    def test_a_factor_nested_through_another_s_indicators_is_ranked_as_given(self) -> None:
+        """Operators 1 to 4 within each of two layouts: L + I1:o + I2:o has rank 4, though coded it would have 3.
+
+        Coding the 0/1 indicators to -1/+1 makes I2 the negative of I1, so the coded columns lose one: the model is
+        not hierarchical, and coding changes it rather than re-expressing it.
+        """
+        layout = np.repeat([0, 1], 12)
+        operator = np.tile(np.repeat([0, 1, 2, 3], 3), 2)
+        df = pd.DataFrame(
+            {
+                "L": np.where(layout == 0, -1.0, 1.0),
+                "I1": (layout == 0).astype(float),
+                "I2": (layout == 1).astype(float),
+                "o": (operator == 0).astype(float) - (operator == 3),
+                "y": np.random.default_rng(0).normal(size=24),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = analyze_experiment(df, response_column="y", model="L + I1:o + I2:o", analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["rank_deficient"] is False
+        assert summary["model_rank"] == summary["n_terms"] == 4
+
     def test_rank_deficient_model_warns_and_reports(self) -> None:
         df = self._foldover_design()
         model = "A + B + I(A**2) + I(B**2) + A:B"
