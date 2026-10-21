@@ -1,0 +1,39 @@
+# The README's badge for the tests on main: green or red as the latest run of the
+# tests on main that was not cancelled.
+#
+# Merges to main share one concurrency group in run-tests.yml, and GitHub keeps one
+# run waiting in a group: when a third merge lands while one run is going and another
+# waits, the waiting run is cancelled. The run that follows tests every merge before
+# it, so nothing goes untested, but a badge of run-tests.yml shows the cancelled run,
+# and GitHub draws a cancelled run as failing. This workflow runs after each run of
+# the tests on main, cancelled or not, and passes or fails as the latest run that
+# was not cancelled did.
+name: Tests on main
+
+on:
+  workflow_run:
+    workflows: [Unit tests]
+    types: [completed]
+    branches: [main]
+
+# It reads the runs of the tests through the API, and nothing else.
+permissions:
+  actions: read
+
+jobs:
+  status:
+    name: Latest tests on main
+    runs-on: ubuntu-latest
+    steps:
+    - name: Pass or fail as the latest run of the tests on main that was not cancelled
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+      run: |
+        # A pull request from a fork's own main branch also reports a head branch of
+        # main, so only the runs of pushes, the nightly schedule and manual runs count.
+        latest=$(gh api "repos/$REPO/actions/workflows/run-tests.yml/runs?branch=main&status=completed&per_page=50" \
+          --jq '[.workflow_runs[] | select(.event != "pull_request" and .conclusion != "cancelled")][0]
+                | "\(.conclusion) \(.html_url)"')
+        echo "The latest run of the tests on main that was not cancelled: $latest"
+        [ "${latest%% *}" = success ]
