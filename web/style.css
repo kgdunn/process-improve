@@ -122,6 +122,8 @@ h1 {
   margin: 6px 0 0; color: var(--muted); font-style: italic;
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
 }
+/* "prove" in Improve: upright in the italic line, bold, in the red of the mark's centre run. */
+.tagline b { color: var(--mark-centre); font-style: normal; font-weight: 700; }
 h2 { display: flex; align-items: center; gap: 10px; font-size: 1.3rem; margin: 0 0 12px; }
 h3 { font-size: 1.05rem; margin: 20px 0 8px; }
 a { color: var(--accent); }
