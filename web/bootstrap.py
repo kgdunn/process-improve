@@ -58,6 +58,7 @@ from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
+from process_improve.univariate import randomization_interval, randomization_test, rank_sum_test, ttest_independent
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -2051,6 +2052,11 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, names))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     notes = fit["notes"]
+    order = runs.loc[done, "Run order"].astype(int).tolist() if "Run order" in runs else None
+    comparison = _comparison(coded, y[done].to_numpy(dtype=float), spec, order)
+    if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
+        true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
+        comparison["difference"]["true"] = None if true is None else 2 * true
     terms = _model_terms(model, names, categorical)
     if spec["design_type"] == "taguchi" and not any(":" in term for term in terms):
         # A model with interactions has the alias chains' note instead.
@@ -2070,6 +2076,117 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
         "notes": notes,
         "equation": _equation(_response_words(spec)[0], [c for c in coefficients if not c["block"]]),
+        "comparison": comparison,
+    }
+
+
+#: The confidence of each interval the comparison of one factor's levels gives, as of the coefficients'.
+CONFIDENCE = 0.95
+
+#: The most arrangements of the runs the randomization test counts: every one up to this many, else this many
+#: drawn at random. Its interval, which counts every arrangement, is given only then.
+ARRANGEMENTS = 200_000
+
+
+def _comparison(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None) -> dict | None:
+    """Compare one factor's levels: each level's results, and at two levels the difference between them.
+
+    Each level lists its runs (their run order and result), their average, standard deviation and the
+    interval for the average from those runs alone. With the runs at the low and the high only, two
+    or more at each, ``difference`` is the high's average less the low's, tested four ways: the
+    t-test with one variance for both levels (the model's own test), Welch's t-test with each level's
+    own variance, the randomization test, which counts the arrangements of the runs the random order
+    could have made, and Wilcoxon's rank-sum test. A study of more factors, or in blocks, has none.
+    """
+    factors = spec["factors"]
+    if len(factors) != 1 or _blocked(spec):
+        return None
+    factor = factors[0]
+    x = np.round(coded[factor["name"]].to_numpy(dtype=float), 6)
+    runs = order if order is not None else list(range(1, len(y) + 1))
+    levels = [
+        _level(factor, setting, y[x == setting], [r for r, at in zip(runs, x, strict=True) if at == setting])
+        for setting in np.unique(x)
+    ]
+    out: dict[str, Any] = {"factor": factor["name"], "levels": levels, "difference": None}
+    low, high = y[x == -1], y[x == 1]
+    if len(levels) == 2 and min(len(low), len(high)) >= 2:  # two levels, two runs each, for a variance
+        out["difference"] = _difference(low, high, factor, spec.get("options", {}).get("random_state", 0))
+    return out
+
+
+def _level(factor: dict, setting: float, values: np.ndarray, runs: list[int]) -> dict[str, Any]:
+    """Summarise one level's results: its runs, their average, standard deviation and the interval for the average."""
+    name = (factor["low"] if setting < 0 else factor["high"]) if _categorical(factor) else _actual(factor, setting)
+    n = len(values)
+    sd = float(values.std(ddof=1)) if n > 1 else None
+    half = float(_critical_t(n - 1) * sd / math.sqrt(n)) if sd is not None else None
+    mean = float(values.mean())
+    return {
+        "level": name,
+        "coded": float(setting),
+        "n": n,
+        "mean": mean,
+        "std_dev": sd,
+        "ci_low": None if half is None else mean - half,
+        "ci_high": None if half is None else mean + half,
+        "runs": [{"run": r, "value": float(v)} for r, v in zip(runs, values, strict=True)],
+    }
+
+
+def _actual(factor: dict, coded: float) -> float:
+    """Return a numeric factor's setting in its own units from its coded value."""
+    return float(f"{(factor['low'] + factor['high']) / 2 + coded * (factor['high'] - factor['low']) / 2:.6g}")
+
+
+def _critical_t(df: int) -> float:
+    """Return the two-sided critical value of Student's t at :data:`CONFIDENCE` on ``df`` degrees of freedom."""
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    return float(stats.t.ppf(1 - (1 - CONFIDENCE) / 2, df))
+
+
+def _difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> dict[str, Any]:
+    """Test the difference between a factor's high and low levels four ways; see :func:`_comparison`."""
+    tests = []
+    for name, equal in (("pooled", True), ("welch", False)):
+        found = ttest_independent(pd.Series(low), pd.Series(high), conflevel=CONFIDENCE, equal_var=equal)
+        tests.append(
+            {
+                "test": name,
+                "statistic": found["t value"],
+                "df": found["Degrees of freedom"],
+                "ci_low": found["ConfInt: Lo"],
+                "ci_high": found["ConfInt: Hi"],
+                "p_value": found["p value"],
+            }
+        )
+    found = randomization_test(low, high, max_arrangements=ARRANGEMENTS, random_state=seed)
+    interval: dict[str, Any] = {"ci_low": None, "ci_high": None, "confidence": None}
+    if found["exact"]:
+        with contextlib.suppress(ValueError):  # too few arrangements for a 95% interval: 3 runs at each make 20
+            made = randomization_interval(low, high, confidence=CONFIDENCE)
+            interval = {k: made[k] for k in interval}
+    tests.append(
+        {
+            "test": "randomization",
+            "p_value": found["p_value_two_sided"],
+            "n_arrangements": found["n_arrangements"],
+            "exact": found["exact"],
+            **interval,
+        }
+    )
+    ranks = rank_sum_test(low, high, max_arrangements=ARRANGEMENTS)
+    exact = "exact_p_value_less" in ranks
+    p = min(1.0, 2 * min(ranks["exact_p_value_less"], ranks["exact_p_value_greater"])) if exact else ranks["p_value"]
+    tests.append({"test": "rank_sum", "statistic": ranks["rank_sum_y"], "p_value": p, "exact": exact})
+    labels = (factor["low"], factor["high"]) if _categorical(factor) else (_actual(factor, -1), _actual(factor, 1))
+    return {
+        "estimate": float(high.mean() - low.mean()),
+        "from": labels[0],
+        "to": labels[1],
+        "true": None,
+        "tests": tests,
     }
 
 

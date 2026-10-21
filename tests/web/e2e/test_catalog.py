@@ -14,7 +14,7 @@ import re
 import pytest
 
 from tests.web._support import BOOK_DESIGN, CATALOG_SAMPLE
-from tests.web.e2e._page import run_sheet, settled
+from tests.web.e2e._page import headers, run_sheet, settled
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
 
@@ -262,13 +262,34 @@ def test_the_robustness_filters_keep_the_designs_that_withstand_more(context, si
     assert survives.locator(".count").text_content() == "3", "each of the three survives losing a run"
 
 
-def test_a_design_the_page_cannot_take_says_why_it_does_not_open(context, site):
+def test_a_design_the_page_cannot_take_says_why_it_does_not_open(context, site, catalog_files):
+    """The comparison's detail, as the build writes a design it cannot open: no campaign, and the reason."""
+    index = json.loads((catalog_files / "index.json").read_text())
+    name = next(d["detail"] for d in index["designs"] if d["id"] == COMPARISON)
+    shard = json.loads((catalog_files / "detail" / f"{name}.json").read_text())
+    closed = {"campaign": None, "opens_as": None, "closed": "the source prints no complete table of runs"}
+    shard["designs"][COMPARISON] |= closed
+    context.route(f"{site}catalog/detail/{name}.json", lambda route: route.fulfill(json=shard))
     page = open_catalog(context, site, f"#d={COMPARISON}")
     page.wait_for_selector("#detail[open]")
-    assert "Factorial does not open this design: the page opens designs of 2 to 12 factors." in page.text_content(
+    assert "Factorial does not open this design: the source prints no complete table of runs." in page.text_content(
         "#detail-body"
     )
     assert page.locator(f"#detail-body [data-open='{COMPARISON}']").count() == 0
+
+
+def test_a_comparison_of_two_methods_opens_in_factorial_with_its_results(context, site):
+    """Box, Hunter and Hunter's ten batches by method A, then ten by method B: one factor, its runs as printed."""
+    page = open_catalog(context, site, f"#d={COMPARISON}")
+    page.wait_for_selector("#detail[open]")
+    assert "Factorial opens the source's runs as it prints them, in their order" in page.text_content("#detail-body")
+    page.click(f"#detail-body [data-open='{COMPARISON}']")
+    page.wait_for_selector("#campaign-banner", state="visible")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    settled(page)
+    column = headers(page).index("method")
+    assert [run[column] for run in run_sheet(page)] == ["A"] * 10 + ["B"] * 10
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
 
 
 def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(context, site):
