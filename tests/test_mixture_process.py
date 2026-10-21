@@ -637,6 +637,25 @@ class TestCategoricalDesigns:
         assert quality["d_efficiency"] == pytest.approx(expected)
         assert quality["degrees_of_freedom"]["model"] == x.shape[1] - 1  # full rank; the blends span the mean
 
+    def test_treatment_coding_is_full_rank_too(self) -> None:
+        """Treatment coding also keeps L - 1 columns, and compares two designs as effect coding does.
+
+        The D-efficiency itself depends on the coding, as the determinant does, but the ratio of
+        two designs' D-efficiencies does not.
+        """
+        d_opt = generate_design(WITH_CATALYST, design_type="d_optimal", model_type="interactions", budget=24)
+        i_opt = generate_design(WITH_CATALYST, design_type="i_optimal", model_type="interactions", budget=24)
+
+        def quality(result: object, coding: str) -> dict:
+            return evaluate_design(result, metric=["d_efficiency", "degrees_of_freedom"], categorical_coding=coding)
+
+        effect = [quality(r, "effect") for r in (d_opt, i_opt)]
+        treatment = [quality(r, "treatment") for r in (d_opt, i_opt)]
+        assert treatment[0]["degrees_of_freedom"] == effect[0]["degrees_of_freedom"]
+        assert treatment[0]["d_efficiency"] / treatment[1]["d_efficiency"] == pytest.approx(
+            effect[0]["d_efficiency"] / effect[1]["d_efficiency"]
+        )
+
     def test_i_optimal_average_is_over_the_levels_too(self) -> None:
         result = generate_design(WITH_CATALYST, design_type="i_optimal", budget=22)
         average = evaluate_design(result, metric="average_prediction_variance")["average_prediction_variance"]
