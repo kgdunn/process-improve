@@ -474,3 +474,37 @@ def test_optimum_is_a_blend_in_the_region_and_beats_a_dense_sample(simulated_run
     assert optimum[["x1", "x2", "x3"]].sum(axis=1).iloc[0] == pytest.approx(1.0)
     sample = pd.DataFrame(region.sample(50_000, np.random.default_rng(1)), columns=region.names)
     assert _true_response(optimum)[0] >= _true_response(sample).max() - 0.05
+
+
+class TestEdgeCases:
+    FACTORS = (*BLENDS, *SETTINGS)
+
+    def test_a_constraint_that_does_not_parse_gets_the_parser_message(self) -> None:
+        with pytest.raises(ValueError, match="is not a valid expression"):
+            DesignRegion(list(self.FACTORS), ["x1 + <= 2"])
+
+    def test_too_many_candidates_are_sampled_down(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_mixture_process
+
+        monkeypatch.setattr(designs_mixture_process, "MAX_CANDIDATES", 60)
+        result = generate_design(list(self.FACTORS), design_type="d_optimal", model_type="main_effects", budget=8)
+        assert result.metadata["n_candidates"] == 60
+
+    def test_a_region_too_small_for_the_model(self) -> None:
+        blends = [Factor(name="a", type="mixture"), Factor(name="b", type="mixture")]
+        with pytest.raises(
+            ValueError,
+            match=r"1 candidate blends at 5 process settings\) cannot support the 'interactions' model with 5 terms",
+        ):
+            generate_design([*blends, SETTINGS[0]], design_type="d_optimal", budget=6, constraints=["0.5 <= a <= 0.5"])
+
+    def test_space_filling_refuses_components_beside_process_factors(self) -> None:
+        from process_improve.experiments.designs_space_filling import space_filling_design
+
+        with pytest.raises(ValueError, match="fill a box or a simplex, not both"):
+            space_filling_design(list(self.FACTORS), 10, "maximin")
+
+    def test_evaluate_takes_an_explicit_formula_over_the_region(self) -> None:
+        result = generate_design(list(self.FACTORS), budget=16)
+        freedom = evaluate_design(result, model="-1 + x1 + x2 + x3 + T", metric="degrees_of_freedom")
+        assert freedom["degrees_of_freedom"]["residual"] == 16 - 4
