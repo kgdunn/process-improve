@@ -156,11 +156,11 @@ describe("the study's tables", () => {
   });
 
   test("the brief: the factors' ranges, the responses' goals, the aim and the limits", () => {
-    const html = briefHtml(spec, { aim: "Which matter, and how they act together" });
+    const html = briefHtml(spec, { aim: "Which factors matter, and how they act together" });
     assert.match(html, /<td>T<\/td><td>150<\/td><td>200<\/td><td>degC<\/td>/);
     assert.match(html, /<td>Catalyst<\/td><td>Pd<\/td><td>Pt<\/td><td><\/td>/, "a categorical factor has no units");
     assert.match(html, /<td>Yield<\/td><td>%<\/td><td>Hit a target: 80<\/td>/);
-    assert.match(html, /<p>Aim: Which matter, and how they act together<\/p>/);
+    assert.match(html, /<p>Aim: Which factors matter, and how they act together<\/p>/);
     assert.match(html, /<li><code>T &lt;= 190<\/code>: the seal's rating<\/li>/);
     assert.match(briefHtml(spec, { mixture: true }), /<th>Component<\/th><th>Least<\/th><th>Most<\/th>/);
     assert.doesNotMatch(briefHtml({ ...spec, constraints: [] }), /Limits/);

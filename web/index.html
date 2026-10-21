@@ -140,7 +140,7 @@
         </p>
         <p id="first-sizes" class="hint" hidden>The first response sizes the design, so the page asks what you know of it.</p>
         <details id="response-known" class="known">
-          <summary>What you know of <span id="known-name">it</span> already</summary>
+          <summary>What you know of <span id="known-name">it</span> already <span class="hint">(optional)</span></summary>
           <div class="row">
             <label><span class="term" data-term="typical">Typical value</span>
               <span class="with-unit"><input id="response-typical" type="number" step="any"><span class="unit"></span></span>
@@ -170,7 +170,7 @@
         </p>
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
         <details id="limits" class="known limits">
-          <summary>Settings you cannot run <span id="limits-count" class="badge" hidden></span></summary>
+          <summary>Settings you cannot run <span class="hint">(constraints)</span> <span id="limits-count" class="badge" hidden></span></summary>
           <p id="limits-mixture" class="hint" hidden>A mixture takes no limits on the settings on this page: give each
             component its lower and upper proportions instead.</p>
           <p class="hint">Type each <button type="button" class="term" data-term="limit">limit</button> as an inequality
@@ -227,8 +227,8 @@
         <div class="aims" role="radiogroup" aria-labelledby="h-aim">
           <label class="aim"><input type="radio" name="aim" value="main_effects"><span><strong>Which factors
             matter</strong><span class="hint"><span class="term" data-term="main-effect">Main effects</span></span></span></label>
-          <label class="aim"><input type="radio" name="aim" value="interactions"><span><strong>Which matter, and how
-            they act together</strong><span class="hint">Main effects and <span class="term"
+          <label class="aim"><input type="radio" name="aim" value="interactions"><span><strong>Which factors matter, and
+            how they act together</strong><span class="hint">Main effects and <span class="term"
             data-term="interaction">two-factor interactions</span></span></span></label>
           <label class="aim"><input type="radio" name="aim" value="main_quadratic" checked><span><strong>Where each
             factor's effect curves</strong><span class="hint">Main effects and <span class="term"
@@ -243,7 +243,7 @@
 
     <div class="panes">
       <section id="step-plan" class="pane" data-pane="plan" role="tabpanel" aria-labelledby="h-plan">
-        <h2 id="h-plan">Designs that can learn this</h2>
+        <h2 id="h-plan">Designs that can help you learn this</h2>
         <p id="plan-empty" class="hint">Enter two factors or more to list them.</p>
         <div id="candidates" class="candidates" aria-live="polite" hidden></div>
         <p class="actions">
