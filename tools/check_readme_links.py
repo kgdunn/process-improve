@@ -30,9 +30,12 @@ URL = re.compile(r"https?://[^\s<>\"'`)\]}]+")
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; process-improve README link check)"}
 ATTEMPTS = 3
 #: Links to this repository's files are not requested: ``tests/test_readme_guards.py`` finds each one on disk,
-#: and github.com answers a script's request for a file page with 503 Service Unavailable.
+#: and github.com answers a script's request for a file page with 503 Service Unavailable. Nor are the badges of
+#: this repository's own workflows: the test finds each workflow's file, and a badge of a workflow added in a
+#: pull request answers 404 until the workflow is on main.
 REPOSITORY_FILE = re.compile(
-    r"https://(?:github\.com/kgdunn/process-improve/(?:blob|tree)/main|raw\.githubusercontent\.com/kgdunn/process-improve/main)/"
+    r"https://(?:github\.com/kgdunn/process-improve/(?:blob|tree)/main/|raw\.githubusercontent\.com/kgdunn/process-improve/main/"
+    r"|github\.com/kgdunn/process-improve/actions/workflows/[^/]+/badge\.svg)"
 )
 
 

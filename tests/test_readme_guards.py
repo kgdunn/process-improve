@@ -40,6 +40,8 @@ REPOSITORY_LINK = re.compile(
     r"raw\.githubusercontent\.com/kgdunn/process-improve/main)/" + _PATH
 )
 DOCS_LINK = re.compile(r"https://kgdunn\.github\.io/process-improve/" + _PATH)
+#: A badge of one of this repository's own workflows, by the name of the workflow's file.
+WORKFLOW_BADGE = re.compile(r"https://github\.com/kgdunn/process-improve/actions/workflows/([^/\s)]+)/badge\.svg")
 
 
 def text_outside_code_blocks(markdown: str) -> str:
@@ -122,7 +124,11 @@ def anchor(heading: str) -> str:
 
 
 def test_links_into_this_repository_and_its_documentation_resolve() -> None:
-    """Every link into the repository names a file on disk, every docs link a page source, every anchor a heading."""
+    """Every link into the repository names a file on disk, every badge a workflow, every anchor a heading, and so on.
+
+    A link into the repository names a file on disk, a badge of one of its workflows the workflow's file, a docs link
+    a page source, and an anchor a heading.
+    """
     problems = []
     for page in ("README.md", "SKLEARN_COMPATIBILITY.md"):
         text = (ROOT / page).read_text(encoding="utf-8")
@@ -131,6 +137,11 @@ def test_links_into_this_repository_and_its_documentation_resolve() -> None:
             f"{page}: {path} is not in the repository"
             for path in REPOSITORY_LINK.findall(text)
             if not (ROOT / path).exists()
+        ]
+        problems += [
+            f"{page}: the badge's workflow .github/workflows/{workflow} is not in the repository"
+            for workflow in WORKFLOW_BADGE.findall(text)
+            if not (ROOT / ".github" / "workflows" / workflow).exists()
         ]
         problems += [
             f"{page}: the docs page {docs_page!r} has no source in docs/"
@@ -158,7 +169,7 @@ def test_the_online_link_check_leaves_exactly_the_repository_links_to_this_file(
         for url in checker.URL.findall((ROOT / page).read_text(encoding="utf-8"))
     }
     skipped = every - set(checker.page_urls())
-    assert skipped == {url for url in every if REPOSITORY_LINK.match(url)}
+    assert skipped == {url for url in every if REPOSITORY_LINK.match(url) or WORKFLOW_BADGE.match(url)}
     assert skipped, "the pages link to files in this repository, so some links are left to the test above"
 
 
