@@ -540,7 +540,7 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 
     It opens a design the page does not make, or makes differently, with the runs as the source prints
     them, or as the library made them: in their order, in the factors' own units, with the source's
-    results. The page takes runs without blocks or whole plots, of 2 to 12 numeric or two-level factors.
+    results. The page takes runs without blocks or whole plots, of 1 to 12 numeric or two-level factors.
     """
     if why := _not_given(record):
         return None, why

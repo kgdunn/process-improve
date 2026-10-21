@@ -93,7 +93,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "hint": "Every combination of low and high. 2^k runs, plus center points.",
         "model": "interactions",
         "options": ["n_center_points", "n_replicates", "n_blocks"],
-        "min_factors": 2,
+        "min_factors": 1,
         "max_factors": 7,
     },
     "fractional_factorial": {
@@ -202,7 +202,7 @@ GIVEN = "given"
 GIVEN_INFO: dict[str, Any] = {
     "label": "Runs as given",
     "hint": "The runs of a design you have already, such as one a book prints: the page takes them as they are.",
-    "min_factors": 2,
+    "min_factors": 1,
     "max_factors": 12,
 }
 
@@ -615,9 +615,9 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: two at least, each a variable name, none twice."""
-    if len(raw) < 2:
-        raise ValueError("Enter at least two factors.")
+    """Read and check the factors' names: one at least, each a variable name, none twice."""
+    if not raw:
+        raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
     if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
         raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
@@ -1061,7 +1061,6 @@ def make_design(spec: dict) -> dict:
     # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
     result = generate_design(made, design_type=design_type, **asked, **({"constraints": expressions} if limits else {}))
 
-    names = [f.name for f in factors]
     runs = _made_runs(result, factors, design_type, kwargs)
     for response in responses:  # a column for each response's results, in the brief's order
         runs[response["name"]] = np.nan
@@ -1077,7 +1076,7 @@ def make_design(spec: dict) -> dict:
         **({"constraints": limits} if limits else {}),
     }
     coded = _coded(runs, stored["factors"])
-    facts = _design_facts(result, coded.to_numpy(dtype=float), names, kwargs)
+    facts = _design_facts(result, coded.to_numpy(dtype=float), stored["factors"], kwargs)
     if array := (result.metadata or {}).get("orthogonal_array"):
         facts["notes"].insert(0, _array_sentence(array, stored["model"]))
     if design_type in SPACE_FILLING:
@@ -1169,7 +1168,12 @@ def _given_design(spec: dict) -> dict:
     for response in responses:
         runs[response["name"]] = np.nan
     groups = _aliased_groups(coded, names)
-    notes = [GIVEN_NOTE, _aliasing_sentence(groups), *([_blocks_sentence(coded, blocks, stored)] if blocks else [])]
+    said = (
+        _levels_sentence(stored["factors"][0], coded[:, 0], given=True)
+        if len(names) == 1
+        else _aliasing_sentence(groups)
+    )
+    notes = [GIVEN_NOTE, said, *([_blocks_sentence(coded, blocks, stored)] if blocks else [])]
     if limits:
         notes.append(_given_limits_sentence(factors, limits, coded))
     facts = {
@@ -1580,8 +1584,11 @@ def _designed_model(design_type: str, resolution: int | None, factors: list[Fact
     array estimates the main effects, and with a numeric factor at three levels (``factors``
     as the library made the design) each numeric factor's square too. A space-filling design
     is made for no model, so it is analysed with the smallest model that holds the study's
-    ``aim``, as an optimal design is made for.
+    ``aim``, as an optimal design is made for. One factor has no interaction, so its design is
+    analysed for its main effect.
     """
+    if len(factors) == 1:
+        return "main_effects"
     if design_type in SPACE_FILLING and aim in OPTIMAL_MODEL:
         return OPTIMAL_MODEL[aim]
     if design_type == "fractional_factorial" and (resolution or 0) >= INTERACTIONS_CLEAR_FROM:
@@ -1792,21 +1799,23 @@ def _resolution(spec: dict, n_factors: int) -> int:
     return resolution
 
 
-def _design_facts(result: Any, coded: np.ndarray, names: list[str], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
+def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
     """State what the generated design is, read off the design rather than its type.
 
     A fraction's resolution and generators come from the library; which main effects and
     two-factor interactions are fully aliased is read from the coded runs, so it holds for
-    every design type and every naming of the factors. ``notes`` are the sentences the
-    page shows.
+    every design type and every naming of the factors. A design in one factor has nothing to
+    alias, and says instead how many runs it makes at each level. ``notes`` are the sentences
+    the page shows.
     """
+    names = [f["name"] for f in factors]
     groups = _aliased_groups(coded, names)
     notes = []
     if result.resolution:
         notes.append(_resolution_sentence(result.resolution, [_spaced(g, names) for g in result.generators or []]))
-    notes.append(_aliasing_sentence(groups))
     replicates = kwargs.get("n_replicates", 1)
-    if replicates > 1:
+    notes.append(_levels_sentence(factors[0], coded[:, 0]) if len(names) == 1 else _aliasing_sentence(groups))
+    if replicates > 1 and len(names) > 1:
         notes.append(
             f"Each run other than the center runs appears {replicates} times, so the repeats estimate the pure error."
         )
@@ -1861,6 +1870,29 @@ def _aliased_groups(coded: np.ndarray, names: list[str]) -> list[list[str]]:
         if len(members) > 1:
             groups.append([labels[varying[m]] for m in members])
     return groups
+
+
+def _levels_sentence(factor: dict, coded: np.ndarray, *, given: bool = False) -> str:
+    """Say how a design in one factor compares its levels: how many runs at its low, at its high and at its center.
+
+    ``coded`` is the factor's coded setting in each run. A design the page makes runs in random order;
+    runs as given (``given``) keep their order, so the sentence does not claim one.
+    """
+    low, high = factor["low"], factor["high"]
+    categorical = _categorical(factor)
+    units = "" if categorical or not factor.get("units") else f" {factor['units']}"
+    at = {level: int(np.isclose(coded, level, atol=ALIAS_TOLERANCE).sum()) for level in (-1, 0, 1)}
+    order = "" if given else ", in random order"
+    shown = (low, high) if categorical else (f"{low:.4g}", f"{high:.4g}")
+    if at[-1] + at[0] + at[1] < len(coded):  # runs as given at other settings: a curve, not a comparison
+        levels = len(np.unique(np.round(coded, 6)))
+        return f"The runs set {factor['name']} at {levels} levels, from {shown[0]} to {shown[1]}{units}."
+    each = f"{at[-1]} runs at each" if at[-1] == at[1] else f"{at[-1]} runs at {shown[0]} and {at[1]} at {shown[1]}"
+    centre = ""
+    if at[0]:
+        middle = f"{(low + high) / 2:.4g}{units}"
+        centre = f", and {at[0]} run{'s' if at[0] != 1 else ''} at its center, {middle}"
+    return f"The runs compare {factor['name']} at {shown[0]} and at {shown[1]}{units}: {each}{centre}{order}."
 
 
 def _resolution_sentence(resolution: int, generators: list[str]) -> str:

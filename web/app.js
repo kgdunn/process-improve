@@ -1201,7 +1201,7 @@ function refreshDesign() {
   hint.classList.toggle("error", option.disabled);
   showTradeOff();
   showMakeable(showFactorProblems());
-  $("#design-card").hidden = k < 2 && !state.design;
+  $("#design-card").hidden = k < 1 && !state.design;
   showAim();
   markPicked();
   markStale();
@@ -1295,7 +1295,7 @@ function pickCell(runs) {
 /** Let the run sheet be made only once Python has started, the design takes these factors, and each is ready. */
 function showMakeable(unready) {
   const fits = !$("#design-type").selectedOptions[0].disabled; // the design takes this many factors, of these kinds
-  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 2 || limitsUnready() || responsesUnready;
+  $("#generate").disabled = !pythonReady || !fits || unready || factorCount() < 1 || limitsUnready() || responsesUnready;
 }
 
 /**
@@ -1562,8 +1562,8 @@ function briefKey(request = briefRequest()) {
 /** What makes two comparisons the same: the brief, and the seed their designs' runs are put in random order with. */
 const candidateKey = (request = candidateRequest()) => JSON.stringify([briefKey(request), request.random_state]);
 
-/** Whether the brief is ready for its designs: two factors or more, each as Python takes it. */
-const briefReady = () => factorCount() >= 2 && !factorsUnready && !limitsUnready();
+/** Whether the brief is ready for its designs: a factor or more, each as Python takes it. */
+const briefReady = () => factorCount() >= 1 && !factorsUnready && !limitsUnready();
 
 /**
  * Make and score the brief's designs a moment after its last change, while Design is on show, unless
@@ -1635,7 +1635,7 @@ function renderCandidates(busy = null) {
         "mixture's run sheet below.",
     ];
   } else if (holding) note = ["hint error", holding];
-  else if (limitsUnready() && factorCount() >= 2 && !factorsUnready) note = ["hint busy", "Reading the limits on the settings..."];
+  else if (limitsUnready() && factorCount() >= 1 && !factorsUnready) note = ["hint busy", "Reading the limits on the settings..."];
   else if (current && c.error) note = ["hint error", c.error];
   else if (current) note = null;
   else if (pythonFailure) note = ["hint error", "The designs are made with Python, which could not start here."];

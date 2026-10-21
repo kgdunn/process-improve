@@ -170,7 +170,12 @@ FUNCTIONS = "abs, sqrt, exp, log and log10"
 #: Each refusal: the entry point, the request as a function of the worked example, and the message.
 REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     # The factors, as typed into the brief.
-    "one factor": ("api_make_design", _make(factors=FACTORS[:1]), "Enter at least two factors."),
+    "no factors": ("api_make_design", _make(factors=[]), "Enter at least one factor."),
+    "one factor, for a design of three or more": (
+        "api_make_design",
+        _make(factors=FACTORS[:1]),
+        "The Box-Behnken design takes 3 to 7 factors on this page; you have 1.",
+    ),
     "repeated name": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "T"}]),
@@ -806,7 +811,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             factors=[{"name": f"X{i}", "low": 0, "high": 1} for i in range(13)],
             runs=[[0] * 13],
         ),
-        "Runs as given take 2 to 12 factors on this page; you have 13.",
+        "Runs as given take 1 to 12 factors on this page; you have 13.",
     ),
     "given: a block short": (
         "api_make_design",

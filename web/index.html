@@ -252,7 +252,7 @@
     <div class="panes">
       <section id="step-plan" class="pane" data-pane="plan" role="tabpanel" aria-labelledby="h-plan">
         <h2 id="h-plan">Designs that can help you learn this</h2>
-        <p id="plan-empty" class="hint">Enter two factors or more to list them.</p>
+        <p id="plan-empty" class="hint">Enter a factor or more to list them.</p>
         <div id="candidates" class="candidates" aria-live="polite" hidden></div>
         <p class="actions">
           <button type="button" id="search" class="button" hidden>Search for the optimal designs</button>
@@ -266,7 +266,7 @@
               <!-- Mirrors bootstrap.DESIGNS (label, hint, options) so the form is
                    right before Python loads; tests/web/page/test_parity.py keeps them in step. -->
               <select id="design-type" autocomplete="off">
-                <option value="full_factorial" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="7"
+                <option value="full_factorial" data-options="n_center_points n_replicates n_blocks" data-min-factors="1" data-max-factors="7"
                   data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
                 <option value="fractional_factorial" data-options="n_center_points resolution n_replicates n_blocks" data-min-factors="3" data-max-factors="11"
                   data-hint="A fraction of the full factorial; its resolution says what is aliased with what.">Fractional factorial (2-level)</option>
@@ -286,7 +286,7 @@
                   data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
                 <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
                   data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
-                <option value="given" data-options="" data-min-factors="2" data-max-factors="12" hidden
+                <option value="given" data-options="" data-min-factors="1" data-max-factors="12" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
                 <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
                 <optgroup label="Mixtures: proportions that sum to 1">
