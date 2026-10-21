@@ -735,6 +735,13 @@ table.compare .unfit { color: var(--muted); }
 table.compare td.scored { background: color-mix(in srgb, var(--ok) calc(var(--good) * 26%), transparent); }
 table.compare td.row-best { font-weight: 700; }
 table.compare .unfit.first { border-left: 1px dashed var(--line); }
+/* The rows of switches and of "Use this design" sit close under the designs' names. */
+table.compare tr.shows th, table.compare tr.uses th { padding-top: 2px; padding-bottom: 2px; vertical-align: middle; }
+table.compare tr.uses .link { white-space: nowrap; }
+/* A design the reader hides: after a thick line, in light grey and unshaded. Its switch stays as it is. */
+table.compare .set-aside { color: color-mix(in srgb, var(--muted) 55%, transparent); }
+table.compare .set-aside .link { color: inherit; }
+table.compare .parted { border-left: 4px solid var(--muted); }
 table.compare tr.group span { position: sticky; left: 10px; display: inline-block; }
 .charts > .hint.wide { grid-column: 1 / -1; margin: 0; }
 
