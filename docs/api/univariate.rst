@@ -14,6 +14,11 @@ Reference distributions from past records
    :undoc-members:
    :show-inheritance:
 
+Error transmission
+------------------
+
+.. automodule:: process_improve.univariate.error_transmission
+
 Serial correlation
 ------------------
 

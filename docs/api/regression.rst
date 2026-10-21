@@ -6,6 +6,11 @@ Regression
    :undoc-members:
    :show-inheritance:
 
+Power of a regressor
+--------------------
+
+.. automodule:: process_improve.regression.box_tidwell
+
 Nonlinear least squares
 -----------------------
 

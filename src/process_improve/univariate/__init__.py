@@ -19,6 +19,7 @@ from process_improve.univariate.classical import (
     z_value,
     ztest,
 )
+from process_improve.univariate.error_transmission import error_transmission
 from process_improve.univariate.metrics import (
     Sn,
     benjamini_hochberg,
@@ -71,6 +72,7 @@ __all__ = [
     "difference_variance",
     "distribution_fit",
     "dunnett_value",
+    "error_transmission",
     "f_value",
     "fit_ma1",
     "get_univariate_tool_specs",
