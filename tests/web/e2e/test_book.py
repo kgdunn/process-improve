@@ -42,7 +42,7 @@ def test_a_book_example_opens_with_its_factors_runs_and_results(context, site, b
         "one tab for the book, so the page keeps its state"
     )
     assert factor_table(page) == [
-        {"name": "C", "low": "P", "high": "Q", "units": ""},
+        {"name": "C", "levels": ["P", "Q"]},
         {"name": "T", "low": "72", "high": "100", "units": "°F"},
         {"name": "S", "low": "200", "high": "400", "units": "rpm"},
     ]
@@ -95,7 +95,7 @@ def test_an_example_of_another_published_source_opens_with_its_citation(context,
     )
     assert page.get_attribute(f"{BANNER} a", "href") == source["url"] == "https://doi.org/10.1002/14356007.e08_e01.pub3"
     assert page.get_attribute(f"{BANNER} a", "target") == "source", "a tab of its own, not the book's"
-    assert factor_table(page)[2] == {"name": "C", "low": "current", "high": "new", "units": ""}
+    assert factor_table(page)[2] == {"name": "C", "levels": ["current", "new"]}
     assert [row[-1] for row in run_sheet(page)] == ["60", "62", "74", "92", "57", "59", "67", "82"]
     assert float(coefficients(page)["C"]) == -2.875, "half the article's main effect of C, -5.75"
     assert page.url == site

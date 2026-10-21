@@ -6,6 +6,9 @@ import { describe, test } from "node:test";
 
 import {
   AXIAL_DISTANCE,
+  categoricalFactor,
+  isSeveral,
+  levelsOf,
   alsoRuledOut,
   cornersWords,
   cutWords,
@@ -502,21 +505,43 @@ describe("a factor's levels", () => {
     assert.equal(levelProblem({ name: "T", low: "150", high: "200" }, NUMERIC), "");
     assert.equal(
       levelProblem({ name: "T", low: "150", high: "" }, NUMERIC),
-      "T: give a number for both the low and the high value, or make it categorical for two labels.",
+      "T: give a number for both the low and the high value, or make it categorical to give it labels.",
     );
     assert.match(levelProblem({ name: "T", low: "old", high: "200" }, NUMERIC), /or make it categorical/);
     assert.equal(levelProblem({ name: "T", low: "200", high: "150" }, NUMERIC), "T: the low value must be below the high value.");
     assert.equal(levelProblem({ name: "T", low: "5", high: "5" }, NUMERIC), "T: the low value must be below the high value.");
   });
 
-  test("a categorical factor needs two labels that differ, neither of them a number", () => {
+  test("a categorical factor needs 2 to 8 levels, any text, none blank and no two alike", () => {
     assert.equal(levelProblem({ name: "Supplier", low: "A", high: "B" }, CATEGORICAL), "");
-    assert.equal(levelProblem({ name: "Supplier", low: "A", high: " " }, CATEGORICAL), "Supplier: give it two labels, such as A and B.");
+    assert.equal(levelProblem({ name: "Lot", levels: ["1", "2", "3"] }, CATEGORICAL), "", "a label may read as a number");
+    assert.equal(levelProblem({ name: "Supplier", low: "A", high: " " }, CATEGORICAL), "Supplier: a level is blank; give each level a label.");
+    assert.equal(levelProblem({ name: "Supplier", levels: ["A"] }, CATEGORICAL), "Supplier: give it two levels or more, such as A and B.");
     assert.equal(
-      levelProblem({ name: "Supplier", low: "1", high: "B" }, CATEGORICAL),
-      "Supplier: a label cannot be a number; write C1 rather than 1.",
+      levelProblem({ name: "Supplier", levels: [..."ABCDEFGHJ"] }, CATEGORICAL),
+      "Supplier: give it at most 8 levels; it has 9.",
     );
-    assert.equal(levelProblem({ name: "Supplier", low: "A", high: " A " }, CATEGORICAL), "Supplier: its two labels must differ.");
+    assert.equal(levelProblem({ name: "Supplier", low: "A", high: " A " }, CATEGORICAL), "Supplier: A is listed twice.");
+    assert.equal(levelProblem({ name: "Lot", levels: ["1", "1.0"] }, CATEGORICAL), "Lot: 1 and 1.0 read as the same number.");
+    assert.match(levelProblem({ name: "Lot", levels: ["A", "x".repeat(65)] }, CATEGORICAL), /longer than 64 characters/);
+  });
+
+  test("a factor's type says it is categorical, and its list gives its levels in their order", () => {
+    const lots = { name: "Lot", type: "categorical", levels: ["3", "1", "2"] };
+    assert.ok(isCategorical(lots), "labels that read as numbers, but its type says so");
+    assert.deepEqual(levelsOf(lots), ["3", "1", "2"]);
+    assert.deepEqual(levelsOf({ name: "S", low: "old", high: "new" }), ["old", "new"]);
+    assert.ok(isSeveral(lots));
+    assert.ok(!isSeveral({ name: "S", low: "old", high: "new" }));
+    assert.deepEqual(categoricalFactor("S", ["1", "2"]), { name: "S", type: "categorical", levels: ["1", "2"], low: "1", high: "2", units: "" });
+    assert.deepEqual(categoricalFactor("Lot", ["1", "2", "3"]), { name: "Lot", type: "categorical", levels: ["1", "2", "3"], units: "" });
+  });
+
+  test("an aim's model counts a column per level but one of each categorical factor", () => {
+    const factors = [{ name: "Lot", type: "categorical", levels: ["1", "2", "3"] }, { name: "T", low: 1, high: 2 }];
+    assert.equal(aimTerms(factors, "main_effects"), 1 + 2 + 1);
+    assert.equal(aimTerms(factors, "interactions"), 1 + 2 + 1 + 2);
+    assert.equal(aimTerms(factors, "main_quadratic"), 1 + 2 + 1 + 1, "T's square, and no square of a lot");
   });
 
   test("a factor without a name is still named in the sentence", () => {

@@ -241,6 +241,14 @@ def test_the_designs_that_take_a_categorical_factor_are_bootstrap_s(bootstrap, n
     assert javascript(node, source("logic.js"), [("CATEGORICAL_DESIGNS", [])]) == [list(bootstrap.CATEGORICAL_DESIGNS)]
 
 
+def test_a_categorical_factor_s_levels_are_held_to_bootstrap_s_limits(bootstrap, node):
+    """The designs that take three levels or more, the most levels, and the longest label, as the page checks them."""
+    held = javascript(node, source("logic.js"), [("SEVERAL_LEVEL_DESIGNS", []), ("MAX_LEVELS", []), ("LABEL_MOST", [])])
+    assert held == [list(bootstrap.SEVERAL_LEVEL_DESIGNS), bootstrap.MAX_LEVELS, bootstrap.LABEL_MOST]
+    stored = javascript(node, source("campaign.js"), [("MAX_LEVELS", []), ("LABEL_MOST", [])])
+    assert stored == [bootstrap.MAX_LEVELS, bootstrap.LABEL_MOST], "a study file holds what the page takes"
+
+
 def test_the_page_names_runs_as_given_as_bootstrap_does(bootstrap, node):
     assert javascript(node, source("logic.js"), [("GIVEN", [])]) == [bootstrap.GIVEN]
     assert bootstrap.GIVEN not in bootstrap.DESIGNS, "the page holds runs as given, and never makes them from the form"
@@ -646,7 +654,10 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
     """The replicates the page offers, more for one factor's levels, and the format a one-factor study is saved in."""
     held = javascript(node, source("logic.js"), [("MAX_REPLICATES", []), ("MAX_LEVEL_RUNS", [])])
     assert held == [bootstrap.MAX_REPLICATES, bootstrap.MAX_LEVEL_RUNS]
-    formats = javascript(node, source("campaign.js"), [("CAMPAIGN_VERSION", []), ("ONE_FACTOR_FORMAT", [])])
-    assert formats == [build_script.CAMPAIGN_VERSION, build_script.ONE_FACTOR_FORMAT]
+    names = [("CAMPAIGN_VERSION", []), ("ONE_FACTOR_FORMAT", []), ("LEVELS_FORMAT", [])]
+    formats = javascript(node, source("campaign.js"), names)
+    assert formats == [build_script.CAMPAIGN_VERSION, build_script.ONE_FACTOR_FORMAT, build_script.LEVELS_FORMAT]
     assert build_script.study_format({"factors": [{"name": "S"}]}) == build_script.ONE_FACTOR_FORMAT
     assert build_script.study_format({"factors": [{"name": "S"}, {"name": "T"}]}) == 1
+    lot = {"name": "Lot", "type": "categorical", "levels": ["1", "2", "3"]}
+    assert build_script.study_format({"factors": [{"name": "S"}, lot]}) == build_script.LEVELS_FORMAT

@@ -8,6 +8,7 @@ import {
   GOAL_SHAPES,
   BOOK_PARAM,
   CAMPAIGN_VERSION,
+  LEVELS_FORMAT,
   ONE_FACTOR_FORMAT,
   bookName,
   campaignDone,
@@ -586,8 +587,16 @@ describe("each study is saved in the lowest format that holds it", () => {
     return { ...data, v: ONE_FACTOR_FORMAT, model: "", design: { ...data.design, spec, columns, rows, model: "main_effects" } };
   }
 
+  /** The fixture's study with the supplier one of three: A, B or C. */
+  function threeSuppliers() {
+    const data = campaign();
+    const supplier = { name: "Supplier", type: "categorical", levels: ["A", "B", "C"], units: "" };
+    const spec = { ...data.design.spec, factors: [data.design.spec.factors[0], supplier] };
+    return { ...data, v: LEVELS_FORMAT, design: { ...data.design, spec } };
+  }
+
   test("a study of one factor is format 2, which a page of format 1 refuses in a sentence", () => {
-    assert.equal(CAMPAIGN_VERSION, ONE_FACTOR_FORMAT);
+    assert.equal(ONE_FACTOR_FORMAT, 2);
     assert.equal(studyFormat(oneFactor().design.spec), ONE_FACTOR_FORMAT);
     assert.equal(checkCampaign(oneFactor()).v, ONE_FACTOR_FORMAT);
   });
@@ -600,5 +609,38 @@ describe("each study is saved in the lowest format that holds it", () => {
 
   test("a study of one factor saved before this format still opens, and is saved in its own", () => {
     assert.equal(checkCampaign({ ...oneFactor(), v: 1 }).v, ONE_FACTOR_FORMAT);
+  });
+
+  test("a factor that lists its levels is format 3, the latest, kept with its type and levels", () => {
+    assert.equal(CAMPAIGN_VERSION, LEVELS_FORMAT);
+    const checked = checkCampaign(threeSuppliers());
+    assert.equal(checked.v, LEVELS_FORMAT);
+    assert.deepEqual(checked.design.spec.factors[1], { name: "Supplier", type: "categorical", levels: ["A", "B", "C"], units: "" });
+    const lots = { name: "Supplier", type: "categorical", levels: ["1", "2"], units: "" };
+    const data = threeSuppliers();
+    data.design.spec.factors[1] = lots;
+    const two = checkCampaign(data);
+    assert.deepEqual(two.design.spec.factors[1], { ...lots, low: "1", high: "2" }, "two levels are its low and high too");
+    assert.equal(two.v, LEVELS_FORMAT, "labels that read as numbers need the format that keeps them labels");
+  });
+
+  test("a factor's levels are two to eight labels, each once, or the study is refused", () => {
+    const withLevels = (levels, type = "categorical") => {
+      const data = threeSuppliers();
+      const factors = [data.design.spec.factors[0], { ...data.design.spec.factors[1], type, levels }];
+      return { ...data, design: { ...data.design, spec: { ...data.design.spec, factors } } };
+    };
+    assert.throws(() => checkCampaign(withLevels(["A"])), /factor 2's levels are not two or more labels, each once/);
+    assert.throws(() => checkCampaign(withLevels(["A", "B", "A"])), /each once/);
+    assert.throws(() => checkCampaign(withLevels("ABC")), /factor 2's levels is not a list/);
+    assert.throws(() => checkCampaign(withLevels([..."ABCDEFGHI"])), /factor 2's levels is too long/);
+    assert.throws(() => checkCampaign(withLevels(["A", 2])), /a level of factor 2 is not text/);
+    assert.throws(() => checkCampaign(withLevels(["A", "B"], "ordinal")), /factor 2's type is unknown/);
+  });
+
+  test("two studies differ when their levels do, though the run sheets read alike", () => {
+    const other = threeSuppliers();
+    other.design.spec.factors[1] = { ...other.design.spec.factors[1], levels: ["A", "B", "D"] };
+    assert.notEqual(designKey(threeSuppliers().design), designKey(other.design));
   });
 });

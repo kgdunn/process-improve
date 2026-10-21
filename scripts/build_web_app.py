@@ -184,14 +184,19 @@ BOOK = "https://learnche.org/pid/"
 #: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
 WORKED = "worked"
 #: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
-CAMPAIGN_VERSION = 2
+CAMPAIGN_VERSION = 3
 #: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
 #: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
 ONE_FACTOR_FORMAT = 2
+#: The format of a study with a categorical factor that lists its levels (``LEVELS_FORMAT`` in ``web/campaign.js``):
+#: three or more, or two that read as numbers, which a page of an earlier format would misread.
+LEVELS_FORMAT = 3
 
 
 def study_format(spec: dict[str, Any]) -> int:
     """Return the lowest campaign format that holds a study of this specification (``studyFormat`` in campaign.js)."""
+    if any("levels" in f for f in spec["factors"]):
+        return LEVELS_FORMAT
     return ONE_FACTOR_FORMAT if len(spec["factors"]) == 1 else 1
 
 

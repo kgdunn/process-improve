@@ -9,15 +9,20 @@
 /**
  * The latest format of a campaign this page reads; one of a later format is refused, not guessed at. Each study is
  * saved in the lowest format that holds it (studyFormat), so a page from before a format opens every study it can.
- * Format 2 holds a study of one factor, which a page of format 1 could not analyse.
+ * Format 2 holds a study of one factor, which a page of format 1 could not analyse. Format 3 holds a categorical
+ * factor that lists its levels: three or more, or two that read as numbers, which an earlier page would misread.
  */
-export const CAMPAIGN_VERSION = 2;
+export const CAMPAIGN_VERSION = 3;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
 
+/** The format of a study with a categorical factor that lists its levels; two labels alone keep an earlier format. */
+export const LEVELS_FORMAT = 3;
+
 /** The lowest format that holds a study of this specification, which the study is saved in. */
-export const studyFormat = (spec) => (spec.factors.length === 1 ? ONE_FACTOR_FORMAT : 1);
+export const studyFormat = (spec) =>
+  spec.factors.some((f) => Array.isArray(f.levels)) ? LEVELS_FORMAT : spec.factors.length === 1 ? ONE_FACTOR_FORMAT : 1;
 
 /** Where a link carries its campaign: the address's fragment, after this. */
 export const LINK_KEY = "#c=";
@@ -62,10 +67,26 @@ function level(value, what) {
   return refuse(`${what} is neither a number nor a label`);
 }
 
+/** The most levels a categorical factor takes, and the longest label; mirror logic.js MAX_LEVELS and LABEL_MOST. */
+export const MAX_LEVELS = 8;
+export const LABEL_MOST = 64;
+
+/** A categorical factor's levels: two to MAX_LEVELS labels, each once; two of them are its low and high too. */
+function levels(f, i) {
+  const all = list(f.levels, `factor ${i + 1}'s levels`, MAX_LEVELS).map((v) => text(v, `a level of factor ${i + 1}`, LABEL_MOST));
+  if (all.length < 2 || new Set(all).size < all.length) refuse(`factor ${i + 1}'s levels are not two or more labels, each once`);
+  return { type: "categorical", levels: all, ...(all.length === 2 ? { low: all[0], high: all[1] } : {}), units: "" };
+}
+
 function factor(f, i) {
   if (!isObject(f)) refuse(`factor ${i + 1} is not a factor`);
+  const name = text(f.name, `factor ${i + 1}'s name`, 64);
+  if (f.type !== undefined || f.levels !== undefined) {
+    if (f.type !== "categorical") refuse(`factor ${i + 1}'s type is unknown`);
+    return { name, ...levels(f, i) };
+  }
   return {
-    name: text(f.name, `factor ${i + 1}'s name`, 64),
+    name,
     low: level(f.low, `factor ${i + 1}'s low level`),
     high: level(f.high, `factor ${i + 1}'s high level`),
     units: f.units === undefined ? "" : text(f.units, `factor ${i + 1}'s units`, 32),
@@ -578,7 +599,7 @@ export function designKey(design) {
   const place = new Map(spec.factors.map((f, i) => [f.name, i]));
   return JSON.stringify([
     spec.design_type,
-    spec.factors.map((f) => [f.low, f.high]),
+    spec.factors.map((f) => f.levels ?? [f.low, f.high]),
     names.length > 1 ? names : spec.response, // a study of one response keys as it always has
     columns.map((c) => place.get(c) ?? c),
     rows.map((row) => row.filter((_, i) => !at.has(i))),
