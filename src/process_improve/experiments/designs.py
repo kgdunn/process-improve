@@ -509,11 +509,14 @@ def _n_parameters(factors: list[Factor], model_type: str) -> int:
     from process_improve.experiments.designs_optimal import _n_model_parameters  # noqa: PLC0415
 
     if _is_mixture_process(factors):
-        from process_improve.experiments.designs_mixture_process import mixture_process_model  # noqa: PLC0415
+        from process_improve.experiments.designs_mixture_process import (  # noqa: PLC0415
+            category_levels,
+            mixture_process_model,
+        )
 
         mixture = [f.name for f in factors if f.type == FactorType.mixture]
         process = [f.name for f in factors if f.type != FactorType.mixture]
-        return mixture_process_model(mixture, process, model_type).n_parameters
+        return mixture_process_model(mixture, process, model_type, category_levels(factors)).n_parameters
     return _n_model_parameters(factors, model_type)
 
 
