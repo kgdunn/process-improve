@@ -198,7 +198,7 @@ def test_a_named_factor_s_empty_levels_are_pointed_out_once_the_reader_has_been_
     added.locator("[name=units]").focus()
     assert (
         problems(page)
-        == "Salt: give a number for both the low and the high value, or make it categorical for two labels."
+        == "Salt: give a number for both the low and the high value, or make it categorical to give it labels."
     )
 
 
@@ -285,63 +285,126 @@ def test_the_switch_answers_the_keyboard(page):
     assert types(page)[1] == "categorical"
 
 
-def test_choosing_categorical_gives_two_labels_and_takes_the_units_away(page):
+def levels(factor) -> list[str]:
+    """Read a categorical factor's levels, in the order its chips show them."""
+    return factor.evaluate("tr => [...tr.querySelectorAll('.level-chip')].map((c) => c.dataset.level)")
+
+
+def test_choosing_categorical_gives_two_levels_as_chips_and_takes_the_units_away(page):
     flip(row(page, 1))
-    assert factor_table(page)[1] == {"name": "P", "low": "A", "high": "B", "units": ""}
-    assert row(page, 1).locator("[name=units]").is_disabled()
-    assert row(page, 1).locator("[name=low]").get_attribute("aria-label") == "First label"
-    assert page.evaluate("document.activeElement.name") == "low", "the first label is ready to be typed over"
+    assert factor_table(page)[1] == {"name": "P", "levels": ["A", "B"]}
+    assert row(page, 1).locator("[name=units]").is_hidden()
+    assert row(page, 1).locator("td[data-label=Levels]").get_attribute("colspan") == "3", "the chips take the row"
+    assert page.evaluate("document.activeElement.name") == "level", "the keyboard is ready for a third level"
     assert "box_behnken" in disabled_designs(page), "a categorical factor leaves only the two-level designs"
 
-    row(page, 1).locator("[name=low]").fill("old")
+    page.keyboard.type("C")
+    page.keyboard.press("Enter")
     flip(row(page, 1))
     assert factor_table(page)[1] == {"name": "P", "low": "1", "high": "3", "units": "bar"}, "its numbers come back"
     flip(row(page, 1))
-    assert factor_table(page)[1]["low"] == "old", "and so do its labels"
+    assert factor_table(page)[1]["levels"] == ["A", "B", "C"], "and so do its levels"
 
 
-def test_typing_two_labels_makes_a_factor_categorical_and_two_numbers_numeric(page):
+def test_typing_two_labels_makes_a_factor_categorical_its_labels_its_first_levels(page):
     factor = row(page, 0)
     factor.locator("[name=low]").fill("old")
     assert types(page)[0] == "numeric", "one label beside a number keeps the type chosen"
-    assert problems(page) == (
-        "T: give a number for both the low and the high value, or make it categorical for two labels."
+    assert (
+        problems(page)
+        == "T: give a number for both the low and the high value, or make it categorical to give it labels."
     )
     assert page.is_disabled("#generate")
     factor.locator("[name=high]").fill("new")
     assert types(page)[0] == "categorical"
-    assert factor.locator("[name=units]").input_value() == ""
+    assert factor_table(page)[0] == {"name": "T", "levels": ["old", "new"]}
+    assert page.evaluate("document.activeElement.name") == "level", "the keyboard is ready for a third level"
     assert problems(page) is None
-    factor.locator("[name=low]").fill("150")
-    factor.locator("[name=high]").fill("200")
-    assert types(page)[0] == "numeric"
-    assert factor.locator("[name=units]").input_value() == "degC", "the units put aside come back"
+    flip(factor)
+    assert factor_table(page)[0] == {"name": "T", "low": "", "high": "", "units": "degC"}, (
+        "the units put aside come back"
+    )
 
 
-def test_a_categorical_factor_is_added_with_two_labels(page):
+def test_a_categorical_factor_is_added_with_two_levels(page):
     page.click("#add-categorical")
     assert types(page)[-1] == "categorical"
-    assert factor_table(page)[-1] == {"name": "", "low": "A", "high": "B", "units": ""}
+    assert factor_table(page)[-1] == {"name": "", "levels": ["A", "B"]}
     assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Factor name"
 
 
-def test_what_a_factor_s_labels_still_need_is_said_before_python_is_asked(page):
+def test_levels_are_typed_or_pasted_as_a_list_and_removed_with_their_cross(page):
+    flip(row(page, 1))
+    chips = row(page, 1).locator("[name=level]")
+    chips.fill("C;D")
+    chips.press("Enter")
+    chips.type("E,")
+    assert levels(row(page, 1)) == ["A", "B", "C", "D", "E"], "a comma ends a level, as Enter does"
+    row(page, 1).get_by_role("button", name="Remove level B").click()
+    chips.press("Backspace")
+    page.keyboard.press("Delete")
+    assert levels(row(page, 1)) == ["A", "C", "D"], (
+        "Backspace in the empty box goes to the last chip; Delete removes it"
+    )
+    chips.fill("F, G, H, I, J, K")
+    chips.press("Enter")
+    assert len(levels(row(page, 1))) == 8, "eight levels, the most"
+    assert chips.is_disabled()
+    assert chips.get_attribute("placeholder") == "8 levels, the most"
+
+
+def test_a_chip_moves_with_alt_and_an_arrow_key_or_a_drag(page):
+    page.click("#add-categorical")
+    factor = row(page, 3)
+    factor.locator("[name=level]").fill("C")
+    factor.locator("[name=level]").press("Enter")
+    factor.locator(".level-chip").nth(2).focus()
+    page.keyboard.press("Alt+ArrowLeft")
+    assert levels(factor) == ["A", "C", "B"]
+    assert page.evaluate("document.activeElement.dataset.level") == "C", "the keyboard stays on the chip moved"
+    factor.locator(".level-chip").nth(2).drag_to(factor.locator(".level-chip").nth(0))
+    assert levels(factor) == ["B", "A", "C"], "a chip dropped on another takes its place"
+    factor.locator(".level-chip").nth(0).drag_to(factor.locator(".level-chip").nth(2))
+    assert levels(factor) == ["A", "C", "B"]
+
+
+def test_what_a_factor_s_levels_still_need_is_said_before_python_is_asked(page):
     choose(page, design_type="full_factorial")
     page.click("#add-categorical")
     added = row(page, 3)
-    added.locator("[name=name]").fill("Catalyst")
-    added.locator("[name=low]").fill("1")
-    assert problems(page) == "Catalyst: a label cannot be a number; write C1 rather than 1."
-    assert added.locator("[name=low]").get_attribute("aria-invalid") is not None
+    added.locator("[name=name]").fill("Lot")
+    added.get_by_role("button", name="Remove level B").click()
+    assert problems(page) == "Lot: give it two levels or more, such as A and B."
+    assert added.locator(".level-chips").get_attribute("aria-invalid") is not None
     assert page.is_disabled("#generate")
-    added.locator("[name=low]").fill("C1")
-    added.locator("[name=high]").fill("C1")
-    assert problems(page) == "Catalyst: its two labels must differ."
-    added.locator("[name=high]").fill("C2")
-    assert problems(page) is None
-    assert not page.is_disabled("#generate")
+    added.locator("[name=level]").fill("1, 1.0")
+    added.locator("[name=level]").press("Enter")
+    assert problems(page) == "Lot: 1 and 1.0 read as the same number."
+    added.get_by_role("button", name="Remove level 1.0").click()
+    added.get_by_role("button", name="Remove level A").click()
+    added.locator("[name=level]").fill("2, 3")
+    added.locator("[name=level]").press("Enter")
+    assert problems(page) is None, "a level may read as a number: it stays a label"
+    assert "fractional_factorial" in disabled_designs(page), "three levels leave the two-level designs"
     generate(page)
-    assert factor_table(page)[3] == {"name": "Catalyst", "low": "C1", "high": "C2", "units": ""}
+    assert factor_table(page)[3] == {"name": "Lot", "levels": ["1", "2", "3"]}
+    lot = [row[3] for row in run_sheet(page)]
+    assert set(lot) == {"1", "2", "3"}
+
+
+def test_a_factor_of_several_levels_says_which_designs_take_it(page):
+    choose(page, design_type="fractional_factorial")
+    page.click("#add-categorical")
+    added = row(page, 3)
+    added.locator("[name=name]").fill("Catalyst")
+    added.locator("[name=level]").fill("C")
+    added.locator("[name=level]").press("Enter")
+    assert page.text_content("#design-hint") == (
+        "Fractional factorial (2-level) needs factors of two levels, and Catalyst has 3: choose a full factorial or "
+        "Taguchi design, or give each categorical factor two levels."
+    )
+    assert page.is_disabled("#generate")
+    assert [d for d in ALL_DESIGNS if d not in disabled_designs(page)] == ["full_factorial", "taguchi"]
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
@@ -349,9 +412,13 @@ def test_on_a_phone_each_factor_is_a_numbered_card_with_its_headings(page):
     reveal(page, "#factors")
     flip(row(page, 1))
     captions = row(page, 1).evaluate(
-        "tr => [...tr.cells].map((td) => getComputedStyle(td, '::before').content).filter((c) => c !== 'none')"
+        "tr => [...tr.cells].filter((td) => !td.hidden).map((td) => getComputedStyle(td, '::before').content)"
+        ".filter((c) => c !== 'none')"
     )
-    assert captions == ['"Factor name"', '"Type"', '"First label"', '"Second label"', '"Units"']
+    assert captions == ['"Factor name"', '"Type"', '"Levels"'], "the levels take the row the low, high and units had"
+    chips = row(page, 1).locator(".level-chips").bounding_box()
+    name = row(page, 1).locator("[name=name]").bounding_box()
+    assert chips["width"] > 2 * name["width"], "the chips span the card"
     cards = page.eval_on_selector_all("#factors tbody tr", "rows => rows.map((tr) => tr.getBoundingClientRect())")
     gaps = [b["top"] - (a["top"] + a["height"]) for a, b in pairwise(cards)]
     assert all(gap >= 8 for gap in gaps), "the cards stand apart"

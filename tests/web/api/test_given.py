@@ -50,6 +50,15 @@ def test_the_model_is_the_largest_the_runs_estimate_in_full(api, runs, model):
     assert api.ok("api_make_design", given(runs))["model"] == model
 
 
+def test_runs_in_blocks_are_given_the_largest_model_they_estimate_beside_the_blocks(api):
+    """A 2^2 in two blocks of two, AB confounded with the blocks: the blocks take AB's column, so main effects."""
+    square = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+    factors = factors_named("A", "B")
+    assert api.ok("api_make_design", given(square, factors))["model"] == "interactions"
+    blocked = api.ok("api_make_design", given(square, factors, blocks=[1, 2, 2, 1]))
+    assert (blocked["model"], blocked["spec"]["options"]["n_blocks"]) == ("main_effects", 2)
+
+
 def test_settings_in_the_factors_own_units_and_labels_are_taken(api):
     factors = [FACTORS[0], {"name": "S", "low": "old", "high": "new", "units": ""}]
     runs = [[150, "old"], [200, "old"], [150, "new"], [200, "new"]]

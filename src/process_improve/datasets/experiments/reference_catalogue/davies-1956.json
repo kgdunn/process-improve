@@ -92,7 +92,8 @@
    "design": {
     "type": "paired comparison",
     "details": "ten blocks (test pieces) of two specimens, the treatment allotted at random within each block",
-    "n_runs": 20
+    "n_runs": 20,
+    "blocks": "Piece"
    },
    "runs": {
     "columns": [
@@ -7036,7 +7037,8 @@
    "design": {
     "type": "balanced incomplete blocks",
     "details": "four treatments in four blocks of three (t = b = 4, r = k = 3, lambda = 2)",
-    "n_runs": 12
+    "n_runs": 12,
+    "blocks": "Tyre"
    },
    "runs": {
     "columns": [
@@ -7456,7 +7458,8 @@
    "design": {
     "type": "Youden square",
     "details": "five treatments in five blocks of four, every position once in every run (N = 20, t = b = 5, r = k = 4, lambda = 3)",
-    "n_runs": 20
+    "n_runs": 20,
+    "blocks": "Run"
    },
    "runs": {
     "columns": [
@@ -16802,7 +16805,8 @@
    "design": {
     "type": "2^3 full factorial in blocks",
     "details": "two replicates of the 2^3, each in two blocks of four (lots of base material), confounding ABC; lots 1 and 4 hold the treatments with ABC at -1, lots 2 and 3 those with ABC at +1",
-    "n_runs": 16
+    "n_runs": 16,
+    "blocks": "Lot"
    },
    "runs": {
     "columns": [
@@ -20886,7 +20890,8 @@
    "design": {
     "type": "2^(5-1) fractional factorial in blocks",
     "details": "half replicate with E = ABCD in four blocks of four (fermenters), confounding BC, BE and CE",
-    "n_runs": 16
+    "n_runs": 16,
+    "blocks": "Fermenter"
    },
    "runs": {
     "columns": [

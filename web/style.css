@@ -270,6 +270,22 @@ button:disabled { opacity: 0.5; cursor: progress; }
 .factors input:disabled { background: transparent; border-style: dashed; }
 .factors [aria-invalid] { border-color: var(--error); }
 .add-factors { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 0; }
+/* A categorical factor's levels: a chip each, in their order, then a box to type the next one in. A chip is dragged,
+   or moved with Alt and an arrow key, to put the levels in another order; its cross removes it. */
+.level-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 36px; padding: 3px 4px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.level-chips:focus-within { border-color: var(--accent); }
+.level-chips[aria-invalid] { border-color: var(--error); }
+.level-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 2px 2px 2px 10px;
+  border: 1px solid var(--accent); border-radius: 999px; font-size: 0.9rem; cursor: grab; user-select: none; }
+.level-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.level-chip--dragged { opacity: 0.4; }
+.level-chip__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.level-chip__remove { padding: 0 6px; border: none; background: none; color: var(--muted); line-height: 1.4; }
+.level-chip__remove:hover { color: var(--error); }
+.factors .level-chips__input { flex: 1 1 6em; width: auto; min-width: 6em; border: none; padding: 4px; background: none; }
+.factors .level-chips__input:focus { outline: none; }
+@media (pointer: coarse) { .level-chip { min-height: 36px; } .level-chip__remove { min-width: 36px; min-height: 36px; } }
 /* In a narrow column (the brief beside a phase, or a phone) each factor is a card of its own, numbered,
    with its name and type above its levels and units, every box under its heading: six columns side by
    side cut the words short, and two factors' boxes in one run of lines were hard to tell apart. */
@@ -293,6 +309,7 @@ button:disabled { opacity: 0.5; cursor: progress; }
   .factors td:nth-child(4) { grid-area: high; }
   .factors td:nth-child(5) { grid-area: units; }
   .factors td:nth-child(6) { grid-area: remove; justify-self: end; }
+  .factors tr.categorical td:nth-child(3) { grid-column: 1 / -1; grid-row: 3; }
   .factors td[data-label]::before {
     content: attr(data-label); display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted);
   }

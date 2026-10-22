@@ -89,18 +89,54 @@ def status(page: Any) -> tuple[str, str]:  # noqa: ANN401
     return page.text_content("#status .status__text"), page.get_attribute("#status", "data-state")
 
 
-def factor_table(page: Any) -> list[dict[str, str]]:  # noqa: ANN401
-    """Read the factor table as the reader sees it."""
+def factor_table(page: Any) -> list[dict[str, Any]]:  # noqa: ANN401
+    """Read the factor table as the reader sees it: a numeric factor's name, low, high and units, and a categorical
+    factor's name and levels, as its chips hold them.
+    """
     return page.evaluate(
         """() => [...document.querySelectorAll('#factors tbody tr')].map((tr) =>
-             Object.fromEntries(
-               ['name', 'low', 'high', 'units'].map((k) => [k, tr.querySelector(`[name=${k}]`).value]),
-             ))"""
+             tr.querySelector('[name=categorical]').checked
+               ? {
+                   name: tr.querySelector('[name=name]').value,
+                   levels: [...tr.querySelectorAll('.level-chip')].map((c) => c.dataset.level),
+                 }
+               : Object.fromEntries(
+                   ['name', 'low', 'high', 'units'].map((k) => [k, tr.querySelector(`[name=${k}]`).value]),
+                 ))"""
     )
 
 
+def _number(text: str) -> bool:
+    try:
+        float(text)
+    except ValueError:
+        return False
+    return True
+
+
+def _labels(factor: dict) -> list[str] | None:
+    """Return a categorical factor's levels: those listed, or two labels as its low and high; None if it is numeric."""
+    if "levels" in factor:
+        return [str(v) for v in factor["levels"]]
+    pair = [str(factor.get("low", "")).strip(), str(factor.get("high", "")).strip()]
+    return None if all(not v or _number(v) for v in pair) else pair
+
+
+def set_levels(row: Any, levels: list[str]) -> None:  # noqa: ANN401
+    """Make a factor categorical, with these levels as its chips, as a reader types them: a list and Enter."""
+    if not row.locator("[name=categorical]").is_checked():
+        row.locator(".switch").click()
+    while row.locator(".level-chip__remove").count():
+        row.locator(".level-chip__remove").first.click()
+    row.locator("[name=level]").fill(", ".join(levels))
+    row.locator("[name=level]").press("Enter")
+
+
 def set_factors(page: Any, factors: list[dict]) -> None:  # noqa: ANN401
-    """Make the factor table hold ``factors``, removing and adding rows and typing as a reader would."""
+    """Make the factor table hold ``factors``, removing and adding rows and typing as a reader would.
+
+    A factor with ``levels``, or two labels for its low and high, is made categorical with those levels as chips.
+    """
     reveal(page, "#factors")
     rows = page.locator("#factors tbody tr")
     while rows.count() > len(factors):
@@ -108,10 +144,14 @@ def set_factors(page: Any, factors: list[dict]) -> None:  # noqa: ANN401
     while rows.count() < len(factors):
         page.click("#add-factor")
     for row, factor in zip(rows.all(), factors, strict=True):
-        for key in ("name", "low", "high", "units"):
-            box = row.locator(f"[name={key}]")
-            if box.is_enabled():  # two labels make a factor categorical, and take away its units
-                box.fill(str(factor.get(key, "")))
+        row.locator("[name=name]").fill(str(factor.get("name", "")))
+        if (levels := _labels(factor)) is not None:
+            set_levels(row, levels)
+            continue
+        if row.locator("[name=categorical]").is_checked():
+            row.locator(".switch").click()
+        for key in ("low", "high", "units"):
+            row.locator(f"[name={key}]").fill(str(factor.get(key, "")))
     page.evaluate("document.activeElement.blur()")  # a name or units is taken when the reader leaves its box
 
 

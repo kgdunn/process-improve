@@ -209,7 +209,53 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "two labels the same": (
         "api_make_design",
         _make(factors=[FACTORS[0], {"name": "S", "low": "A", "high": "A", "units": ""}]),
-        "Factor S: its two labels must differ.",
+        "Factor S: A is listed twice; its levels must differ.",
+    ),
+    "levels that read as the same number": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": ["1", "1.0"]}]),
+        "Factor S: 1.0 and 1 read as the same number; its levels must differ.",
+    ),
+    "levels that are no list": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": "A, B"}]),
+        "Factor S: list its levels, each a label.",
+    ),
+    "more levels than the page takes": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": list("ABCDEFGHJ")}]),
+        "Factor S: give it 2 to 8 levels; it has 9.",
+    ),
+    "a blank level": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": ["A", " "]}]),
+        "Factor S: a level is blank; give each level a label.",
+    ),
+    "a level too long": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {"name": "S", "type": "categorical", "levels": ["A", "x" * 65]}]),
+        "Factor S: the level 'xxxxxxxxxxxxxxxxxxxx'... is longer than 64 characters.",
+    ),
+    "a name taken by another factor's levels": (
+        "api_make_design",
+        _make(
+            factors=[
+                {"name": "S", "type": "categorical", "levels": ["A", "B", "C"]},
+                {"name": "S_L1", "low": 1, "high": 2, "units": ""},
+            ]
+        ),
+        "Factor S_L1: rename it, as the page names a column of another factor's levels so.",
+    ),
+    "three levels in a two-level design": (
+        "api_make_design",
+        _make(
+            design_type="fractional_factorial",
+            factors=[*FACTORS, {"name": "S", "type": "categorical", "levels": ["A", "B", "C"]}],
+        ),
+        (
+            "The Fractional factorial (2-level) design runs each categorical factor at two levels, and S has more: "
+            "choose a full factorial or a Taguchi design."
+        ),
     ),
     "a label a spreadsheet reads as blank": (
         "api_make_design",
@@ -233,6 +279,22 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze_runs",
         _supplied(model={"terms": [["T"], ["S", "S"]]}),
         "S is categorical, so it has no square: it is +1 at both its levels.",
+    ),
+    "an interaction of a factor of three levels and another without either": (
+        "api_analyze_runs",
+        _supplied(
+            spec={
+                **SUPPLIED["spec"],
+                "factors": [
+                    {"name": "M", "type": "categorical", "levels": ["X", "Y", "Z"], "units": ""},
+                    SUPPLIED["spec"]["factors"][1],
+                ],
+            },
+            columns=["Std order", "Run order", "M", "S", "y"],
+            rows=[[1, 1, "X", "A", None], [2, 2, "Y", "A", None], [3, 3, "X", "B", None], [4, 4, "Y", "B", None]],
+            model={"terms": [["M", "S"]]},
+        ),
+        "The term M·S needs M or S in the model too: add one of them, or take it out.",
     ),
     # The request itself, which only a script could get wrong.
     "a request that is not an object": (

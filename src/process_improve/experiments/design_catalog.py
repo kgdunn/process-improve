@@ -546,18 +546,45 @@ def shown_where(where: dict[str, Any] | str | None) -> dict[str, Any] | str | No
 
 # --------------------------------------------------------------------------- published records
 def _levels(factor: dict[str, Any]) -> list[Any]:
-    """Return a categorical factor's levels in order: its ``levels``, else its low and high labels."""
-    return list(factor.get("levels") or [factor.get("low"), factor.get("high")])
+    """Return a categorical factor's levels in order: its ``levels``, else its low and high labels.
+
+    Two levels go low first, as the source codes them (-1 at its low, +1 at its high), in whatever
+    order they are listed.
+    """
+    levels = list(factor.get("levels") or [factor.get("low"), factor.get("high")])
+    low, high = factor.get("low"), factor.get("high")
+    if low is None or high is None:
+        return levels
+    same = sorted(map(_level_label, levels)) == sorted(map(_level_label, (low, high)))  # the two, listed in any order
+    return [low, high] if same else levels
+
+
+def _level_label(value: object) -> str:
+    """Write a categorical level as text to match on, so a level printed as 2 or 2.0 is the level listed as "2"."""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return str(value).strip()
+
+
+def _prints_levels(column: list[Any], factor: dict[str, Any]) -> bool:
+    """Say whether a categorical factor's column prints its levels: every setting printed is one of them."""
+    labels = {_level_label(v) for v in _levels(factor)}
+    printed = [v for v in column if v is not None and not isinstance(v, bool)]
+    return factor.get("type") == "categorical" and bool(printed) and all(_level_label(v) in labels for v in printed)
 
 
 def _coded_value(value: object, factor: dict[str, Any], *, coded: bool) -> float:
-    """Code one printed setting: -1 at the factor's low level, +1 at its high level; NaN when it is no setting."""
+    """Code one printed setting: -1 at the factor's low level, +1 at its high level; NaN when it is no setting.
+
+    A categorical factor's levels are spread evenly from -1 at its first to +1 at its last. A level is found by its
+    text, so a lot printed as the number 2 is the level listed as "2".
+    """
     if isinstance(value, bool) or value is None:
         return float("nan")
     if isinstance(value, str) or (factor.get("type") == "categorical" and not coded):
-        levels = _levels(factor)
-        if value in levels and len(levels) > 1:
-            return -1 + 2 * levels.index(value) / (len(levels) - 1)
+        labels = [_level_label(v) for v in _levels(factor)]
+        if _level_label(value) in labels and len(labels) > 1:
+            return -1 + 2 * labels.index(_level_label(value)) / (len(labels) - 1)
         try:
             value = float(value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
@@ -589,9 +616,15 @@ def published_runs(entry: dict[str, Any]) -> np.ndarray | None:
     at = {name: i for i, name in enumerate(runs["columns"])}
     if not all(f["name"] in at for f in factors):
         return None
+    # A table of coded runs may still print a categorical factor's levels, such as supplier 1, 2 and 3, not their codes.
     coded = bool(runs.get("coded"))
+    labelled = {f["name"] for f in factors if _prints_levels([row[at[f["name"]]] for row in runs["rows"]], f)}
     return np.array(
-        [[_coded_value(row[at[f["name"]]], f, coded=coded) for f in factors] for row in runs["rows"]], dtype=float
+        [
+            [_coded_value(row[at[f["name"]]], f, coded=coded and f["name"] not in labelled) for f in factors]
+            for row in runs["rows"]
+        ],
+        dtype=float,
     )
 
 
@@ -630,13 +663,33 @@ def _where(where: dict[str, Any] | str | None) -> str:
     return "; ".join(str(p) for p in parts)
 
 
-def _blocks(entry: dict[str, Any], text: str) -> tuple[bool, int | None]:
-    """Say whether an entry is run in blocks, and in how many when its run table has a column of them."""
-    runs = entry.get("runs") or {}
-    for i, name in enumerate(runs.get("columns", [])):
-        if re.fullmatch(r"(block|day)s?", str(name), flags=re.IGNORECASE):
-            return True, len({row[i] for row in runs["rows"]})
-    return bool(re.search(r"\bblock", text, flags=re.IGNORECASE)), None
+#: Words that name blocks without saying the design is run in them: "no blocks", a "code block", the
+#: "blocking alpha" of a central composite design, or the name of a file.
+_NOT_BLOCKED = re.compile(
+    r"\bno blocks\b|\bcode block\b|\bblocking alpha\b|[\w.-]+\.(?:rst|py|csv|txt)\b", re.IGNORECASE
+)
+
+
+def _block_column(entry: dict[str, Any]) -> str | None:
+    """Name the run table's column of each run's block: the one the entry's design names, else one called block or day.
+
+    A source can name its blocks for what they are, such as batch, operator or week; the entry then says
+    so with ``design["blocks"]``, the column's name. Without it, a column called block or day is taken.
+    """
+    columns = [str(c) for c in (entry.get("runs") or {}).get("columns", [])]
+    named = (entry.get("design") or {}).get("blocks")
+    if named is not None:
+        return str(named) if str(named) in columns else None
+    return next((c for c in columns if re.fullmatch(r"(block|day)s?", c, flags=re.IGNORECASE)), None)
+
+
+def _blocks(entry: dict[str, Any], text: str, column: str | None) -> tuple[bool, list[Any] | None]:
+    """Say whether an entry is run in blocks, and each run's block as printed when its run table has them."""
+    if column is not None:
+        runs = entry["runs"]
+        at = [str(c) for c in runs["columns"]].index(column)
+        return True, [row[at] for row in runs["rows"]]
+    return bool(re.search(r"\bblock", _NOT_BLOCKED.sub(" ", text), flags=re.IGNORECASE)), None
 
 
 #: The facets :func:`design_facets` reads off the runs beyond the size and the models: unknown without runs.
@@ -661,11 +714,14 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
     design = entry.get("design") or {}
     text = " ".join(str(design.get(key, "")) for key in ("type", "details"))
     family = normalise_family(str(design.get("type", "")))
-    factors = entry.get("factors") or []
+    # A run's block is no factor of the design: its column is kept apart as the run's block.
+    column = _block_column(entry)
+    factors = [f for f in entry.get("factors") or [] if f["name"] != column]
     kinds = [str(f.get("type", "numeric")) for f in factors]
-    coded = published_runs(entry)
+    coded = published_runs({**entry, "factors": factors})
     responses = _response_values(entry)
-    blocked, n_blocks = _blocks(entry, text)
+    blocked, blocks = _blocks(entry, text, column)
+    n_blocks = len({str(b) for b in blocks if b is not None}) if blocks else None
     record: dict[str, Any] = {
         "id": entry["name"],
         "title": entry.get("title", entry["name"]),
@@ -682,6 +738,7 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         "topics": list(entry.get("topics") or []),
         "blocked": blocked,
         "n_blocks": n_blocks,
+        "blocks": blocks,
         "split_plot": family == "split_plot" or bool(re.search(r"split|whole.plot", text, flags=re.IGNORECASE)),
         "has_responses": bool(responses),
         "n_responses": len(entry.get("responses") or []),
@@ -858,6 +915,7 @@ def _generated_record(spec: dict[str, Any]) -> dict[str, Any]:
         "topics": [],
         "blocked": bool(facts.get("blocks")),
         "n_blocks": None,
+        "blocks": None,
         "split_plot": False,
         "has_responses": False,
         "n_responses": 0,
@@ -967,7 +1025,9 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
         :func:`~process_improve.experiments.design_measures.design_classes`). ``factors``,
         ``responses``, ``coded_runs``, ``response_values``, ``details``, ``notes`` and
         ``where_full`` hold what a reader sees on opening a design, and ``where_url`` the address of
-        the place its source prints it (see :func:`where_url`). ``topics`` lists a published
+        the place its source prints it (see :func:`where_url`). ``blocks`` holds each run's block as
+        its source prints it, where the run table has them, and is ``None`` otherwise: a block is
+        not one of the ``factors``, nor a column of ``coded_runs``. ``topics`` lists a published
         entry's applications (see :func:`catalog_topics`); a generated design has none. ``listed``
         says whether a published entry is one of
         :func:`~process_improve.experiments.reference_catalogue.reference_experiments` or of

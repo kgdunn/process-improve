@@ -183,6 +183,15 @@ export function analysisModel(designModel, aim, fits, factors) {
 /** The designs that take a categorical factor; mirrors bootstrap.CATEGORICAL_DESIGNS. */
 export const CATEGORICAL_DESIGNS = ["full_factorial", "fractional_factorial", "plackett_burman", "taguchi"];
 
+/** Of those, the designs that take a categorical factor of three levels or more; mirrors bootstrap.SEVERAL_LEVEL_DESIGNS. */
+export const SEVERAL_LEVEL_DESIGNS = ["full_factorial", "taguchi"];
+
+/** The most levels a categorical factor takes; mirrors bootstrap.MAX_LEVELS. */
+export const MAX_LEVELS = 8;
+
+/** The longest label a level may have; mirrors bootstrap.LABEL_MOST. */
+export const LABEL_MOST = 64;
+
 /**
  * The design the page holds but does not make, as bootstrap.GIVEN names it: runs taken as they are
  * given, such as a design a book prints, opened from the design catalog. It takes categorical factors
@@ -274,8 +283,54 @@ export function isLabel(text) {
 /** A level as the form sends it: a label as its text, a blank box as null, and anything else as a number. */
 export const levelValue = (text) => (isLabel(text) ? String(text).trim() : numberOrNull(String(text ?? "")));
 
-/** Whether a factor is categorical: both its levels are labels, as bootstrap.py reads them. */
-export const isCategorical = (f) => isLabel(f.low) && isLabel(f.high);
+/**
+ * Whether a factor is categorical: its type says so, as the brief and a study of several levels send it, or both its
+ * levels are labels, as every study before them kept a factor of two.
+ */
+export const isCategorical = (f) => f?.type === "categorical" || (isLabel(f?.low) && isLabel(f?.high));
+
+/** A categorical factor's levels, in their order: its list of levels, or its two labels. */
+export const levelsOf = (f) => (Array.isArray(f.levels) ? [...f.levels] : [f.low, f.high]);
+
+/** Whether a factor is categorical with three levels or more: a column of the model per level but one. */
+export const isSeveral = (f) => isCategorical(f) && levelsOf(f).length > 2;
+
+/**
+ * A categorical factor as the brief sends it: its type and its levels, any text, with a factor of two levels' first
+ * and second as its low and high too, as the two-level designs read them.
+ */
+export function categoricalFactor(name, levels, units = "") {
+  const two = levels.length === 2 ? { low: levels[0], high: levels[1] } : {};
+  return { name, type: "categorical", levels: [...levels], ...two, units };
+}
+
+/** What a level reads as, to tell two apart: the number it is (1 and 1.0 alike), or its text. */
+const levelKey = (text) => {
+  const t = String(text).trim();
+  return t !== "" && !Number.isNaN(Number(t)) ? `#${Number(t)}` : t;
+};
+
+/**
+ * What a categorical factor's levels need, in a sentence the page shows under the table as the reader adds them;
+ * "" when they are ready. The rules are those bootstrap.py applies: 2 to MAX_LEVELS labels, none blank, none longer
+ * than LABEL_MOST characters, and no two alike, nor two that read as the same number.
+ */
+export function labelsProblem(name, levels) {
+  const who = String(name ?? "").trim() || "A factor without a name";
+  const texts = levels.map((v) => String(v ?? "").trim());
+  if (texts.length < 2) return `${who}: give it two levels or more, such as A and B.`;
+  if (texts.length > MAX_LEVELS) return `${who}: give it at most ${MAX_LEVELS} levels; it has ${texts.length}.`;
+  if (texts.includes("")) return `${who}: a level is blank; give each level a label.`;
+  const long = texts.find((t) => t.length > LABEL_MOST);
+  if (long) return `${who}: the level ${long.slice(0, 20)}... is longer than ${LABEL_MOST} characters.`;
+  const seen = new Map();
+  for (const t of texts) {
+    const key = levelKey(t);
+    if (seen.has(key)) return seen.get(key) === t ? `${who}: ${t} is listed twice.` : `${who}: ${seen.get(key)} and ${t} read as the same number.`;
+    seen.set(key, t);
+  }
+  return "";
+}
 
 /** A factor's two types, as the Type column offers them. */
 export const NUMERIC = "numeric";
@@ -299,17 +354,12 @@ export function factorType(low, high, chosen) {
  * What a factor's levels need for its type, in a sentence the page shows under the table as the
  * reader types; "" when they are ready. The rules are those bootstrap.py applies to the levels.
  */
-export function levelProblem({ name, low, high }, type) {
+export function levelProblem({ name, low, high, levels }, type) {
   const who = String(name ?? "").trim() || "A factor without a name";
   const kinds = [levelKind(low), levelKind(high)];
-  if (type === CATEGORICAL) {
-    if (kinds.includes("blank")) return `${who}: give it two labels, such as A and B.`;
-    if (kinds.includes("number")) return `${who}: a label cannot be a number; write C1 rather than 1.`;
-    if (String(low).trim() === String(high).trim()) return `${who}: its two labels must differ.`;
-    return "";
-  }
+  if (type === CATEGORICAL) return labelsProblem(name, levels ?? [low, high]);
   if (kinds.includes("blank") || kinds.includes("label")) {
-    return `${who}: give a number for both the low and the high value, or make it categorical for two labels.`;
+    return `${who}: give a number for both the low and the high value, or make it categorical to give it labels.`;
   }
   if (!(Number(low) < Number(high))) return `${who}: the low value must be below the high value.`;
   return "";
@@ -588,12 +638,20 @@ export const SCREEN_FROM = 5;
  */
 export const defaultAim = (k) => (k === 1 || k >= SCREEN_FROM ? "main_effects" : "main_quadratic");
 
-/** Count the coefficients, intercept included, of the model an aim names, over these factors: no square of a categorical one. */
+/**
+ * Count the coefficients, intercept included, of the model an aim names, over these factors: a categorical factor of
+ * k levels has k - 1 columns, and so has each of its interactions per column of the other factor; no square of a
+ * categorical one.
+ */
 export function aimTerms(factors, aim) {
-  const k = factors.length;
-  const pairs = aim === "interactions" || aim === "quadratic" ? (k * (k - 1)) / 2 : 0;
+  const columns = factors.map((f) => (isCategorical(f) ? Math.max(1, levelsOf(f).length - 1) : 1));
+  const mains = columns.reduce((a, b) => a + b, 0);
+  let pairs = 0;
+  if (aim === "interactions" || aim === "quadratic") {
+    for (let i = 0; i < columns.length; i++) for (let j = i + 1; j < columns.length; j++) pairs += columns[i] * columns[j];
+  }
   const squares = aim === "main_quadratic" || aim === "quadratic" ? factors.filter((f) => !isCategorical(f)).length : 0;
-  return 1 + k + pairs + squares;
+  return 1 + mains + pairs + squares;
 }
 
 /** Spare runs a design must leave for the noise to be the one picked when the reader has not chosen one. */
@@ -706,12 +764,13 @@ export function standouts(result, made) {
 
 /**
  * Why Design lists none of some designs the page offers, a sentence for each reason: the factor count a design takes,
- * by the bound the brief's count breaks, and the designs of numeric factors when the brief has a categorical one.
- * ``leftOut`` is api_candidates', ``k`` the brief's factor count and ``categorical`` the names of its categorical
- * factors. Limits on the settings leave designs out too, and the comparison's own note says so, so they get no
- * sentence here.
+ * by the bound the brief's count breaks, the designs of numeric factors when the brief has a categorical one, and the
+ * two-level designs when it has a categorical factor of three levels or more. ``leftOut`` is api_candidates', ``k``
+ * the brief's factor count, ``categorical`` the names of its categorical factors and ``several`` its factors of three
+ * levels or more. Limits on the settings leave designs out too, and the comparison's own note says so, so they get
+ * no sentence here.
  */
-export function leftOutSentences(leftOut, k, categorical = []) {
+export function leftOutSentences(leftOut, k, categorical = [], several = []) {
   const said = [];
   const bounds = new Map();
   for (const d of leftOut.filter((one) => one.reason === "factors")) {
@@ -726,6 +785,11 @@ export function leftOutSentences(leftOut, k, categorical = []) {
   if (numeric.length && categorical.length) {
     const are = categorical.length === 1 ? "is" : "are";
     said.push(`${listNames(numeric)} ${verb(numeric, "needs", "need")} numeric factors, and ${listNames(categorical)} ${are} categorical.`);
+  }
+  const twoLevel = leftOut.filter((one) => one.reason === "levels").map((d) => d.label);
+  if (twoLevel.length && several.length) {
+    const levels = several.map((f) => `${f.name} has ${levelsOf(f).length}`);
+    said.push(`${listNames(twoLevel)} ${verb(twoLevel, "takes", "take")} factors of two levels, and ${listNames(levels)}.`);
   }
   return said;
 }
@@ -957,6 +1021,23 @@ export function comparisonSentence(comparison, { response, units = "", factorUni
       ? `holds zero, so these runs do not show that ${at(d.to)} and ${at(d.from)} differ by more than their noise`
       : `lies ${pooled.ci_low > 0 ? "above" : "below"} zero, so the difference is larger than the noise in these runs`;
   return `On average, ${response} is ${size} ${way} at ${at(d.to)} than at ${at(d.from)}. The 95% interval for the difference, ${interval}, ${verdict}.`;
+}
+
+/**
+ * What a comparison of three levels or more says (``comparison.several``), in a sentence: whether the one-way analysis
+ * of variance finds that the levels' averages differ by more than the noise in the runs, at the 5% level. Null while
+ * the runs leave no degree of freedom for the noise.
+ */
+export function severalSentence(comparison, { response }) {
+  const test = comparison?.several?.test;
+  if (!test) return null;
+  const k = comparison.levels.length;
+  const value = test.p_value < 0.0001 ? "below 0.0001" : `of ${pval(test.p_value)}`;
+  const p = `the one-way analysis of variance gives a p-value ${value}`;
+  return test.p_value < 0.05
+    ? `The averages of ${response} at the ${k} levels differ by more than the noise in these runs: ${p}. Tukey's ` +
+        "intervals below say which pairs differ."
+    : `These runs do not show that the averages of ${response} at the ${k} levels differ by more than their noise: ${p}.`;
 }
 
 // ---------------------------------------------------------------- results pasted from a spreadsheet

@@ -102,7 +102,14 @@ def test_a_categorical_factor_s_labels_reach_the_run_sheet_and_the_analysis(blan
     set_factors(page, [*FACTORS[:2], {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
     generate(page, design_type="full_factorial", n_center_points=2)
     request = calls(page, "api_make_design")[-1]["payload"]
-    assert request["factors"][2] == {"name": "Supplier", "low": "old", "high": "new", "units": ""}
+    assert request["factors"][2] == {
+        "name": "Supplier",
+        "type": "categorical",
+        "levels": ["old", "new"],
+        "low": "old",
+        "high": "new",
+        "units": "",
+    }
     supplier = headers(page).index("Supplier")
     assert {row[supplier] for row in run_sheet(page)} == {"old", "new"}
     assert page.is_hidden("#design-stale"), "the labels the form holds are the design's"

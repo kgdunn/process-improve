@@ -143,7 +143,7 @@ export function nextRanges(best, factors) {
   const shares = best.ascent ?? {};
   const clean = (x) => Number(x.toPrecision(12)); // 1 - 0.6 is 0.4, not 0.40000000000000002
   return factors.map((f) => {
-    if (!(f.name in shares) || typeof f.low === "string") return { ...f };
+    if (!(f.name in shares) || typeof f.low !== "number") return { ...f };
     const step = Number(((shares[f.name] * (f.high - f.low)) / 2).toPrecision(2));
     return { ...f, low: clean(f.low + step), high: clean(f.high + step) };
   });

@@ -17,8 +17,8 @@ export const GLOSSARY = {
     "Something you can change to influence the response, set differently from run to run, such as a temperature, " +
     "a speed or a supplier.",
   categorical:
-    "A factor with two labels rather than a range of numbers, such as supplier A and B: the first is coded -1, " +
-    "the second +1. Only the two-level designs take one.",
+    "A factor with labels rather than numbers, such as supplier A, B or C: two to eight levels, in your order. A " +
+    "two-level design takes two levels, coded -1 and +1; a full factorial or a Taguchi array takes more.",
   limit:
     "Some combinations of settings are unsafe, infeasible or not of interest. A limit rules them out: an " +
     "inequality in the factors' own units, such as T + 25*P <= 250, which every run must meet.",
@@ -107,6 +107,17 @@ export const GLOSSARY = {
   "randomization-test":
     "The difference between the levels for every way the random order could have split the runs into groups of " +
     "these sizes. The p-value is the share of them at least as far from zero as the one observed.",
+  "one-way-anova":
+    "The test of whether the averages at three levels or more differ at all: it sets how far the levels' averages " +
+    "spread against how far the runs at each level spread about their own average, which is the noise.",
+  tukey:
+    "Tukey's intervals: one for the difference between each pair of levels, each made wider so that all " +
+    "together hold their true differences 95% of the time. A pair whose interval holds no zero differs by more than " +
+    "the noise.",
+  dunnett:
+    "Dunnett's intervals: one for each level's difference from a single level, the control, made wider so that " +
+    "together they hold their true differences 95% of the time. There are fewer of them than pairs, so each is " +
+    "narrower than Tukey's.",
   "rank-sum":
     "Wilcoxon's test: the runs are ranked together, and one level's sum of ranks is compared with every way the " +
     "ranks could be split. It reads the order of the results, so one wild result moves it little.",
@@ -224,4 +235,7 @@ export const MARKED = {
   "Welch's t-test": "welch-t",
   "randomization test": "randomization-test",
   "rank-sum test": "rank-sum",
+  "one-way analysis of variance": "one-way-anova",
+  "Tukey's intervals": "tukey",
+  "Dunnett's intervals": "dunnett",
 };

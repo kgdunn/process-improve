@@ -67,11 +67,29 @@ def test_dunnett_agrees_with_the_multivariate_t_distribution():
     assert joint.cdf(np.full(3, both), lower_limit=np.full(3, -both), maxpts=500_000) == pytest.approx(0.95, abs=5e-4)
 
 
+def test_dunnett_for_treatments_of_unequal_runs_takes_each_one_s_correlation():
+    """Box, Hunter and Hunter's diets, 6, 6 and 8 animals against a control of 4: c_i = n_i / (n_i + 4).
+
+    Comparisons i and j correlate by the root of c_i c_j; the value holds the multivariate t of those
+    correlations at 95%, and equal shares give the value of one correlation.
+    """
+    shares = [6 / 10, 6 / 10, 8 / 12]
+    d = dunnett_value(0.95, 3, 20, correlation=shares)
+    root = np.sqrt(shares)
+    shape = np.outer(root, root)
+    np.fill_diagonal(shape, 1.0)
+    joint = stats.multivariate_t(shape=shape, df=20, seed=1)
+    assert joint.cdf(np.full(3, d), lower_limit=np.full(3, -d), maxpts=500_000) == pytest.approx(0.95, abs=5e-4)
+    assert dunnett_value(0.95, 3, 16, correlation=[0.5] * 3) == pytest.approx(dunnett_value(0.95, 3, 16), abs=1e-9)
+
+
 def test_dunnett_refuses_what_it_cannot_compute():
     with pytest.raises(ValueError, match="alternative"):
         dunnett_value(0.95, 3, 16, alternative="less")
     with pytest.raises(ValueError, match="p must lie"):
         dunnett_value(1.5, 3, 16)
+    with pytest.raises(ValueError, match="one for each of the 3 treatments"):
+        dunnett_value(0.95, 3, 16, correlation=[0.5, 0.5])
 
 
 def test_a_mean_against_a_stated_value():

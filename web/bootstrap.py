@@ -59,17 +59,19 @@ from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
 from process_improve.univariate import (
+    dunnett_value,
     least_favourable_means,
     one_way_power,
     one_way_sample_size,
     randomization_interval,
     randomization_test,
     rank_sum_test,
+    studentized_range_value,
     ttest_independent,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Collection, Iterator
 
 SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
@@ -317,10 +319,30 @@ MAX_LEVEL_RUNS = 50
 #: The most blocks the page splits a design's runs into.
 MAX_BLOCKS = 8
 
-#: The designs that take a categorical factor, one whose two levels are labels (supplier A and B):
+#: The designs that take a categorical factor, one whose levels are labels (supplier A and B):
 #: the two-level designs, which need only the two levels of each factor, and the Taguchi arrays,
-#: which give a categorical factor a two-level column beside the numeric factors' columns.
+#: which give a categorical factor a column of its own beside the numeric factors' columns.
 CATEGORICAL_DESIGNS = ("full_factorial", "fractional_factorial", "plackett_burman", "taguchi")
+
+#: Of those, the designs that take a categorical factor of three levels or more: the full factorial,
+#: which runs every combination of the levels, and the Taguchi arrays, which have mixed-level columns.
+SEVERAL_LEVEL_DESIGNS = ("full_factorial", "taguchi")
+
+#: The most levels a categorical factor takes on this page; each level but one is a column of the model.
+MAX_LEVELS = 8
+
+#: The longest label a level of a categorical factor may have.
+LABEL_MOST = 64
+
+#: What joins a factor's name to the number of a level in the name of its column of the model, for a
+#: categorical factor of three levels or more: ``Catalyst_L1`` is +1 at the first level, -1 at the last.
+#: (The library refuses a double underscore in a name.)
+LEVEL_JOIN = "_L"
+
+#: What joins a factor's name to the number of a level in the name of its indicator column, 1 at that level and 0
+#: elsewhere: ``Supplier_I1``. A model takes a factor's indicators where another factor is nested in it, as
+#: Batch is in ``Supplier + Supplier:Batch``, so the term holds Batch's effect within each supplier.
+INDICATOR_JOIN = "_I"
 
 #: The levels a Taguchi array can run each numeric factor at: low and high, or low, centre and high.
 #: The array is the smallest standard one with a column for every factor (``dispatch_taguchi``).
@@ -645,9 +667,12 @@ def _factors(spec: dict) -> list[Factor]:
     names = _factor_names(raw)
     factors = []
     for f, name in zip(raw, names, strict=True):
+        if f.get("type") == "categorical" or "levels" in f:  # a type the page says, and its levels, any text
+            factors.append(_categorical_factor(name, f.get("levels")))
+            continue
         labels = _label(f.get("low")), _label(f.get("high"))
-        if None not in labels:
-            factors.append(_categorical_factor(name, *labels))  # type: ignore[arg-type]
+        if f.get("type") != "numeric" and None not in labels:  # two labels, as the page has always sent them
+            factors.append(_categorical_factor(name, list(labels)))
             continue
         low, high = _number(f.get("low")), _number(f.get("high"))
         if low is None or high is None:
@@ -658,6 +683,15 @@ def _factors(spec: dict) -> list[Factor]:
         if not low < high:
             raise ValueError(f"Factor {name}: the low value must be below the high value.")
         factors.append(Factor(name=name, low=low, high=high, units=str(f.get("units", ""))))
+    columns = {
+        f"{f.name}{join}{j}"
+        for f in factors
+        if f.type == "categorical"
+        for join, most in ((LEVEL_JOIN, len(f.levels or []) - 1), (INDICATOR_JOIN, len(f.levels or [])))
+        for j in range(1, most + 1)
+    }
+    if taken := sorted(set(names) & columns):
+        raise ValueError(f"Factor {taken[0]}: rename it, as the page names a column of another factor's levels so.")
     return factors
 
 
@@ -672,25 +706,227 @@ def _label(value: object) -> str | None:
     return None
 
 
-def _categorical_factor(name: str, low: str, high: str) -> Factor:
-    """Make a categorical factor from its two labels: the first is coded -1, the second +1."""
-    if low == high:
-        raise ValueError(f"Factor {name}: its two labels must differ.")
-    if blank := [label for label in (low, high) if label in BLANK_LABELS]:
-        raise ValueError(f"Factor {name}: a spreadsheet reads {blank[0]!r} back as a blank cell; choose another label.")
-    return Factor(name=name, type="categorical", levels=[low, high])
+def _categorical_factor(name: str, raw: object) -> Factor:
+    """Make a categorical factor from its levels, in their order: 2 to :data:`MAX_LEVELS` labels, any text.
+
+    A label may read as a number, such as lot 1, 2 and 3: the factor is categorical because the page
+    says so, not because of its labels. Two labels may not read as the same number (1 and 1.0), as a
+    spreadsheet would make them one; nor may a label read as a blank cell there.
+    """
+    if not isinstance(raw, list) or not all(isinstance(v, (str, int, float)) and not isinstance(v, bool) for v in raw):
+        raise ValueError(f"Factor {name}: list its levels, each a label.")
+    levels = [_level_text(v) for v in raw]
+    if not 2 <= len(levels) <= MAX_LEVELS:  # a factor varies: two levels at least
+        raise ValueError(f"Factor {name}: give it 2 to {MAX_LEVELS} levels; it has {len(levels)}.")
+    if "" in levels:
+        raise ValueError(f"Factor {name}: a level is blank; give each level a label.")
+    if long := next((v for v in levels if len(v) > LABEL_MOST), None):
+        raise ValueError(f"Factor {name}: the level {long[:20]!r}... is longer than {LABEL_MOST} characters.")
+    if blank := next((v for v in levels if v in BLANK_LABELS), None):
+        raise ValueError(f"Factor {name}: a spreadsheet reads {blank!r} back as a blank cell; choose another label.")
+    seen: dict[object, str] = {}
+    for level in levels:
+        key = _number(level) if _number(level) is not None else level
+        if key in seen:
+            same = "is listed twice" if seen[key] == level else f"and {seen[key]} read as the same number"
+            raise ValueError(f"Factor {name}: {level} {same}; its levels must differ.")
+        seen[key] = level
+    return Factor(name=name, type="categorical", levels=levels)
+
+
+def _level_text(value: object) -> str:
+    """Write a level as the label it is: a number a spreadsheet read back, such as 2.0, as the 2 it was."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
 
 
 def _factor_spec(f: Factor) -> dict[str, Any]:
-    """Write a factor as the page holds it: a categorical factor's labels stand for its low and high values."""
+    """Write a factor as the page holds it.
+
+    A categorical factor of two labels that read as no number keeps them as its low and high values,
+    as every study before categorical factors of more levels. Any other says its type and lists its
+    levels; one of two levels keeps them as its low and high too, as every two-level design reads them.
+    """
     if f.type == "categorical":
-        return {"name": f.name, "low": f.levels[0], "high": f.levels[1], "units": ""}  # type: ignore[index]
+        levels = list(f.levels or [])
+        two = {"low": levels[0], "high": levels[1]} if len(levels) == 2 else {}
+        if two and all(_label(v) is not None for v in levels):
+            return {"name": f.name, **two, "units": ""}
+        return {"name": f.name, "type": "categorical", "levels": levels, **two, "units": ""}
     return {"name": f.name, "low": f.low, "high": f.high, "units": f.units}
 
 
 def _categorical(factor: dict) -> bool:
-    """Say whether a factor the page holds is categorical: its levels are labels, not numbers."""
-    return isinstance(factor["low"], str)
+    """Say whether a factor the page holds is categorical: its type says so, or its two levels are labels."""
+    return factor.get("type") == "categorical" or isinstance(factor.get("low"), str)
+
+
+def _levels_of(factor: dict) -> list[str]:
+    """Return a categorical factor's levels, in their order: its list of levels, or its two labels."""
+    return list(factor["levels"]) if "levels" in factor else [factor["low"], factor["high"]]
+
+
+def _several(factor: dict) -> bool:
+    """Say whether a factor is categorical with three levels or more: a column of the model per level but one."""
+    return _categorical(factor) and len(_levels_of(factor)) > 2  # a two-level factor is one column
+
+
+def _level_index(value: object, levels: list[str]) -> int | None:
+    """Return which of a factor's levels a setting is: its label, or the number a spreadsheet read it as."""
+    text = _level_text(value) if isinstance(value, (str, int, float)) and not isinstance(value, bool) else None
+    if text is None:
+        return None
+    if text in levels:
+        return levels.index(text)
+    number = _number(text)
+    matches = [i for i, level in enumerate(levels) if number is not None and _number(level) == number]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _level_at(factor: dict, coded: float) -> str:
+    """Return the level of a categorical factor nearest its coded setting: -1 its first, +1 its last."""
+    levels = _levels_of(factor)
+    return levels[min(len(levels) - 1, max(0, round((coded + 1) / 2 * (len(levels) - 1))))]
+
+
+def _held_columns(hold: dict[str, float], spec: dict) -> dict[str, float]:
+    """Write coded settings over the columns the model is fitted on: a factor of several levels as its contrasts.
+
+    A categorical factor's indicators are written too, 1 at its level and 0 at the others, for a model with a factor
+    nested in it; a model without them leaves them unused.
+    """
+    out: dict[str, float] = {}
+    for f in spec["factors"]:
+        if f["name"] not in hold:
+            continue
+        if _categorical(f):
+            levels = _levels_of(f)
+            at = levels.index(_level_at(f, hold[f["name"]]))
+            out.update({name: float(j == at) for j, name in enumerate(_indicator_names(f))})
+        if not _several(f):
+            out[f["name"]] = hold[f["name"]]
+            continue
+        levels = _levels_of(f)
+        index = np.array([levels.index(_level_at(f, hold[f["name"]]))])
+        out.update(zip(_contrast_names(f), _contrasts(index, len(levels))[0], strict=True))
+    return out
+
+
+def _indicator_names(factor: dict) -> list[str]:
+    """Name a categorical factor's indicator columns, one for each of its levels: ``Supplier_I1``, ``Supplier_I2``."""
+    return [f"{factor['name']}{INDICATOR_JOIN}{j}" for j in range(1, len(_levels_of(factor)) + 1)]
+
+
+def _indicators(index: np.ndarray, k: int) -> np.ndarray:
+    """Return the indicator columns of a factor of ``k`` levels: column j is 1 at level j and 0 elsewhere."""
+    return (index[:, None] == np.arange(k)[None, :]).astype(float)
+
+
+def _nested(terms: list[str], spec: dict) -> dict[str, str]:
+    """Find the terms in which a categorical factor takes its indicators, as patsy codes them, and name it for each.
+
+    In a term with a categorical factor of three levels or more, a categorical factor takes its indicators, not
+    its contrasts, when the model lacks the term without it: in ``Supplier + Supplier:Batch`` the term less
+    Supplier is Batch, which the model lacks, so Supplier takes its indicators and the term holds Batch's effect
+    within each supplier. A term in which two factors would need them is refused: the model cannot tell it from
+    the terms it lacks. A term of two-level and numeric factors stays the product of their -1/+1 columns, the
+    effect a two-level design estimates, with the terms below it in the model or not.
+    """
+    categorical = set(_categorical_names(spec))
+    several = {f["name"] for f in spec["factors"] if _several(f)}
+    present = {frozenset()} | {frozenset(t.split(":")) for t in terms if not t.startswith("I(")}
+    out = {}
+    for term in terms:
+        parts = [] if term.startswith("I(") or not several & set(term.split(":")) else term.split(":")
+        full = [p for p in parts if p in categorical and len(parts) > 1 and frozenset(parts) - {p} not in present]
+        if len(full) > 1:
+            lacking = _listed([_pretty(":".join(q for q in parts if q != p)) for p in reversed(full)], last="or")
+            raise ValueError(
+                f"The term {_pretty(term)} needs {lacking} in the model too: add one of them, or take it out."
+            )
+        if full:
+            out[term] = full[0]
+    return out
+
+
+def _contrast_names(factor: dict) -> list[str]:
+    """Name the columns of the model of a categorical factor of three levels or more: one per level but the last."""
+    return [f"{factor['name']}{LEVEL_JOIN}{j}" for j in range(1, len(_levels_of(factor)))]
+
+
+def _contrasts(index: np.ndarray, k: int) -> np.ndarray:
+    """Return the sum-to-zero columns of a factor of ``k`` levels: column j is +1 at level j, -1 at the last, else 0.
+
+    Each column's coefficient is then how far that level lies from the average of the levels, and the last
+    level's is minus the sum of the others', as the blocks' are (``Block1``, ``Block2``, ...).
+    """
+    columns = np.zeros((len(index), k - 1))
+    for j in range(k - 1):
+        columns[:, j] = (index == j).astype(float) - (index == k - 1).astype(float)
+    return columns
+
+
+def _model_columns(spec: dict) -> list[str]:
+    """Name the columns the model is fitted on: each factor's own, or a factor of several levels' contrasts."""
+    return [c for f in spec["factors"] for c in (_contrast_names(f) if _several(f) else [f["name"]])]
+
+
+def _expanded_terms(terms: list[str], spec: dict, model: list[str] | None = None) -> list[str]:
+    """Write a model's terms, named over the factors, over the columns the model is fitted on.
+
+    A categorical factor of three levels or more is its contrasts: its main effect is a column per
+    level but the last, and its interaction with another factor is each of those columns times the
+    other factor's. A factor another is nested in is its indicators in that term (:func:`_nested`),
+    judged in ``model``, the whole model, when ``terms`` are only some of its terms. A square is a
+    numeric factor's, and stays as it is.
+    """
+    columns = {f["name"]: _contrast_names(f) if _several(f) else [f["name"]] for f in spec["factors"]}
+    indicators = {f["name"]: _indicator_names(f) for f in spec["factors"] if _categorical(f)}
+    nested = _nested(terms if model is None else model, spec)
+    out = []
+    for term in terms:
+        if term.startswith("I("):
+            out.append(term)
+            continue
+        each = [indicators[name] if nested.get(term) == name else columns[name] for name in term.split(":")]
+        out += [":".join(product) for product in itertools.product(*each)]
+    return out
+
+
+def _fitted_model(model: str | list[str], spec: dict) -> tuple[str | list[str], list[str]]:
+    """Return the model as it is fitted, and the columns it is fitted on.
+
+    Without a categorical factor of three levels or more, or one another is nested in, these are the
+    model itself and the factors' names. Otherwise its terms written over the columns
+    (:func:`_expanded_terms`), since a named model would multiply a factor's own contrasts together,
+    and the columns with the indicators of each factor another is nested in.
+    """
+    names = [f["name"] for f in spec["factors"]]
+    terms = _model_terms(model, names, _categorical_names(spec))
+    nested = _nested(terms, spec)
+    if not any(_several(f) for f in spec["factors"]) and not nested:
+        return model, names
+    factors = {f["name"]: f for f in spec["factors"]}
+    indicators = [c for name in dict.fromkeys(nested.values()) for c in _indicator_names(factors[name])]
+    return _expanded_terms(terms, spec), [*_model_columns(spec), *indicators]
+
+
+def _level_words(text: str, spec: dict) -> str:
+    """Write a fitted column of a categorical factor as the page shows it: ``Catalyst_L1`` as ``Catalyst[A]``.
+
+    A contrast column and an indicator column of the same level read alike: the term each is in says which it is.
+    """
+    for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            for j, column in enumerate(_indicator_names(f)):
+                text = re.sub(rf"\b{re.escape(column)}\b", f"{f['name']}[{levels[j]}]", text)
+        if _several(f):
+            levels = _levels_of(f)
+            for j, column in enumerate(_contrast_names(f)):
+                text = re.sub(rf"\b{re.escape(column)}\b", f"{f['name']}[{levels[j]}]", text)
+    return text
 
 
 def _categorical_names(spec: dict) -> tuple[str, ...]:
@@ -719,7 +955,7 @@ def _components(spec: dict) -> list[Factor]:
     names = _factor_names(raw)
     components = []
     for f, name in zip(raw, names, strict=True):
-        if _label(f.get("low")) is not None and _label(f.get("high")) is not None:
+        if _categorical(f) or (_label(f.get("low")) is not None and _label(f.get("high")) is not None):
             raise ValueError(
                 f"A mixture's factors are its components, each a proportion, and {name} is categorical: remove it, "
                 "or choose a design for factors with ranges."
@@ -1060,12 +1296,7 @@ def make_design(spec: dict) -> dict:
     limits = _checked_constraints(spec.get("constraints"), factors)
     expressions = [limit["expression"] for limit in limits]
     region = _region_refusal(factors, _region(factors, expressions), design_type) if limits else None
-    if (labelled := [f.name for f in factors if f.type == "categorical"]) and design_type not in CATEGORICAL_DESIGNS:
-        verb = "is" if len(labelled) == 1 else "are"
-        raise ValueError(
-            f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
-            "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design."
-        )
+    _check_categorical(design_type, factors)
     responses = _checked_responses(spec, factors, blank="y")
     described = {**_stored_responses(responses), **_aimed(spec)}
 
@@ -1116,10 +1347,15 @@ def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dic
     The library returns the runs already randomised, and ``run_order[i]`` is the standard-order
     position of its i-th run: the sheet keeps the rows as they come, under their "Std order" and
     "Run order", with their block first when they come in blocks. A space-filling design's settings
-    are rounded to what can be set (:func:`_round_spread`).
+    are rounded to what can be set (:func:`_round_spread`). A categorical factor's settings are its
+    labels, as the reader typed them: the library reads labels such as 1 and 2 as numbers.
     """
     names = [f.name for f in factors]
     runs = pd.DataFrame(result.design_actual[names].to_numpy(), columns=names)
+    for f in factors:
+        if f.type == "categorical":
+            levels = [str(v) for v in f.levels or []]
+            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
     if BLOCK in result.design_actual.columns:  # the runs are listed block by block
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     if design_type in SPACE_FILLING:
@@ -1172,15 +1408,14 @@ def _given_design(spec: dict) -> dict:
     }
     coded = _coded(runs, stored["factors"]).to_numpy(dtype=float)
     kinds = ["categorical" if f.type == "categorical" else "numeric" for f in factors]
-    fits = estimable_models(coded, kinds)
-    stored["model"] = next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
+    stored["model"] = _largest_model(coded, kinds, blocks)
     if blocks:
         runs.insert(0, BLOCK, blocks)
     runs.insert(0, "Run order", range(1, len(runs) + 1))
     runs.insert(0, "Std order", range(1, len(runs) + 1))
     for response in responses:
         runs[response["name"]] = np.nan
-    groups = _aliased_groups(coded, names)
+    groups = _aliased_groups(coded, names, [f["name"] for f in stored["factors"] if _several(f)])
     said = (
         _levels_sentence(stored["factors"][0], coded[:, 0], given=True)
         if len(names) == 1
@@ -1210,10 +1445,16 @@ def _given_design(spec: dict) -> dict:
 
 
 def _given_settings(rows: list[list], factors: list[Factor]) -> pd.DataFrame:
-    """Read the runs as given, a setting per factor: each numeric factor's a number, a categorical one's a label."""
+    """Read the runs as given, a setting per factor: each numeric factor's a number, a categorical one's a label.
+
+    A categorical factor's setting is written as its level's label, so a level 2 given as the number
+    2.0, as a spreadsheet reads it, is the label 2. A setting at none of its levels is refused.
+    """
     runs = pd.DataFrame(rows, columns=[f.name for f in factors], dtype=object)
     for f in factors:
         if f.type == "categorical":
+            levels = [str(v) for v in f.levels or []]
+            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
             continue
         values = [_number(v) for v in runs[f.name]]
         if None in values:
@@ -1637,6 +1878,27 @@ def _library_arguments(factors: list[Factor], kwargs: dict[str, Any]) -> tuple[l
     return made, asked
 
 
+def _check_categorical(design_type: str, factors: list[Factor]) -> None:
+    """Refuse a design that cannot hold the brief's categorical factors, saying which designs can."""
+    if (labelled := [f.name for f in factors if f.type == "categorical"]) and design_type not in CATEGORICAL_DESIGNS:
+        verb = "is" if len(labelled) == 1 else "are"
+        raise ValueError(
+            f"The {DESIGNS[design_type]['label']} design needs numeric factors, and {_listed(labelled)} {verb} "
+            "categorical: choose a full factorial, fractional factorial, Plackett-Burman or Taguchi design."
+        )
+    if (several := _several_names(factors)) and design_type not in SEVERAL_LEVEL_DESIGNS:
+        verb = "has" if len(several) == 1 else "have"
+        raise ValueError(
+            f"The {DESIGNS[design_type]['label']} design runs each categorical factor at two levels, and "
+            f"{_listed(several)} {verb} more: choose a full factorial or a Taguchi design."
+        )
+
+
+def _several_names(factors: list[Factor]) -> list[str]:
+    """Name the categorical factors of three levels or more."""
+    return [f.name for f in factors if f.type == "categorical" and len(f.levels or []) > 2]
+
+
 def _array_sentence(name: str, model: str) -> str:
     """Say which orthogonal array a Taguchi design is, its runs, and what it estimates: ``Taguchi L12 (2^11): ...``.
 
@@ -1831,7 +2093,7 @@ def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: d
     the page shows.
     """
     names = [f["name"] for f in factors]
-    groups = _aliased_groups(coded, names)
+    groups = _aliased_groups(coded, names, [f["name"] for f in factors if _several(f)])
     notes = []
     if result.resolution:
         notes.append(_resolution_sentence(result.resolution, [_spaced(g, names) for g in result.generators or []]))
@@ -1867,14 +2129,18 @@ def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: d
     }
 
 
-def _aliased_groups(coded: np.ndarray, names: list[str]) -> list[list[str]]:
+def _aliased_groups(coded: np.ndarray, names: list[str], several: Collection[str] = ()) -> list[list[str]]:
     """Group the main effects and two-factor interactions the design cannot tell apart.
 
     Two terms are fully aliased when their centred columns are parallel, so the data
     determine only their sum (or difference). A partial correlation, such as the 1/3
     between a main effect and an interaction in a 12-run Plackett-Burman design, is not
-    aliasing in this sense. Each group lists its main effect first.
+    aliasing in this sense. Each group lists its main effect first. A categorical factor of
+    three levels or more (``several``) is no one column, and is left out; the designs that
+    hold one, the full factorial and the Taguchi arrays, keep its main effect clear.
     """
+    keep = [j for j, n in enumerate(names) if n not in several]
+    coded, names = coded[:, keep], [names[j] for j in keep]
     pairs = list(itertools.combinations(range(len(names)), 2))
     labels = list(names) + [f"{names[i]}·{names[j]}" for i, j in pairs]
     columns = np.column_stack([coded, *[coded[:, i] * coded[:, j] for i, j in pairs]])
@@ -1898,13 +2164,26 @@ def _levels_sentence(factor: dict, coded: np.ndarray, *, given: bool = False) ->
     """Say how a design in one factor compares its levels: how many runs at its low, at its high and at its center.
 
     ``coded`` is the factor's coded setting in each run. A design the page makes runs in random order;
-    runs as given (``given``) keep their order, so the sentence does not claim one.
+    runs as given (``given``) keep their order, so the sentence does not claim one. A categorical
+    factor of three levels or more is counted at each of its levels.
     """
+    order = "" if given else ", in random order"
+    if _several(factor):
+        levels = _levels_of(factor)
+        codes = np.linspace(-1.0, 1.0, len(levels))
+        counts = [int(np.isclose(coded, c, atol=ALIAS_TOLERANCE).sum()) for c in codes]
+        each = (
+            f"{counts[0]} runs at each"
+            if len(set(counts)) == 1
+            else _listed(
+                [f"{n} run{'s' if n != 1 else ''} at {level}" for n, level in zip(counts, levels, strict=True)]
+            )
+        )
+        return f"The runs compare {factor['name']} at {_listed(levels)}: {each}{order}."
     low, high = factor["low"], factor["high"]
     categorical = _categorical(factor)
     units = "" if categorical or not factor.get("units") else f" {factor['units']}"
     at = {level: int(np.isclose(coded, level, atol=ALIAS_TOLERANCE).sum()) for level in (-1, 0, 1)}
-    order = "" if given else ", in random order"
     shown = (low, high) if categorical else (f"{low:.4g}", f"{high:.4g}")
     if at[-1] + at[0] + at[1] < len(coded):  # runs as given at other settings: a curve, not a comparison
         levels = len(np.unique(np.round(coded, 6)))
@@ -1955,9 +2234,9 @@ def _factor_word(part: str, names: list[str]) -> str:
     return sign + "·".join(found) if found and "".join(found) == body else part
 
 
-def _listed(items: list[str]) -> str:
-    """Join items as a sentence does: ``A``, ``A and B``, ``A, B and C``."""
-    return f"{', '.join(items[:-1])} and {items[-1]}" if len(items) > 1 else "".join(items)
+def _listed(items: list[str], last: str = "and") -> str:
+    """Join items as a sentence does: ``A``, ``A and B``, ``A, B and C``, or with ``or`` before the last."""
+    return f"{', '.join(items[:-1])} {last} {items[-1]}" if len(items) > 1 else "".join(items)
 
 
 def _blocking_sentence(sizes: list[int], confounded: list[str]) -> str:
@@ -2018,11 +2297,15 @@ def analyze(request: dict) -> dict:
     return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
-def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None) -> dict:
+def _analysis(
+    runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None, *, control: object = None
+) -> dict:
     """Fit the model to the completed runs of a run sheet, from a workbook or from the page.
 
     With the true process the results were simulated from, each coefficient also
-    carries the true value of what it estimates (see :func:`_add_true_values`).
+    carries the true value of what it estimates (see :func:`_add_true_values`). A study of
+    one categorical factor of three levels or more compares each level with ``control``,
+    one of its levels, the first unless named (see :func:`_comparison`).
     """
     runs = _design_runs(runs)
     if _mixture(spec):
@@ -2033,6 +2316,7 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     categorical = _categorical_names(spec)
     name = _model_name(model)
     model = _checked_model(model, names, categorical)
+    fitted, columns = _fitted_model(model, spec)
     blocked = _blocked(spec)
     missing_cols = [c for c in [*names, *([BLOCK] if blocked else []), response] if c not in runs.columns]
     if missing_cols:
@@ -2042,8 +2326,8 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     done = y.notna()
     pending = runs.loc[~done, "Run order"].astype(int).tolist() if "Run order" in runs else []
 
-    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
-    n_terms = _n_terms(len(names), model)
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
+    n_terms = _n_terms(len(columns), fitted)
     if pending and done.sum() < n_terms:
         complete = int(done.sum())
         raise ValueError(
@@ -2052,16 +2336,17 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
             f"Still to run: {', '.join(map(str, pending))}."
         )
 
-    fit = _fit_estimable(coded, y[done].reset_index(drop=True).rename(response), model, names, categorical)
+    y_done = y[done].reset_index(drop=True).rename(response)
+    fit = _fit_estimable(coded, y_done, fitted, columns, categorical)
     out = fit["out"]
     zero = ROUND_OFF * float(y[done].abs().max())
     coefficients = [
         {
             **c,
             "coefficient": _snapped(c["coefficient"], zero),
-            "label": fit["labels"].get(c["term"], _pretty(c["term"])),
+            "label": _level_words(fit["labels"].get(c["term"], _pretty(c["term"])), spec),
             "aliases": fit["chains"].get(c["term"], []),
-            "block": _block_contrast(c["term"], names),
+            "block": _block_contrast(c["term"], columns),
             "vif": fit["vifs"].get(c["term"]),  # none for the intercept
         }
         for c in out.get("coefficients", [])
@@ -2070,11 +2355,16 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
     if lenth:  # an effect is twice its coefficient at most, so twice the coefficients' round-off
         lenth["effects"] = [{**e, "effect": _snapped(e["effect"], 2 * zero)} for e in lenth["effects"]]
     if truth:
-        _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, names))
+        _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, columns))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
-    notes = fit["notes"]
+    if columns != names:  # a factor of several levels is tested as one term, over its contrasts together
+        anova = _grouped_anova(anova, coded, y_done, fit["formula"], spec)
+    anova = [{**a, "source": _level_words(a["source"], spec)} for a in anova]
+    notes = [_level_words(note, spec) for note in fit["notes"]]
     order = runs.loc[done, "Run order"].astype(int).tolist() if "Run order" in runs else None
-    comparison = _comparison(coded, y[done].to_numpy(dtype=float), spec, order)
+    comparison = _comparison(
+        _coded(runs, factors)[done].reset_index(drop=True), y[done].to_numpy(dtype=float), spec, order, control
+    )
     if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
         true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
         comparison["difference"]["true"] = None if true is None else 2 * true
@@ -2094,11 +2384,97 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         "anova": anova,
         "lack_of_fit": out.get("lack_of_fit"),
         "lenth": lenth,
-        "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
+        "not_estimable": [_level_words(_pretty(t), spec) for t in fit["not_estimable"]],
         "notes": notes,
         "equation": _equation(_response_words(spec)[0], [c for c in coefficients if not c["block"]]),
         "comparison": comparison,
     }
+
+
+def _grouped_anova(rows: list[dict], frame: pd.DataFrame, y: pd.Series, formula: str, spec: dict) -> list[dict]:
+    """Test each term of a factor of several levels as one source, its contrasts together.
+
+    The fit lists each contrast as a source of one degree of freedom. A factor of k levels is one
+    source of k - 1, and so is its interaction with another factor. Its sum of squares is of Type II,
+    as the fit's other rows are: how much the residual sum of squares grows when its columns are
+    left out of the model without the terms that contain it (the catalyst's interaction with T,
+    for the catalyst). Its F is that over its degrees of freedom, against the residual mean square
+    of the whole model.
+    """
+    terms = [t.strip() for t in formula.rsplit("~", maxsplit=1)[-1].split("+") if t.strip() and t.strip() != BLOCK]
+    sources: dict[str, list[str]] = {}
+    for term in terms:
+        sources.setdefault(_source_of(term, spec), []).append(term)
+    grouped = {source: members for source, members in sources.items() if len(members) > 1}
+    # A source within a grouped one, as Supplier is within Supplier:Batch when Batch is nested in it, is
+    # worked out here too: the fit cannot tell that Supplier_I1:Batch contains Supplier.
+    inner = {s for s in sources if any(set(g.split(":")) > set(s.split(":")) for g in grouped)}
+    grouped |= {source: sources[source] for source in inner}
+    if not grouped:
+        return rows
+    full = _sse(frame, y, terms)
+    residual = next((r for r in rows if r["source"] == "Residual"), None)
+    df_resid = int(residual["df"]) if residual else len(y) - len(terms) - 1
+    mse = full / df_resid if df_resid > 0 else math.nan
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    out, done = [], set()
+    for row in rows:
+        source = "Residual" if row["source"] == "Residual" else _source_of(str(row["source"]), spec)
+        members = grouped.get(source)
+        if not members:
+            out.append(row)
+            continue
+        if source in done:
+            continue
+        done.add(source)
+        held = set(source.split(":"))
+        kept = [t for t in terms if not set(_source_of(t, spec).split(":")) > held]  # the terms that contain it out
+        ss = _sse(frame, y, [t for t in kept if t not in members]) - _sse(frame, y, kept)
+        mean_sq = ss / len(members)
+        f_value = mean_sq / mse if mse > 0 else math.nan
+        p_value = float(stats.f.sf(f_value, len(members), df_resid)) if math.isfinite(f_value) else None
+        out.append(
+            {
+                **row,
+                "source": source,
+                "df": len(members),
+                "sum_sq": ss,
+                "mean_sq": mean_sq,
+                "F": f_value,
+                "p_value": p_value,
+            }
+        )
+    return out
+
+
+def _source_of(term: str, spec: dict) -> str:
+    """Name the source a fitted term belongs to, over the factors: ``Catalyst_L1:T`` is part of ``Catalyst:T``."""
+    several = {f["name"] for f in spec["factors"] if _several(f)}
+    categorical = set(_categorical_names(spec))
+
+    def factor(part: str) -> str:
+        stem, join, j = part.rpartition(LEVEL_JOIN)
+        if join and stem in several and j.isdigit():
+            return stem
+        stem, join, j = part.rpartition(INDICATOR_JOIN)
+        return stem if join and stem in categorical and j.isdigit() else part
+
+    return ":".join(factor(part) for part in term.replace("·", ":").split(":"))
+
+
+def _sse(frame: pd.DataFrame, y: pd.Series, terms: list[str]) -> float:
+    """Return the residual sum of squares of a least-squares fit of these terms, an intercept and any blocks."""
+    columns = [np.ones(len(frame))]
+    for term in terms:
+        square = re.fullmatch(r"I\((\w+) \*\* 2\)", term)
+        values = frame[square.group(1)] ** 2 if square else frame[term.split(":")].prod(axis=1)
+        columns.append(values.to_numpy(float))
+    if BLOCK in frame.columns:
+        columns += list(pd.get_dummies(frame[BLOCK], drop_first=True, dtype=float).to_numpy().T)
+    x = np.column_stack(columns)
+    fitted = x @ np.linalg.lstsq(x, y.to_numpy(float), rcond=None)[0]
+    return float(((y.to_numpy(float) - fitted) ** 2).sum())
 
 
 #: The confidence of each interval the comparison of one factor's levels gives, as of the coefficients'.
@@ -2109,15 +2485,18 @@ CONFIDENCE = 0.95
 ARRANGEMENTS = 200_000
 
 
-def _comparison(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None) -> dict | None:
-    """Compare one factor's levels: each level's results, and at two levels the difference between them.
+def _comparison(
+    coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None, control: object = None
+) -> dict | None:
+    """Compare one factor's levels: each level's results, and the differences between them.
 
     Each level lists its runs (their run order and result), their average, standard deviation and the
     interval for the average from those runs alone. With the runs at the low and the high only, two
     or more at each, ``difference`` is the high's average less the low's, tested four ways: the
     t-test with one variance for both levels (the model's own test), Welch's t-test with each level's
     own variance, the randomization test, which counts the arrangements of the runs the random order
-    could have made, and Wilcoxon's rank-sum test. A study of more factors, or in blocks, has none.
+    could have made, and Wilcoxon's rank-sum test. A categorical factor run at three levels or more
+    has ``several`` instead (:func:`_several_levels`). A study of more factors, or in blocks, has none.
     """
     factors = spec["factors"]
     if len(factors) != 1 or _blocked(spec):
@@ -2129,16 +2508,95 @@ def _comparison(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int]
         _level(factor, setting, y[x == setting], [r for r, at in zip(runs, x, strict=True) if at == setting])
         for setting in np.unique(x)
     ]
-    out: dict[str, Any] = {"factor": factor["name"], "levels": levels, "difference": None}
+    out: dict[str, Any] = {"factor": factor["name"], "levels": levels, "difference": None, "several": None}
+    if len(levels) > 2 and _categorical(factor):  # two levels have their difference
+        out["several"] = _several_levels(levels, control)
+        return out
     low, high = y[x == -1], y[x == 1]
     if len(levels) == 2 and min(len(low), len(high)) >= 2:  # two levels, two runs each, for a variance
         out["difference"] = _difference(low, high, factor, spec.get("options", {}).get("random_state", 0))
     return out
 
 
+def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any] | None:
+    """Compare three levels or more: the one-way analysis of variance, Tukey's pairs, and Dunnett's against a control.
+
+    Every test rests on the pooled standard deviation of the runs about their level's average. The
+    F test asks whether the levels' averages differ at all. Tukey's intervals (``pairs``), one for
+    each pair of levels, hold every difference between pairs together 95% of the time, from the
+    studentized range of the k averages (Tukey and Kramer's, for levels of unequal runs). Dunnett's
+    intervals (``versus``) compare each level with the control alone, so there are fewer of them and
+    each is narrower; the control is the level named, the first unless another is. None when the
+    runs leave no degree of freedom for the error.
+    """
+    groups = [np.array([r["value"] for r in level["runs"]]) for level in levels]
+    names = [level["level"] for level in levels]
+    n = np.array([len(g) for g in groups])
+    k, df = len(groups), int(n.sum()) - len(groups)
+    if df < 1:
+        return None
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    means = np.array([g.mean() for g in groups])
+    mse = sum(float(((g - g.mean()) ** 2).sum()) for g in groups) / df
+    s = math.sqrt(mse)
+    grand = float(np.concatenate(groups).mean())
+    between = float((n * (means - grand) ** 2).sum()) / (k - 1)
+    f_value = between / mse if mse > 0 else math.inf
+    test = {
+        "f_value": f_value,
+        "df_between": k - 1,
+        "df_within": df,
+        "p_value": float(stats.f.sf(f_value, k - 1, df)) if math.isfinite(f_value) else 0.0,
+        "std_dev": s,
+    }
+    q = studentized_range_value(CONFIDENCE, k, df)
+    pairs = []
+    for i, j in itertools.combinations(range(k), 2):
+        se = s * math.sqrt((1 / n[i] + 1 / n[j]) / 2)
+        difference = float(means[j] - means[i])
+        pairs.append(
+            {
+                "from": names[i],
+                "to": names[j],
+                "estimate": difference,
+                "ci_low": difference - q * se,
+                "ci_high": difference + q * se,
+                "p_value": float(stats.studentized_range.sf(abs(difference) / se, k, df)) if se > 0 else 0.0,
+            }
+        )
+    c = next((i for i, name in enumerate(names) if str(name) == str(control)), 0)
+    others = [i for i in range(k) if i != c]
+    d = _dunnett_critical(n[others], n[c], df)
+    versus = []
+    for i in others:
+        se = s * math.sqrt(1 / n[i] + 1 / n[c])
+        difference = float(means[i] - means[c])
+        versus.append(
+            {
+                "level": names[i],
+                "estimate": difference,
+                "ci_low": difference - d * se,
+                "ci_high": difference + d * se,
+                "differs": bool(abs(difference) > d * se),
+            }
+        )
+    return {"test": test, "pairs": pairs, "control": names[c], "versus": versus, "q": q, "d": d}
+
+
+def _dunnett_critical(runs: np.ndarray, control_runs: int, df: int) -> float:
+    """Return Dunnett's critical value for levels of these runs against a control of ``control_runs``.
+
+    Two comparisons with the control share its average, so they are correlated: level i's and level j's by
+    sqrt(c_i c_j), with c_i = n_i / (n_i + n_0), which is one half when every level has as many runs as the
+    control. The library's ``dunnett_value`` takes each level's c_i, so the value is exact for unequal runs too.
+    """
+    return dunnett_value(CONFIDENCE, len(runs), df, correlation=(runs / (runs + control_runs)).tolist())
+
+
 def _level(factor: dict, setting: float, values: np.ndarray, runs: list[int]) -> dict[str, Any]:
     """Summarise one level's results: its runs, their average, standard deviation and the interval for the average."""
-    name = (factor["low"] if setting < 0 else factor["high"]) if _categorical(factor) else _actual(factor, setting)
+    name = _level_at(factor, setting) if _categorical(factor) else _actual(factor, setting)
     n = len(values)
     sd = float(values.std(ddof=1)) if n > 1 else None
     half = float(_critical_t(n - 1) * sd / math.sqrt(n)) if sd is not None else None
@@ -2869,20 +3327,46 @@ def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
 
 
 def _coded_column(column: pd.Series, factor: dict) -> pd.Series:
-    """Code one factor's settings; a categorical factor's runs must each be at one of its two labels."""
+    """Code one factor's settings; a categorical factor's runs must each be at one of its levels.
+
+    A categorical factor of k levels is coded as the library codes it, its levels spread evenly from
+    -1 to +1 in their order (``categorical_codes``): -1 and +1 for two, -1, 0 and +1 for three.
+    """
     if not _categorical(factor):
         return (column - (factor["high"] + factor["low"]) / 2) / ((factor["high"] - factor["low"]) / 2)
-    codes = column.astype(str).str.strip().map({factor["low"]: -1.0, factor["high"]: 1.0})
-    if codes.isna().any():
-        other = column[codes.isna()].iloc[0]
-        levels = f"{factor['low']} or {factor['high']}"
-        raise ValueError(f"Factor {factor['name']}: each run must be at {levels}, not {other!r}.")
-    return codes
+    codes = np.linspace(-1.0, 1.0, len(_levels_of(factor)))
+    return pd.Series(codes[_level_indices(column, factor)], index=column.index)
 
 
-def _design_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
-    """Return the runs as the analysis fits them: the coded settings, and each run's block if it has one."""
+def _level_indices(column: pd.Series, factor: dict) -> np.ndarray:
+    """Return which level each run of a categorical factor is at, refusing a run at none of them."""
+    levels = _levels_of(factor)
+    found = [_level_index(v, levels) for v in column]
+    if None in found:
+        other = column.iloc[found.index(None)]
+        raise ValueError(f"Factor {factor['name']}: each run must be at {_listed(levels, 'or')}, not {other!r}.")
+    return np.array(found, dtype=int)
+
+
+def _design_frame(runs: pd.DataFrame, spec: dict, columns: list[str] | tuple[str, ...] = ()) -> pd.DataFrame:
+    """Return the runs as the analysis fits them: the coded settings, and each run's block if it has one.
+
+    A categorical factor of three levels or more is fitted as its contrasts (:func:`_contrasts`), a
+    column per level but the last, in place of its one coded column. A factor whose indicators the
+    model's ``columns`` name has them too (:func:`_nested`).
+    """
     frame = _coded(runs, spec["factors"])
+    for f in spec["factors"]:
+        if _several(f):
+            index = _level_indices(runs[f["name"]], f)
+            at = frame.columns.get_loc(f["name"])
+            frame = frame.drop(columns=f["name"])
+            for j, name in enumerate(_contrast_names(f)):
+                frame.insert(at + j, name, _contrasts(index, len(_levels_of(f)))[:, j])
+        if _categorical(f) and set(_indicator_names(f)) & set(columns):
+            index = _level_indices(runs[f["name"]], f)
+            for j, name in enumerate(_indicator_names(f)):
+                frame[name] = _indicators(index, len(_levels_of(f)))[:, j]
     if _blocked(spec):
         frame[BLOCK] = runs[BLOCK].to_numpy()
     return frame
@@ -3059,7 +3543,7 @@ def simulate(request: dict) -> dict:
             process = _scenario_process(key, names, request, _categorical_names(spec), **known)
         values = process.simulate(settings, random_state=seed + SEED_STEP * place)
         decimals = max(0, 2 - math.floor(math.log10(process.sigma)))
-        truth = _truth(process)
+        truth = _contrast_truth(_truth(process), spec)
         simulated.append(
             {
                 "sigma": process.sigma,
@@ -3078,6 +3562,40 @@ def simulate(request: dict) -> dict:
     return reply
 
 
+def _contrast_truth(truth: list[dict], spec: dict) -> list[dict]:
+    """Write a simulated process over the columns the model is fitted on.
+
+    The process moves the response by its coefficient times a factor's coded setting, so a
+    categorical factor of k levels moves it evenly across its levels, from -c at the first to +c at
+    the last. Over the factor's contrasts (:func:`_contrasts`) that is the coefficient c times each
+    level's code, for each level but the last, and the same for each of its interactions: a term's
+    coefficient is spread over the products of its factors' contrasts, each times their levels' codes.
+    """
+    several = {f["name"]: f for f in spec["factors"] if _several(f)}
+    if not several:
+        return truth
+    out: dict[str, float] = {}
+    for t in truth:
+        term, value = str(t["term"]), float(t["coefficient"])
+        if term == "Intercept" or term.startswith("I("):
+            out[term] = out.get(term, 0.0) + value
+            continue
+        choices = []
+        for name in term.split(":"):
+            if name in several:
+                codes = np.linspace(-1.0, 1.0, len(_levels_of(several[name])))
+                choices.append(list(zip(_contrast_names(several[name]), codes[:-1], strict=True)))
+            else:
+                choices.append([(name, 1.0)])
+        for product in itertools.product(*choices):
+            column = ":".join(name for name, _ in product)
+            out[column] = out.get(column, 0.0) + value * math.prod(code for _, code in product)
+    return [
+        {"term": term, "label": _level_words(_pretty(term), spec), "coefficient": round(value, 12) + 0.0}
+        for term, value in out.items()
+    ]
+
+
 def analyze_runs(request: dict) -> dict:
     """Fit the model to the runs the page holds, with the responses typed or simulated there.
 
@@ -3089,7 +3607,7 @@ def analyze_runs(request: dict) -> dict:
     runs = _runs_frame(request, spec)
     spec = _for_response(spec, request.get("response"))
     model = request.get("model") or spec["model"]
-    return _analysis(runs, spec, model, request.get("truth"))
+    return _analysis(runs, spec, model, request.get("truth"), control=request.get("control"))
 
 
 def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
@@ -3237,19 +3755,22 @@ def plots(request: dict) -> dict:
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
+    fitted, columns = _fitted_model(model, spec)
     runs = _design_runs(every_run)
     response = spec["response"]
     y = pd.to_numeric(runs[response], errors="coerce")
     done = y.notna().to_numpy()
-    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
-        fit = _fit_estimable(coded, y, model, names, categorical)
+        fit = _fit_estimable(coded, y, fitted, columns, categorical)
         out = analyze_experiment(
             coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"], coding="actual"
         )
     rows = coded.assign(**{response: y}).to_dict("records")
-    pair = _contour_pair(out["coefficients"], names)
+    # A factor of several levels is no axis: the surface holds it at its average level, its contrasts at 0.
+    axes = [f["name"] for f in spec["factors"] if not _several(f)]
+    pair = _contour_pair(out["coefficients"], axes)
     shading, held = _shading(spec, pair)
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
@@ -3259,11 +3780,12 @@ def plots(request: dict) -> dict:
         return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
 
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
-    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)} if len(names) > 1 else {}
+    surface = len(pair) > 1
+    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)} if surface else {}
     truth = request.get("truth")
-    if truth and len(names) > 1:
+    if truth and surface:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
-        missing = [f for f in process.factors if f not in names]
+        missing = [f for f in process.factors if f not in columns]
         if missing:
             raise ValueError(f"The true process names factors the design does not have: {missing}.")
         figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair, **shading)
@@ -3307,12 +3829,10 @@ def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, f
         coded = float(raw[f["name"]])
         hold[f["name"]] = coded
         value = (
-            (f["low"] if coded < 0 else f["high"])
-            if _categorical(f)
-            else (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
+            _level_at(f, coded) if _categorical(f) else (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
         )
         held.append({"name": f["name"], "value": value})
-    return hold, held
+    return _held_columns(hold, spec), held
 
 
 def _shading(spec: dict, pair: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -3603,8 +4123,11 @@ def relabel(request: dict) -> dict:
     renamed = _factors({"factors": request.get("factors"), "design_type": spec["design_type"]})
     before = spec["factors"]
     after = [_factor_spec(f) for f in renamed]
-    levels = [(f["low"], f["high"]) for f in before]
-    if [(f["low"], f["high"]) for f in after] != levels:
+
+    def settings(f: dict) -> object:
+        return ("labels", _levels_of(f)) if _categorical(f) else ("range", f["low"], f["high"])
+
+    if [settings(f) for f in after] != [settings(f) for f in before]:
         raise ValueError("Only the factors' names and units can change without making the run sheet again.")
     columns = [str(c) for c in design.get("columns") or []]
     for taken in (*(r["name"] for r in _responses(spec)), *([BLOCK] if BLOCK in columns else [])):
@@ -3813,7 +4336,7 @@ def compare_plan(request: dict) -> dict:
     for design_type in DESIGNS:
         if design_type in SPACE_FILLING:
             continue  # made for no model, so not one to compare on a model
-        why = _left_out(design_type, k, labelled=labelled, limited=bool(limits))
+        why = _left_out(design_type, k, labelled=labelled, limited=bool(limits), several=bool(_several_names(factors)))
         if why:
             left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})
             continue
@@ -3861,11 +4384,12 @@ LEVEL_RUNS = (2, 3, 4, 5, 6, 8, 10, 15, 20, 30, MAX_LEVEL_RUNS)
 
 
 def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, Any] | None:
-    """Size a design in one factor, its two levels compared: the power of its t-test for each number of runs at each.
+    """Size a design in one factor, its levels compared: the power of its test for each number of runs at each level.
 
     The change is the reader's smallest change worth finding, over the run-to-run noise, or two noise standard
-    deviations without them, as designs are compared (:func:`_effect_size`). The power is the one-way analysis of
-    variance's (``one_way_power``), which for two levels is the two-sided t-test's, and the model's test of the
+    deviations without them, as designs are compared (:func:`_effect_size`), between two of the factor's levels,
+    the others midway, where it is hardest to find (``least_favourable_means``). The power is the one-way analysis
+    of variance's (``one_way_power``), which for two levels is the two-sided t-test's, and the model's test of the
     factor. ``n`` is the fewest runs at each level that reach :data:`LEVEL_POWER`, or :data:`MAX_LEVEL_RUNS` when
     none does (``reached`` says which). None for more factors, or for a numeric factor the study aims to see curve,
     which a third level shows.
@@ -3873,21 +4397,26 @@ def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, A
     if len(factors) != 1 or (factors[0].type != "categorical" and model in (MAIN_QUADRATIC, "quadratic")):
         return None
     info = _response_info(request.get("response_info"))
-    means = least_favourable_means(2 * _effect_size({k: info.get(k) for k in ("noise", "smallest_change")}), 2)
+    k = len(factors[0].levels or []) if factors[0].type == "categorical" else 2
+    difference = 2 * _effect_size({key: info.get(key) for key in ("noise", "smallest_change")})
+    means = least_favourable_means(difference, k)
     try:
         n = int(one_way_sample_size(LEVEL_POWER, 1.0, means, max_n=MAX_LEVEL_RUNS)["n"])
     except ValueError:  # no number of runs the page makes reaches it
         n = MAX_LEVEL_RUNS
-    rows = [{"n": m, "runs": 2 * m, "power": one_way_power(m, 1.0, means)["power"]} for m in sorted({*LEVEL_RUNS, n})]
+    rows = [{"n": m, "runs": k * m, "power": one_way_power(m, 1.0, means)["power"]} for m in sorted({*LEVEL_RUNS, n})]
     reached = next(row["power"] for row in rows if row["n"] == n) >= LEVEL_POWER
     return {"n": n, "power": LEVEL_POWER, "reached": reached, "rows": rows}
 
 
-def _left_out(design_type: str, k: int, *, labelled: bool, limited: bool) -> dict[str, Any] | None:
+def _left_out(
+    design_type: str, k: int, *, labelled: bool, limited: bool, several: bool = False
+) -> dict[str, Any] | None:
     """Say why the comparison leaves a design out for this brief, or None when it is in.
 
     ``reason`` is ``factors`` for a factor count outside the design's (with its ``low`` and ``high``),
-    ``categorical`` for a design of numeric factors with a categorical one in the brief, and
+    ``categorical`` for a design of numeric factors with a categorical one in the brief, ``levels``
+    for a two-level design with a categorical factor of three levels or more (``several``), and
     ``limits`` for a design that cannot keep its runs inside limits on the settings, in that order.
     """
     info = DESIGNS[design_type]
@@ -3895,6 +4424,8 @@ def _left_out(design_type: str, k: int, *, labelled: bool, limited: bool) -> dic
         return {"reason": "factors", "low": info["min_factors"], "high": info["max_factors"]}
     if labelled and design_type not in CATEGORICAL_DESIGNS:
         return {"reason": "categorical"}
+    if several and design_type not in SEVERAL_LEVEL_DESIGNS:
+        return {"reason": "levels"}
     if limited and design_type not in REGION_DESIGNS:
         return {"reason": "limits"}
     return None
@@ -3967,6 +4498,96 @@ def compare(request: dict) -> dict:
     return result
 
 
+def _powers(request: dict) -> dict[str, Any]:
+    """Score designs with a categorical factor of three levels or more: their runs, spare runs, and power.
+
+    The comparison's measures are for factors coded from -1 to +1, which such a factor is not, so each
+    design is scored on the model the reader aims to learn, over the columns it is fitted on: its spare
+    runs, and, for each kind of term, the power of the F test of the term the hardest to find. A term of a
+    factor of several levels is tested over its contrasts together; the change it is to find is the
+    reader's, between two of its levels, the others on the average (see :func:`_least_favourable`). The reply
+    has the comparison's shape, so Design lists the designs as it lists any.
+    """
+    effect = _effect_size(request)
+    model = request.get("model") or "main_quadratic"
+    designs, values, terms = [], {}, []
+    for item in request.get("designs") or []:
+        spec = _checked_spec(item.get("spec") or {})
+        names = [f["name"] for f in spec["factors"]]
+        aimed = _model_terms(model, names, _categorical_names(spec)) if model != "main_quadratic" else None
+        aimed = aimed if aimed is not None else _model_terms(MAIN_QUADRATIC, names, _categorical_names(spec))
+        columns = _model_columns(spec)
+        frame = _design_frame(_runs_frame(item, spec), spec)
+        expanded = _expanded_terms(aimed, spec)
+        x = _model_matrix(frame, ["Intercept", *expanded], columns)
+        n, p = x.shape
+        rank = int(np.linalg.matrix_rank(x))
+        fits = rank == p
+        df = n - p if fits else 0
+        power: dict[str, float | None] = {"main": None, "interaction": None, "quadratic": None}
+        if fits and df > 0:
+            inverse = np.linalg.inv(x.T @ x)
+            for term in aimed:
+                kind = "quadratic" if term.startswith("I(") else "interaction" if ":" in term else "main"
+                members = _expanded_terms([term], spec, aimed)
+                index = [expanded.index(m) + 1 for m in members]  # after the intercept
+                b = _least_favourable(members, spec, effect)
+                found = _group_power(b, inverse[np.ix_(index, index)], df)
+                power[kind] = found if power[kind] is None else min(power[kind], found)  # type: ignore[type-var]
+        sized = f"{item['label']} [n={n}]"
+        designs.append(sized)
+        values[sized] = {
+            "runs": n,
+            "fits": fits,
+            "residual_df": df,
+            "power_main": power["main"],
+            "power_interaction": power["interaction"],
+            "power_quadratic": power["quadratic"],
+        }
+        terms = ["Intercept", *expanded]
+    return {
+        "model": model,
+        "terms": terms,
+        "effect_size": effect,
+        "significance_level": 0.05,
+        "designs": designs,
+        "values": values,
+        "measures": [],
+        "display": {},
+        "fds": {},
+    }
+
+
+def _least_favourable(members: list[str], spec: dict, effect: float) -> np.ndarray:
+    """Return the coefficients of a term's columns at the change worth finding, where it is hardest to find.
+
+    A numeric or two-level factor's coefficient of ``effect`` noise standard deviations is the change, as
+    the comparison scores power. A factor of several levels has that change between its first two
+    levels, the others on the average: its first contrast's coefficient is -``effect``, its second's
+    +``effect``, the rest 0; an interaction's columns take the product.
+    """
+    several = {f["name"] for f in spec["factors"] if _several(f)}
+
+    def size(member: str) -> float:
+        value = effect
+        for part in member.split(":"):
+            stem, _, j = part.rpartition(LEVEL_JOIN)
+            if stem in several:
+                value *= {"1": -1.0, "2": 1.0}.get(j, 0.0)
+        return value
+
+    return np.array([size(m) for m in members])
+
+
+def _group_power(b: np.ndarray, block: np.ndarray, df: int) -> float:
+    """Return the power of the F test of a term's columns together at the 5% level: noncentrality b' V^-1 b."""
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    noncentrality = float(b @ np.linalg.solve(block, b))
+    critical = stats.f.ppf(0.95, len(b), df)
+    return float(stats.ncf.sf(critical, len(b), df, noncentrality))
+
+
 #: From this many factors, the optimal designs' search for a model beyond main effects takes seconds
 #: to tens of seconds (an I-optimal design in six factors, about 20 s in the browser), so the designs
 #: listed as the reader types leave them out until the reader asks for the search.
@@ -4005,7 +4626,8 @@ def candidates(request: dict) -> dict:
     info = _response_info(request.get("response_info"))
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
     asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
-    result = compare(asked) if made else None
+    several = made and any(_several(f) for f in made[0]["design"]["spec"]["factors"])
+    result = (_powers(asked) if several else compare(asked)) if made else None
     return {
         "model": plan["model"],
         "made": made,
@@ -4671,7 +5293,7 @@ def best_settings(request: dict) -> dict:
     sense = _sense(goal, target, predicted, reached=bool(reached))
     gradient = _gradient(reduced, [f["name"] for f in numeric], x)
     tiny = 1e-9 * max(found["spread"], 1.0)
-    in_model = _factors_in(coefficients, names)
+    in_model = _factors_in(coefficients, spec)
     reply |= {
         "predicted": predicted,
         "reached": reached,
@@ -4692,7 +5314,7 @@ def best_settings(request: dict) -> dict:
         "sensitivity": _sensitivity(reduced, numeric, x, region, in_model),
         "confirm_at": _practical(spec, point, region),
         "confirmation": _confirmation(every_run, spec, fitted),
-        "search": {"held": found["held"], "goal": found["goal"]},
+        "search": {"held": _used(found["held"], fitted.out["coefficients"]), "goal": found["goal"]},
     }
     return reply
 
@@ -4706,12 +5328,13 @@ class _FittedModel:
     same terms, and zero in each block contrast, which is the average block, as the equation is written.
     """
 
-    def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str]) -> None:
+    def __init__(self, fit: dict[str, Any], coded: pd.DataFrame, names: list[str], spec: dict | None = None) -> None:
         from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
         self.out = fit["out"]
         self.formula = fit["formula"]
         self.names = names
+        self.spec = spec  # with a factor of several levels, whose point's level is written over its contrasts
         self.terms = [c["term"] for c in self.out["coefficients"]]
         self.beta = np.array([c["coefficient"] for c in self.out["coefficients"]], dtype=float)
         x = _model_matrix(coded, self.terms, names)
@@ -4725,6 +5348,8 @@ class _FittedModel:
 
     def row(self, point: dict[str, float]) -> np.ndarray:
         """Return a point's row of the model matrix, its settings coded, in the average block."""
+        if self.spec is not None:
+            point = {**point, **_held_columns(point, self.spec)}
         frame = pd.DataFrame([{name: point[name] for name in self.names}])
         return _model_matrix(frame, self.terms, self.names)[0]
 
@@ -4759,12 +5384,13 @@ def _fitted(runs: pd.DataFrame, spec: dict, model: str | list[str]) -> _FittedMo
     done = y.notna().to_numpy()
     if not done.any():
         raise ValueError("Enter results first: the best settings are found on the model fitted to them.")
-    coded = _design_frame(runs, spec)[done].reset_index(drop=True)
+    fitted, columns = _fitted_model(model, spec)
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
     with _listening():
         fit = _fit_estimable(
-            coded, y[done].reset_index(drop=True).rename(spec["response"]), model, names, _categorical_names(spec)
+            coded, y[done].reset_index(drop=True).rename(spec["response"]), fitted, columns, _categorical_names(spec)
         )
-    return _FittedModel(fit, coded, names)
+    return _FittedModel(fit, coded, columns, spec if columns != names else None)
 
 
 def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np.ndarray:
@@ -4790,6 +5416,12 @@ def _model_matrix(coded: pd.DataFrame, terms: list[str], names: list[str]) -> np
     return np.column_stack(columns)
 
 
+def _used(held: dict[str, float], coefficients: list[dict]) -> dict[str, float]:
+    """Keep the held columns the model's terms hold: a factor's indicators only where another factor is nested in it."""
+    used = {part for c in coefficients for part in _parts(c["term"])}
+    return {name: value for name, value in held.items() if name in used}
+
+
 def _parts(term: str) -> tuple[str, ...]:
     """Return the factors a model term multiplies: none for the intercept, ``(T, T)`` for ``I(T ** 2)``."""
     if term == "Intercept":
@@ -4799,9 +5431,12 @@ def _parts(term: str) -> tuple[str, ...]:
     return tuple(term.split(":"))
 
 
-def _factors_in(coefficients: list[dict], names: list[str]) -> set[str]:
-    """Return the factors some term of the fitted model names, block contrasts aside."""
-    return {p for c in coefficients if not _block_contrast(c["term"], names) for p in _parts(c["term"])}
+def _factors_in(coefficients: list[dict], spec: dict) -> set[str]:
+    """Return the factors some term of the fitted model names, block contrasts aside: a contrast names its factor."""
+    columns = _model_columns(spec)
+    return {
+        _source_of(p, spec) for c in coefficients if not _block_contrast(c["term"], columns) for p in _parts(c["term"])
+    }
 
 
 def _spec_region(spec: dict) -> DesignRegion | None:
@@ -4810,8 +5445,15 @@ def _spec_region(spec: dict) -> DesignRegion | None:
     return _region(_factors(spec), [limit["expression"] for limit in limits]) if limits else None
 
 
+def _level_combinations(spec: dict, in_model: set[str]) -> list[dict[str, float]]:
+    """List every combination of the levels of the categorical factors in the model, each level by its code."""
+    labelled = [f for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
+    codes = [np.linspace(-1.0, 1.0, len(_levels_of(f))).tolist() for f in labelled]
+    return [dict(zip([f["name"] for f in labelled], levels, strict=True)) for levels in itertools.product(*codes)]
+
+
 def _held_at(coefficients: list[dict], held: dict[str, float]) -> list[dict]:
-    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at -1 or +1.
+    """Return the model with some columns held at a value: a block contrast at 0, a categorical factor at its level.
 
     Each term loses the columns held, its coefficient multiplied by their values, and the terms that
     are then the same are added together, in the order each first appears. The code the page shows
@@ -4899,30 +5541,28 @@ def _search(
     """
     from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when a goal asks for it
 
-    names = [f["name"] for f in spec["factors"]]
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     numeric_names = [f["name"] for f in numeric]
-    in_model = _factors_in(coefficients, names)
+    in_model = _factors_in(coefficients, spec)
     if not in_model or all(c["coefficient"] == 0 for c in coefficients if _parts(c["term"])):
         return None
-    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
-    blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], names)}
-    combinations = [
-        dict(zip(labelled, levels, strict=True)) for levels in itertools.product((-1.0, 1.0), repeat=len(labelled))
-    ]
+    blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], _model_columns(spec))}
+    combinations = _level_combinations(spec, in_model)
     if len(combinations) > SEARCHED_LEVELS:
         points = _sample(len(numeric), region)
         scores = [
             max(
                 _objective(goal, v, target)
-                for v in _predict(_held_at(coefficients, {**blocks, **levels}), numeric_names, points)
+                for v in _predict(
+                    _held_at(coefficients, {**blocks, **_held_columns(levels, spec)}), numeric_names, points
+                )
             )
             for levels in combinations
         ]
         combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
     best: dict[str, Any] | None = None
     for levels in combinations:
-        held = {**blocks, **levels}
+        held = {**blocks, **_held_columns(levels, spec)}
         model = _held_at(coefficients, held)
         sought = _goal(goal, target, model, spec["response"])
         spread = sum(abs(c["coefficient"]) for c in model if c["term"] != "Intercept")
@@ -5036,7 +5676,7 @@ def _settings_reply(
     for f in spec["factors"]:
         coded = point[f["name"]]
         if _categorical(f):
-            level = f["low"] if coded < 0 else f["high"]
+            level = _level_at(f, coded)
             settings.append(
                 {
                     "name": f["name"],
@@ -5218,7 +5858,7 @@ def _practical(spec: dict, point: dict[str, float], region: DesignRegion | None)
         for f in factors:
             coded = point[f["name"]]
             if _categorical(f):
-                values[f["name"]] = f["low"] if coded < 0 else f["high"]
+                values[f["name"]] = _level_at(f, coded)
                 continue
             decimals = 3 - math.floor(math.log10(f["high"] - f["low"])) + extra
             exact = (f["low"] + f["high"]) / 2 + coded * (f["high"] - f["low"]) / 2
@@ -5607,7 +6247,7 @@ def balance(request: dict) -> dict:
     region = _spec_region(whole)
     found = _balance_search(fits, goals, whole, region)
     point = _full_point(whole, found["x"], found["levels"])
-    in_model = set().union(*(_factors_in(fit.out["coefficients"], names) for fit in fits.values()))
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
     still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
     return {
@@ -5617,7 +6257,11 @@ def balance(request: dict) -> dict:
         "confirm_at": _practical(whole, point, region),
         "confirmation": _balanced_confirmation(every_run, whole, aimed, fits),
         "overlay": _overlay(whole, found, goals, region),
-        "search": {"held": found["held"], "goals": goals, "formulas": {n: fit.formula for n, fit in fits.items()}},
+        "search": {
+            "held": _used(found["held"], [c for fit in fits.values() for c in fit.out["coefficients"]]),
+            "goals": goals,
+            "formulas": {n: fit.formula for n, fit in fits.items()},
+        },
     }
 
 
@@ -5719,22 +6363,21 @@ def _balance_search(
     """
     from process_improve.experiments import optimize_responses  # noqa: PLC0415 - loaded when the balance is asked for
 
-    names = [f["name"] for f in spec["factors"]]
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     numeric_names = [f["name"] for f in numeric]
     coefficients = {
         name: [{"term": c["term"], "coefficient": c["coefficient"]} for c in fit.out["coefficients"]]
         for name, fit in fits.items()
     }
-    in_model = set().union(*(_factors_in(c, names) for c in coefficients.values()))
-    labelled = [f["name"] for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
-    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], names)}
-    combinations = [dict(zip(labelled, v, strict=True)) for v in itertools.product((-1.0, 1.0), repeat=len(labelled))]
+    in_model = set().union(*(_factors_in(c, spec) for c in coefficients.values()))
+    columns = _model_columns(spec)
+    blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], columns)}
+    combinations = _level_combinations(spec, in_model)
     desirable = [_desirability_of(g) for g in goals]
     weights = [g["importance"] for g in goals]
 
     def held_models(levels: dict[str, float]) -> dict[str, list[dict]]:
-        return {name: _held_at(c, {**blocks, **levels}) for name, c in coefficients.items()}
+        return {name: _held_at(c, {**blocks, **_held_columns(levels, spec)}) for name, c in coefficients.items()}
 
     def overall(models: dict[str, list[dict]], points: np.ndarray) -> np.ndarray:
         predicted = [_predict(models[g["response"]], numeric_names, points) for g in goals]
@@ -5767,7 +6410,7 @@ def _balance_search(
             best = {
                 "x": x,
                 "levels": levels,
-                "held": {**blocks, **levels},
+                "held": {**blocks, **_held_columns(levels, spec)},
                 "models": models,
                 "D": value,
                 "heard": heard,
@@ -5895,7 +6538,7 @@ def _acceptable(goal: dict, z: np.ndarray) -> tuple[np.ndarray, list[float]]:
 def _in_units(factor: dict, coded: float) -> float | str:
     """Return a factor's coded setting in its own units, or a categorical factor's level."""
     if _categorical(factor):
-        return factor["low"] if coded < 0 else factor["high"]
+        return _level_at(factor, coded)
     return (factor["low"] + factor["high"]) / 2 + coded * (factor["high"] - factor["low"]) / 2
 
 
@@ -6400,7 +7043,7 @@ def _last(sheet: pd.DataFrame, column: str) -> int:
 def _setting(factor: dict, coded: float) -> float | str:
     """Return a coded setting in the factor's own units, rounded off as a run sheet lists it, or a category's level."""
     if _categorical(factor):
-        return factor["low"] if coded < 0 else factor["high"]
+        return _level_at(factor, coded)
     return float(f"{_in_units(factor, coded):.12g}")
 
 
@@ -6422,9 +7065,18 @@ def _model_rank(coded: np.ndarray, kinds: list[str], model: str) -> tuple[int, i
     return matrix.shape[1], int(np.linalg.matrix_rank(matrix))
 
 
-def _largest_model(coded: np.ndarray, kinds: list[str]) -> str:
-    """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analysed."""
+def _largest_model(coded: np.ndarray, kinds: list[str], blocks: list[int] | None = None) -> str:
+    """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analysed.
+
+    Runs in blocks estimate a model beside the blocks' effects, which take a column for each block after the first.
+    """
     fits = estimable_models(coded, kinds)
+    labels = sorted(set(blocks or []))
+    if len(labels) > 1:
+        indicators = np.column_stack([np.asarray(blocks) == b for b in labels[1:]]).astype(float)
+        for model in (m for m in MODELS if fits.get(m)):
+            matrix = np.column_stack([model_matrix(coded, kinds, model), indicators])
+            fits[model] = int(np.linalg.matrix_rank(matrix)) == matrix.shape[1]
     return next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
 
 

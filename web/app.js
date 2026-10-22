@@ -123,6 +123,7 @@ import {
   comparedRow,
   comparisonOrder,
   comparisonSentence,
+  severalSentence,
   completeRuns,
   componentProblem,
   defaultAim,
@@ -136,8 +137,14 @@ import {
   fractionRuns,
   infoOf,
   isBlank,
+  categoricalFactor,
   isCategorical,
   isMixture,
+  isSeveral,
+  SEVERAL_LEVEL_DESIGNS,
+  LABEL_MOST,
+  levelsOf,
+  MAX_LEVELS,
   levelProblem,
   levelValue,
   listNames,
@@ -371,6 +378,7 @@ const state = {
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
   comparison: null, // the designs that can learn the brief: what api_candidates returned, and the brief's key
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
+  control: null, // the level Dunnett's intervals compare the others with, when the reader picks one: else the first
   plotlyJs: null, // the Plotly.js version the Python plotly package names
   commit: null, // the commit the app was built from, as its manifest names it
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
@@ -749,37 +757,56 @@ const typeOf = (tr) => (box(tr, "categorical").checked ? CATEGORICAL : NUMERIC);
 
 /** The factor rows of the table, and whether one is still blank: no name and no levels, which is no factor yet. */
 const factorRows = () => [...document.querySelectorAll("#factors tbody tr")];
-const blankRow = (tr) => ["name", "low", "high"].every((key) => box(tr, key).value.trim() === "");
+const blankRow = (tr) =>
+  box(tr, "name").value.trim() === "" &&
+  (typeOf(tr) === CATEGORICAL ? chipLevels(tr).length === 0 : ["low", "high"].every((key) => box(tr, key).value.trim() === ""));
 
 function addFactor(f = { name: "", low: "", high: "", units: "" }) {
   const tr = document.createElement("tr");
-  // Each cell carries its column's heading, which a narrow column shows above the box (style.css).
+  // Each cell carries its column's heading, which a narrow column shows above the box (style.css). A categorical
+  // factor's levels are chips in the first level cell, which then spans the level and units columns.
   tr.innerHTML = `
     <td data-label="Factor name"><input name="name" aria-label="Factor name" size="8" autocomplete="off" spellcheck="false"></td>
     <td data-label="Type"><label class="switch">
       <input type="checkbox" name="categorical" role="switch" aria-label="Categorical">
       <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Numeric</span>
     </label></td>
-    <td data-label="Low"><input name="low" aria-label="Low"></td>
+    <td data-label="Low"><input name="low" aria-label="Low">
+      <div class="level-chips" role="list" aria-label="Levels" hidden><input name="level" class="level-chips__input" aria-label="Add a level"
+        autocomplete="off" spellcheck="false" maxlength="${LABEL_MOST}"></div></td>
     <td data-label="High"><input name="high" aria-label="High"></td>
     <td data-label="Units"><input name="units" aria-label="Units" size="6"></td>
     <td><button type="button" class="link" aria-label="Remove factor">✕</button></td>`;
-  for (const key of ["name", "low", "high", "units"]) box(tr, key).value = f[key] ?? "";
+  for (const key of ["name", "units"]) box(tr, key).value = f[key] ?? "";
   tr.dataset.name = box(tr, "name").value.trim(); // the name the limits know it by
-  showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, NUMERIC));
+  if (isCategorical(f)) {
+    setChips(tr, levelsOf(f).map((v) => String(v)));
+    showType(tr, CATEGORICAL);
+  } else {
+    for (const key of ["low", "high"]) box(tr, key).value = f[key] ?? "";
+    showType(tr, NUMERIC);
+  }
+  wireChips(tr);
   // The row settles its type before the table's own listener refreshes the design.
   box(tr, "categorical").addEventListener("input", () => switchType(tr, typeOf(tr)));
   for (const name of ["low", "high"]) {
-    box(tr, name).addEventListener("input", () =>
-      showType(tr, factorType(box(tr, "low").value, box(tr, "high").value, typeOf(tr))),
-    );
+    // Two labels typed for a numeric factor's levels make it categorical, its two labels its first chips.
+    box(tr, name).addEventListener("input", () => {
+      const [low, high] = [box(tr, "low").value, box(tr, "high").value];
+      if (typeOf(tr) === NUMERIC && factorType(low, high, NUMERIC) === CATEGORICAL) {
+        tr.dataset[NUMERIC] = JSON.stringify(["", ""]);
+        setChips(tr, [low.trim(), high.trim()]);
+        showType(tr, CATEGORICAL);
+        box(tr, "level").focus();
+      }
+    });
     box(tr, name).addEventListener("focusout", () => {
       if (tr.dataset.visited || blankRow(tr)) return;
       tr.dataset.visited = "yes";
       showFactorProblems();
     });
   }
-  tr.querySelector("button").onclick = () => {
+  tr.querySelector('button[aria-label="Remove factor"]').onclick = () => {
     tr.remove();
     factorsChanged();
   };
@@ -787,9 +814,166 @@ function addFactor(f = { name: "", low: "", high: "", units: "" }) {
   return tr;
 }
 
+/** A categorical factor's levels, as its chips hold them, in their order. */
+const chipLevels = (tr) => [...tr.querySelectorAll(".level-chip")].map((chip) => chip.dataset.level);
+
+/** A chip for one level: its label, which a drag or Alt and an arrow key moves, and a button that removes it. */
+function levelChip(level) {
+  const chip = el("span", "level-chip", "");
+  chip.dataset.level = level;
+  chip.draggable = true;
+  chip.tabIndex = 0;
+  chip.setAttribute("role", "listitem");
+  const remove = el("button", "level-chip__remove", "✕");
+  remove.type = "button";
+  remove.tabIndex = -1;
+  remove.setAttribute("aria-label", `Remove level ${level}`);
+  chip.append(el("span", "level-chip__text", level), remove);
+  return chip;
+}
+
+/** Put these levels in a row's chips, in their order. */
+function setChips(tr, levels) {
+  const chips = tr.querySelector(".level-chips");
+  for (const chip of chips.querySelectorAll(".level-chip")) chip.remove();
+  const input = box(tr, "level");
+  for (const level of levels) input.before(levelChip(level));
+  showChipRoom(tr);
+}
+
+/** Say each chip's place for a screen reader, and stop the box at MAX_LEVELS levels. */
+function showChipRoom(tr) {
+  const chips = [...tr.querySelectorAll(".level-chip")];
+  chips.forEach((chip, i) => {
+    chip.setAttribute("aria-label", `${chip.dataset.level}, level ${i + 1} of ${chips.length}; Alt and an arrow key move it`);
+  });
+  const input = box(tr, "level");
+  const full = chips.length >= MAX_LEVELS;
+  input.disabled = full;
+  input.placeholder = full ? `${MAX_LEVELS} levels, the most` : chips.length ? "Add a level" : "Type a level, Enter";
+}
+
+/** Tell the table a factor's levels changed, as a box typed in tells it. */
+function chipsChanged(tr) {
+  showChipRoom(tr);
+  tr.dataset.visited = "yes";
+  tr.querySelector(".level-chips").dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** Add each level typed or pasted: a list splits at commas, semicolons, tabs and new lines, up to MAX_LEVELS. */
+function addLevels(tr, text) {
+  const input = box(tr, "level");
+  const room = MAX_LEVELS - chipLevels(tr).length;
+  const levels = String(text)
+    .split(/[,;\t\n]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .slice(0, Math.max(0, room));
+  if (!levels.length) return;
+  for (const level of levels) input.before(levelChip(level.slice(0, LABEL_MOST)));
+  input.value = "";
+  chipsChanged(tr);
+}
+
+/** Move a chip one place along, or to before another chip (null: to the end), keeping the keyboard on it. */
+function moveChip(tr, chip, before) {
+  const input = box(tr, "level");
+  tr.querySelector(".level-chips").insertBefore(chip, before ?? input);
+  chip.focus();
+  chipsChanged(tr);
+}
+
 /**
- * Show a factor row as its type. A categorical factor's level boxes ask for its two labels, and
- * it has no units: those typed are put aside, and come back if the factor is made numeric again.
+ * The chips' keys, clicks and drags: Enter, a comma or leaving the box adds what is typed; a pasted list adds a chip
+ * per line or comma; Backspace in the empty box goes to the last chip; on a chip, Delete or Backspace removes it, an
+ * arrow key goes to its neighbour, and Alt with an arrow key moves it; a chip dragged onto another goes before it.
+ */
+function wireChips(tr) {
+  const chips = tr.querySelector(".level-chips");
+  const input = box(tr, "level");
+  input.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === ",") && input.value.trim()) {
+      e.preventDefault();
+      addLevels(tr, input.value);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+    } else if (e.key === "Backspace" && !input.value) {
+      chips.querySelector(".level-chip:last-of-type")?.focus();
+    }
+  });
+  input.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (!/[,;\t\n]/.test(text)) return;
+    e.preventDefault();
+    addLevels(tr, input.value + text);
+  });
+  input.addEventListener("change", () => addLevels(tr, input.value));
+  input.addEventListener("input", (e) => e.stopPropagation()); // a level half typed is no level yet
+  chips.addEventListener("click", (e) => {
+    const remove = e.target.closest(".level-chip__remove");
+    if (!remove) return;
+    remove.closest(".level-chip").remove();
+    input.focus();
+    chipsChanged(tr);
+  });
+  chips.addEventListener("keydown", (e) => {
+    const chip = e.target.closest(".level-chip");
+    if (!chip) return;
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      const next = chip.nextElementSibling;
+      chip.remove();
+      (next?.classList.contains("level-chip") ? next : input).focus();
+      chipsChanged(tr);
+    } else if (step && e.altKey) {
+      e.preventDefault();
+      if (step < 0 && chip.previousElementSibling) moveChip(tr, chip, chip.previousElementSibling);
+      else if (step > 0 && chip.nextElementSibling?.classList.contains("level-chip")) moveChip(tr, chip, chip.nextElementSibling.nextElementSibling);
+    } else if (step) {
+      e.preventDefault();
+      const to = step < 0 ? chip.previousElementSibling : chip.nextElementSibling;
+      (to ?? chip).focus();
+    }
+  });
+  chips.addEventListener("dragstart", (e) => {
+    const chip = e.target.closest(".level-chip");
+    if (!chip) return;
+    chip.classList.add("level-chip--dragged");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", chip.dataset.level);
+  });
+  chips.addEventListener("dragover", (e) => {
+    if (chips.querySelector(".level-chip--dragged")) e.preventDefault();
+  });
+  chips.addEventListener("drop", (e) => {
+    const dragged = chips.querySelector(".level-chip--dragged");
+    if (!dragged) return;
+    e.preventDefault();
+    // A chip dropped on another takes its place, as in any list sorted by dragging: the other moves one along, away
+    // from where the dragged chip came from. Dropped between chips, it goes before the first whose middle lies past.
+    const all = [...chips.querySelectorAll(".level-chip")];
+    const onto = e.target.closest(".level-chip");
+    const past = (c) => {
+      const r = c.getBoundingClientRect();
+      return e.clientY < r.top || (e.clientY <= r.bottom && e.clientX < r.left + r.width / 2);
+    };
+    const before =
+      onto && onto !== dragged
+        ? all.indexOf(dragged) > all.indexOf(onto)
+          ? onto
+          : onto.nextElementSibling
+        : all.find((c) => c !== dragged && past(c));
+    dragged.classList.remove("level-chip--dragged");
+    if (onto !== dragged) moveChip(tr, dragged, before ?? null);
+  });
+  chips.addEventListener("dragend", () => chips.querySelector(".level-chip--dragged")?.classList.remove("level-chip--dragged"));
+}
+
+/**
+ * Show a factor row as its type. A categorical factor's levels are chips, in the cell of its first level, spanning
+ * the level and units columns, and it has no units: those typed are put aside, and come back if the factor is made
+ * numeric again.
  */
 function showType(tr, type) {
   const categorical = type === CATEGORICAL;
@@ -797,6 +981,12 @@ function showType(tr, type) {
   box(tr, "categorical").checked = categorical;
   tr.querySelector(".switch__text").textContent = categorical ? "Categorical" : "Numeric";
   tr.classList.toggle("categorical", categorical);
+  const [first, second, third] = [box(tr, "low"), box(tr, "high"), units].map((b) => b.parentElement);
+  first.colSpan = categorical ? 3 : 1;
+  second.hidden = categorical;
+  third.hidden = categorical;
+  box(tr, "low").hidden = categorical;
+  tr.querySelector(".level-chips").hidden = !categorical;
   if (categorical && units.value) {
     tr.dataset.units = units.value;
     units.value = "";
@@ -807,12 +997,13 @@ function showType(tr, type) {
   units.placeholder = categorical ? "none" : "";
   // A mixture's component has a lower and an upper proportion, 0 and 1 when its boxes are left blank.
   const component = !categorical && mixturePlanned();
-  const [first, second] = categorical ? ["First label", "Second label"] : component ? ["Lower", "Upper"] : ["Low", "High"];
-  for (const [name, label, blank] of [["low", first, "0"], ["high", second, "1"]]) {
+  const [lower, upper] = component ? ["Lower", "Upper"] : ["Low", "High"];
+  for (const [name, label, blank] of [["low", lower, "0"], ["high", upper, "1"]]) {
     box(tr, name).setAttribute("aria-label", component ? `${label} proportion` : label);
     box(tr, name).placeholder = component ? blank : label.toLowerCase();
     box(tr, name).parentElement.dataset.label = label;
   }
+  if (categorical) first.dataset.label = "Levels";
 }
 
 /** Head the factor table, and show each row, as the plan reads them: a mixture's components, or factors with ranges. */
@@ -826,18 +1017,20 @@ function showComponents() {
 
 /**
  * The reader flipped a factor's type: its levels become those it last had as that type, else the
- * type's own start (blank, or A and B). A factor made categorical has its first label selected,
- * ready to be typed over; one made numeric again leaves the keyboard where it was.
+ * type's own start (blank, or A and B). A factor made categorical has the keyboard in its box for
+ * the next level; one made numeric again leaves the keyboard where it was.
  */
 function switchType(tr, type) {
-  const before = type === CATEGORICAL ? NUMERIC : CATEGORICAL;
   const [low, high] = [box(tr, "low"), box(tr, "high")];
-  tr.dataset[before] = JSON.stringify([low.value, high.value]);
-  [low.value, high.value] = tr.dataset[type] ? JSON.parse(tr.dataset[type]) : START_LEVELS[type];
+  if (type === CATEGORICAL) {
+    tr.dataset[NUMERIC] = JSON.stringify([low.value, high.value]);
+    setChips(tr, tr.dataset[CATEGORICAL] ? JSON.parse(tr.dataset[CATEGORICAL]) : START_LEVELS[CATEGORICAL]);
+  } else {
+    tr.dataset[CATEGORICAL] = JSON.stringify(chipLevels(tr));
+    [low.value, high.value] = tr.dataset[NUMERIC] ? JSON.parse(tr.dataset[NUMERIC]) : START_LEVELS[NUMERIC];
+  }
   showType(tr, type);
-  if (type !== CATEGORICAL) return;
-  low.focus();
-  low.select();
+  if (type === CATEGORICAL) box(tr, "level").focus();
 }
 
 /** Whether a factor still needs something before Python can take it, said or not yet said. */
@@ -858,13 +1051,15 @@ function showFactorProblems() {
   const problems = rows.map((tr, i) => {
     const others = names.filter((_, j) => j !== i); // both factors that share a name are marked
     const named = nameProblem(names[i], others, all.indexOf(tr) + 1, taken);
-    const typed = { name: names[i], low: box(tr, "low").value, high: box(tr, "high").value };
-    const levels = mixture && typeOf(tr) !== CATEGORICAL ? componentProblem(typed) : levelProblem(typed, typeOf(tr));
+    const categorical = typeOf(tr) === CATEGORICAL;
+    const typed = { name: names[i], low: box(tr, "low").value, high: box(tr, "high").value, ...(categorical ? { levels: chipLevels(tr) } : {}) };
+    const levels = mixture && !categorical ? componentProblem(typed) : levelProblem(typed, typeOf(tr));
     unready ||= Boolean(named || levels);
-    const untouched = !tr.dataset.visited && !box(tr, "low").value.trim() && !box(tr, "high").value.trim();
+    const untouched = !categorical && !tr.dataset.visited && !box(tr, "low").value.trim() && !box(tr, "high").value.trim();
     const said = [named, untouched ? "" : levels].filter(Boolean);
     box(tr, "name").toggleAttribute("aria-invalid", Boolean(named));
-    for (const name of ["low", "high"]) box(tr, name).toggleAttribute("aria-invalid", Boolean(levels) && !untouched);
+    for (const name of ["low", "high"]) box(tr, name).toggleAttribute("aria-invalid", Boolean(levels) && !untouched && !categorical);
+    tr.querySelector(".level-chips").toggleAttribute("aria-invalid", Boolean(levels) && categorical);
     return said.join(" ");
   });
   for (const tr of all.filter(blankRow)) {
@@ -885,19 +1080,18 @@ function showFactorProblems() {
 }
 
 function readFactors() {
-  // A blank box is sent as null, which Python reports, rather than as Number("") = 0; a label, as text.
-  // A factor's type is not sent: two labels make it categorical, as bootstrap.py reads it. For a mixture, a
-  // blank box is the component's bound: 0 for the lower proportion, 1 for the upper.
+  // A blank box is sent as null, which Python reports, rather than as Number("") = 0; a label, as text. A categorical
+  // factor says its type and lists its levels, any text, so a level 1 stays a label. For a mixture, a blank box is the
+  // component's bound: 0 for the lower proportion, 1 for the upper.
   const mixture = mixturePlanned();
   const level = (tr, name, blank) => (mixture ? proportionValue : levelValue)(box(tr, name).value, blank);
   return factorRows()
     .filter((tr) => !blankRow(tr))
-    .map((tr) => ({
-      name: box(tr, "name").value.trim(),
-      low: level(tr, "low", 0),
-      high: level(tr, "high", 1),
-      units: box(tr, "units").value.trim(),
-    }));
+    .map((tr) =>
+      typeOf(tr) === CATEGORICAL
+        ? categoricalFactor(box(tr, "name").value.trim(), chipLevels(tr))
+        : { name: box(tr, "name").value.trim(), low: level(tr, "low", 0), high: level(tr, "high", 1), units: box(tr, "units").value.trim() },
+    );
 }
 
 const factorCount = () => readFactors().length;
@@ -1139,14 +1333,20 @@ function refreshDesign() {
   const k = factorCount();
   const select = $("#design-type");
   const labelled = readFactors().filter(isCategorical).map((f) => f.name);
-  // Runs as given take categorical factors, and limits on the settings, as they are.
+  const several = readFactors().filter(isSeveral);
+  // Runs as given take categorical factors, of any number of levels, and limits on the settings, as they are.
   const numericOnly = (option) => labelled.length > 0 && !CATEGORICAL_DESIGNS.includes(option.value) && option.value !== GIVEN;
+  const twoLevels = (option) => several.length > 0 && !SEVERAL_LEVEL_DESIGNS.includes(option.value) && option.value !== GIVEN;
   const limited = hasLimits();
   const outsideLimits = (option) => limited && !REGION_DESIGNS.includes(option.value) && option.value !== GIVEN;
   showComponents();
   for (const option of select.options) {
     option.disabled =
-      k < Number(option.dataset.minFactors) || k > Number(option.dataset.maxFactors) || numericOnly(option) || outsideLimits(option);
+      k < Number(option.dataset.minFactors) ||
+      k > Number(option.dataset.maxFactors) ||
+      numericOnly(option) ||
+      twoLevels(option) ||
+      outsideLimits(option);
   }
   const option = select.selectedOptions[0];
   const allowed = option.dataset.options.split(" ");
@@ -1195,6 +1395,11 @@ function refreshDesign() {
       `categorical: remove the limits, or ${one ? "that factor" : "those factors"}.`;
   } else if (option.disabled && outsideLimits(option)) {
     hint.textContent = `${option.textContent} cannot keep its runs inside your limits on the settings: choose D-optimal or I-optimal.`;
+  } else if (option.disabled && twoLevels(option)) {
+    const levels = several.map((f) => `${f.name} has ${levelsOf(f).length}`);
+    hint.textContent =
+      `${option.textContent} needs factors of two levels, and ${listNames(levels)}: choose a full factorial or ` +
+      "Taguchi design, or give each categorical factor two levels.";
   } else if (option.disabled && numericOnly(option)) {
     hint.textContent =
       `${option.textContent} needs numeric factors, and ${listNames(labelled)} ${labelled.length === 1 ? "is" : "are"} ` +
@@ -1328,7 +1533,7 @@ function planKey() {
   };
   const taken = option.dataset.options.split(" ").map((key) => [key, values[key]]);
   const factors = readFactors();
-  const levels = factors.map((f) => [f.low, f.high]);
+  const levels = factors.map((f) => (isCategorical(f) ? levelsOf(f) : [f.low, f.high]));
   return JSON.stringify([option.value, levels, Object.fromEntries(taken), limitsKey(factors.map((f) => f.name))]);
 }
 
@@ -1744,25 +1949,32 @@ function candidateList(c, current) {
   const unfit = rows.filter((r) => !r.fits);
   if (unfit.length) parts.push(el("p", "hint", `${listNames(unfit.map((r) => r.label))} cannot fit this model.`));
   const categorical = readFactors().filter(isCategorical).map((f) => f.name);
-  for (const why of leftOutSentences(c.left_out ?? [], factorCount(), categorical)) parts.push(el("p", "hint left-out", why));
+  const several = readFactors().filter(isSeveral);
+  for (const why of leftOutSentences(c.left_out ?? [], factorCount(), categorical, several)) parts.push(el("p", "hint left-out", why));
   if (c.waiting?.length) parts.push(waitingNote(c));
   parts.push(...noteList(c.notes.map(prettyTerm)));
   return parts;
 }
 
 /**
- * A brief of one factor, its two levels compared (``c.levels``, as api_candidates plans them): a row for each number
- * of runs at each level, with the power of the t-test to find the change worth finding, the row the form makes
- * marked. Picking a row sets the design's replicates, which are its runs at each level.
+ * A brief of one factor, its levels compared (``c.levels``, as api_candidates plans them): a row for each number of
+ * runs at each level, with the power to find the change worth finding, the row the form makes marked. Two levels are
+ * compared by the t-test; three or more by the one-way analysis of variance, the change between two of them and the
+ * others midway, where it is hardest to find. Picking a row sets the design's replicates, its runs at each level.
  */
 function levelPlan(c, current) {
   const plan = c.levels;
+  const k = plan.rows[0].runs / plan.rows[0].n;
+  const test = k === 2 ? "the t-test" : "the one-way analysis of variance";
   const info = readResponseInfo();
   const change = changeWords(info);
   const power = term(`Power to find ${change}`, {
     alone: true,
     definition:
-      `The chance that the t-test of the two levels finds ${change} between them, at the ` +
+      (k === 2
+        ? `The chance that the t-test of the two levels finds ${change} between them, at the `
+        : `The chance that the one-way analysis of variance of the ${k} levels finds ${change} between two of them, ` +
+          "the others midway, at the ") +
       `${Math.round(100 * c.result.significance_level)}% level.` +
       (powerScale(info) ? "" : " To set your own, give the noise and the change under What you know of it already."),
   });
@@ -1793,13 +2005,14 @@ function levelPlan(c, current) {
   wrap.append(t);
   const most = plan.rows.at(-1);
   const sized = plan.reached
-    ? `${plan.n} runs at each level, ${2 * plan.n} in all, are the fewest that give the t-test ${percent(plan.power)} ` +
+    ? `${plan.n} runs at each level, ${k * plan.n} in all, are the fewest that give ${test} ${percent(plan.power)} ` +
       `power to find ${change}. Pick a row for more runs or fewer.`
-    : `Even ${most.n} runs at each level, the most the page makes, give the t-test ${percent(most.power)} power to ` +
+    : `Even ${most.n} runs at each level, the most the page makes, give ${test} ${percent(most.power)} power to ` +
       `find ${change}: a change this small against this much noise needs more runs than that.`;
+  const levels = k === 2 ? "two levels" : `${k} levels`;
   return [
     el("h3", "", "How many runs at each level"),
-    el("p", "hint", "With one factor, the design runs its two levels in random order, each the same number of times."),
+    el("p", "hint", `With one factor, the design runs its ${levels} in random order, each the same number of times.`),
     wrap,
     el("p", "hint", sized),
   ];
@@ -2407,8 +2620,8 @@ async function eachAnalysis() {
   for (const name of resultNames()) {
     if (!state.results[name].some((v) => v !== null)) continue;
     if (name === state.shown && state.analysis) {
-      const compared = Boolean(state.analysis.comparison?.difference);
-      out.push({ response: name, model: state.analysis.formula ?? state.analysis.model, best: state.best, vifModel: vifTerms(state.analysis), compared });
+      const model = state.analysis.formula ?? state.analysis.model;
+      out.push({ response: name, model, best: state.best, vifModel: vifTerms(state.analysis), ...comparedOf(state.analysis) });
       continue;
     }
     const request = analysisRequest(name);
@@ -2420,7 +2633,7 @@ async function eachAnalysis() {
       model: analysis.result.formula ?? analysis.result.model,
       best: best.ok ? best.result : null,
       vifModel: vifTerms(analysis.result),
-      compared: Boolean(analysis.result.comparison?.difference),
+      ...comparedOf(analysis.result),
     });
   }
   return out;
@@ -2442,7 +2655,7 @@ async function downloadNotebook() {
     simulation: state.simulation,
     model: state.analysis ? (state.analysis.formula ?? state.analysis.model) : null,
     vifModel: state.analysis ? vifTerms(state.analysis) : null,
-    compared: Boolean(state.analysis?.comparison?.difference),
+    ...comparedOf(state.analysis),
     version: state.version,
     url: `${location.origin}${location.pathname}`,
     best: state.best,
@@ -2774,7 +2987,21 @@ function analysisRequest(name = state.shown) {
     model: modelOf(name),
     truth: state.marks[name]?.includes("simulated") ? (processOf(name)?.truth ?? null) : null,
     ...(several() ? { response: name } : {}),
+    ...chosenControl(),
   };
+}
+
+/** Whether an analysis compares one factor's levels, which its code then does too, and the control Dunnett's take. */
+const comparedOf = (analysis) => ({
+  compared: Boolean(analysis?.comparison?.difference || analysis?.comparison?.several),
+  control: analysis?.comparison?.several?.control ?? null,
+});
+
+/** The control the reader picked for Dunnett's intervals, while it is a level of the study's one categorical factor. */
+function chosenControl() {
+  const factors = state.design?.spec.factors ?? [];
+  const ok = factors.length === 1 && isSeveral(factors[0]) && levelsOf(factors[0]).includes(state.control);
+  return ok ? { control: state.control } : {};
 }
 
 /**
@@ -2847,8 +3074,7 @@ function renderAnalysis(reply) {
   const vif = showsVif(r.coefficients); // a column only when some term is correlated enough for the note
   setStatus("Analysis complete.");
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  const compared = Boolean(r.comparison?.difference);
-  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, { compared }));
+  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
   const parts = [
     ...comparisonParts(r),
@@ -2955,6 +3181,7 @@ function comparisonWords() {
 function comparisonParts(r) {
   const c = r.comparison;
   if (!c) return [];
+  if (c.levels.length > 2 && isCategorical(state.design.spec.factors[0])) return severalParts(c);
   const d = c.difference;
   const words = comparisonWords();
   const at = (level) => (words.factorUnits ? `${level} ${words.factorUnits}` : String(level));
@@ -2962,11 +3189,7 @@ function comparisonParts(r) {
   const parts = [
     el("h3", "", d ? `Whether ${at(d.to)} differs from ${at(d.from)}` : "Each level's results"),
     ...(sentence ? [said("", sentence)] : []),
-    table(
-      ["Level", "Runs", "Average", "Std. dev.", "95% interval"],
-      c.levels.map((l) => [String(l.level), l.n, fmt(l.mean), fmt(l.std_dev), l.ci_low === null ? "" : `${fmt(l.ci_low)} to ${fmt(l.ci_high)}`]),
-      { "95% interval": "confidence-interval" },
-    ),
+    levelTable(c),
   ];
   if (!d) {
     if (c.levels.length === 2) parts.push(said("hint", "A difference is tested once each level has two runs or more."));
@@ -2993,6 +3216,72 @@ function comparisonParts(r) {
   const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, tested four ways`);
   parts.push(heading, tests, ...noteList(comparisonNotes(r)));
   return parts;
+}
+
+/** The words of a comparison that open their definition. */
+const SEVERAL_TERMS = { "one-way analysis of variance": "one-way-anova", "Tukey's intervals": "tukey" };
+
+/**
+ * A categorical factor's three levels or more compared (``c.several``, as the analysis gives it): whether their averages
+ * differ at all, in a sentence; each level's runs summarised; every pair of levels by Tukey's intervals; and each level
+ * against the control by Dunnett's, the control a level the reader picks. Each test's name opens what it is.
+ */
+function severalParts(c) {
+  const v = c.several;
+  const sentence = severalSentence(c, comparisonWords());
+  const parts = [el("h3", "", `Whether the levels of ${c.factor} differ`)];
+  if (sentence) {
+    const line = el("p", "", "");
+    line.append(...marked(sentence, SEVERAL_TERMS));
+    parts.push(line);
+  }
+  parts.push(levelTable(c));
+  if (!v) {
+    parts.push(said("hint", "The levels are compared once a level has two runs or more, to measure the noise."));
+    return parts;
+  }
+  const interval = (x) => `${fmt(x.ci_low)} to ${fmt(x.ci_high)}`;
+  const heading = (text, word, key) => {
+    const h = el("h4", "", text);
+    h.append(term(word, { key, alone: true }));
+    return h;
+  };
+  const control = el("select", "", "");
+  control.id = "control";
+  for (const level of c.levels.map((l) => String(l.level))) control.append(new Option(level, level, false, level === v.control));
+  control.onchange = () => {
+    state.control = control.value;
+    analyseRuns();
+  };
+  const pick = el("label", "", "Compared with ");
+  pick.append(control);
+  const picker = el("p", "control-pick", "");
+  picker.append(pick);
+  parts.push(
+    heading("Every pair of levels, by ", "Tukey's intervals", "tukey"),
+    table(
+      ["Pair", "Difference", "95% interval", "p-value"],
+      v.pairs.map((x) => [`${x.to} less ${x.from}`, fmt(x.estimate), interval(x), pval(x.p_value)]),
+      { "95% interval": "interval", "p-value": "p-value" },
+    ),
+    heading("Each level against a control, by ", "Dunnett's intervals", "dunnett"),
+    picker,
+    table(
+      ["Level", `Difference from ${v.control}`, "95% interval", "Differs"],
+      v.versus.map((x) => [String(x.level), fmt(x.estimate), interval(x), x.differs ? "yes" : "no"]),
+      { "95% interval": "interval" },
+    ),
+  );
+  return parts;
+}
+
+/** Each level's runs summarised, a row a level: how many, their average, standard deviation and the average's interval. */
+function levelTable(c) {
+  return table(
+    ["Level", "Runs", "Average", "Std. dev.", "95% interval"],
+    c.levels.map((l) => [String(l.level), l.n, fmt(l.mean), fmt(l.std_dev), l.ci_low === null ? "" : `${fmt(l.ci_low)} to ${fmt(l.ci_high)}`]),
+    { "95% interval": "confidence-interval" },
+  );
 }
 
 /** What the comparison's numbers rest on: the model's coefficient as half the difference, and the randomization test's count. */
@@ -3829,8 +4118,9 @@ function calledFor(step) {
   return [part];
 }
 
-/** A factor's range as the next step's table writes it: "150 to 200 degC", or a categorical factor's two levels. */
-const rangeWords = (f) => (typeof f.low === "string" ? `${f.low} or ${f.high}` : `${num(f.low)} to ${withUnit(f.high, f.units ?? "")}`);
+/** A factor's range as the next step's table writes it: "150 to 200 degC", or a categorical factor's levels. */
+const rangeWords = (f) =>
+  isCategorical(f) ? listNames(levelsOf(f)).replace(/ and (?=[^,]*$)/, " or ") : `${num(f.low)} to ${withUnit(f.high, f.units ?? "")}`;
 
 /** The new study the best settings point to: each factor's range now and moved, and the button that starts it in Design. */
 function movedStudy(best) {
@@ -4131,12 +4421,11 @@ function writeDraft() {
     responses: responseRows()
       .slice(1)
       .map((tr) => rowFields(tr)), // the later responses: each one's name, units, goal and target, as typed
-    factors: factorRows().map((tr) => ({
-      name: box(tr, "name").value,
-      low: box(tr, "low").value,
-      high: box(tr, "high").value,
-      units: box(tr, "units").value,
-    })),
+    factors: factorRows().map((tr) =>
+      typeOf(tr) === CATEGORICAL
+        ? categoricalFactor(box(tr, "name").value, chipLevels(tr))
+        : { name: box(tr, "name").value, low: box(tr, "low").value, high: box(tr, "high").value, units: box(tr, "units").value },
+    ),
     aim: aimChosen ? currentAim() : null,
     limits: currentLimits(),
     // A mixture's factor table reads as components, blank bounds and all, so the draft keeps the design with it.
@@ -4184,7 +4473,11 @@ function readDraft() {
     .map((one) => fields(one, ["label", "units", "goal", "target"]));
   const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, 12) : [])
     .filter((f) => f && typeof f === "object")
-    .map((f) => ({ name: text(f.name), low: text(f.low), high: text(f.high), units: text(f.units, 32) }));
+    .map((f) =>
+      f.type === "categorical" && Array.isArray(f.levels)
+        ? categoricalFactor(text(f.name), f.levels.slice(0, MAX_LEVELS).map((v) => text(v, LABEL_MOST)))
+        : { name: text(f.name), low: text(f.low), high: text(f.high), units: text(f.units, 32) },
+    );
   let limits = [];
   try {
     limits = checkConstraints(draft.limits ?? []);
@@ -4914,8 +5207,7 @@ $("#add-factor").onclick = () => {
   factorsChanged();
 };
 $("#add-categorical").onclick = () => {
-  const [low, high] = START_LEVELS[CATEGORICAL];
-  box(addFactor({ name: "", low, high, units: "" }), "name").focus();
+  box(addFactor(categoricalFactor("", START_LEVELS[CATEGORICAL])), "name").focus();
   factorsChanged();
 };
 for (const radio of document.querySelectorAll('input[name="aim"]')) {

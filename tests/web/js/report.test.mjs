@@ -166,6 +166,14 @@ describe("the study's tables", () => {
     assert.doesNotMatch(briefHtml({ ...spec, constraints: [] }), /Limits/);
   });
 
+  test("the brief with a factor of three levels or more lists each factor's levels in one column", () => {
+    const lots = { name: "Lot", type: "categorical", levels: ["1", "2", "3"], units: "" };
+    const html = briefHtml({ ...spec, factors: [spec.factors[0], lots] });
+    assert.match(html, /<th>Factor<\/th><th>Levels<\/th><th>Units<\/th>/);
+    assert.match(html, /<td>T<\/td><td>150 to 200<\/td><td>degC<\/td>/);
+    assert.match(html, /<td>Lot<\/td><td>1, 2, 3<\/td><td><\/td>/);
+  });
+
   test("the run sheet holds each response's results, a simulated one in italics", () => {
     const html = runSheetHtml(design, { y: [71.2, null, 80, 79.5] }, { y: ["entered", null, "simulated", "simulated"] });
     assert.match(html, /<tr><td>1<\/td><td>2<\/td><td>150<\/td><td>Pd<\/td><td>71.2<\/td><\/tr>/);

@@ -184,14 +184,19 @@ BOOK = "https://learnche.org/pid/"
 #: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
 WORKED = "worked"
 #: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
-CAMPAIGN_VERSION = 2
+CAMPAIGN_VERSION = 3
 #: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
 #: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
 ONE_FACTOR_FORMAT = 2
+#: The format of a study with a categorical factor that lists its levels (``LEVELS_FORMAT`` in ``web/campaign.js``):
+#: three or more, or two that read as numbers, which a page of an earlier format would misread.
+LEVELS_FORMAT = 3
 
 
 def study_format(spec: dict[str, Any]) -> int:
     """Return the lowest campaign format that holds a study of this specification (``studyFormat`` in campaign.js)."""
+    if any("levels" in f for f in spec["factors"]):
+        return LEVELS_FORMAT
     return ONE_FACTOR_FORMAT if len(spec["factors"]) == 1 else 1
 
 
@@ -211,9 +216,14 @@ def published_examples() -> list[dict[str, Any]]:
 
 
 def coded(setting: float | str, factor: dict[str, Any]) -> float:
-    """Return a run's setting of a factor in coded units: the low level -1 and the high level +1, a label too."""
-    if isinstance(factor["low"], str):
-        return -1.0 if setting == factor["low"] else 1.0
+    """Return a run's setting of a factor in coded units: the low level -1 and the high level +1.
+
+    A categorical factor's levels are spread evenly from -1 at its first to +1 at its last, as the page codes them.
+    """
+    bootstrap = load_bootstrap()
+    if bootstrap._categorical(factor):
+        levels = bootstrap._levels_of(factor)
+        return -1.0 + 2.0 * bootstrap._level_index(setting, levels) / (len(levels) - 1)
     centre, half_range = (factor["high"] + factor["low"]) / 2, (factor["high"] - factor["low"]) / 2
     return (float(setting) - centre) / half_range
 
@@ -389,7 +399,7 @@ def generated_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, s
         if isinstance(levels, str):
             return None, levels
         options |= levels
-    factors = [{"name": f["name"], "low": f["low"], "high": f["high"], "units": ""} for f in record["factors"]]
+    factors = [page_factor({**f, "units": ""}) for f in record["factors"]]
     asked = {"design_type": spec["design_type"], "factors": factors, "response": "y", **options}
     design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
     design.pop("xlsx_base64")
@@ -403,7 +413,7 @@ def taguchi_options(record: dict[str, Any]) -> dict[str, Any] | str:
     """Return the page's options for a Taguchi array with a record's runs, or say why the page cannot make it.
 
     The page runs every numeric factor of an array at two levels, or every one at three (``n_levels``), and
-    each categorical factor at its two: so the numeric factors' runs must all take two levels, or all three.
+    each categorical factor at its own: so the numeric factors' runs must all take two levels, or all three.
     """
     runs = record["coded_runs"]
     numeric = [j for j, f in enumerate(record["factors"]) if f.get("type") == "numeric"]
@@ -415,19 +425,58 @@ def taguchi_options(record: dict[str, Any]) -> dict[str, Any] | str:
     return "the page runs every numeric factor of a Taguchi array at 2 levels, or every one at 3"
 
 
+def _page_levels(factor: dict[str, Any]) -> list[str] | None:
+    """Return a categorical factor's levels as the page labels them, in the source's order; None if it refuses them.
+
+    The source lists them, or gives the two as its low and high, which then go low first, as the catalog codes
+    them. A label may read as a number, such as lot 1 or 2: the factor is categorical because the source says so.
+    """
+    from process_improve.experiments.design_catalog import _levels  # noqa: PLC0415 - the docs environment has it
+
+    try:
+        return list(load_bootstrap()._categorical_factor(str(factor["name"]), _levels(factor)).levels or [])
+    except ValueError:
+        return None
+
+
+def page_factor(factor: dict[str, Any]) -> dict[str, Any]:
+    """Write a source's factor as the page asks for it: a numeric factor's range and units, a categorical's levels."""
+    if factor.get("type") == "categorical":
+        return {"name": factor["name"], "type": "categorical", "levels": _page_levels(factor), "units": ""}
+    units = str(factor.get("units") or "")[:UNITS_MOST]
+    return {"name": factor["name"], "low": factor["low"], "high": factor["high"], "units": units}
+
+
+def _too_many_levels(factor: dict[str, Any]) -> bool:
+    """Say whether a categorical factor has more levels than the page takes."""
+    return factor.get("type") == "categorical" and len(factor.get("levels") or []) > load_bootstrap().MAX_LEVELS
+
+
 def _page_factor(factor: dict[str, Any]) -> bool:
-    """Say whether the page takes a factor as the source gives it: a name, and a low and high value or label."""
+    """Say whether the page takes a factor as the source gives it: a name, and a numeric range or categorical levels."""
+    if not str(factor["name"]).isidentifier():
+        return False
+    if factor.get("type") == "categorical":
+        return _page_levels(factor) is not None
     low, high = factor.get("low"), factor.get("high")
     numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (low, high))
-    labels = all(load_bootstrap()._label(v) is not None for v in (low, high))  # a label that reads as no number
-    in_order = low < high if numbers else labels and low != high and not _blank_label(factor)  # type: ignore[operator]
-    return str(factor["name"]).isidentifier() and factor.get("type") in {"numeric", "categorical"} and in_order
+    return factor.get("type") == "numeric" and numbers and low < high  # type: ignore[operator]
+
+
+def _factors_refused(factors: list[dict[str, Any]]) -> str:
+    """Say why the page refuses a design's factors, or return "": too many levels, or a name, type or range."""
+    if any(map(_too_many_levels, factors)):
+        return f"a categorical factor has more than the {load_bootstrap().MAX_LEVELS} levels the page takes"
+    if not all(map(_page_factor, factors)):
+        return "a factor's name, type or range is not one the page accepts"
+    return ""
 
 
 def _blank_label(factor: dict[str, Any]) -> bool:
     """Say whether a factor has a label a spreadsheet reads back as a blank cell, such as None: the page refuses it."""
     bootstrap = load_bootstrap()
-    return any(bootstrap._label(v) in bootstrap.BLANK_LABELS for v in (factor.get("low"), factor.get("high")))
+    raw = factor.get("levels") or [factor.get("low"), factor.get("high")]
+    return any(bootstrap._label(v) in bootstrap.BLANK_LABELS for v in raw)
 
 
 def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
@@ -440,14 +489,15 @@ def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
     designs = load_bootstrap().DESIGNS
     design_type, factors, runs = record["design_type"], record["factors"], record["coded_runs"]
     info = designs[design_type]
-    if record["blocked"] or record["split_plot"]:
-        return "the page opens designs without blocks or whole plots"
+    if record["split_plot"] or record["blocked"]:
+        whole_plots = "the page opens designs without whole plots"
+        return whole_plots if record["split_plot"] else "the page makes its designs in blocks of its own"
     if not runs or any(v is None for row in runs for v in row):
         return "the source prints no complete table of runs"
     if not info["min_factors"] <= len(factors) <= info["max_factors"]:
         return f"the page makes this design for {info['min_factors']} to {info['max_factors']} factors"
-    if not all(_page_factor(f) for f in factors):
-        return "a factor's name, type or range is not one the page accepts"
+    if why := _factors_refused(factors):
+        return why
     names = [f["name"] for f in factors]
     response = next(
         (r["name"] for r in record["responses"] if r["name"].isidentifier() and r["name"] not in names), "y"
@@ -472,10 +522,7 @@ def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
         "title": record["title"][:TITLE_MOST],
         "design": {
             "design_type": design_type,
-            "factors": [
-                {"name": f["name"], "low": f["low"], "high": f["high"], "units": str(f.get("units") or "")[:UNITS_MOST]}
-                for f in factors
-            ],
+            "factors": [page_factor(f) for f in factors],
             "response": response,
             **options,
         },
@@ -520,29 +567,61 @@ def _response_of(record: dict[str, Any]) -> str:
 
 
 def _given_setting(value: float, factor: dict[str, Any]) -> float | str | None:
-    """Return a coded setting in the factor's own units, or its label; None for a label the factor does not have."""
-    if isinstance(factor["low"], str):
-        return {-1.0: factor["low"], 1.0: factor["high"]}.get(round(value, 6))
+    """Return a coded setting in the factor's own units, or its label; None for a setting between two labels.
+
+    A categorical factor's levels lie evenly from -1 at its first to +1 at its last, as the source codes them, to
+    the six decimals the catalog keeps.
+    """
+    if factor.get("type") == "categorical":
+        levels = _page_levels(factor) or []
+        place = (value + 1) / 2 * (len(levels) - 1)
+        on = abs(place - round(place)) < CODED_TOLERANCE and 0 <= round(place) < len(levels)
+        return levels[round(place)] if on else None
     middle, half = (factor["low"] + factor["high"]) / 2, (factor["high"] - factor["low"]) / 2
     return float(f"{middle + value * half:.10g}")
 
 
+def _block_numbers(blocks: list[Any]) -> list[int]:
+    """Give each run's block a number 1, 2, ... as the page takes them: by the source's numbers, else as printed.
+
+    A source numbers its blocks, or names them (days, lots, operators): named blocks keep the order in which
+    the run table first prints them.
+    """
+    from process_improve.experiments.design_catalog import _level_label  # noqa: PLC0415 - the docs environment has it
+
+    labels = [_level_label(b) for b in blocks]
+    order = list(dict.fromkeys(labels))
+    numbers = {label: load_bootstrap()._number(label) for label in order}
+    if all(n is not None for n in numbers.values()):
+        order.sort(key=lambda label: numbers[label])
+    place = {label: i for i, label in enumerate(order, 1)}
+    return [place[label] for label in labels]
+
+
 def _not_given(record: dict[str, Any]) -> str:
     """Say why the page cannot take a design's runs as given, or return "" when it can: the first reason that holds."""
-    info, most = load_bootstrap().GIVEN_INFO, load_bootstrap().MAX_GIVEN_RUNS
-    runs, factors = record["coded_runs"], record["factors"]
+    bootstrap = load_bootstrap()
+    info, most = bootstrap.GIVEN_INFO, bootstrap.MAX_GIVEN_RUNS
+    runs, factors, blocks = record["coded_runs"], record["factors"], record.get("blocks") or []
     low, high = info["min_factors"], info["max_factors"]
     complete = bool(runs) and all(v is not None for row in runs for v in row)
     reasons = (
-        (lambda: record["blocked"] or record["split_plot"], "the page opens designs without blocks or whole plots"),
+        (lambda: record["split_plot"], "the page opens designs without whole plots"),
+        (
+            lambda: record["blocked"] and (not blocks or None in blocks),
+            "the source runs the design in blocks, but does not print each run's block",
+        ),
+        (
+            lambda: len(set(_block_numbers(blocks))) > bootstrap.MAX_BLOCKS,
+            f"the page takes runs in at most {bootstrap.MAX_BLOCKS} blocks",
+        ),
         (lambda: not complete, "the source prints no complete table of runs"),
         (lambda: record["n_mixture"], "the page makes mixtures of its own, but takes no mixture's runs as given"),
         (lambda: not low <= len(factors) <= high, f"the page opens designs of {low} to {high} factors"),
         (lambda: len(runs) > most, f"the page holds at most {most} runs"),
         (lambda: any(map(_blank_label, factors)), "a spreadsheet reads a label such as None as a blank cell"),
-        (lambda: not all(map(_page_factor, factors)), "a factor's name, type or range is not one the page accepts"),
     )
-    return next((why for holds, why in reasons if holds()), "")
+    return next((why for holds, why in reasons if holds()), "") or _factors_refused(factors)
 
 
 def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
@@ -550,23 +629,22 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 
     It opens a design the page does not make, or makes differently, with the runs as the source prints
     them, or as the library made them: in their order, in the factors' own units, with the source's
-    results. The page takes runs without blocks or whole plots, of 1 to 12 numeric or two-level factors.
+    results, and in the source's blocks. The page takes runs without whole plots, of 1 to 12 numeric or
+    categorical factors.
     """
     if why := _not_given(record):
         return None, why
     runs, factors = record["coded_runs"], record["factors"]
     rows = [[_given_setting(v, f) for v, f in zip(row, factors, strict=True)] for row in runs]
     if any(v is None for row in rows for v in row):
-        return None, "a categorical factor has more than the two levels the page takes"
+        return None, "a run sets a categorical factor between two of its levels"
     response = _response_of(record)
     asked = {
         "design_type": "given",
-        "factors": [
-            {"name": f["name"], "low": f["low"], "high": f["high"], "units": str(f.get("units") or "")[:UNITS_MOST]}
-            for f in factors
-        ],
+        "factors": [page_factor(f) for f in factors],
         "response": response,
         "runs": rows,
+        **({"blocks": _block_numbers(record["blocks"])} if record.get("blocks") else {}),
     }
     design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
     design.pop("xlsx_base64")
@@ -627,6 +705,7 @@ def write_catalog(out_dir: Path) -> None:
             "factors": record["factors"],
             "responses": record["responses"],
             "coded_runs": record["coded_runs"],
+            "blocks": record.get("blocks"),
             "response_values": record["response_values"],
             "details": record["details"],
             "notes": record["notes"],

@@ -381,6 +381,11 @@ CATALOG_SAMPLE = (
 #: a book design's place build a catalog of their own with it.
 BOOK_DESIGN = "omars-fed-batch-bioreactor"
 
+#: A design run in blocks whose run table prints each run's block: Montgomery's filtration 2^4 in two blocks
+#: of eight, ABCD confounded with them. It is not in :data:`CATALOG_SAMPLE`; the tests of a blocked design
+#: build a catalog of their own with it.
+BLOCKED_DESIGN = "montgomery-filtration-blocks"
+
 
 def catalog_sample(names: tuple[str, ...] = CATALOG_SAMPLE) -> list[dict]:
     """Describe the designs named, those of :data:`CATALOG_SAMPLE` by default, as ``catalog_records`` does."""

@@ -730,3 +730,14 @@ class TestCategoricalAnalysis:
         data, formula = catalyst_runs
         with pytest.raises(ValueError, match="mixture components, which are proportions that sum to 1, have none"):
             analyze_experiment(data, response_column="y", model=formula, analysis_type=analysis_type)
+
+    def test_indicator_columns_are_not_taken_for_components(self) -> None:
+        """One-hot columns of a categorical factor sum to 1 in every run, but blend nothing."""
+        level = np.tile(["A", "B", "C"], 4)
+        data = pd.DataFrame({"T": np.repeat([-1.0, 1.0], 6), **{f"c_{x}": (level == x).astype(float) for x in "ABC"}})
+        # T nested in the catalyst: a slope of T within each level, so the model uses every indicator.
+        slope = 2.0 * data["c_A"] + 1.0 * data["c_B"] - 0.5 * data["c_C"]
+        data["y"] = 5.0 + 3.0 * data["c_B"] - 1.0 * data["c_C"] + slope * data["T"]
+        model = "y ~ c_B + c_C + T:c_A + T:c_B + T:c_C"
+        out = analyze_experiment(data, response_column="y", model=model, analysis_type="effects")
+        assert out["effects"]["c_B"] == pytest.approx(3.0)  # the change from c_B = 0 to c_B = 1

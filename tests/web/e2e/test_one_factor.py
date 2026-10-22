@@ -87,3 +87,52 @@ def test_learn_compares_the_two_levels_and_draws_the_runs_at_each(fresh_page):
     assert titles[:2] == ["Coefficients", "The runs at each level"]
     assert "Fitted response surface" not in titles
     assert "randomization_test(low, high" in page.text_content("#py-analyse code"), "the Python panel tests them too"
+
+
+# --------------------------------------------------------------------------- one factor of three levels or more
+CATALYST = {"name": "Catalyst", "levels": ["Copper", "Nickel", "Platinum", "Zinc"]}
+
+
+def test_a_factor_of_four_levels_is_sized_for_the_one_way_analysis_of_variance(fresh_page):
+    page = fresh_page  # a new study, its brief empty
+    set_factors(page, [CATALYST])
+    page.wait_for_selector("#candidates .levels-plan tbody tr")
+    settled(page)
+    plan = plan_of(page)
+    marked = plan["marked"][0]
+    hint = page.text_content("#candidates")
+    assert f"{marked} runs at each level, {4 * marked} in all, are the fewest that give the one-way analysis" in hint
+    assert "the design runs its 4 levels in random order" in hint
+
+
+def test_learn_compares_four_levels_every_pair_and_each_against_the_control_picked(fresh_page):
+    page = fresh_page  # a new study, its brief empty
+    set_factors(page, [CATALYST])
+    page.wait_for_selector("#candidates .levels-plan tbody tr")
+    settled(page)
+    page.click("#generate")
+    settled(page)
+    practise(page)
+    page.click("#go-learn")
+    analysis = page.locator("#analysis")
+    assert "Whether the levels of Catalyst differ" in analysis.text_content()
+    words = analysis.locator(".term").all_text_contents()
+    assert {"one-way analysis of variance", "Tukey's intervals", "Dunnett's intervals"} <= set(words)
+    tables = analysis.locator("table")
+    pairs = tables.nth(1).locator("tbody td:first-child").all_text_contents()
+    assert pairs == [
+        "Nickel less Copper",
+        "Platinum less Copper",
+        "Zinc less Copper",
+        "Platinum less Nickel",
+        "Zinc less Nickel",
+        "Zinc less Platinum",
+    ], "every pair of the four levels, in their order"
+    assert page.input_value("#control") == "Copper", "the first level is the control until another is picked"
+    assert tables.nth(2).locator("tbody td:first-child").all_text_contents() == ["Nickel", "Platinum", "Zinc"]
+    page.select_option("#control", "Platinum")
+    settled(page)
+    assert page.input_value("#control") == "Platinum"
+    assert tables.nth(2).locator("tbody td:first-child").all_text_contents() == ["Copper", "Nickel", "Zinc"]
+    sent = [c["payload"].get("control") for c in page.evaluate("window.__pi.calls") if c["fn"] == "api_analyze_runs"]
+    assert sent[-1] == "Platinum"

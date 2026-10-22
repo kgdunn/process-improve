@@ -170,11 +170,50 @@ def test_a_comparison_of_two_treatments_opens_with_its_runs_as_given(index, deta
 
 
 def test_a_design_the_page_cannot_take_says_why_it_does_not_open(build_script, few):
-    """The plant trial run in blocks: the page opens designs without them, and says so."""
+    """The plant trial said to be run in blocks, with no run's block printed: the page cannot place the runs."""
     record = next(r for r in few if r["id"] == "bhh-plant-trial-two-methods")
     with no_bytecode():
         campaign, reason = build_script.given_campaign({**record, "blocked": True})
-    assert (campaign, reason) == (None, "the page opens designs without blocks or whole plots")
+    assert (campaign, reason) == (None, "the source runs the design in blocks, but does not print each run's block")
+
+
+def test_a_design_opens_with_each_run_s_block_as_its_source_prints_it(build_script, few):
+    """The pilot plant's eight runs in two days: the run sheet has each run's block, and the day is no factor."""
+    record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign({**record, "blocked": True, "blocks": ["2", "1"] * 4})
+    assert reason == ""
+    sheet = run_sheet(campaign["design"])
+    assert sheet["Block"].tolist() == [2, 1] * 4, "numbered blocks keep their numbers"
+    assert campaign["design"]["spec"]["options"]["n_blocks"] == 2
+    assert [f["name"] for f in campaign["design"]["spec"]["factors"]] == [f["name"] for f in record["factors"]]
+
+
+@pytest.mark.parametrize(
+    ("blocks", "numbers"),
+    [
+        ([3, 1, "2", 1.0], [3, 1, 2, 1]),
+        (["Tuesday", "Wednesday", "Tuesday", "Friday"], [1, 2, 1, 3]),
+        (["II", "I", "II"], [1, 2, 1]),
+    ],
+    ids=["numbers", "days", "named"],
+)
+def test_blocks_are_numbered_by_their_numbers_else_as_first_printed(build_script, blocks, numbers):
+    with no_bytecode():
+        assert build_script._block_numbers(blocks) == numbers
+
+
+@pytest.mark.dataset
+def test_a_block_listed_as_a_factor_opens_as_the_page_s_blocks(build_script):
+    """Montgomery's 3^2 in three blocks lists the block as a factor: it opens as a 3^2, in its three blocks."""
+    (record,) = catalog_sample(("montgomery-3-2-in-three-blocks",))
+    assert len(record["factors"]) == 2, "the block is no factor"
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign(record)
+    assert reason == ""
+    sheet = run_sheet(campaign["design"])
+    assert sorted(set(sheet["Block"])) == [1, 2, 3]
+    assert sheet.groupby("Block").size().tolist() == [3, 3, 3]
 
 
 def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_script, few):
@@ -192,12 +231,18 @@ def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_scri
 @pytest.mark.parametrize(
     ("change", "reason"),
     [
-        ({"blocked": True}, "the page opens designs without blocks or whole plots"),
+        ({"blocked": True}, "the source runs the design in blocks, but does not print each run's block"),
+        (
+            {"blocked": True, "blocks": [1, 2, 3, None, 1, 2, 3, 1]},
+            "the source runs the design in blocks, but does not print each run's block",
+        ),
+        ({"blocked": True, "blocks": list(range(1, 10))}, "the page takes runs in at most 8 blocks"),
+        ({"split_plot": True}, "the page opens designs without whole plots"),
         ({"coded_runs": None}, "the source prints no complete table of runs"),
         ({"n_mixture": 3}, "the page makes mixtures of its own, but takes no mixture's runs as given"),
-        ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a categorical factor has more than the two levels the page takes"),
+        ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a run sets a categorical factor between two of its levels"),
     ],
-    ids=["blocked", "no-runs", "mixture", "a-third-level"],
+    ids=["blocked", "a-block-not-printed", "nine-blocks", "whole-plots", "no-runs", "mixture", "a-third-level"],
 )
 def test_runs_the_page_cannot_take_are_not_given(build_script, few, change, reason):
     record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
@@ -243,12 +288,13 @@ def test_a_published_design_with_other_runs_than_the_page_s_does_not_open(build_
     assert reason.startswith("the page's design differs from the source's: its run 1")
 
 
-def test_a_blocked_design_is_not_opened(build_script, few):
+def test_a_blocked_design_is_not_made_by_the_page(build_script, few):
+    """The page makes its blocked designs with blocks of its own, so the source's runs open as given instead."""
     record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
     with no_bytecode():
         campaign, reason, tried = build_script.published_campaign({**record, "blocked": True})
     assert (campaign, tried) == (None, False)
-    assert reason == "the page opens designs without blocks or whole plots"
+    assert reason == "the page makes its designs in blocks of its own"
 
 
 @pytest.mark.slow
@@ -350,3 +396,57 @@ def test_the_errata_and_the_feed_are_written_beside_the_index(catalog):
     assert [e.find("{http://www.w3.org/2005/Atom}id").text for e in entries] == [
         "https://factori.al/catalog/#src=box-hunter-hunter-1978"
     ]
+
+
+# --------------------------------------------------------------------------- categorical factors of several levels
+@pytest.fixture(scope="module")
+def several() -> dict[str, dict]:
+    """Designs with a categorical factor of three levels or more, labels that read as numbers among them."""
+    names = (
+        "bhh-blood-coagulation",
+        "davies-vulcanised-rubber-5x3x4",
+        "montgomery-syrup-loss",
+        "bhh-yarn-latin-squares",
+    )
+    return {r["id"]: r for r in catalog_sample(names)}
+
+
+def test_four_diets_open_with_their_runs_as_given_each_at_its_label(build_script, several):
+    """Box, Hunter and Hunter's blood coagulation times: one factor, diets A to D, in study format 3."""
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign(several["bhh-blood-coagulation"])
+    assert reason == ""
+    [diet] = campaign["design"]["spec"]["factors"]
+    assert (diet["type"], diet["levels"]) == ("categorical", ["A", "B", "C", "D"])
+    assert {row[2] for row in campaign["design"]["rows"]} == {"A", "B", "C", "D"}
+    assert campaign["v"] == build_script.LEVELS_FORMAT
+
+
+def test_a_factorial_of_five_three_and_four_numbered_levels_is_made_by_the_page(build_script, several):
+    """Davies's vulcanised rubber: levels 1 to 5, 1 to 3 and 1 to 4 are labels, and the page makes the 60 runs."""
+    with no_bytecode():
+        campaign, reason, tried = build_script.published_campaign(several["davies-vulcanised-rubber-5x3x4"])
+    assert (reason, tried) == ("", True)
+    levels = [f["levels"] for f in campaign["design"]["spec"]["factors"]]
+    assert levels == [["1", "2", "3", "4", "5"], ["1", "2", "3"], ["1", "2", "3", "4"]]
+    assert campaign["design"]["n_runs"] == 60
+
+
+def test_numbered_nozzles_are_labels_not_a_range(build_script, several):
+    """Montgomery's syrup loss: nozzles 1, 2 and 3, once read as a numeric range from 1 to 2."""
+    record = several["montgomery-syrup-loss"]
+    with no_bytecode():
+        campaign, reason, _ = build_script.published_campaign(record)
+        if campaign is None:
+            campaign, reason = build_script.given_campaign(record)
+    assert reason == ""
+    nozzle = next(f for f in campaign["design"]["spec"]["factors"] if f["name"] == "nozzle")
+    assert (nozzle["type"], nozzle["levels"]) == ("categorical", ["1", "2", "3"])
+
+
+def test_a_factor_of_more_levels_than_the_page_takes_says_so(build_script, several):
+    with no_bytecode():
+        assert build_script.given_campaign(several["bhh-yarn-latin-squares"]) == (
+            None,
+            "a categorical factor has more than the 8 levels the page takes",
+        )
