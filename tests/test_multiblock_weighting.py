@@ -70,6 +70,14 @@ class TestBlockWeighting:
             before.score_contributions(plain, component=1)["b"],
         )
 
+    def test_a_model_fitted_before_the_count_was_kept_divides_by_its_full_width(self, blocks: tuple) -> None:
+        """A model pickled by an earlier release has no block_informative_widths_; it projects as it was fitted."""
+        plain, _padded, y = blocks
+        model = MBPLS(n_components=2).fit(plain, y)
+        expected = model.transform(plain)
+        del model.block_informative_widths_  # the widths are equal here, so the projection is too
+        np.testing.assert_allclose(model.transform(plain), expected)
+
     def test_constant_columns_leave_an_mbpca_fit_unchanged(self, blocks: tuple) -> None:
         plain, padded, _y = blocks
         before, after = MBPCA(n_components=2).fit(plain), MBPCA(n_components=2).fit(padded)
@@ -86,11 +94,16 @@ class TestNothingLeftInY:
             model.fit(x, y)
         return [str(w.message) for w in caught]
 
-    def test_pls_says_what_happened_and_keeps_the_predictions(self, factorial: tuple) -> None:
+    @pytest.mark.parametrize("weighted", [False, True])
+    def test_pls_says_what_happened_and_keeps_the_predictions(self, factorial: tuple, weighted: bool) -> None:
         blocks, y = factorial
         x = pd.concat(blocks.values(), axis=1)
         model = PLS(n_components=2)
-        messages = self._fit(model, x, y)
+        weights = np.ones(len(x)) if weighted else None
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            model.fit(x, y, sample_weight=weights)
+        messages = [str(w.message) for w in caught]
         assert any("from component 2 on there is nothing left in Y" in m for m in messages)
         assert not any("maximum number of iterations" in m for m in messages)
         assert model.n_components_ == 2
@@ -99,15 +112,17 @@ class TestNothingLeftInY:
         assert np.isfinite(model.direct_weights_.to_numpy()).all()
         assert np.isfinite(model.hotellings_t2_.to_numpy()).all()
 
-    def test_mbpls_says_what_happened_and_keeps_the_predictions(self, factorial: tuple) -> None:
+    @pytest.mark.parametrize("algorithm", ["dense", "nipals"])
+    def test_mbpls_says_what_happened_and_keeps_the_predictions(self, factorial: tuple, algorithm: str) -> None:
         blocks, y = factorial
-        model = MBPLS(n_components=2)
+        model = MBPLS(n_components=2, algorithm=algorithm)
         messages = self._fit(model, blocks, y)
         assert any("from component 2 on there is nothing left in Y" in m for m in messages)
         assert not any("did not converge" in m for m in messages)
         assert model.fitting_info_["iterations"][1] < model.max_iter
         assert model.r2_y_cumulative_.iloc[1] == pytest.approx(model.r2_y_cumulative_.iloc[0])
-        np.testing.assert_allclose(model.predict(blocks), MBPLS(n_components=1).fit(blocks, y).predict(blocks))
+        one = MBPLS(n_components=1, algorithm=algorithm).fit(blocks, y)
+        np.testing.assert_allclose(model.predict(blocks), one.predict(blocks), atol=1e-10)
 
     def test_cross_validation_is_flat_beyond_the_supported_count(self) -> None:
         """Each training fold is a full 2^4 factorial, so every fold model has nothing left after one component."""
