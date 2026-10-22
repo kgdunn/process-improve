@@ -443,13 +443,28 @@ def page_factor(factor: dict[str, Any]) -> dict[str, Any]:
     """Write a source's factor as the page asks for it: a numeric factor's range and units, a categorical's levels.
 
     A source may write a range high first, coding its larger setting -1; the page's range goes low to high, so it
-    codes that factor the other way round, and the runs, in the factor's own units, are the source's.
+    codes that factor the other way round (see :func:`page_coded_runs`), and the runs, in the factor's own units,
+    are the source's.
     """
     if factor.get("type") == "categorical":
         return {"name": factor["name"], "type": "categorical", "levels": _page_levels(factor), "units": ""}
     units = str(factor.get("units") or "")[:UNITS_MOST]
     low, high = sorted((factor["low"], factor["high"]))
     return {"name": factor["name"], "low": low, "high": high, "units": units}
+
+
+def page_coded_runs(record: dict[str, Any]) -> list[list[float]]:
+    """Return a record's coded runs as the page codes them, every numeric factor's range low to high.
+
+    A source that writes a range high first codes the factor's larger setting -1, and :func:`page_factor` gives
+    the page that range low to high, so the same setting is +1 on the page: its column is turned over. Each run
+    keeps its settings in the factor's own units.
+    """
+    turned = [
+        -1.0 if f.get("type") == "numeric" and _page_factor(f) and f["low"] > f["high"] else 1.0
+        for f in record["factors"]
+    ]
+    return [[v * sign for v, sign in zip(row, turned, strict=True)] for row in record["coded_runs"]]
 
 
 def _too_many_levels(factor: dict[str, Any]) -> bool:
@@ -503,6 +518,7 @@ def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
         return f"the page makes this design for {info['min_factors']} to {info['max_factors']} factors"
     if why := _factors_refused(factors):
         return why
+    runs = page_coded_runs(record)  # in the page's coding, so each result is at the source's settings
     names = [f["name"] for f in factors]
     response = next(
         (r["name"] for r in record["responses"] if r["name"].isidentifier() and r["name"] not in names), "y"

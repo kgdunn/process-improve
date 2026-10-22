@@ -242,6 +242,21 @@ def test_a_range_written_high_first_opens_low_to_high_with_the_source_s_settings
     assert settings == [180 if row[0] < 0 else 160 for row in record["coded_runs"]], "-1 is the source's 180"
 
 
+def test_a_range_written_high_first_keeps_each_result_at_its_setting_in_the_design_the_page_makes(build_script, few):
+    """The same temperature on the 2^3 the page makes, which codes 180 as +1: each yield stays at its temperature."""
+    record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
+    temperature = {**record["factors"][0], "low": 180, "high": 160}
+    with no_bytecode():
+        campaign, reason, _ = build_script.published_campaign(
+            {**record, "factors": [temperature, *record["factors"][1:]]}
+        )
+    assert reason == "", "the page makes the design"
+    settings = run_sheet(campaign["design"])[temperature["name"]].tolist()
+    printed = record["response_values"][build_script._response_of(record)]
+    expected = [(180 if row[0] < 0 else 160, y) for row, y in zip(record["coded_runs"], printed, strict=True)]
+    assert sorted(zip(settings, campaign["responses"], strict=True)) == sorted(expected), "each yield at its 180 or 160"
+
+
 def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_script, few):
     """The pilot plant with its first run moved: the page's 2^3 lacks that run, so the source's runs open as given."""
     record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")

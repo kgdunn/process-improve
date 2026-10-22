@@ -369,18 +369,24 @@ def _printed(api: Any, bootstrap: Any, entry: dict, record: dict, design: dict) 
 
 
 def _study(api: Any, build_script: Any, record: dict, campaign: dict) -> list[str]:  # noqa: ANN401
-    """Check a study as it opens: the source's runs, and its default analysis, its one factor's comparison scipy's."""
+    """Check a study as it opens: the source's runs and results, and its default analysis.
+
+    Each run is compared with its result, so a result at the wrong settings fails; a study of one factor also
+    has its comparison checked against scipy's.
+    """
     name, design = record["id"], campaign["design"]
     spec, held = design["spec"], {key: design[key] for key in ("spec", "columns", "rows")}
     at = {c: i for i, c in enumerate(design["columns"])}
     made = Counter(
-        tuple(round(build_script.coded(r[at[f["name"]]], f), 4) for f in spec["factors"]) for r in design["rows"]
+        (*(round(build_script.coded(r[at[f["name"]]], f), 4) for f in spec["factors"]), result)
+        for r, result in zip(design["rows"], campaign["responses"], strict=True)
     )
-    wrong = (
-        []
-        if made == Counter(tuple(round(v, 4) for v in run) for run in record["coded_runs"])
-        else [f"{name}: the run sheet's runs are not the source's"]
+    results = record["response_values"].get(build_script._response_of(record)) or [None] * len(record["coded_runs"])
+    printed = Counter(
+        (*(round(v, 4) for v in run), result)
+        for run, result in zip(build_script.page_coded_runs(record), results, strict=True)
     )
+    wrong = [] if made == printed else [f"{name}: the run sheet's runs, with their results, are not the source's"]
     if not any(v is not None for v in campaign["responses"]):
         return wrong
     default = api.reply("api_analyze_runs", {**held, "responses": campaign["responses"], "model": design["model"]})
