@@ -797,3 +797,40 @@ def test_the_notebook_ends_with_the_balance_when_the_page_has_one(api, node):
         if cell["cell_type"] == "code":
             run("".join(cell["source"]), namespace)
     assert_same_balance(namespace, balance, ["T", "P", "F"])
+
+
+# --------------------------------------------------------------------------- one factor, its two levels compared
+SUPPLIER = {"name": "Supplier", "low": "A", "high": "B", "units": ""}
+
+
+@pytest.mark.parametrize("blank", [False, True], ids=["every run", "a run still to do"])
+def test_the_code_for_one_factor_tests_its_two_levels_as_the_page_does(api, node, bootstrap, blank):
+    """Two suppliers, five runs each: the code's four tests give the page's intervals and p-values."""
+    spec = {"design_type": "full_factorial", "factors": [SUPPLIER], "n_replicates": 5, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    simulated = api.ok("api_simulate", {**held, "scenario": "main_effects", "sigma": 1, "seed": 2})
+    responses = [None, *simulated["responses"][1:]] if blank else simulated["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], not blank, held["spec"], None, {"compared": True}]),
+    )
+    shown = run(code)
+    assert_same_fit(shown, analysis)
+    tests = {t["test"]: t for t in analysis["comparison"]["difference"]["tests"]}
+    for name in ("pooled", "welch"):
+        assert shown[name]["p value"] == pytest.approx(tests[name]["p_value"])
+        assert [shown[name]["ConfInt: Lo"], shown[name]["ConfInt: Hi"]] == pytest.approx(
+            [tests[name]["ci_low"], tests[name]["ci_high"]]
+        )
+    assert shown["shuffled"]["p_value_two_sided"] == pytest.approx(tests["randomization"]["p_value"])
+    ranks = shown["ranks"]
+    exact = 2 * min(ranks["exact_p_value_less"], ranks["exact_p_value_greater"])
+    assert min(1.0, exact) == pytest.approx(tests["rank_sum"]["p_value"])
+    assert javascript(node, source("python.js"), [("ARRANGEMENTS", [])]) == [bootstrap.ARRANGEMENTS]
+
+
+def test_a_study_of_more_factors_shows_no_comparison_code(node):
+    assert "randomization_test" not in page_code(node, "analyseCode", "interactions", True)

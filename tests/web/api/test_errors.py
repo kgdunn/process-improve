@@ -170,7 +170,12 @@ FUNCTIONS = "abs, sqrt, exp, log and log10"
 #: Each refusal: the entry point, the request as a function of the worked example, and the message.
 REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     # The factors, as typed into the brief.
-    "one factor": ("api_make_design", _make(factors=FACTORS[:1]), "Enter at least two factors."),
+    "no factors": ("api_make_design", _make(factors=[]), "Enter at least one factor."),
+    "one factor, for a design of three or more": (
+        "api_make_design",
+        _make(factors=FACTORS[:1]),
+        "The Box-Behnken design takes 3 to 7 factors on this page; you have 1.",
+    ),
     "repeated name": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "T"}]),
@@ -734,6 +739,15 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _typed("X0 + X1 <= 1", factors=factors_named(*(f"X{i}" for i in range(9)))),
         "With limits on the settings, the page makes designs in up to 8 factors; you have 9.",
     ),
+    "a limit on one factor alone": (
+        "api_make_design",
+        lambda _: {
+            "design_type": "full_factorial",
+            "factors": FACTORS[:1],
+            "constraints": [{"expression": "T <= 190"}],
+        },
+        "A limit on T alone narrows its range: set its low and high to the settings you can run, and remove the limit.",
+    ),
     "limits that leave nothing": (
         "api_make_design",
         _limited("d_optimal", "T + P >= 300"),
@@ -806,7 +820,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             factors=[{"name": f"X{i}", "low": 0, "high": 1} for i in range(13)],
             runs=[[0] * 13],
         ),
-        "Runs as given take 2 to 12 factors on this page; you have 13.",
+        "Runs as given take 1 to 12 factors on this page; you have 13.",
     ),
     "given: a block short": (
         "api_make_design",

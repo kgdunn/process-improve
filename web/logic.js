@@ -582,8 +582,11 @@ export const OPTIMAL_MODEL = {
 /** From this many factors a study starts from the screening aim, which the reader can change. */
 export const SCREEN_FROM = 5;
 
-/** The aim a study starts from: which factors matter, for many factors; else where each one's effect curves. */
-export const defaultAim = (k) => (k >= SCREEN_FROM ? "main_effects" : "main_quadratic");
+/**
+ * The aim a study starts from: which factors matter, for many factors, or for one, whose two levels are compared;
+ * else where each one's effect curves.
+ */
+export const defaultAim = (k) => (k === 1 || k >= SCREEN_FROM ? "main_effects" : "main_quadratic");
 
 /** Count the coefficients, intercept included, of the model an aim names, over these factors: no square of a categorical one. */
 export function aimTerms(factors, aim) {
@@ -878,6 +881,7 @@ export const TITLES = {
   ternary: "Fitted response over the blends",
   true_ternary: "True response over the blends",
   cox: "Fitted response along each Cox direction",
+  levels: "The runs at each level",
 };
 
 /** What each chart shows and how to read it; some name the factors drawn. */
@@ -911,7 +915,49 @@ export const CAPTIONS = {
         "the others keep their proportions to each other; the lines cross at the reference blend.",
   residuals: "A curve or a funnel points to a missing term or a changing noise level.",
   half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
+  levels:
+    "Each dot is a run, and beside the dots is the level's average with its 95% interval. The spread of the dots " +
+    "within a level is the noise a difference between the levels is judged against.",
 };
+
+/** The most times each run of a design is made: bootstrap.MAX_REPLICATES. */
+export const MAX_REPLICATES = 10;
+
+/** The most runs at each level of a design in one factor, which are its replicates: bootstrap.MAX_LEVEL_RUNS. */
+export const MAX_LEVEL_RUNS = 50;
+
+/**
+ * The tests of the difference between one factor's two levels, as the comparison lists them: each test's name, the
+ * glossary entry that says what it is, and what it assumes, a few words for the table.
+ */
+export const COMPARISON_TESTS = {
+  pooled: { name: "t-test", key: "pooled-t", how: "one variance for both levels" },
+  welch: { name: "Welch's t-test", key: "welch-t", how: "each level's own variance" },
+  randomization: { name: "Randomization test", key: "randomization-test", how: "every split of the runs" },
+  rank_sum: { name: "Rank-sum test", key: "rank-sum", how: "the order of the results" },
+};
+
+/**
+ * A study of one factor's two levels in a sentence: how far apart their averages are and which way, and whether the
+ * 95% interval for the difference, from the t-test with one variance for both levels (the model's own), holds zero.
+ * ``words`` are the response's name and units and the factor's units; null without a difference to say.
+ */
+export function comparisonSentence(comparison, { response, units = "", factorUnits = "" }) {
+  const d = comparison?.difference;
+  const pooled = d?.tests.find((t) => t.test === "pooled");
+  if (!pooled || pooled.ci_low === null || pooled.ci_high === null) return null;
+  const num = (x) => String(Number(Number(x).toPrecision(4)));
+  const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
+  const at = (level) => `${level}${after(factorUnits)}`;
+  const size = `${num(Math.abs(d.estimate))}${after(units)}`;
+  const way = d.estimate < 0 ? "lower" : "higher";
+  const interval = `${num(pooled.ci_low)} to ${num(pooled.ci_high)}`;
+  const verdict =
+    pooled.ci_low <= 0 && pooled.ci_high >= 0
+      ? `holds zero, so these runs do not show that ${at(d.to)} and ${at(d.from)} differ by more than their noise`
+      : `lies ${pooled.ci_low > 0 ? "above" : "below"} zero, so the difference is larger than the noise in these runs`;
+  return `On average, ${response} is ${size} ${way} at ${at(d.to)} than at ${at(d.from)}. The 95% interval for the difference, ${interval}, ${verdict}.`;
+}
 
 // ---------------------------------------------------------------- results pasted from a spreadsheet
 /** The headings, in lower case, a pasted column of run numbers may have: the run sheet's own, and the usual others. */

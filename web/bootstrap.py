@@ -58,6 +58,15 @@ from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
+from process_improve.univariate import (
+    least_favourable_means,
+    one_way_power,
+    one_way_sample_size,
+    randomization_interval,
+    randomization_test,
+    rank_sum_test,
+    ttest_independent,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -93,7 +102,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "hint": "Every combination of low and high. 2^k runs, plus center points.",
         "model": "interactions",
         "options": ["n_center_points", "n_replicates", "n_blocks"],
-        "min_factors": 2,
+        "min_factors": 1,
         "max_factors": 7,
     },
     "fractional_factorial": {
@@ -202,7 +211,7 @@ GIVEN = "given"
 GIVEN_INFO: dict[str, Any] = {
     "label": "Runs as given",
     "hint": "The runs of a design you have already, such as one a book prints: the page takes them as they are.",
-    "min_factors": 2,
+    "min_factors": 1,
     "max_factors": 12,
 }
 
@@ -300,6 +309,10 @@ SPARE_RUNS = 4
 
 #: The most times the page makes each run of a design, center runs excepted.
 MAX_REPLICATES = 10
+
+#: The most runs at each level of a design in one factor, which are its replicates: a comparison of two levels can
+#: need many more runs at each than a design of more factors repeats each of its runs.
+MAX_LEVEL_RUNS = 50
 
 #: The most blocks the page splits a design's runs into.
 MAX_BLOCKS = 8
@@ -615,9 +628,9 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: two at least, each a variable name, none twice."""
-    if len(raw) < 2:
-        raise ValueError("Enter at least two factors.")
+    """Read and check the factors' names: one at least, each a variable name, none twice."""
+    if not raw:
+        raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
     if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
         raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
@@ -1061,7 +1074,6 @@ def make_design(spec: dict) -> dict:
     # The limits are passed apart from the options, which hold one design's settings, as the comparison reuses them.
     result = generate_design(made, design_type=design_type, **asked, **({"constraints": expressions} if limits else {}))
 
-    names = [f.name for f in factors]
     runs = _made_runs(result, factors, design_type, kwargs)
     for response in responses:  # a column for each response's results, in the brief's order
         runs[response["name"]] = np.nan
@@ -1077,7 +1089,7 @@ def make_design(spec: dict) -> dict:
         **({"constraints": limits} if limits else {}),
     }
     coded = _coded(runs, stored["factors"])
-    facts = _design_facts(result, coded.to_numpy(dtype=float), names, kwargs)
+    facts = _design_facts(result, coded.to_numpy(dtype=float), stored["factors"], kwargs)
     if array := (result.metadata or {}).get("orthogonal_array"):
         facts["notes"].insert(0, _array_sentence(array, stored["model"]))
     if design_type in SPACE_FILLING:
@@ -1169,7 +1181,12 @@ def _given_design(spec: dict) -> dict:
     for response in responses:
         runs[response["name"]] = np.nan
     groups = _aliased_groups(coded, names)
-    notes = [GIVEN_NOTE, _aliasing_sentence(groups), *([_blocks_sentence(coded, blocks, stored)] if blocks else [])]
+    said = (
+        _levels_sentence(stored["factors"][0], coded[:, 0], given=True)
+        if len(names) == 1
+        else _aliasing_sentence(groups)
+    )
+    notes = [GIVEN_NOTE, said, *([_blocks_sentence(coded, blocks, stored)] if blocks else [])]
     if limits:
         notes.append(_given_limits_sentence(factors, limits, coded))
     facts = {
@@ -1396,15 +1413,20 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
     """Refuse limits on the settings that no design on this page can keep to, and return the region they leave.
 
     The optimal designs are the only ones that place their runs inside limits, and on this page
-    they take numeric factors only; so the refusals come in that order, which names the real
-    conflict: a full factorial and a D-optimal design would otherwise each send the reader to
-    the other. ``design_type`` is the design asked for, or None when none is asked for yet.
+    they take numeric factors only, and two of them or more; so the refusals come in that order,
+    which names the real conflict: a full factorial and a D-optimal design would otherwise each send
+    the reader to the other. ``design_type`` is the design asked for, or None when none is asked for yet.
     """
     if labelled := [f.name for f in factors if f.type == "categorical"]:
         verb, which = ("is", "that factor") if len(labelled) == 1 else ("are", "those factors")
         raise ValueError(
             f"Limits on the settings work with numeric factors only on this page, and {_listed(labelled)} {verb} "
             f"categorical: remove the limits, or {which}."
+        )
+    if len(factors) == 1:  # the optimal designs, which keep to limits, take two factors or more
+        raise ValueError(
+            f"A limit on {factors[0].name} alone narrows its range: set its low and high to the settings you can "
+            "run, and remove the limit."
         )
     if design_type is not None and design_type not in REGION_DESIGNS:
         raise ValueError(
@@ -1580,8 +1602,11 @@ def _designed_model(design_type: str, resolution: int | None, factors: list[Fact
     array estimates the main effects, and with a numeric factor at three levels (``factors``
     as the library made the design) each numeric factor's square too. A space-filling design
     is made for no model, so it is analysed with the smallest model that holds the study's
-    ``aim``, as an optimal design is made for.
+    ``aim``, as an optimal design is made for. One factor has no interaction, so its design is
+    analysed for its main effect.
     """
+    if len(factors) == 1:
+        return "main_effects"
     if design_type in SPACE_FILLING and aim in OPTIMAL_MODEL:
         return OPTIMAL_MODEL[aim]
     if design_type == "fractional_factorial" and (resolution or 0) >= INTERACTIONS_CLEAR_FROM:
@@ -1728,10 +1753,14 @@ def _alpha(spec: dict) -> str | float:
 
 
 def _replicates(spec: dict) -> int:
-    """Read how many times each run is made, center runs excepted: 1 (no repeats) to :data:`MAX_REPLICATES`."""
+    """Read how many times each run is made, center runs excepted: 1 (no repeats) to :data:`MAX_REPLICATES`.
+
+    A design in one factor makes its two levels that many times each, up to :data:`MAX_LEVEL_RUNS`.
+    """
+    most = MAX_LEVEL_RUNS if len(spec.get("factors") or []) == 1 else MAX_REPLICATES
     replicates = _number(spec.get("n_replicates", 1))
-    if replicates is None or replicates != int(replicates) or not 1 <= replicates <= MAX_REPLICATES:
-        raise ValueError(f"Replicates must be a whole number from 1 to {MAX_REPLICATES}.")
+    if replicates is None or replicates != int(replicates) or not 1 <= replicates <= most:
+        raise ValueError(f"Replicates must be a whole number from 1 to {most}.")
     return int(replicates)
 
 
@@ -1792,21 +1821,23 @@ def _resolution(spec: dict, n_factors: int) -> int:
     return resolution
 
 
-def _design_facts(result: Any, coded: np.ndarray, names: list[str], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
+def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
     """State what the generated design is, read off the design rather than its type.
 
     A fraction's resolution and generators come from the library; which main effects and
     two-factor interactions are fully aliased is read from the coded runs, so it holds for
-    every design type and every naming of the factors. ``notes`` are the sentences the
-    page shows.
+    every design type and every naming of the factors. A design in one factor has nothing to
+    alias, and says instead how many runs it makes at each level. ``notes`` are the sentences
+    the page shows.
     """
+    names = [f["name"] for f in factors]
     groups = _aliased_groups(coded, names)
     notes = []
     if result.resolution:
         notes.append(_resolution_sentence(result.resolution, [_spaced(g, names) for g in result.generators or []]))
-    notes.append(_aliasing_sentence(groups))
     replicates = kwargs.get("n_replicates", 1)
-    if replicates > 1:
+    notes.append(_levels_sentence(factors[0], coded[:, 0]) if len(names) == 1 else _aliasing_sentence(groups))
+    if replicates > 1 and len(names) > 1:
         notes.append(
             f"Each run other than the center runs appears {replicates} times, so the repeats estimate the pure error."
         )
@@ -1861,6 +1892,29 @@ def _aliased_groups(coded: np.ndarray, names: list[str]) -> list[list[str]]:
         if len(members) > 1:
             groups.append([labels[varying[m]] for m in members])
     return groups
+
+
+def _levels_sentence(factor: dict, coded: np.ndarray, *, given: bool = False) -> str:
+    """Say how a design in one factor compares its levels: how many runs at its low, at its high and at its center.
+
+    ``coded`` is the factor's coded setting in each run. A design the page makes runs in random order;
+    runs as given (``given``) keep their order, so the sentence does not claim one.
+    """
+    low, high = factor["low"], factor["high"]
+    categorical = _categorical(factor)
+    units = "" if categorical or not factor.get("units") else f" {factor['units']}"
+    at = {level: int(np.isclose(coded, level, atol=ALIAS_TOLERANCE).sum()) for level in (-1, 0, 1)}
+    order = "" if given else ", in random order"
+    shown = (low, high) if categorical else (f"{low:.4g}", f"{high:.4g}")
+    if at[-1] + at[0] + at[1] < len(coded):  # runs as given at other settings: a curve, not a comparison
+        levels = len(np.unique(np.round(coded, 6)))
+        return f"The runs set {factor['name']} at {levels} levels, from {shown[0]} to {shown[1]}{units}."
+    each = f"{at[-1]} runs at each" if at[-1] == at[1] else f"{at[-1]} runs at {shown[0]} and {at[1]} at {shown[1]}"
+    centre = ""
+    if at[0]:
+        middle = f"{(low + high) / 2:.4g}{units}"
+        centre = f", and {at[0]} run{'s' if at[0] != 1 else ''} at its center, {middle}"
+    return f"The runs compare {factor['name']} at {shown[0]} and at {shown[1]}{units}: {each}{centre}{order}."
 
 
 def _resolution_sentence(resolution: int, generators: list[str]) -> str:
@@ -2019,6 +2073,11 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, names))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     notes = fit["notes"]
+    order = runs.loc[done, "Run order"].astype(int).tolist() if "Run order" in runs else None
+    comparison = _comparison(coded, y[done].to_numpy(dtype=float), spec, order)
+    if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
+        true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
+        comparison["difference"]["true"] = None if true is None else 2 * true
     terms = _model_terms(model, names, categorical)
     if spec["design_type"] == "taguchi" and not any(":" in term for term in terms):
         # A model with interactions has the alias chains' note instead.
@@ -2038,6 +2097,117 @@ def _analysis(runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | No
         "not_estimable": [_pretty(t) for t in fit["not_estimable"]],
         "notes": notes,
         "equation": _equation(_response_words(spec)[0], [c for c in coefficients if not c["block"]]),
+        "comparison": comparison,
+    }
+
+
+#: The confidence of each interval the comparison of one factor's levels gives, as of the coefficients'.
+CONFIDENCE = 0.95
+
+#: The most arrangements of the runs the randomization test counts: every one up to this many, else this many
+#: drawn at random. Its interval, which counts every arrangement, is given only then.
+ARRANGEMENTS = 200_000
+
+
+def _comparison(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None) -> dict | None:
+    """Compare one factor's levels: each level's results, and at two levels the difference between them.
+
+    Each level lists its runs (their run order and result), their average, standard deviation and the
+    interval for the average from those runs alone. With the runs at the low and the high only, two
+    or more at each, ``difference`` is the high's average less the low's, tested four ways: the
+    t-test with one variance for both levels (the model's own test), Welch's t-test with each level's
+    own variance, the randomization test, which counts the arrangements of the runs the random order
+    could have made, and Wilcoxon's rank-sum test. A study of more factors, or in blocks, has none.
+    """
+    factors = spec["factors"]
+    if len(factors) != 1 or _blocked(spec):
+        return None
+    factor = factors[0]
+    x = np.round(coded[factor["name"]].to_numpy(dtype=float), 6)
+    runs = order if order is not None else list(range(1, len(y) + 1))
+    levels = [
+        _level(factor, setting, y[x == setting], [r for r, at in zip(runs, x, strict=True) if at == setting])
+        for setting in np.unique(x)
+    ]
+    out: dict[str, Any] = {"factor": factor["name"], "levels": levels, "difference": None}
+    low, high = y[x == -1], y[x == 1]
+    if len(levels) == 2 and min(len(low), len(high)) >= 2:  # two levels, two runs each, for a variance
+        out["difference"] = _difference(low, high, factor, spec.get("options", {}).get("random_state", 0))
+    return out
+
+
+def _level(factor: dict, setting: float, values: np.ndarray, runs: list[int]) -> dict[str, Any]:
+    """Summarise one level's results: its runs, their average, standard deviation and the interval for the average."""
+    name = (factor["low"] if setting < 0 else factor["high"]) if _categorical(factor) else _actual(factor, setting)
+    n = len(values)
+    sd = float(values.std(ddof=1)) if n > 1 else None
+    half = float(_critical_t(n - 1) * sd / math.sqrt(n)) if sd is not None else None
+    mean = float(values.mean())
+    return {
+        "level": name,
+        "coded": float(setting),
+        "n": n,
+        "mean": mean,
+        "std_dev": sd,
+        "ci_low": None if half is None else mean - half,
+        "ci_high": None if half is None else mean + half,
+        "runs": [{"run": r, "value": float(v)} for r, v in zip(runs, values, strict=True)],
+    }
+
+
+def _actual(factor: dict, coded: float) -> float:
+    """Return a numeric factor's setting in its own units from its coded value."""
+    return float(f"{(factor['low'] + factor['high']) / 2 + coded * (factor['high'] - factor['low']) / 2:.6g}")
+
+
+def _critical_t(df: int) -> float:
+    """Return the two-sided critical value of Student's t at :data:`CONFIDENCE` on ``df`` degrees of freedom."""
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    return float(stats.t.ppf(1 - (1 - CONFIDENCE) / 2, df))
+
+
+def _difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> dict[str, Any]:
+    """Test the difference between a factor's high and low levels four ways; see :func:`_comparison`."""
+    tests = []
+    for name, equal in (("pooled", True), ("welch", False)):
+        found = ttest_independent(pd.Series(low), pd.Series(high), conflevel=CONFIDENCE, equal_var=equal)
+        tests.append(
+            {
+                "test": name,
+                "statistic": found["t value"],
+                "df": found["Degrees of freedom"],
+                "ci_low": found["ConfInt: Lo"],
+                "ci_high": found["ConfInt: Hi"],
+                "p_value": found["p value"],
+            }
+        )
+    found = randomization_test(low, high, max_arrangements=ARRANGEMENTS, random_state=seed)
+    interval: dict[str, Any] = {"ci_low": None, "ci_high": None, "confidence": None}
+    if found["exact"]:
+        with contextlib.suppress(ValueError):  # too few arrangements for a 95% interval: 3 runs at each make 20
+            made = randomization_interval(low, high, confidence=CONFIDENCE)
+            interval = {k: made[k] for k in interval}
+    tests.append(
+        {
+            "test": "randomization",
+            "p_value": found["p_value_two_sided"],
+            "n_arrangements": found["n_arrangements"],
+            "exact": found["exact"],
+            **interval,
+        }
+    )
+    ranks = rank_sum_test(low, high, max_arrangements=ARRANGEMENTS)
+    exact = "exact_p_value_less" in ranks
+    p = min(1.0, 2 * min(ranks["exact_p_value_less"], ranks["exact_p_value_greater"])) if exact else ranks["p_value"]
+    tests.append({"test": "rank_sum", "statistic": ranks["rank_sum_y"], "p_value": p, "exact": exact})
+    labels = (factor["low"], factor["high"]) if _categorical(factor) else (_actual(factor, -1), _actual(factor, 1))
+    return {
+        "estimate": float(high.mean() - low.mean()),
+        "from": labels[0],
+        "to": labels[1],
+        "true": None,
+        "tests": tests,
     }
 
 
@@ -3088,9 +3258,10 @@ def plots(request: dict) -> dict:
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
         return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
 
-    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)}
+    # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
+    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)} if len(names) > 1 else {}
     truth = request.get("truth")
-    if truth:
+    if truth and len(names) > 1:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
         missing = [f for f in process.factors if f not in names]
         if missing:
@@ -3633,23 +3804,20 @@ def compare_plan(request: dict) -> dict:
     response = next(name for name in candidates if name.isidentifier() and name not in names)
     plan, left_out = [], []
     labelled = any(f.type == "categorical" for f in factors)
+    levels = _level_plan(request, factors, model)
     # A design taken from the comparison keeps the reader's description of the response, and aims to learn the
     # model it was compared on.
     described = _described({"response_info": request.get("response_info"), "aim": model})
     # The study's seed, so a design taken from the comparison keeps it.
     seeded = {"random_state": request["random_state"]} if "random_state" in request else {}
-    for design_type, info in DESIGNS.items():
+    for design_type in DESIGNS:
         if design_type in SPACE_FILLING:
             continue  # made for no model, so not one to compare on a model
         why = _left_out(design_type, k, labelled=labelled, limited=bool(limits))
         if why:
             left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})
             continue
-        options = dict(COMPARE_OPTIONS[design_type])
-        if "model_type" in info["options"]:
-            options["model_type"] = OPTIMAL_MODEL[model]
-        if "n_levels" in info["options"] and model in TAGUCHI_THREE_LEVELS:
-            options["n_levels"] = TAGUCHI_LEVELS[-1]
+        options = _compare_options(design_type, model, levels)
         spec = {"design_type": design_type, "factors": request["factors"], "response": response, **options, **described}
         spec.update(seeded)
         if limits:
@@ -3661,7 +3829,58 @@ def compare_plan(request: dict) -> dict:
             f"The D- and I-optimal designs are built for the {OPTIMAL_MODEL[model]} model, the smallest model "
             f"they can be built for that contains this one."
         )
-    return {"model": model, "designs": plan, "notes": notes, "left_out": left_out}
+    # Two levels estimate the factor's main effect alone, whatever else the aim names: they are scored on it.
+    scored = "main_effects" if levels else model
+    return {"model": scored, "designs": plan, "notes": notes, "left_out": left_out, "levels": levels}
+
+
+def _compare_options(design_type: str, model: str, levels: dict[str, Any] | None) -> dict[str, Any]:
+    """Return the options a design is compared with: the page's defaults, made for the comparison's model.
+
+    An optimal design is built for the model (see :data:`OPTIMAL_MODEL`), a Taguchi array runs its numeric factors
+    at three levels for a model with squares, and a design in one factor runs each of its two levels as often as
+    its plan (``levels``, from :func:`_level_plan`) asks, with no center runs.
+    """
+    options = dict(COMPARE_OPTIONS[design_type])
+    allowed = DESIGNS[design_type]["options"]
+    if levels:
+        options.update(n_center_points=0, n_replicates=levels["n"])
+    if "model_type" in allowed:
+        options["model_type"] = OPTIMAL_MODEL[model]
+    if "n_levels" in allowed and model in TAGUCHI_THREE_LEVELS:
+        options["n_levels"] = TAGUCHI_LEVELS[-1]
+    return options
+
+
+#: The power a design in one factor is sized for: the fewest runs at each of its two levels whose t-test has this
+#: chance of finding the smallest change worth finding.
+LEVEL_POWER = 0.8
+
+#: The runs at each level the plan of a design in one factor lists, beside the number that reaches its power.
+LEVEL_RUNS = (2, 3, 4, 5, 6, 8, 10, 15, 20, 30, MAX_LEVEL_RUNS)
+
+
+def _level_plan(request: dict, factors: list[Factor], model: str) -> dict[str, Any] | None:
+    """Size a design in one factor, its two levels compared: the power of its t-test for each number of runs at each.
+
+    The change is the reader's smallest change worth finding, over the run-to-run noise, or two noise standard
+    deviations without them, as designs are compared (:func:`_effect_size`). The power is the one-way analysis of
+    variance's (``one_way_power``), which for two levels is the two-sided t-test's, and the model's test of the
+    factor. ``n`` is the fewest runs at each level that reach :data:`LEVEL_POWER`, or :data:`MAX_LEVEL_RUNS` when
+    none does (``reached`` says which). None for more factors, or for a numeric factor the study aims to see curve,
+    which a third level shows.
+    """
+    if len(factors) != 1 or (factors[0].type != "categorical" and model in (MAIN_QUADRATIC, "quadratic")):
+        return None
+    info = _response_info(request.get("response_info"))
+    means = least_favourable_means(2 * _effect_size({k: info.get(k) for k in ("noise", "smallest_change")}), 2)
+    try:
+        n = int(one_way_sample_size(LEVEL_POWER, 1.0, means, max_n=MAX_LEVEL_RUNS)["n"])
+    except ValueError:  # no number of runs the page makes reaches it
+        n = MAX_LEVEL_RUNS
+    rows = [{"n": m, "runs": 2 * m, "power": one_way_power(m, 1.0, means)["power"]} for m in sorted({*LEVEL_RUNS, n})]
+    reached = next(row["power"] for row in rows if row["n"] == n) >= LEVEL_POWER
+    return {"n": n, "power": LEVEL_POWER, "reached": reached, "rows": rows}
 
 
 def _left_out(design_type: str, k: int, *, labelled: bool, limited: bool) -> dict[str, Any] | None:
@@ -3794,6 +4013,7 @@ def candidates(request: dict) -> dict:
         "notes": notes,
         "result": result,
         "left_out": plan["left_out"],
+        "levels": plan["levels"],
     }
 
 

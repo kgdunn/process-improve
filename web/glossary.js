@@ -98,6 +98,18 @@ export const GLOSSARY = {
   "cox-direction":
     "The line on which one component's share of a blend changes while the others keep their proportions to each " +
     "other. The component's effect is the change in the fitted response along it.",
+  "pooled-t":
+    "A t-test of the difference between two averages that estimates one run-to-run variance from both levels' runs " +
+    "together. It is the model's own test of the factor.",
+  "welch-t":
+    "A t-test of the difference between two averages that keeps each level's own variance, so it holds when one " +
+    "level's runs vary more than the other's.",
+  "randomization-test":
+    "The difference between the levels for every way the random order could have split the runs into groups of " +
+    "these sizes. The p-value is the share of them at least as far from zero as the one observed.",
+  "rank-sum":
+    "Wilcoxon's test: the runs are ranked together, and one level's sum of ranks is compared with every way the " +
+    "ranks could be split. It reads the order of the results, so one wild result moves it little.",
   pse: "The pseudo standard error: a robust estimate of the standard error of an effect, from the effects themselves.",
   me: "The margin of error, the individual 95% cutoff: an effect whose size exceeds it is significant on its own.",
   sme: "The simultaneous margin of error: the stricter cutoff, for scanning all the effects at once.",
@@ -208,4 +220,8 @@ export const MARKED = {
   "steepest descent": "steepest-ascent",
   "overall desirability": "overall-desirability",
   desirability: "desirability",
+  "t-test": "pooled-t",
+  "Welch's t-test": "welch-t",
+  "randomization test": "randomization-test",
+  "rank-sum test": "rank-sum",
 };

@@ -6,8 +6,18 @@
 // A campaign read back, from this browser or from a link someone sent, is checked field by
 // field before the page uses any of it: a link is text anyone can write.
 
-/** The format of a campaign; a link or a saved campaign of another version is refused, not guessed at. */
-export const CAMPAIGN_VERSION = 1;
+/**
+ * The latest format of a campaign this page reads; one of a later format is refused, not guessed at. Each study is
+ * saved in the lowest format that holds it (studyFormat), so a page from before a format opens every study it can.
+ * Format 2 holds a study of one factor, which a page of format 1 could not analyse.
+ */
+export const CAMPAIGN_VERSION = 2;
+
+/** The format of a study of one factor; a study of more factors keeps format 1. */
+export const ONE_FACTOR_FORMAT = 2;
+
+/** The lowest format that holds a study of this specification, which the study is saved in. */
+export const studyFormat = (spec) => (spec.factors.length === 1 ? ONE_FACTOR_FORMAT : 1);
 
 /** Where a link carries its campaign: the address's fragment, after this. */
 export const LINK_KEY = "#c=";
@@ -244,7 +254,9 @@ function simulation(value, later = []) {
  */
 export function checkCampaign(data) {
   if (!isObject(data)) refuse("it is not a design");
-  if (data.v !== CAMPAIGN_VERSION) refuse(`it was saved in format ${JSON.stringify(data.v)}, and this page reads format ${CAMPAIGN_VERSION}`);
+  if (!Number.isInteger(data.v) || data.v < 1 || data.v > CAMPAIGN_VERSION) {
+    refuse(`it was saved in format ${JSON.stringify(data.v)}, and this page reads formats 1 to ${CAMPAIGN_VERSION}`);
+  }
   if (!isObject(data.design)) refuse("it holds no design");
   const design = data.design;
   const s = spec(design.spec);
@@ -262,7 +274,7 @@ export function checkCampaign(data) {
   const [responses, sources] = results(data.responses, data.sources, n);
   const factorNames = s.factors.map((f) => f.name);
   const out = {
-    v: CAMPAIGN_VERSION,
+    v: studyFormat(s),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,

@@ -638,3 +638,15 @@ def test_the_page_says_a_goal_s_problem_in_bootstrap_s_words(bootstrap, node, go
         bootstrap._balance_goal(response, results, {"low": low, "high": high})
     (said,) = javascript(node, source("best.js"), [("goalProblem", [response, low, high])])
     assert said == str(refused.value)
+
+
+def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_hold_them(
+    bootstrap, build_script, node
+):
+    """The replicates the page offers, more for one factor's levels, and the format a one-factor study is saved in."""
+    held = javascript(node, source("logic.js"), [("MAX_REPLICATES", []), ("MAX_LEVEL_RUNS", [])])
+    assert held == [bootstrap.MAX_REPLICATES, bootstrap.MAX_LEVEL_RUNS]
+    formats = javascript(node, source("campaign.js"), [("CAMPAIGN_VERSION", []), ("ONE_FACTOR_FORMAT", [])])
+    assert formats == [build_script.CAMPAIGN_VERSION, build_script.ONE_FACTOR_FORMAT]
+    assert build_script.study_format({"factors": [{"name": "S"}]}) == build_script.ONE_FACTOR_FORMAT
+    assert build_script.study_format({"factors": [{"name": "S"}, {"name": "T"}]}) == 1

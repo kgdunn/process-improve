@@ -183,8 +183,18 @@ PUBLISHED_EXAMPLES = WEB_SRC / "published-examples.json"
 BOOK = "https://learnche.org/pid/"
 #: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
 WORKED = "worked"
-#: The campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
-CAMPAIGN_VERSION = 1
+#: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
+CAMPAIGN_VERSION = 2
+#: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
+#: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
+ONE_FACTOR_FORMAT = 2
+
+
+def study_format(spec: dict[str, Any]) -> int:
+    """Return the lowest campaign format that holds a study of this specification (``studyFormat`` in campaign.js)."""
+    return ONE_FACTOR_FORMAT if len(spec["factors"]) == 1 else 1
+
+
 #: How near, in coded units, a run of the book must come to a run of the design: the book prints
 #: a rotatable design's axial distance, the square root of 2, as 1.41.
 CODED_TOLERANCE = 0.01
@@ -291,7 +301,7 @@ def campaign_of(entry: dict[str, Any], what: str) -> dict[str, Any]:
     if rows is None:
         raise SystemExit(f"{what}: {attempts[0]}")
     return {
-        "v": CAMPAIGN_VERSION,
+        "v": study_format(design["spec"]),
         "title": entry["title"],
         "design": {
             "spec": design["spec"],
@@ -350,7 +360,7 @@ def _coded_runs(design: dict[str, Any]) -> Counter:
 def _campaign(title: str, design: dict[str, Any], responses: list[float | None]) -> dict[str, Any]:
     """Return what a link opens: a design the page made, and a result, or a blank, for each run."""
     return {
-        "v": CAMPAIGN_VERSION,
+        "v": study_format(design["spec"]),
         "title": title[:TITLE_MOST],
         "design": {
             key: design[key] for key in ("spec", "columns", "rows", "model", "n_runs", "facts", "outside_range")
@@ -540,7 +550,7 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 
     It opens a design the page does not make, or makes differently, with the runs as the source prints
     them, or as the library made them: in their order, in the factors' own units, with the source's
-    results. The page takes runs without blocks or whole plots, of 2 to 12 numeric or two-level factors.
+    results. The page takes runs without blocks or whole plots, of 1 to 12 numeric or two-level factors.
     """
     if why := _not_given(record):
         return None, why

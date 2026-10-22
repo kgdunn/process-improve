@@ -281,7 +281,7 @@ export function resultsCode(design, results, simulation = null) {
  * is its column then. ``vifModel``, the terms fitted as a formula, is given when the page shows their
  * VIFs: the code then works them out from the same runs, as the page's VIF column has them.
  */
-export function analyseCode(model, complete = true, spec = null, vifModel = null) {
+export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false } = {}) {
   const fitted = complete ? "X, y" : "X[done], y[done]";
   const own = Boolean(spec?.response) && spec.response !== responseNames(spec)[0];
   const vif = vifModel
@@ -303,7 +303,35 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     ")",
     'print(analysis["coefficients"])',
     ...vif,
+    ...(compared ? comparisonCode(spec, complete) : []),
   ].join("\n");
+}
+
+/** The arrangements the randomization test counts at most, drawing that many at random beyond: bootstrap.ARRANGEMENTS. */
+export const ARRANGEMENTS = 200_000;
+
+/**
+ * A study of one factor at two levels (``compared``, as the page's analysis compares them): the high level's results
+ * less the low's, tested as the page tests them, with the seed the study's runs were put in order with, which the
+ * randomization test draws its arrangements with when there are too many to count.
+ */
+function comparisonCode(spec, complete) {
+  const name = repr(spec.factors[0].name);
+  const done = complete ? "" : "done & ";
+  const seed = spec.options?.random_state ?? 0;
+  const most = String(ARRANGEMENTS).replace(/\B(?=(\d{3})+$)/g, "_");
+  return [
+    "",
+    `# The two levels of ${spec.factors[0].name} compared: the high level's results less the low's.`,
+    "from process_improve.univariate import randomization_test, rank_sum_test, ttest_independent",
+    "",
+    `low, high = y[${done}(X[${name}] == -1)], y[${done}(X[${name}] == 1)]`,
+    "pooled = ttest_independent(low, high, conflevel=0.95)  # one variance for both levels",
+    "welch = ttest_independent(low, high, conflevel=0.95, equal_var=False)  # each level's own variance",
+    `shuffled = randomization_test(low, high, max_arrangements=${most}, random_state=${seed})`,
+    `ranks = rank_sum_test(low, high, max_arrangements=${most})`,
+    "print(pooled, welch, shuffled, ranks, sep=\"\\n\")",
+  ];
 }
 
 /** How the code shown holds some columns of the model at a value: as bootstrap._held_at does, line for line. */
@@ -508,7 +536,7 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * analyseCode). ``analyses`` lists each response's ``{response, model, best, vifModel}`` for a
  * study of several responses; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, version, url, best = null, analyses = null, balance = null }) {
+export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, version, url, best = null, analyses = null, balance = null }) {
   const names = responseNames(design.spec);
   const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
   const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
@@ -526,10 +554,10 @@ export function notebook({ title, design, responses, sources, simulation, model,
     codeCell("results", resultsCode(design, results, simulated ? simulation : null)),
   ];
   // Each response's analysis, and its best settings when it has a goal: the first's alone for a study of one response.
-  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel }] : []);
+  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel, compared }] : []);
   const fitted = fittedRuns(design);
   let step = 3;
-  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null } of each) {
+  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null, compared: levels = false } of each) {
     if (fittedModel === null || fittedModel === undefined) continue;
     const spec = forResponse(design.spec, response);
     const values = results[response] ?? [];
@@ -538,7 +566,7 @@ export function notebook({ title, design, responses, sources, simulation, model,
     const id = names.length > 1 ? `-${names.indexOf(response) + 1}` : ""; // a cell's id is ASCII, as nbformat asks
     cells.push(
       markdownCell(`analysis-step${id}`, names.length > 1 ? `## ${step}. The analysis of ${words}` : `## ${step}. The analysis`),
-      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms)),
+      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels })),
     );
     step += 1;
     if (found?.settings) {

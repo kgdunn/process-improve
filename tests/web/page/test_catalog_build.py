@@ -122,6 +122,7 @@ def test_the_page_reads_every_campaign_the_build_wrote(node, details):
     campaigns = {name: d["campaign"] for name, d in details.items() if d["campaign"]}
     assert set(campaigns) == {
         "bhh-pilot-plant-2-3",
+        "bhh-plant-trial-two-methods",
         "lib-ccd-k3-face-centered",
         "lib-full-factorial-k3",
         "lib-omars-k4",
@@ -158,10 +159,22 @@ def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(index, det
     assert runs.to_numpy().tolist() == detail["coded_runs"]
 
 
-def test_a_design_the_page_cannot_take_says_why_it_does_not_open(index, details):
+def test_a_comparison_of_two_treatments_opens_with_its_runs_as_given(index, details):
+    """Box, Hunter and Hunter's plant trial: ten batches by method A, then ten by B, in that order, with yields."""
     design, detail = _design(index, "bhh-plant-trial-two-methods"), details["bhh-plant-trial-two-methods"]
-    assert (design["open"], detail["campaign"], detail["opens_as"]) == (False, None, None)
-    assert detail["closed"] == "the page opens designs of 2 to 12 factors"
+    assert (design["open"], detail["opens_as"], detail["closed"]) == (True, "given", "")
+    campaign = detail["campaign"]
+    assert run_sheet(campaign["design"])["method"].tolist() == ["A"] * 10 + ["B"] * 10
+    assert campaign["responses"][:3] == [89.7, 81.4, 84.5]
+    assert campaign["design"]["facts"]["notes"][1] == "The runs compare method at A and at B: 10 runs at each."
+
+
+def test_a_design_the_page_cannot_take_says_why_it_does_not_open(build_script, few):
+    """The plant trial run in blocks: the page opens designs without them, and says so."""
+    record = next(r for r in few if r["id"] == "bhh-plant-trial-two-methods")
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign({**record, "blocked": True})
+    assert (campaign, reason) == (None, "the page opens designs without blocks or whole plots")
 
 
 def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_script, few):

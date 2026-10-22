@@ -94,7 +94,8 @@
         several levels, a what-if analysis, or a model inverted to find the settings for a target.</li>
       <li><strong>Each study names its format</strong>, <code>"v"</code>. It goes up when a study holds something an
         earlier Factorial could not keep. That Factorial then refuses the study, and says so, rather than open part of
-        it; the other studies in the file open. The file's own <code>"version"</code> goes up only for a change an
+        it; the other studies in the file open. A study of one factor is format 2; a study of more factors keeps format
+        1, so an earlier Factorial still opens it. The file's own <code>"version"</code> goes up only for a change an
         earlier Factorial would misread.</li>
       <li><strong>A study keeps its <code>"id"</code></strong> through files and copies, so a later study can name the
         one it builds on: a design that follows another and its model, with factors added or dropped.</li>

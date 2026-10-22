@@ -8,6 +8,7 @@ import {
   GOAL_SHAPES,
   BOOK_PARAM,
   CAMPAIGN_VERSION,
+  ONE_FACTOR_FORMAT,
   bookName,
   campaignDone,
   campaignTitle,
@@ -21,6 +22,7 @@ import {
   progress,
   sameCampaign,
   shareable,
+  studyFormat,
   timeAgo,
   unpackCampaign,
 } from "../../../web/campaign.js";
@@ -39,7 +41,7 @@ function campaign() {
     [2, 4, 200, "A", null],
   ];
   return {
-    v: CAMPAIGN_VERSION,
+    v: 1, // a study of two factors keeps the first format
     title: "Full factorial (2-level) in T and Supplier",
     design: {
       spec: {
@@ -125,7 +127,11 @@ describe("a link that is not one of the page's is refused, saying why", () => {
     await refused(await packed(huge), /unpacks to more than a design/);
   });
 
-  test("another format", async () => refused(await packed({ ...campaign(), v: 2 }), /format 2/));
+  test("a later format, or none", async () => {
+    await refused(await packed({ ...campaign(), v: CAMPAIGN_VERSION + 1 }), new RegExp(`format ${CAMPAIGN_VERSION + 1}`));
+    await refused(await packed({ ...campaign(), v: 0 }), /format 0/);
+    await refused(await packed({ ...campaign(), v: "1" }), /format "1"/);
+  });
 
   test("results that are not one number per run", async () => {
     await refused(await packed({ ...campaign(), responses: [1, 2, 3] }), /one number, or a blank, per run/);
@@ -405,7 +411,8 @@ describe("one of the book's examples, named in a link", () => {
     refusedBy(() => checkBookExample(example(), "another"), /could not be read/);
     refusedBy(() => checkBookExample([], "two-factor-supplier"), /could not be read/);
     refusedBy(() => checkBookExample({ ...example(), book: "javascript:alert(1)" }, "two-factor-supplier"), /not a web address/);
-    refusedBy(() => checkBookExample({ ...example(), campaign: { ...campaign(), v: 2 } }, "two-factor-supplier"), /format 2/);
+    const later = { ...campaign(), v: CAMPAIGN_VERSION + 1 };
+    refusedBy(() => checkBookExample({ ...example(), campaign: later }, "two-factor-supplier"), /could not be opened: it was saved in format/);
   });
 
   test("a copy saved here is the book's only while its results and model are as the book has them", () => {
@@ -566,5 +573,32 @@ describe("a campaign of several responses", () => {
     refused({ Cost: { high: "8" } }, /the acceptable range of Cost is not a number/);
     refused({ Cost: { importance: 6 } }, /the importance of Cost is not 1 to 5/);
     refused({ Cost: { shape: "steep" } }, /the shape of Cost's desirability is unknown/);
+  });
+});
+
+describe("each study is saved in the lowest format that holds it", () => {
+  /** The fixture's study with one factor: the supplier alone, at its two levels. */
+  function oneFactor() {
+    const data = campaign();
+    const spec = { ...data.design.spec, factors: data.design.spec.factors.slice(1), model: "main_effects" };
+    const columns = ["Std order", "Run order", "Supplier", "y"];
+    const rows = data.design.rows.map(([std, run, , supplier, y]) => [std, run, supplier, y]);
+    return { ...data, v: ONE_FACTOR_FORMAT, model: "", design: { ...data.design, spec, columns, rows, model: "main_effects" } };
+  }
+
+  test("a study of one factor is format 2, which a page of format 1 refuses in a sentence", () => {
+    assert.equal(CAMPAIGN_VERSION, ONE_FACTOR_FORMAT);
+    assert.equal(studyFormat(oneFactor().design.spec), ONE_FACTOR_FORMAT);
+    assert.equal(checkCampaign(oneFactor()).v, ONE_FACTOR_FORMAT);
+  });
+
+  test("a study of more factors keeps format 1, so a page of format 1 still opens it", () => {
+    assert.equal(studyFormat(campaign().design.spec), 1);
+    assert.equal(checkCampaign(campaign()).v, 1);
+    assert.equal(checkCampaign({ ...campaign(), v: CAMPAIGN_VERSION }).v, 1, "read at any format the page knows");
+  });
+
+  test("a study of one factor saved before this format still opens, and is saved in its own", () => {
+    assert.equal(checkCampaign({ ...oneFactor(), v: 1 }).v, ONE_FACTOR_FORMAT);
   });
 });

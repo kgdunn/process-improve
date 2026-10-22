@@ -631,9 +631,10 @@ describe("the response's description", () => {
 describe("what a study aims to learn", () => {
   const numeric = ["T", "P", "F"].map((name) => ({ name, low: -1, high: 1 }));
 
-  test("starts from each factor's curvature, and from screening for many factors", () => {
+  test("starts from each factor's curvature, and from screening for many factors or for one", () => {
     assert.equal(defaultAim(3), "main_quadratic");
     assert.equal(defaultAim(SCREEN_FROM), "main_effects");
+    assert.equal(defaultAim(1), "main_effects", "one factor's two levels are compared");
   });
 
   test("an aim's model has its coefficients, and no square of a categorical factor", () => {
