@@ -208,6 +208,62 @@ def test_a_table_of_coded_runs_that_prints_a_categorical_factor_s_levels_codes_t
     np.testing.assert_array_equal(published_runs(codes), [[-1.0, -1.0], [1.0, 0.0], [0.0, 1.0]], "codes stay codes")
 
 
+_SOURCE = {"key": "a-source", "year": 2000}
+
+
+def test_a_block_column_is_each_run_s_block_and_no_factor_of_the_design():
+    """A 3^2 in three blocks that lists its block as a factor: the record keeps the block apart, run by run."""
+    entry = {
+        "name": "three-blocks",
+        "design": {"type": "3^2 factorial in three blocks"},
+        "factors": [
+            {"name": "A", "low": 0, "high": 2, "type": "numeric"},
+            {"name": "block", "type": "categorical", "levels": ["1", "2", "3"]},
+        ],
+        "runs": {"columns": ["A", "block", "y"], "rows": [[0, 1, 5.0], [1, 2, 6.0], [2, 3, 7.0], [0, 2, 4.0]]},
+    }
+    record = design_catalog._published_record(entry, _SOURCE)
+    assert [f["name"] for f in record["factors"]] == ["A"]
+    assert record["coded_runs"] == [[-1.0], [0.0], [1.0], [-1.0]]
+    assert (record["blocked"], record["blocks"], record["n_blocks"]) == (True, [1, 2, 3, 2], 3)
+
+
+def test_an_entry_names_its_block_column_when_its_source_calls_the_blocks_something_else():
+    """Four pressures in each of three batches: the entry says the batch is the block, and the record keeps it apart."""
+    pressure = {"name": "pressure", "type": "categorical", "levels": ["8500", "8700"]}
+    batch = {"name": "batch", "type": "categorical", "levels": ["1", "2", "3"]}
+    rows = [[p, b, 90.0 + b] for b in (1, 2, 3) for p in ("8500", "8700")]
+    entry = {
+        "name": "grafts",
+        "design": {"type": "randomized complete block design", "blocks": "batch"},
+        "factors": [pressure, batch],
+        "runs": {"columns": ["pressure", "batch", "y"], "rows": rows},
+    }
+    record = design_catalog._published_record(entry, _SOURCE)
+    assert [f["name"] for f in record["factors"]] == ["pressure"]
+    assert (record["blocks"], record["n_blocks"]) == ([1, 1, 2, 2, 3, 3], 3)
+    unnamed = design_catalog._published_record(
+        {**entry, "design": {"type": "randomized complete block design"}}, _SOURCE
+    )
+    assert ([f["name"] for f in unnamed["factors"]], unnamed["blocks"]) == (["pressure", "batch"], None)
+    assert unnamed["blocked"], "the text still says the design is run in blocks"
+
+
+@pytest.mark.parametrize(
+    ("text", "blocked"),
+    [
+        ("2^3 full factorial in two blocks", True),
+        ("G being the heap of soil (a blocking factor confounded at the highest level)", True),
+        ("One centre point, no replicates, no blocks.", False),
+        ("Array 'nonfoldover' in the code block.", False),
+        ("alpha = 1.633 is the orthogonal-blocking alpha (see expected)", False),
+        ("defining relation I = ABC (stated in generators-defining-relationships-blocking.rst line 77)", False),
+    ],
+)
+def test_only_words_that_say_a_design_is_run_in_blocks_mark_it_blocked(text, blocked):
+    assert design_catalog._blocks({}, text, None) == (blocked, None)
+
+
 def test_where_a_source_prints_an_entry_is_said_in_a_few_words():
     assert design_catalog._where(None) == ""
     assert design_catalog._where("Table 3, p. 12") == "Table 3, p. 12"
