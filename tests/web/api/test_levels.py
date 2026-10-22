@@ -270,7 +270,8 @@ def test_dunnett_s_intervals_are_scipy_s_for_levels_of_equal_runs(api):
     found = compared(api, factor, runs, [v for values in groups.values() for v in values], control="B")["several"]
     assert found["control"] == "B"
     others = [groups[level] for level in "ACD"]
-    expected = stats.dunnett(*others, control=groups["B"]).confidence_interval(0.95)
+    # scipy integrates by randomized quasi-Monte Carlo: seeded, its interval is the same on every run.
+    expected = stats.dunnett(*others, control=groups["B"], random_state=1).confidence_interval(0.95)
     assert [v["level"] for v in found["versus"]] == ["A", "C", "D"]
     for v, low, high in zip(found["versus"], expected.low, expected.high, strict=True):
         assert [v["ci_low"], v["ci_high"]] == pytest.approx([low, high], abs=2e-3)
