@@ -162,6 +162,16 @@ def text_labels(values: Iterable[Any]) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
+def mentions(expression: str, names: Iterable[str]) -> bool:
+    """Return whether ``expression`` names one of ``names`` (False for an expression that does not parse)."""
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError:
+        return False
+    wanted = {nfkc(name) for name in names}
+    return any(isinstance(node, ast.Name) and node.id in wanted for node in ast.walk(tree))
+
+
 def names_categorical(expression: str, categorical: Iterable[str]) -> bool:
     """Return whether ``expression`` is a rule: it joins comparisons with ``and``/``or``/``not``, or names a level.
 
@@ -174,8 +184,7 @@ def names_categorical(expression: str, categorical: Iterable[str]) -> bool:
         return False
     if isinstance(tree, ast.BoolOp) or (isinstance(tree, ast.UnaryOp) and isinstance(tree.op, ast.Not)):
         return True
-    wanted = {nfkc(name) for name in categorical}
-    return any(isinstance(node, ast.Name) and node.id in wanted for node in ast.walk(tree))
+    return mentions(expression, categorical)
 
 
 def compile_rules(

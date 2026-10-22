@@ -305,6 +305,30 @@ def _is_mixture_process(factors: list[Factor]) -> bool:
     return any(is_mixture) and not all(is_mixture)
 
 
+def _refuse_unenforced_rules(
+    factors: list[Factor], constraints: list[Constraint] | None, design_type: str, meta: dict
+) -> None:
+    """Refuse a design that does not follow constraints naming categorical factors.
+
+    Other constraints a design family cannot follow are reported with a warning. A
+    constraint on the levels usually says that a combination cannot be run at all (two
+    materials that react, a catalyst that degrades when hot), and a run sheet holding one
+    could be run by someone who never saw the warning, so it is refused instead.
+    """
+    from process_improve.experiments._rules import mentions  # noqa: PLC0415
+
+    categorical = [f.name for f in factors if f.type == FactorType.categorical]
+    if meta.get("constraints_enforced") or not categorical:
+        return
+    named = [c.expression for c in constraints or [] if mentions(c.expression, categorical)]
+    if named:
+        raise ValueError(
+            f"design_type={design_type!r} cannot follow the constraints {named}, which name categorical factors. "
+            "Use an optimal design ('d_optimal', 'i_optimal', ...), which places runs only in the combinations "
+            "of levels and settings the constraints allow."
+        )
+
+
 def _refuse_mixture_process(factors: list[Factor], design_type: str) -> None:
     """Raise when mixture components beside process factors are given to a family that cannot place them.
 
@@ -1089,6 +1113,7 @@ def generate_design(  # noqa: PLR0913
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
     _note_alpha_chosen(meta, alpha_given, alpha)
+    _refuse_unenforced_rules(factors, constraints, design_type, meta)
     if constraints and not meta.get("constraints_enforced"):
         # Only the optimal, mixture and sobol/halton/maximin paths honour constraints; say so on the result.
         logger.warning(

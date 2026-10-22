@@ -355,3 +355,26 @@ class TestGenerateAndEvaluate:
         design = generate_design(FACTORS, design_type="i_optimal", budget=20, constraints=RULES, random_state=1)
         average = evaluate_design(design, metric="average_prediction_variance")["average_prediction_variance"]
         assert average == pytest.approx(design.metadata["trace_criterion"], rel=0.03)
+
+
+class TestOtherEntryPoints:
+    def test_a_design_that_cannot_follow_a_rule_refuses_it(self) -> None:
+        with pytest.raises(ValueError, match="'full_factorial' cannot follow the constraints"):
+            generate_design([TEMP, CATALYST, SOLVENT], design_type="full_factorial", constraints=[NO_B_WITH_Y])
+
+    def test_a_design_beside_mixture_components_refuses_a_rule(self) -> None:
+        parts = [Factor(name=n, type="mixture") for n in ("a", "b", "c")]
+        with pytest.raises(ValueError, match="not supported beside mixture components"):
+            generate_design([*parts, TEMP, CATALYST], design_type="d_optimal", constraints=[B_UP_TO_180])
+
+    def test_the_automatic_choice_follows_the_rules(self) -> None:
+        design = generate_design(FACTORS, budget=20, constraints=RULES, random_state=1)
+        assert design.design_type == "d_optimal"
+        pairs = set(zip(design.design["catalyst"], design.design["solvent"], strict=True))
+        assert ("B", "Y") not in pairs
+
+    def test_optimize_responses_points_to_one_combination(self, region: DesignRegion) -> None:
+        from process_improve.experiments.optimization import _search_space
+
+        with pytest.raises(ValueError, match=r"region\.given\(catalyst='A', solvent='X'\)"):
+            _search_space(["T", "P"], None, region, np.random.default_rng(0), 3)
