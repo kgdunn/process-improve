@@ -213,6 +213,44 @@ class TestRankDeficiency:
         assert "model_note" not in summary
         assert not any("main-effects model was fitted instead" in str(w.message) for w in caught)
 
+    @staticmethod
+    def _missing_cell_runs() -> pd.DataFrame:
+        """Twenty runs where catalyst B never meets solvent Y, with a response that has a T:P interaction."""
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=5),
+            Factor(name="catalyst", type="categorical", levels=["A", "B", "C"]),
+            Factor(name="solvent", type="categorical", levels=["X", "Y"]),
+        ]
+        rules = ["not (catalyst == 'B' and solvent == 'Y')"]
+        design = generate_design(factors, budget=20, constraints=rules, random_state=1).design.drop(columns="RunOrder")
+        rng = np.random.default_rng(0)
+        y = 10 + 2 * design["T"] - design["P"] + 1.5 * design["T"] * design["P"] + 3 * (design["catalyst"] == "B")
+        return design.assign(y=y + rng.normal(0, 0.3, len(design)))
+
+    def test_a_missing_cell_leaves_out_only_the_interaction_it_costs(self) -> None:
+        """No design over these five cells estimates catalyst:solvent in full; T:P and the rest are fitted."""
+        with pytest.warns(UserWarning, match="fitted without catalyst:solvent"):
+            result = analyze_experiment(self._missing_cell_runs(), response_column="y", analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["formula"].endswith("** 2 - catalyst:solvent")
+        assert summary["rank_deficient"] is False
+        assert "no run has catalyst = 'B' with solvent = 'Y'" in summary["model_note"]
+        coefficients = {row["term"]: row["coefficient"] for row in result["coefficients"]}
+        assert "catalyst:solvent" not in " ".join(coefficients)
+        assert coefficients["T:P"] == pytest.approx(1.5, abs=0.3)
+
+    def test_a_factor_held_on_one_level_loses_its_interaction_with_that_factor(self) -> None:
+        """With feed Q, A is always run low: A:feed cannot be estimated, and A:B still is."""
+        runs = [(a, b, "P") for a, b in itertools.product([-1, 1], repeat=2)] * 2
+        runs += [(-1, b, "Q") for b in (-1, 1, -1, 1)]
+        df = pd.DataFrame(runs, columns=["A", "B", "feed"])
+        df["y"] = 5 + df["A"] + 2 * df["B"] + df["A"] * df["B"] + np.random.default_rng(4).normal(0, 0.1, len(df))
+        with pytest.warns(UserWarning, match="fitted without A:feed"):
+            summary = analyze_experiment(df, response_column="y", analysis_type="coefficients")["model_summary"]
+        assert summary["formula"].endswith("- A:feed")
+        assert summary["rank_deficient"] is False
+
     def test_a_design_that_estimates_the_interactions_keeps_the_default(self) -> None:
         df = pd.DataFrame(list(itertools.product([-1, 1], repeat=3)), columns=["A", "B", "C"])
         df["y"] = [1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 7.0, 9.5]

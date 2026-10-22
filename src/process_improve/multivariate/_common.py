@@ -30,6 +30,9 @@ __all__ = [
     "SpecificationWarning",
     "UncentredDataWarning",
     "epsqrt",
+    "informative_widths",
+    "y_is_exhausted",
+    "y_reach",
 ]
 
 #: Component-selection rules supported by ``PLS.select_n_components``.
@@ -594,6 +597,98 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
     raise ValueError(msg)
+
+
+def _cross_size(x_blocks: list[np.ndarray], y: np.ndarray) -> float:
+    """Return ``sqrt(sum_b ||X_b' Y||^2)``, missing cells counted as zero: how much of Y the blocks can still reach."""
+    y0 = np.nan_to_num(y)
+    return float(np.sqrt(sum(np.sum((np.nan_to_num(x).T @ y0) ** 2) for x in x_blocks)))
+
+
+def y_reach(x_blocks: list[np.ndarray], y: np.ndarray) -> tuple[float, float]:
+    """Return what :func:`y_is_exhausted` compares against: ``||X'Y||`` and Y's sum of squares, before any component."""
+    return _cross_size(x_blocks, y), float(np.nansum(y**2))
+
+
+def y_is_exhausted(
+    estimator: str, a: int, x_blocks: list[np.ndarray], y: np.ndarray, initial: tuple[float, float]
+) -> bool:
+    """Return whether component ``a + 1`` has nothing left in Y to explain, warning when it has (#913).
+
+    When what is left of Y is uncorrelated with what is left of X (``X'Y`` about zero
+    after deflation), the next component has no direction to find: NIPALS then changes
+    sign at every iteration and reaches ``max_iter``, and its warning points at the
+    iteration settings rather than at the number of components. This happens in designed
+    experiments, where one component of orthogonal coded factors already gives the
+    least-squares fit. ``X'Y`` is judged against its size before the first component.
+
+    The caller then fits that component, and every later one, along the largest
+    direction left in X (NIPALS with X as its own target, which converges to the leading
+    principal component of the deflated X). Its Y-loading is about zero, so the
+    predictions, R²Y and a cross-validated PRESS stay as they were at ``a`` components,
+    every fitted frame keeps the number of components asked for, and ``P'W`` stays
+    invertible. The caller asks once: deflating X along a direction of X keeps ``X'Y``
+    about zero.
+
+    Parameters
+    ----------
+    estimator : str
+        Name used in the warning.
+    a : int
+        Number of components fitted so far.
+    x_blocks : list[np.ndarray]
+        The deflated X (one array, or one per block).
+    y : np.ndarray
+        The deflated Y.
+    initial : tuple[float, float]
+        :func:`y_reach` of the data before the first component.
+
+    Returns
+    -------
+    bool
+        True when the fit should stop at ``a`` components.
+    """
+    initial_cross, initial_ssy = initial
+    if a == 0 or _cross_size(x_blocks, y) > epsqrt * initial_cross:
+        return False
+    r2y = 1.0 - float(np.nansum(y**2)) / initial_ssy if initial_ssy > 0 else 0.0
+    warnings.warn(
+        f"{estimator}: from component {a + 1} on there is nothing left in Y that X can explain: what is left of Y "
+        f"is uncorrelated with what is left of X (R²Y stays at {r2y:.4g}). The data support {a} component(s); "
+        "each later one takes the largest direction left in X and leaves the predictions unchanged.",
+        SpecificationWarning,
+        stacklevel=4,
+    )
+    return True
+
+
+def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
+    """Return, per preprocessed block, the number of columns whose values vary, at least 1 (#913).
+
+    A multiblock model divides each block by the square root of its width, so that blocks
+    of unequal width carry equal weight. A constant column carries no information: centring
+    and scaling turn it into a column of zeros. Counted in the width, it lowered the
+    weight of its block, and the fit changed although the data had not. A column with
+    fewer than two observed values is constant too.
+
+    Parameters
+    ----------
+    blocks : dict[str, np.ndarray]
+        Each block after centring and scaling, ``(n_samples, K_b)``, NaN where missing.
+
+    Returns
+    -------
+    dict[str, int]
+        The count of varying columns per block, at least 1 so a block of constants
+        divides by 1.
+    """
+    out: dict[str, int] = {}
+    for name, values in blocks.items():
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # a column with no observed value has no spread
+            spread = np.nanstd(values, axis=0)
+        out[name] = max(1, int(np.count_nonzero(spread > epsqrt)))
+    return out
 
 
 class BlockSet(dict):

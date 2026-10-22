@@ -25,6 +25,7 @@ from ._common import (
     _nz,
     _scale_block_contributions,
     epsqrt,
+    informative_widths,
     resolve_loop_settings,
 )
 from ._diagnostics import _select_rows
@@ -349,6 +350,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         Ordered list of X-block names (the keys of the input dict).
     block_widths_ : dict[str, int]
         Number of variables in each X-block.
+    block_informative_widths_ : dict[str, int]
+        Number of variables in each block whose values vary (at least 1). The block
+        weighting divides by its square root, so constant columns do not lower a
+        block's weight.
     n_samples_ : int
         Number of rows fitted.
     n_features_in_ : int
@@ -494,10 +499,12 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             _reject_degenerate_missingness(X, self.block_names_)
 
         x_blocks_pp = self._preprocess(X)
+        self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPCALoopContext(
             algo=algo,
             block_names=self.block_names_,
-            sqrt_kb={name: float(np.sqrt(width)) for name, width in self.block_widths_.items()},
+            # Block weighting: X_b / sqrt(K_b), K_b counting the columns that vary (#913)
+            sqrt_kb=self._block_scale(),
             tol=float(settings["md_tol"]),
             max_iter=int(settings["md_max_iter"]),
             n_samples=self.n_samples_,
@@ -520,6 +527,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         self._store_explained_variation(work)
         self._store_diagnostics(work)
         return self
+
+    def _block_scale(self) -> dict[str, float]:
+        """Return what each block is divided by: the square root of its count of varying columns (#913).
+
+        A model fitted before that count was kept divides by its full width, as it was fitted.
+        """
+        widths = getattr(self, "block_informative_widths_", self.block_widths_)
+        return {name: float(np.sqrt(widths[name])) for name in self.block_names_}
 
     def _record_data_shape(self, X: dict[str, pd.DataFrame]) -> None:
         """Record the block names, widths, row and column labels, and counts this fit is over."""
@@ -623,7 +638,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             r2 = r2_x_block_per_a[b_idx, :]
             if np.sum(r2) > 0:
                 p = self.block_loadings_[name].values
-                vip_b = np.sqrt(self.block_widths_[name] * np.sum(r2 * p**2, axis=1) / np.sum(r2))
+                vip_b = np.sqrt(self.block_informative_widths_[name] * np.sum(r2 * p**2, axis=1) / np.sum(r2))
             else:
                 vip_b = np.zeros(self.block_widths_[name])
             self.block_vip_[name] = pd.Series(vip_b, index=self._block_columns[name], name=f"VIP[{name}]")
@@ -685,7 +700,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
         n_components = int(self.n_components)
         n_new = next(iter(x_pp.values())).shape[0]
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        sqrt_kb = self._block_scale()
 
         super_scores = np.zeros((n_new, n_components))
         block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}
@@ -760,7 +775,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         result = self._project(X)
         super_scores = result.super_scores.values  # (N, A)
         sample_index = next(iter(result.block_scores.values())).index
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        sqrt_kb = self._block_scale()
 
         out: dict[str, pd.DataFrame] = {}
         for b_idx, name in enumerate(self.block_names_):
@@ -804,7 +819,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 sample_index = block.index
             x_def[name] = self.preproc_[name].transform(block).values.astype(float)
 
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        sqrt_kb = self._block_scale()
         for a in range(int(component) - 1):
             t_b_row = np.column_stack(
                 [
@@ -858,7 +873,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
-            sqrt_kb = float(np.sqrt(self.block_widths_[name]))
+            sqrt_kb = self._block_scale()[name]
             p_b = self.block_loadings_[name].values[:, a]
             weight = p_b / _nz(float(p_b @ p_b)) / sqrt_kb * (p_s[b_idx] / super_norm)
             raw[name] = deflated[name] * weight
