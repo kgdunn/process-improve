@@ -606,6 +606,8 @@ def _not_given(record: dict[str, Any]) -> str:
     low, high = info["min_factors"], info["max_factors"]
     complete = bool(runs) and all(v is not None for row in runs for v in row)
     reasons = (
+        (lambda: record["kind"] == "facts", "the source prints facts about designs here, not the runs of one"),
+        (lambda: record["kind"] == "sample", "nothing is varied: the runs measure one sample, with no factor to set"),
         (lambda: record["split_plot"], "the page opens designs without whole plots"),
         (
             lambda: record["blocked"] and (not blocks or None in blocks),
@@ -661,8 +663,9 @@ def write_catalog(out_dir: Path) -> None:
 
     The index holds what the page searches, filters, maps and draws for every design at once, with the
     families, sources and applications it names; a detail file holds what it shows on opening one: its
-    factors, coded runs, results, notes, where its source prints it and that place's address, the
-    measures it is compared on and, where the page makes the design, the campaign that opens it.
+    factors, coded runs (and the generators the library made them from, where the source prints none),
+    results, notes, where its source prints it and that place's address, the measures it is compared on
+    and, where the page makes the design, the campaign that opens it.
     ``errata.json`` lists every printed number the library does not reproduce, and ``feed.xml`` is an
     Atom feed of the sources.
     """
@@ -709,6 +712,7 @@ def write_catalog(out_dir: Path) -> None:
             "factors": record["factors"],
             "responses": record["responses"],
             "coded_runs": record["coded_runs"],
+            "runs_from": record.get("runs_from"),
             "blocks": record.get("blocks"),
             "response_values": record["response_values"],
             "details": record["details"],

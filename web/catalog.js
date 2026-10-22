@@ -29,6 +29,7 @@ import {
   familyMarks,
   filtersOf,
   fromHash,
+  generatorsLine,
   largestSecondOrderR,
   limitInUnits,
   limitLine,
@@ -828,11 +829,16 @@ function detailHead(design, detail, source) {
       actions.append(element("button", { type: "button", class: "button", "data-open-limited": design.id, text: "Open in Factorial with this limit" }));
     }
     if (detail.opens_as === "given") {
-      const whose = source ? "the source's runs as it prints them" : "these runs as the library made them";
+      const whose = detail.runs_from
+        ? `the runs the library makes from the source's generators, ${generatorsLine(detail.runs_from)}`
+        : source
+          ? "the source's runs as it prints them"
+          : "these runs as the library made them";
       said.push(element("p", { class: "hint", text: `Factorial opens ${whose}, in their order: ${detail.unmade}.` }));
     }
   } else {
-    said.push(element("p", { class: "hint", text: `Factorial does not open this design: ${detail.closed}.` }));
+    const what = design.kind === "facts" || design.kind === "sample" ? "entry" : "design"; // facts, or one sample: no design
+    said.push(element("p", { class: "hint", text: `Factorial does not open this ${what}: ${detail.closed}.` }));
   }
   if (design.compared) actions.append(compareButton(design)); // append() writes a null out as the text "null"
   actions.append(
@@ -933,6 +939,9 @@ function runsTable(detail, outcome) {
   ]);
   const coded = labelled.some((l) => !l);
   const said = coded ? ["-1 is a factor's low level and +1 its high level, tinted blue at -1, grey at 0 and vermillion at +1."] : [];
+  if (detail.runs_from) {
+    said.unshift(`The source prints no runs: these are the fraction the library makes from its generators, ${generatorsLine(detail.runs_from)}, in standard order.`);
+  }
   if (labelled.some(Boolean)) said.push("A categorical factor of more than two labels shows its label.");
   if (blocks) said.push("Block is the block each run is made in, as the source names it.");
   if (leverage) said.push("Leverage, from 0 to 1, is how much the model leans on a run: at 1, the model cannot be fitted without it.");
