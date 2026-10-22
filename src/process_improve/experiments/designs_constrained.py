@@ -2294,17 +2294,8 @@ def _estimable_columns(region: _Region, f_cand: np.ndarray, model_type: str) -> 
     candidates, so the D- and I-optimal designs do not depend on which column of a term
     is dropped.
     """
-    r = np.linalg.qr(f_cand, mode="r")
-    basis = np.empty((r.shape[0], 0))
-    kept = []
-    for j in range(r.shape[1]):
-        column = r[:, j]
-        residual = column - basis @ (basis.T @ column)
-        size = float(np.linalg.norm(residual))
-        if size > _ESTIMABLE_TOL * max(float(np.linalg.norm(column)), 1.0):
-            basis = np.column_stack([basis, residual / size])
-            kept.append(j)
-    keep = np.array(kept, dtype=int)
+    keep = independent_columns(f_cand)
+    kept = keep.tolist()
     terms = _column_terms(region, model_type)
     lost: dict[str, int] = {}
     for j in sorted(set(range(len(terms))) - set(kept)):
@@ -2321,6 +2312,27 @@ def _estimable_columns(region: _Region, f_cand: np.ndarray, model_type: str) -> 
             n_lost,
         )
     return keep, lost
+
+
+def independent_columns(matrix: np.ndarray) -> np.ndarray:
+    """Return the columns of ``matrix`` kept, in order, while each adds rank: a basis of its column space.
+
+    Worked on the triangular factor of a QR decomposition, which has the column space's
+    geometry at the size of the number of columns. A column is kept when its part not
+    explained by the columns kept before it is longer than ``_ESTIMABLE_TOL`` of its own
+    length.
+    """
+    r = np.linalg.qr(matrix, mode="r")
+    basis = np.empty((r.shape[0], 0))
+    kept = []
+    for j in range(r.shape[1]):
+        column = r[:, j]
+        residual = column - basis @ (basis.T @ column)
+        size = float(np.linalg.norm(residual))
+        if size > _ESTIMABLE_TOL * max(float(np.linalg.norm(column)), 1.0):
+            basis = np.column_stack([basis, residual / size])
+            kept.append(j)
+    return np.array(kept, dtype=int)
 
 
 def _column_terms(region: _Region, model_type: str) -> list[str]:

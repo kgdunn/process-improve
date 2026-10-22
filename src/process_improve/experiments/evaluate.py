@@ -121,6 +121,9 @@ class _EvalContext:
     max_search: str = "sample"  # the region maximum: "sample" or "optimize" (a local search from the best points)
     alias_terms: str = "interactions"  # "interactions", or "quadratic" for the squares too
     random_effects: dict[str, tuple[np.ndarray, float]] | None = None  # each effect's group labels and variance ratio
+    # the model columns kept when the region's rules leave some inestimable (None keeps all), and those lost
+    kept_columns: np.ndarray | None = None
+    lost_columns: list[str] | None = None
 
     def information(self, X: np.ndarray) -> np.ndarray:
         """Return ``X'X``, or ``X' V^-1 X`` when the runs share random effects (:func:`_random_effects_information`)."""
@@ -130,6 +133,12 @@ class _EvalContext:
     def patsy_data(self) -> dict[str, Any] | pd.DataFrame:
         """The design as patsy reads it: each categorical column carries its contrast."""
         return _patsy_data(self.design_df, self.categorical_coding, self.reduced_rank)
+
+    def model_rows(self, points: pd.DataFrame) -> np.ndarray:
+        """Expand factor-space points (one column per factor) into the model's columns, as ``X`` holds them."""
+        (expanded,) = build_design_matrices([self.design_info], points[self.factor_names], return_type="matrix")
+        rows = np.asarray(expanded, dtype=float)
+        return rows if self.kept_columns is None else rows[:, self.kept_columns]
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +329,11 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
     X, column_names, design_info = _build_model_matrix(
         req.design_df, req.model, req.factor_names, req.categorical_coding, reduced_rank
     )
+    kept = _columns_the_rules_leave(req, X, design_info)
+    lost = None
+    if kept is not None:
+        lost = [name for j, name in enumerate(column_names) if j not in set(kept.tolist())]
+        X, column_names = X[:, kept], [column_names[j] for j in kept]
     N, p = X.shape
 
     def information(Xs: np.ndarray) -> np.ndarray:
@@ -369,7 +383,39 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         max_search=req.max_search,
         alias_terms=req.alias_terms,
         random_effects=req.random_effects,
+        kept_columns=kept,
+        lost_columns=lost,
     )
+
+
+#: Points of a region with rules on which the model's estimable columns are judged.
+_RULES_SAMPLE = 4000
+
+
+def _columns_the_rules_leave(req: _EvalRequest, X: np.ndarray, design_info: DesignInfo) -> np.ndarray | None:
+    """Return the model columns the region's rules leave estimable, or None when every column is.
+
+    A combination of levels the rules do not allow is a missing cell, which costs an
+    interaction of the factors it names some of its columns over the whole region, not
+    only in this design. The columns are judged on a sample of the region and kept in model
+    order while each adds rank, as :func:`generate_design` does; a design that cannot
+    estimate even those is still reported rank-deficient.
+    """
+    from process_improve.experiments.designs_constrained import independent_columns  # noqa: PLC0415
+
+    region = req.region
+    if not isinstance(region, DesignRegion) or region.rules is None:
+        return None
+    if any(name not in req.design_df.columns for name in [f.name for f in region.factors]):
+        return None
+    sample = region.sample_frame(_RULES_SAMPLE, np.random.default_rng(0))
+    seen = np.ones(len(sample), dtype=bool)
+    for f in region.factors:
+        if f.type == FactorType.categorical:
+            seen &= sample[f.name].isin(req.design_df[f.name].unique()).to_numpy()
+    (rows,) = build_design_matrices([design_info], sample[seen][req.factor_names], return_type="matrix")
+    kept = independent_columns(np.asarray(rows, dtype=float))
+    return None if len(kept) == X.shape[1] else kept
 
 
 # ---------------------------------------------------------------------------
@@ -493,8 +539,7 @@ def _cube_moment_matrix(ctx: _EvalContext) -> np.ndarray | None:
     frame = {f: grid[:, j] for j, f in enumerate(continuous)}
     for j, (f, levels) in enumerate(categorical.items(), start=len(continuous)):
         frame[f] = np.asarray(levels, dtype=object)[grid[:, j].astype(int)]
-    (expanded,) = build_design_matrices([ctx.design_info], pd.DataFrame(frame)[ctx.factor_names], return_type="matrix")
-    expanded = np.asarray(expanded, dtype=float)
+    expanded = ctx.model_rows(pd.DataFrame(frame))
     return (expanded * weight[:, None]).T @ expanded
 
 
@@ -592,8 +637,7 @@ def _prediction_variance_of_frame(ctx: _EvalContext, points: pd.DataFrame) -> np
     assert ctx.XtX_inv is not None
     if points.empty:
         return np.empty(0)
-    (expanded,) = build_design_matrices([ctx.design_info], points[ctx.factor_names], return_type="matrix")
-    return _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
+    return _prediction_variance_at_points(ctx.model_rows(points), ctx.XtX_inv)
 
 
 def _points_in_box_region(ctx: _EvalContext, region: str) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -629,23 +673,40 @@ def _points_in_design_region(ctx: _EvalContext, region: DesignRegion) -> tuple[p
     The region's boundary points (extreme vertices and edge midpoints for a mixture;
     constraint crossings and feasible grid corners for a box) stand in for the cube
     vertices, since that is where the worst-case variance of a constrained design sits.
-    Categorical factors are sampled uniformly over their observed levels.
+    Categorical factors are sampled uniformly over their observed levels. With rules on
+    categorical factors, the factors they name take only allowed combinations, each
+    equally likely, with the settings each combination allows (see
+    :meth:`DesignRegion.sample_frame`).
     """
     missing = [n for n in region.names if n not in ctx.factor_names]
     if missing:
         raise ValueError(f"The region names factors {missing} that are not columns of the design.")
     rng = check_random_state(ctx.random_state)
-    frames = [region.sample(ctx.n_samples, rng)]
-    if ctx.include_vertices:
-        with contextlib.suppress(ValueError):  # a grid too large for support points: sample only
-            frames.append(region.support_points())
+    frames: list[pd.DataFrame] = []
+    if region.rules is None:
+        frames.append(pd.DataFrame(region.sample(ctx.n_samples, rng), columns=region.names))
+        if ctx.include_vertices:
+            with contextlib.suppress(ValueError):  # a grid too large for support points: sample only
+                frames.append(pd.DataFrame(region.support_points(), columns=region.names))
+    else:
+        named = region.names + region.rules.factors
+        frames.append(region.sample_frame(ctx.n_samples, rng)[named])
+        if ctx.include_vertices:
+            with contextlib.suppress(ValueError):  # too many support points: sample only
+                frames.append(region.support_frame())
     out: list[pd.DataFrame] = []
-    for points in frames:
-        data: dict[str, Any] = {n: points[:, j] for j, n in enumerate(region.names)}
+    for frame in frames:
+        data: dict[str, Any] = {n: frame[n].to_numpy() for n in frame.columns}
         for f in ctx.factor_names:
             if f not in data:
-                data[f] = rng.choice(ctx.design_df[f].unique(), size=len(points))
-        out.append(pd.DataFrame(data))
+                data[f] = rng.choice(ctx.design_df[f].unique(), size=len(frame))
+        points = pd.DataFrame(data)
+        # A level the design never ran has no column in the model's coding; its points cannot be predicted.
+        seen = np.ones(len(points), dtype=bool)
+        for f in region.rules.factors if region.rules is not None else []:
+            if f in ctx.design_df.columns:
+                seen &= points[f].isin(ctx.design_df[f].unique()).to_numpy()
+        out.append(points[seen].reset_index(drop=True))
     return out[0], out[1] if len(out) > 1 else pd.DataFrame()
 
 
@@ -2361,6 +2422,11 @@ def evaluate_design(  # noqa: PLR0913
         notes["blocks"] = block_note
     if groups_note:
         notes["random_effects"] = groups_note
+    if ctx.lost_columns:
+        notes["inestimable_columns"] = (
+            f"The region's constraints on categorical factors leave the column(s) {ctx.lost_columns} inestimable "
+            "over every allowed combination of levels; the metrics are for the model without them."
+        )
     if notes:
         results["notes"] = notes
 

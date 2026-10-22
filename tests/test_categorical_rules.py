@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Constraint, Factor
+from process_improve.experiments import Constraint, DesignRegion, Factor, evaluate_design, generate_design
 from process_improve.experiments._rules import MAX_CLAUSES, compile_rules
 from process_improve.experiments.designs_constrained import (
     _FEASIBILITY_TOL,
@@ -23,6 +23,7 @@ from process_improve.experiments.designs_constrained import (
     polish_runs,
     region_with_rules,
 )
+from process_improve.experiments.factor import DesignResult
 
 LEVELS = {"catalyst": ["A", "B", "C"], "solvent": ["X", "Y"]}
 TEMP = Factor(name="T", low=150, high=200)
@@ -245,3 +246,112 @@ class TestDesign:
         region = region_with_rules(FACTORS, [Constraint(expression=B_UP_TO_180)])
         with pytest.raises(ValueError, match="needs each run's levels"):
             region.slack(np.zeros((1, 2)))
+
+
+# ---------------------------------------------------------------------------
+# The region, and evaluating a design over it
+# ---------------------------------------------------------------------------
+
+RULES = [NO_B_WITH_Y, B_UP_TO_180]
+
+
+@pytest.fixture(scope="module")
+def region() -> DesignRegion:
+    return DesignRegion(FACTORS, [*RULES, "3*T + 5*P <= 1000"])
+
+
+class TestRegion:
+    def test_allowed_combinations_lists_each_with_its_limits(self, region: DesignRegion) -> None:
+        table = region.allowed_combinations()
+        assert [tuple(row) for row in table[["catalyst", "solvent"]].to_numpy()] == [
+            ("A", "X"),
+            ("A", "Y"),
+            ("B", "X"),
+            ("C", "X"),
+            ("C", "Y"),
+        ]
+        assert table["limits"].tolist() == [[], [], ["T <= 180"], [], []]
+
+    def test_given_returns_the_region_of_one_combination(self, region: DesignRegion) -> None:
+        assert region.given(catalyst="B", solvent="X").implied_bounds() == {"T": (150.0, 180.0), "P": (1.0, 5.0)}
+        assert region.given(catalyst="A", solvent="Y").implied_bounds() == {"T": (150.0, 200.0), "P": (1.0, 5.0)}
+
+    def test_given_refuses_a_disallowed_combination(self, region: DesignRegion) -> None:
+        with pytest.raises(ValueError, match="do not allow the combination"):
+            region.given(catalyst="B", solvent="Y")
+
+    def test_feasible_and_broken_limits_read_the_levels(self, region: DesignRegion) -> None:
+        x = np.array([[1.0, -1.0], [0.0, 0.0], [1.0, -1.0]])  # T = 200, 175, 200
+        labels = {"catalyst": ["B", "B", "A"], "solvent": ["X", "Y", "Y"]}
+        assert region.feasible(x, labels=labels).tolist() == [False, False, True]
+        assert region.broken_limits(x, labels=labels) == [[B_UP_TO_180], [NO_B_WITH_Y], []]
+
+    def test_feasible_needs_the_levels(self, region: DesignRegion) -> None:
+        with pytest.raises(ValueError, match="pass each point's levels"):
+            region.feasible(np.zeros((1, 2)))
+
+    def test_sample_frame_weighs_each_allowed_combination_equally(self, region: DesignRegion) -> None:
+        frame = region.sample_frame(10_000, np.random.default_rng(0))
+        shares = frame.groupby(["catalyst", "solvent"]).size() / len(frame)
+        assert len(shares) == 5
+        assert np.allclose(shares, 0.2, atol=0.02)
+        assert region.feasible(frame[region.names].to_numpy(), labels=frame).all()
+        temperature = 175 + 25 * frame["T"]
+        assert temperature[frame["catalyst"] == "B"].max() <= 180 + 1e-9
+        assert temperature[frame["catalyst"] != "B"].max() > 195
+
+    def test_support_frame_holds_each_combination(self, region: DesignRegion) -> None:
+        frame = region.support_frame()
+        assert set(zip(frame["catalyst"], frame["solvent"], strict=True)) == {
+            ("A", "X"),
+            ("A", "Y"),
+            ("B", "X"),
+            ("C", "X"),
+            ("C", "Y"),
+        }
+        assert region.feasible(frame[region.names].to_numpy(), labels=frame).all()
+
+    @pytest.mark.parametrize("method", ["vertices", "is_empty", "implied_bounds", "volume_fraction"])
+    def test_a_diagnostic_of_one_region_points_to_given(self, region: DesignRegion, method: str) -> None:
+        with pytest.raises(ValueError, match=r"region\.given\(catalyst='A', solvent='X'\)"):
+            getattr(region, method)()
+
+    def test_sample_and_support_points_point_to_the_frames(self, region: DesignRegion) -> None:
+        with pytest.raises(ValueError, match="sample_frame"):
+            region.sample(3, np.random.default_rng(0))
+        with pytest.raises(ValueError, match="support_frame"):
+            region.support_points()
+
+    def test_linear_forms_gives_none_for_a_rule(self, region: DesignRegion) -> None:
+        assert region.linear_forms() == [None, None, ({"T": 3.0, "P": 5.0}, None, 1000.0)]
+
+    def test_the_region_survives_a_round_trip(self, region: DesignRegion) -> None:
+        again = DesignRegion.from_dict(region.to_dict())
+        assert again.allowed_combinations().equals(region.allowed_combinations())
+
+    def test_rules_beside_mixture_components_are_refused(self) -> None:
+        parts = [Factor(name=n, type="mixture") for n in ("a", "b", "c")]
+        with pytest.raises(ValueError, match="not supported beside mixture components"):
+            DesignRegion([*parts, TEMP, CATALYST], ["not (catalyst == 'B' and T > 180)"])
+
+
+class TestGenerateAndEvaluate:
+    @pytest.fixture(scope="class")
+    def design(self) -> DesignResult:
+        return generate_design(FACTORS, design_type="d_optimal", budget=20, constraints=RULES, random_state=1)
+
+    def test_the_design_records_its_rules_and_lost_columns(self, design: DesignResult) -> None:
+        assert design.metadata["inestimable_columns"] == {"catalyst:solvent": 1}
+        assert DesignRegion.from_dict(design.metadata["region"]).rules is not None
+
+    def test_evaluation_drops_the_same_column_and_matches_the_engine(self, design: DesignResult) -> None:
+        result = evaluate_design(design, metric="d_efficiency")
+        assert "inestimable_columns" in result["notes"]
+        p, n = 14, 20  # 15 interaction-model coefficients, one lost to the missing cell
+        log_det = p * np.log(result["d_efficiency"] * n / 100)
+        assert log_det == pytest.approx(design.metadata["log_det_information"])
+
+    def test_the_average_variance_is_over_the_allowed_region(self) -> None:
+        design = generate_design(FACTORS, design_type="i_optimal", budget=20, constraints=RULES, random_state=1)
+        average = evaluate_design(design, metric="average_prediction_variance")["average_prediction_variance"]
+        assert average == pytest.approx(design.metadata["trace_criterion"], rel=0.03)

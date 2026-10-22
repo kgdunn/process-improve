@@ -20,6 +20,15 @@ Three kinds of region exist, and each works in its own *design units*:
 - ``"mixture_process"``: mixture components and process factors together, the product
   of a mixture region and a box region. Each constraint limits one of the two parts.
 
+A box region's constraints may also name categorical factors (see
+:mod:`~process_improve.experiments._rules`): ``"not (catalyst == 'B' and solvent == 'Y')"``
+disallows a combination of levels, and ``"not (catalyst == 'B' and T > 180)"`` limits
+``T`` on one level only. Such a region is one region of continuous settings for each
+allowed combination of levels: :meth:`~DesignRegion.allowed_combinations` lists them,
+:meth:`~DesignRegion.given` returns the one for a combination, and
+:meth:`~DesignRegion.feasible` and :meth:`~DesignRegion.sample_frame` take the levels
+into account.
+
 ``generate_design`` records the region it used in ``DesignResult.metadata["region"]``
 as a plain dict, which :meth:`DesignRegion.from_dict` turns back into a region.
 
@@ -46,6 +55,7 @@ from fractions import Fraction
 from typing import Any, Literal, cast
 
 import numpy as np
+import pandas as pd
 from scipy.optimize import linprog
 from scipy.stats import qmc
 
@@ -60,6 +70,7 @@ from process_improve.experiments._region_geometry import (
     uniform_points_inside,
 )
 from process_improve.experiments._region_quadrature import columns_named, curved_share
+from process_improve.experiments._rules import Rules, text_labels
 from process_improve.experiments._uniform_sampling import (
     _TOL,
     UniformSampler,
@@ -90,6 +101,8 @@ _RESOLUTION = 1e-10
 _MOST_DIGITS = 16
 #: ``scipy.optimize.linprog`` status of a problem with no feasible point.
 _INFEASIBLE = 2
+#: Most rows :meth:`DesignRegion.support_frame` lists.
+_MAX_SUPPORT_ROWS = 100_000
 
 
 class DesignRegion:
@@ -104,7 +117,9 @@ class DesignRegion:
         Inequalities in actual units (proportions for mixtures): ``Constraint`` objects,
         their dict form (as :meth:`to_dict` writes it) or bare expressions such as
         ``"3*T + 5*D <= 600"``, mixed freely. In a mixture-process region each one names
-        components only or process factors only.
+        components only or process factors only. In a box region a constraint may also
+        compare a categorical factor with its levels and join comparisons with ``and``,
+        ``or`` and ``not``, as in ``"not (catalyst == 'B' and T > 180)"``.
 
     Examples
     --------
@@ -133,8 +148,22 @@ class DesignRegion:
         self._centre, self._half = (self._low + self._high) / 2.0, (self._high - self._low) / 2.0
         #: For each inequality, the index of the constraint it came from (a chain gives several).
         self._limit_of: list[int] = []
+        #: The rules on categorical factors, if any constraint names one (a box region only).
+        self.rules: Rules | None = None
+        #: The inequalities that apply everywhere, as text, each with the index of the constraint it came from.
+        self._plain = [(i, c.expression) for i, c in enumerate(self.constraints)]
+        if self.kind == "box" and self.constraints:
+            from process_improve.experiments._rules import compile_rules  # noqa: PLC0415
+
+            categorical = {f.name: list(f.levels or []) for f in self.factors if f.type == FactorType.categorical}
+            self._plain, self.rules = compile_rules(self.constraints, self.names, categorical)
         self._inequalities = self._build_inequalities()
         self._cache: dict[str, Any] = {}
+        if self.kind == "mixture_process" and self._parts[1].rules is not None:
+            raise ValueError(
+                "Constraints on categorical factors are not supported beside mixture components yet; give them "
+                "for a design of process factors only."
+            )
 
     # -- construction ---------------------------------------------------------
 
@@ -152,9 +181,9 @@ class DesignRegion:
         from process_improve.experiments.designs_constrained import parse_constraint  # noqa: PLC0415
 
         centre, half = self._centre, self._half
-        per_limit = [parse_constraint(c.expression, set(self.names)) for c in self.constraints]
+        per_limit = [parse_constraint(text, set(self.names)) for _source, text in self._plain]
         gs = [g for group in per_limit for g in group]
-        self._limit_of = [i for i, group in enumerate(per_limit) for _ in group]
+        self._limit_of = [source for (source, _text), group in zip(self._plain, per_limit, strict=True) for _ in group]
         self._actual_inequalities = gs
 
         def wrap(g: Callable) -> _Inequality:
@@ -255,7 +284,7 @@ class DesignRegion:
             for f in numeric
         ]
 
-    def feasible(self, x: np.ndarray, tol: float = _TOL) -> np.ndarray:
+    def feasible(self, x: np.ndarray, tol: float = _TOL, labels: Mapping[str, Any] | None = None) -> np.ndarray:
         """Return a boolean per row of ``x`` (design units): inside the bounds and every constraint.
 
         Parameters
@@ -275,11 +304,21 @@ class DesignRegion:
             (:meth:`vertices`, :meth:`shadow`, :meth:`slice_polygon`) pass, whose rounding
             (see :meth:`vertices`) moves a coordinate by at most ``1e-10`` in coded units,
             or a few times that for a factor whose values pass 100000 times its range.
+        labels : Mapping[str, Any] or None
+            Each point's level of every categorical factor the rules name (a DataFrame,
+            or a mapping from name to values). Needed when the region has rules: a point
+            in a combination of levels the rules do not allow is not feasible, and a
+            limit that applies on some levels only is tested on those points.
 
         Returns
         -------
         np.ndarray
             A boolean per row.
+
+        Raises
+        ------
+        ValueError
+            If the region has rules and ``labels`` is missing or lacks one of their factors.
         """
         x = np.atleast_2d(np.asarray(x, dtype=float))
         low, high = np.array(self.bounds, dtype=float).reshape(-1, 2).T
@@ -288,9 +327,218 @@ class DesignRegion:
             ok &= np.abs(x[:, self._mixture_columns].sum(axis=1) - 1.0) <= 1e-6
         for g, widen in zip(self._inequalities, self._widen(), strict=True):
             ok &= g(x) <= tol * widen
+        if self.rules is None:
+            return ok
+        levels = self._level_text(labels, len(x))
+        ok &= self.rules.allowed(levels)
+        for fails, clause in self._conditional_failures(x, tol):
+            ok &= ~(fails & self.rules.applies(levels)[:, clause])
         return ok
 
-    def broken_limits(self, x: np.ndarray, tol: float = _TOL) -> list[list[str]]:
+    # -- rules on categorical factors -------------------------------------------
+
+    def _level_text(self, labels: Mapping[str, Any] | None, n: int) -> dict[str, np.ndarray]:
+        """Return each point's level, as text, for every factor the rules name."""
+        rules = cast("Rules", self.rules)
+        if labels is None:
+            raise ValueError(
+                f"This region has rules on the categorical factors {rules.factors}; pass each point's levels "
+                "as labels=."
+            )
+        missing = [name for name in rules.factors if name not in labels]
+        if missing:
+            raise ValueError(f"labels has no levels for the categorical factor(s) {missing}.")
+        out = {name: text_labels(np.asarray(labels[name], dtype=object).ravel()) for name in rules.factors}
+        if any(len(values) != n for values in out.values()):
+            raise ValueError(f"labels must give one level per point ({n}).")
+        return out
+
+    def _conditional(self) -> DesignRegion:
+        """Return a region whose constraints are the limits that apply on some levels only, in clause order (cached).
+
+        Its inequalities, their tolerances and the clause each came from (its ``_limit_of``)
+        are those :meth:`feasible` tests on the points where a clause applies.
+        """
+        if "conditional" not in self._cache:
+            rules = cast("Rules", self.rules)
+            numeric = [f for f in self.factors if f.type != FactorType.categorical]
+            self._cache["conditional"] = DesignRegion(numeric, [clause.limit or "" for clause in rules.limits])
+        return self._cache["conditional"]
+
+    def _conditional_failures(self, x: np.ndarray, tol: float) -> list[tuple[np.ndarray, int]]:
+        """Return, per inequality of the limits on some levels only, where it fails and the clause it came from."""
+        limits = self._conditional()
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return [
+                (~(g(x) <= tol * widen), clause)
+                for g, widen, clause in zip(limits._inequalities, limits._widen(), limits._limit_of, strict=True)
+            ]
+
+    def allowed_combinations(self) -> pd.DataFrame:
+        """Return the combinations of levels the rules allow, with the limits that apply on each.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per allowed combination of the levels of the categorical factors the
+            rules name, one column per factor, and a ``"limits"`` column listing the
+            inequalities that apply there besides those that apply everywhere. Without
+            rules, an empty frame.
+
+        Examples
+        --------
+        >>> factors = [
+        ...     Factor(name="T", low=150, high=200),
+        ...     Factor(name="catalyst", type="categorical", levels=["A", "B"]),
+        ...     Factor(name="solvent", type="categorical", levels=["X", "Y"]),
+        ... ]
+        >>> rules = ["not (catalyst == 'B' and solvent == 'Y')", "not (catalyst == 'B' and T > 180)"]
+        >>> region = DesignRegion(factors, rules)
+        >>> region.allowed_combinations()
+          catalyst solvent      limits
+        0        A       X          []
+        1        A       Y          []
+        2        B       X  [T <= 180]
+        """
+        if self.rules is None:
+            return pd.DataFrame(columns=["limits"])
+        table, applies = self.rules.allowed_table()
+        out = self._level_objects(table)
+        limits = [clause.limit for clause in self.rules.limits]
+        out["limits"] = [[limit for limit, on in zip(limits, row, strict=True) if on] for row in applies]
+        return out
+
+    def _level_objects(self, table: pd.DataFrame) -> pd.DataFrame:
+        """Replace the text of each level in ``table`` by the level as the factor gives it."""
+        out = table.copy()
+        for f in self.factors:
+            if f.name in out.columns:
+                by_text = {str(level): level for level in f.levels or []}
+                out[f.name] = pd.Series([by_text[v] for v in out[f.name]], index=out.index, dtype=object)
+        return out
+
+    def given(self, **levels: object) -> DesignRegion:
+        """Return the region of continuous settings for one combination of levels.
+
+        Parameters
+        ----------
+        **levels
+            The level of every categorical factor the rules name, such as
+            ``catalyst="B", solvent="X"``.
+
+        Returns
+        -------
+        DesignRegion
+            A region of the numeric factors only, cut by the constraints that apply
+            everywhere and by the limits that apply at this combination. Its diagnostics
+            (:meth:`vertices`, :meth:`volume_fraction`, ...) describe that combination.
+
+        Raises
+        ------
+        ValueError
+            If the region has no rules, a factor the rules name is not given, or the
+            rules do not allow the combination.
+        """
+        if self.rules is None:
+            raise ValueError("This region has no rules on categorical factors; use it as it is.")
+        missing = [name for name in self.rules.factors if name not in levels]
+        if missing:
+            raise ValueError(f"given() needs a level for each factor the rules name; missing {missing}.")
+        text = {name: text_labels([levels[name]]) for name in self.rules.factors}
+        for name, value in text.items():
+            if value[0] not in self.rules.levels[name]:
+                raise ValueError(
+                    f"{name!r} has no level {levels[name]!r}; its levels are {list(self.rules.levels[name])}."
+                )
+        if not self.rules.allowed(text)[0]:
+            shown = ", ".join(f"{name} = {levels[name]!r}" for name in self.rules.factors)
+            raise ValueError(f"The constraints do not allow the combination {shown}.")
+        return self._given_applies(self.rules.applies(text)[0])
+
+    def _given_applies(self, applies: np.ndarray) -> DesignRegion:
+        """Return the region of the numeric factors where the limits ``applies`` marks apply (cached)."""
+        key = "given:" + "".join("1" if a else "0" for a in applies)
+        if key not in self._cache:
+            rules = cast("Rules", self.rules)
+            numeric = [f for f in self.factors if f.type != FactorType.categorical]
+            chosen = [clause.limit or "" for clause, on in zip(rules.limits, applies, strict=True) if on]
+            self._cache[key] = DesignRegion(numeric, [text for _source, text in self._plain] + chosen)
+        return self._cache[key]
+
+    def sample_frame(self, n: int, rng: np.random.Generator) -> pd.DataFrame:
+        """Draw ``n`` points uniformly from the region, as a frame with a column per factor.
+
+        Numeric factors are in design units, as :meth:`sample` gives them, and categorical
+        factors hold their levels. Each allowed combination of the levels the rules name
+        is equally likely, every other categorical factor takes each level with the same
+        probability, and the numeric settings of a point are uniform over the region its
+        levels leave (see :meth:`given`).
+
+        Parameters
+        ----------
+        n : int
+            Number of points.
+        rng : numpy.random.Generator
+            Source of randomness.
+
+        Returns
+        -------
+        pandas.DataFrame
+            ``n`` rows, one column per factor, in factor order.
+        """
+        categorical = [f for f in self.factors if f.type == FactorType.categorical]
+        frame = pd.DataFrame(index=range(n))
+        for f in categorical:
+            levels = np.asarray(f.levels or [], dtype=object)
+            frame[f.name] = levels[rng.integers(len(levels), size=n)]
+        if self.rules is None:
+            numeric = self.sample(n, rng)
+        else:
+            table, applies = self.rules.allowed_table()
+            pick = rng.integers(len(table), size=n)
+            chosen = self._level_objects(table).iloc[pick].reset_index(drop=True)
+            for name in self.rules.factors:
+                frame[name] = chosen[name].to_numpy()
+            numeric = np.empty((n, len(self.names)))
+            picked = applies[pick]
+            for signature in np.unique(picked, axis=0):
+                rows = np.all(picked == signature, axis=1)
+                numeric[rows] = self._given_applies(signature).sample(int(rows.sum()), rng)
+        for j, name in enumerate(self.names):
+            frame[name] = numeric[:, j]
+        return frame[[f.name for f in self.factors]]
+
+    def support_frame(self) -> pd.DataFrame:
+        """Return :meth:`support_points` of each allowed combination of the levels the rules name, as a frame.
+
+        Each combination's points come from :meth:`given`. The frame has a column per
+        numeric factor (design units) and per factor the rules name.
+
+        Raises
+        ------
+        ValueError
+            If the region has no rules, or the points would be more than 100000 rows.
+        """
+        if self.rules is None:
+            raise ValueError("This region has no rules on categorical factors; use support_points().")
+        table, applies = self.rules.allowed_table()
+        combos = self._level_objects(table)
+        frames = []
+        for signature in np.unique(applies, axis=0):
+            points = self._given_applies(signature).support_points()
+            members = combos[np.all(applies == signature, axis=1)].reset_index(drop=True)
+            if len(points) * len(members) > _MAX_SUPPORT_ROWS:
+                raise ValueError("The rules give too many support points to list.")
+            crossed = members.loc[np.tile(np.arange(len(members)), len(points))].reset_index(drop=True)
+            numeric = np.repeat(points, len(members), axis=0)
+            for j, name in enumerate(self.names):
+                crossed[name] = numeric[:, j]
+            frames.append(crossed)
+        return pd.concat(frames, ignore_index=True)[self.names + self.rules.factors]
+
+    def broken_limits(
+        self, x: np.ndarray, tol: float = _TOL, labels: Mapping[str, Any] | None = None
+    ) -> list[list[str]]:
         """Return, for each point, the limits it breaks: the factor ranges it leaves, then the constraints it fails.
 
         A range is written in actual units, ``"100 <= T <= 150"``, and a constraint as its
@@ -303,6 +551,9 @@ class DesignRegion:
             Points ``(n, k)`` in coded units.
         tol : float
             How far a point may lie outside, as for :meth:`feasible`.
+        labels : Mapping[str, Any] or None
+            Each point's levels, as for :meth:`feasible`; needed when the region has rules,
+            which a point breaks by its combination of levels or by a limit on its levels.
 
         Returns
         -------
@@ -323,7 +574,7 @@ class DesignRegion:
         >>> region.broken_limits(np.array([[1.0, 1.0], [-1.0, -1.0], [1.5, -1.0]]))
         [['3*T + 5*D <= 600'], [], ['100 <= T <= 150']]
         """
-        self._require_box("broken_limits")
+        self._require_box("broken_limits", rules_allowed=True)
         x = np.atleast_2d(np.asarray(x, dtype=float))
         ranges = [
             f"{low:g} <= {name} <= {high:g}" for name, low, high in zip(self.names, self._low, self._high, strict=True)
@@ -339,7 +590,22 @@ class DesignRegion:
                 if fail[row] and expression not in found:
                     found.append(expression)
             broken.append(found)
+        if self.rules is not None:
+            self._broken_rules(x, tol, labels, broken)
         return broken
+
+    def _broken_rules(self, x: np.ndarray, tol: float, labels: Mapping[str, Any] | None, broken: list) -> None:
+        """Add to ``broken`` the rules each point breaks, by its levels or by a limit on its levels."""
+        rules = cast("Rules", self.rules)
+        levels = self._level_text(labels, len(x))
+        applies = rules.applies(levels)
+        failing = [(clause.source, ~clause.exempt(levels)) for clause in rules.combinations]
+        failing += [(rules.limits[j].source, fails & applies[:, j]) for fails, j in self._conditional_failures(x, tol)]
+        for source, fails in failing:
+            expression = self.constraints[source].expression
+            for row in np.flatnonzero(fails):
+                if expression not in broken[row]:
+                    broken[row].append(expression)
 
     def _widen(self) -> np.ndarray:
         """Return, per inequality, what the tolerance on its value is multiplied by (cached).
@@ -375,8 +641,13 @@ class DesignRegion:
         Raises
         ------
         ValueError
-            If no point of the region can be found.
+            If no point of the region can be found, or the region has rules on
+            categorical factors (use :meth:`sample_frame`, which draws the levels too).
         """
+        if self.rules is not None:
+            raise ValueError(
+                f"This region's rules on {self.rules.factors} tie the settings to the levels; use sample_frame()."
+            )
         k = len(self.names)
         if k == 0:  # only categorical factors: no continuous dimension to sample
             return np.empty((n, 0))
@@ -421,6 +692,10 @@ class DesignRegion:
         feasible grid points and the points where each constraint crosses a grid edge; for
         a mixture-process region, every such blend at every such process setting.
         """
+        if self.rules is not None:
+            raise ValueError(
+                f"This region's rules on {self.rules.factors} tie the settings to the levels; use support_frame()."
+            )
         if self.kind == "mixture_process":
             return self._crossed_support_points()
         if self.kind == "mixture":
@@ -449,12 +724,23 @@ class DesignRegion:
 
     # -- diagnostics of a box region (actual units in, actual units out) -------
 
-    def _require_box(self, method: str) -> None:
-        """Raise for a region with mixture components, where a box diagnostic has no meaning."""
+    def _require_box(self, method: str, rules_allowed: bool = False) -> None:
+        """Raise for a region with mixture components, where a box diagnostic has no meaning, or with rules.
+
+        A region with rules on categorical factors is one region of settings per allowed
+        combination of levels, so a diagnostic of one region is asked of :meth:`given`.
+        """
         if self.kind != "box":
             raise ValueError(
                 f"DesignRegion.{method}() describes a box of factor settings; this region holds mixture "
                 "proportions that sum to 1, where it does not apply."
+            )
+        if self.rules is not None and not rules_allowed:
+            example = ", ".join(f"{name}={levels[0]!r}" for name, levels in self.rules.levels.items())
+            raise ValueError(
+                f"DesignRegion.{method}() describes one region of settings; the rules on {self.rules.factors} give "
+                f"one for each allowed combination of their levels. Ask it of region.given({example}), or see "
+                "region.allowed_combinations()."
             )
 
     def _linear(self) -> _Rows:
@@ -624,6 +910,8 @@ class DesignRegion:
             raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
         if not self.constraints:
             return 1.0
+        if self.rules is not None:
+            self._require_box("volume_fraction")
         if self.kind != "box":
             return self._mixture_share(n_samples)
         share = self._exact_share()
@@ -920,8 +1208,9 @@ class DesignRegion:
         -------
         list
             One entry per constraint, in order: the tuple above, or ``None`` for a
-            constraint that is not affine, compares only numbers, or chains two different
-            combinations of factors (``"A <= B <= 2"``).
+            constraint that is not affine, compares only numbers, chains two different
+            combinations of factors (``"A <= B <= 2"``), or joins comparisons with
+            ``and``, ``or`` or ``not``.
         """
         from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
             _compile,
@@ -930,8 +1219,13 @@ class DesignRegion:
         )
 
         names = factor_lookup(self.names)
+        rules = {source for source, text in self._plain if text != self.constraints[source].expression}
+        rules |= {clause.source for clause in (self.rules.combinations + self.rules.limits)} if self.rules else set()
         out: list[tuple[dict[str, float], float | None, float | None] | None] = []
-        for constraint in self.constraints:
+        for index, constraint in enumerate(self.constraints):
+            if index in rules:  # a rule on categorical factors, or comparisons joined by and, or, not
+                out.append(None)
+                continue
             # parse_constraint checked, when the region was built, that the expression is a comparison.
             compare = cast("ast.Compare", ast.parse(constraint.expression, mode="eval").body)
             terms = [compare.left, *compare.comparators]
