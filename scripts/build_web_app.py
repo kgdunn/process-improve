@@ -489,8 +489,9 @@ def _example_of(record: dict[str, Any]) -> dict[str, Any] | str:
     designs = load_bootstrap().DESIGNS
     design_type, factors, runs = record["design_type"], record["factors"], record["coded_runs"]
     info = designs[design_type]
-    if record["blocked"] or record["split_plot"]:
-        return "the page opens designs without blocks or whole plots"
+    if record["split_plot"] or record["blocked"]:
+        whole_plots = "the page opens designs without whole plots"
+        return whole_plots if record["split_plot"] else "the page makes its designs in blocks of its own"
     if not runs or any(v is None for row in runs for v in row):
         return "the source prints no complete table of runs"
     if not info["min_factors"] <= len(factors) <= info["max_factors"]:
@@ -580,14 +581,40 @@ def _given_setting(value: float, factor: dict[str, Any]) -> float | str | None:
     return float(f"{middle + value * half:.10g}")
 
 
+def _block_numbers(blocks: list[Any]) -> list[int]:
+    """Give each run's block a number 1, 2, ... as the page takes them: by the source's numbers, else as printed.
+
+    A source numbers its blocks, or names them (days, lots, operators): named blocks keep the order in which
+    the run table first prints them.
+    """
+    from process_improve.experiments.design_catalog import _level_label  # noqa: PLC0415 - the docs environment has it
+
+    labels = [_level_label(b) for b in blocks]
+    order = list(dict.fromkeys(labels))
+    numbers = {label: load_bootstrap()._number(label) for label in order}
+    if all(n is not None for n in numbers.values()):
+        order.sort(key=lambda label: numbers[label])
+    place = {label: i for i, label in enumerate(order, 1)}
+    return [place[label] for label in labels]
+
+
 def _not_given(record: dict[str, Any]) -> str:
     """Say why the page cannot take a design's runs as given, or return "" when it can: the first reason that holds."""
-    info, most = load_bootstrap().GIVEN_INFO, load_bootstrap().MAX_GIVEN_RUNS
-    runs, factors = record["coded_runs"], record["factors"]
+    bootstrap = load_bootstrap()
+    info, most = bootstrap.GIVEN_INFO, bootstrap.MAX_GIVEN_RUNS
+    runs, factors, blocks = record["coded_runs"], record["factors"], record.get("blocks") or []
     low, high = info["min_factors"], info["max_factors"]
     complete = bool(runs) and all(v is not None for row in runs for v in row)
     reasons = (
-        (lambda: record["blocked"] or record["split_plot"], "the page opens designs without blocks or whole plots"),
+        (lambda: record["split_plot"], "the page opens designs without whole plots"),
+        (
+            lambda: record["blocked"] and (not blocks or None in blocks),
+            "the source runs the design in blocks, but does not print each run's block",
+        ),
+        (
+            lambda: len(set(_block_numbers(blocks))) > bootstrap.MAX_BLOCKS,
+            f"the page takes runs in at most {bootstrap.MAX_BLOCKS} blocks",
+        ),
         (lambda: not complete, "the source prints no complete table of runs"),
         (lambda: record["n_mixture"], "the page makes mixtures of its own, but takes no mixture's runs as given"),
         (lambda: not low <= len(factors) <= high, f"the page opens designs of {low} to {high} factors"),
@@ -602,7 +629,8 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 
     It opens a design the page does not make, or makes differently, with the runs as the source prints
     them, or as the library made them: in their order, in the factors' own units, with the source's
-    results. The page takes runs without blocks or whole plots, of 1 to 12 numeric or categorical factors.
+    results, and in the source's blocks. The page takes runs without whole plots, of 1 to 12 numeric or
+    categorical factors.
     """
     if why := _not_given(record):
         return None, why
@@ -616,6 +644,7 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
         "factors": [page_factor(f) for f in factors],
         "response": response,
         "runs": rows,
+        **({"blocks": _block_numbers(record["blocks"])} if record.get("blocks") else {}),
     }
     design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
     design.pop("xlsx_base64")
@@ -676,6 +705,7 @@ def write_catalog(out_dir: Path) -> None:
             "factors": record["factors"],
             "responses": record["responses"],
             "coded_runs": record["coded_runs"],
+            "blocks": record.get("blocks"),
             "response_values": record["response_values"],
             "details": record["details"],
             "notes": record["notes"],

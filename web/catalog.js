@@ -912,18 +912,21 @@ function leverageCell(h) {
 }
 
 /**
- * The runs, one row each, in one table: each coded setting tinted by its value, a categorical factor of more than
- * two labels by its label instead, the results the source prints, and each run's leverage when the runs' leverages
- * differ. Colour, settings and leverage share the row, so they line up and scroll together.
+ * The runs, one row each, in one table: each run's block as the source prints it, each coded setting tinted by its
+ * value, a categorical factor of more than two labels by its label instead, the results the source prints, and each
+ * run's leverage when the runs' leverages differ. Colour, settings and leverage share the row, so they line up and
+ * scroll together.
  */
 function runsTable(detail, outcome) {
   const factors = detail.factors ?? [];
+  const blocks = detail.blocks ?? null;
   const responses = Object.keys(detail.response_values ?? {});
   const words = leverageWords(detail.leverage);
   const leverage = words.text && !words.even ? detail.leverage : null;
   const labelled = factors.map(manyLabels);
   const rows = detail.coded_runs.slice(0, RUNS_SHOWN).map((row, i) => [
     String(i + 1),
+    ...(blocks ? [String(blocks[i] ?? "")] : []),
     ...row.map((v, j) => (labelled[j] ? (labelOf(factors[j], v) ?? fmt(v)) : settingCell(v))),
     ...responses.map((r) => fmt(detail.response_values[r][i])),
     ...(leverage ? [leverageCell(leverage[i])] : []),
@@ -931,12 +934,13 @@ function runsTable(detail, outcome) {
   const coded = labelled.some((l) => !l);
   const said = coded ? ["-1 is a factor's low level and +1 its high level, tinted blue at -1, grey at 0 and vermillion at +1."] : [];
   if (labelled.some(Boolean)) said.push("A categorical factor of more than two labels shows its label.");
+  if (blocks) said.push("Block is the block each run is made in, as the source names it.");
   if (leverage) said.push("Leverage, from 0 to 1, is how much the model leans on a run: at 1, the model cannot be fitted without it.");
   return [
     element("h3", { text: coded ? "Runs, in coded units" : "Runs" }),
     element("p", { class: "hint", text: said.join(" ") }),
     table(
-      ["Run", ...factors.map((f) => f.name), ...responses, ...(leverage ? ["Leverage"] : [])],
+      ["Run", ...(blocks ? ["Block"] : []), ...factors.map((f) => f.name), ...responses, ...(leverage ? ["Leverage"] : [])],
       rows,
       "data runs-table",
       (i) => (outcome?.judged && outcome.outside.includes(i) ? "row--outside" : ""),
