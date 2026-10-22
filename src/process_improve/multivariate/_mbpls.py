@@ -33,7 +33,10 @@ from ._common import (
     _scale_block_contributions,
     _select_n_components,
     epsqrt,
+    informative_widths,
     resolve_loop_settings,
+    y_is_exhausted,
+    y_reach,
 )
 from ._diagnostics import _select_rows
 from ._limits import spe_calculation
@@ -261,6 +264,23 @@ def _apply_sign_convention(
         super_y_score=-component.super_y_score,
         super_y_loading=-component.super_y_loading,
     )
+
+
+def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context: _MBPLSLoopContext) -> _MBPLSComponent:
+    """Fit a component along the largest direction left in the blocks, for when Y has nothing left (#913).
+
+    The weighted blocks stand in for Y, so the hierarchical NIPALS converges to the leading
+    principal component of the deflated, block-weighted X. The component's Y-loading is
+    Y's regression on its super score, about zero, and it has no Y-score.
+    """
+    target = np.column_stack([x_def[name] / context.sqrt_kb[name] for name in context.block_names])
+    component = _fit_one_component(x_def, target, target.shape[1], context)
+    t_super = component.super_score
+    if context.algo == "nipals":
+        c_a = quick_regress(y_def, t_super.reshape(-1, 1)).flatten()
+    else:
+        c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
+    return component._replace(super_y_loading=c_a, super_y_score=np.zeros_like(t_super))
 
 
 def _fit_one_component(
@@ -525,6 +545,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Ordered list of X-block names (the keys of the input dict).
     block_widths_ : dict[str, int]
         Number of variables in each X-block.
+    block_informative_widths_ : dict[str, int]
+        Number of variables in each X-block whose values vary (at least 1). The
+        block weighting divides by its square root, so constant columns do not
+        lower a block's weight.
     n_samples_ : int
         Number of rows fitted.
     n_targets_ : int
@@ -699,11 +723,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             _reject_degenerate_missingness(X, y, self.block_names_)
 
         x_blocks_pp, y_pp = self._preprocess(X, y)
+        self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPLSLoopContext(
             algo=algo,
             block_names=self.block_names_,
-            # Algorithmic block weighting: X_b / sqrt(K_b)
-            sqrt_kb={name: float(np.sqrt(width)) for name, width in self.block_widths_.items()},
+            # Algorithmic block weighting: X_b / sqrt(K_b), K_b counting the columns that vary (#913)
+            sqrt_kb=self._block_scale(),
             # A row with nothing observed in a block has no score *for that block*; it still has a
             # super score, estimated from the blocks it does have.
             block_has_data={name: _rows_with_data(values) for name, values in x_blocks_pp.items()},
@@ -716,9 +741,15 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         x_def = {name: values.copy() for name, values in x_blocks_pp.items()}
         y_def = y_pp.copy()
 
+        reach = y_reach(list(x_def.values()), y_def)
+        exhausted = False
         for a in range(self.n_components_):
             start = time.time()
-            component = _fit_one_component(x_def, y_def, self.n_targets_, context)
+            exhausted = exhausted or y_is_exhausted("MBPLS", a, list(x_def.values()), y_def, reach)
+            if exhausted:
+                component = _component_along_x(x_def, y_def, context)
+            else:
+                component = _fit_one_component(x_def, y_def, self.n_targets_, context)
             x_def, y_def, loadings = _deflate(x_def, y_def, component, context)
             work.record_component(a, component, loadings, context)
             work.record_explained_variation(a, x_def, y_def, initial, context)
@@ -729,6 +760,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         self._store_explained_variation(work)
         self._store_diagnostics(work)
         return self
+
+    def _block_scale(self) -> dict[str, float]:
+        """Return what each block is divided by: the square root of its count of varying columns (#913).
+
+        A model fitted before that count was kept divides by its full width, as it was fitted.
+        """
+        widths = getattr(self, "block_informative_widths_", self.block_widths_)
+        return {name: float(np.sqrt(widths[name])) for name in self.block_names_}
 
     def _record_data_shape(self, X: dict[str, pd.DataFrame], y: pd.DataFrame) -> None:
         """Record the block names, widths, row and column labels, and counts this fit is over."""
@@ -846,13 +885,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         self.r2_y_per_component_ = pd.Series(r2_y_per_a, index=component_names, name="R²Y per component")
         self.r2_y_per_variable_ = pd.DataFrame(work.r2_y_var_cum, index=self._y_columns, columns=component_names)
 
-        # Per-block VIP_jb = sqrt(K_b * sum_a(r2_x_block_a * w_b[j,a]^2) / sum_a r2_x_block_a)
+        # Per-block VIP_jb = sqrt(K_b * sum_a(r2_x_block_a * w_b[j,a]^2) / sum_a r2_x_block_a), K_b counting the
+        # columns that vary: a constant column has zero weight, so the varying ones' VIP^2 average 1.
         self.block_vip_: dict[str, pd.Series] = {}
         for b_idx, name in enumerate(self.block_names_):
             r2 = r2_x_block_per_a[b_idx, :]
             if np.sum(r2) > 0:
                 w = self.block_weights_[name].values  # (K_b, A)
-                vip_b = np.sqrt(self.block_widths_[name] * np.sum(r2 * w**2, axis=1) / np.sum(r2))
+                vip_b = np.sqrt(self.block_informative_widths_[name] * np.sum(r2 * w**2, axis=1) / np.sum(r2))
             else:
                 vip_b = np.zeros(self.block_widths_[name])
             self.block_vip_[name] = pd.Series(vip_b, index=self._block_columns[name], name=f"VIP[{name}]")
@@ -972,7 +1012,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 sample_index = block.index
             x_def[name] = self.preproc_[name].transform(block).values.astype(float)
 
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        sqrt_kb = self._block_scale()
         for a in range(int(component) - 1):
             w_s = self.super_weights_.values[:, a]
             weights = {name: self.block_weights_[name].values[:, a] for name in self.block_names_}
@@ -1045,7 +1085,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
-            sqrt_kb = float(np.sqrt(self.block_widths_[name]))
+            sqrt_kb = self._block_scale()[name]
             w_b = self.block_weights_[name].values[:, a]
             w_s = float(self.super_weights_.values[b_idx, a])
             raw[name] = deflated[name] * (w_b * w_s / sqrt_kb)
@@ -1475,7 +1515,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         n_components = int(self.n_components)
         n_new = next(iter(x_pp.values())).shape[0]
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        sqrt_kb = self._block_scale()
 
         super_scores = np.zeros((n_new, n_components))
         block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}

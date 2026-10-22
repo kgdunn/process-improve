@@ -42,6 +42,8 @@ from ._common import (
     _vandervoet_randomization,
     epsqrt,
     resolve_loop_settings,
+    y_is_exhausted,
+    y_reach,
 )
 from ._cv_criteria import (
     _compare_cv_criteria,
@@ -562,6 +564,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             "iterations": np.zeros(A) * np.nan,
         }
 
+        reach = y_reach([Xd], Yd)
+        exhausted = False
         for a in range(A):
             start_time = time.time()
             itern = 0
@@ -581,6 +585,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     f"compute any more components beyond component {a}."
                 )
                 raise NotEnoughVarianceError(emsg)
+            # Y has variance left, but none that X can still reach (#913): this component, and every later one,
+            # takes the largest direction left in X (X as its own target) rather than iterating to max_iter.
+            exhausted = exhausted or y_is_exhausted("PLS", a, [Xd], Yd, reach)
+            target = Xd if exhausted else Yd
 
             # Seed u_a from the column of Y with the greatest sum-of-squares
             # (variance, for mean-centred data) rather than the arbitrary first
@@ -589,8 +597,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # iterations and is more robust. The deterministic sign convention
             # applied below makes the fitted sign independent of this seed.
             # (Replace NaN with 0 for the missing-data path.)
-            start_col = int(np.argmax(start_SSY_col))
-            u_a_guess = Yd[:, [start_col]].copy()
+            start_col = int(np.argmax(ssq(target, axis=0)))
+            u_a_guess = target[:, [start_col]].copy()
             u_a_guess[np.isnan(u_a_guess)] = 0
             u_a = u_a_guess + 1.0
 
@@ -615,12 +623,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 t_a = quick_regress(Xd, w_a)
 
                 # 4: c_a = Y't_a / (t_a't_a)
-                c_a = quick_regress(Yd, t_a)
+                c_a = quick_regress(target, t_a)
 
                 # 5: u_a = Y c_a / (c_a'c_a)
-                u_a = quick_regress(Yd, c_a)
+                u_a = quick_regress(target, c_a)
 
                 itern += 1
+
+            if exhausted:  # the Y side of a component along X: a Y-loading of about zero, and no Y-score
+                c_a = quick_regress(Yd, t_a)
+                u_a = np.zeros_like(t_a)
 
             timing_arr = typing.cast("np.ndarray", self.fitting_info_["timing"])
             iterations_arr = typing.cast("np.ndarray", self.fitting_info_["iterations"])
@@ -688,7 +700,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             for a in range(A):
                 c_a = self.y_loadings_[:, [a]]
                 denom = float((c_a.T @ c_a).item())
-                if denom > 0:  # pragma: no branch - a zero y-loading needs Y exactly orthogonal to t_a
+                if denom > epsqrt:  # a component along X alone (#913) has a Y-loading of about zero
                     self.y_scores_[:, a] = (Y_deflated @ c_a / denom).flatten()
                 Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
 
