@@ -52,6 +52,7 @@ from process_improve.experiments._uniform_sampling import (
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
+    from process_improve.experiments._rules import Rules
     from process_improve.experiments.factor import Constraint, Factor
 
 logger = logging.getLogger(__name__)
@@ -344,12 +345,72 @@ def rename_factors(expression: str, names: Mapping[str, str]) -> str:
 
 @dataclass
 class _Region:
-    """The factor box, split into continuous and categorical parts."""
+    """The factor box, split into continuous and categorical parts.
+
+    With ``rules`` (constraints that name categorical factors, see
+    :mod:`~process_improve.experiments._rules`), some combinations of levels are not
+    allowed, and the inequalities in ``conditional[j]`` apply only on the runs where
+    ``rules.limits[j]`` says they do. ``inequalities`` apply everywhere.
+    """
 
     continuous: list[Factor]
     categorical: list[Factor]
     inequalities: list[_Evaluator]
+    rules: Rules | None = None
+    conditional: list[list[_Evaluator]] = field(default_factory=list)
+    #: Model columns kept when the rules leave some coefficients inestimable; None keeps every column.
+    kept_columns: np.ndarray | None = None
     _lengths: np.ndarray | None = field(default=None, init=False, repr=False, compare=False)
+
+    def _limits(self) -> list[tuple[_Evaluator, int | None]]:
+        """Every inequality, with the clause of ``rules.limits`` it applies under (None where it applies everywhere)."""
+        return [(g, None) for g in self.inequalities] + [
+            (g, j) for j, group in enumerate(self.conditional) for g in group
+        ]
+
+    def labels(self, cats: np.ndarray) -> dict[str, np.ndarray]:
+        """Return the level of each run, as text, for each categorical factor the rules name."""
+        if self.rules is None:
+            return {}
+        return {
+            f.name: np.asarray(self.rules.levels[f.name], dtype=str)[cats[:, j]]
+            for j, f in enumerate(self.categorical)
+            if f.name in self.rules.levels
+        }
+
+    def allowed(self, cats: np.ndarray) -> np.ndarray:
+        """Return whether each run's combination of levels is allowed."""
+        return np.ones(len(cats), dtype=bool) if self.rules is None else self.rules.allowed(self.labels(cats))
+
+    def applies(self, cats: np.ndarray) -> np.ndarray:
+        """Return ``(runs, clauses)``: whether each clause's inequalities apply to each run."""
+        if self.rules is None:
+            return np.zeros((len(cats), 0), dtype=bool)
+        return self.rules.applies(self.labels(cats))
+
+    def given(self, applies: np.ndarray) -> _Region:
+        """Return the region, without rules, of the runs on which the clauses ``applies`` marks apply."""
+        chosen = [g for j, group in enumerate(self.conditional) if applies[j] for g in group]
+        return _Region(self.continuous, [], self.inequalities + chosen)
+
+    def draw_levels(self, n: int, rng: np.random.Generator) -> np.ndarray:
+        """Draw ``n`` combinations of levels, each allowed combination equally likely.
+
+        The factors the rules name take one of their allowed combinations, each with the
+        same probability; every other categorical factor takes each of its levels with
+        the same probability.
+        """
+        cats = np.zeros((n, len(self.categorical)), dtype=int)
+        for j, f in enumerate(self.categorical):
+            cats[:, j] = rng.integers(len(f.levels or []), size=n)
+        if self.rules is not None:
+            table, _ = self.rules.allowed_table()
+            pick = rng.integers(len(table), size=n)
+            for j, f in enumerate(self.categorical):
+                if f.name in self.rules.levels:
+                    position = {level: i for i, level in enumerate(self.rules.levels[f.name])}
+                    cats[:, j] = [position[level] for level in table[f.name].to_numpy()[pick]]
+        return cats
 
     def actual(self, coded: np.ndarray) -> dict[str, np.ndarray]:
         """Map coded continuous columns to ``{name: actual values}``."""
@@ -364,8 +425,12 @@ class _Region:
         high = np.array([f.high for f in self.continuous], dtype=float)
         return (low + high) / (high - low)
 
-    def slack(self, coded: np.ndarray) -> np.ndarray:
+    def slack(self, coded: np.ndarray, cats: np.ndarray | None = None) -> np.ndarray:
         """Return the largest ``g`` per row: the point is feasible where this is ``<= 0``.
+
+        With rules, ``cats`` (each run's categorical level indices) is needed: a run whose
+        combination of levels is not allowed has an infinite slack, and an inequality that
+        does not apply to a run is left out of its maximum.
 
         A straight constraint has its value divided by the length of its gradient in coded
         units, which makes it a distance in coded units. So a point within
@@ -379,11 +444,15 @@ class _Region:
         """
         env = self.actual(coded)
         rows = coded.shape[0]
-        g = [
-            np.broadcast_to(ineq(env), (rows,)) / size
-            for ineq, size in zip(self.inequalities, self._value_scales(), strict=True)
-        ]
-        return np.max(g, axis=0) if g else np.full(coded.shape[0], -np.inf)
+        if self.rules is not None and cats is None:
+            raise ValueError("The constraints name categorical factors, so the slack needs each run's levels.")
+        applies = self.applies(cats) if cats is not None else np.zeros((rows, 0), dtype=bool)
+        g = []
+        for (ineq, clause), size in zip(self._limits(), self._value_scales(), strict=True):
+            value = np.broadcast_to(ineq(env), (rows,)) / size
+            g.append(value if clause is None else np.where(applies[:, clause], value, -np.inf))
+        slack = np.max(g, axis=0) if g else np.full(rows, -np.inf)
+        return slack if cats is None else np.where(self.allowed(cats), slack, np.inf)
 
     def _value_scales(self) -> np.ndarray:
         """Return per constraint what :meth:`slack` divides its value by (cached).
@@ -397,7 +466,7 @@ class _Region:
             k = len(self.continuous)
             ones = np.ones(k)
             lengths = []
-            for g in self.inequalities:
+            for g, _clause in self._limits():
                 coded = _coded_inequality(self, g)
                 form = _affine_form(coded, -ones, ones, self.offsets()) if k else None
                 if form is None:
@@ -501,17 +570,21 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
     feasible for a constraint and the other is not, the crossing point is located on
     that edge. The feasible side of the final bracket is returned, so the point
     satisfies the constraint it came from; other constraints are checked afterwards.
+    A limit that applies on some levels only is crossed only on those.
     """
     points, cats = [np.empty((0, grid.shape[1]))], [np.empty((0, cat_idx.shape[1]), dtype=int)]
     for axis in range(grid.shape[1]):
         lower = grid[:, axis] < 1.0 - step / 2
         start, cat = grid[lower], cat_idx[lower]
+        applies = region.applies(cat)
         direction = np.zeros(grid.shape[1])
         direction[axis] = step
-        for ineq in region.inequalities:
+        for ineq, clause in region._limits():
             g_lo = ineq(region.actual(start)) <= 0
             g_hi = ineq(region.actual(start + direction)) <= 0
             cross = np.broadcast_to(g_lo != g_hi, (start.shape[0],))
+            if clause is not None:
+                cross = cross & applies[:, clause]
             if not cross.any():
                 continue
             base, lo_feasible = start[cross], np.broadcast_to(g_lo, cross.shape)[cross]
@@ -574,6 +647,31 @@ def _polytope_vertices(region: _Region) -> np.ndarray:
         return np.empty((0, k))
 
 
+def _vertex_candidates(region: _Region, cat_shape: list[int]) -> tuple[np.ndarray, np.ndarray]:
+    """Return the vertices of the region at every allowed combination of levels.
+
+    Without limits that apply on some levels only, the vertices are the same at every
+    combination. With them, the combinations are grouped by which limits apply, and each
+    group's vertices are found once: ``m`` such limits give at most ``2**m`` groups.
+    """
+    if not region.conditional:
+        return _with_every_level(_polytope_vertices(region), cat_shape)
+    combos = np.indices(cat_shape).reshape(len(cat_shape), -1).T
+    k = len(region.continuous)
+    points, cats = [np.empty((0, k))], [np.empty((0, len(cat_shape)), dtype=int)]
+    if len(combos) > MAX_CANDIDATES:
+        return points[0], cats[0]
+    combos = combos[region.allowed(combos)]
+    applies = region.applies(combos)
+    for signature in np.unique(applies, axis=0):
+        members = combos[np.all(applies == signature, axis=1)]
+        vertices = _polytope_vertices(region.given(signature))
+        if len(vertices) * len(members) <= MAX_CANDIDATES:
+            points.append(np.repeat(vertices, len(members), axis=0))
+            cats.append(np.tile(members, (len(vertices), 1)))
+    return np.vstack(points), np.vstack(cats)
+
+
 def _with_every_level(points: np.ndarray, cat_shape: list[int]) -> tuple[np.ndarray, np.ndarray]:
     """Pair every point with every combination of categorical levels, unless that is more than ``MAX_CANDIDATES``."""
     combos = np.indices(cat_shape).reshape(len(cat_shape), -1).T if cat_shape else np.empty((1, 0), dtype=int)
@@ -626,11 +724,11 @@ def build_candidates(
     cat_idx = idx[:, k_cont:]
 
     extra, extra_cat = _boundary_points(region, grid, cat_idx, step=2.0 / (levels - 1))
-    corners, corner_cat = _with_every_level(_polytope_vertices(region), shape[k_cont:])
+    corners, corner_cat = _vertex_candidates(region, shape[k_cont:])
     coded = np.vstack([grid, extra, corners])
     cats = np.vstack([cat_idx, extra_cat, corner_cat])
 
-    feasible = region.slack(coded) <= _FEASIBILITY_TOL
+    feasible = region.slack(coded, cats) <= _FEASIBILITY_TOL
     coded, cats = coded[feasible], cats[feasible]
     # Drop duplicates (a boundary point can coincide with a grid point).
     _, unique = np.unique(np.hstack([coded.round(9), cats]), axis=0, return_index=True)
@@ -685,7 +783,8 @@ def model_matrix(region: _Region, coded: np.ndarray, cats: np.ndarray, model_typ
         )
     if model_type == "quadratic":
         columns.append(coded**2)
-    return np.hstack(columns)
+    matrix = np.hstack(columns)
+    return matrix if region.kept_columns is None else matrix[:, region.kept_columns]
 
 
 #: Candidate rows handled at a time when a quadratic form is taken over the whole candidate set.
@@ -1453,13 +1552,14 @@ class PolishLattice:
         levels from -1 to +1.
     model_rows : Callable[[np.ndarray, np.ndarray], np.ndarray]
         Model rows of points given as coded continuous values and categorical level indices.
-    feasible : Callable[[np.ndarray], np.ndarray] or None
-        True for each coded point that satisfies the constraints; None for the whole box.
+    feasible : Callable[[np.ndarray, np.ndarray], np.ndarray] or None
+        True for each point (coded continuous values, categorical level indices) that
+        satisfies the constraints; None for the whole box.
     """
 
     n_levels: int
     model_rows: Callable[[np.ndarray, np.ndarray], np.ndarray]
-    feasible: Callable[[np.ndarray], np.ndarray] | None = None
+    feasible: Callable[[np.ndarray, np.ndarray], np.ndarray] | None = None
 
 
 #: Levels per factor of the lattice a design from a coarser or sampled grid is polished on.
@@ -1528,7 +1628,7 @@ def polish_runs(
     for _ in range(_MAX_PASSES):
         points, owner = _coordinate_moves(coded, levels)
         if lattice.feasible is not None:
-            keep = lattice.feasible(points)
+            keep = lattice.feasible(points, cats[owner])
             points, owner = points[keep], owner[keep]
         rows = lattice.model_rows(points, cats[owner])
         moved, start, size = False, 0, 1
@@ -1757,16 +1857,22 @@ def _adjusted_for_blocks(criterion: Criterion, value: float, labels: np.ndarray,
     return value - float(np.linalg.slogdet(z.T @ z)[1])
 
 
+def _coded_runs(region: _Region, runs: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """Return runs given continuous in coded units and categorical as labels, as coded values and level indices."""
+    coded = runs[[f.name for f in region.continuous]].to_numpy(dtype=float)
+    labels = {f.name: [str(lv) for lv in f.levels or []] for f in region.categorical}
+    cats = np.array(
+        [[labels[f.name].index(str(v)) for v in runs[f.name]] for f in region.categorical], dtype=int
+    ).T.reshape(len(runs), len(region.categorical))
+    return coded, cats
+
+
 def _fixed_rows(region: _Region, fixed_runs: pd.DataFrame | None, model_type: str, n_columns: int) -> np.ndarray:
     """Model rows for the fixed runs (none when ``fixed_runs`` is None), warning about any outside the region."""
     if fixed_runs is None:
         return np.empty((0, n_columns))
-    fixed_coded = fixed_runs[[f.name for f in region.continuous]].to_numpy(dtype=float)
-    labels = {f.name: [str(lv) for lv in f.levels or []] for f in region.categorical}
-    fixed_cats = np.array(
-        [[labels[f.name].index(str(v)) for v in fixed_runs[f.name]] for f in region.categorical], dtype=int
-    ).T.reshape(len(fixed_runs), len(region.categorical))
-    n_outside = int((region.slack(fixed_coded) > _FEASIBILITY_TOL).sum())
+    fixed_coded, fixed_cats = _coded_runs(region, fixed_runs)
+    n_outside = int((region.slack(fixed_coded, fixed_cats) > _FEASIBILITY_TOL).sum())
     if n_outside:
         logger.warning("%d fixed run(s) lie outside the constrained region; they are kept as given.", n_outside)
     return model_matrix(region, fixed_coded, fixed_cats, model_type)
@@ -1775,8 +1881,8 @@ def _fixed_rows(region: _Region, fixed_runs: pd.DataFrame | None, model_type: st
 def _fixed_run_metadata(region: _Region, fixed_runs: pd.DataFrame, requested_budget: int, budget: int) -> dict:
     """Metadata on the fixed runs: how many, how many lie outside the region, and any budget they raised."""
     meta = {"n_fixed_runs": len(fixed_runs)}
-    coded = fixed_runs[[f.name for f in region.continuous]].to_numpy(dtype=float)
-    n_outside = int((region.slack(coded) > _FEASIBILITY_TOL).sum())
+    coded, cats = _coded_runs(region, fixed_runs)
+    n_outside = int((region.slack(coded, cats) > _FEASIBILITY_TOL).sum())
     if n_outside:
         meta["n_fixed_runs_outside_region"] = n_outside
     if budget != requested_budget:
@@ -1814,7 +1920,7 @@ def _user_candidates(region: _Region, candidates: pd.DataFrame) -> tuple[np.ndar
     if (np.abs(coded) > 1.0 + 1e-9).any():
         logger.warning("Some candidates lie outside the factors' low/high range; they are kept (coded beyond +/-1).")
 
-    feasible = region.slack(coded) <= _FEASIBILITY_TOL
+    feasible = region.slack(coded, cats) <= _FEASIBILITY_TOL
     _, first = np.unique(np.hstack([coded.round(9), cats]), axis=0, return_index=True)
     keep = np.zeros(len(coded), dtype=bool)
     keep[first] = True
@@ -1829,7 +1935,12 @@ def _user_candidates(region: _Region, candidates: pd.DataFrame) -> tuple[np.ndar
 
 def _corners_suffice(region: _Region, opts: ConstrainedOptions) -> bool:
     """Whether some D-optimal design uses only the corners of the box: no squared terms and no constraints."""
-    return opts.criterion == "d_optimal" and opts.model_type != "quadratic" and not region.inequalities
+    return (
+        opts.criterion == "d_optimal"
+        and opts.model_type != "quadratic"
+        and not region.inequalities
+        and not region.conditional
+    )
 
 
 def _polish_lattice(region: _Region, opts: ConstrainedOptions, counts: dict) -> PolishLattice | None:
@@ -1846,7 +1957,7 @@ def _polish_lattice(region: _Region, opts: ConstrainedOptions, counts: dict) -> 
     return PolishLattice(
         n_levels,
         lambda coded, cats: model_matrix(region, coded, cats, opts.model_type),
-        lambda coded: region.slack(coded) <= _FEASIBILITY_TOL,
+        lambda coded, cats: region.slack(coded, cats) <= _FEASIBILITY_TOL,
     )
 
 
@@ -1879,7 +1990,7 @@ def _candidates_and_region(
         # quadratic in it and is largest at -1 or +1: some exact D-optimal design uses only the box's corners.
         n_levels = 2
     coded, cats, counts = build_candidates(region, n_levels, opts.model_type, opts.criterion)
-    return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded)
+    return coded, cats, counts, None, lambda: _uniform_rows(region, opts.model_type, rng, coded, cats)
 
 
 def selection_counts(labels: list, rows: np.ndarray) -> dict[str, int]:
@@ -1916,13 +2027,44 @@ def _budget_for_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) 
 _N_MOMENT_SAMPLES = 20_000
 
 
-def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator, seeds: np.ndarray) -> np.ndarray:
+def _uniform_rows(
+    region: _Region,
+    model_type: str,
+    rng: np.random.Generator,
+    seeds: np.ndarray,
+    seed_cats: np.ndarray | None = None,
+) -> np.ndarray:
     """Model rows at points drawn uniformly from the feasible region.
 
     Thin regions are handled by hit-and-run started from the feasible candidates
-    (``seeds``), so the moment matrix covers the whole region, not the few points a
-    rejection pass happens to hit.
+    (``seeds``, whose level indices are ``seed_cats``), so the moment matrix covers the
+    whole region, not the few points a rejection pass happens to hit.
+
+    With rules, each allowed combination of levels carries the same weight (see
+    :meth:`_Region.draw_levels`), and the continuous settings of a run are drawn
+    uniformly from the region its levels leave: the box cut by the inequalities that
+    apply there. Without rules, every combination of levels is allowed and the region
+    is the same for each.
     """
+    if region.rules is None:
+        coded = _uniform_points(region, _N_MOMENT_SAMPLES, rng, seeds)
+        cats = np.empty((len(coded), 0), dtype=int)
+        if region.categorical:
+            cats = np.column_stack([rng.integers(len(f.levels or []), size=len(coded)) for f in region.categorical])
+        return model_matrix(region, coded, cats, model_type)
+    cats = region.draw_levels(_N_MOMENT_SAMPLES, rng)
+    applies = region.applies(cats)
+    seed_applies = region.applies(seed_cats) if seed_cats is not None else None
+    coded = np.empty((len(cats), len(region.continuous)))
+    for signature in np.unique(applies, axis=0):
+        rows = np.all(applies == signature, axis=1)
+        mine = seeds if seed_applies is None else seeds[np.all(seed_applies == signature, axis=1)]
+        coded[rows] = _uniform_points(region.given(signature), int(rows.sum()), rng, mine)
+    return model_matrix(region, coded, cats, model_type)
+
+
+def _uniform_points(region: _Region, n: int, rng: np.random.Generator, seeds: np.ndarray) -> np.ndarray:
+    """Draw ``n`` coded points uniformly from the box cut by the region's inequalities (its rules are not read)."""
     k = len(region.continuous)
 
     def coded_inequality(g: Callable) -> Callable[[np.ndarray], np.ndarray]:
@@ -1933,13 +2075,9 @@ def _uniform_rows(region: _Region, model_type: str, rng: np.random.Generator, se
         (np.full(k, -1.0), np.full(k, 1.0)),
         lambda m: rng.uniform(-1.0, 1.0, size=(m, k)),
         seeds=lambda: seeds,
-        tolerances=region._value_scales(),  # so a drawn point passes slack(), as the runs must
+        tolerances=region._value_scales()[: len(region.inequalities)],  # so a drawn point passes slack()
     )
-    coded = sampler.draw(_N_MOMENT_SAMPLES, rng)
-    cats = np.empty((len(coded), 0), dtype=int)
-    if region.categorical:
-        cats = np.column_stack([rng.integers(len(f.levels or []), size=len(coded)) for f in region.categorical])
-    return model_matrix(region, coded, cats, model_type)
+    return sampler.draw(n, rng)
 
 
 #: Uniform draws added to the candidates for the G-criterion's maximum (the candidates hold the boundary points).
@@ -2037,14 +2175,10 @@ def constrained_optimal_design(
     requested_budget = budget
     _check_factors_and_model(factors, model_type)
 
-    continuous = [f for f in factors if f.type != FactorType.categorical]
-    categorical = [f for f in factors if f.type == FactorType.categorical]
-    names = {f.name for f in continuous}
-    inequalities = [g for c in constraints for g in parse_constraint(c.expression, names)]
-    region = _Region(continuous, categorical, inequalities)
+    region = region_with_rules(factors, constraints)
 
     coded, cats, counts, labels, region_rows = _candidate_pool(region, opts, rng)
-    f_cand = model_matrix(region, coded, cats, model_type)
+    f_cand, inestimable = _candidate_rows(region, coded, cats, model_type)
     f_fixed = _fixed_rows(region, fixed_runs, model_type, f_cand.shape[1])
     n_fixed = len(f_fixed)
     _check_candidates_support_model(counts, f_fixed, f_cand, model_type)
@@ -2081,6 +2215,8 @@ def constrained_optimal_design(
     if constraints:
         meta["constraints"] = [c.expression for c in constraints]
         meta["constraints_enforced"] = True
+    if inestimable:
+        meta["inestimable_columns"] = inestimable
     meta.update(criterion_metadata(criterion, value))
     if block_labels is not None:
         meta["block_labels"] = (block_labels + 1).tolist()
@@ -2092,6 +2228,130 @@ def constrained_optimal_design(
         meta["candidate_source"] = "user"
         meta["selected_candidates"] = selection_counts(labels, rows)
     return _assemble_design(region, factors, chosen, chosen_cats, fixed_runs), meta
+
+
+def region_with_rules(factors: list[Factor], constraints: list[Constraint]) -> _Region:
+    """Return the region of continuous and categorical ``factors`` cut by ``constraints``, their rules included.
+
+    A constraint that names a categorical factor, or joins comparisons with ``and``,
+    ``or`` or ``not``, is read by :func:`~process_improve.experiments._rules.compile_rules`;
+    every other one by :func:`parse_constraint`, as before.
+    """
+    from process_improve.experiments._rules import compile_rules  # noqa: PLC0415  _rules imports this module
+
+    continuous = [f for f in factors if f.type != FactorType.categorical]
+    categorical = [f for f in factors if f.type == FactorType.categorical]
+    names = {f.name for f in continuous}
+    plain, rules = compile_rules(constraints, names, {f.name: list(f.levels or []) for f in categorical})
+    inequalities = [g for _source, text in plain for g in parse_constraint(text, names)]
+    conditional = [parse_constraint(clause.limit or "", names) for clause in rules.limits] if rules else []
+    return _Region(continuous, categorical, inequalities, rules, conditional)
+
+
+def _candidate_rows(
+    region: _Region, coded: np.ndarray, cats: np.ndarray, model_type: str
+) -> tuple[np.ndarray, dict[str, int]]:
+    """Return the candidates' model rows, and per term the columns the rules leave inestimable (none without rules).
+
+    With rules, the columns that cannot be estimated are dropped from the model, here and
+    in every later call of :func:`model_matrix` on ``region``.
+    """
+    f_cand = model_matrix(region, coded, cats, model_type)
+    if region.rules is None:
+        return f_cand, {}
+    _check_every_level_runs(region, cats)
+    region.kept_columns, inestimable = _estimable_columns(region, f_cand, model_type)
+    return f_cand[:, region.kept_columns], inestimable
+
+
+def _check_every_level_runs(region: _Region, cats: np.ndarray) -> None:
+    """Refuse candidates that leave a level of a categorical factor with no setting the constraints allow."""
+    for j, f in enumerate(region.categorical):
+        levels = list(f.levels or [])
+        empty = [levels[i] for i in sorted(set(range(len(levels))) - set(cats[:, j].tolist()))]
+        if empty:
+            shown = ", ".join(f"{f.name} = {level!r}" for level in empty)
+            raise ValueError(
+                f"No setting the constraints allow has {shown}: the limits that apply there leave nothing. "
+                "Loosen them, or remove that level from the factor."
+            )
+
+
+#: A model column is estimable from the candidates when its part not explained by the columns before it is larger
+#: than this share of its length.
+_ESTIMABLE_TOL = 1e-8
+
+
+def _estimable_columns(region: _Region, f_cand: np.ndarray, model_type: str) -> tuple[np.ndarray, dict[str, int]]:
+    """Return the model columns the candidates can estimate, and per term the number of columns lost, with a warning.
+
+    A combination of levels that is not allowed is a missing cell: with ``catalyst`` at 3
+    levels and ``solvent`` at 2, one disallowed pair leaves 5 cells for the 6
+    coefficients of the main effects and their interaction, so one interaction column
+    cannot be estimated. The columns are kept in model order (intercept, main effects,
+    interactions, squares) while each adds rank, so the lost columns are the highest-order
+    ones. Every set of columns kept this way spans the same model space over the
+    candidates, so the D- and I-optimal designs do not depend on which column of a term
+    is dropped.
+    """
+    r = np.linalg.qr(f_cand, mode="r")
+    basis = np.empty((r.shape[0], 0))
+    kept = []
+    for j in range(r.shape[1]):
+        column = r[:, j]
+        residual = column - basis @ (basis.T @ column)
+        size = float(np.linalg.norm(residual))
+        if size > _ESTIMABLE_TOL * max(float(np.linalg.norm(column)), 1.0):
+            basis = np.column_stack([basis, residual / size])
+            kept.append(j)
+    keep = np.array(kept, dtype=int)
+    terms = _column_terms(region, model_type)
+    lost: dict[str, int] = {}
+    for j in sorted(set(range(len(terms))) - set(kept)):
+        lost[terms[j]] = lost.get(terms[j], 0) + 1
+    for term, n_lost in lost.items():
+        width = terms.count(term)
+        logger.warning(
+            "The constraints leave the %s term with %d of its %d column(s) estimable%s; the design is built for "
+            "the columns that can be estimated, and metadata['inestimable_columns'] records the %d lost.",
+            term,
+            width - n_lost,
+            width,
+            _missing_cells(region, term),
+            n_lost,
+        )
+    return keep, lost
+
+
+def _column_terms(region: _Region, model_type: str) -> list[str]:
+    """Return the term each column of :func:`model_matrix` belongs to, before any column is dropped."""
+    blocks = [(f.name, 1) for f in region.continuous] + [(f.name, len(f.levels or []) - 1) for f in region.categorical]
+    terms = ["Intercept"] + [name for name, width in blocks for _ in range(width)]
+    if model_type in {"interactions", "quadratic"}:
+        for i, (first, width_i) in enumerate(blocks):
+            for second, width_j in blocks[i + 1 :]:
+                terms += [f"{first}:{second}"] * (width_i * width_j)
+    if model_type == "quadratic":
+        terms += [f"{f.name}^2" for f in region.continuous]
+    return terms
+
+
+def _missing_cells(region: _Region, term: str) -> str:
+    """Name the pairs of levels no allowed run has, for an interaction of two factors the rules name."""
+    if region.rules is None or term.count(":") != 1:
+        return ""
+    first, second = term.split(":")
+    if first not in region.rules.levels or second not in region.rules.levels:
+        return ""
+    allowed, _ = region.rules.allowed_table()
+    seen = set(zip(allowed[first], allowed[second], strict=True))
+    missing = [
+        f"{first} = {a!r} with {second} = {b!r}"
+        for a in region.rules.levels[first]
+        for b in region.rules.levels[second]
+        if (a, b) not in seen
+    ]
+    return f" (no allowed run has {'; '.join(missing)})" if missing else ""
 
 
 def _check_candidates_support_model(counts: dict, f_fixed: np.ndarray, f_cand: np.ndarray, model_type: str) -> None:
