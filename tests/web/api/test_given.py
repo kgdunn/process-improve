@@ -59,6 +59,25 @@ def test_runs_in_blocks_are_given_the_largest_model_they_estimate_beside_the_blo
     assert (blocked["model"], blocked["spec"]["options"]["n_blocks"]) == ("main_effects", 2)
 
 
+def test_runs_as_given_take_more_blocks_than_a_made_design_but_never_a_block_each(api, bootstrap):
+    """Ten pairs of runs, as a paired comparison makes them, open in ten blocks; a block for each run is refused."""
+    pairs = [[s] for _ in range(10) for s in (-1, 1)]
+    factors = factors_named("A")
+    result = api.ok("api_make_design", given(pairs, factors, blocks=[b for b in range(1, 11) for _ in (0, 1)]))
+    assert result["spec"]["options"]["n_blocks"] == 10 > bootstrap.MAX_BLOCKS
+    analysed = api.reply("api_analyze_runs", {**held_of(result), "responses": [float(i % 7) for i in range(20)]})
+    assert analysed["ok"], analysed.get("error")
+    one_each = api.reply("api_make_design", given(pairs, factors, blocks=list(range(1, 21))))
+    assert not one_each["ok"]
+    assert "Each run is in a block of its own" in one_each["error"]
+    most = bootstrap.MAX_GIVEN_BLOCKS
+    too_many = api.reply(
+        "api_make_design",
+        given([[-1], [1]] * (most + 1), factors, blocks=[b for b in range(1, most + 2) for _ in (0, 1)]),
+    )
+    assert too_many["error"] == f"Runs as given come in at most {most} blocks on this page."
+
+
 def test_settings_in_the_factors_own_units_and_labels_are_taken(api):
     factors = [FACTORS[0], {"name": "S", "low": "old", "high": "new", "units": ""}]
     runs = [[150, "old"], [200, "old"], [150, "new"], [200, "new"]]

@@ -319,6 +319,9 @@ MAX_LEVEL_RUNS = 50
 #: The most blocks the page splits a design's runs into.
 MAX_BLOCKS = 8
 
+#: The most blocks runs as given may come in: a source's paired comparison of ten pairs, or a design in 27 blocks.
+MAX_GIVEN_BLOCKS = 32
+
 #: The designs that take a categorical factor, one whose levels are labels (supplier A and B):
 #: the two-level designs, which need only the two levels of each factor, and the Taguchi arrays,
 #: which give a categorical factor a column of its own beside the numeric factors' columns.
@@ -1501,8 +1504,12 @@ def _given_blocks(raw: object, n_runs: int) -> list[int]:
     if not all(b is not None and b >= 1 and b == int(b) for b in blocks):
         raise ValueError("Each run's block must be a whole number from 1.")
     blocks = [int(b) for b in blocks]  # type: ignore[arg-type]
-    if len(set(blocks)) > MAX_BLOCKS:
-        raise ValueError(f"Runs as given come in at most {MAX_BLOCKS} blocks on this page.")
+    if len(set(blocks)) > MAX_GIVEN_BLOCKS:
+        raise ValueError(f"Runs as given come in at most {MAX_GIVEN_BLOCKS} blocks on this page.")
+    if n_runs > 1 and len(set(blocks)) == n_runs:
+        raise ValueError(
+            "Each run is in a block of its own, so the blocks leave nothing to compare: give the runs in fewer blocks."
+        )
     return blocks if len(set(blocks)) > 1 else []
 
 
@@ -2034,11 +2041,11 @@ def _levels(spec: dict) -> int:
     return int(levels)  # type: ignore[arg-type]
 
 
-def _blocks(spec: dict) -> int:
-    """Read how many blocks the runs are made in: 1 (no blocks) to :data:`MAX_BLOCKS`."""
+def _blocks(spec: dict, most: int = MAX_BLOCKS) -> int:
+    """Read how many blocks the runs are made in: 1 (no blocks) to ``most``, :data:`MAX_BLOCKS` unless said."""
     blocks = _number(spec.get("n_blocks", 1))
-    if blocks is None or blocks != int(blocks) or not 1 <= blocks <= MAX_BLOCKS:
-        raise ValueError(f"Blocks must be a whole number from 1 to {MAX_BLOCKS}.")
+    if blocks is None or blocks != int(blocks) or not 1 <= blocks <= most:
+        raise ValueError(f"Blocks must be a whole number from 1 to {most}.")
     return int(blocks)
 
 
@@ -3227,6 +3234,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
     options = spec.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError("The page sent a design this page did not make.")  # noqa: TRY004 - a refusal, like the rest
+    most = MAX_GIVEN_BLOCKS if spec["design_type"] == GIVEN else MAX_BLOCKS
     names = [f.name for f in factors]
     labelled = tuple(f.name for f in factors if f.type == "categorical")
     chosen = [spec["analysis_model"]] if "analysis_model" in spec else []  # last analysed with, as a workbook keeps
@@ -3248,7 +3256,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         "factors": [_factor_spec(f) for f in factors],
         "response": responses[0]["name"],
         "model": model,
-        "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options)) > 1 else {})},
+        "options": {**options, **({"n_blocks": blocks} if (blocks := _blocks(options, most)) > 1 else {})},
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
