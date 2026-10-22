@@ -571,7 +571,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=12",
+      "generator": "X3=X1X2",
       "printed": "1, 2, 3, 4"
      }
     },

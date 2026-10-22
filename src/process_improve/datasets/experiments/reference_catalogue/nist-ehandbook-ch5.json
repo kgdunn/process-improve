@@ -34168,7 +34168,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=-12",
+      "generator": "X3=-X1X2",
       "printed": "1, 4, 6, 7"
      }
     },
@@ -34185,7 +34185,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=12",
+      "generator": "X3=X1X2",
       "printed": "2, 3, 5, 8"
      }
     },
@@ -38809,17 +38809,17 @@
      "check": [
       {
        "kind": "fraction_runs",
-       "generator": "5=234",
+       "generator": "X5=X2X3X4",
        "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
       },
       {
        "kind": "fraction_runs",
-       "generator": "6=134",
+       "generator": "X6=X1X3X4",
        "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
       },
       {
        "kind": "fraction_runs",
-       "generator": "7=123",
+       "generator": "X7=X1X2X3",
        "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
       }
      ]
@@ -38862,7 +38862,7 @@
      },
      "check": {
       "kind": "standard_order",
-      "factors": ["1", "2", "3", "4"],
+      "factors": ["X1", "X2", "X3", "X4"],
       "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
      }
     },
@@ -42861,7 +42861,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=-12",
+      "generator": "X3=-X1X2",
       "printed": "1, 4, 6, 7"
      }
     },
@@ -42878,7 +42878,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=12",
+      "generator": "X3=X1X2",
       "printed": "2, 3, 5, 8"
      },
      "note": "the corner numbers of the dark circles are read off Figure 3.4"
@@ -42998,7 +42998,7 @@
      },
      "check": {
       "kind": "standard_order",
-      "factors": ["1", "2"],
+      "factors": ["X1", "X2"],
       "printed": "1, 2, 3, 4"
      }
     },
@@ -43015,7 +43015,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=12",
+      "generator": "X3=X1X2",
       "printed": "1, 2, 3, 4"
      }
     },
@@ -43294,7 +43294,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=-12",
+      "generator": "X3=-X1X2",
       "printed": "1, 2, 3, 4"
      }
     },
