@@ -75,6 +75,7 @@ from patsy import Term as PatsyTerm
 from patsy import categorical as patsy_categorical
 
 from process_improve._random import check_random_state
+from process_improve.experiments._rules import names_categorical
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
     _factor_names,
@@ -439,8 +440,6 @@ def mixture_process_model(
 
 def _refuse_rules(constraints: list[Constraint], process: list[Factor]) -> None:
     """Refuse constraints that name categorical factors, or join comparisons with ``and``, ``or``, ``not``."""
-    from process_improve.experiments._rules import names_categorical  # noqa: PLC0415  _rules imports this package
-
     categorical = [f.name for f in process if f.type == FactorType.categorical]
     named = [c.expression for c in constraints if names_categorical(c.expression, categorical)]
     if named:

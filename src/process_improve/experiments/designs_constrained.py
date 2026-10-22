@@ -32,7 +32,6 @@ import ast
 import keyword
 import logging
 import math
-import unicodedata
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
@@ -42,7 +41,9 @@ import pandas as pd
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._expression_text import MAX_EXPRESSION_LENGTH, nfkc
 from process_improve.experiments._region_geometry import box_vertices
+from process_improve.experiments._rules import Rules, compile_rules
 from process_improve.experiments._uniform_sampling import (
     UniformSampler,
     _affine_form,
@@ -52,7 +53,6 @@ from process_improve.experiments._uniform_sampling import (
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
-    from process_improve.experiments._rules import Rules
     from process_improve.experiments.factor import Constraint, Factor
 
 logger = logging.getLogger(__name__)
@@ -64,8 +64,6 @@ MAX_CANDIDATES = 100_000
 #: Points taken from a grid of requested levels too large to list (a power of two, for the Sobol sequence): the
 #: exchange's cost grows with this. An automatic grid is sampled down to :func:`_candidate_cap` instead.
 _SAMPLED_CANDIDATES = 2**15
-#: Longest constraint expression accepted, which also bounds the parse depth.
-MAX_EXPRESSION_LENGTH = 500
 #: Slack when testing ``g(x) <= 0``, so points found on a boundary are kept.
 _FEASIBILITY_TOL = 1e-9
 _BISECTION_STEPS = 50
@@ -109,16 +107,6 @@ _FUNCTIONS: dict[str, Callable[[Any], Any]] = {
 }
 #: For each allowed comparison, whether ``g`` is ``rhs - lhs`` (True) or ``lhs - rhs``.
 _FLIP: dict[type[ast.cmpop], bool] = {ast.Lt: False, ast.LtE: False, ast.Gt: True, ast.GtE: True}
-
-
-def nfkc(name: str) -> str:
-    """Return ``name`` in Unicode NFKC form: how Python's parser spells it in an expression (#808).
-
-    The parser rewrites every identifier into this form, so a factor named with a
-    decomposed accent (``e`` and a combining acute) or a full-width letter (``\uff34``) reaches
-    a parsed limit as the composed accent or the plain ``T``.
-    """
-    return unicodedata.normalize("NFKC", name)
 
 
 def _shown(name: str) -> str:
@@ -2237,8 +2225,6 @@ def region_with_rules(factors: list[Factor], constraints: list[Constraint]) -> _
     ``or`` or ``not``, is read by :func:`~process_improve.experiments._rules.compile_rules`;
     every other one by :func:`parse_constraint`, as before.
     """
-    from process_improve.experiments._rules import compile_rules  # noqa: PLC0415  _rules imports this module
-
     continuous = [f for f in factors if f.type != FactorType.categorical]
     categorical = [f for f in factors if f.type == FactorType.categorical]
     names = {f.name for f in continuous}

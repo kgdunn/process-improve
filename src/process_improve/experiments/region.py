@@ -70,7 +70,7 @@ from process_improve.experiments._region_geometry import (
     uniform_points_inside,
 )
 from process_improve.experiments._region_quadrature import columns_named, curved_share
-from process_improve.experiments._rules import Rules, text_labels
+from process_improve.experiments._rules import Rules, compile_rules, text_labels
 from process_improve.experiments._uniform_sampling import (
     _TOL,
     UniformSampler,
@@ -153,8 +153,6 @@ class DesignRegion:
         #: The inequalities that apply everywhere, as text, each with the index of the constraint it came from.
         self._plain = [(i, c.expression) for i, c in enumerate(self.constraints)]
         if self.kind == "box" and self.constraints:
-            from process_improve.experiments._rules import compile_rules  # noqa: PLC0415
-
             categorical = {f.name: list(f.levels or []) for f in self.factors if f.type == FactorType.categorical}
             self._plain, self.rules = compile_rules(self.constraints, self.names, categorical)
         self._inequalities = self._build_inequalities()  # a mixture-process region refuses rules here

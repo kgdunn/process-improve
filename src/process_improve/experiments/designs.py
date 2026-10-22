@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 
 from process_improve.experiments._classical import ff2n
+from process_improve.experiments._rules import mentions
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType, as_constraints
 from process_improve.experiments.omars import _full_second_order, _quadratic_columns
@@ -315,8 +316,6 @@ def _refuse_unenforced_rules(
     materials that react, a catalyst that degrades when hot), and a run sheet holding one
     could be run by someone who never saw the warning, so it is refused instead.
     """
-    from process_improve.experiments._rules import mentions  # noqa: PLC0415
-
     categorical = [f.name for f in factors if f.type == FactorType.categorical]
     if meta.get("constraints_enforced") or not categorical:
         return

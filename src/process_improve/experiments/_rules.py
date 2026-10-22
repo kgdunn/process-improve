@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, nfkc
+from process_improve.experiments._expression_text import MAX_EXPRESSION_LENGTH, nfkc
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint
