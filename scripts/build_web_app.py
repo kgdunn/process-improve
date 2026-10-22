@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from types import ModuleType
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -705,6 +705,11 @@ ANOVA_NUMBERS = {
 COEFFICIENT_NUMBERS = {"coefficient", "effect", "std_error", "t_value", "p_value", "ci_low", "ci_high"}
 #: The kinds of check the page's comparison of one factor's levels answers.
 COMPARISON_NUMBERS = {"tukey", "least_squares_means"}
+#: The numbers the page shows of a pair of levels compared: the difference, its interval and its p-value.
+PAIR_NUMBERS = {"difference", "ci_low", "ci_high", "half_width", "p", "p_value"}
+#: How far the page's own number may sit from a printed one beyond the printed rounding, as a share of it: a fit
+#: worked in coded units, as the page's is, and one worked in a source's own units agree to a few millionths.
+ARITHMETIC = 1e-6
 #: Keys of a check that make its number one the page does not show: a transformed or summarised response, a
 #: number worked from settings or read back on another scale, a one-sided test, a categorical factor coded otherwise.
 NOT_SHOWN = (
@@ -818,8 +823,13 @@ def _choices(term: str, spec: dict[str, Any]) -> list[list[tuple[str, float]]] |
 
 
 def _asked(check: dict[str, Any]) -> dict[str, str] | None:
-    """Read what a comparison check asks: its method, the two levels or the level, and the number."""
+    """Read what a comparison check asks: its method, the two levels or the level, and the number.
+
+    None for a number the page's comparison does not show, such as the studentized range's percentage point.
+    """
     if check["kind"] == "tukey":
+        if check["key"] not in PAIR_NUMBERS:
+            return None
         return {
             "method": "tukey",
             "head": "pairs",
@@ -831,7 +841,20 @@ def _asked(check: dict[str, Any]) -> dict[str, str] | None:
     item, _, key = rest.rpartition(".")
     a, _, b = item.partition(" - ")
     method = check.get("comparisons", "tukey")
-    return {"method": method, "head": head, "a": a, "b": b, "key": key} if head in ("pairs", "by_level") else None
+    pairs = head == "pairs" and key in PAIR_NUMBERS and method in ("tukey", "dunnett")  # the page's two adjustments
+    shown = pairs or (head == "by_level" and key == "mean")
+    return {"method": method, "head": head, "a": a, "b": b, "key": key} if shown else None
+
+
+def _hierarchical(terms: list[list[str]]) -> bool:
+    """Say whether a model holds every lower-order part of each of its terms: A and B beside A·B, A beside A².
+
+    Only such a model fits alike in coded units and in the factors' own units.
+    """
+    held = {tuple(sorted(t)) for t in terms}
+    return all(
+        sub in held for t in terms for size in range(1, len(t)) for sub in itertools.combinations(sorted(t), size)
+    )
 
 
 def _shown(check: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]) -> bool:
@@ -845,10 +868,11 @@ def _shown(check: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]) -
     )
     if kind in COEFFICIENT_NUMBERS and own_units:
         return False  # the source fits settings in their own units; the page, coded
-    if kind in COMPARISON_NUMBERS:  # the page compares the levels of a study of one factor, on no other model
-        alone = spec["factors"][0]["name"] if len(spec["factors"]) == 1 else None
+    if kind in COMPARISON_NUMBERS:  # the page compares the levels of one categorical factor, on no other model
+        alone = spec["factors"][0] if len(spec["factors"]) == 1 else None
         model = check["factor"] if kind == "tukey" and not check.get("block") else check.get("model")
-        return alone is not None and model in (alone, f"C({alone})")
+        named = alone is not None and model in (alone["name"], f"C({alone['name']})")
+        return named and load_bootstrap()._categorical(alone)
     return bool(check.get("model"))
 
 
@@ -866,6 +890,8 @@ def _reading(
     if kind in FIT_NUMBERS:
         return {"table": "summary", "field": FIT_NUMBERS[kind]}
     if kind in COEFFICIENT_NUMBERS:
+        if any(name in block or name == "Block" for name, _ in _level_parts(check["term"])):
+            return None  # the page fits the blocks, but shows no coefficient of theirs
         return _coefficient_reading(check, spec, flipped)
     asked = _asked(check)
     return None if asked is None else {"table": "comparison", **asked}
@@ -904,8 +930,9 @@ def _agreement(check: dict[str, Any], printed: object) -> dict[str, Any] | None:
     """Return the printed number, its bound and the rounding it allows, as the catalogue's checks hold a number to it.
 
     The rule is :func:`~process_improve.experiments.reference_catalogue._agrees`: half a unit in the last digit
-    printed, or in ``decimals`` places, times ``of_rounded``. A number printed as an expression, or held to the
-    rounding of the data, is not one the page compares.
+    printed, or in ``decimals`` places, times ``of_rounded``; and ``ARITHMETIC`` of the number besides, as the
+    page's fit, in coded units, takes another path to the same numbers than the source's or the library's. A
+    number printed as an expression, or held to the rounding of the data, is not one the page compares.
     """
     from process_improve.experiments import reference_catalogue as rc  # noqa: PLC0415 - the docs environment has it
 
@@ -918,7 +945,48 @@ def _agreement(check: dict[str, Any], printed: object) -> dict[str, Any] | None:
     decimals = check.get("decimals")
     half = rc._tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals
     side = {"<": "<", "<=": "<", "≤": "<", ">": ">", ">=": ">", "≥": ">"}.get(bound or "")
-    return {"target": float(digits), "bound": side, "allowed": check.get("of_rounded", 1) * half}
+    target = float(digits)
+    return {"target": target, "bound": side, "allowed": check.get("of_rounded", 1) * half + ARITHMETIC * abs(target)}
+
+
+def printed_checks(
+    record: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]
+) -> Iterator[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
+    """Yield each number a source prints for a study that the page shows too, with its check: see printed_numbers."""
+    from process_improve.experiments import design_catalog  # noqa: PLC0415 - the docs environment has it
+    from process_improve.experiments import reference_catalogue as rc  # noqa: PLC0415
+
+    response = _response_of(record)
+    first = next((r["name"] for r in entry.get("responses") or [] if r["name"] in entry["runs"]["columns"]), None)
+    block = tuple(design_catalog._block_columns(entry) or ()) if record.get("blocks") else ()
+    flipped = frozenset(
+        f["name"] for f in record["factors"] if f.get("type") == "numeric" and _page_factor(f) and f["low"] > f["high"]
+    )
+    own_units = any(f.get("coding") == "none" for f in entry["factors"])
+    for expected in entry.get("expected", []):
+        for check in rc._checks(expected):
+            if not _shown(check, entry, spec) or check.get("runs") or (check.get("response") or first) != response:
+                continue
+            terms = page_terms(check["factor"] if check["kind"] == "tukey" else check["model"], spec, block)
+            if terms and own_units and not _hierarchical(terms):
+                continue  # fitted in the factors' own units, a model without its lower terms is not the page's
+            printed = check.get("printed", expected["value"])
+            read, agree = (_reading(check, spec, block, flipped), _agreement(check, printed)) if terms else (None, None)
+            if read is None or agree is None:
+                continue
+            where = expected.get("where") or {}
+            number = {
+                "what": expected["what"],
+                "term": expected.get("term"),
+                "printed": str(printed),
+                "where": f"p. {where['page']}" if where.get("page") else "",
+                "model": terms,
+                "read": read,
+                "agree": agree,
+                "reason": check.get("disagreement") or None,
+            }
+            yield expected, check, number
+            break
 
 
 def printed_numbers(record: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]) -> list[dict[str, Any]]:
@@ -930,41 +998,7 @@ def printed_numbers(record: dict[str, Any], entry: dict[str, Any], spec: dict[st
     number not to reproduce (``reason``). A number of another response, or of some of the runs only, is not one
     the page shows; of the checks of one printed number, the first the page shows is kept.
     """
-    from process_improve.experiments import design_catalog  # noqa: PLC0415 - the docs environment has it
-    from process_improve.experiments import reference_catalogue as rc  # noqa: PLC0415
-
-    response = _response_of(record)
-    first = next((r["name"] for r in entry.get("responses") or [] if r["name"] in entry["runs"]["columns"]), None)
-    block = tuple(design_catalog._block_columns(entry) or ()) if record.get("blocks") else ()
-    flipped = frozenset(
-        f["name"] for f in record["factors"] if _page_factor(f) and f.get("type") == "numeric" and f["low"] > f["high"]
-    )
-    out = []
-    for expected in entry.get("expected", []):
-        for check in rc._checks(expected):
-            if not _shown(check, entry, spec) or check.get("runs") or (check.get("response") or first) != response:
-                continue
-            model = check["factor"] if check["kind"] == "tukey" else check["model"]
-            terms = page_terms(model, spec, block)
-            printed = check.get("printed", expected["value"])
-            read, agree = (_reading(check, spec, block, flipped), _agreement(check, printed)) if terms else (None, None)
-            if read is None or agree is None:
-                continue
-            where = expected.get("where") or {}
-            out.append(
-                {
-                    "what": expected["what"],
-                    "term": expected.get("term"),
-                    "printed": str(printed),
-                    "where": f"p. {where['page']}" if where.get("page") else "",
-                    "model": terms,
-                    "read": read,
-                    "agree": agree,
-                    "reason": check.get("disagreement") or None,
-                }
-            )
-            break
-    return out
+    return [number for _, _, number in printed_checks(record, entry, spec)]
 
 
 def study_source(record: dict[str, Any], source: dict[str, Any], printed: int = 0) -> dict[str, Any]:

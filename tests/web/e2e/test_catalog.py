@@ -352,6 +352,30 @@ def test_a_published_design_opens_in_factorial_with_the_source_s_results(context
     assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
 
 
+def test_a_published_study_names_its_source_and_learn_shows_what_it_prints_beside_its_own(context, site):
+    """The pilot plant's banner cites Box, Hunter and Hunter; Learn offers their model, then lists their effects."""
+    page = open_catalog(context, site)
+    page.click(f"[data-open='{PILOT}']")
+    page.wait_for_selector("#campaign-banner", state="visible")
+    banner = page.text_content("#campaign-banner")
+    assert banner.startswith("Opened from the catalog: ")
+    assert "Box" in banner
+    assert page.locator("#campaign-banner a", has_text="Read the source").count() == 1
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    settled(page)
+    page.wait_for_selector("#printed:not([hidden]) .printed-model")
+    assert "prints no number for the model fitted here" in page.text_content("#printed")
+    offer = page.locator("#printed .printed-model").first
+    assert "prints 21 numbers for the model T + C + T·C + K + T·K + C·K + T·C·K" in offer.text_content()
+    offer.locator("button").click()
+    page.wait_for_selector("#printed:not([hidden]) table")
+    lead = page.text_content("#printed .lead")
+    assert lead.startswith("Factorial's analysis gives 21 of the 21 numbers the source prints for this model")
+    first = page.locator("#printed tbody tr").first.locator("td").all_text_contents()
+    assert first == ["Effect, T", "p. 309", "23", "23.0", "agrees"]
+    assert page.locator("#term-list input:checked").count() == 7, "their model is the one ticked now"
+
+
 def test_a_generated_design_opens_in_factorial_ready_to_run(context, site):
     page = open_catalog(context, site)
     page.click(f"[data-open='{CCD}']")

@@ -3213,9 +3213,11 @@ async function renderPrinted(result, mine) {
   const rows = numbers
     .filter((n) => modelKey(n.model) === fitted)
     .map((n) => {
+      // A number the catalog knows is printed wrong keeps its reason, however near it: Dataplot's single precision
+      // misses the last digit by about as much as two right ways of working the same fit differ by.
       const value = printedValue(result, n.read, runs);
-      const agrees = value !== null && printedAgrees(value, n.agree);
-      const verdict = agrees ? "agrees" : n.reason ? `differs: ${n.reason}` : "differs";
+      const agrees = !n.reason && value !== null && printedAgrees(value, n.agree);
+      const verdict = n.reason ? `differs: ${n.reason}` : agrees ? "agrees" : "differs";
       return { n, value, agrees, verdict };
     })
     .filter(({ value }) => value !== null);
@@ -3239,7 +3241,13 @@ async function renderPrinted(result, mine) {
     parts.push(
       table(
         ["Number", "Where", "Printed", "Factorial", "Verdict"],
-        rows.map(({ n, value, verdict }) => [n.term ? `${n.what}, ${n.term}` : n.what, n.where, n.printed, printedLike(value, n.printed), verdict]),
+        rows.map(({ n, value, verdict }) => [
+          `${n.what.charAt(0).toUpperCase()}${n.what.slice(1)}${n.term ? `, ${n.term}` : ""}`,
+          n.where,
+          n.printed,
+          printedLike(value, n.printed),
+          verdict,
+        ]),
       ),
     );
   }
