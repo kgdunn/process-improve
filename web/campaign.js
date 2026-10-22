@@ -315,7 +315,25 @@ export function checkCampaign(data) {
     model: checkModel(data.model ?? "", factorNames),
   };
   if (names.length > 1) Object.assign(out, laterResults(data, names.slice(1), n, factorNames, names[0]));
+  if (data.source !== undefined && data.source !== null) out.source = studySource(data.source);
   return out;
+}
+
+/**
+ * Where a study from the design catalog comes from, as the catalog wrote it (build_web_app.study_source): the
+ * source's citation, where it prints the runs, that place's web address, the study's id in the catalog and how many
+ * of the numbers the source prints Learn shows beside its own. The address must be a web page's and the id a file
+ * name's, since the page links to the one and fetches catalog/printed/<id>.json by the other.
+ */
+function studySource(data) {
+  if (!isObject(data)) refuse("its source is not a citation");
+  const url = text(data.url ?? "", "its source's address", 500);
+  if (url && !/^https?:\/\/[^\s]+$/.test(url)) refuse("its source's address is not a web address");
+  const catalog = text(data.catalog ?? "", "its id in the catalog", 120);
+  if (catalog && !/^[\w.-]+$/.test(catalog)) refuse("its id in the catalog is not one the catalog gives");
+  const printed = data.printed ?? 0;
+  if (!Number.isInteger(printed) || printed < 0) refuse("the count of its printed numbers is not a count");
+  return { cite: text(data.cite, "its source's citation", 500), where: text(data.where ?? "", "where its source prints it"), url, catalog, printed };
 }
 
 /** One response's results and their sources: a number or a blank per run, and where each came from. */

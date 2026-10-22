@@ -152,7 +152,12 @@ import {
   mixtureProblem,
   nTerms,
   nameProblem,
+  modelKey,
+  modelTermsWords,
   namedModelTerms,
+  printedAgrees,
+  printedLike,
+  printedValue,
   needsCentre,
   nextMode,
   noResults,
@@ -2965,6 +2970,7 @@ function clearAnalysis() {
   ticket += 1;
   state.analysis = null;
   $("#analysis").hidden = true;
+  $("#printed").hidden = true;
   $("#py-analyse").hidden = true;
   $("#charts").hidden = true;
   $("#charts").replaceChildren();
@@ -3032,7 +3038,9 @@ async function analyseRuns() {
   if (mine !== ticket) return;
   state.analysis = reply.ok ? reply.result : null;
   renderAnalysis(reply);
+  $("#printed").hidden = true;
   if (reply.ok) {
+    renderPrinted(reply.result, mine); // fetched once a study; the best settings and the charts need not wait for it
     const best = await findBest(request, mine);
     if (mine !== ticket) return;
     await findNext(request); // the next step follows the best settings, and is on the page before the charts are drawn
@@ -3163,6 +3171,93 @@ function renderAnalysis(reply) {
     );
   }
   out.replaceChildren(...parts);
+}
+
+// ---------------------------------------------------------------- the numbers a catalog study's source prints
+/** The numbers a catalog study's source prints that Learn shows beside its own, fetched once a study. */
+const printedFetched = new Map();
+
+function printedOf(source) {
+  if (!source?.catalog || !source.printed) return Promise.resolve([]);
+  if (!printedFetched.has(source.catalog)) {
+    const asked = fetch(`catalog/printed/${source.catalog}.json`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => (Array.isArray(data?.printed) ? data.printed : []))
+      .catch(() => []);
+    printedFetched.set(source.catalog, asked);
+  }
+  return printedFetched.get(source.catalog);
+}
+
+/** A link to where a source prints a study, when the catalog gives its address: as a list, to spread into a sentence. */
+const sourceLink = (source) => (source.url ? [link(source.url, "Read the source", "source"), "."] : []);
+
+/** The terms of the model Learn fits the response shown with: those ticked, or those a named model holds. */
+function fittedTerms() {
+  const model = modelChoice();
+  const factors = state.design.spec.factors;
+  return typeof model === "object" ? model.terms : namedModelTerms(model || state.design.spec.model, factors);
+}
+
+/**
+ * Show beside Learn's analysis the numbers the study's source prints for the model fitted: each with the page's own
+ * number, written as the source writes it, and whether the two agree to the printed rounding, or the reason the
+ * catalog knows they do not. A model the source prints other numbers for is offered, to fit in its place.
+ */
+async function renderPrinted(result, mine) {
+  const source = state.campaign?.source;
+  const numbers = source && state.shown === resultNames()[0] ? await printedOf(source) : [];
+  if (mine !== ticket || !numbers.length) return; // a later analysis, or another study, has the page now
+  const runs = (state.results[state.shown] ?? []).filter((v) => v !== null).length;
+  const fitted = modelKey(fittedTerms());
+  const rows = numbers
+    .filter((n) => modelKey(n.model) === fitted)
+    .map((n) => {
+      const value = printedValue(result, n.read, runs);
+      const agrees = value !== null && printedAgrees(value, n.agree);
+      const verdict = agrees ? "agrees" : n.reason ? `differs: ${n.reason}` : "differs";
+      return { n, value, agrees, verdict };
+    })
+    .filter(({ value }) => value !== null);
+  const others = new Map();
+  for (const n of numbers.filter((x) => modelKey(x.model) !== fitted)) {
+    const key = modelKey(n.model);
+    others.set(key, { terms: n.model, count: (others.get(key)?.count ?? 0) + 1 });
+  }
+  const from = said("hint", rows.length ? "" : "The source prints no number for the model fitted here. ");
+  from.append(`From ${source.cite}${source.where ? `, ${source.where}` : ""}. `, ...sourceLink(source));
+  const parts = [];
+  if (rows.length) {
+    const agree = rows.filter((r) => r.agrees).length;
+    const known = rows.filter((r) => !r.agrees && r.n.reason).length;
+    const lead = `Factorial's analysis gives ${agree} of the ${rows.length} numbers the source prints for this model, to the printed rounding.`;
+    const errata = known ? ` ${known} differ${known === 1 ? "s" : ""} for a reason the catalog records.` : "";
+    parts.push(el("p", "lead", `${lead}${errata}`));
+  }
+  parts.push(from);
+  if (rows.length) {
+    parts.push(
+      table(
+        ["Number", "Where", "Printed", "Factorial", "Verdict"],
+        rows.map(({ n, value, verdict }) => [n.term ? `${n.what}, ${n.term}` : n.what, n.where, n.printed, printedLike(value, n.printed), verdict]),
+      ),
+    );
+  }
+  for (const { terms, count } of [...others.values()].sort((a, b) => b.count - a.count)) {
+    const line = el("p", "printed-model", `It prints ${count} number${count === 1 ? "" : "s"} for the model ${modelTermsWords(terms)}. `);
+    const fit = el("button", "link", "Fit this model");
+    fit.type = "button";
+    fit.onclick = () => {
+      setModel({ terms });
+      if (state.shown) state.models[state.shown] = modelChoice();
+      scheduleAnalysis();
+      scheduleSave();
+    };
+    line.append(fit);
+    parts.push(line);
+  }
+  $("#printed-out").replaceChildren(...parts);
+  $("#printed").hidden = false;
 }
 
 /** The study's specification as the response Learn shows reads it: that response as its ``response``. */
@@ -4559,6 +4654,7 @@ function currentCampaign() {
     model: modelOf(first),
     ...(more.length ? { more_models: Object.fromEntries(more.map((name) => [name, modelOf(name)])) } : {}),
     ...(more.length && Object.keys(sentGoals()).length ? { goals: sentGoals() } : {}),
+    ...(state.campaign?.source ? { source: state.campaign.source } : {}),
   };
 }
 
@@ -4787,7 +4883,7 @@ async function openCampaign(c, record, message) {
   flushSave();
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
-  state.campaign = { ...record, title: c.title || titleOf(c.design.spec) };
+  state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
   state.design = { ...c.design };
   state.planKey = planKey();
   const names = resultNames();
@@ -4857,7 +4953,11 @@ async function start() {
       const c = await unpackCampaign(hash.slice(LINK_KEY.length));
       if (await resultsCameBack(c)) return;
       const title = c.title || titleOf(c.design.spec);
-      await openCampaign(c, newCampaign(false), `Opened from a link: ${title}. It is saved in this browser now, under Your studies.`);
+      const saved = "It is saved in this browser now, under Your studies.";
+      const opened = c.source
+        ? [`Opened from the catalog: ${title}, as ${c.source.cite} prints it${c.source.where ? `, ${c.source.where}` : ""}. `, ...sourceLink(c.source), ` ${saved}`]
+        : `Opened from a link: ${title}. ${saved}`;
+      await openCampaign(c, newCampaign(false), opened);
       return;
     } catch (err) {
       showBanner(err.message, true);

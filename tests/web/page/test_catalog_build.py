@@ -494,3 +494,11 @@ def test_a_factor_of_more_levels_than_the_page_takes_says_so(build_script, sever
             None,
             "a categorical factor has more than the 8 levels the page takes",
         )
+
+
+def test_the_page_keys_a_term_s_parts_as_the_build_wrote_them(build_script, node):
+    """Learn finds a printed number's row by the parts of its term: logic.js termPart is the build's term_part."""
+    texts = ["A", "A²", "I(A ** 2)", "C(diet, Sum)", "C(diet)", "température²", "I(x_1 ** 2)", "diet[A]"]
+    assert javascript(node, source("logic.js"), [("termPart", [t]) for t in texts]) == list(
+        map(build_script.term_part, texts)
+    )
