@@ -92,7 +92,8 @@ def test_a_design_type_in_words_names_its_family(text, family):
 @pytest.mark.dataset
 def test_every_published_entry_has_a_family_and_few_have_none(records):
     published = [r for r in records if r["collection"] == "published"]
-    assert len(published) == len(reference_experiments()) + len(reference_designs())
+    entries = [*reference_experiments(), *reference_designs()]
+    assert len(published) == sum(len(design_catalog._arrangements(e)) for e in entries), "each blocking a record"
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
     # pid-book's 19 "other", two projections, and three response surface designs no family holds:
