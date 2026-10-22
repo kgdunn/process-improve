@@ -536,6 +536,36 @@ proportions, so the blending coefficients read as those of a Scheffé model do:
    print([round(row["coefficient"], 1) for row in fit["coefficients"][:3]])  # [4.6, 5.0, 6.3]
 
 ``optimize_responses`` with the design's region searches blends that sum to one at process
-settings inside the region. Categorical process factors, split-plot designs
-(``hard_to_change``), fixed runs, candidate sets and blocks are not yet available for
+settings inside the region.
+
+A process factor can also be categorical, such as a catalyst type or a supplier. It enters
+the model in ``L - 1`` sum-to-zero columns, so each level's effect is measured from the
+average over the levels:
+
+.. code-block:: python
+
+   resins = [
+       Factor(name="resin", type="mixture", low=0.2, high=0.7),
+       Factor(name="filler", type="mixture", low=0.05, high=0.5),
+       Factor(name="additive", type="mixture", low=0.05, high=0.3),
+       Factor(name="T", low=140, high=180, units="degC"),
+       Factor(name="catalyst", type="categorical", levels=["A", "B", "C"]),
+   ]
+   cure = generate_design(resins, model_type="interactions", budget=24)
+   print(cure.metadata["n_parameters"])  # 17
+
+The 17 terms are the six Scheffé blending terms, ``x_i:T`` and ``x_i:catalyst`` for each
+component (three and six columns), and ``T:catalyst`` (two columns). A categorical factor
+has no square, so ``"quadratic"`` adds only ``T^2``.
+
+A model of mixture components has no intercept, and patsy then gives a categorical factor
+a column for every level wherever the term below it is absent from the formula:
+``T:catalyst`` in this model, where ``T`` enters only through ``x_i:T``. Those columns add up
+to ones the other terms already span, so the model could not be estimated.
+``evaluate_design`` and ``analyze_experiment`` therefore code every categorical factor of a
+mixture-process model in ``L - 1`` columns, and the recorded formula needs no change.
+``optimize_responses`` does not take categorical factors.
+
+Split-plot designs (``hard_to_change``), fixed runs, candidate sets, blocks, and
+constraints that join components and process factors are not yet available for
 mixture-process designs, and ``generate_design`` refuses them.

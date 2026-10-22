@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import pandas as pd
 import pytest
+from patsy import categorical as patsy_categorical
 from patsy import dmatrix
 
 from process_improve.experiments import (
@@ -18,7 +19,7 @@ from process_improve.experiments import (
     generate_design,
     optimize_responses,
 )
-from process_improve.experiments.designs_mixture_process import mixture_process_model
+from process_improve.experiments.designs_mixture_process import ReducedRank, ReducedRankFormula, mixture_process_model
 
 #: Three bounded components and two process factors, used for the region and the designs.
 BLENDS = [
@@ -373,10 +374,10 @@ class TestRefusals:
         with pytest.raises(ValueError, match=f"Mixture-process designs do not take {argument} yet"):
             generate_design(list(self.FACTORS), design_type="d_optimal", budget=16, **{argument: value})
 
-    def test_categorical_process_factor(self) -> None:
-        factors = [*BLENDS, Factor(name="catalyst", type="categorical", levels=["A", "B"])]
-        with pytest.raises(ValueError, match=r"must be continuous; \['catalyst'\] are categorical"):
-            generate_design(factors, design_type="d_optimal", budget=12)
+    def test_a_constraint_on_a_categorical_factor(self) -> None:
+        factors = [*BLENDS, SETTINGS[0], Factor(name="catalyst", type="categorical", levels=["A", "B"])]
+        with pytest.raises(ValueError, match="catalyst"):
+            generate_design(factors, design_type="d_optimal", budget=16, constraints=["catalyst <= 1"])
 
     def test_a_constraint_joining_blends_and_settings(self) -> None:
         with pytest.raises(ValueError, match="names both mixture components"):
@@ -517,3 +518,215 @@ class TestEdgeCases:
         result = generate_design(list(self.FACTORS), budget=16)
         freedom = evaluate_design(result, model="-1 + x1 + x2 + x3 + T", metric="degrees_of_freedom")
         assert freedom["degrees_of_freedom"]["residual"] == 16 - 4
+
+
+# ---------------------------------------------------------------------------
+# Categorical process factors
+# ---------------------------------------------------------------------------
+
+CATALYST = Factor(name="catalyst", type="categorical", levels=["A", "B", "C"])
+WITH_CATALYST = [*BLENDS, SETTINGS[0], CATALYST]
+LEVELS = {"catalyst": ("A", "B", "C")}
+COOLANT_LABELS = [
+    Factor(name="spray", type="categorical", levels=["Low", "High"]),
+    Factor(name="oil", type="categorical", levels=["Low", "High"]),
+]
+#: Table 6.2 with the coolant settings as the two-level categorical factors they are.
+TABLE_6_2_LABELLED = TABLE_6_2.assign(
+    spray=TABLE_6_2["spray"].map({-1: "Low", 1: "High"}), oil=TABLE_6_2["oil"].map({-1: "Low", 1: "High"})
+)
+
+
+def _with_catalyst(n: int = 60, seed: int = 0) -> pd.DataFrame:
+    data = _points(3, 1, n, seed).rename(columns={"z1": "T"})
+    return data.assign(catalyst=np.random.default_rng(seed + 1).choice(list("ABC"), size=n))
+
+
+def _reduced(data: pd.DataFrame) -> dict:
+    """Return the data as evaluate_design hands them to patsy: the categorical column boxed with its contrast."""
+    return {**data, "catalyst": patsy_categorical.C(data["catalyst"], ReducedRank())}
+
+
+class TestCategoricalModels:
+    """A categorical process factor is an atom of L - 1 sum-to-zero columns."""
+
+    @pytest.mark.parametrize(
+        ("model_type", "expected"),
+        [
+            ("main_effects", 3 + 1 + 2),
+            ("interactions", 6 + 3 * (1 + 2) + 1 * 2),  # blending, x_i:T and x_i:catalyst, T:catalyst
+            ("quadratic", 6 + 3 * (1 + 2) + 1 * 2 + 1),  # and T squared; a categorical has no square
+            ("scheffe_quadratic + main_effects", 6 + 1 + 2),
+            ("scheffe_quadratic * interactions", 6 * (1 + 1 + 2 + 2)),
+        ],
+    )
+    def test_size(self, model_type: str, expected: int) -> None:
+        assert mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], model_type, LEVELS).n_parameters == expected
+
+    @pytest.mark.parametrize(("order", "squares"), [("interactions", ""), ("quadratic", " + I(T ** 2)")])
+    def test_order_based_models_span_the_full_polynomial(self, order: str, squares: str) -> None:
+        data = _with_catalyst()
+        model = mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], order, LEVELS).matrix(data)
+        rhs = f"(x1 + x2 + x3 + T + catalyst) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2){squares}"
+        full = np.asarray(dmatrix(rhs, data))  # an intercept model, which patsy codes in full rank
+        assert _rank(model) == model.shape[1] == _rank(full)
+        assert _rank(np.hstack([model, full])) == model.shape[1]
+
+    @pytest.mark.parametrize(
+        "model_type",
+        [
+            "main_effects",
+            "interactions",
+            "quadratic",
+            "scheffe_quadratic + main_effects",
+            "scheffe_cubic * main_effects",
+        ],
+    )
+    def test_matrix_and_reduced_rank_formula_agree(self, model_type: str) -> None:
+        data = _with_catalyst()
+        model = mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], model_type, LEVELS)
+        ours = model.matrix(data)
+        theirs = np.asarray(dmatrix(model.formula_rhs(), _reduced(data)))
+        assert theirs.shape == ours.shape
+        matches = np.isclose(ours[:, :, None], theirs[:, None, :]).all(axis=0)
+        assert (matches.sum(axis=1) == 1).all()
+        assert (matches.sum(axis=0) == 1).all()
+
+    def test_the_formula_analyze_experiment_fits_builds_the_same_columns(self) -> None:
+        """ReducedRankFormula codes the plain data frame as the boxed contrast codes the data."""
+        data = _with_catalyst()
+        formula = mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], "quadratic", LEVELS).formula_rhs()
+        through_formula = dmatrix(ReducedRankFormula(formula, ["catalyst"]), data, return_type="dataframe")
+        through_data = dmatrix(formula, _reduced(data), return_type="dataframe")
+        assert list(through_formula.columns) == list(through_data.columns)
+        assert "T:catalyst[S.A]" in through_formula.columns
+        np.testing.assert_allclose(through_formula.to_numpy(), through_data.to_numpy())
+
+    def test_without_reduced_rank_patsy_codes_a_column_per_level(self) -> None:
+        """Without an intercept, T:catalyst gets three columns, which add up to T: the trap ReducedRank removes."""
+        data = _with_catalyst()
+        formula = mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], "interactions", LEVELS).formula_rhs()
+        plain = np.asarray(dmatrix(formula, data))
+        assert _rank(plain) < plain.shape[1]
+        assert _rank(np.asarray(dmatrix(formula, _reduced(data)))) == 17
+
+    def test_unknown_level_is_refused(self) -> None:
+        data = _with_catalyst().assign(catalyst="D")
+        with pytest.raises(ValueError, match="has levels"):
+            mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], "main_effects", LEVELS).matrix(data)
+
+
+class TestCategoricalDesigns:
+    def test_design_holds_labels_and_estimates_the_model(self) -> None:
+        result = generate_design(WITH_CATALYST, model_type="interactions", budget=24)
+        assert result.design_type == "d_optimal"
+        assert result.metadata["n_parameters"] == 17
+        assert result.metadata["categorical_process_factors"] == ["catalyst"]
+        assert set(result.design_actual["catalyst"]) <= {"A", "B", "C"}
+        x = mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], "interactions", LEVELS).matrix(result.design)
+        assert _rank(x) == 17
+
+    @pytest.mark.parametrize(
+        "model_type", ["main_effects", "interactions", "quadratic", "scheffe_quadratic + main_effects"]
+    )
+    def test_evaluate_design_agrees_with_the_engine(self, model_type: str) -> None:
+        result = generate_design(WITH_CATALYST, model_type=model_type, random_state=1)
+        x = mixture_process_model(["x1", "x2", "x3"], ["T", "catalyst"], model_type, LEVELS).matrix(result.design)
+        expected = 100 * np.exp(_log_det(x) / x.shape[1]) / len(x)
+        quality = evaluate_design(result, metric=["d_efficiency", "degrees_of_freedom"])
+        assert quality["d_efficiency"] == pytest.approx(expected)
+        assert quality["degrees_of_freedom"]["model"] == x.shape[1] - 1  # full rank; the blends span the mean
+
+    def test_treatment_coding_is_full_rank_too(self) -> None:
+        """Treatment coding also keeps L - 1 columns, and compares two designs as effect coding does.
+
+        The D-efficiency itself depends on the coding, as the determinant does, but the ratio of
+        two designs' D-efficiencies does not.
+        """
+        d_opt = generate_design(WITH_CATALYST, design_type="d_optimal", model_type="interactions", budget=24)
+        i_opt = generate_design(WITH_CATALYST, design_type="i_optimal", model_type="interactions", budget=24)
+
+        def quality(result: object, coding: str) -> dict:
+            return evaluate_design(result, metric=["d_efficiency", "degrees_of_freedom"], categorical_coding=coding)
+
+        effect = [quality(r, "effect") for r in (d_opt, i_opt)]
+        treatment = [quality(r, "treatment") for r in (d_opt, i_opt)]
+        assert treatment[0]["degrees_of_freedom"] == effect[0]["degrees_of_freedom"]
+        assert treatment[0]["d_efficiency"] / treatment[1]["d_efficiency"] == pytest.approx(
+            effect[0]["d_efficiency"] / effect[1]["d_efficiency"]
+        )
+
+    def test_i_optimal_average_is_over_the_levels_too(self) -> None:
+        result = generate_design(WITH_CATALYST, design_type="i_optimal", budget=22)
+        average = evaluate_design(result, metric="average_prediction_variance")["average_prediction_variance"]
+        assert average == pytest.approx(result.metadata["trace_criterion"], rel=0.02)
+
+    def test_two_levels_carry_the_same_information_as_a_factor_at_minus_and_plus_one(self) -> None:
+        """For a model without squares, a two-level categorical factor is coded -1 and +1."""
+        as_labels = generate_design([*MILLS, *COOLANT_LABELS], model_type=TABLE_6_2_MODEL, budget=12, random_state=0)
+        as_numbers = generate_design([*MILLS, *COOLANT], model_type=TABLE_6_2_MODEL, budget=12, random_state=0)
+        assert as_labels.metadata["log_det_information"] == pytest.approx(as_numbers.metadata["log_det_information"])
+
+
+class TestPublishedDesignWithLabels:
+    """Goos and Jones (2011), Table 6.2, with spray volume and oil-water as the two-level factors they are."""
+
+    REGION = DesignRegion([*MILLS, *COOLANT_LABELS])
+
+    def test_found_again(self) -> None:
+        published = evaluate_design(TABLE_6_2_LABELLED, model=TABLE_6_2_MODEL, region=self.REGION)["d_efficiency"]
+        result = generate_design([*MILLS, *COOLANT_LABELS], model_type=TABLE_6_2_MODEL, budget=12, random_state=3)
+        assert evaluate_design(result)["d_efficiency"] == pytest.approx(published)
+        design = result.design.drop(columns="RunOrder").round(6)
+        assert (design.groupby(["mill1", "mill2", "mill3"]).size() == 2).all()
+        assert (design.groupby(["spray", "oil"]).size() == 3).all()
+
+    def test_prediction_variance_over_the_region(self) -> None:
+        """P. 120: the average relative variance of prediction is a little less than a half, the worst two-thirds."""
+        quality = evaluate_design(
+            TABLE_6_2_LABELLED,
+            model=TABLE_6_2_MODEL,
+            region=self.REGION,
+            metric=["average_prediction_variance", "g_efficiency"],
+        )
+        assert quality["average_prediction_variance"] == pytest.approx(0.483, abs=0.005)  # the catalogue's 0.483
+        assert quality["max_prediction_variance"] == pytest.approx(2 / 3)
+
+
+@pytest.fixture(scope="module")
+def catalyst_runs() -> tuple[pd.DataFrame, str]:
+    """Return a 24-run design with a three-level catalyst, a simulated response, and the formula recorded."""
+    result = generate_design(WITH_CATALYST, budget=24, random_state=2)
+    design = result.design.drop(columns="RunOrder")
+    y = (
+        10 * design["x1"]
+        + 12 * design["x2"]
+        + 8 * design["x3"]
+        + 6 * design["x1"] * design["x2"]
+        + 2 * design["x1"] * design["T"]
+        + 1.5 * design["x3"] * (design["catalyst"] == "C")
+        + np.random.default_rng(0).normal(0.0, NOISE_SD, len(design))
+    )
+    return design.assign(y=y.astype(float)), result.metadata["formula"]
+
+
+class TestCategoricalAnalysis:
+    def test_full_rank_fit_that_recovers_the_blending(self, catalyst_runs: tuple[pd.DataFrame, str]) -> None:
+        data, formula = catalyst_runs
+        out = analyze_experiment(data, response_column="y", model=formula, analysis_type="coefficients", sigma=NOISE_SD)
+        assert out["model_summary"]["rank_deficient"] is False
+        table = pd.DataFrame(out["coefficients"]).set_index("term")
+        assert "T:catalyst[S.A]" in table.index
+        # Sum-to-zero coding: x3 is the average over the catalysts, 8 + 1.5 / 3; C is 1.5 above it, A and B 0.5 below.
+        assert table.loc["x3", "coefficient"] == pytest.approx(8.5, abs=5 * table.loc["x3", "std_error"])
+        assert table.loc["x3:catalyst[S.A]", "coefficient"] == pytest.approx(
+            -0.5, abs=5 * table.loc["x3:catalyst[S.A]", "std_error"]
+        )
+
+    @pytest.mark.parametrize("analysis_type", ["effects", "lenth_method"])
+    def test_effects_are_refused_beside_components(
+        self, catalyst_runs: tuple[pd.DataFrame, str], analysis_type: str
+    ) -> None:
+        data, formula = catalyst_runs
+        with pytest.raises(ValueError, match="mixture components, which are proportions that sum to 1, have none"):
+            analyze_experiment(data, response_column="y", model=formula, analysis_type=analysis_type)

@@ -185,7 +185,7 @@ def _jsonable(value: Any) -> Any:  # noqa: ANN401
         "(Latin hypercube, maximin, MaxPro, uniform, Sobol, Halton). Constraints in actual units, a candidate set, "
         "fixed runs and blocks are supported. "
         "Each factor needs a name and type ('continuous', 'categorical', or 'mixture'); mixture components "
-        "beside continuous process factors get an optimal mixture-process design. "
+        "beside continuous or categorical process factors get an optimal mixture-process design. "
         "Continuous factors require 'low' and 'high' bounds. Categorical factors require 'levels'. "
         "If design_type is not specified, one is auto-selected based on the number of factors and budget. "
         "Returns the design matrix in both coded (-1/+1) and actual units, run order, and metadata, "

@@ -29,7 +29,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import EvalFactor, ModelDesc, Sum, Term, build_design_matrices, dmatrix
+from patsy import EvalFactor, ModelDesc, Sum, Term, Treatment, build_design_matrices, dmatrix
 from patsy import categorical as patsy_categorical
 from patsy.design_info import DesignInfo
 from scipy import stats
@@ -38,7 +38,7 @@ from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
-from process_improve.experiments.designs_mixture_process import mixture_process_model
+from process_improve.experiments.designs_mixture_process import ReducedRank, category_levels, mixture_process_model
 from process_improve.experiments.designs_three_level import MODULUS
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.factor import DesignResult, FactorType
@@ -115,6 +115,7 @@ class _EvalContext:
     design_type: str | None = None
     is_scheffe: bool = False  # a Scheffé mixture model (no intercept; linear blending terms)
     blending_terms: frozenset[str] = frozenset()  # the linear blending terms of a mixture or mixture-process model
+    reduced_rank: bool = False  # every categorical in L - 1 columns: a mixture-process model has no intercept
     categorical_coding: str = "effect"
     integration: str = "sample"  # the region average: "sample" or "exact" (quadrature over the cube)
     max_search: str = "sample"  # the region maximum: "sample" or "optimize" (a local search from the best points)
@@ -128,7 +129,7 @@ class _EvalContext:
     @property
     def patsy_data(self) -> dict[str, Any] | pd.DataFrame:
         """The design as patsy reads it: each categorical column carries its contrast."""
-        return _patsy_data(self.design_df, self.categorical_coding)
+        return _patsy_data(self.design_df, self.categorical_coding, self.reduced_rank)
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +154,9 @@ def _roman(n: int) -> str:
 CATEGORICAL_CODINGS = ("effect", "treatment")
 
 
-def _patsy_data(design_df: pd.DataFrame, categorical_coding: str) -> dict[str, Any] | pd.DataFrame:
+def _patsy_data(
+    design_df: pd.DataFrame, categorical_coding: str, reduced_rank: bool = False
+) -> dict[str, Any] | pd.DataFrame:
     """Return the data handed to patsy, each categorical (label) column carrying its contrast.
 
     With ``"effect"`` coding a categorical column gets patsy's ``Sum`` contrast: a
@@ -164,6 +167,10 @@ def _patsy_data(design_df: pd.DataFrame, categorical_coding: str) -> dict[str, A
     read ``C[S.y]`` and ``A:C[S.y]``, and a formula that names a contrast itself
     (``C(cat, Treatment)``) overrides it. ``"treatment"`` returns the data unchanged, so
     patsy's default treatment (0/1) coding applies.
+
+    With ``reduced_rank`` (a mixture-process model, which has no intercept) every contrast
+    is wrapped in :class:`~process_improve.experiments.designs_mixture_process.ReducedRank`,
+    so a categorical factor takes ``L - 1`` columns in every term it appears in.
     """
     if categorical_coding not in CATEGORICAL_CODINGS:
         raise ValueError(
@@ -171,13 +178,19 @@ def _patsy_data(design_df: pd.DataFrame, categorical_coding: str) -> dict[str, A
             f"got {categorical_coding!r}."
         )
     labels = [str(name) for name, column in design_df.items() if not pd.api.types.is_numeric_dtype(column)]
-    if categorical_coding == "treatment" or not labels:
+    if not labels or (categorical_coding == "treatment" and not reduced_rank):
         return design_df
     data: dict[str, Any] = {str(name): column for name, column in design_df.items()}
     for name in labels:
         column = design_df[name]
         n_levels = len(column.cat.categories) if isinstance(column.dtype, pd.CategoricalDtype) else column.nunique()
-        contrast = Sum(omit=0) if n_levels == 2 and name != "Block" else Sum
+        contrast: Any
+        if categorical_coding == "treatment":
+            contrast = Treatment()
+        else:
+            contrast = Sum(omit=0) if n_levels == 2 and name != "Block" else Sum
+        if reduced_rank:
+            contrast = ReducedRank(contrast() if contrast is Sum else contrast)
         data[name] = patsy_categorical.C(column, contrast)
     return data
 
@@ -187,6 +200,7 @@ def _build_model_matrix(
     model: str | None,
     factor_names: list[str],
     categorical_coding: str = "effect",
+    reduced_rank: bool = False,
 ) -> tuple[np.ndarray, list[str], DesignInfo]:
     """Build the expanded model matrix *X* using patsy.
 
@@ -201,6 +215,9 @@ def _build_model_matrix(
         Ordered factor names.
     categorical_coding : {"effect", "treatment"}
         How a categorical (label) column is coded; see :func:`_patsy_data`.
+    reduced_rank : bool
+        Code every categorical factor in ``L - 1`` columns, as a model without an
+        intercept needs; see :func:`_patsy_data`.
 
     Returns
     -------
@@ -249,7 +266,7 @@ def _build_model_matrix(
     # Patsy evaluates each term as Python, so a custom ``model`` is a code-
     # execution vector. Permit only safe column arithmetic, with I()/Q() (SEC-14).
     validate_formula_is_safe(rhs, design_df.columns, allow_transforms=True)
-    dm = dmatrix(rhs, _patsy_data(design_df, categorical_coding), return_type="dataframe")
+    dm = dmatrix(rhs, _patsy_data(design_df, categorical_coding, reduced_rank), return_type="dataframe")
     X = np.asarray(dm, dtype=float)
     column_names = list(dm.columns)
     return X, column_names, dm.design_info
@@ -299,8 +316,9 @@ def _blending_terms(req: _EvalRequest) -> frozenset[str]:
 
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
+    reduced_rank = isinstance(req.region, DesignRegion) and req.region.kind == "mixture_process"
     X, column_names, design_info = _build_model_matrix(
-        req.design_df, req.model, req.factor_names, req.categorical_coding
+        req.design_df, req.model, req.factor_names, req.categorical_coding, reduced_rank
     )
     N, p = X.shape
 
@@ -345,6 +363,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         design_type=req.design_type,
         is_scheffe=req.model in SCHEFFE_MODELS,
         blending_terms=_blending_terms(req),
+        reduced_rank=reduced_rank,
         categorical_coding=req.categorical_coding,
         integration=req.integration,
         max_search=req.max_search,
@@ -706,7 +725,7 @@ def _mixture_process_formula(
     mixture = [f.name for f in region.factors if f.type == FactorType.mixture]
     process = [f.name for f in region.factors if f.type != FactorType.mixture]
     try:
-        return mixture_process_model(mixture, process, model).formula_rhs()
+        return mixture_process_model(mixture, process, model, category_levels(region.factors)).formula_rhs()
     except ValueError:  # not a model name: an explicit formula
         return model
 
@@ -1801,7 +1820,9 @@ def _clear_effects_from_correlation(ctx: _EvalContext) -> tuple[list[str], list[
     """
     names = ctx.factor_names
     rhs = f"({' + '.join(names)}) ** 2" if len(names) > 1 else names[0]
-    dm = dmatrix(rhs, _patsy_data(ctx.design_df[names], ctx.categorical_coding), return_type="dataframe")
+    dm = dmatrix(
+        rhs, _patsy_data(ctx.design_df[names], ctx.categorical_coding, ctx.reduced_rank), return_type="dataframe"
+    )
     X = np.asarray(dm, dtype=float)
     terms: list[tuple[tuple[str, ...], list[int]]] = [
         (tuple(f.name() for f in term.factors), list(range(sl.start, sl.stop)))
