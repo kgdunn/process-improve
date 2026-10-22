@@ -2272,8 +2272,8 @@ def _check_every_level_runs(region: _Region, cats: np.ndarray) -> None:
         if empty:
             shown = ", ".join(f"{f.name} = {level!r}" for level in empty)
             raise ValueError(
-                f"No setting the constraints allow has {shown}: the limits that apply there leave nothing. "
-                "Loosen them, or remove that level from the factor."
+                f"No candidate the constraints allow has {shown}: the limits that apply there (or the candidates "
+                "supplied) leave that level without a run. Loosen them, or remove that level from the factor."
             )
 
 

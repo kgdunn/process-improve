@@ -188,7 +188,7 @@ class TestDesign:
         assert "inestimable_columns" not in meta
 
     def test_a_level_the_limits_leave_empty_is_refused(self) -> None:
-        with pytest.raises(ValueError, match="No setting the constraints allow has catalyst = 'C'"):
+        with pytest.raises(ValueError, match="No candidate the constraints allow has catalyst = 'C'"):
             _design("not (catalyst == 'C' and T > 140)")
 
     def test_a_fixed_run_in_a_disallowed_cell_is_counted_outside(self) -> None:
@@ -350,6 +350,13 @@ class TestGenerateAndEvaluate:
         p, n = 14, 20  # 15 interaction-model coefficients, one lost to the missing cell
         log_det = p * np.log(result["d_efficiency"] * n / 100)
         assert log_det == pytest.approx(design.metadata["log_det_information"])
+
+    def test_a_factor_outside_the_region_is_held_at_the_designs_values(self, design: DesignResult) -> None:
+        frame = design.design.copy()
+        frame["extra"] = np.resize([-1.0, 1.0], len(frame))
+        result = evaluate_design(frame, region=DesignRegion(FACTORS, RULES), metric="d_efficiency")
+        assert result["d_efficiency"] is not None
+        assert "inestimable_columns" in result["notes"]
 
     def test_the_average_variance_is_over_the_allowed_region(self) -> None:
         design = generate_design(FACTORS, design_type="i_optimal", budget=20, constraints=RULES, random_state=1)

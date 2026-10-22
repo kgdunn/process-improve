@@ -408,11 +408,17 @@ def _columns_the_rules_leave(req: _EvalRequest, X: np.ndarray, design_info: Desi
         return None
     if any(name not in req.design_df.columns for name in [f.name for f in region.factors]):
         return None
-    sample = region.sample_frame(_RULES_SAMPLE, np.random.default_rng(0))
+    rng = np.random.default_rng(0)
+    sample = region.sample_frame(_RULES_SAMPLE, rng)
+    for name in req.factor_names:
+        if name not in sample.columns:  # a factor the region does not name: at the design's own values
+            sample[name] = rng.choice(req.design_df[name].unique(), size=len(sample))
     seen = np.ones(len(sample), dtype=bool)
     for f in region.factors:
         if f.type == FactorType.categorical:
             seen &= sample[f.name].isin(req.design_df[f.name].unique()).to_numpy()
+    if not seen.any():
+        return None
     (rows,) = build_design_matrices([design_info], sample[seen][req.factor_names], return_type="matrix")
     kept = independent_columns(np.asarray(rows, dtype=float))
     return None if len(kept) == X.shape[1] else kept

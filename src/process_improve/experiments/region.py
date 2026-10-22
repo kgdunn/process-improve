@@ -157,13 +157,8 @@ class DesignRegion:
 
             categorical = {f.name: list(f.levels or []) for f in self.factors if f.type == FactorType.categorical}
             self._plain, self.rules = compile_rules(self.constraints, self.names, categorical)
-        self._inequalities = self._build_inequalities()
+        self._inequalities = self._build_inequalities()  # a mixture-process region refuses rules here
         self._cache: dict[str, Any] = {}
-        if self.kind == "mixture_process" and self._parts[1].rules is not None:
-            raise ValueError(
-                "Constraints on categorical factors are not supported beside mixture components yet; give them "
-                "for a design of process factors only."
-            )
 
     # -- construction ---------------------------------------------------------
 
