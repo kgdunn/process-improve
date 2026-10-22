@@ -10762,11 +10762,11 @@
     },
     {
      "name": "R",
-     "description": "Ratio of original to re-posted content",
-     "low": "1:2",
-     "high": "2:1",
-     "units": "",
-     "type": "categorical"
+     "description": "Ratio of original to re-posted content, coded: -1 for 1:2, +1 for 2:1, 0 for 1:1",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
     },
     {
      "name": "T",

@@ -31467,19 +31467,19 @@
    "factors": [
     {
      "name": "brand",
-     "description": "brand of popcorn (centre: half and half)",
-     "low": "ordinary",
-     "high": "gourmet",
-     "units": "",
-     "type": "categorical"
+     "description": "brand of popcorn, as the share of gourmet: 0 ordinary, 1 gourmet, 0.5 half and half",
+     "low": 0,
+     "high": 1,
+     "units": "share of gourmet",
+     "type": "numeric"
     },
     {
      "name": "ratio",
-     "description": "ratio of popcorn to oil",
-     "low": "low",
-     "high": "high",
-     "units": "",
-     "type": "categorical"
+     "description": "ratio of popcorn to oil, coded: -1 low, +1 high",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
     },
     {
      "name": "batch",
@@ -35389,11 +35389,11 @@
    "factors": [
     {
      "name": "time",
-     "description": "addition time of one reactant",
-     "low": "2:50",
-     "high": "3:10",
-     "units": "h:min",
-     "type": "categorical"
+     "description": "addition time of one reactant, 2:50 to 3:10 h:min",
+     "low": 170,
+     "high": 190,
+     "units": "min",
+     "type": "numeric"
     },
     {
      "name": "stirring",
@@ -35589,11 +35589,11 @@
    "factors": [
     {
      "name": "time",
-     "description": "addition time of one reactant",
-     "low": "2:35",
-     "high": "3:25",
-     "units": "h:min",
-     "type": "categorical"
+     "description": "addition time of one reactant, 2:35 to 3:25 h:min",
+     "low": 155,
+     "high": 205,
+     "units": "min",
+     "type": "numeric"
     },
     {
      "name": "stirring",
@@ -35786,11 +35786,11 @@
    "factors": [
     {
      "name": "time",
-     "description": "addition time of one reactant",
-     "low": "2:30",
-     "high": "3:00",
-     "units": "h:min",
-     "type": "categorical"
+     "description": "addition time of one reactant, 2:30 to 3:00 h:min",
+     "low": 150,
+     "high": 180,
+     "units": "min",
+     "type": "numeric"
     },
     {
      "name": "temperature",
@@ -36180,11 +36180,11 @@
    "factors": [
     {
      "name": "time",
-     "description": "addition time of one reactant",
-     "low": "2:15",
-     "high": "2:45",
-     "units": "h:min",
-     "type": "categorical"
+     "description": "addition time of one reactant, 2:15 to 2:45 h:min",
+     "low": 135,
+     "high": 165,
+     "units": "min",
+     "type": "numeric"
     },
     {
      "name": "temperature",
@@ -45253,35 +45253,35 @@
    "factors": [
     {
      "name": "g1",
-     "description": "total daily insolation",
-     "low": "L",
-     "high": "H",
-     "units": "",
-     "type": "categorical"
+     "description": "total daily insolation, coded: -1 L, +1 H",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
     },
     {
      "name": "g2",
-     "description": "tank storage capacity",
-     "low": "L",
-     "high": "H",
-     "units": "",
-     "type": "categorical"
+     "description": "tank storage capacity, coded: -1 L, +1 H",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
     },
     {
      "name": "g3",
-     "description": "water mass flow rate through the absorber",
-     "low": "L",
-     "high": "H",
-     "units": "",
-     "type": "categorical"
+     "description": "water mass flow rate through the absorber, coded: -1 L, +1 H",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
     },
     {
      "name": "g4",
-     "description": "intermittency of the input solar radiation",
-     "low": "L",
-     "high": "H",
-     "units": "",
-     "type": "categorical"
+     "description": "intermittency of the input solar radiation, coded: -1 L, +1 H",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
     }
    ],
    "responses": [
@@ -45655,11 +45655,11 @@
    "factors": [
     {
      "name": "brand",
-     "description": "chemical brand (centre: a 50-50 mixture)",
-     "low": "A",
-     "high": "B",
-     "units": "",
-     "type": "categorical"
+     "description": "chemical brand, as the share of brand B: 0 brand A, 1 brand B, 0.5 a 50-50 mixture",
+     "low": 0,
+     "high": 1,
+     "units": "share of brand B",
+     "type": "numeric"
     },
     {
      "name": "temperature",
@@ -45671,11 +45671,11 @@
     },
     {
      "name": "stirring",
-     "description": "stirring (centre: intermediate)",
-     "low": "none",
-     "high": "fast",
-     "units": "",
-     "type": "categorical"
+     "description": "stirring (centre: intermediate), coded: -1 none, +1 fast",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
     }
    ],
    "responses": [

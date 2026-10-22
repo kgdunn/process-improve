@@ -636,8 +636,8 @@
     {
      "name": "T",
      "description": "reactor temperature",
-     "low": null,
-     "high": null,
+     "low": 322,
+     "high": 354,
      "levels": ["322", "330", "338", "346", "354"],
      "units": "K",
      "type": "numeric"
@@ -645,8 +645,8 @@
     {
      "name": "S",
      "description": "feed substrate concentration",
-     "low": null,
-     "high": null,
+     "low": 0.75,
+     "high": 1.75,
      "levels": ["0.75", "1.0", "1.25", "1.5", "1.75"],
      "units": "g/L",
      "type": "numeric"
@@ -5601,8 +5601,8 @@
     {
      "name": "T",
      "description": "temperature of the bioreactor",
-     "low": null,
-     "high": null,
+     "low": 330,
+     "high": 340,
      "levels": [330, 335, 340, 339],
      "units": "K",
      "type": "numeric"
@@ -5610,8 +5610,8 @@
     {
      "name": "S",
      "description": "substrate concentration",
-     "low": null,
-     "high": null,
+     "low": 1.36,
+     "high": 2.58,
      "levels": [1.36, 1.97, 2.58, 1.37],
      "units": "g/L",
      "type": "numeric"
@@ -12077,8 +12077,8 @@
     {
      "name": "T",
      "description": "Temperature",
-     "low": "150",
-     "high": "200",
+     "low": 150,
+     "high": 200,
      "levels": null,
      "units": "°C",
      "type": "numeric"
@@ -12086,8 +12086,8 @@
     {
      "name": "t",
      "description": "Reaction time",
-     "low": "10",
-     "high": "40",
+     "low": 10,
+     "high": 40,
      "levels": null,
      "units": "min",
      "type": "numeric"
@@ -12095,8 +12095,8 @@
     {
      "name": "C",
      "description": "Catalyst loading",
-     "low": "0.5",
-     "high": "2.0",
+     "low": 0.5,
+     "high": 2.0,
      "levels": null,
      "units": "mol%",
      "type": "numeric"
@@ -12104,8 +12104,8 @@
     {
      "name": "P",
      "description": "Pressure",
-     "low": "2",
-     "high": "10",
+     "low": 2,
+     "high": 10,
      "levels": null,
      "units": "bar",
      "type": "numeric"
@@ -12113,8 +12113,8 @@
     {
      "name": "S",
      "description": "Stirrer speed",
-     "low": "300",
-     "high": "900",
+     "low": 300,
+     "high": 900,
      "levels": null,
      "units": "rpm",
      "type": "numeric"
@@ -12122,8 +12122,8 @@
     {
      "name": "R",
      "description": "Feed molar ratio",
-     "low": "1.0",
-     "high": "1.5",
+     "low": 1.0,
+     "high": 1.5,
      "levels": null,
      "units": "",
      "type": "numeric"
@@ -12744,8 +12744,8 @@
     {
      "name": "T",
      "description": "Temperature",
-     "low": "150",
-     "high": "200",
+     "low": 150,
+     "high": 200,
      "levels": null,
      "units": "°C",
      "type": "numeric"
@@ -12753,8 +12753,8 @@
     {
      "name": "t",
      "description": "Reaction time",
-     "low": "10",
-     "high": "40",
+     "low": 10,
+     "high": 40,
      "levels": null,
      "units": "min",
      "type": "numeric"
@@ -12762,8 +12762,8 @@
     {
      "name": "C",
      "description": "Catalyst loading",
-     "low": "0.5",
-     "high": "2.0",
+     "low": 0.5,
+     "high": 2.0,
      "levels": null,
      "units": "mol%",
      "type": "numeric"
@@ -16055,8 +16055,8 @@
     {
      "name": "C",
      "description": "agitation rate; coded C = (agitation rate - 50 rpm)/5 rpm",
-     "low": null,
-     "high": null,
+     "low": 45,
+     "high": 55,
      "levels": null,
      "units": "rpm",
      "type": "numeric"
@@ -16850,64 +16850,64 @@
     {
      "name": "A",
      "description": "mold temperature",
-     "low": null,
-     "high": null,
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "B",
      "description": "moisture content",
-     "low": null,
-     "high": null,
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "C",
      "description": "holding pressure",
-     "low": null,
-     "high": null,
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "D",
      "description": "cavity thickness",
-     "low": null,
-     "high": null,
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "E",
      "description": "booster pressure",
-     "low": null,
-     "high": null,
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "F",
      "description": "cycle time",
-     "low": null,
-     "high": null,
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "G",
      "description": "gate size",
-     "low": null,
-     "high": null,
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     }
    ],
@@ -16943,7 +16943,7 @@
     "columns": ["BM93.e3.data[1:8, 2:10]"],
     "notes": "The text says the data are in the R package BsMD: library(BsMD); data(BM93.e3.data); X <- BM93.e3.data[1:8, 2:10] (code block lines 953-959). The 8 runs are also printed in full in the table."
    },
-   "notes": "Questions on this page are unnumbered admonitions in the book; the number here counts the 'Question' admonitions in file order (17 in all). The literalincluded R file (fractional-factorial-question.R) fits the model and draws the Pareto plot; its y vector matches the table, and the RST prints no output from it. The C alias list spans lines 1014-1028, E's 2fi aliases lines 1032-1034 and A's lines 1038-1040. Coefficients are checked with the main-effects model A + B + C + D + E + F + G (saturated), and Lenth's margins on the coefficients' scale, as the solution quotes them (line 1008). The generators are checked against the library's resolution-III fraction in seven factors (the trade-off table's choice); the defining relation, resolution and aliases against the fraction made with the book's generators. The defining relation's check lists the book's words separated by commas instead of its '=' signs, the form the check reads.",
+   "notes": "Questions on this page are unnumbered admonitions in the book; the number here counts the 'Question' admonitions in file order (17 in all). The literalincluded R file (fractional-factorial-question.R) fits the model and draws the Pareto plot; its y vector matches the table, and the RST prints no output from it. The C alias list spans lines 1014-1028, E's 2fi aliases lines 1032-1034 and A's lines 1038-1040. Coefficients are checked with the main-effects model A + B + C + D + E + F + G (saturated), and Lenth's margins on the coefficients' scale, as the solution quotes them (line 1008). The generators are checked against the library's resolution-III fraction in seven factors (the trade-off table's choice); the defining relation, resolution and aliases against the fraction made with the book's generators. The defining relation's check lists the book's words separated by commas instead of its '=' signs, the form the check reads. The source gives the settings in coded units only, so each factor runs from -1 to +1.",
    "expected": [
     {
      "what": "other",
@@ -19434,8 +19434,8 @@
     {
      "name": "concentration",
      "description": "Concentration; easy-to-change; code range (2.0, 8.0); coded -1 to +1 in design.design",
-     "low": "2",
-     "high": "8",
+     "low": 2,
+     "high": 8,
      "levels": null,
      "units": "umol/L",
      "type": "numeric"
@@ -19443,8 +19443,8 @@
     {
      "name": "co_solvent",
      "description": "Co-solvent fraction; HARD-to-change (whole-plot factor); code range (5.0, 25.0); coded -1 to +1",
-     "low": "5",
-     "high": "25",
+     "low": 5,
+     "high": 25,
      "levels": null,
      "units": "% v/v",
      "type": "numeric"
@@ -19452,8 +19452,8 @@
     {
      "name": "pH",
      "description": "pH; easy-to-change; code range (4.0, 7.0); coded -1 to +1",
-     "low": "4.0",
-     "high": "7.0",
+     "low": 4.0,
+     "high": 7.0,
      "levels": null,
      "units": "",
      "type": "numeric"
@@ -19461,8 +19461,8 @@
     {
      "name": "temperature",
      "description": "Temperature; HARD-to-change (whole-plot factor); code range (15.0, 35.0); coded -1 to +1",
-     "low": "15",
-     "high": "35",
+     "low": 15,
+     "high": 35,
      "levels": null,
      "units": "degC",
      "type": "numeric"
@@ -25554,28 +25554,28 @@
     {
      "name": "A",
      "description": "generic factor; the book gives no name, units or levels",
-     "low": "-",
-     "high": "+",
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "B",
      "description": "generic factor; the book gives no name, units or levels",
-     "low": "-",
-     "high": "+",
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
      "name": "C",
      "description": "generic factor; the book gives no name, units or levels",
-     "low": "-",
-     "high": "+",
+     "low": -1,
+     "high": 1,
      "levels": null,
-     "units": "",
+     "units": "coded",
      "type": "numeric"
     },
     {
@@ -45405,8 +45405,8 @@
     {
      "name": "T",
      "description": "Temperature",
-     "low": "150",
-     "high": "200",
+     "low": 150,
+     "high": 200,
      "levels": null,
      "units": "°C",
      "type": "numeric"
@@ -45414,8 +45414,8 @@
     {
      "name": "t",
      "description": "Reaction time",
-     "low": "10",
-     "high": "40",
+     "low": 10,
+     "high": 40,
      "levels": null,
      "units": "min",
      "type": "numeric"
@@ -45423,8 +45423,8 @@
     {
      "name": "C",
      "description": "Catalyst loading",
-     "low": "0.5",
-     "high": "2.0",
+     "low": 0.5,
+     "high": 2.0,
      "levels": null,
      "units": "mol%",
      "type": "numeric"
@@ -45577,8 +45577,8 @@
     {
      "name": "T",
      "description": "Temperature",
-     "low": "150",
-     "high": "200",
+     "low": 150,
+     "high": 200,
      "levels": null,
      "units": "°C",
      "type": "numeric"
@@ -45586,8 +45586,8 @@
     {
      "name": "t",
      "description": "Reaction time",
-     "low": "10",
-     "high": "40",
+     "low": 10,
+     "high": 40,
      "levels": null,
      "units": "min",
      "type": "numeric"
@@ -45595,8 +45595,8 @@
     {
      "name": "C",
      "description": "Catalyst loading",
-     "low": "0.5",
-     "high": "2.0",
+     "low": 0.5,
+     "high": 2.0,
      "levels": null,
      "units": "mol%",
      "type": "numeric"
@@ -45712,8 +45712,8 @@
     {
      "name": "T",
      "description": "Temperature",
-     "low": "150",
-     "high": "200",
+     "low": 150,
+     "high": 200,
      "levels": null,
      "units": "°C",
      "type": "numeric"
@@ -45721,8 +45721,8 @@
     {
      "name": "t",
      "description": "Reaction time",
-     "low": "10",
-     "high": "40",
+     "low": 10,
+     "high": 40,
      "levels": null,
      "units": "min",
      "type": "numeric"
@@ -45730,8 +45730,8 @@
     {
      "name": "C",
      "description": "Catalyst loading",
-     "low": "0.5",
-     "high": "2.0",
+     "low": 0.5,
+     "high": 2.0,
      "levels": null,
      "units": "mol%",
      "type": "numeric"
@@ -46048,12 +46048,12 @@
     },
     {
      "name": "G",
-     "description": "heap of soil, G = ABC",
-     "low": "Heap 1",
-     "high": "Heap 2",
+     "description": "the heap of soil, as the share of the second: 0 the first, 1 the second, 0.5 a 50/50 blend",
+     "low": 0,
+     "high": 1,
      "levels": null,
-     "units": "",
-     "type": "categorical"
+     "units": "share of the second soil",
+     "type": "numeric"
     }
    ],
    "responses": [],
@@ -46361,8 +46361,8 @@
     {
      "name": "concentration",
      "description": "Concentration; easy-to-change; code range (2.0, 8.0); coded -1 to +1 in design.design",
-     "low": "2",
-     "high": "8",
+     "low": 2,
+     "high": 8,
      "levels": null,
      "units": "umol/L",
      "type": "numeric"
@@ -46370,8 +46370,8 @@
     {
      "name": "co_solvent",
      "description": "Co-solvent fraction; HARD-to-change (whole-plot factor); code range (5.0, 25.0); coded -1 to +1",
-     "low": "5",
-     "high": "25",
+     "low": 5,
+     "high": 25,
      "levels": null,
      "units": "% v/v",
      "type": "numeric"
@@ -46379,8 +46379,8 @@
     {
      "name": "pH",
      "description": "pH; easy-to-change; code range (4.0, 7.0); coded -1 to +1",
-     "low": "4.0",
-     "high": "7.0",
+     "low": 4.0,
+     "high": 7.0,
      "levels": null,
      "units": "",
      "type": "numeric"
@@ -46388,8 +46388,8 @@
     {
      "name": "temperature",
      "description": "Temperature; HARD-to-change (whole-plot factor); code range (15.0, 35.0); coded -1 to +1",
-     "low": "15",
-     "high": "35",
+     "low": 15,
+     "high": 35,
      "levels": null,
      "units": "degC",
      "type": "numeric"
@@ -46605,8 +46605,8 @@
     {
      "name": "concentration",
      "description": "Concentration; easy-to-change; code range (2.0, 8.0); coded -1 to +1 in design.design",
-     "low": "2",
-     "high": "8",
+     "low": 2,
+     "high": 8,
      "levels": null,
      "units": "umol/L",
      "type": "numeric"
@@ -46614,8 +46614,8 @@
     {
      "name": "co_solvent",
      "description": "Co-solvent fraction; HARD-to-change (whole-plot factor); code range (5.0, 25.0); coded -1 to +1",
-     "low": "5",
-     "high": "25",
+     "low": 5,
+     "high": 25,
      "levels": null,
      "units": "% v/v",
      "type": "numeric"
@@ -46623,8 +46623,8 @@
     {
      "name": "pH",
      "description": "pH; easy-to-change; code range (4.0, 7.0); coded -1 to +1",
-     "low": "4.0",
-     "high": "7.0",
+     "low": 4.0,
+     "high": 7.0,
      "levels": null,
      "units": "",
      "type": "numeric"
@@ -46632,8 +46632,8 @@
     {
      "name": "temperature",
      "description": "Temperature; HARD-to-change (whole-plot factor); code range (15.0, 35.0); coded -1 to +1",
-     "low": "15",
-     "high": "35",
+     "low": 15,
+     "high": 35,
      "levels": null,
      "units": "degC",
      "type": "numeric"
@@ -46849,8 +46849,8 @@
     {
      "name": "concentration",
      "description": "Concentration; easy-to-change; code range (2.0, 8.0); coded -1 to +1 in design.design",
-     "low": "2",
-     "high": "8",
+     "low": 2,
+     "high": 8,
      "levels": null,
      "units": "umol/L",
      "type": "numeric"
@@ -46858,8 +46858,8 @@
     {
      "name": "co_solvent",
      "description": "Co-solvent fraction; HARD-to-change (whole-plot factor); code range (5.0, 25.0); coded -1 to +1",
-     "low": "5",
-     "high": "25",
+     "low": 5,
+     "high": 25,
      "levels": null,
      "units": "% v/v",
      "type": "numeric"
@@ -46867,8 +46867,8 @@
     {
      "name": "pH",
      "description": "pH; easy-to-change; code range (4.0, 7.0); coded -1 to +1",
-     "low": "4.0",
-     "high": "7.0",
+     "low": 4.0,
+     "high": 7.0,
      "levels": null,
      "units": "",
      "type": "numeric"
@@ -46876,8 +46876,8 @@
     {
      "name": "temperature",
      "description": "Temperature; HARD-to-change (whole-plot factor); code range (15.0, 35.0); coded -1 to +1",
-     "low": "15",
-     "high": "35",
+     "low": 15,
+     "high": 35,
      "levels": null,
      "units": "degC",
      "type": "numeric"
@@ -47099,8 +47099,8 @@
     {
      "name": "concentration",
      "description": "Concentration; easy-to-change; code range (2.0, 8.0); coded -1 to +1 in design.design",
-     "low": "2",
-     "high": "8",
+     "low": 2,
+     "high": 8,
      "levels": null,
      "units": "umol/L",
      "type": "numeric"
@@ -47108,8 +47108,8 @@
     {
      "name": "co_solvent",
      "description": "Co-solvent fraction; HARD-to-change (whole-plot factor); code range (5.0, 25.0); coded -1 to +1",
-     "low": "5",
-     "high": "25",
+     "low": 5,
+     "high": 25,
      "levels": null,
      "units": "% v/v",
      "type": "numeric"
@@ -47117,8 +47117,8 @@
     {
      "name": "pH",
      "description": "pH; easy-to-change; code range (4.0, 7.0); coded -1 to +1",
-     "low": "4.0",
-     "high": "7.0",
+     "low": 4.0,
+     "high": 7.0,
      "levels": null,
      "units": "",
      "type": "numeric"
@@ -47126,8 +47126,8 @@
     {
      "name": "temperature",
      "description": "Temperature; HARD-to-change (whole-plot factor); code range (15.0, 35.0); coded -1 to +1",
-     "low": "15",
-     "high": "35",
+     "low": 15,
+     "high": 35,
      "levels": null,
      "units": "degC",
      "type": "numeric"
@@ -47401,8 +47401,8 @@
     {
      "name": "concentration",
      "description": "Concentration; easy-to-change; code range (2.0, 8.0); coded -1 to +1 in design.design",
-     "low": "2",
-     "high": "8",
+     "low": 2,
+     "high": 8,
      "levels": null,
      "units": "umol/L",
      "type": "numeric"
@@ -47410,8 +47410,8 @@
     {
      "name": "co_solvent",
      "description": "Co-solvent fraction; HARD-to-change (whole-plot factor); code range (5.0, 25.0); coded -1 to +1",
-     "low": "5",
-     "high": "25",
+     "low": 5,
+     "high": 25,
      "levels": null,
      "units": "% v/v",
      "type": "numeric"
@@ -47419,8 +47419,8 @@
     {
      "name": "pH",
      "description": "pH; easy-to-change; code range (4.0, 7.0); coded -1 to +1",
-     "low": "4.0",
-     "high": "7.0",
+     "low": 4.0,
+     "high": 7.0,
      "levels": null,
      "units": "",
      "type": "numeric"
@@ -47428,8 +47428,8 @@
     {
      "name": "temperature",
      "description": "Temperature; HARD-to-change (whole-plot factor); code range (15.0, 35.0); coded -1 to +1",
-     "low": "15",
-     "high": "35",
+     "low": 15,
+     "high": 35,
      "levels": null,
      "units": "degC",
      "type": "numeric"
