@@ -1289,6 +1289,24 @@
     "n_runs": 9,
     "details": "runs 1 to 4 the factorial design, 5 to 8 the star points, 9 the centre point"
    },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A (coded only)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B (coded only)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
    "runs": {
     "columns": ["No.", "A", "B"],
     "rows": [
@@ -1363,6 +1381,32 @@
     "factors": 3,
     "n_runs": 7
    },
+   "factors": [
+    {
+     "name": "A",
+     "description": "mixture component A, a proportion",
+     "low": 0,
+     "high": 1,
+     "units": "",
+     "type": "mixture"
+    },
+    {
+     "name": "B",
+     "description": "mixture component B, a proportion",
+     "low": 0,
+     "high": 1,
+     "units": "",
+     "type": "mixture"
+    },
+    {
+     "name": "C",
+     "description": "mixture component C, a proportion",
+     "low": 0,
+     "high": 1,
+     "units": "",
+     "type": "mixture"
+    }
+   ],
    "runs": {
     "columns": ["Run no.", "A", "B", "C"],
     "rows": [
@@ -1405,6 +1449,40 @@
     "details": "inner: 2^(4-1) in design factors A, B, C, D with 3 centre runs; outer: 2^2 in the environmental factors humidity H and temperature T",
     "n_runs": 11
    },
+   "factors": [
+    {
+     "name": "A",
+     "description": "design factor A of the inner array (coded only)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "design factor B of the inner array (coded only)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "design factor C of the inner array (coded only)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "design factor D of the inner array (coded only)",
+     "low": -1,
+     "high": 1,
+     "units": "coded",
+     "type": "numeric"
+    }
+   ],
    "runs": {
     "columns": ["Run", "A", "B", "C", "D"],
     "rows": [
