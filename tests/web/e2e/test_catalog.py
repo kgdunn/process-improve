@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE
+from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE, PAIRED_DESIGN
 from tests.web.e2e._page import headers, run_sheet, settled
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
@@ -324,6 +324,22 @@ def test_a_blocked_design_opens_in_factorial_in_its_blocks(blocked_context, site
     anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
     assert "Block" in anova
     assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
+
+
+def test_a_comparison_in_pairs_opens_and_learn_compares_within_each_pair(blocked_context, site):
+    """Box, Hunter and Hunter's boys' shoes, ten pairs: Learn tests the difference within the pairs, three ways."""
+    page = open_catalog(blocked_context, site, f"#d={PAIRED_DESIGN}")
+    page.wait_for_selector("#detail[open]")
+    page.click(f"#detail-body [data-open='{PAIRED_DESIGN}']")
+    page.wait_for_selector("#campaign-banner", state="visible")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    settled(page)
+    assert page.get_attribute("#workspace", "data-phase") == "learn"
+    text = " ".join(page.text_content("#analysis").split())
+    assert "Within the 10 pairs, y is on average 0.41 higher at B than at A." in text
+    assert "within each of the 10 pairs, tested three ways" in text
+    assert "Paired t-test: the difference within each pair" in text
+    assert page.locator("#analysis [data-term='signed-rank']").count() == 1
 
 
 def test_a_published_design_opens_in_factorial_with_the_source_s_results(context, site):

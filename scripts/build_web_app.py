@@ -612,8 +612,12 @@ def _not_given(record: dict[str, Any]) -> str:
             "the source runs the design in blocks, but does not print each run's block",
         ),
         (
-            lambda: len(set(_block_numbers(blocks))) > bootstrap.MAX_BLOCKS,
-            f"the page takes runs in at most {bootstrap.MAX_BLOCKS} blocks",
+            lambda: len(set(_block_numbers(blocks))) > bootstrap.MAX_GIVEN_BLOCKS,
+            f"the page takes runs in at most {bootstrap.MAX_GIVEN_BLOCKS} blocks",
+        ),
+        (
+            lambda: len(blocks) > 1 and len(set(_block_numbers(blocks))) == len(blocks),
+            "each run is in a block of its own, so the blocks leave nothing to compare",
         ),
         (lambda: not complete, "the source prints no complete table of runs"),
         (lambda: record["n_mixture"], "the page makes mixtures of its own, but takes no mixture's runs as given"),

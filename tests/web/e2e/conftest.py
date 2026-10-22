@@ -26,6 +26,7 @@ from tests.web._support import (
     CATALOG_SAMPLE,
     ENTRY_POINT,
     FACTORS,
+    PAIRED_DESIGN,
     WEB,
     catalog_sample,
     no_bytecode,
@@ -111,9 +112,9 @@ def book_catalog_files(build_script: ModuleType, tmp_path_factory: pytest.TempPa
 
 @pytest.fixture(scope="session")
 def blocked_catalog_files(build_script: ModuleType, tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Write the catalog of ``CATALOG_SAMPLE`` and ``BLOCKED_DESIGN``, a design run in blocks; return its folder."""
+    """Write the catalog of ``CATALOG_SAMPLE`` with ``BLOCKED_DESIGN`` and ``PAIRED_DESIGN``; return its folder."""
     out = tmp_path_factory.mktemp("blocked-catalog")
-    sample = catalog_sample((*CATALOG_SAMPLE, BLOCKED_DESIGN))
+    sample = catalog_sample((*CATALOG_SAMPLE, BLOCKED_DESIGN, PAIRED_DESIGN))
     with pytest.MonkeyPatch.context() as patch, no_bytecode():
         patch.setattr(design_catalog, "catalog_records", lambda: sample)
         build_script.write_catalog(out)
@@ -229,7 +230,7 @@ def book_context(context: Any, site: str, book_catalog_files: Path) -> Any:  # n
 
 @pytest.fixture
 def blocked_context(context: Any, site: str, blocked_catalog_files: Path) -> Any:  # noqa: ANN401 - a Playwright BrowserContext
-    """Return a browser context whose catalog also holds ``BLOCKED_DESIGN``: this route is tried before the sample's."""
+    """Return a browser context whose catalog also holds the designs in blocks, routed before the sample's."""
     context.route(
         re.compile(re.escape(f"{site}catalog/") + r".+\.json$"), lambda route: _catalog(route, blocked_catalog_files)
     )

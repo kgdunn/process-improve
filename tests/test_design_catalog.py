@@ -92,7 +92,8 @@ def test_a_design_type_in_words_names_its_family(text, family):
 @pytest.mark.dataset
 def test_every_published_entry_has_a_family_and_few_have_none(records):
     published = [r for r in records if r["collection"] == "published"]
-    assert len(published) == len(reference_experiments()) + len(reference_designs())
+    entries = [*reference_experiments(), *reference_designs()]
+    assert len(published) == sum(len(design_catalog._arrangements(e)) for e in entries), "each blocking a record"
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
     # pid-book's 19 "other", two projections, and three response surface designs no family holds:
@@ -251,16 +252,85 @@ def test_an_entry_names_its_block_column_when_its_source_calls_the_blocks_someth
 
 @pytest.mark.dataset
 def test_every_block_column_an_entry_names_is_in_its_run_table_and_no_factor_of_its_record():
-    named = [e for e in [*reference_experiments(), *reference_designs()] if "blocks" in e["design"]]
-    assert len(named) >= 30
+    entries = [*reference_experiments(), *reference_designs()]
+    named = [e for e in entries if e["design"].get("blocks") or e["design"].get("blockings")]
+    assert len(named) >= 35
     sources = reference_sources()
     for entry in named:
-        column = entry["design"]["blocks"]
-        assert column in entry["runs"]["columns"], entry["name"]
-        record = design_catalog._published_record(entry, sources[entry["source"]])
-        assert column not in [f["name"] for f in record["factors"]], entry["name"]
-        assert record["blocks"] is not None
-        assert len(record["blocks"]) == len(entry["runs"]["rows"]), entry["name"]
+        for arranged in design_catalog._arrangements(entry):
+            blocks = arranged["design"]["blocks"]
+            columns = [blocks] if isinstance(blocks, str) else blocks
+            assert set(columns) <= set(entry["runs"]["columns"]), arranged["name"]
+            record = design_catalog._published_record(arranged, sources[entry["source"]])
+            assert not set(columns) & {f["name"] for f in record["factors"]}, arranged["name"]
+            assert len(record["blocks"]) == len(entry["runs"]["rows"]), arranged["name"]
+
+
+def test_a_block_of_several_columns_is_each_combination_of_their_values():
+    """Two replicates of two shifts each: a block is a shift of a replicate, and neither column is a factor."""
+    entry = {
+        "name": "shifts",
+        "design": {"type": "2^1 in two replicates of two blocks", "blocks": ["rep", "shift"]},
+        "factors": [
+            {"name": "A", "low": -1, "high": 1, "type": "numeric"},
+            {"name": "rep", "type": "categorical", "levels": ["I", "II"]},
+        ],
+        "runs": {
+            "columns": ["rep", "shift", "A", "y"],
+            "rows": [["I", 1, -1, 1.0], ["I", 2, 1, 2.0], ["II", 1, -1, 3.0], ["II", 2, 1, 4.0]],
+        },
+    }
+    record = design_catalog._published_record(entry, _SOURCE)
+    assert [f["name"] for f in record["factors"]] == ["A"]
+    assert (record["blocks"], record["n_blocks"]) == (["I / 1", "I / 2", "II / 1", "II / 2"], 4)
+
+
+def test_an_entry_can_say_it_is_run_in_no_blocks_whatever_its_text_says():
+    """Montgomery's smelting algorithms, analysed as one factor: only a later problem calls the runs blocks."""
+    entry = {
+        "name": "smelting",
+        "design": {
+            "type": "single-factor design",
+            "details": "a later problem takes the runs as blocks",
+            "blocks": False,
+        },
+        "factors": [{"name": "algorithm", "type": "categorical", "levels": ["1", "2"]}],
+        "runs": {"columns": ["algorithm", "y"], "rows": [["1", 4.9], ["2", 4.8]]},
+    }
+    record = design_catalog._published_record(entry, _SOURCE)
+    assert (record["blocked"], record["blocks"]) == (False, None)
+    assert design_catalog._published_record({**entry, "design": {"type": "in blocks"}}, _SOURCE)["blocked"]
+
+
+def test_each_way_a_source_blocks_the_runs_is_a_record_of_its_own():
+    """Davies's penicillin 2^5: in two blocks (weeks) in one example, in four (sets) in the next."""
+    rows = [[a, w, s, 1.0] for a, w, s in zip([-1, 1] * 4, ["left", "right"] * 4, [1, 2, 3, 4] * 2, strict=True)]
+    entry = {
+        "name": "penicillin",
+        "title": "Penicillin",
+        "design": {"type": "2^1 in blocks", "blockings": ["Week", "Set"]},
+        "factors": [{"name": "A", "low": -1, "high": 1, "type": "numeric"}, {"name": "Week"}, {"name": "Set"}],
+        "runs": {"columns": ["A", "Week", "Set", "y"], "rows": rows},
+    }
+    weeks, sets = design_catalog._arrangements(entry)
+    assert (weeks["name"], sets["name"], sets["title"]) == (
+        "penicillin",
+        "penicillin-in-4-blocks",
+        "Penicillin, in 4 blocks",
+    )
+    for arranged, n in ((weeks, 2), (sets, 4)):
+        record = design_catalog._published_record(arranged, _SOURCE)
+        assert ([f["name"] for f in record["factors"]], record["n_blocks"]) == (["A"], n)
+    assert design_catalog._published_record(entry, _SOURCE)["n_blocks"] == 2, (
+        "the first arrangement, unless one is named"
+    )
+
+
+@pytest.mark.dataset
+def test_the_catalog_lists_each_arrangement_once_under_its_own_name(records):
+    ids = [r["id"] for r in records]
+    assert len(ids) == len(set(ids))
+    assert {"davies-penicillin-2-5", "davies-penicillin-2-5-in-4-blocks"} <= set(ids)
 
 
 @pytest.mark.parametrize(

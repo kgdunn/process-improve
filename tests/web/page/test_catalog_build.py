@@ -189,6 +189,19 @@ def test_a_design_opens_with_each_run_s_block_as_its_source_prints_it(build_scri
     assert [f["name"] for f in campaign["design"]["spec"]["factors"]] == [f["name"] for f in record["factors"]]
 
 
+def test_runs_as_given_take_more_blocks_than_a_design_the_page_makes(build_script, few):
+    """The pilot plant's eight runs as four pairs: blocks of two, as a paired comparison's, open; 33 blocks do not."""
+    record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")
+    bootstrap = build_script.load_bootstrap()
+    assert bootstrap.MAX_GIVEN_BLOCKS > bootstrap.MAX_BLOCKS
+    many = {**record, "blocked": True, "blocks": list(range(1, bootstrap.MAX_GIVEN_BLOCKS + 2))}
+    with no_bytecode():
+        assert build_script._not_given(many) == f"the page takes runs in at most {bootstrap.MAX_GIVEN_BLOCKS} blocks"
+        campaign, reason = build_script.given_campaign({**record, "blocked": True, "blocks": [1, 1, 2, 2, 3, 3, 4, 4]})
+    assert reason == ""
+    assert campaign["design"]["spec"]["options"]["n_blocks"] == 4
+
+
 @pytest.mark.parametrize(
     ("blocks", "numbers"),
     [
@@ -236,13 +249,16 @@ def test_a_design_with_runs_the_page_makes_otherwise_opens_as_printed(build_scri
             {"blocked": True, "blocks": [1, 2, 3, None, 1, 2, 3, 1]},
             "the source runs the design in blocks, but does not print each run's block",
         ),
-        ({"blocked": True, "blocks": list(range(1, 10))}, "the page takes runs in at most 8 blocks"),
+        (
+            {"blocked": True, "blocks": [1, 2, 3, 4, 5, 6, 7, 8]},
+            "each run is in a block of its own, so the blocks leave nothing to compare",
+        ),
         ({"split_plot": True}, "the page opens designs without whole plots"),
         ({"coded_runs": None}, "the source prints no complete table of runs"),
         ({"n_mixture": 3}, "the page makes mixtures of its own, but takes no mixture's runs as given"),
         ({"coded_runs": [[0.0, -1.0, 0.0]]}, "a run sets a categorical factor between two of its levels"),
     ],
-    ids=["blocked", "a-block-not-printed", "nine-blocks", "whole-plots", "no-runs", "mixture", "a-third-level"],
+    ids=["blocked", "a-block-not-printed", "a-block-each", "whole-plots", "no-runs", "mixture", "a-third-level"],
 )
 def test_runs_the_page_cannot_take_are_not_given(build_script, few, change, reason):
     record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")

@@ -87,6 +87,7 @@ import {
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   COMPARISON_TESTS,
+  PAIRED_TESTS,
   CHOSEN_TERMS,
   FULL,
   GIVEN,
@@ -3176,7 +3177,8 @@ function comparisonWords() {
 /**
  * A study of one factor, its levels compared (``r.comparison``, as the analysis gives it): the difference between
  * the two levels and how sure it is, in a sentence; each level's runs summarised; and the difference tested four
- * ways, each test's name a word the glossary opens. The model's equation and coefficients follow, as for any study.
+ * ways, each test's name a word the glossary opens, or three ways within pairs for runs in blocks of two. The
+ * model's equation and coefficients follow, as for any study.
  */
 function comparisonParts(r) {
   const c = r.comparison;
@@ -3195,10 +3197,11 @@ function comparisonParts(r) {
     if (c.levels.length === 2) parts.push(said("hint", "A difference is tested once each level has two runs or more."));
     return parts;
   }
+  const named = d.paired ? PAIRED_TESTS : COMPARISON_TESTS;
   const tests = table(
     ["Test", "95% interval", "p-value"],
     d.tests.map((t) => [
-      `${COMPARISON_TESTS[t.test].name}: ${COMPARISON_TESTS[t.test].how}`,
+      `${named[t.test].name}: ${named[t.test].how}`,
       t.ci_low === null || t.ci_low === undefined ? "" : `${fmt(t.ci_low)} to ${fmt(t.ci_high)}`,
       pval(t.p_value),
     ]),
@@ -3209,11 +3212,12 @@ function comparisonParts(r) {
   body._cell = (row, col) => {
     if (col !== 0) return null;
     const [name, how] = row[0].split(": ");
-    const key = Object.values(COMPARISON_TESTS).find((t) => t.name === name).key;
+    const key = Object.values(named).find((t) => t.name === name).key;
     return `<span class="term" data-term="${key}">${escape(name)}</span>: ${escape(how)}`;
   };
   fillBody(body, body._rows);
-  const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, tested four ways`);
+  const ways = d.paired ? `within each of the ${d.paired} pairs, tested three ways` : "tested four ways";
+  const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, ${ways}`);
   parts.push(heading, tests, ...noteList(comparisonNotes(r)));
   return parts;
 }
@@ -3295,11 +3299,19 @@ function comparisonNotes(r) {
         `coded units ${d.from} is -1 and ${d.to} is +1, two units apart.`,
     );
   }
-  const shuffled = d.tests.find((t) => t.test === "randomization");
+  if (d.paired) {
+    notes.push(
+      `Each block holds one run at each level, so each pair's difference leaves out what its two runs share: the ` +
+        "model's test of the factor, beside its blocks, is the paired t-test squared.",
+    );
+  }
+  const shuffled = d.tests.find((t) => t.test === "randomization" || t.test === "sign_flip");
+  const [ways, what] = d.paired ? ["have their levels swapped", "patterns of swaps"] : ["be split", "splits"];
+  const runs = d.paired ? "pairs" : "runs";
   if (shuffled && !shuffled.exact) {
-    notes.push(`The runs can be split more ways than the randomization test counts: it draws ${shuffled.n_arrangements} of the splits at random.`);
+    notes.push(`The ${runs} can ${ways} more ways than the randomization test counts: it draws ${shuffled.n_arrangements} of the ${what} at random.`);
   } else if (shuffled && shuffled.ci_low === null) {
-    notes.push(`The runs can be split ${shuffled.n_arrangements} ways, too few for the randomization test to give a 95% interval.`);
+    notes.push(`The ${runs} can ${ways} ${shuffled.n_arrangements} ways, too few for the randomization test to give a 95% interval.`);
   }
   if (d.true !== null && d.true !== undefined) notes.push(`The true difference, in the process the results were simulated from: ${fmt(d.true)}.`);
   return notes;

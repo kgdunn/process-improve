@@ -9,7 +9,7 @@ compared with scipy: its one-way analysis of variance, Tukey's intervals, and Du
 A model the page cannot fit is not compared: one without an intercept, a numeric factor taken as levels, a
 square in an interaction, a cube, or an interaction of four factors or more. Neither is a number of a
 transformed or summarised response, a one-sided test, or one at another confidence. A study in blocks is
-analysed with its blocks, so only a model that names the block, as a term of its own, is compared there.
+analysed with its blocks, so only a model that names the block, as terms of its own, is compared there.
 """
 
 from __future__ import annotations
@@ -84,11 +84,11 @@ def _variable(name: str) -> str:
     return found.group(1) if found else name
 
 
-def page_terms(formula: str, spec: dict, bootstrap: Any, block: str | None = None) -> list[list[str]] | None:  # noqa: ANN401
+def page_terms(formula: str, spec: dict, bootstrap: Any, block: tuple[str, ...] = ()) -> list[list[str]] | None:  # noqa: ANN401
     """Return a model, as patsy reads it, as the page's chosen terms; None for one the page cannot fit.
 
-    A study in blocks is fitted with its blocks, so the model must name the block as a term of its own, which the
-    page's blocks are; a model without it, or with the block in an interaction, is not the page's.
+    A study in blocks is fitted with its blocks, so the model must name the block's columns as terms of their own,
+    which the page's blocks are; a model without them, or with a block column in an interaction, is not the page's.
     """
     factors = {f["name"]: f for f in spec["factors"]}
     named_block = False
@@ -99,7 +99,7 @@ def page_terms(formula: str, spec: dict, bootstrap: Any, block: str | None = Non
     terms = []
     for term in (t for t in desc.rhs_termlist if t.factors):
         variables = [_variable(f.name()) for f in term.factors]
-        if block is not None and block in variables:
+        if set(variables) & set(block):
             if len(variables) > 1:
                 return None  # the page fits no interaction with its blocks
             named_block = True
@@ -118,7 +118,7 @@ def page_terms(formula: str, spec: dict, bootstrap: Any, block: str | None = Non
         if not squared and (len(set(parts)) != len(parts) or len(parts) > 3):  # three factors at most
             return None
         terms.append(parts)
-    return terms if terms and (block is None or named_block) else None
+    return terms if terms and (not block or named_block) else None
 
 
 # --------------------------------------------------------------------------- reading the page's numbers
@@ -241,14 +241,14 @@ def _responses(entry: dict, record: dict, check: dict, n: int) -> list | None:
     return values if any(v is not None for v in values) else None
 
 
-def _page_value(result: dict, spec: dict, check: dict, n: int, bootstrap: Any, block: str | None) -> float | None:  # noqa: ANN401, PLR0913
+def _page_value(result: dict, spec: dict, check: dict, n: int, bootstrap: Any, block: tuple[str, ...]) -> float | None:  # noqa: ANN401, PLR0913
     kind = check["kind"]
     if kind in ANOVA:
         if check["term"] == "Total" and kind == "anova_df":
             return float(n - 1)
         wanted = _source_key(check["term"])
-        if block is not None and wanted == {block}:
-            wanted = frozenset({"Block"})  # the page's row of its blocks
+        if wanted <= set(block):  # the page's row of its blocks, when they are one column
+            wanted = frozenset({"Block"}) if len(block) == 1 else frozenset()
         row = next((r for r in result["anova"] if _source_key(str(r["source"])) == wanted), None)
         return None if row is None else row[ANOVA[kind]]
     if kind in FIT:
@@ -315,7 +315,7 @@ def _checked_against_scipy(result: dict, name: str) -> list[str]:
 def _printed(api: Any, bootstrap: Any, entry: dict, record: dict, design: dict) -> list[str]:  # noqa: ANN401
     """Compare the page's number for each check of the source's it shows with the library's, saying which differ."""
     spec, held = design["spec"], {key: design[key] for key in ("spec", "columns", "rows")}
-    block = design_catalog._block_column(entry) if record.get("blocks") else None
+    block = tuple(design_catalog._block_columns(entry) or ()) if record.get("blocks") else ()
     fits, replies, wrong = rc._Fits(), {}, []
     for expected in entry["expected"]:
         for check in (c for c in rc._checks(expected) if _shown(c, entry, spec)):

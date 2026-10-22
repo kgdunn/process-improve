@@ -670,26 +670,72 @@ _NOT_BLOCKED = re.compile(
 )
 
 
-def _block_column(entry: dict[str, Any]) -> str | None:
-    """Name the run table's column of each run's block: the one the entry's design names, else one called block or day.
+def _block_columns(entry: dict[str, Any]) -> list[str] | None:
+    """Name the run table's columns of each run's block: those the entry's design names, else one called block or day.
 
-    A source can name its blocks for what they are, such as batch, operator or week; the entry then says
-    so with ``design["blocks"]``, the column's name. Without it, a column called block or day is taken.
+    A source can name its blocks for what they are, such as batch, operator or week; the entry then says so
+    with ``design["blocks"]``, a column's name, or a list of them when a block is each combination of their
+    values, such as a shift within a replicate. ``design["blocks"]`` false says the design is run in no blocks,
+    whatever its text says. Of the arrangements ``design["blockings"]`` lists, the first is taken (see
+    :func:`_arrangements`). Without either, a column called block or day is taken.
     """
+    design = entry.get("design") or {}
     columns = [str(c) for c in (entry.get("runs") or {}).get("columns", [])]
-    named = (entry.get("design") or {}).get("blocks")
+    named = design.get("blocks", (design.get("blockings") or [None])[0])
+    if named is False:
+        return None
     if named is not None:
-        return str(named) if str(named) in columns else None
-    return next((c for c in columns if re.fullmatch(r"(block|day)s?", c, flags=re.IGNORECASE)), None)
+        names = [str(named)] if isinstance(named, str) else [str(c) for c in named]
+        return names if all(c in columns for c in names) else None
+    found = next((c for c in columns if re.fullmatch(r"(block|day)s?", c, flags=re.IGNORECASE)), None)
+    return [found] if found else None
 
 
-def _blocks(entry: dict[str, Any], text: str, column: str | None) -> tuple[bool, list[Any] | None]:
-    """Say whether an entry is run in blocks, and each run's block as printed when its run table has them."""
-    if column is not None:
+def _set_apart(entry: dict[str, Any]) -> set[str]:
+    """Return the columns that are no factor of the design: its blocks, and those of every other way to block it."""
+    apart = set(_block_columns(entry) or [])
+    for blocks in (entry.get("design") or {}).get("blockings") or []:
+        apart |= {blocks} if isinstance(blocks, str) else set(blocks)
+    return apart
+
+
+def _blocks(entry: dict[str, Any], text: str, columns: list[str] | None) -> tuple[bool, list[Any] | None]:
+    """Say whether an entry is run in blocks, and each run's block as printed when its run table has them.
+
+    A block of several columns is written as their values together, such as ``I / 1``.
+    """
+    if (entry.get("design") or {}).get("blocks") is False:
+        return False, None
+    if columns:
         runs = entry["runs"]
-        at = [str(c) for c in runs["columns"]].index(column)
-        return True, [row[at] for row in runs["rows"]]
+        at = [[str(c) for c in runs["columns"]].index(c) for c in columns]
+        if len(at) == 1:
+            return True, [row[at[0]] for row in runs["rows"]]
+        together = [
+            None if any(row[i] is None for i in at) else " / ".join(str(row[i]) for i in at) for row in runs["rows"]
+        ]
+        return True, together
     return bool(re.search(r"\bblock", _NOT_BLOCKED.sub(" ", text), flags=re.IGNORECASE)), None
+
+
+def _arrangements(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return an entry once for each way its source arranges the runs in blocks, as ``design["blockings"]`` lists them.
+
+    The first keeps the entry's name and title; each other is named, and titled, for its number of blocks.
+    """
+    design = entry.get("design") or {}
+    blockings = design.get("blockings") or []
+    if not blockings or "blocks" in design:
+        return [entry]
+    out = []
+    for i, blocks in enumerate(blockings):
+        arranged = {**entry, "design": {**design, "blocks": blocks}}
+        if i:
+            n = len({str(b) for b in _blocks(arranged, "", _block_columns(arranged))[1] or []})
+            title = entry.get("title", entry["name"])
+            arranged |= {"name": f"{entry['name']}-in-{n}-blocks", "title": f"{title}, in {n} blocks"}
+        out.append(arranged)
+    return out
 
 
 #: The facets :func:`design_facets` reads off the runs beyond the size and the models: unknown without runs.
@@ -715,12 +761,12 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
     text = " ".join(str(design.get(key, "")) for key in ("type", "details"))
     family = normalise_family(str(design.get("type", "")))
     # A run's block is no factor of the design: its column is kept apart as the run's block.
-    column = _block_column(entry)
-    factors = [f for f in entry.get("factors") or [] if f["name"] != column]
+    columns, apart = _block_columns(entry), _set_apart(entry)
+    factors = [f for f in entry.get("factors") or [] if f["name"] not in apart]
     kinds = [str(f.get("type", "numeric")) for f in factors]
     coded = published_runs({**entry, "factors": factors})
     responses = _response_values(entry)
-    blocked, blocks = _blocks(entry, text, column)
+    blocked, blocks = _blocks(entry, text, columns)
     n_blocks = len({str(b) for b in blocks if b is not None}) if blocks else None
     record: dict[str, Any] = {
         "id": entry["name"],
@@ -1049,8 +1095,9 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
             *(("designs", d) for d in reference_designs()),
         ]
         records += [
-            {**_published_record(entry, sources[entry["source"]]), "checks": printed_checks(entry), "listed": where}
+            {**_published_record(arranged, sources[entry["source"]]), "checks": printed_checks(entry), "listed": where}
             for where, entry in listed
+            for arranged in _arrangements(entry)
         ]
     if collection in {"both", "generated"}:
         made: set[tuple[str, frozenset]] = set()

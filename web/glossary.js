@@ -105,8 +105,8 @@ export const GLOSSARY = {
     "A t-test of the difference between two averages that keeps each level's own variance, so it holds when one " +
     "level's runs vary more than the other's.",
   "randomization-test":
-    "The difference between the levels for every way the random order could have split the runs into groups of " +
-    "these sizes. The p-value is the share of them at least as far from zero as the one observed.",
+    "The difference between the levels for every way the random order, or the coin in each pair, could have given " +
+    "the levels to the runs. The p-value is the share at least as far from zero as the one observed.",
   "one-way-anova":
     "The test of whether the averages at three levels or more differ at all: it sets how far the levels' averages " +
     "spread against how far the runs at each level spread about their own average, which is the noise.",
@@ -121,6 +121,12 @@ export const GLOSSARY = {
   "rank-sum":
     "Wilcoxon's test: the runs are ranked together, and one level's sum of ranks is compared with every way the " +
     "ranks could be split. It reads the order of the results, so one wild result moves it little.",
+  "paired-t":
+    "A t-test of the differences within pairs, each pair a block of two runs, one at each level. What the two runs " +
+    "of a pair share drops out, so the test sees less noise.",
+  "signed-rank":
+    "Wilcoxon's test for pairs: the differences are ranked by size, and the ranks' signs are compared with every " +
+    "pattern of signs they could have had. One wild pair moves it little.",
   pse: "The pseudo standard error: a robust estimate of the standard error of an effect, from the effects themselves.",
   me: "The margin of error, the individual 95% cutoff: an effect whose size exceeds it is significant on its own.",
   sme: "The simultaneous margin of error: the stricter cutoff, for scanning all the effects at once.",
@@ -235,6 +241,8 @@ export const MARKED = {
   "Welch's t-test": "welch-t",
   "randomization test": "randomization-test",
   "rank-sum test": "rank-sum",
+  "paired t-test": "paired-t",
+  "signed-rank test": "signed-rank",
   "one-way analysis of variance": "one-way-anova",
   "Tukey's intervals": "tukey",
   "Dunnett's intervals": "dunnett",
