@@ -1002,13 +1002,24 @@ export const COMPARISON_TESTS = {
 };
 
 /**
+ * The tests of the difference between one factor's two levels run in pairs, a block of two runs, one at each level:
+ * each test's name, its glossary entry and what it rests on, as for ``COMPARISON_TESTS``.
+ */
+export const PAIRED_TESTS = {
+  paired: { name: "Paired t-test", key: "paired-t", how: "the difference within each pair" },
+  sign_flip: { name: "Randomization test", key: "randomization-test", how: "every swap within the pairs" },
+  signed_rank: { name: "Signed-rank test", key: "signed-rank", how: "the order of the differences" },
+};
+
+/**
  * A study of one factor's two levels in a sentence: how far apart their averages are and which way, and whether the
  * 95% interval for the difference, from the t-test with one variance for both levels (the model's own), holds zero.
+ * Runs in pairs (``difference.paired``, the number of pairs) are compared within each pair, by the paired t-test.
  * ``words`` are the response's name and units and the factor's units; null without a difference to say.
  */
 export function comparisonSentence(comparison, { response, units = "", factorUnits = "" }) {
   const d = comparison?.difference;
-  const pooled = d?.tests.find((t) => t.test === "pooled");
+  const pooled = d?.tests.find((t) => t.test === (d.paired ? "paired" : "pooled"));
   if (!pooled || pooled.ci_low === null || pooled.ci_high === null) return null;
   const num = (x) => String(Number(Number(x).toPrecision(4)));
   const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
@@ -1020,7 +1031,10 @@ export function comparisonSentence(comparison, { response, units = "", factorUni
     pooled.ci_low <= 0 && pooled.ci_high >= 0
       ? `holds zero, so these runs do not show that ${at(d.to)} and ${at(d.from)} differ by more than their noise`
       : `lies ${pooled.ci_low > 0 ? "above" : "below"} zero, so the difference is larger than the noise in these runs`;
-  return `On average, ${response} is ${size} ${way} at ${at(d.to)} than at ${at(d.from)}. The 95% interval for the difference, ${interval}, ${verdict}.`;
+  const lead = d.paired
+    ? `Within the ${d.paired} pairs, ${response} is on average ${size} ${way} at ${at(d.to)} than at ${at(d.from)}.`
+    : `On average, ${response} is ${size} ${way} at ${at(d.to)} than at ${at(d.from)}.`;
+  return `${lead} The 95% interval for the difference, ${interval}, ${verdict}.`;
 }
 
 /**

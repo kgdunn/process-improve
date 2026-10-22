@@ -832,6 +832,37 @@ def test_the_code_for_one_factor_tests_its_two_levels_as_the_page_does(api, node
     assert javascript(node, source("python.js"), [("ARRANGEMENTS", [])]) == [bootstrap.ARRANGEMENTS]
 
 
+#: Box, Hunter and Hunter's boys' shoes: a boy is a block of two runs, a sole of each material.
+MATERIAL = {"name": "material", "low": "A", "high": "B", "units": ""}
+SOLES = [13.2, 14.0, 8.2, 8.8, 10.9, 11.2, 14.3, 14.2, 10.7, 11.8, 6.6, 6.4, 9.5, 9.8, 10.8, 11.3, 8.8, 9.3, 13.3, 13.6]
+
+
+@pytest.mark.parametrize("blank", [False, True], ids=["every run", "a run still to do"])
+def test_the_code_for_two_levels_in_pairs_tests_them_within_each_pair_as_the_page_does(api, node, blank):
+    """Ten boys, a sole of each material: the code's three tests give the page's interval and p-values."""
+    runs = [[level] for _ in range(10) for level in ("A", "B")]
+    blocks = [boy for boy in range(1, 11) for _ in (0, 1)]
+    spec = {"design_type": "given", "factors": [MATERIAL], "runs": runs, "blocks": blocks}
+    held = held_of(api.ok("api_make_design", spec))
+    responses = [None, *SOLES[1:]] if blank else SOLES
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], not blank, held["spec"], None, {"compared": True}]),
+    )
+    shown = run(code)
+    assert_same_fit(shown, analysis)
+    tests = {t["test"]: t for t in analysis["comparison"]["difference"]["tests"]}
+    assert shown["paired"]["p value"] == pytest.approx(tests["paired"]["p_value"])
+    assert [shown["paired"]["ConfInt: Lo"], shown["paired"]["ConfInt: Hi"]] == pytest.approx(
+        [tests["paired"]["ci_low"], tests["paired"]["ci_high"]]
+    )
+    assert shown["swapped"]["p_value_two_sided"] == pytest.approx(tests["sign_flip"]["p_value"])
+    assert shown["ranks"]["p_value_two_sided"] == pytest.approx(tests["signed_rank"]["p_value"])
+
+
 def test_a_study_of_more_factors_shows_no_comparison_code(node):
     assert "randomization_test" not in page_code(node, "analyseCode", "interactions", True)
 

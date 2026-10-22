@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { LEVEL_AVERAGE, levelsFigure, spreadOf } from "../../../web/charts.js";
-import { CAPTIONS, COMPARISON_TESTS, TITLES, comparisonSentence } from "../../../web/logic.js";
+import { GLOSSARY } from "../../../web/glossary.js";
+import { CAPTIONS, COMPARISON_TESTS, PAIRED_TESTS, TITLES, comparisonSentence } from "../../../web/logic.js";
 
 const COLOURS = { fg: "#111", muted: "#666", line: "#ddd", accent: "#06c" };
 
@@ -63,6 +64,38 @@ describe("the comparison of one factor's two levels, in a sentence", () => {
       Object.values(COMPARISON_TESTS).map((t) => t.key),
       ["pooled-t", "welch-t", "randomization-test", "rank-sum"],
     );
+  });
+});
+
+describe("two levels compared within pairs, a block of two runs each", () => {
+  /** The boys' shoes: ten pairs, tested within each pair three ways. */
+  const pairs = {
+    ...compared({ estimate: 0.41 }),
+    difference: {
+      estimate: 0.41,
+      from: "A",
+      to: "B",
+      true: null,
+      paired: 10,
+      tests: [
+        { test: "paired", ci_low: 0.133, ci_high: 0.687, p_value: 0.0085 },
+        { test: "sign_flip", ci_low: 0.125, ci_high: 0.7, p_value: 0.0137, exact: true, n_arrangements: 1024 },
+        { test: "signed_rank", p_value: 0.0078, exact: true },
+      ],
+    },
+  };
+
+  test("says the difference within the pairs, from the paired t-test's interval", () => {
+    assert.equal(
+      comparisonSentence(pairs, { response: "Wear" }),
+      "Within the 10 pairs, Wear is on average 0.41 higher at B than at A. The 95% interval for the difference, " +
+        "0.133 to 0.687, lies above zero, so the difference is larger than the noise in these runs.",
+    );
+  });
+
+  test("names each test the analysis gives for pairs, each with its glossary entry", () => {
+    assert.deepEqual(Object.keys(PAIRED_TESTS), pairs.difference.tests.map((t) => t.test));
+    for (const { key } of Object.values(PAIRED_TESTS)) assert.ok(GLOSSARY[key], key);
   });
 });
 

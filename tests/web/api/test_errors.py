@@ -896,8 +896,13 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     "given: too many blocks": (
         "api_make_design",
+        _make(design_type="given", runs=[[150, 1, 10]] * 66, blocks=[b for b in range(1, 34) for _ in (0, 1)]),
+        "Runs as given come in at most 32 blocks on this page.",
+    ),
+    "given: a block for each run": (
+        "api_make_design",
         _make(design_type="given", runs=[[150, 1, 10]] * 9, blocks=list(range(1, 10))),
-        "Runs as given come in at most 8 blocks on this page.",
+        "Each run is in a block of its own, so the blocks leave nothing to compare: give the runs in fewer blocks.",
     ),
     # Runs added to a study, as Learn offers them.
     "add runs: an unknown way": (

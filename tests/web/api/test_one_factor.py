@@ -223,3 +223,78 @@ def test_a_limit_on_one_factor_alone_is_refused_with_what_to_do_instead(api):
     assert api.error("api_make_design", request) == (
         "A limit on T alone narrows its range: set its low and high to the settings you can run, and remove the limit."
     )
+
+
+# --------------------------------------------------------------------------- two levels in pairs
+#: Box, Hunter and Hunter's boys' shoes (their Table 3.5): each boy wore a sole of material A on one foot and B on
+#: the other, so each boy is a block of two runs, one at each level.
+MATERIAL = {"name": "material", "low": "A", "high": "B", "units": ""}
+SOLES_A = [13.2, 8.2, 10.9, 14.3, 10.7, 6.6, 9.5, 10.8, 8.8, 13.3]
+SOLES_B = [14.0, 8.8, 11.2, 14.2, 11.8, 6.4, 9.8, 11.3, 9.3, 13.6]
+
+
+def _in_pairs(api, a: list, b: list) -> tuple[dict, list[float]]:
+    """Make the soles' runs as given, a boy a block, and return the design and the results in its order."""
+    runs = [[level] for _ in a for level in ("A", "B")]
+    blocks = [boy for boy in range(1, len(a) + 1) for _ in (0, 1)]
+    design = api.ok("api_make_design", {"design_type": "given", "factors": [MATERIAL], "runs": runs, "blocks": blocks})
+    return design, [v for pair in zip(a, b, strict=True) for v in pair]
+
+
+@pytest.fixture(scope="module")
+def soles(api) -> dict:
+    design, wear = _in_pairs(api, SOLES_A, SOLES_B)
+    return api.ok("api_analyze_runs", {**held_of(design), "responses": wear})
+
+
+def test_two_levels_in_pairs_are_compared_within_each_pair_three_ways(soles):
+    difference = soles["comparison"]["difference"]
+    assert (difference["paired"], difference["from"], difference["to"]) == (10, "A", "B")
+    assert difference["estimate"] == pytest.approx(0.41)
+    tests = {t["test"]: t for t in difference["tests"]}
+    assert list(tests) == ["paired", "sign_flip", "signed_rank"]
+    expected = stats.ttest_rel(SOLES_B, SOLES_A)
+    interval = expected.confidence_interval(0.95)
+    assert tests["paired"]["p_value"] == pytest.approx(expected.pvalue)
+    assert (tests["paired"]["ci_low"], tests["paired"]["ci_high"]) == pytest.approx((interval.low, interval.high))
+    swapped = tests["sign_flip"]
+    assert (swapped["exact"], swapped["n_arrangements"]) == (True, 1024), "every pattern of ten signs"
+    assert swapped["p_value"] == pytest.approx(14 / 1024), "Box, Hunter and Hunter's 7 in 1024, on both sides"
+    assert swapped["ci_low"] < 0.41 < swapped["ci_high"]
+    ranks = tests["signed_rank"]
+    assert ranks["exact"] is True
+    assert ranks["p_value"] == pytest.approx(8 / 1024), "every pattern of signs on the ranks, ties at their average"
+
+
+def test_the_model_s_test_of_the_factor_beside_its_blocks_is_the_paired_t_test_squared(soles):
+    paired = soles["comparison"]["difference"]["tests"][0]
+    row = next(a for a in soles["anova"] if a["source"] == "material")
+    assert row["F"] == pytest.approx(paired["statistic"] ** 2)
+    coefficient = next(c for c in soles["coefficients"] if c["term"] == "material")
+    assert coefficient["coefficient"] == pytest.approx(0.41 / 2), "half the average difference within the pairs"
+
+
+def test_the_signed_rank_test_is_scipy_s_without_ties(api):
+    a = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0]
+    b = [x + d for x, d in zip(a, [0.3, -0.1, 0.9, 0.5, 1.4, -0.6, 0.8, 1.1], strict=True)]
+    design, results = _in_pairs(api, a, b)
+    found = api.ok("api_analyze_runs", {**held_of(design), "responses": results})["comparison"]["difference"]
+    ranks = next(t for t in found["tests"] if t["test"] == "signed_rank")
+    assert ranks["p_value"] == pytest.approx(stats.wilcoxon(np.subtract(b, a), method="exact").pvalue)
+
+
+def test_a_pair_with_a_run_still_to_do_waits(api):
+    design, wear = _in_pairs(api, SOLES_A, SOLES_B)
+    comparison = api.ok("api_analyze_runs", {**held_of(design), "responses": [None, *wear[1:]]})["comparison"]
+    assert comparison["difference"]["paired"] == 9
+
+
+def test_blocks_that_are_not_pairs_have_no_comparison(api):
+    """Two runs at A and two at B in each of two blocks: the model's ANOVA, with the blocks, compares the levels."""
+    runs = [["A"], ["A"], ["B"], ["B"]] * 2
+    design = api.ok(
+        "api_make_design",
+        {"design_type": "given", "factors": [MATERIAL], "runs": runs, "blocks": [1, 1, 1, 1, 2, 2, 2, 2]},
+    )
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": [1.0, 2.0, 4.0, 5.0, 2.0, 3.0, 5.0, 7.0]})
+    assert analysis["comparison"] is None

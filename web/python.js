@@ -358,12 +358,46 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     ")",
     'print(analysis["coefficients"])',
     ...vif,
-    ...(compared ? (isSeveral(spec.factors[0]) ? severalCode(spec, complete, control) : comparisonCode(spec, complete)) : []),
+    ...(compared ? comparedCode(spec, complete, control) : []),
   ].join("\n");
 }
 
 /** The arrangements the randomization test counts at most, drawing that many at random beyond: bootstrap.ARRANGEMENTS. */
 export const ARRANGEMENTS = 200_000;
+
+/** The code that compares one factor's levels as the page does: three levels or more, two in pairs, or two. */
+function comparedCode(spec, complete, control) {
+  if (isSeveral(spec.factors[0])) return severalCode(spec, complete, control);
+  return (spec.options?.n_blocks ?? 1) > 1 ? pairedCode(spec, complete) : comparisonCode(spec, complete);
+}
+
+/**
+ * A study of one factor at two levels run in pairs, each block one run at each level (``compared``, as the page's
+ * analysis compares them): the high level's result less the low's within each pair, tested as the page tests it.
+ * The randomization tests flip the signs of the differences, and of their ranks, with the study's seed.
+ */
+function pairedCode(spec, complete) {
+  const name = repr(spec.factors[0].name);
+  const seed = spec.options?.random_state ?? 0;
+  const most = String(ARRANGEMENTS).replace(/\B(?=(\d{3})+$)/g, "_");
+  return [
+    "",
+    `# The two levels of ${spec.factors[0].name} compared within each pair: each block holds one run at each level.`,
+    "import numpy as np",
+    "import pandas as pd",
+    "from process_improve.univariate import randomization_test, ttest_paired",
+    "",
+    `pairs = pd.DataFrame({"block": runs["Block"], "level": X[${name}], "y": y})${complete ? "" : "[done]"}`,
+    'pairs = pairs.pivot(index="block", columns="level", values="y").dropna()  # a pair with a run to do waits',
+    "differences = pairs[1] - pairs[-1]  # the high level's result less the low's, pair by pair",
+    "paired = ttest_paired(differences, conflevel=0.95)",
+    `swapped = randomization_test(differences, max_arrangements=${most}, random_state=${seed})`,
+    "moved = differences[differences != 0]  # a pair that does not differ has no sign, and drops out",
+    "signed_ranks = moved.abs().rank() * np.sign(moved)",
+    `ranks = randomization_test(signed_ranks, max_arrangements=${most}, random_state=${seed})`,
+    'print(paired, swapped, ranks, sep="\\n")',
+  ];
+}
 
 /**
  * A study of one factor at two levels (``compared``, as the page's analysis compares them): the high level's results

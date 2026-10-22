@@ -386,6 +386,10 @@ BOOK_DESIGN = "omars-fed-batch-bioreactor"
 #: build a catalog of their own with it.
 BLOCKED_DESIGN = "montgomery-filtration-blocks"
 
+#: A comparison of two levels in pairs, each pair a block: Box, Hunter and Hunter's boys' shoes, ten boys each wearing
+#: a sole of each material. The tests of a blocked design build their catalog with it too.
+PAIRED_DESIGN = "bhh-boys-shoes-paired"
+
 
 def catalog_sample(names: tuple[str, ...] = CATALOG_SAMPLE) -> list[dict]:
     """Describe the designs named, those of :data:`CATALOG_SAMPLE` by default, as ``catalog_records`` does."""

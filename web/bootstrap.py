@@ -68,6 +68,7 @@ from process_improve.univariate import (
     rank_sum_test,
     studentized_range_value,
     ttest_independent,
+    ttest_paired,
 )
 
 if TYPE_CHECKING:
@@ -2370,7 +2371,12 @@ def _analysis(
     notes = [_level_words(note, spec) for note in fit["notes"]]
     order = runs.loc[done, "Run order"].astype(int).tolist() if "Run order" in runs else None
     comparison = _comparison(
-        _coded(runs, factors)[done].reset_index(drop=True), y[done].to_numpy(dtype=float), spec, order, control
+        _coded(runs, factors)[done].reset_index(drop=True),
+        y[done].to_numpy(dtype=float),
+        spec,
+        order,
+        control,
+        runs.loc[done, BLOCK].tolist() if blocked else None,
     )
     if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
         true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
@@ -2492,8 +2498,13 @@ CONFIDENCE = 0.95
 ARRANGEMENTS = 200_000
 
 
-def _comparison(
-    coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None, control: object = None
+def _comparison(  # noqa: PLR0913 - the runs, their results and blocks, the study, its run order, and the control
+    coded: pd.DataFrame,
+    y: np.ndarray,
+    spec: dict,
+    order: list[int] | None,
+    control: object = None,
+    blocks: list | None = None,
 ) -> dict | None:
     """Compare one factor's levels: each level's results, and the differences between them.
 
@@ -2503,13 +2514,20 @@ def _comparison(
     t-test with one variance for both levels (the model's own test), Welch's t-test with each level's
     own variance, the randomization test, which counts the arrangements of the runs the random order
     could have made, and Wilcoxon's rank-sum test. A categorical factor run at three levels or more
-    has ``several`` instead (:func:`_several_levels`). A study of more factors, or in blocks, has none.
+    has ``several`` instead (:func:`_several_levels`). A study of more factors has none.
+
+    Runs in ``blocks`` of two, one at each level, are pairs: the difference is taken within each pair, which
+    leaves the blocks' effects out of it (see :func:`_paired_difference`). Runs in other blocks have no
+    comparison: the model's analysis of variance, with its blocks, compares the levels.
     """
     factors = spec["factors"]
-    if len(factors) != 1 or _blocked(spec):
+    if len(factors) != 1:
         return None
     factor = factors[0]
     x = np.round(coded[factor["name"]].to_numpy(dtype=float), 6)
+    pairs = _pairs(x, y, blocks) if blocks is not None else None
+    if blocks is not None and pairs is None:
+        return None
     runs = order if order is not None else list(range(1, len(y) + 1))
     levels = [
         _level(factor, setting, y[x == setting], [r for r, at in zip(runs, x, strict=True) if at == setting])
@@ -2519,10 +2537,93 @@ def _comparison(
     if len(levels) > 2 and _categorical(factor):  # two levels have their difference
         out["several"] = _several_levels(levels, control)
         return out
+    seed = spec.get("options", {}).get("random_state", 0)
+    if pairs is not None:
+        out["difference"] = _paired_difference(*pairs, factor, seed) if len(pairs[0]) >= 2 else None
+        return out
     low, high = y[x == -1], y[x == 1]
     if len(levels) == 2 and min(len(low), len(high)) >= 2:  # two levels, two runs each, for a variance
-        out["difference"] = _difference(low, high, factor, spec.get("options", {}).get("random_state", 0))
+        out["difference"] = _difference(low, high, factor, seed)
     return out
+
+
+def _pairs(x: np.ndarray, y: np.ndarray, blocks: list) -> tuple[np.ndarray, np.ndarray] | None:
+    """Return the low and the high result of each block that is a pair, in the blocks' order; None for other blocks.
+
+    A pair is a block of two runs, one at each of the two levels. A block with one result in, its other run still
+    to do, waits; any other block, such as two runs at one level, means the runs are not in pairs.
+    """
+    if not set(np.unique(x)) <= {-1.0, 1.0}:
+        return None
+    low, high = [], []
+    for block in sorted(set(blocks)):  # in the blocks' order, as the code the page shows takes them
+        at = [i for i, b in enumerate(blocks) if b == block]
+        if len(at) == 1:
+            continue
+        if len(at) != 2 or sorted(x[at]) != [-1.0, 1.0]:  # a pair is two runs
+            return None
+        first, second = at if x[at[0]] < 0 else at[::-1]
+        low.append(y[first])
+        high.append(y[second])
+    return np.array(low, dtype=float), np.array(high, dtype=float)
+
+
+def _paired_difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> dict[str, Any]:
+    """Test the difference between a factor's high and low levels within each pair, three ways.
+
+    Each pair's difference, its high result less its low, leaves out the block both runs share. The paired
+    t-test asks whether the differences average zero, from their spread; the randomization test counts
+    every pattern of signs the random choice, within each pair, of which run got which level could have
+    made; Wilcoxon's signed-rank test does the same with the differences' ranks, ties at their average,
+    so it is exact with ties too.
+    """
+    differences = high - low
+    paired = ttest_paired(pd.Series(differences), conflevel=CONFIDENCE)
+    tests: list[dict[str, Any]] = [
+        {
+            "test": "paired",
+            "statistic": float(paired["t value"]),
+            "df": int(paired["Degrees of freedom"]),
+            "ci_low": float(paired["ConfInt: Lo"]),
+            "ci_high": float(paired["ConfInt: Hi"]),
+            "p_value": float(paired["p value"]),
+        }
+    ]
+    found = randomization_test(differences, max_arrangements=ARRANGEMENTS, random_state=seed)
+    interval: dict[str, Any] = {"ci_low": None, "ci_high": None, "confidence": None}
+    if found["exact"]:
+        with contextlib.suppress(ValueError):  # too few patterns of signs for a 95% interval: 5 pairs make 32
+            made = randomization_interval(differences, confidence=CONFIDENCE)
+            interval = {k: made[k] for k in interval}
+    tests.append(
+        {
+            "test": "sign_flip",
+            "p_value": found["p_value_two_sided"],
+            "n_arrangements": found["n_arrangements"],
+            "exact": found["exact"],
+            **interval,
+        }
+    )
+    moved = differences[differences != 0]  # a pair that does not differ has no sign, and drops out
+    ranks = pd.Series(np.abs(moved)).rank().to_numpy() * np.sign(moved)
+    signed = randomization_test(ranks, max_arrangements=ARRANGEMENTS, random_state=seed) if len(ranks) else None
+    tests.append(
+        {
+            "test": "signed_rank",
+            "statistic": float(ranks[ranks > 0].sum()),
+            "p_value": signed["p_value_two_sided"] if signed else 1.0,
+            "exact": signed["exact"] if signed else True,
+        }
+    )
+    labels = (factor["low"], factor["high"]) if _categorical(factor) else (_actual(factor, -1), _actual(factor, 1))
+    return {
+        "estimate": float(differences.mean()),
+        "from": labels[0],
+        "to": labels[1],
+        "true": None,
+        "paired": len(differences),
+        "tests": tests,
+    }
 
 
 def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any] | None:
