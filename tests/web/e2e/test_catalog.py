@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from tests.web._support import BOOK_DESIGN, CATALOG_SAMPLE
+from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE
 from tests.web.e2e._page import headers, run_sheet, settled
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
@@ -305,6 +305,25 @@ def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(context, s
     assert page.input_value("#design-type") == "given"
     shown = page.eval_on_selector("#design-type option[value=given]", "o => !o.hidden")
     assert shown, "the list offers runs as given while they are open"
+
+
+def test_a_blocked_design_opens_in_factorial_in_its_blocks(blocked_context, site):
+    """Montgomery's filtration 2^4 in two blocks of eight: each run's block in the table, then fitted in Learn."""
+    page = open_catalog(blocked_context, site, f"#d={BLOCKED_DESIGN}")
+    page.wait_for_selector("#detail[open] table.runs-table")
+    heads = page.locator("table.runs-table thead th").all_text_contents()
+    assert heads[:6] == ["Run", "Block", "A", "B", "C", "D"], "the block is each run's, not a factor"
+    assert "Block is the block each run is made in" in page.text_content("#detail-body")
+    page.click(f"#detail-body [data-open='{BLOCKED_DESIGN}']")
+    page.wait_for_selector("#campaign-banner", state="visible")
+    page.wait_for_function("window.__pi.count('api_catalogue') === 1 && window.__pi.idle()")
+    settled(page)
+    column = headers(page).index("Block")
+    assert sorted({run[column] for run in run_sheet(page)}) == ["1", "2"]
+    assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
+    assert "Block" in anova
+    assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
 
 
 def test_a_published_design_opens_in_factorial_with_the_source_s_results(context, site):
