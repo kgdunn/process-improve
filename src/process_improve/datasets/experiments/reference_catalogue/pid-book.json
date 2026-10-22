@@ -25592,7 +25592,8 @@
    "design": {
     "type": "2^3 full factorial",
     "details": "8 runs in standard order, run in 2 blocks of 4 (raw-material batch 1 and batch 2), the block confounded with the ABC interaction: batch 1 = runs with ABC = -1 (1, 4, 6, 7), batch 2 = runs with ABC = +1 (2, 3, 5, 8). Equivalent to a fourth factor D (batch) generated as D = ABC. Runs within each block are randomized. No response values are given (symbolic only).",
-    "n_runs": 8
+    "n_runs": 8,
+    "blocks": "D (block)"
    },
    "runs": {
     "columns": ["Experiment", "A", "B", "C", "AB", "AC", "BC", "ABC", "D (block)", "Batch", "Response y"],
@@ -46254,7 +46255,8 @@
    "design": {
     "type": "2^3 full factorial",
     "details": "Two blocks of 4 runs; block generator D = ABC (ABC - in one block, ABC + in the other)",
-    "n_runs": 8
+    "n_runs": 8,
+    "blocks": "ABC"
    },
    "runs": {
     "columns": ["Experiment", "A", "B", "C", "ABC"],

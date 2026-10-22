@@ -3320,7 +3320,8 @@
     "type": "paired comparison",
     "details": "10 specimens as blocks of two halves, the tip on each half and the order of testing chosen at random",
     "n_runs": 20,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "specimen"
    },
    "runs": {
     "columns": [
@@ -22016,7 +22017,8 @@
     "type": "randomized complete block design",
     "details": "four pressures in random order within each of six batches",
     "n_runs": 24,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "batch"
    },
    "runs": {
     "columns": [
@@ -30968,7 +30970,8 @@
     "type": "randomized complete block design",
     "details": "4 treatments in 5 blocks",
     "n_runs": 20,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "bolt"
    },
    "runs": {
     "columns": [
@@ -31270,7 +31273,8 @@
     "type": "randomized complete block design",
     "details": "4 treatments in 4 blocks",
     "n_runs": 16,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "coupon"
    },
    "runs": {
     "columns": [
@@ -31420,7 +31424,8 @@
     "type": "randomized complete block design",
     "details": "3 treatments in 4 blocks",
     "n_runs": 12,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "region"
    },
    "runs": {
     "columns": [
@@ -31551,7 +31556,8 @@
     "type": "randomized complete block design",
     "details": "3 treatments in 5 blocks",
     "n_runs": 15,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "truck"
    },
    "runs": {
     "columns": [
@@ -31700,7 +31706,8 @@
     "type": "randomized complete block design",
     "details": "5 treatments in 6 blocks",
     "n_runs": 30,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "velocity"
    },
    "runs": {
     "columns": [
@@ -31925,7 +31932,8 @@
     "type": "randomized complete block design",
     "details": "6 treatments in 6 blocks",
     "n_runs": 36,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "project"
    },
    "runs": {
     "columns": [
@@ -32384,7 +32392,8 @@
     "type": "randomized complete block design",
     "details": "4 treatments in 6 blocks",
     "n_runs": 24,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "period"
    },
    "runs": {
     "columns": [
@@ -32576,7 +32585,8 @@
     "type": "randomized complete block design",
     "details": "4 treatments in 4 blocks",
     "n_runs": 16,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "furnace"
    },
    "runs": {
     "columns": [
@@ -32728,7 +32738,8 @@
     "type": "randomized complete block design",
     "details": "4 treatments in 5 blocks",
     "n_runs": 20,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "subject"
    },
    "runs": {
     "columns": [
@@ -33812,7 +33823,8 @@
     "type": "balanced incomplete block design",
     "details": "5 treatments in 5 blocks",
     "n_runs": 20,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "car"
    },
    "runs": {
     "columns": [
@@ -47852,7 +47864,8 @@
     "type": "3 x 2 factorial in a randomized complete block design",
     "details": "each of four operators runs the six treatment combinations in random order",
     "n_runs": 24,
-    "treatment_factors": 2
+    "treatment_factors": 2,
+    "blocks": "operator"
    },
    "runs": {
     "columns": [
@@ -91627,7 +91640,8 @@
     "type": "2^(4-1) fractional factorial and its alternate fraction, a 2^4 in two blocks",
     "details": "the runs of Table 8.3 (I = ABCD), then the eight of the alternate fraction (I = −ABCD); ABCD is confounded with the two fractions",
     "n_runs": 16,
-    "treatment_factors": 4
+    "treatment_factors": 4,
+    "blocks": "fraction"
    },
    "runs": {
     "columns": [
@@ -100480,7 +100494,8 @@
     "type": "2^(7-4) fractional factorial, resolution III, and its full fold over",
     "details": "the eight runs of Table 8.19, then the eight with every sign reversed; together a 2^(7-3) resolution IV in two blocks",
     "n_runs": 16,
-    "treatment_factors": 7
+    "treatment_factors": 7,
+    "blocks": "fraction"
    },
    "runs": {
     "columns": [

@@ -249,6 +249,20 @@ def test_an_entry_names_its_block_column_when_its_source_calls_the_blocks_someth
     assert unnamed["blocked"], "the text still says the design is run in blocks"
 
 
+@pytest.mark.dataset
+def test_every_block_column_an_entry_names_is_in_its_run_table_and_no_factor_of_its_record():
+    named = [e for e in [*reference_experiments(), *reference_designs()] if "blocks" in e["design"]]
+    assert len(named) >= 30
+    sources = reference_sources()
+    for entry in named:
+        column = entry["design"]["blocks"]
+        assert column in entry["runs"]["columns"], entry["name"]
+        record = design_catalog._published_record(entry, sources[entry["source"]])
+        assert column not in [f["name"] for f in record["factors"]], entry["name"]
+        assert record["blocks"] is not None
+        assert len(record["blocks"]) == len(entry["runs"]["rows"]), entry["name"]
+
+
 @pytest.mark.parametrize(
     ("text", "blocked"),
     [

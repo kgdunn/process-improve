@@ -76605,7 +76605,8 @@
     "type": "Taguchi L16",
     "details": "factors in columns 1, 2, 4, 5, 8, 11 and 15 by Taguchi's linear graph; the test block in column 9; columns 3, 6, 7, 10, 12, 13 and 14 for the interactions WxX, XxXL, ZxZL, WxWL, XLxZL, XxZ and WxZ",
     "n_runs": 16,
-    "treatment_factors": 7
+    "treatment_factors": 7,
+    "blocks": "B"
    },
    "runs": {
     "columns": [

@@ -31436,7 +31436,8 @@
    },
    "design": {
     "type": "randomized block design, k = 2, L1 = 4, L2 = 3, n = 1",
-    "n_runs": 12
+    "n_runs": 12,
+    "blocks": "X2"
    },
    "factors": [
     {

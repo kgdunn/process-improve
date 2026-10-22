@@ -13740,7 +13740,8 @@
    },
    "design": {
     "type": "2^3 full factorial in two blocks",
-    "details": "the bowl confounded with DTN"
+    "details": "the bowl confounded with DTN",
+    "blocks": "bowl, keyed correct"
    },
    "factors": [
     {
@@ -14668,7 +14669,8 @@
    },
    "design": {
     "type": "2^3 full factorial in two blocks",
-    "details": "the printer confounded with MLW"
+    "details": "the printer confounded with MLW",
+    "blocks": "printer"
    },
    "factors": [
     {

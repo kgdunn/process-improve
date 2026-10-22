@@ -17342,7 +17342,8 @@
     "type": "randomized paired comparison",
     "details": "10 boys as blocks of two, the material on each foot assigned by a coin (T T H T H T T T H T)",
     "n_runs": 20,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "boy"
    },
    "runs": {
     "columns": [
@@ -19553,7 +19554,8 @@
     "type": "randomized complete block design",
     "details": "4 treatments in each of 5 blocks, in random order within blocks",
     "n_runs": 20,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "blend"
    },
    "runs": {
     "columns": [
@@ -27127,7 +27129,8 @@
     "type": "Youden square",
     "details": "7 treatments in 7 blocks of 4 (λ = 2), each treatment once in each of 4 positions",
     "n_runs": 28,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": "run"
    },
    "runs": {
     "columns": [
@@ -44508,7 +44511,8 @@
     "type": "2^3 factorial in two blocks",
     "details": "the 2^3 in each of two weeks, in random order within each week",
     "n_runs": 16,
-    "treatment_factors": 3
+    "treatment_factors": 3,
+    "blocks": "week"
    },
    "runs": {
     "columns": [
