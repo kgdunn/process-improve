@@ -222,6 +222,10 @@ def comparison_value(result: dict, check: dict) -> float | None:
     return {**values, "p": p, "p_value": p}.get(key)
 
 
+def _numbers(factor: dict) -> bool:
+    return all(isinstance(factor.get(k), (int, float)) and not isinstance(factor.get(k), bool) for k in ("low", "high"))
+
+
 # --------------------------------------------------------------------------- one source's studies
 def _campaign(build_script: Any, record: dict) -> dict | None:  # noqa: ANN401 - the build script's module
     with no_bytecode():
@@ -241,7 +245,16 @@ def _responses(entry: dict, record: dict, check: dict, n: int) -> list | None:
     return values if any(v is not None for v in values) else None
 
 
-def _page_value(result: dict, spec: dict, check: dict, n: int, bootstrap: Any, block: tuple[str, ...]) -> float | None:  # noqa: ANN401, PLR0913
+def _page_value(  # noqa: PLR0913
+    result: dict,
+    spec: dict,
+    check: dict,
+    n: int,
+    bootstrap: Any,  # noqa: ANN401
+    block: tuple[str, ...],
+    flipped: frozenset[str] = frozenset(),
+) -> float | None:
+    """Read the page's number for a check; a factor the source codes high to low (``flipped``) has its sign turned."""
     kind = check["kind"]
     if kind in ANOVA:
         if check["term"] == "Total" and kind == "anova_df":
@@ -254,7 +267,13 @@ def _page_value(result: dict, spec: dict, check: dict, n: int, bootstrap: Any, b
     if kind in FIT:
         return result["summary"].get(FIT[kind])
     if kind in COEFFICIENT:
-        value = page_coefficient(result, spec, check["term"], "coefficient" if kind == "effect" else kind, bootstrap)
+        sign = (-1) ** sum(name in flipped for name, _ in _level_parts(check["term"]))
+        field = "coefficient" if kind == "effect" else kind
+        if sign < 0 and field in ("ci_low", "ci_high"):  # turned over, each end of the interval is the other's
+            field = "ci_high" if field == "ci_low" else "ci_low"
+        value = page_coefficient(result, spec, check["term"], field, bootstrap)
+        if value is not None and field not in ("std_error", "p_value"):
+            value *= sign
         return 2 * value if value is not None and kind == "effect" else value
     return comparison_value(result, check)
 
@@ -316,6 +335,10 @@ def _printed(api: Any, bootstrap: Any, entry: dict, record: dict, design: dict) 
     """Compare the page's number for each check of the source's it shows with the library's, saying which differ."""
     spec, held = design["spec"], {key: design[key] for key in ("spec", "columns", "rows")}
     block = tuple(design_catalog._block_columns(entry) or ()) if record.get("blocks") else ()
+    # A range written high first, as the source codes it; the page codes every factor low to high.
+    flipped = frozenset(
+        f["name"] for f in record["factors"] if f.get("type") == "numeric" and _numbers(f) and f["low"] > f["high"]
+    )
     fits, replies, wrong = rc._Fits(), {}, []
     for expected in entry["expected"]:
         for check in (c for c in rc._checks(expected) if _shown(c, entry, spec)):
@@ -334,7 +357,8 @@ def _printed(api: Any, bootstrap: Any, entry: dict, record: dict, design: dict) 
                     [] if record["id"] in UNFIT else [f"{record['id']}: the page refuses {model}: {reply['error']}"]
                 )
                 continue
-            page = _page_value(reply["result"], spec, check, sum(v is not None for v in values), bootstrap, block)
+            n = sum(v is not None for v in values)
+            page = _page_value(reply["result"], spec, check, n, bootstrap, block, flipped)
             if page is None:
                 continue
             library = float(rc._reproduce(entry, expected, check, fits)[0])
@@ -345,18 +369,24 @@ def _printed(api: Any, bootstrap: Any, entry: dict, record: dict, design: dict) 
 
 
 def _study(api: Any, build_script: Any, record: dict, campaign: dict) -> list[str]:  # noqa: ANN401
-    """Check a study as it opens: the source's runs, and its default analysis, its one factor's comparison scipy's."""
+    """Check a study as it opens: the source's runs and results, and its default analysis.
+
+    Each run is compared with its result, so a result at the wrong settings fails; a study of one factor also
+    has its comparison checked against scipy's.
+    """
     name, design = record["id"], campaign["design"]
     spec, held = design["spec"], {key: design[key] for key in ("spec", "columns", "rows")}
     at = {c: i for i, c in enumerate(design["columns"])}
     made = Counter(
-        tuple(round(build_script.coded(r[at[f["name"]]], f), 4) for f in spec["factors"]) for r in design["rows"]
+        (*(round(build_script.coded(r[at[f["name"]]], f), 4) for f in spec["factors"]), result)
+        for r, result in zip(design["rows"], campaign["responses"], strict=True)
     )
-    wrong = (
-        []
-        if made == Counter(tuple(round(v, 4) for v in run) for run in record["coded_runs"])
-        else [f"{name}: the run sheet's runs are not the source's"]
+    results = record["response_values"].get(build_script._response_of(record)) or [None] * len(record["coded_runs"])
+    printed = Counter(
+        (*(round(v, 4) for v in run), result)
+        for run, result in zip(build_script.page_coded_runs(record), results, strict=True)
     )
+    wrong = [] if made == printed else [f"{name}: the run sheet's runs, with their results, are not the source's"]
     if not any(v is not None for v in campaign["responses"]):
         return wrong
     default = api.reply("api_analyze_runs", {**held, "responses": campaign["responses"], "model": design["model"]})

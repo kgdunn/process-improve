@@ -34112,7 +34112,7 @@
    },
    "factors": [
     {
-     "name": "1",
+     "name": "X1",
      "description": "SPEED, X1",
      "low": -1,
      "high": 1,
@@ -34120,7 +34120,7 @@
      "type": "numeric"
     },
     {
-     "name": "2",
+     "name": "X2",
      "description": "FEED, X2",
      "low": -1,
      "high": 1,
@@ -34128,7 +34128,7 @@
      "type": "numeric"
     },
     {
-     "name": "3",
+     "name": "X3",
      "description": "DEPTH, X3",
      "low": -1,
      "high": 1,
@@ -34138,7 +34138,7 @@
    ],
    "responses": [],
    "runs": {
-    "columns": ["1", "2", "3", "X1*X2*X3", "BLOCK"],
+    "columns": ["X1", "X2", "X3", "X1*X2*X3", "BLOCK"],
     "coded": true,
     "rows": [
      [-1, -1, -1, -1, "I"],
@@ -34168,7 +34168,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=-12",
+      "generator": "X3=-X1X2",
       "printed": "1, 4, 6, 7"
      }
     },
@@ -34185,7 +34185,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=12",
+      "generator": "X3=X1X2",
       "printed": "2, 3, 5, 8"
      }
     },
@@ -38712,7 +38712,7 @@
    },
    "factors": [
     {
-     "name": "1",
+     "name": "X1",
      "description": "X1",
      "low": -1,
      "high": 1,
@@ -38720,7 +38720,7 @@
      "type": "numeric"
     },
     {
-     "name": "2",
+     "name": "X2",
      "description": "X2",
      "low": -1,
      "high": 1,
@@ -38728,7 +38728,7 @@
      "type": "numeric"
     },
     {
-     "name": "3",
+     "name": "X3",
      "description": "X3",
      "low": -1,
      "high": 1,
@@ -38736,7 +38736,7 @@
      "type": "numeric"
     },
     {
-     "name": "4",
+     "name": "X4",
      "description": "X4",
      "low": -1,
      "high": 1,
@@ -38744,7 +38744,7 @@
      "type": "numeric"
     },
     {
-     "name": "5",
+     "name": "X5",
      "description": "X5",
      "low": -1,
      "high": 1,
@@ -38752,7 +38752,7 @@
      "type": "numeric"
     },
     {
-     "name": "6",
+     "name": "X6",
      "description": "X6",
      "low": -1,
      "high": 1,
@@ -38760,7 +38760,7 @@
      "type": "numeric"
     },
     {
-     "name": "7",
+     "name": "X7",
      "description": "X7",
      "low": -1,
      "high": 1,
@@ -38770,7 +38770,7 @@
    ],
    "responses": [],
    "runs": {
-    "columns": ["1", "2", "3", "4", "5", "6", "7"],
+    "columns": ["X1", "X2", "X3", "X4", "X5", "X6", "X7"],
     "coded": true,
     "rows": [
      [-1, -1, -1, -1, -1, -1, -1],
@@ -38809,17 +38809,17 @@
      "check": [
       {
        "kind": "fraction_runs",
-       "generator": "5=234",
+       "generator": "X5=X2X3X4",
        "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
       },
       {
        "kind": "fraction_runs",
-       "generator": "6=134",
+       "generator": "X6=X1X3X4",
        "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
       },
       {
        "kind": "fraction_runs",
-       "generator": "7=123",
+       "generator": "X7=X1X2X3",
        "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
       }
      ]
@@ -38862,7 +38862,7 @@
      },
      "check": {
       "kind": "standard_order",
-      "factors": ["1", "2", "3", "4"],
+      "factors": ["X1", "X2", "X3", "X4"],
       "printed": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
      }
     },
@@ -42790,7 +42790,7 @@
    },
    "factors": [
     {
-     "name": "1",
+     "name": "X1",
      "description": "factor X1",
      "low": -1,
      "high": 1,
@@ -42798,7 +42798,7 @@
      "type": "numeric"
     },
     {
-     "name": "2",
+     "name": "X2",
      "description": "factor X2",
      "low": -1,
      "high": 1,
@@ -42806,7 +42806,7 @@
      "type": "numeric"
     },
     {
-     "name": "3",
+     "name": "X3",
      "description": "factor X3",
      "low": -1,
      "high": 1,
@@ -42816,7 +42816,7 @@
    ],
    "responses": [],
    "runs": {
-    "columns": ["1", "2", "3"],
+    "columns": ["X1", "X2", "X3"],
     "headers": ["X1", "X2", "X3"],
     "coded": true,
     "rows": [
@@ -42861,7 +42861,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=-12",
+      "generator": "X3=-X1X2",
       "printed": "1, 4, 6, 7"
      }
     },
@@ -42878,7 +42878,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=12",
+      "generator": "X3=X1X2",
       "printed": "2, 3, 5, 8"
      },
      "note": "the corner numbers of the dark circles are read off Figure 3.4"
@@ -42946,7 +42946,7 @@
    },
    "factors": [
     {
-     "name": "1",
+     "name": "X1",
      "description": "factor X1",
      "low": -1,
      "high": 1,
@@ -42954,7 +42954,7 @@
      "type": "numeric"
     },
     {
-     "name": "2",
+     "name": "X2",
      "description": "factor X2",
      "low": -1,
      "high": 1,
@@ -42962,7 +42962,7 @@
      "type": "numeric"
     },
     {
-     "name": "3",
+     "name": "X3",
      "description": "factor X3",
      "low": -1,
      "high": 1,
@@ -42972,7 +42972,7 @@
    ],
    "responses": [],
    "runs": {
-    "columns": ["1", "2", "3"],
+    "columns": ["X1", "X2", "X3"],
     "headers": ["X1", "X2", "X3"],
     "coded": true,
     "rows": [
@@ -42998,7 +42998,7 @@
      },
      "check": {
       "kind": "standard_order",
-      "factors": ["1", "2"],
+      "factors": ["X1", "X2"],
       "printed": "1, 2, 3, 4"
      }
     },
@@ -43015,7 +43015,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=12",
+      "generator": "X3=X1X2",
       "printed": "1, 2, 3, 4"
      }
     },
@@ -43243,7 +43243,7 @@
    },
    "factors": [
     {
-     "name": "1",
+     "name": "X1",
      "description": "factor X1",
      "low": -1,
      "high": 1,
@@ -43251,7 +43251,7 @@
      "type": "numeric"
     },
     {
-     "name": "2",
+     "name": "X2",
      "description": "factor X2",
      "low": -1,
      "high": 1,
@@ -43259,7 +43259,7 @@
      "type": "numeric"
     },
     {
-     "name": "3",
+     "name": "X3",
      "description": "factor X3",
      "low": -1,
      "high": 1,
@@ -43269,7 +43269,7 @@
    ],
    "responses": [],
    "runs": {
-    "columns": ["1", "2", "3"],
+    "columns": ["X1", "X2", "X3"],
     "headers": ["X1", "X2", "X3"],
     "coded": true,
     "rows": [
@@ -43294,7 +43294,7 @@
      },
      "check": {
       "kind": "fraction_runs",
-      "generator": "3=-12",
+      "generator": "X3=-X1X2",
       "printed": "1, 2, 3, 4"
      }
     },

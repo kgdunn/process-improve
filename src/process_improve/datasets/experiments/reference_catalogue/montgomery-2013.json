@@ -83887,15 +83887,12 @@
    "factors": [
     {
      "name": "A",
-     "description": "aperture setting",
-     "low": "small",
-     "high": "large",
-     "levels": [
-      "small",
-      "large"
-     ],
-     "units": "",
-     "type": "categorical"
+     "description": "aperture setting, coded: -1 small, +1 large",
+     "low": -1,
+     "high": 1,
+     "levels": null,
+     "units": "coded",
+     "type": "numeric"
     },
     {
      "name": "B",
@@ -83923,15 +83920,12 @@
     },
     {
      "name": "D",
-     "description": "mask dimension",
-     "low": "small",
-     "high": "large",
-     "levels": [
-      "small",
-      "large"
-     ],
-     "units": "",
-     "type": "categorical"
+     "description": "mask dimension, coded: -1 small, +1 large",
+     "low": -1,
+     "high": 1,
+     "levels": null,
+     "units": "coded",
+     "type": "numeric"
     },
     {
      "name": "E",
@@ -138222,10 +138216,10 @@
     {
      "name": "E",
      "description": "stems",
-     "low": "None",
+     "low": "none",
      "high": "All",
      "levels": [
-      "None",
+      "none",
       "All"
      ],
      "units": "",
@@ -138246,10 +138240,10 @@
     {
      "name": "G",
      "description": "whole cluster",
-     "low": "None",
+     "low": "none",
      "high": "10%",
      "levels": [
-      "None",
+      "none",
       "10%"
      ],
      "units": "",
@@ -139349,7 +139343,7 @@
      }
     }
    ],
-   "notes": "The wine was tasted on March 8, 1986."
+   "notes": "The wine was tasted on March 8, 1986. The level the source prints as None is written none: a spreadsheet reads None back as a blank cell."
   },
   {
    "name": "montgomery-problem-8-35",
