@@ -1177,7 +1177,8 @@
     "type": "mixed-level OMARS design, foldover, with five orthogonal blocking arrangements",
     "details": "x1-x4 at three levels, x5-x8 at two levels; columns A to E give each run's block in two, three, four, six and twelve blocks",
     "factors": 8,
-    "n_runs": 24
+    "n_runs": 24,
+    "blockings": ["A", "B", "C", "D", "E"]
    },
    "runs": {
     "columns": ["Run", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "A", "B", "C", "D", "E"],

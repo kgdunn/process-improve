@@ -46060,7 +46060,8 @@
    "design": {
     "type": "2^(7-4) fractional",
     "details": "2^(7-4)_III with D = AB, E = AC, F = BC and G = ABC, G being the heap of soil (a blocking factor confounded at the highest level); plus a 9th run with all factors at the centre point and a 50/50 blend of the two soils",
-    "n_runs": 9
+    "n_runs": 9,
+    "blocks": false
    },
    "runs": {
     "columns": ["Experiment", "A", "B", "C", "D", "E", "F", "G"],

@@ -16432,7 +16432,8 @@
     "type": "single-factor design",
     "details": "each algorithm run six times; Problem 4.13 says the six runs were six time periods, as blocks",
     "n_runs": 24,
-    "treatment_factors": 1
+    "treatment_factors": 1,
+    "blocks": false
    },
    "runs": {
     "columns": [
@@ -89730,7 +89731,12 @@
     "type": "2^3 factorial in two replicates of two blocks, partially confounded",
     "details": "four runs a shift; ABC confounded with the shifts of replicate I, AB with those of replicate II",
     "n_runs": 16,
-    "treatment_factors": 3
+    "treatment_factors": 3,
+    "blocks": [
+     "replicate",
+     "block_I",
+     "block_II"
+    ]
    },
    "runs": {
     "columns": [
@@ -232305,7 +232311,8 @@
     "type": "2^5 factorial in four blocks",
     "details": "the defining contrasts L1 = x1 + x4 + x5 and L2 = x2 + x3 + x5",
     "n_runs": 32,
-    "treatment_factors": 5
+    "treatment_factors": 5,
+    "blocks": "block"
    },
    "runs": {
     "columns": [
@@ -232314,7 +232321,8 @@
      "C",
      "D",
      "E",
-     "label"
+     "label",
+     "block"
     ],
     "rows": [
      [
@@ -232323,7 +232331,8 @@
       -1,
       -1,
       -1,
-      "(1)"
+      "(1)",
+      1
      ],
      [
       1,
@@ -232331,7 +232340,8 @@
       -1,
       -1,
       -1,
-      "a"
+      "a",
+      2
      ],
      [
       -1,
@@ -232339,7 +232349,8 @@
       -1,
       -1,
       -1,
-      "b"
+      "b",
+      3
      ],
      [
       1,
@@ -232347,7 +232358,8 @@
       -1,
       -1,
       -1,
-      "ab"
+      "ab",
+      4
      ],
      [
       -1,
@@ -232355,7 +232367,8 @@
       1,
       -1,
       -1,
-      "c"
+      "c",
+      3
      ],
      [
       1,
@@ -232363,7 +232376,8 @@
       1,
       -1,
       -1,
-      "ac"
+      "ac",
+      4
      ],
      [
       -1,
@@ -232371,7 +232385,8 @@
       1,
       -1,
       -1,
-      "bc"
+      "bc",
+      1
      ],
      [
       1,
@@ -232379,7 +232394,8 @@
       1,
       -1,
       -1,
-      "abc"
+      "abc",
+      2
      ],
      [
       -1,
@@ -232387,7 +232403,8 @@
       -1,
       1,
       -1,
-      "d"
+      "d",
+      2
      ],
      [
       1,
@@ -232395,7 +232412,8 @@
       -1,
       1,
       -1,
-      "ad"
+      "ad",
+      1
      ],
      [
       -1,
@@ -232403,7 +232421,8 @@
       -1,
       1,
       -1,
-      "bd"
+      "bd",
+      4
      ],
      [
       1,
@@ -232411,7 +232430,8 @@
       -1,
       1,
       -1,
-      "abd"
+      "abd",
+      3
      ],
      [
       -1,
@@ -232419,7 +232439,8 @@
       1,
       1,
       -1,
-      "cd"
+      "cd",
+      4
      ],
      [
       1,
@@ -232427,7 +232448,8 @@
       1,
       1,
       -1,
-      "acd"
+      "acd",
+      3
      ],
      [
       -1,
@@ -232435,7 +232457,8 @@
       1,
       1,
       -1,
-      "bcd"
+      "bcd",
+      2
      ],
      [
       1,
@@ -232443,7 +232466,8 @@
       1,
       1,
       -1,
-      "abcd"
+      "abcd",
+      1
      ],
      [
       -1,
@@ -232451,7 +232475,8 @@
       -1,
       -1,
       1,
-      "e"
+      "e",
+      4
      ],
      [
       1,
@@ -232459,7 +232484,8 @@
       -1,
       -1,
       1,
-      "ae"
+      "ae",
+      3
      ],
      [
       -1,
@@ -232467,7 +232493,8 @@
       -1,
       -1,
       1,
-      "be"
+      "be",
+      2
      ],
      [
       1,
@@ -232475,7 +232502,8 @@
       -1,
       -1,
       1,
-      "abe"
+      "abe",
+      1
      ],
      [
       -1,
@@ -232483,7 +232511,8 @@
       1,
       -1,
       1,
-      "ce"
+      "ce",
+      2
      ],
      [
       1,
@@ -232491,7 +232520,8 @@
       1,
       -1,
       1,
-      "ace"
+      "ace",
+      1
      ],
      [
       -1,
@@ -232499,7 +232529,8 @@
       1,
       -1,
       1,
-      "bce"
+      "bce",
+      4
      ],
      [
       1,
@@ -232507,7 +232538,8 @@
       1,
       -1,
       1,
-      "abce"
+      "abce",
+      3
      ],
      [
       -1,
@@ -232515,7 +232547,8 @@
       -1,
       1,
       1,
-      "de"
+      "de",
+      3
      ],
      [
       1,
@@ -232523,7 +232556,8 @@
       -1,
       1,
       1,
-      "ade"
+      "ade",
+      4
      ],
      [
       -1,
@@ -232531,7 +232565,8 @@
       -1,
       1,
       1,
-      "bde"
+      "bde",
+      1
      ],
      [
       1,
@@ -232539,7 +232574,8 @@
       -1,
       1,
       1,
-      "abde"
+      "abde",
+      2
      ],
      [
       -1,
@@ -232547,7 +232583,8 @@
       1,
       1,
       1,
-      "cde"
+      "cde",
+      1
      ],
      [
       1,
@@ -232555,7 +232592,8 @@
       1,
       1,
       1,
-      "acde"
+      "acde",
+      2
      ],
      [
       -1,
@@ -232563,7 +232601,8 @@
       1,
       1,
       1,
-      "bcde"
+      "bcde",
+      3
      ],
      [
       1,
@@ -232571,13 +232610,14 @@
       1,
       1,
       1,
-      "abcde"
+      "abcde",
+      4
      ]
     ],
     "coded": true,
     "notes": "the 32 treatment combinations in standard order"
    },
-   "notes": "Every block holds the runs of one pair of signs of ADE and BCE; ABCD, their product, has the sign of their product.",
+   "notes": "Every block holds the runs of one pair of signs of ADE and BCE; ABCD, their product, has the sign of their product. The block column is worked out from the defining contrasts the source states, L1 = x1 + x4 + x5 and L2 = x2 + x3 + x5 (mod 2), as block 1 + L1 + 2 L2; block 1 is the principal block.",
    "expected": [
     {
      "what": "block_confounding",
