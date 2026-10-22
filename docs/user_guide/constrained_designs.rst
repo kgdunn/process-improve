@@ -182,11 +182,10 @@ the columns that can be estimated, a warning names the term and the missing pair
 column, so the design is judged on the model it was built for, and says so in
 ``result["notes"]["inestimable_columns"]``.
 
-``analyze_experiment`` cannot fit the full interaction either: its default
-interactions model falls back to main effects, with a warning. To keep the other
-interactions, name a model without that term, such as
-``model="(T + P + catalyst + solvent) ** 2 - catalyst:solvent"``; the one column of
-catalyst by solvent that could be estimated is then left out too.
+``analyze_experiment`` cannot estimate the full interaction either. Its default
+interactions model leaves out catalyst by solvent, with a warning that names the
+missing pair, and fits every other interaction; the one column of catalyst by solvent
+that could be estimated is left out with it.
 
 The region describes itself one combination at a time:
 

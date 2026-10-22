@@ -12,6 +12,7 @@ precision, and confirmation run testing.
 
 from __future__ import annotations
 
+import itertools
 import keyword
 import logging
 import numbers
@@ -316,32 +317,58 @@ def _estimable_default(
     model: str,
     factor_cols: list[str],
     rhs_of: Callable[[str], str],
-) -> tuple[str, str]:
-    """Fall back from the default interactions model to main effects when the design cannot estimate it.
+) -> tuple[str, str, list[str]]:
+    """Fit the default interactions model as far as the design can estimate it.
 
-    A regular fraction aliases its interactions in whole chains (``A:B + C:D``), and the
-    analyses test one column per chain, so the interactions model stays. A 12-run
-    Plackett-Burman design for eight factors only partly aliases its 28 interactions
-    with everything else: no chains form, the 37-term model has rank 12, and a fit would
-    report a coefficient for every term, most of them arbitrary. Then, and only for the
-    default, the main-effects model is fitted; a model the caller names is fitted as
-    named. ``rhs_of`` gives the right-hand side of a named model's formula. Returns the
-    model to fit and a note saying what was done ("" when nothing was).
+    A design that never ran some combination of two factors' levels (a missing cell, as
+    constraints on categorical factors leave) cannot estimate those two factors'
+    interaction in full, whatever its size: those interactions are left out and the rest
+    are fitted (see :func:`_interactions_the_cells_lose`). A regular fraction aliases its
+    interactions in whole chains (``A:B + C:D``), and the analyses test one column per
+    chain, so the interactions model stays. A 12-run Plackett-Burman design for eight
+    factors only partly aliases its 28 interactions with everything else: no chains form,
+    the 37-term model has rank 12, and a fit would report a coefficient for every term,
+    most of them arbitrary. Then the main-effects model is fitted. All of this is for the
+    default only; a model the caller names is fitted as named. ``rhs_of`` gives the
+    right-hand side of a named model's formula.
+
+    Returns
+    -------
+    tuple[str, str, list[str]]
+        The model to fit, a note saying what was done ("" when nothing was), and the
+        interactions to leave out of its formula.
     """
     if requested is not None or model != "interactions" or len(factor_cols) < 2:
-        return model, ""
+        return model, "", []
 
-    def matrix(candidate: str) -> tuple[np.ndarray, list[str]]:
-        coded = _coded_model_matrix(df, rhs_of(candidate), factor_cols, candidate)
+    def matrix(rhs: str) -> tuple[np.ndarray, list[str]]:
+        coded = _coded_model_matrix(df, rhs, factor_cols, "interactions")
         return np.asarray(coded, dtype=float), [str(c) for c in coded.columns]
 
-    exog, names = matrix("interactions")
-    leaders = [names.index(chain[0][0]) for chain in alias_chains_of(exog, names)]
-    if np.linalg.matrix_rank(exog[:, leaders]) == len(leaders):
-        return model, ""  # every term is estimable, or exactly aliased in a chain the analyses test once
-    main = matrix("main_effects")[0]
+    def estimable(rhs: str) -> bool:
+        exog, names = matrix(rhs)
+        leaders = [names.index(chain[0][0]) for chain in alias_chains_of(exog, names)]
+        return bool(np.linalg.matrix_rank(exog[:, leaders]) == len(leaders))
+
+    full = rhs_of("interactions")
+    exog, names = matrix(full)
+    if np.linalg.matrix_rank(exog) == exog.shape[1]:
+        return model, "", []  # every term is estimable
+    lost = _interactions_the_cells_lose(df, factor_cols)
+    if lost and estimable(f"{full} - {' - '.join(lost)}"):
+        note = (
+            f"The default interactions model was fitted without {', '.join(lost)}: "
+            f"{_missing_cells_text(df, lost)}, so no design over the combinations this one ran can estimate "
+            f"{'that interaction' if len(lost) == 1 else 'those interactions'} in full. Pass model='interactions' "
+            "to fit it anyway."
+        )
+        warnings.warn(note, category=UserWarning, stacklevel=3)
+        return model, note, lost
+    if estimable(full):
+        return model, "", []  # exactly aliased in chains, which the analyses test once each
+    main = matrix(rhs_of("main_effects"))[0]
     if np.linalg.matrix_rank(main) < main.shape[1]:
-        return model, ""  # a supersaturated design: the main-effects model is not estimable either
+        return model, "", []  # a supersaturated design: the main-effects model is not estimable either
     note = (
         f"The default interactions model has {len(names)} terms, of which this design can estimate "
         f"{np.linalg.matrix_rank(exog)}, and its interactions are not aliased in whole chains, so the main-effects "
@@ -349,7 +376,54 @@ def _estimable_default(
         "to choose the interactions the data support."
     )
     warnings.warn(note, category=UserWarning, stacklevel=3)
-    return "main_effects", note
+    return "main_effects", note, []
+
+
+def _without_terms(formula: str, terms: list[str]) -> str:
+    """Return ``formula`` with ``terms`` subtracted: the interactions a missing cell costs, in a named model."""
+    return f"{formula} - {' - '.join(terms)}" if terms else formula
+
+
+def _interactions_the_cells_lose(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
+    """Return the two-factor interactions the combinations of levels this design ran cannot estimate in full.
+
+    Each pair of factors is judged on its own: its main effects and interaction, fitted to
+    the distinct combinations of the two that were run. A pair whose cells are all there
+    (every pair of a Plackett-Burman design shows all four) estimates its interaction,
+    however few the runs. A pair with a cell missing does not: catalyst at 3 levels and
+    solvent at 2 with one pair never run leave 5 cells for the 6 coefficients, and no
+    number of runs over those 5 cells changes that. So does a continuous factor held at
+    one value on some level of the other.
+    """
+    lost = []
+    for first, second in itertools.combinations(factor_cols, 2):
+        cells = df[[first, second]].drop_duplicates().reset_index(drop=True)
+        pair = np.asarray(
+            _coded_model_matrix(cells, f"{first} + {second} + {first}:{second}", [first, second], "interactions"),
+            dtype=float,
+        )
+        if np.linalg.matrix_rank(pair) < pair.shape[1]:
+            lost.append(f"{first}:{second}")
+    return lost
+
+
+def _missing_cells_text(df: pd.DataFrame, lost: list[str]) -> str:
+    """Say which combinations of levels were never run, for each lost interaction of two categorical factors."""
+    parts = []
+    for term in lost:
+        first, second = term.split(":")
+        if _is_numeric(df[first]) or _is_numeric(df[second]):
+            parts.append(f"{term} has a factor that takes one value on a level of the other")
+            continue
+        seen = set(df[[first, second]].itertuples(index=False, name=None))
+        missing = [
+            f"{first} = {a!r} with {second} = {b!r}"
+            for a in sorted(df[first].unique(), key=str)
+            for b in sorted(df[second].unique(), key=str)
+            if (a, b) not in seen
+        ]
+        parts.append(f"no run has {'; '.join(missing)}")
+    return "; ".join(parts)
 
 
 def _drop_incomplete_runs(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -1247,14 +1321,14 @@ def analyze_experiment(  # noqa: PLR0913
 
     categorical = [c for c in factor_cols if not _is_numeric(df[c])]
     searched_model = model  # what model_selection searches, even when the default falls back below
-    model, model_note = _estimable_default(
+    model, model_note, left_out = _estimable_default(
         df,
         requested_model,
         model,
         factor_cols,
         lambda m: build_formula(response_col, factor_cols, m, categorical).split("~", 1)[1],
     )
-    formula = build_formula(response_col, factor_cols, model, categorical)
+    formula = _without_terms(build_formula(response_col, factor_cols, model, categorical), left_out)
     # Patsy evaluates formula terms as Python, so a custom ``model`` string is a
     # code-execution vector. Permit only a safe Wilkinson formula, optionally
     # with I()/Q() over data columns (the ``quadratic`` shorthand needs it).
