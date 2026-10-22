@@ -14,6 +14,9 @@ from process_improve.multivariate._common import informative_widths
 from process_improve.multivariate.methods import MBPCA, MBPLS, PLS
 
 N = 40
+#: Padded and plain fits are compared to near machine precision, beyond the default tolerance's ~1e-8 steps,
+#: which a different numpy release can stop at a slightly different point.
+TIGHT = 1e-12
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +51,7 @@ class TestInformativeWidths:
 class TestBlockWeighting:
     def test_constant_columns_leave_an_mbpls_fit_unchanged(self, blocks: tuple) -> None:
         plain, padded, y = blocks
-        before, after = MBPLS(n_components=2).fit(plain, y), MBPLS(n_components=2).fit(padded, y)
+        before, after = MBPLS(n_components=2, tol=TIGHT).fit(plain, y), MBPLS(n_components=2, tol=TIGHT).fit(padded, y)
         assert after.block_widths_ == {"a": 4, "b": 16}
         assert after.block_informative_widths_ == {"a": 4, "b": 4}
         np.testing.assert_allclose(after.super_weights_, before.super_weights_)
@@ -58,13 +61,13 @@ class TestBlockWeighting:
 
     def test_the_vip_of_the_varying_columns_is_unchanged(self, blocks: tuple) -> None:
         plain, padded, y = blocks
-        before, after = MBPLS(n_components=2).fit(plain, y), MBPLS(n_components=2).fit(padded, y)
+        before, after = MBPLS(n_components=2, tol=TIGHT).fit(plain, y), MBPLS(n_components=2, tol=TIGHT).fit(padded, y)
         np.testing.assert_allclose(after.block_vip_["b"].iloc[:4], before.block_vip_["b"])
         assert (after.block_vip_["b"].iloc[4:] == 0).all()
 
     def test_score_contributions_are_unchanged(self, blocks: tuple) -> None:
         plain, padded, y = blocks
-        before, after = MBPLS(n_components=2).fit(plain, y), MBPLS(n_components=2).fit(padded, y)
+        before, after = MBPLS(n_components=2, tol=TIGHT).fit(plain, y), MBPLS(n_components=2, tol=TIGHT).fit(padded, y)
         np.testing.assert_allclose(
             after.score_contributions(padded, component=1)["b"].iloc[:, :4],
             before.score_contributions(plain, component=1)["b"],
@@ -73,14 +76,14 @@ class TestBlockWeighting:
     def test_a_model_fitted_before_the_count_was_kept_divides_by_its_full_width(self, blocks: tuple) -> None:
         """A model pickled by an earlier release has no block_informative_widths_; it projects as it was fitted."""
         plain, _padded, y = blocks
-        model = MBPLS(n_components=2).fit(plain, y)
+        model = MBPLS(n_components=2, tol=TIGHT).fit(plain, y)
         expected = model.transform(plain)
         del model.block_informative_widths_  # the widths are equal here, so the projection is too
         np.testing.assert_allclose(model.transform(plain), expected)
 
     def test_constant_columns_leave_an_mbpca_fit_unchanged(self, blocks: tuple) -> None:
         plain, padded, _y = blocks
-        before, after = MBPCA(n_components=2).fit(plain), MBPCA(n_components=2).fit(padded)
+        before, after = MBPCA(n_components=2, tol=TIGHT).fit(plain), MBPCA(n_components=2, tol=TIGHT).fit(padded)
         assert after.block_informative_widths_ == {"a": 4, "b": 4}
         np.testing.assert_allclose(after.super_scores_, before.super_scores_)
         np.testing.assert_allclose(after.transform(padded), before.transform(plain))
