@@ -241,7 +241,8 @@ def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
     They are the numeric factors whose settings all lie between 0 and 1, when there are at
     least two of them, other factors besides, and every run's settings of them sum to 1: the
     data of a mixture-process design. A process factor whose own settings lie between 0 and 1
-    hides them, and none are found.
+    hides them, and none are found. Columns that are only ever 0 or 1 blend nothing: they are
+    a categorical factor's indicators, one set per run, and none are found either.
     """
     numeric = [c for c in factor_cols if _is_numeric(df[c])]
     values = df[numeric].to_numpy(dtype=float)
@@ -253,8 +254,10 @@ def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
     ]
     if len(shares) < 2 or len(shares) == len(factor_cols):
         return []
-    total = finite[:, [numeric.index(c) for c in shares]].sum(axis=1)
-    return shares if np.allclose(total, 1.0, atol=1e-6) else []
+    settings = finite[:, [numeric.index(c) for c in shares]]
+    if np.isin(settings, (0.0, 1.0)).all():
+        return []
+    return shares if np.allclose(settings.sum(axis=1), 1.0, atol=1e-6) else []
 
 
 def _coded_formula(formula: str, df: pd.DataFrame, factor_cols: list[str]) -> str:
