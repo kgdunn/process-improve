@@ -316,6 +316,12 @@ specific version.
 
 MIT: see [LICENSE](https://github.com/kgdunn/process-improve/blob/main/LICENSE) for details.
 
+## Trademarks
+
+OMARS® is a registered trademark of KU Leuven Research & Development. process-improve uses the
+name only for the class of designs defined by Núñez Ares and Goos (2020), and is not affiliated
+with, or endorsed by, KU Leuven, Minitab or Effex.
+
 ## Contributing
 
 Bug reports, feature requests and pull requests are welcome. See

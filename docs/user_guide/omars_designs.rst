@@ -17,6 +17,13 @@ conference-foldover member produced by ``generate_design(design_type="omars")``
 
 .. note::
 
+   OMARS® is a registered trademark of KU Leuven Research & Development.
+   process-improve uses the name only for the class of designs defined by
+   Núñez Ares and Goos (2020), and is not affiliated with, or endorsed by,
+   KU Leuven, Minitab or Effex.
+
+.. note::
+
    ``generate_omars`` solves its ILP with HiGHS, through ``scipy.optimize.milp``,
    which is part of the core install, so no extra is needed.  The ``ilp`` extra
    that used to supply the CBC solver is deprecated and now installs nothing.
