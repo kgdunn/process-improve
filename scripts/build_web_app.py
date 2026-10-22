@@ -440,11 +440,16 @@ def _page_levels(factor: dict[str, Any]) -> list[str] | None:
 
 
 def page_factor(factor: dict[str, Any]) -> dict[str, Any]:
-    """Write a source's factor as the page asks for it: a numeric factor's range and units, a categorical's levels."""
+    """Write a source's factor as the page asks for it: a numeric factor's range and units, a categorical's levels.
+
+    A source may write a range high first, coding its larger setting -1; the page's range goes low to high, so it
+    codes that factor the other way round, and the runs, in the factor's own units, are the source's.
+    """
     if factor.get("type") == "categorical":
         return {"name": factor["name"], "type": "categorical", "levels": _page_levels(factor), "units": ""}
     units = str(factor.get("units") or "")[:UNITS_MOST]
-    return {"name": factor["name"], "low": factor["low"], "high": factor["high"], "units": units}
+    low, high = sorted((factor["low"], factor["high"]))
+    return {"name": factor["name"], "low": low, "high": high, "units": units}
 
 
 def _too_many_levels(factor: dict[str, Any]) -> bool:
@@ -460,7 +465,7 @@ def _page_factor(factor: dict[str, Any]) -> bool:
         return _page_levels(factor) is not None
     low, high = factor.get("low"), factor.get("high")
     numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (low, high))
-    return factor.get("type") == "numeric" and numbers and low < high  # type: ignore[operator]
+    return factor.get("type") == "numeric" and numbers and low != high
 
 
 def _factors_refused(factors: list[dict[str, Any]]) -> str:

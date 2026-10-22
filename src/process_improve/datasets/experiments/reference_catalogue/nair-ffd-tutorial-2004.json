@@ -520,7 +520,7 @@
    },
    "factors": [
     {
-     "name": "1",
+     "name": "X1",
      "description": "factor X1",
      "low": -1,
      "high": 1,
@@ -528,7 +528,7 @@
      "type": "numeric"
     },
     {
-     "name": "2",
+     "name": "X2",
      "description": "factor X2",
      "low": -1,
      "high": 1,
@@ -536,7 +536,7 @@
      "type": "numeric"
     },
     {
-     "name": "3",
+     "name": "X3",
      "description": "factor X3",
      "low": -1,
      "high": 1,
@@ -546,7 +546,7 @@
    ],
    "responses": [],
    "runs": {
-    "columns": ["1", "2", "3"],
+    "columns": ["X1", "X2", "X3"],
     "coded": true,
     "rows": [
      [1, -1, -1],
