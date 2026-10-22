@@ -446,7 +446,9 @@ function severalCode(spec, complete, control) {
     ...(complete ? [] : ["groups = {level: g for level, g in groups.items() if len(g)}  # a level with no result yet is left out"]),
     "anova = stats.f_oneway(*groups.values())",
     "tukey = stats.tukey_hsd(*groups.values())",
-    "dunnett = stats.dunnett(*(g for level, g in groups.items() if level != control), control=groups[control])",
+    "# scipy integrates Dunnett's distribution by randomized quasi-Monte Carlo: seeded, it is the same on every run.",
+    "others = (g for level, g in groups.items() if level != control)",
+    "dunnett = stats.dunnett(*others, control=groups[control], random_state=1)",
     'print(anova, tukey, dunnett, sep="\\n")',
   ];
 }
