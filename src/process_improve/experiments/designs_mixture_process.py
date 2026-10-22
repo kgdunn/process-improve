@@ -75,6 +75,7 @@ from patsy import Term as PatsyTerm
 from patsy import categorical as patsy_categorical
 
 from process_improve._random import check_random_state
+from process_improve.experiments._rules import names_categorical
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
     _factor_names,
@@ -437,6 +438,17 @@ def mixture_process_model(
     return MixtureProcessModel(order, tuple(terms))
 
 
+def _refuse_rules(constraints: list[Constraint], process: list[Factor]) -> None:
+    """Refuse constraints that name categorical factors, or join comparisons with ``and``, ``or``, ``not``."""
+    categorical = [f.name for f in process if f.type == FactorType.categorical]
+    named = [c.expression for c in constraints if names_categorical(c.expression, categorical)]
+    if named:
+        raise ValueError(
+            f"The constraints {named} name categorical factors or join comparisons with and, or, not, which are "
+            "not supported beside mixture components yet; give them for a design of process factors only."
+        )
+
+
 def split_constraints(
     constraints: list[Constraint], mixture: list[Factor], process: list[Factor]
 ) -> tuple[list[Constraint], list[Constraint]]:
@@ -452,6 +464,7 @@ def split_constraints(
     ValueError
         If a constraint names both a component and a process factor.
     """
+    _refuse_rules(constraints, process)
     on_mixture = {nfkc(f.name) for f in mixture}
     on_process = {nfkc(f.name) for f in process}
     blends: list[Constraint] = []

@@ -835,7 +835,7 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     levels = polish_levels(counts)
     lattice = None
     if levels is not None and (grid_model == "quadratic" or region.inequalities):  # the box's corners need no polish
-        inside = (lambda points: region.slack(points) <= _FEASIBILITY_TOL) if region.inequalities else None
+        inside = (lambda points, _cats: region.slack(points) <= _FEASIBILITY_TOL) if region.inequalities else None
         lattice = PolishLattice(levels, rows_of, inside)
     pool = CandidatePool(coded, cats, f_cand, lattice)
     _rows, new_coded, _cats, _value = select_runs(

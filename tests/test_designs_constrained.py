@@ -594,7 +594,7 @@ class TestPolish:
         lattice = PolishLattice(
             5,
             lambda c, k: model_matrix(region, c, k, "quadratic"),
-            lambda c: region.slack(c) <= 1e-9,
+            lambda c, _k: region.slack(c) <= 1e-9,
         )
         polished, _cats, n_moves = polish_runs(coded[rows], cats[rows], no_fixed, criterion, lattice)
         x = model_matrix(region, polished, cats[rows], "quadratic")

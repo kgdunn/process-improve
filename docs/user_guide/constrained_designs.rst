@@ -101,8 +101,10 @@ Writing constraints
   ``log``, ``log10``: ``Constraint(expression="T * D <= 6000", type="nonlinear")``.
 * Equalities are refused. A region with ``A + B == 1`` has no volume to place runs
   in; proportions that sum to one are mixture factors.
-* Constraints refer to continuous factors. Categorical factors may appear in the
-  design and are crossed with the constrained continuous region.
+* A constraint may also name categorical factors, to disallow a combination of levels
+  or to limit a continuous factor on some levels only; see
+  :ref:`constrained-categorical-rules`. Categorical factors that no constraint names
+  are crossed with the constrained continuous region.
 
 The expression is parsed into an arithmetic tree and evaluated with numpy; it is never
 passed to ``eval``, so an expression from an untrusted source can only compute a number.
@@ -118,7 +120,114 @@ Combining with other options
 * ``hard_to_change`` (split-plot) is not available together with constraints; it is
   ignored and recorded as ``metadata["hard_to_change_ignored"]``.
 * Other design types do not enforce constraints. They log a warning and set
-  ``metadata["constraints_enforced"] = False``.
+  ``metadata["constraints_enforced"] = False``. A constraint that names a categorical
+  factor is refused instead, since it usually marks a combination that cannot be run
+  at all.
+
+.. _constrained-categorical-rules:
+
+Combinations of levels that cannot be run
+-----------------------------------------
+
+Some combinations of categorical levels cannot be run, and some levels allow only part
+of a continuous factor's range. Both are written as constraints on the levels, and the
+optimal design then places runs only where they are allowed.
+
+A reaction is run with catalyst A, B or C in solvent X or Y, between 150 and 200 degC
+and 1 and 5 bar. Catalyst B decomposes in solvent Y, and loses activity above 180 degC.
+
+.. code-block:: python
+
+   from process_improve.experiments import DesignRegion, Factor, generate_design
+
+   reaction = [
+       Factor(name="T", low=150, high=200, units="degC"),
+       Factor(name="P", low=1, high=5, units="bar"),
+       Factor(name="catalyst", type="categorical", levels=["A", "B", "C"]),
+       Factor(name="solvent", type="categorical", levels=["X", "Y"]),
+   ]
+   reaction_rules = [
+       "not (catalyst == 'B' and solvent == 'Y')",  # B decomposes in solvent Y
+       "not (catalyst == 'B' and T > 180)",  # B loses activity above 180 degC
+   ]
+   reaction_result = generate_design(reaction, budget=20, constraints=reaction_rules, random_state=1)
+   runs = reaction_result.design_actual
+   print(runs.groupby(["catalyst", "solvent"]).size().to_string())
+   print(runs.groupby("catalyst")["T"].max().to_string())
+   print(reaction_result.metadata["inestimable_columns"])
+
+.. code-block:: text
+
+    catalyst  solvent
+    A         X          4
+              Y          4
+    B         X          4
+    C         X          4
+              Y          4
+    catalyst
+    A    200.0
+    B    180.0
+    C    200.0
+    {'catalyst:solvent': 1}
+
+The 20 runs are spread evenly over the five allowed pairs, and catalyst B never goes
+above 180 degC while the other two reach 200 degC.
+
+A disallowed pair is a missing cell, and it costs the interaction of the two factors
+part of its information in every design over this region: the six cells of catalyst
+by solvent would estimate the intercept, the two main effects and the interaction's
+two columns, and five cells leave one of those columns out. The design is built for
+the columns that can be estimated, a warning names the term and the missing pair, and
+``metadata["inestimable_columns"]`` records it. ``evaluate_design`` drops the same
+column, so the design is judged on the model it was built for, and says so in
+``result["notes"]["inestimable_columns"]``.
+
+``analyze_experiment`` cannot fit the full interaction either: its default
+interactions model falls back to main effects, with a warning. To keep the other
+interactions, name a model without that term, such as
+``model="(T + P + catalyst + solvent) ** 2 - catalyst:solvent"``; the one column of
+catalyst by solvent that could be estimated is then left out too.
+
+The region describes itself one combination at a time:
+
+.. code-block:: python
+
+   reaction_region = DesignRegion(reaction, reaction_rules)
+   print(reaction_region.allowed_combinations())
+   print(reaction_region.given(catalyst="B", solvent="X").implied_bounds())
+
+.. code-block:: text
+
+      catalyst solvent      limits
+    0        A       X          []
+    1        A       Y          []
+    2        B       X  [T <= 180]
+    3        C       X          []
+    4        C       Y          []
+    {'T': (150.0, 180.0), 'P': (1.0, 5.0)}
+
+:meth:`~process_improve.experiments.region.DesignRegion.given` returns the region of
+continuous settings for one combination, on which every diagnostic of
+:ref:`region-limits` works. A diagnostic asked of the whole region refuses and points
+to ``given``, since the region holds one such region per allowed combination.
+
+Writing the rules:
+
+* Compare a categorical factor with its levels: ``catalyst == 'B'``,
+  ``catalyst != 'B'``, ``catalyst in ('A', 'C')``, ``catalyst not in ('A', 'C')``.
+  A level the factor does not have is an error, so a misspelt level cannot leave every
+  combination allowed.
+* Join comparisons with ``and``, ``or`` and ``not``. ``"not (...)"`` reads as "this
+  combination is not run".
+* An inequality inside a rule applies only on the levels the rule names:
+  ``"catalyst != 'C' or (T <= 170 and P <= 4)"`` keeps catalyst C at or below 170 degC
+  and 4 bar.
+* Two inequalities joined by ``or`` are refused: the settings either one allows do not
+  form a convex region, which the design needs for each combination of levels.
+* A level that the rules leave with no allowed run is refused; remove it from the
+  factor.
+* Only the optimal designs follow these rules, and not yet beside mixture components.
+  The I-criterion and ``evaluate_design`` weight each allowed combination equally.
 
 Judging the design over its own region
 --------------------------------------

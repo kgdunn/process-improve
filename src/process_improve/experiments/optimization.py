@@ -816,6 +816,13 @@ def _search_space(
         starts = [(lows + highs) / 2.0, *(rng.uniform(lows, highs) for _ in range(n_starts - 1))]
         return _SearchSpace(bounds, [], starts)
 
+    if region.rules is not None:
+        example = ", ".join(f"{name}={levels[0]!r}" for name, levels in region.rules.levels.items())
+        msg = (
+            f"The region's constraints on the categorical factors {region.rules.factors} give one region of "
+            f"settings per allowed combination of levels; search one of them, as region.given({example})."
+        )
+        raise ValueError(msg)
     if set(region.names) != set(factor_names):
         msg = f"The region's factors {region.names} do not match the model's factors {factor_names}."
         raise ValueError(msg)

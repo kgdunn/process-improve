@@ -127,7 +127,10 @@ class GenerateDesignInput(BaseModel):
         None,
         description=(
             'Inequalities on the factors in actual units, e.g. ["3*T + 5*D <= 600", "400 <= 3*T + 5*D"]. '
-            "Enforced by the optimal designs, constrained mixtures and the sobol, halton and maximin designs."
+            "Enforced by the optimal designs, constrained mixtures and the sobol, halton and maximin designs. "
+            "A constraint may also compare a categorical factor with its levels and join comparisons with and, "
+            "or, not: \"not (catalyst == 'B' and solvent == 'Y')\" disallows a combination of levels, and "
+            "\"not (catalyst == 'B' and T > 180)\" limits T when the catalyst is B (optimal designs only)."
         ),
     )
     candidates: list[dict[str, Any]] | None = Field(
