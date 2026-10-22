@@ -1408,8 +1408,7 @@ def _given_design(spec: dict) -> dict:
     }
     coded = _coded(runs, stored["factors"]).to_numpy(dtype=float)
     kinds = ["categorical" if f.type == "categorical" else "numeric" for f in factors]
-    fits = estimable_models(coded, kinds)
-    stored["model"] = next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
+    stored["model"] = _largest_model(coded, kinds, blocks)
     if blocks:
         runs.insert(0, BLOCK, blocks)
     runs.insert(0, "Run order", range(1, len(runs) + 1))
@@ -7066,9 +7065,18 @@ def _model_rank(coded: np.ndarray, kinds: list[str], model: str) -> tuple[int, i
     return matrix.shape[1], int(np.linalg.matrix_rank(matrix))
 
 
-def _largest_model(coded: np.ndarray, kinds: list[str]) -> str:
-    """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analysed."""
+def _largest_model(coded: np.ndarray, kinds: list[str], blocks: list[int] | None = None) -> str:
+    """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analysed.
+
+    Runs in blocks estimate a model beside the blocks' effects, which take a column for each block after the first.
+    """
     fits = estimable_models(coded, kinds)
+    labels = sorted(set(blocks or []))
+    if len(labels) > 1:
+        indicators = np.column_stack([np.asarray(blocks) == b for b in labels[1:]]).astype(float)
+        for model in (m for m in MODELS if fits.get(m)):
+            matrix = np.column_stack([model_matrix(coded, kinds, model), indicators])
+            fits[model] = int(np.linalg.matrix_rank(matrix)) == matrix.shape[1]
     return next((m for m in reversed(MODELS) if fits.get(m)), MODELS[0])
 
 
