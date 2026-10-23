@@ -18,6 +18,7 @@ import {
   applications,
   checkIndex,
   checkLine,
+  countSentence,
   compareRefusal,
   correlationMap,
   csvText,
@@ -347,9 +348,7 @@ function render() {
     return;
   }
   const list = results(catalog, state);
-  const published = list.filter((d) => d.collection === "published").length;
-  const sentence = `${list.length} of ${catalog.designs.length} designs`;
-  $("#count").textContent = list.length ? `${sentence}: ${published} published, ${list.length - published} generated` : `${sentence}: change a filter or the search to see more`;
+  $("#count").textContent = countSentence(list, catalog);
   renderCounts();
   renderTimeline();
   renderList(list);
