@@ -342,6 +342,14 @@ def test_ssq(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> None:
     assert pytest.approx(ssq(x), abs=1e-9) == (1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6)
 
 
+def test_ssq_per_row_and_column_skips_missing_cells() -> None:
+    """Per-column and per-row sums skip NaN; an all-missing row or column sums to 0."""
+    X = np.array([[1.0, np.nan, 2.0], [3.0, np.nan, np.nan]])
+    np.testing.assert_array_equal(ssq(X, axis=0), [10.0, 0.0, 4.0])
+    np.testing.assert_array_equal(ssq(X, axis=1), [5.0, 9.0])
+    assert ssq(X) == 14.0
+
+
 def test_ssq_refuses_an_axis_a_matrix_does_not_have() -> None:
     """A matrix has axes 0 and 1 (or None for the total); any other axis used to give a silent 0.0."""
     with pytest.raises(ValueError, match=r"^axis must be 0, 1 or None; got 2\.$"):
