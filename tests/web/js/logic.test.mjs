@@ -121,6 +121,16 @@ import {
   printedLike,
   printedValue,
   termPart,
+  INTERACTION_MODELS,
+  MAX_FACTORS,
+  MAX_INTERACTION_FACTORS,
+  PROBE_FACTORS,
+  cornersBeyond,
+  highestResolution,
+  interactionOf,
+  screeningSentence,
+  screensOnly,
+  tradeOffBeyond,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -226,6 +236,72 @@ describe("the trade-off grid of a fraction", () => {
         assert.equal(fractionRuns(k, picked.resolution), runs, `${k} factors, resolution ${r}`);
       }
     }
+  });
+});
+
+describe("a study of more factors than the page models the interactions of", () => {
+  const factors = (k) => Array.from({ length: k }, (_, i) => ({ name: `X${i + 1}`, low: 0, high: 1, units: "" }));
+
+  test("past 12 factors, of the 40 a study can have, a study keeps to its main effects", () => {
+    assert.equal(MAX_FACTORS, 40);
+    assert.equal(MAX_INTERACTION_FACTORS, 12);
+    assert.deepEqual([12, 13, 24, 40].map(screensOnly), [false, true, true, true]);
+    assert.deepEqual(INTERACTION_MODELS, ["interactions", "quadratic"]);
+  });
+
+  test("a fraction stops at resolution IV past 12 factors, and at V before, as it can", () => {
+    assert.deepEqual([3, 4, 5, 12, 13, 24, 40].map(highestResolution), [3, 4, 5, 5, 4, 4, 4]);
+  });
+
+  test("the brief and Learn each say why, with the interactions the factors have", () => {
+    assert.equal(screeningSentence(12, "brief"), "");
+    assert.equal(
+      screeningSentence(13, "brief"),
+      "Past 12 factors, a study finds which factors matter, and a fraction is made at resolution III or IV: 13 factors have 78 two-factor interactions, more than a screening design has runs.",
+    );
+    assert.equal(
+      screeningSentence(40, "learn"),
+      "Past 12 factors, Learn fits the main effects, or the terms you choose: 40 factors have 780 two-factor interactions, more than a screening design has runs.",
+    );
+  });
+
+  for (const k of [13, 24, 40]) {
+    test(`the terms to tick in ${k} factors are the main effects, the squares and the interactions named`, () => {
+      const named = [["X1"], ["X2", "X5"], ["X3", "X3"], ["X1", "X2", "X4"], ["X1", "Z"]];
+      const groups = Object.groupBy(candidateTerms(factors(k), named), (t) => t.group);
+      assert.deepEqual(Object.keys(groups), ["Main effects", "Interactions you name", "Squares"]);
+      assert.equal(groups["Main effects"].length, k);
+      assert.equal(groups.Squares.length, k);
+      assert.deepEqual(
+        groups["Interactions you name"].map((t) => t.label),
+        ["X2·X5", "X1·X2·X4"],
+        "a main effect and a square are listed in their own groups, and a factor the design lacks nowhere",
+      );
+    });
+  }
+
+  test("12 factors list every interaction of two and three, as before", () => {
+    const groups = Object.groupBy(candidateTerms(factors(12)), (t) => t.group);
+    assert.equal(groups["Two-factor interactions"].length, 66);
+    assert.equal(groups["Three-factor interactions"].length, 220);
+  });
+
+  test("an interaction is named with its factors in the design's order, and not with itself", () => {
+    const names = factors(13).map((f) => f.name);
+    assert.deepEqual(interactionOf("X9", "X2", names), ["X2", "X9"]);
+    assert.equal(interactionOf("X4", "X4", names), null);
+  });
+
+  test("the trade-off grid says where its columns stop", () => {
+    assert.equal(tradeOffBeyond(11), "");
+    assert.equal(tradeOffBeyond(24), "The grid shows fractions in 3 to 11 factors; the page finds the fraction in your 24 when it makes the design.");
+  });
+
+  test("the table of corners says where it stops", () => {
+    assert.equal(PROBE_FACTORS, 8);
+    assert.equal(cornersBeyond(8), "");
+    assert.equal(cornersBeyond(9), "The table of corners to mark lists up to 8 numeric factors: your 9 have 512 corners, too many to mark one by one.");
+    assert.match(cornersBeyond(40), /your 40 have 1,099,511,627,776 corners/);
   });
 });
 
