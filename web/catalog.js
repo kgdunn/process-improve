@@ -10,6 +10,7 @@ import { correlationFigure, draw, fdsFigure, palette } from "./charts.js";
 import {
   DEFAULT_STATE,
   FAMILY_COLOURS,
+  MAP_TERMS_FACTORS,
   MODELS,
   OTHER_COLOUR,
   SORTS,
@@ -42,6 +43,7 @@ import {
   leverageWords,
   levelsText,
   manyLabels,
+  mapTermsSentence,
   projectionLines,
   pythonCode,
   results,
@@ -74,8 +76,6 @@ const PAGE = 48;
 const TWINS_SHOWN = 15;
 /** The most factors the map draws: a design with more is in the list, and the map says how many. */
 const MAP_FACTORS = 16;
-/** The most factors of a design whose correlation map the detail draws: 12 factors have 90 terms. */
-const MAP_TERMS_FACTORS = 12;
 /** How many errata the table shows at first. */
 const ERRATA_SHOWN = 200;
 /** How many applications the filter lists at first, those of the most designs; the rest are a click away. */
@@ -1007,25 +1007,27 @@ function projections(design, detail) {
   if (!runs) return [];
   const names = (detail.factors ?? []).map((f) => f.name);
   const out = [element("h3", { text: "Its projections" }), projectionExplorer(runs, names)];
-  if (design.n_factors <= MAP_TERMS_FACTORS) {
-    const map = correlationMap(runs, names);
-    const most = largestSecondOrderR(map);
-    out.push(
-      element("h3", { text: "Correlations between its terms" }),
-      element("p", {
-        class: "hint",
-        text: "The absolute correlation |r| between the main effects, squares and two-factor interactions, from white at 0 to dark at 1, as compare_designs reads them. A term that does not vary, such as the square of a two-level factor, is blank.",
-      }),
-    );
-    if (most !== null) out.push(element("p", { text: `The largest |r| between two second-order terms is ${most.toFixed(2)}.` }));
-    const plot = element("div", { class: "detail__correlations", "aria-hidden": "true" });
-    out.push(plot);
-    const height = Math.min(820, 160 + 15 * map.terms.length); // room for every term's label
-    plotlyReady.then((version) => {
-      if (version && plot.isConnected) draw(plot, () => correlationFigure(map.terms, map.matrix, design.n_factors), version, height);
-      else plot.remove();
-    });
+  if (design.n_factors > MAP_TERMS_FACTORS) {
+    out.push(element("p", { class: "hint", text: mapTermsSentence(design.n_factors) }));
+    return out;
   }
+  const map = correlationMap(runs, names);
+  const most = largestSecondOrderR(map);
+  out.push(
+    element("h3", { text: "Correlations between its terms" }),
+    element("p", {
+      class: "hint",
+      text: "The absolute correlation |r| between the main effects, squares and two-factor interactions, from white at 0 to dark at 1, as compare_designs reads them. A term that does not vary, such as the square of a two-level factor, is blank.",
+    }),
+  );
+  if (most !== null) out.push(element("p", { text: `The largest |r| between two second-order terms is ${most.toFixed(2)}.` }));
+  const plot = element("div", { class: "detail__correlations", "aria-hidden": "true" });
+  out.push(plot);
+  const height = Math.min(820, 160 + 15 * map.terms.length); // room for every term's label
+  plotlyReady.then((version) => {
+    if (version && plot.isConnected) draw(plot, () => correlationFigure(map.terms, map.matrix, design.n_factors), version, height);
+    else plot.remove();
+  });
   return out;
 }
 

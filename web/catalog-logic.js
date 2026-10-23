@@ -790,7 +790,10 @@ export const COMPARE_MOST = 4;
 export function compareRefusal(catalog, ids, id) {
   const design = catalog.designs.find((d) => d.id === id);
   if (!design?.compared) {
-    return "the catalog compares designs whose factors are all numeric, with at most 12 factors and 1000 runs";
+    return (
+      "the catalog compares designs whose factors are all numeric, with at most 12 factors and 1000 runs: it scores " +
+      "each on models up to the full quadratic, and past 12 factors those have more terms than a screening design has runs"
+    );
   }
   if (ids.length >= COMPARE_MOST) return `the comparison holds ${COMPARE_MOST} designs at most`;
   const first = catalog.designs.find((d) => d.id === ids[0]);
@@ -953,6 +956,16 @@ export function correlationMap(runs, names) {
     }),
   );
   return { terms: columns.map((c) => c.term), kinds: columns.map((c) => c.kind), matrix };
+}
+
+/** The most factors of a design whose correlation map the detail draws: 12 factors have 90 terms. */
+export const MAP_TERMS_FACTORS = 12;
+
+/** What the detail says in place of the correlation map of a design of more factors than it draws; "" for fewer. */
+export function mapTermsSentence(k) {
+  if (k <= MAP_TERMS_FACTORS) return "";
+  const terms = 2 * k + (k * (k - 1)) / 2; // its main effects, squares and two-factor interactions
+  return `The map of the correlations between a design's terms is drawn for up to ${MAP_TERMS_FACTORS} factors: this design's ${k} have ${terms} terms, too many to read in one map.`;
 }
 
 /** The largest |r| between two different second-order terms (squares and interactions); null without a pair. */
