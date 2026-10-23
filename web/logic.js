@@ -1071,7 +1071,7 @@ export function spreadSentences(spread, { response, units = "", factorUnits = {}
   const lines = [];
   const spreads = spread.factors.find((f) => f.rank.ln_std_dev === 1 && f.best.ln_std_dev !== undefined);
   if (spreads) {
-    const each = listNames(spreads.levels.map((l) => `${num(l.ln_std_dev)} at ${l.level}`));
+    const each = listNames(spreads.levels.map((l) => `${num(l.ln_std_dev)} at ${l.level}${after(factorUnits[spreads.name])}`));
     lines.push(
       `${spreads.name} moves the spread of ${response} most, its ln s ${each}: the spread is smallest with ` +
         `${at(spreads, spreads.best.ln_std_dev)}.`,

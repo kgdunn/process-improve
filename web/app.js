@@ -194,7 +194,6 @@ import {
   responsesTitle,
   runBadge,
   showsVif,
-  SN_WORDS,
   splitResults,
   spreadSentences,
   standouts,
@@ -3204,7 +3203,7 @@ function spreadParts(spread) {
   if (!spread) return [];
   const { label, units } = responseWords(shownSpec());
   const factorUnits = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
-  const ratio = spread.kind ? [`S/N (${SN_WORDS[spread.kind]})`] : [];
+  const ratio = spread.kind ? ["S/N"] : []; // the sentence above names the ratio: larger, smaller or nominal
   const tableHeading = el("h4", "", "");
   tableHeading.append(term("Response table", { key: "response-table", alone: true }));
   const moved = (f, key) => (f.rank[key] === null ? "" : `${fmt(f.delta[key])} (${f.rank[key]})`); // null: no setting gave it
@@ -3218,18 +3217,11 @@ function spreadParts(spread) {
       spread.factors.flatMap((f) =>
         f.levels.map((l) => [f.name, String(l.level), l.n, fmt(l.mean), fmt(l.ln_std_dev), ...(spread.kind ? [fmt(l.sn)] : [])]),
       ),
-      { "ln s": "ln-s", ...(spread.kind ? { [ratio[0]]: "signal-to-noise" } : {}) },
+      { "ln s": "ln-s", "S/N": "signal-to-noise" },
     ),
-    el("h4", "", "How much each factor moves each summary"),
+    el("h4", "", "Each factor's delta, and its rank"),
     table(
-      [
-        "Factor",
-        "Mean: delta (rank)",
-        "ln s: delta (rank)",
-        ...(spread.kind ? ["S/N: delta (rank)"] : []),
-        "Smallest spread at",
-        ...(spread.kind ? ["Highest S/N at"] : []),
-      ],
+      ["Factor", "Mean", "ln s", ...ratio, "Least spread at", ...(spread.kind ? ["Best S/N at"] : [])],
       spread.factors.map((f) => [
         f.name,
         moved(f, "mean"),
@@ -3239,7 +3231,7 @@ function spreadParts(spread) {
         ...(spread.kind ? [best(f, "sn")] : []),
       ]),
     ),
-    said("hint", "A factor's delta is its largest average less its smallest; the factor of the largest delta has rank 1."),
+    said("hint", "A factor's delta is its largest average less its smallest; the factor of the largest has rank 1, in brackets."),
     el("h4", "", "Each setting's readings"),
     table(
       ["Setting", "Runs", "Readings", "Mean", "Std. dev.", "ln s", ...ratio],
@@ -3254,7 +3246,7 @@ function spreadParts(spread) {
         fmt(s.ln_std_dev),
         ...(spread.kind ? [fmt(s.sn)] : []),
       ]),
-      { "ln s": "ln-s" },
+      { "ln s": "ln-s", "S/N": "signal-to-noise" },
     ),
   ];
 }

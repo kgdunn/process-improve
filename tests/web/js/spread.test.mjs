@@ -38,7 +38,7 @@ function schmidt({ kind = "nominal", adjustment = "A", left_out = [] } = {}) {
 describe("what the readings repeated at each setting say", () => {
   test("the factor that moves the spread most, its ratio's best levels and the adjustment factor", () => {
     assert.deepEqual(spreadSentences(schmidt(), { response: "the width", units: "mm", factorUnits: { C: "s" } }), [
-      "C moves the spread of the width most, its ln s 0.347 at 1 and 1.96 at 2: the spread is smallest with C at 1 s.",
+      "C moves the spread of the width most, its ln s 0.347 at 1 s and 1.96 at 2 s: the spread is smallest with C at 1 s.",
       "The signal-to-noise ratio (nominal is best) is highest with C at 1 s and A at 1, the factor that moves it most first.",
       "To move the mean to the target, A is the adjustment factor: it moves the mean most for its effect on the spread, " +
         "by 15 mm over its levels and ln s by 0.",
