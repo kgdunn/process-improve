@@ -1637,8 +1637,15 @@ def test_a_3k_component_groups_the_runs_by_its_defining_contrast_modulo_3():
     assert [_component_ss(entry, {"word": "AB", "key": f"total.{u}"}) for u in range(3)] == [18, -2, 8]
     assert [_component_ss(entry, {"word": "AB2", "key": f"total.{u}"}) for u in range(3)] == [0, 18, 6]
     assert _component_ss(entry, {"word": "A2B", "key": "count.0"}) == 6  # A²B is AB², squared
+    assert _component_ss(entry, {"word": "A2B"}) == pytest.approx(28)
+    assert _component_ss(entry, {"word": "B"}) == pytest.approx(25 + 1 / 3), "a main effect is a word too"
     interaction = _component_ss(entry, {"word": "AB"}) + _component_ss(entry, {"word": "AB2"})
     assert interaction == pytest.approx(61 + 1 / 3)
+    assert _component_ss(entry, {"parts": [{"word": "AB"}, {"word": "AB2"}]}) == pytest.approx(interaction)
+    first = _component_ss(entry, {"word": "AB2", "runs": list(range(1, 19, 2))})  # the first reading of each cell
+    second = _component_ss(entry, {"word": "AB2", "runs": list(range(2, 19, 2))})
+    both = {"parts": [{"word": "AB2", "runs": list(range(1, 19, 2))}, {"word": "AB2", "runs": list(range(2, 19, 2))}]}
+    assert _component_ss(entry, both) == pytest.approx(first + second), "each part keeps its own runs"
 
 
 def test_a_3k_component_of_runs_printed_in_coded_units_takes_their_settings_in_order():

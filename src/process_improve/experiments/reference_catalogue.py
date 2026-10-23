@@ -2851,8 +2851,13 @@ def _component_ss(experiment: dict, check: dict) -> float:
     three group totals on two degrees of freedom, is the one
     :func:`~process_improve.experiments.interaction_components` gives. ``check["key"]`` is ``"ss"``
     (the default), ``"total.<u>"`` or ``"count.<u>"`` for the group with L = u. ``check["runs"]``
-    keeps some runs, as the totals of one level of a third factor.
+    keeps some runs, as the totals of one level of a third factor. ``check["parts"]`` adds up the
+    sums of squares of several components, each part a ``word`` and its own ``runs``, as a source
+    totals the components it estimates from different replicates.
     """
+    if "parts" in check:
+        rest = {key: value for key, value in check.items() if key != "parts"}
+        return math.fsum(_component_ss(experiment, rest | part) for part in check["parts"])
     positions = check.get("runs")
     _, responses = _coded_runs(experiment, positions)
     y = responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float)
