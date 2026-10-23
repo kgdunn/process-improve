@@ -18,7 +18,8 @@ permissions:
 
 jobs:
   published-app:
-    runs-on: ubuntu-latest
+    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -93,7 +94,8 @@ jobs:
           fi
 
   newest-pyodide:
-    runs-on: ubuntu-latest
+    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     continue-on-error: true
     steps:
