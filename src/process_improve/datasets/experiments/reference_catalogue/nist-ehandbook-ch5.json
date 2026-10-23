@@ -11,7 +11,7 @@
   "doi": "10.18434/M32189",
   "url": "https://www.itl.nist.gov/div898/handbook/pri/pri.htm",
   "cite": "NIST/SEMATECH e-Handbook of Statistical Methods, NIST Handbook 151, Chapter 5: Process Improvement, https://doi.org/10.18434/M32189",
-  "read": "2026-10-14, from the chapter's web pages and the data files, design tables and R scripts they link, downloaded from www.itl.nist.gov; every number copied by hand with its section and a short quotation. Author, publisher and year are those of the DOI's DataCite record.",
+  "read": "2026-10-14, the chapter's web pages at www.itl.nist.gov and the data files, design tables and R scripts they link; every number with its section and a short quotation. Author, publisher and year are those of the DOI's DataCite record.",
   "rights": "A work of the US government (NIST Handbook 151, prepared with SEMATECH), not subject to copyright in the United States (17 U.S.C. 105); parts contributed by authors outside the federal government may be. Cite it as the source."
  },
  "experiments": [

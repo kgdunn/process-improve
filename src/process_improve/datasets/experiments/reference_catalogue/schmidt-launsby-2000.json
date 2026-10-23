@@ -33,7 +33,7 @@
   "isbn": "1-880156-03-2",
   "url": "https://search.worldcat.org/search?q=bn:1880156032",
   "cite": "Schmidt, S. R. and Launsby, R. G. (2000), Understanding Industrial Designed Experiments, 4th edition, edited by M. J. Kiemele, Air Academy Press",
-  "read": "2026-10-15, from scans of the front matter and contents and chapters 1 to 8 (pp. 1-1 to 1-74, 2-1 to 2-57, 3-1 to 3-62, 4-1 to 4-74, 5-1 to 5-81, 6-1 to 6-28, 7-1 to 7-19, 8-1 to 8-280 and J-1 to J-7, with Appendixes A to I and K to M seen; pp. 4-55 and 4-56 are missing from the scans); every number copied by hand, Tables 1.13, 2.15, 2.19, 2.22, 2.23, 2.24, 3.11, 3.31, 3.33, 5.12 and 5.24, the fractions of pp. 3-16 and 3-17, Figure 3 of p. 1-60 and the data and regression tables of chapter 8's network, injection molding, lunar concrete, gold wire, CV joint, operating system, rivet, runout, ball weld, analog filter, solderability and chemiluminescence case studies and Appendix J's answers read again from the page image at 220 to 450 dpi, and the twenty weekly mileages of 1.12 read from Figures 1.20 and 1.21",
+  "read": "2026-10-15, the front matter and contents and chapters 1 to 8 (pp. 1-1 to 1-74, 2-1 to 2-57, 3-1 to 3-62, 4-1 to 4-74, 5-1 to 5-81, 6-1 to 6-28, 7-1 to 7-19, 8-1 to 8-280 and J-1 to J-7, with Appendixes A to I and K to M seen); pp. 4-55 and 4-56 were not read, and the twenty weekly mileages of 1.12 are read from Figures 1.20 and 1.21",
   "rights": "The book is protected by copyright (© 1988 to 2000 Air Academy Press & Associates) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -104018,7 +104018,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 2, its weld tip chamfer for runs 3 to 8 read from the page image"
+    "notes": "Table 2"
    },
    "notes": "RS/Discover's ~ marks factors coded -1 to +1 (levels 1, 2 and 3), which reproduces Table 3. Runs 13 and 14 vary widely: the weld current arcs across the gap at that combination.",
    "expected": [
@@ -104654,7 +104654,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 7, its signs read from the page image"
+    "notes": "Table 7"
    },
    "notes": "The first five columns of Taguchi's L12 give runs 1 and 2 the same settings of the five components, so the screening design has eleven distinct combinations. Table 8 orders the factors by analyses of variance of the 120 simulations, which are not printed.",
    "expected": [
@@ -123002,7 +123002,7 @@
   "Table 4.11 and Equations 4.5 to 4.7 (pp. 4-20 to 4-28): formulas",
   "4.10 Crossvalidation and 4.11 Notes of caution (pp. 4-48 to 4-52): adjusted R², PRESS and Figures 4.10 and 4.11, in words",
   "4.12 (pp. 4-52 to 4-54): a one-way analysis of variance of five levels printed only as their averages, variances and sizes (ȳ = 8.6, MSB = 58, MSE = 8.889, F = 6.52, F(.99, 4, 45) = 3.83, and Tukey's q = 3.171 and distance 2.99); the library analyses runs, and the runs are not printed",
-  "4.13 (pp. 4-54 to 4-61): the two-factor example of three lots at two temperatures, nine runs each; its data are on pp. 4-55 and 4-56, which are missing from the scans read, and the rest prints summaries (the hand ANOVA, MYSTAT's table with SS 1.270, 27.449, 1.369 and 1.007, and the high and low temperature analyses)",
+  "4.13 (pp. 4-54 to 4-61): the two-factor example of three lots at two temperatures, nine runs each; its data are on pp. 4-55 and 4-56, which were not read, and the rest prints summaries (the hand ANOVA, MYSTAT's table with SS 1.270, 27.449, 1.369 and 1.007, and the high and low temperature analyses)",
   "4.14 (pp. 4-61 to 4-63): sample size from Appendix I's power charts, Φ² = .325n' and its iteration (n' = 5, 7, 9 and 10), readings of a chart",
   "Problems 2 and 7 to 12 of chapter 4 (pp. 4-69 and 4-72 to 4-73): questions in words and a sample size; Problems 1 and 3 to 6 are held with their data; the answers are in Appendix J, which has not been read",
   "5.1 (pp. 5-1 to 5-2): the analysis methods in words",

@@ -14,7 +14,7 @@
   "doi": "10.1002/wics.70018",
   "url": "https://doi.org/10.1002/wics.70018",
   "cite": "Goos (2025), \"OMARS Designs for Factor Screening and Response Surface Experimentation in One Step: A Review\", WIREs Computational Statistics 17(2), e70018",
-  "read": "2026-10-13, from the article's PDF (13 pages), supplied by the user; every number copied by hand with its page and a short quotation",
+  "read": "2026-10-13, the article (13 pages); every number with its page and a short quotation",
   "rights": "The article is protected by copyright and is not reproduced here; read it through its DOI. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [],
@@ -142,7 +142,7 @@
      [27, 0, 0, 0, 0, 0, 0, 0, 0]
     ],
     "coded": true,
-    "notes": "Copied from Table 1 (p. 3) through the PDF's text layer and compared with the page image. Checks on the copy: every column has nine -1, nine 0 and nine +1; the main effects are orthogonal to each other and to every quadratic and two-factor interaction column (is_omars() is True); runs 2k and 2k - 1 are mirror images, as p. 2 says."
+    "notes": "Table 1 (p. 3). Checks on the copy: every column has nine -1, nine 0 and nine +1; the main effects are orthogonal to each other and to every quadratic and two-factor interaction column (is_omars() is True); runs 2k and 2k - 1 are mirror images, as p. 2 says."
    },
    "notes": "The design is an OMARS design: process_improve.experiments.is_omars() returns True for the runs.",
    "expected": [
@@ -439,7 +439,7 @@
      [32, 1, 1, 1, 1, 1, 1, 1, 0]
     ],
     "coded": true,
-    "notes": "Copied from Table 2 (p. 3) through the PDF's text layer and compared with the page image. Checks on the copy: every column has fourteen -1, four 0 and fourteen +1; is_omars() is True; not every run's mirror image is in the design; runs 1 and 2, and 31 and 32, are duplicates, as p. 3 says."
+    "notes": "Table 2 (p. 3). Checks on the copy: every column has fourteen -1, four 0 and fourteen +1; is_omars() is True; not every run's mirror image is in the design; runs 1 and 2, and 31 and 32, are duplicates, as p. 3 says."
    },
    "notes": "The paper says the first and second runs, and the last two runs, use the same settings, so the design allows a pure-error estimate without a center run; evaluate_design's degrees_of_freedom gives 2 pure-error degrees of freedom. The paper prints no number for this, so it is not an expected item.",
    "expected": [
@@ -565,7 +565,7 @@
      [24, 0, 1, 0, -1]
     ],
     "coded": true,
-    "notes": "Copied from Table 3 (p. 4), printed in two panels (runs 1-12 and 13-24), through the PDF's text layer and compared with the page image. Checks on the copy: the 0 counts are 6, 6, 8, 8 as the text says; is_omars() is True; it is not a foldover. Runs 13 and 20 are the same test combination (1, 0, 0, 0), which the paper does not mention."
+    "notes": "Table 3 (p. 4), printed in two panels (runs 1-12 and 13-24),. Checks on the copy: the 0 counts are 6, 6, 8, 8 as the text says; is_omars() is True; it is not a foldover. Runs 13 and 20 are the same test combination (1, 0, 0, 0), which the paper does not mention."
    },
    "expected": [
     {
@@ -808,7 +808,7 @@
      [40, 0, 0, 0, 0, 0, 0, 1, -1, -1, 1]
     ],
     "coded": true,
-    "notes": "Copied from Table 4 (p. 5, printed rotated in two panels, runs 1-20 and 21-40) through the PDF's text layer and compared with the page image. Checks on the copy: x1-x6 have sixteen 0s each and x7-x10 none; the main effects are orthogonal to each other and to every second-order column; it is a foldover (run 1 mirrors run 34, and so on); runs 35-37 and 38-40 are triplicates, as p. 6 says; x1-x6 alone pass is_omars(), and x7-x10 alone are an orthogonal array of strength 3."
+    "notes": "Table 4 (p. 5, printed rotated in two panels, runs 1-20 and 21-40). Checks on the copy: x1-x6 have sixteen 0s each and x7-x10 none; the main effects are orthogonal to each other and to every second-order column; it is a foldover (run 1 mirrors run 34, and so on); runs 35-37 and 38-40 are triplicates, as p. 6 says; x1-x6 alone pass is_omars(), and x7-x10 alone are an orthogonal array of strength 3."
    },
    "notes": "is_omars() is False for all ten columns only because x7-x10 have no middle level (it tests three-level designs); the mixed-level OMARS properties hold.",
    "expected": [
@@ -1209,7 +1209,7 @@
      [24, 1, 1, 1, 1, -1, -1, 1, 1, 2, 3, 1, 3, 9]
     ],
     "coded": true,
-    "notes": "Copied from Table 5 (p. 8) through the PDF's text layer and compared with the page image. A to E are the blocking arrangements (block labels), not factors. Checks on the copy: x1-x4 have four 0s each; the main effects are orthogonal to each other and to every second-order column; it is a foldover; in every arrangement every factor's levels sum to zero within each block, as p. 9 says."
+    "notes": "Table 5 (p. 8). A to E are the blocking arrangements (block labels), not factors. Checks on the copy: x1-x4 have four 0s each; the main effects are orthogonal to each other and to every second-order column; it is a foldover; in every arrangement every factor's levels sum to zero within each block, as p. 9 says."
    },
    "expected": [
     {
