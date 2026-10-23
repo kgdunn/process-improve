@@ -14,6 +14,7 @@ from scipy import stats
 
 from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
+from process_improve.experiments._analyses.diagnostics import _in_run_order
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.ols_extractors import _type_ii_by_rank
 from process_improve.experiments.analysis import (
@@ -580,6 +581,89 @@ class TestResidualDiagnostics:
         external = internal * np.sqrt((n - p - 1) / (n - p - internal**2))
         assert diag["studentized_residuals"] == pytest.approx(internal.tolist())
         assert diag["externally_studentized_residuals"] == pytest.approx(external.tolist())
+
+
+def _standard_order_runs(response: str) -> pd.DataFrame:
+    """Return a 2^4 factorial in standard order, made in a randomized order, with a drift in run order or none.
+
+    ``response`` is ``"drift"`` (the response climbs one unit a run, in the order the runs
+    were made) or ``"random"`` (independent errors only).
+    """
+    df = pd.DataFrame(_full_factorial(4), columns=list("ABCD"))
+    df["RunOrder"] = np.random.default_rng(7).permutation(16) + 1
+    effects = 10 + 3 * df["A"] - 2 * df["B"] + 1.5 * df["C"]
+    noise = np.random.default_rng(2).normal(0, 1, 16)
+    df["y"] = effects + (1.0 * df["RunOrder"] + 0.3 * noise if response == "drift" else noise)
+    return df
+
+
+def _residual_diagnostics(df: pd.DataFrame) -> dict:
+    """Return the residual diagnostics of the main-effects model of ``y``."""
+    found = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="residual_diagnostics")
+    return found["residual_diagnostics"]
+
+
+class TestResidualsInRunOrder:
+    """#802 G3: the residuals' lag-1 autocorrelation in run order, which is why BHH randomize."""
+
+    def test_the_statistics_are_those_of_the_residuals_sorted_on_run_order(self) -> None:
+        """r1, its standard error and Durbin-Watson, worked by hand on the residuals in run order."""
+        df = _standard_order_runs("random")
+        diag = _residual_diagnostics(df)
+        e = np.asarray(diag["residuals"])[np.argsort(df["RunOrder"].to_numpy())]
+        centred = e - e.mean()
+        found = diag["run_order"]
+        assert found["known"] is True
+        assert found["lag1_autocorrelation"] == pytest.approx((centred[:-1] @ centred[1:]) / (centred @ centred))
+        assert found["std_error"] == pytest.approx(0.25)  # 1/sqrt(16)
+        assert found["durbin_watson"] == pytest.approx(np.sum(np.diff(e) ** 2) / (e @ e))
+        # The existing statistic keeps its meaning: the rows' order.
+        rows = np.asarray(diag["residuals"])
+        assert diag["durbin_watson"] == pytest.approx(np.sum(np.diff(rows) ** 2) / (rows @ rows))
+
+    def test_a_drift_in_run_order_gives_the_note_that_the_rows_order_misses(self) -> None:
+        """Entered in standard order, a drift in run order shows only when the residuals are sorted on it."""
+        diag = _residual_diagnostics(_standard_order_runs("drift"))
+        assert diag["run_order"]["lag1_autocorrelation"] > 2 * diag["run_order"]["std_error"]
+        assert diag["run_order"]["serially_dependent"] is True
+        assert diag["run_order"]["durbin_watson"] < 1.0
+        assert diag["durbin_watson"] > 2.0  # in the rows' (standard) order nothing looks wrong
+        assert "serially dependent" in diag["note"]
+
+    def test_independent_errors_give_no_note(self) -> None:
+        """Without a drift, the lag-1 autocorrelation in run order is within twice its standard error."""
+        diag = _residual_diagnostics(_standard_order_runs("random"))
+        assert abs(diag["run_order"]["lag1_autocorrelation"]) < 2 * diag["run_order"]["std_error"]
+        assert diag["run_order"]["serially_dependent"] is False
+        assert "note" not in diag
+
+    def test_without_a_run_order_the_rows_order_is_kept_and_said(self) -> None:
+        """No RunOrder column: durbin_watson as before, nothing checked in run order, and a note says so."""
+        df = _standard_order_runs("drift")
+        diag = _residual_diagnostics(df.drop(columns="RunOrder"))
+        assert diag["durbin_watson"] == pytest.approx(_residual_diagnostics(df)["durbin_watson"])
+        assert diag["run_order"] == {
+            "known": False,
+            "lag1_autocorrelation": None,
+            "std_error": None,
+            "durbin_watson": None,
+            "serially_dependent": None,
+        }
+        assert "No RunOrder column" in diag["note"]
+        assert "rows' order" in diag["note"]
+
+    def test_a_run_order_with_repeated_values_is_not_used(self) -> None:
+        """A run order numbered again within each block does not order the runs, so the rows' order is kept."""
+        diag = _residual_diagnostics(_standard_order_runs("drift").assign(RunOrder=[1, 2, 3, 4] * 4))
+        assert diag["run_order"]["known"] is False
+        assert "repeated values" in diag["note"]
+
+    def test_residuals_without_spread_have_no_autocorrelation(self) -> None:
+        """Residuals that are all the same leave r1 as 0/0: reported as None, with no note."""
+        found, note = _in_run_order(np.zeros(4), [2, 1, 4, 3])
+        assert found["known"] is True
+        assert found["lag1_autocorrelation"] is None
+        assert note is None
 
 
 # ---------------------------------------------------------------------------
@@ -1566,6 +1650,7 @@ class TestSaturatedModel:
         diagnostics = result["residual_diagnostics"]
         assert diagnostics["shapiro_wilk"]["p_value"] is None
         assert diagnostics["breusch_pagan"]["p_value"] is None
+        assert diagnostics["run_order"]["lag1_autocorrelation"] is None
         assert "no residual degrees of freedom" in diagnostics["note"]
 
 

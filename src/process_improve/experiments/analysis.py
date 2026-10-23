@@ -909,7 +909,7 @@ def _handlers(
         "significance": lambda: _run_significance(
             with_prior_sigma(fit.reduced()[0], fit.sigma), fit.alpha, labels=fit.reduced()[1], blocks=fit.blocks
         ),
-        "residual_diagnostics": lambda: _run_residual_diagnostics(fit.ols),
+        "residual_diagnostics": lambda: _run_residual_diagnostics(fit.ols, fit.df.get("RunOrder")),
         "lack_of_fit": lambda: _run_lack_of_fit(fit.ols, fit.df, fit.response_col, fit.group_cols, fit.alpha),
         "curvature_test": lambda: _run_curvature_test(
             fit.df, fit.response_col, fit.factor_cols, fit.alpha, group_cols=fit.group_cols
@@ -976,7 +976,9 @@ def analyze_experiment(  # noqa: PLR0913
     ----------
     design_matrix : DataFrame
         Factor settings per run.  May also contain the response column(s). A
-        ``RunOrder`` column is ignored. A ``Block`` column with two or more blocks
+        ``RunOrder`` column, which every generated design carries, is not a factor: it
+        is the order the runs were made in, and ``"residual_diagnostics"`` checks the
+        residuals for serial dependence in that order. A ``Block`` column with two or more blocks
         is added to the named non-mixture models as a fixed effect (sum-coded contrast
         columns ``Block1``, ...; one ``"Block"`` row in the ANOVA), so block-to-block
         differences do not inflate the error; drop the column to analyse without it. An
@@ -1048,6 +1050,16 @@ def analyze_experiment(  # noqa: PLR0913
         with :math:`S_R` the ``residual_sum_of_squares`` (Box, Hunter and Hunter, eq. 14.45);
         with a ``sigma``, :math:`S_R` plus sigma squared times the upper chi-square point on
         :math:`p` degrees of freedom.
+
+        ``"residual_diagnostics"`` tests the residuals for normality (Shapiro-Wilk),
+        independence (Durbin-Watson) and constant variance (Breusch-Pagan), and gives each
+        run's leverage, Cook's distance and studentized residuals. Its ``durbin_watson`` is
+        worked in the rows' order. With a ``RunOrder`` column, its ``run_order`` entry holds
+        the residuals' lag-1 autocorrelation in run order, with its standard error 1/sqrt(N),
+        and the Durbin-Watson statistic in run order; a ``note`` says when the autocorrelation
+        is more than twice its standard error, a sign that successive runs are serially
+        dependent, which is why Box, Hunter and Hunter randomize the run order. Without one,
+        the ``note`` says that the order is the rows'.
 
         ``"split_plot"`` is for a design whose hard-to-change factors change only
         between whole plots. Every other analysis is ordinary least squares, which
