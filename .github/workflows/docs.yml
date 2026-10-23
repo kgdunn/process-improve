@@ -25,8 +25,7 @@ concurrency:
 
 jobs:
   build:
-    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pages: read  # configure-pages (main-branch pushes only) queries the Pages config
@@ -49,10 +48,10 @@ jobs:
       # the smoke tests start Python in the built page under Pyodide, in Chromium, and run
       # the worked example there. Downloads are not cached, as a reader's are not.
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
       - name: Check the app works before it is published
         run: >-
-          uv run --with playwright==1.56.0 pytest tests/web/live -m smoke --live
+          uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
           --web-app=docs/_build/html/app --cdn-cache=off --no-cov
       # factori.al gets this same build, the one the smoke tests above just passed.
       - name: Keep the app for factori.al
@@ -92,8 +91,7 @@ jobs:
   check-published-app:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: deploy
-    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -108,10 +106,10 @@ jobs:
       - name: Wait until the published app is this commit's
         run: uv run python tools/wait_for_web_app.py "$APP" "$GITHUB_SHA"
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
       - name: Check the published app works
         run: >-
-          uv run --with playwright==1.56.0 pytest tests/web/live -m smoke --live
+          uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
           --web-app="$APP" --cdn-cache=off --no-cov
 
   # factori.al, the app's own address, is served from a server of its own (deploy/factorial).
@@ -158,8 +156,7 @@ jobs:
   # the wait only confirms the switch took; the smoke tests then run against factori.al itself.
   check-factorial:
     needs: deploy-factorial
-    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -174,8 +171,8 @@ jobs:
       - name: Wait until factori.al serves this commit's build
         run: uv run python tools/wait_for_web_app.py "$APP" "$GITHUB_SHA" --timeout 120
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
       - name: Check the app works on factori.al
         run: >-
-          uv run --with playwright==1.56.0 pytest tests/web/live -m smoke --live
+          uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
           --web-app="$APP" --cdn-cache=off --no-cov
