@@ -275,18 +275,24 @@ class TestStationaryPointRegion:
         assert region["contains"]([[5.0, 5.0], [-20.0, -20.0]]).all()
         assert not region["contains"]([2.0, -2.0])
 
-    def test_a_grid_gives_a_mask_of_its_shape_and_coding_does_not_move_the_region(self) -> None:
+    def test_a_grid_gives_a_mask_of_its_shape_and_the_units_do_not_move_the_region(self) -> None:
+        """A temperature in degC and a pressure in pascals, 1e5 from zero: the region is the coded one, mapped."""
         runs = _composite_runs().assign(y=lambda d: _surface(d.to_numpy(), _SADDLE) + _NOISE)
-        actual = runs.assign(x1=150 + 10 * runs["x1"], x2=2 + 0.5 * runs["x2"])
+        actual = runs.assign(x1=150 + 10 * runs["x1"], x2=1e5 + 500 * runs["x2"])
         grid = np.meshgrid(np.linspace(-1, 1, 21), np.linspace(-1, 1, 11))
         coded = stationary_point_region(runs, "y", ["x1", "x2"])
         mask = coded["contains"]({"x1": grid[0], "x2": grid[1]})
         assert mask.shape == (11, 21)
         assert 0 < mask.sum() < mask.size
         uncoded = stationary_point_region(actual, "y", ["x1", "x2"])
-        assert uncoded["contains"]({"x1": 150 + 10 * grid[0], "x2": 2 + 0.5 * grid[1]}).tolist() == mask.tolist()
-        assert uncoded["stationary_point"]["x1"] == pytest.approx(150 + 10 * coded["stationary_point"]["x1"])
-        assert coded["classification"] == "saddle_point"
+        assert uncoded["contains"]({"x1": 150 + 10 * grid[0], "x2": 1e5 + 500 * grid[1]}).tolist() == mask.tolist()
+        assert uncoded["stationary_point"] == pytest.approx(
+            {"x1": 150 + 10 * coded["stationary_point"]["x1"], "x2": 1e5 + 500 * coded["stationary_point"]["x2"]}
+        )
+        assert uncoded["std_error"] == pytest.approx(
+            {"x1": 10 * coded["std_error"]["x1"], "x2": 500 * coded["std_error"]["x2"]}
+        )
+        assert coded["classification"] == uncoded["classification"] == "saddle_point"
 
     def test_blocks_are_fitted_and_cost_a_degree_of_freedom(self) -> None:
         """BHH's composite design blocks orthogonally at sqrt(2): the point does not move, the residual loses a df."""

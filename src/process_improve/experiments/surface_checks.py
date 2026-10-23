@@ -192,12 +192,13 @@ def stationary_point_region(
     need not be an ellipse around the estimate, nor bounded: along a ridge it runs out of the
     experiment. With one factor it is Fieller's interval for -b1 / (2 b11).
 
-    The full second-order model is fitted to the factors as they are given, with a fixed effect
-    for each block when the design has a ``Block`` column; the region does not depend on how the
-    factors are coded. Beside it, ``std_error`` gives the delta-method standard error of each
-    coordinate of the estimated stationary point x_s = -B^-1 b / 2, whose derivative with respect
-    to the coefficients is -(2B)^-1 times the gradient's: a summary that holds near x_s when the
-    region is small and nearly elliptical.
+    The full second-order model is fitted with a fixed effect for each block when the design has a
+    ``Block`` column, and with each factor coded from its smallest setting to its largest, so that
+    no choice of units costs precision. The region does not depend on the coding, and every
+    setting and result is in the factors' units as given. Beside it, ``std_error`` gives the
+    delta-method standard error of each coordinate of the estimated stationary point
+    x_s = -B^-1 b / 2, whose derivative with respect to the coefficients is -(2B)^-1 times the
+    gradient's: a summary that holds near x_s when the region is small and nearly elliptical.
 
     Parameters
     ----------
@@ -274,7 +275,11 @@ def stationary_point_region(
     used = [*names, response_col, *([BLOCK_COL] if blocked else [])]
     if design[used].isna().to_numpy().any():
         raise ValueError(f"A run has a missing value in {used}; leave it out, or fill it in.")
-    x = design[names].to_numpy(dtype=float)
+    raw = design[names].to_numpy(dtype=float)
+    # coded from each factor's smallest setting to its largest, so that no choice of units costs precision
+    centre, half = (raw.max(axis=0) + raw.min(axis=0)) / 2, np.ptp(raw, axis=0) / 2
+    half[half == 0] = 1.0  # a factor at one setting, which the rank check below refuses
+    x = (raw - centre) / half
     pairs = [(i, j) for i in range(k) for j in range(i, k)]
     model = np.column_stack([np.ones(len(x)), x, *(x[:, i] * x[:, j] for i, j in pairs)])
     surface_terms = model.shape[1]
@@ -296,7 +301,7 @@ def stationary_point_region(
     covariance = scale**2 * unscaled[:surface_terms, :surface_terms]
 
     def statistic(points: Any) -> np.ndarray:  # noqa: ANN401 - a DataFrame, mapping or array of settings
-        z = _settings(points, names)
+        z = (_settings(points, names) - centre) / half
         rows = _gradient_rows(z.reshape(-1, k), pairs)
         gradient = rows @ theta
         spread = rows @ covariance @ rows.transpose(0, 2, 1)
@@ -304,10 +309,11 @@ def stationary_point_region(
         return (found / k).reshape(z.shape[:-1])
 
     point, shape = _stationary_point(theta, pairs, k)
+    errors = _delta_std_errors(point, theta, covariance, pairs)
     return {
-        "stationary_point": None if point is None else dict(zip(names, map(float, point), strict=True)),
+        "stationary_point": None if point is None else dict(zip(names, map(float, centre + half * point), strict=True)),
         "classification": shape,
-        "std_error": _delta_std_errors(point, theta, covariance, pairs, names),
+        "std_error": None if errors is None else dict(zip(names, map(float, half * errors), strict=True)),
         "statistic": statistic,
         "contains": lambda points: statistic(points) <= critical,
         "critical_value": critical,
@@ -375,21 +381,17 @@ def _stationary_point(theta: np.ndarray, pairs: list[tuple[int, int]], k: int) -
 
 
 def _delta_std_errors(
-    point: np.ndarray | None,
-    theta: np.ndarray,
-    covariance: np.ndarray,
-    pairs: list[tuple[int, int]],
-    names: list[str],
-) -> dict[str, float] | None:
+    point: np.ndarray | None, theta: np.ndarray, covariance: np.ndarray, pairs: list[tuple[int, int]]
+) -> np.ndarray | None:
     """Return the delta-method standard error of each coordinate of the stationary point; None along a ridge."""
     if point is None:
         return None
-    quadratic = _quadratic_matrix(theta, pairs, len(names))
+    quadratic = _quadratic_matrix(theta, pairs, len(point))
     eigenvalues = np.linalg.eigvalsh(quadratic)
     if np.abs(eigenvalues).min() <= _FLAT_EIGENVALUE_TOL * np.abs(eigenvalues).max():
         return None  # a ridge: the point moves freely along it
     jacobian = -np.linalg.solve(2 * quadratic, _gradient_rows(point[None, :], pairs)[0])
-    return dict(zip(names, map(float, np.sqrt(np.diag(jacobian @ covariance @ jacobian.T))), strict=True))
+    return np.sqrt(np.diag(jacobian @ covariance @ jacobian.T))
 
 
 def _positive(sigma: float) -> float:
