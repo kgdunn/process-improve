@@ -26,6 +26,10 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     the median of the accumulated intersection points; the median location is
     where the intersections should stabilise.
 
+    Both axes are first scaled to span 0 to 1, so that "closest" does not add up
+    distances in two different units. The elbow is therefore the same whatever
+    units `x` and `y` are in: time in seconds or in hours gives the same index.
+
     Will probably not work well on few data points. If so, try fitting a spline
     to the raw data and then repeat with the interpolated data.
 
@@ -81,8 +85,8 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     if len(x) <= 10:
         raise ValueError("Requires more than 10 values in the vectors (not including missing data).")
     idx_sort = x.argsort()
-    x = x[idx_sort]
-    y = y[idx_sort]
+    x = _scale_to_unit_range(x[idx_sort])
+    y = _scale_to_unit_range(y[idx_sort])
     N = x.size
 
     int_x_list: list[float] = []
@@ -108,6 +112,12 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
         return np.nan
 
     return int(np.argmin(calculate_line_length(mid_x, mid_y, x, y)))
+
+
+def _scale_to_unit_range(values: np.ndarray) -> np.ndarray:
+    """Shift and scale ``values`` to span 0 to 1; a constant vector is only shifted, to 0."""
+    span = float(np.ptp(values))
+    return (values - values.min()) / (span if span > 0 else 1.0)
 
 
 def find_line_intersection(m1: float, b1: float, m2: float, b2: float) -> tuple:

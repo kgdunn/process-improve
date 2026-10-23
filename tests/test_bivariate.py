@@ -102,6 +102,20 @@ def test__robust_to_gross_outliers(elbow_with_synthetic_data: tuple) -> None:
     assert abs(found_elbow - expected_elbow) < 10
 
 
+@pytest.mark.filterwarnings("ignore::statsmodels.tools.sm_exceptions.ConvergenceWarning")
+def test__elbow_does_not_depend_on_the_units_of_either_axis() -> None:
+    """Hours, minutes or seconds on x, or y times 1000, give one elbow; in raw units it was 24, 26 and 38 (#513)."""
+    rng = np.random.default_rng(0)
+    hours = np.linspace(0, 10, 60)
+    y = np.where(hours < 4, 2.0 * hours, 8.0 + 0.3 * (hours - 4)) + rng.normal(0, 0.3, hours.size)
+
+    elbows = {
+        find_elbow_point(x, y_scaled)
+        for x, y_scaled in [(hours, y), (hours * 60, y), (hours * 3600, y), (hours, y * 1000)]
+    }
+    assert elbows == {24}
+
+
 def test__corner_case() -> None:
     """Test corner case with all NaN input."""
     found_elbow = find_elbow_point(
