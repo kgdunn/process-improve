@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["process-improve[expt,plotting]"]
+# dependencies = ["process-improve[plotting]>=1.98"]
 # ///
 """Generic dispatcher for the process-improve tool registry.
 
@@ -59,7 +59,7 @@ def _load_registry() -> Any:
     except ImportError as exc:  # pragma: no cover - environment guard
         sys.exit(
             f"Could not import process_improve ({exc}).\n"
-            "Install it with:  pip install 'process-improve[expt,plotting]'\n"
+            "Install it with:  pip install 'process-improve[plotting]'\n"
             "or run this script with:  uv run --script doe_tool.py ..."
         )
     discover_tools()

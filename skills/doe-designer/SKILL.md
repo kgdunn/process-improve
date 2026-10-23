@@ -226,7 +226,7 @@ Load these as needed; they are not required reading for every task.
 The scripts need `process-improve`:
 
 ```bash
-pip install 'process-improve[expt,plotting]'
+pip install 'process-improve[plotting]'
 ```
 
 Each script also carries a PEP 723 header, so `uv run --script <script>` will

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["process-improve[expt,plotting]", "kaleido"]
+# dependencies = ["process-improve[plotting]>=1.98", "kaleido"]
 # ///
 """Render a ``visualize_doe`` result to an image or an interactive page.
 
@@ -75,7 +75,7 @@ def _build_spec(args: argparse.Namespace) -> dict[str, Any]:
         from process_improve.tool_spec import discover_tools, execute_tool_call
     except ImportError as exc:  # pragma: no cover - environment guard
         sys.exit(
-            f"Could not import process_improve ({exc}).\nInstall it with:  pip install 'process-improve[expt,plotting]'"
+            f"Could not import process_improve ({exc}).\nInstall it with:  pip install 'process-improve[plotting]'"
         )
     discover_tools()
 
