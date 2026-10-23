@@ -62,7 +62,7 @@ def test_on_the_log_scale_a_main_effect_is_a_ratio_from_low_to_high(api, held):
     c = next(c for c in logged["coefficients"] if c["term"] == first)
     assert c["ratio"] == pytest.approx(np.exp(2 * c["coefficient"]))
     assert c["ratio"] == pytest.approx(np.exp(1.2), rel=0.05), "the process's ln y rises 0.6 a coded unit"
-    assert "ratio" not in next(c for c in logged["coefficients"] if c["term"] == "Intercept")
+    assert next(c for c in logged["coefficients"] if c["term"] == "Intercept")["ratio"] is None
 
 
 def test_the_inverse_fits_minus_one_over_y_and_tests_as_one_over_y_does(api, held):

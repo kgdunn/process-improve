@@ -2502,7 +2502,11 @@ def _analysis(
             "block": _block_contrast(c["term"], columns),
             "vif": fit["vifs"].get(c["term"]),  # none for the intercept
             # On the log scale a main effect is a ratio: the response's median from the factor's low to its high.
-            **({"ratio": _put_back(2 * c["coefficient"], "log")} if transform == "log" and c["term"] in names else {}),
+            **(
+                {"ratio": _put_back(2 * c["coefficient"], "log") if c["term"] in names else None}
+                if transform == "log"
+                else {}
+            ),
         }
         for c in out.get("coefficients", [])
     ]

@@ -488,7 +488,17 @@
               <option value="scheffe_special_cubic" data-mixture hidden>Special cubic blending</option>
             </select>
           </label>
+          <!-- bootstrap.TRANSFORMS: each fitted as an increasing function of the response, inverse as -1/y. -->
+          <label id="transform-choice">Response
+            <select id="transform">
+              <option value="">As measured</option>
+              <option value="log">Its log, ln y</option>
+              <option value="sqrt">Its square root, √y</option>
+              <option value="inverse">Its inverse, -1/y</option>
+            </select>
+          </label>
         </div>
+        <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
           <div id="term-list"></div>
