@@ -474,7 +474,7 @@ class ControlChart:
         """
         Find for a given vector `y`, the control chart target and limits.
 
-        Works for the Holt-Winters ('hw'), 'xbar.no.subgroup' and 'ewma' variants. For 'ewma',
+        Works for the Holt-Winters ('hw'), 'xbar.no.subgroup', 'ewma' and 'cusum' variants. For 'ewma',
         ``idx_outside_3S`` lists the samples where the EWMA statistic is outside its limits,
         and ``df`` gains the columns ``ewma``, ``ewma_ucl`` and ``ewma_lcl``.
 

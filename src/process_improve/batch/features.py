@@ -282,8 +282,6 @@ def f_sum(
 
     If the x-axis (time) data are evenly-spaced, then this is directly
     proportional to the area under the trace (curve/trajectory).
-
-    See also: f_cumsum
     """
     base_name = "sum"
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
@@ -433,7 +431,7 @@ def f_rupture(
     ``display`` helper that uses matplotlib; plotting belongs to the caller, and the rest
     of this project plots with plotly.
 
-    See also: f_elbow, f_cross
+    See also: f_elbow, f_crossing
     """
     default_settings: dict = {"model": "rbf", "penalty": None, "min_size": 2, "jump": 5}
     if settings:
@@ -806,7 +804,7 @@ def f_elbow(  # noqa: PLR0913
     The elbow is calculated against whichever variable is given by `x_axis_tag` (usually a time-
     based tag).
 
-    The function returns the *value* on the x-axis where the elbox occurs. Sometimes you might
+    The function returns the *value* on the x-axis where the elbow occurs. Sometimes you might
     want the *index* of the value, so you can also find the corresponding y-axis value. Use
     `only_index=True` for such cases.
     """
