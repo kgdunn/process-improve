@@ -1,0 +1,127 @@
+name: Share a case study of your own
+description: A designed experiment you ran, with its results, for the design catalog at factori.al/catalog
+title: "Case study: "
+labels: ["catalog", "case study"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A case study of your own is a designed experiment you ran, with its results. Filed here, it becomes an
+        entry of the [design catalog](https://factori.al/catalog/) that cites this issue as its source and links
+        back to it.
+
+        The form asks for the least an analysis needs: the factors, the responses, the runs in the order they
+        were run, and how the runs were grouped. The numbers your own analysis found are optional. Each one you
+        give becomes a check that the library's tests reproduce on every change.
+
+        **Confidential data?** You can rename the factors, code their levels (low = -1, high = +1), and shift or
+        scale a response (give a + b × y in place of y). The F tests and p-values do not change. Say what you
+        changed.
+  - type: input
+    id: credit
+    attributes:
+      label: Name to credit
+      description: Your name, your organisation's, or your GitHub user name. The catalog cites the case study by it.
+      placeholder: "A. Engineer, Example Foods Ltd."
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: What the experiment was for
+      description: >-
+        The product or process, the question the experiment had to answer, and the design if it has a name
+        (a 2^(4-1) fraction, a central composite design, a D-optimal design made in some software).
+      placeholder: |
+        A batch reactor made too little product. We changed temperature, concentration and catalyst to find
+        settings that raise the yield. The design was a 2^3 factorial with 3 centre points.
+    validations:
+      required: true
+  - type: textarea
+    id: factors
+    attributes:
+      label: The factors
+      description: >-
+        Each factor's name, its units, and the levels it was run at: low and high, every level, or its labels.
+      placeholder: |
+        T, temperature: 160 and 180 °C
+        C, concentration: 20 and 40 %
+        K, catalyst: A and B
+    validations:
+      required: true
+  - type: textarea
+    id: responses
+    attributes:
+      label: The responses
+      description: Each response's name, what it measures and its units, and whether more, less or a target is best.
+      placeholder: "yield: product made, as % of the theoretical amount; more is better"
+    validations:
+      required: true
+  - type: dropdown
+    id: conduct
+    attributes:
+      label: How the runs were done
+      description: This decides how the runs are analysed, so it matters as much as the results.
+      options:
+        - In a random order, all under the same conditions
+        - In blocks (days, batches, operators, machines); the table has a column naming each run's block
+        - Some factors were hard to change, so runs were grouped (a split plot); the table has a column naming each group
+        - In a planned order, not randomised
+        - I do not know
+    validations:
+      required: true
+  - type: textarea
+    id: runs
+    attributes:
+      label: The runs
+      description: >-
+        A header line, then one line per run in the order the runs were done, separated by commas: the settings
+        as actually run (not as planned), then each result. Give each replicate and centre point its own line,
+        and leave a result empty if it was not measured. Or attach a CSV or spreadsheet.
+      placeholder: |
+        run, T, C, K, yield
+        1, 180, 20, B, 73.1
+        2, 170, 30, A, 64.0
+        3, 160, 40, A, 52.8
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: found
+    attributes:
+      label: What you found
+      description: >-
+        Optional. The numbers your analysis gave, and the software: effects or coefficients, the model you chose,
+        p-values, the best settings. Confirmation runs too: their settings, what the model predicted, and what
+        was measured.
+      placeholder: "Minitab 21: effect of T = 21.5, p = 0.002; the model T + C + T:C; a confirmation run at 180 °C, 20 %, B gave 74.0 (predicted 73.4)"
+    validations:
+      required: false
+  - type: input
+    id: elsewhere
+    attributes:
+      label: Also published at
+      description: Optional. The DOI or address of a paper, thesis or report that describes this experiment.
+    validations:
+      required: false
+  - type: dropdown
+    id: licence
+    attributes:
+      label: Licence for the data
+      description: The catalog holds the data under this licence, not under the library's MIT licence.
+      options:
+        - CC BY 4.0 (anyone may reuse the data if they credit you)
+        - CC0 1.0 (anyone may reuse the data with no conditions)
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Permission
+      options:
+        - label: >-
+            I have the right to share these data: they are mine, or their owner (an employer or a client) agrees,
+            and they hold nothing confidential.
+          required: true
+        - label: The table holds every run as measured. I did not change a result, or leave out a run without saying so above.
+          required: true

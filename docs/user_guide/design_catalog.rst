@@ -188,11 +188,19 @@ the runs outside the limit, and opens the design in Factorial with the limit wri
 own factors and units. There, the run sheet's notes name the runs outside the limit, and the
 D-optimal and I-optimal designs make runs inside it.
 
-Proposing a design
-------------------
+Proposing a design or a case study
+----------------------------------
 
 A design printed in a book, a paper or a handbook can be proposed for the catalogue with the
 `catalog entry form <https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml>`_.
 It asks for the source, where the runs are printed, the factors, the runs and the numbers the source
 prints for them. The entry enters the reference catalogue once the library recomputes those numbers,
 each agreeing with the source or recorded with the reason it does not.
+
+A designed experiment of your own can be shared with the
+`case study form <https://github.com/kgdunn/process-improve/issues/new?template=case_study.yml>`_.
+It asks for the least an analysis needs: the factors and the responses, the runs in the order they
+were done, how the runs were grouped (in a random order, in blocks, or as a split plot), and the
+licence the data are shared under (CC BY 4.0 or CC0 1.0). The numbers your own analysis found are
+optional; each one you give becomes a check. The entry cites the issue as its source, so the catalog
+links back to it.
