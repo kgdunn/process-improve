@@ -9,17 +9,16 @@
   score, the convention `explained_variance_` uses for the super scores. The block T² used the
   variance about the scores' own mean, which differs once missing cells leave them off-centre, and
   on an `MBPLS` fit with a row that has nothing observed in a block, that variance was NaN, so the
-  block's T² went unscaled for every row. `block_hotellings_t2_` changes for fits with missing data
-  (by under 1% for scattered missing cells, and by a large factor in the second case); on complete
-  data it is unchanged.
+  block's T² went unscaled for every row. `block_hotellings_t2_` changes for fits with missing data,
+  slightly for scattered missing cells and by a large factor in the second case; on complete data it
+  is unchanged to rounding.
 - **`TPLS` fits a blend with nothing observed in F or Z, and a material with nothing observed in D
   (#513).** The row's regression had an empty denominator, which gave NaN, and the NaN spread to
   every score of every later component, so since #709 the fit was refused. The row now gets a
   zero score or loading in that block and no weight in its regressions, as PCA and PLS fit an
   all-missing row, so through that block it has no effect on the other rows. A fit still refused,
   because a block has no variation for the iteration to follow, now says that rather than naming
-  empty rows.
-  `regress_a_space_on_b_row` returns 0 rather than NaN for a row with nothing present.
+  empty rows. `regress_a_space_on_b_row` returns 0 rather than NaN for a row with nothing present.
 - **`TPLS` super weights and block weights point the way of the super score (#513).** The inner
   PLS step's sign convention negated `t`, `w` and `q` but not `u`, and TPLS regresses its blocks on
   `u`, so on every component the convention flipped, `w_loadings_super`, `r_loadings_f`,
@@ -34,6 +33,6 @@
   a constant column now matches the same fit with that column unobserved; its scores, predictions
   and loadings change.
 - **`TPLS.diagnose` corrects a Z score for the row's missing cells, as `fit` does (#513).** It
-  computed the correction and never applied it, so a row with a missing Z cell scored lower in
-  `diagnose` than in `fit`, and so did its T², SPE and predictions. Rows with every Z cell
+  computed the correction and never applied it, so a row with a missing Z cell scored closer to 0 in
+  `diagnose` than in `fit`, which moved its T², SPE and predictions too. Rows with every Z cell
   observed are unchanged.

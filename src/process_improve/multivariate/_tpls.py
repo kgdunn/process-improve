@@ -773,7 +773,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                     denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
                     z_observed |= not_na_z[key].any(axis=1)
                 # The correction the comment above describes was computed and never applied, so a row with a
-                # missing Z cell scored lower here than in fit() (#513). A row with no Z value scores 0, as in fit().
+                # missing Z cell scored closer to 0 here than in fit() (#513). A row with no Z value scores 0,
+                # as in fit().
                 score_z_a = np.where(z_observed, score_z_a / np.where(z_observed, denominators, 1.0), 0.0)
 
                 # Multiply the individual block scores by the super-weights, to get the super-scores.
