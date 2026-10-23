@@ -678,27 +678,11 @@ class _Fit:
     #: The error standard deviation known before the runs, which the standard errors use instead of the
     #: residual's (#789 B6); None for the residual's.
     sigma: float | None = None
-    #: The design's factor columns, the model's and any it leaves out: replicates must agree in all of them.
-    design_cols: list[str] = field(default_factory=list)
 
     @property
     def group_cols(self) -> list[str]:
-        """Columns identifying replicated runs: the design's factors, within each block when blocked.
-
-        A factor the model leaves out still tells runs apart: runs that differ in it are not
-        replicates, and what it does belongs to lack of fit, not pure error (Montgomery; Box,
-        Hunter and Hunter), as :func:`~process_improve.experiments.evaluate_design` counts it too.
-        A left-out column with a different value in every run, such as a run number, marks no
-        replicates and is not a factor.
-        """
-        runs = len(self.df)
-        left_out = [
-            c
-            for c in self.design_cols
-            if c not in self.factor_cols and self.df[c].notna().all() and self.df[c].nunique() < runs
-        ]
-        columns = [*self.factor_cols, *left_out]
-        return [*columns, BLOCK_COL] if self.blocks else columns
+        """Columns identifying replicated runs: the factors, within each block when blocked."""
+        return [*self.factor_cols, BLOCK_COL] if self.blocks else self.factor_cols
 
     def coded(self) -> tuple[RegressionResultsWrapper, dict[str, Any]]:
         """Return the model refitted on factors coded to -1/+1, the scale the effects are defined on."""
@@ -1393,8 +1377,6 @@ def analyze_experiment(  # noqa: PLR0913
         searched_model=searched_model,
         response_name=reported_response,
         sigma=sigma,
-        # every factor column the caller's design holds, not the responses joined onto it
-        design_cols=[c for c in design_matrix.columns if c in df.columns and c not in _NON_FACTOR_COLS],
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:

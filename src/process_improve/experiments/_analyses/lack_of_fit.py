@@ -50,9 +50,8 @@ def _run_lack_of_fit(
     Separates residual SS into pure-error SS (from n_replicates) and
     lack-of-fit SS.  Custom implementation (~40 lines).
 
-    ``factor_cols`` must be the design's factor columns, a factor the model leaves out
-    included, so that runs differing in it are not counted as replicates (plus the block
-    column when the model has a block term, so pure error is taken within blocks). When the
+    ``factor_cols`` must be the MODEL's factor columns (plus the block column when
+    the model has a block term, so pure error is taken within blocks). When the
     caller passes a full design frame, bookkeeping columns like ``RunOrder`` (unique
     per row) must be excluded: grouping on them previously made every group a
     singleton, so no generated design ever had detectable replicates and the test
