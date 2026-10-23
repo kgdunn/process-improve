@@ -1,0 +1,8405 @@
+{
+ "schema": 1,
+ "about": [
+  "Part of the reference catalogue: designed experiments from one published source, for testing that software reproduces them.",
+  "source: the citation, with what was read and when. experiments: each with its data (factors, responses, runs",
+  "exactly as printed, in the printed order), where it is printed, and expected: every number the source prints for",
+  "it, as printed text, with what it is, where it is printed (a line or page, and a quotation) and check: how to",
+  "recompute it (the kind of result, the term, the model in the library's formula notation, and runs, the 1-based",
+  "positions of the runs used when not all), or manual, the reason it is not recomputed. designs: designs without",
+  "responses, with the properties the source states. Read with process_improve.experiments.reference_catalogue.",
+  "reference_experiments; tests/test_reference_catalogue.py recomputes every number that has a check."
+ ],
+ "source": {
+  "key": "anderson-whitcomb-2007",
+  "authors": [
+   "Mark J. Anderson",
+   "Patrick J. Whitcomb"
+  ],
+  "title": "DOE Simplified: Practical Tools for Effective Experimentation",
+  "edition": "2nd edition",
+  "pages": "front matter and chapters 1 to 4, pp. 1-90",
+  "year": 2007,
+  "publisher": "Productivity Press, an imprint of CRC Press, Taylor & Francis Group, Boca Raton",
+  "isbn": "978-1-56327-344-5",
+  "url": "https://search.worldcat.org/search?q=bn:9781563273445",
+  "cite": "Anderson, M. J. and Whitcomb, P. J. (2007), DOE Simplified: Practical Tools for Effective Experimentation, 2nd edition, Productivity Press",
+  "read": "2026-10-23, from scans of the front matter and chapters 1 to 4 (pp. 1-90); every number copied by hand from the page images",
+  "rights": "The book is protected by copyright (© 2007 Mark J. Anderson and Patrick J. Whitcomb) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
+ },
+ "designs": [],
+ "experiments": [
+  {
+   "name": "anderson-whitcomb-dice-50-rolls",
+   "title": "Total of a pair of dice in 50 rolls: mean, variance, standard deviation, standard error and a 95% interval",
+   "topics": [
+    "sport-recreation"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 1, Descriptive Statistics and Confidence Intervals",
+    "pages": "7-15",
+    "tables": [],
+    "figures": [
+     "Figure 1-3"
+    ]
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "total number of dots face up on the pair of dice",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "a single sample",
+    "details": "50 rolls of a pair of dice, from SPC Simplified",
+    "n_runs": 50
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      12
+     ],
+     [
+      2,
+      11
+     ],
+     [
+      3,
+      10
+     ],
+     [
+      4,
+      10
+     ],
+     [
+      5,
+      10
+     ],
+     [
+      6,
+      10
+     ],
+     [
+      7,
+      10
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      9,
+      9
+     ],
+     [
+      10,
+      9
+     ],
+     [
+      11,
+      9
+     ],
+     [
+      12,
+      8
+     ],
+     [
+      13,
+      8
+     ],
+     [
+      14,
+      8
+     ],
+     [
+      15,
+      8
+     ],
+     [
+      16,
+      8
+     ],
+     [
+      17,
+      8
+     ],
+     [
+      18,
+      8
+     ],
+     [
+      19,
+      8
+     ],
+     [
+      20,
+      7
+     ],
+     [
+      21,
+      7
+     ],
+     [
+      22,
+      7
+     ],
+     [
+      23,
+      7
+     ],
+     [
+      24,
+      7
+     ],
+     [
+      25,
+      7
+     ],
+     [
+      26,
+      7
+     ],
+     [
+      27,
+      7
+     ],
+     [
+      28,
+      7
+     ],
+     [
+      29,
+      7
+     ],
+     [
+      30,
+      7
+     ],
+     [
+      31,
+      6
+     ],
+     [
+      32,
+      6
+     ],
+     [
+      33,
+      6
+     ],
+     [
+      34,
+      6
+     ],
+     [
+      35,
+      6
+     ],
+     [
+      36,
+      6
+     ],
+     [
+      37,
+      6
+     ],
+     [
+      38,
+      5
+     ],
+     [
+      39,
+      5
+     ],
+     [
+      40,
+      5
+     ],
+     [
+      41,
+      5
+     ],
+     [
+      42,
+      5
+     ],
+     [
+      43,
+      5
+     ],
+     [
+      44,
+      4
+     ],
+     [
+      45,
+      4
+     ],
+     [
+      46,
+      4
+     ],
+     [
+      47,
+      4
+     ],
+     [
+      48,
+      3
+     ],
+     [
+      49,
+      3
+     ],
+     [
+      50,
+      2
+     ]
+    ],
+    "coded": false,
+    "notes": "Figure 1-3 prints a tally of each total, 12 down to 2, not the order of the rolls; the rows list the tally from the top"
+   },
+   "notes": "The interval takes t as 2, the large-sample value, for 49 degrees of freedom (p. 14).",
+   "expected": [
+    {
+     "what": "other",
+     "term": "mode",
+     "value": "7",
+     "where": {
+      "page": 7,
+      "source_kind": "prose",
+      "quote": "The most frequently occurring value is 7."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "sum",
+     "term": "y",
+     "value": "346",
+     "analysis": "the Product column of Figure 1-3",
+     "where": {
+      "page": 8,
+      "source_kind": "table",
+      "quote": "Sum 50 346"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "y",
+     "value": "6.92",
+     "where": {
+      "page": 9,
+      "source_kind": "math",
+      "quote": "Y-bar = 346/50 = 6.92"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 1",
+     "value": "5.08",
+     "analysis": "the deviation of the first roll in Figure 1-3, 12, from the mean",
+     "where": {
+      "page": 10,
+      "source_kind": "prose",
+      "quote": "Subtracting the mean (Y-bar) of 6.92 from this value nets 5.08"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "other",
+     "term": "squared deviation of run 1",
+     "value": "25.81",
+     "where": {
+      "page": 10,
+      "source_kind": "prose",
+      "quote": "which when squared, produces a result of 25.81"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": "y",
+     "value": "233.68",
+     "where": {
+      "page": 9,
+      "source_kind": "math",
+      "quote": "s^2 = 233.68/(50-1) = 4.77"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "df",
+     "term": "y",
+     "value": "49",
+     "where": {
+      "page": 9,
+      "source_kind": "math",
+      "quote": "s^2 = 233.68/(50-1) = 4.77"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "y",
+     "value": "4.77",
+     "where": {
+      "page": 9,
+      "source_kind": "math",
+      "quote": "s^2 = 233.68/(50-1) = 4.77"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "std_dev",
+     "term": "y",
+     "value": "2.18",
+     "where": {
+      "page": 10,
+      "source_kind": "math",
+      "quote": "s = sqrt(4.77) = 2.18"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "std_error",
+     "term": "mean of y",
+     "value": "0.31",
+     "where": {
+      "page": 11,
+      "source_kind": "math",
+      "quote": "SE = sqrt(4.77/50) = 0.31"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ci_half_width",
+     "term": "mean of y",
+     "value": "0.62",
+     "analysis": "95% interval with t taken as 2",
+     "where": {
+      "page": 14,
+      "source_kind": "math",
+      "quote": "CI = 6.92 +/- 2(0.31) = 6.92 +/- 0.62"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ci_low",
+     "term": "mean of y",
+     "value": "6.30",
+     "analysis": "95% interval with t taken as 2",
+     "where": {
+      "page": 15,
+      "source_kind": "prose",
+      "quote": "The calculated range from 6.30 (6.92 minus 0.62) to 7.54 (6.92 plus 0.62)"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ci_high",
+     "term": "mean of y",
+     "value": "7.54",
+     "analysis": "95% interval with t taken as 2",
+     "where": {
+      "page": 15,
+      "source_kind": "prose",
+      "quote": "The calculated range from 6.30 (6.92 minus 0.62) to 7.54 (6.92 plus 0.62)"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-reunion-weights",
+   "title": "Weights of ten men at a 25th class reunion, checked for normality on probability paper",
+   "topics": [
+    "biomedical"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 1, Graphical Tests Provide Quick Check for Normality",
+    "pages": "16-20",
+    "tables": [
+     "Table 1-3"
+    ],
+    "figures": [
+     "Figure 1-7",
+     "Figure 1-8"
+    ]
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "weight",
+     "units": "lb"
+    }
+   ],
+   "design": {
+    "type": "a single sample",
+    "details": "a random sample of ten men",
+    "n_runs": 10
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      199
+     ],
+     [
+      2,
+      188
+     ],
+     [
+      3,
+      194
+     ],
+     [
+      4,
+      206
+     ],
+     [
+      5,
+      235
+     ],
+     [
+      6,
+      219
+     ],
+     [
+      7,
+      200
+     ],
+     [
+      8,
+      234
+     ],
+     [
+      9,
+      171
+     ],
+     [
+      10,
+      172
+     ]
+    ],
+    "coded": false,
+    "notes": "in the order the text lists them, p. 18"
+   },
+   "notes": "Each point is plotted at the midpoint of its segment of the probability scale, 100(i - 0.5)/n percent.",
+   "expected": [
+    {
+     "what": "normal plot probability",
+     "term": "171",
+     "value": "5%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 1 Weight 171 Cumulative Probability 5%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "172",
+     "value": "15%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 2 Weight 172 Cumulative Probability 15%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "188",
+     "value": "25%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 3 Weight 188 Cumulative Probability 25%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "194",
+     "value": "35%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 4 Weight 194 Cumulative Probability 35%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "199",
+     "value": "45%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 5 Weight 199 Cumulative Probability 45%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "200",
+     "value": "55%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 6 Weight 200 Cumulative Probability 55%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "206",
+     "value": "65%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 7 Weight 206 Cumulative Probability 65%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "219",
+     "value": "75%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 8 Weight 219 Cumulative Probability 75%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "234",
+     "value": "85%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 9 Weight 234 Cumulative Probability 85%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "235",
+     "value": "95%",
+     "where": {
+      "page": 19,
+      "source_kind": "table",
+      "quote": "Point 10 Weight 235 Cumulative Probability 95%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problem-1-1-endplay",
+   "title": "Endplay of motor shafts from one supplier: mean, standard error and a 95% interval (Problem 1-1)",
+   "topics": [
+    "electrical-electronic"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 1, Practice Problems, Problem 1-1",
+    "pages": "20",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "endplay of the motor shaft",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "a single sample",
+    "details": "25 shafts",
+    "n_runs": 25
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      61
+     ],
+     [
+      2,
+      61
+     ],
+     [
+      3,
+      57
+     ],
+     [
+      4,
+      56
+     ],
+     [
+      5,
+      60
+     ],
+     [
+      6,
+      52
+     ],
+     [
+      7,
+      62
+     ],
+     [
+      8,
+      59
+     ],
+     [
+      9,
+      62
+     ],
+     [
+      10,
+      67
+     ],
+     [
+      11,
+      55
+     ],
+     [
+      12,
+      56
+     ],
+     [
+      13,
+      52
+     ],
+     [
+      14,
+      60
+     ],
+     [
+      15,
+      59
+     ],
+     [
+      16,
+      59
+     ],
+     [
+      17,
+      60
+     ],
+     [
+      18,
+      59
+     ],
+     [
+      19,
+      49
+     ],
+     [
+      20,
+      42
+     ],
+     [
+      21,
+      55
+     ],
+     [
+      22,
+      67
+     ],
+     [
+      23,
+      53
+     ],
+     [
+      24,
+      66
+     ],
+     [
+      25,
+      60
+     ]
+    ],
+    "coded": false,
+    "notes": "in the order printed; they are also lot A of Problem 2-3 (Table 2-7)"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-problem-1-2-graduation-weights",
+   "title": "Weights of the same class at graduation, for a normal plot (Problem 1-2)",
+   "topics": [
+    "biomedical"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 1, Practice Problems, Problem 1-2",
+    "pages": "21",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [],
+   "responses": [
+    {
+     "name": "y",
+     "description": "weight at graduation",
+     "units": "lb"
+    }
+   ],
+   "design": {
+    "type": "a single sample",
+    "details": "ten school records",
+    "n_runs": 10
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      153
+     ],
+     [
+      2,
+      147
+     ],
+     [
+      3,
+      148
+     ],
+     [
+      4,
+      161
+     ],
+     [
+      5,
+      190
+     ],
+     [
+      6,
+      167
+     ],
+     [
+      7,
+      155
+     ],
+     [
+      8,
+      178
+     ],
+     [
+      9,
+      130
+     ],
+     [
+      10,
+      139
+     ]
+    ],
+    "coded": false,
+    "notes": "in the order printed"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-dice-colours",
+   "title": "56 dice of four colours tossed once: does the colour change the average roll? A one-way F-test",
+   "topics": [
+    "sport-recreation"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 2, A Dicey Situation",
+    "pages": "24-28",
+    "tables": [
+     "Table 2-1"
+    ],
+    "figures": [
+     "Figure 2-1"
+    ]
+   },
+   "factors": [
+    {
+     "name": "colour",
+     "description": "colour of the die, 14 dice of each",
+     "low": "White",
+     "high": "Purple",
+     "levels": [
+      "White",
+      "Blue",
+      "Green",
+      "Purple"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "number of dots face up",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized single-factor comparison, four levels",
+    "details": "14 dice of each colour, the bag shaken and dumped once",
+    "n_runs": 56,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "colour",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "White",
+      6
+     ],
+     [
+      2,
+      "White",
+      6
+     ],
+     [
+      3,
+      "White",
+      5
+     ],
+     [
+      4,
+      "White",
+      4
+     ],
+     [
+      5,
+      "White",
+      3
+     ],
+     [
+      6,
+      "White",
+      3
+     ],
+     [
+      7,
+      "White",
+      3
+     ],
+     [
+      8,
+      "White",
+      3
+     ],
+     [
+      9,
+      "White",
+      3
+     ],
+     [
+      10,
+      "White",
+      2
+     ],
+     [
+      11,
+      "White",
+      2
+     ],
+     [
+      12,
+      "White",
+      2
+     ],
+     [
+      13,
+      "White",
+      1
+     ],
+     [
+      14,
+      "White",
+      1
+     ],
+     [
+      15,
+      "Blue",
+      6
+     ],
+     [
+      16,
+      "Blue",
+      6
+     ],
+     [
+      17,
+      "Blue",
+      5
+     ],
+     [
+      18,
+      "Blue",
+      4
+     ],
+     [
+      19,
+      "Blue",
+      4
+     ],
+     [
+      20,
+      "Blue",
+      3
+     ],
+     [
+      21,
+      "Blue",
+      3
+     ],
+     [
+      22,
+      "Blue",
+      3
+     ],
+     [
+      23,
+      "Blue",
+      3
+     ],
+     [
+      24,
+      "Blue",
+      2
+     ],
+     [
+      25,
+      "Blue",
+      2
+     ],
+     [
+      26,
+      "Blue",
+      2
+     ],
+     [
+      27,
+      "Blue",
+      2
+     ],
+     [
+      28,
+      "Blue",
+      1
+     ],
+     [
+      29,
+      "Green",
+      6
+     ],
+     [
+      30,
+      "Green",
+      6
+     ],
+     [
+      31,
+      "Green",
+      5
+     ],
+     [
+      32,
+      "Green",
+      4
+     ],
+     [
+      33,
+      "Green",
+      4
+     ],
+     [
+      34,
+      "Green",
+      3
+     ],
+     [
+      35,
+      "Green",
+      3
+     ],
+     [
+      36,
+      "Green",
+      3
+     ],
+     [
+      37,
+      "Green",
+      3
+     ],
+     [
+      38,
+      "Green",
+      2
+     ],
+     [
+      39,
+      "Green",
+      2
+     ],
+     [
+      40,
+      "Green",
+      2
+     ],
+     [
+      41,
+      "Green",
+      2
+     ],
+     [
+      42,
+      "Green",
+      1
+     ],
+     [
+      43,
+      "Purple",
+      6
+     ],
+     [
+      44,
+      "Purple",
+      5
+     ],
+     [
+      45,
+      "Purple",
+      4
+     ],
+     [
+      46,
+      "Purple",
+      3
+     ],
+     [
+      47,
+      "Purple",
+      3
+     ],
+     [
+      48,
+      "Purple",
+      3
+     ],
+     [
+      49,
+      "Purple",
+      3
+     ],
+     [
+      50,
+      "Purple",
+      3
+     ],
+     [
+      51,
+      "Purple",
+      2
+     ],
+     [
+      52,
+      "Purple",
+      2
+     ],
+     [
+      53,
+      "Purple",
+      2
+     ],
+     [
+      54,
+      "Purple",
+      2
+     ],
+     [
+      55,
+      "Purple",
+      2
+     ],
+     [
+      56,
+      "Purple",
+      1
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2-1 prints a tally of each face by colour, not the dice one by one; the rows list each colour's tally from 6 down"
+   },
+   "notes": "The book's F is n times the variance of the four colour means over the mean of the four variances, the one-way ANOVA F for equal group sizes.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "White",
+     "value": "3.14",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Blue",
+     "value": "3.29",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Green",
+     "value": "3.29",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Purple",
+     "value": "2.93",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "White",
+     "value": "2.59",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "Blue",
+     "value": "2.37",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "Green",
+     "value": "2.37",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "Purple",
+     "value": "1.76",
+     "where": {
+      "page": 25,
+      "source_kind": "table",
+      "quote": "Mean (Y) 3.14 3.29 3.29 2.93 / Var. (s^2) 2.59 2.37 2.37 1.76"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "y",
+     "value": "3.1625",
+     "where": {
+      "page": 26,
+      "source_kind": "prose",
+      "quote": "the value 3.1625 is the grand mean of all the responses"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "colour means",
+     "value": "0.029",
+     "where": {
+      "page": 26,
+      "source_kind": "math",
+      "quote": "S^2_Y = ((3.14 - 3.1625)^2 + ... + (2.93 - 3.1625)^2)/(4 - 1) = 0.029"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "2.28",
+     "where": {
+      "page": 26,
+      "source_kind": "math",
+      "quote": "S^2_pooled = (2.59 + 2.37 + 2.37 + 1.76)/4 = 2.28"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "colour",
+     "value": "0.18",
+     "where": {
+      "page": 26,
+      "source_kind": "math",
+      "quote": "F = n*S^2_Y/S^2_pooled = 14*0.029/2.28 = 0.18"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-dice-doctored",
+   "title": "The same 56 dice after two cheaters turned blue and green up a dot and white and purple down: F-test and LSD",
+   "topics": [
+    "sport-recreation"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 2, Catching Cheaters with a Simple Comparative Experiment",
+    "pages": "29-32",
+    "tables": [
+     "Table 2-2"
+    ],
+    "figures": [
+     "Figure 2-2"
+    ]
+   },
+   "factors": [
+    {
+     "name": "colour",
+     "description": "colour of the die, 14 dice of each",
+     "low": "White",
+     "high": "Purple",
+     "levels": [
+      "White",
+      "Blue",
+      "Green",
+      "Purple"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "number of dots face up",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized single-factor comparison, four levels",
+    "details": "14 dice of each colour, tossed once",
+    "n_runs": 56,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "colour",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "White",
+      6
+     ],
+     [
+      2,
+      "White",
+      5
+     ],
+     [
+      3,
+      "White",
+      4
+     ],
+     [
+      4,
+      "White",
+      3
+     ],
+     [
+      5,
+      "White",
+      3
+     ],
+     [
+      6,
+      "White",
+      2
+     ],
+     [
+      7,
+      "White",
+      2
+     ],
+     [
+      8,
+      "White",
+      2
+     ],
+     [
+      9,
+      "White",
+      2
+     ],
+     [
+      10,
+      "White",
+      2
+     ],
+     [
+      11,
+      "White",
+      1
+     ],
+     [
+      12,
+      "White",
+      1
+     ],
+     [
+      13,
+      "White",
+      1
+     ],
+     [
+      14,
+      "White",
+      1
+     ],
+     [
+      15,
+      "Blue",
+      6
+     ],
+     [
+      16,
+      "Blue",
+      6
+     ],
+     [
+      17,
+      "Blue",
+      6
+     ],
+     [
+      18,
+      "Blue",
+      5
+     ],
+     [
+      19,
+      "Blue",
+      5
+     ],
+     [
+      20,
+      "Blue",
+      4
+     ],
+     [
+      21,
+      "Blue",
+      4
+     ],
+     [
+      22,
+      "Blue",
+      4
+     ],
+     [
+      23,
+      "Blue",
+      3
+     ],
+     [
+      24,
+      "Blue",
+      3
+     ],
+     [
+      25,
+      "Blue",
+      3
+     ],
+     [
+      26,
+      "Blue",
+      3
+     ],
+     [
+      27,
+      "Blue",
+      2
+     ],
+     [
+      28,
+      "Blue",
+      1
+     ],
+     [
+      29,
+      "Green",
+      6
+     ],
+     [
+      30,
+      "Green",
+      6
+     ],
+     [
+      31,
+      "Green",
+      6
+     ],
+     [
+      32,
+      "Green",
+      6
+     ],
+     [
+      33,
+      "Green",
+      6
+     ],
+     [
+      34,
+      "Green",
+      6
+     ],
+     [
+      35,
+      "Green",
+      5
+     ],
+     [
+      36,
+      "Green",
+      5
+     ],
+     [
+      37,
+      "Green",
+      5
+     ],
+     [
+      38,
+      "Green",
+      5
+     ],
+     [
+      39,
+      "Green",
+      5
+     ],
+     [
+      40,
+      "Green",
+      4
+     ],
+     [
+      41,
+      "Green",
+      3
+     ],
+     [
+      42,
+      "Green",
+      1
+     ],
+     [
+      43,
+      "Purple",
+      6
+     ],
+     [
+      44,
+      "Purple",
+      5
+     ],
+     [
+      45,
+      "Purple",
+      5
+     ],
+     [
+      46,
+      "Purple",
+      4
+     ],
+     [
+      47,
+      "Purple",
+      4
+     ],
+     [
+      48,
+      "Purple",
+      4
+     ],
+     [
+      49,
+      "Purple",
+      3
+     ],
+     [
+      50,
+      "Purple",
+      2
+     ],
+     [
+      51,
+      "Purple",
+      2
+     ],
+     [
+      52,
+      "Purple",
+      1
+     ],
+     [
+      53,
+      "Purple",
+      1
+     ],
+     [
+      54,
+      "Purple",
+      1
+     ],
+     [
+      55,
+      "Purple",
+      1
+     ],
+     [
+      56,
+      "Purple",
+      1
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2-2 prints a tally of each face by colour; the rows list each colour's tally from 6 down. Green has no 2s."
+   },
+   "notes": "The LSD takes the critical t as 2 for 52 degrees of freedom (p. 31). The critical F of 2.839 and 2.758 are the 5% table's rows for 40 and 60 denominator degrees of freedom, as the table has no row for 52.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "White",
+     "value": "2.50",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Blue",
+     "value": "3.93",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Green",
+     "value": "4.93",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Purple",
+     "value": "2.86",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "White",
+     "value": "2.42",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "Blue",
+     "value": "2.38",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "Green",
+     "value": "2.07",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "Purple",
+     "value": "3.21",
+     "where": {
+      "page": 29,
+      "source_kind": "table",
+      "quote": "Mean (Y) 2.50 3.93 4.93 2.86 / Var. (s^2) 2.42 2.38 2.07 3.21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "colour means",
+     "value": "1.21",
+     "where": {
+      "page": 30,
+      "source_kind": "math",
+      "quote": "F = 14*Var(2.50,3.93,4.93,2.86)/Mean(2.42,2.38,2.07,3.21) = 14*1.21/2.52 = 6.71"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "2.52",
+     "where": {
+      "page": 30,
+      "source_kind": "math",
+      "quote": "14*1.21/2.52 = 6.71"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "colour",
+     "value": "6.71",
+     "where": {
+      "page": 30,
+      "source_kind": "math",
+      "quote": "14*1.21/2.52 = 6.71"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "colour",
+     "value": "3",
+     "where": {
+      "page": 30,
+      "source_kind": "prose",
+      "quote": "the appropriate df are 3 (4 minus 1) and 52 [4 times (14 minus 1)]"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "52",
+     "where": {
+      "page": 30,
+      "source_kind": "prose",
+      "quote": "the appropriate df are 3 (4 minus 1) and 52 [4 times (14 minus 1)]"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.05; 3, 40)",
+     "value": "2.839",
+     "where": {
+      "page": 30,
+      "source_kind": "prose",
+      "quote": "column 3 and row 40 and row 60 ... you will see F-values of 2.839 and 2.758"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.05; 3, 60)",
+     "value": "2.758",
+     "where": {
+      "page": 30,
+      "source_kind": "prose",
+      "quote": "column 3 and row 40 and row 60 ... you will see F-values of 2.839 and 2.758"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.01; 3, 40)",
+     "value": "4.2",
+     "where": {
+      "page": 30,
+      "source_kind": "prose",
+      "quote": "look up the critical F for 1% risk. You should find a value of about 4.2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_std_dev",
+     "term": null,
+     "value": "1.59",
+     "where": {
+      "page": 31,
+      "source_kind": "math",
+      "quote": "s_pooled = sqrt((2.42 + 2.38 + 2.07 + 3.21)/4) = sqrt(2.52) = 1.59"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lsd",
+     "term": "colour",
+     "value": "1.20",
+     "analysis": "least significant difference, t taken as 2",
+     "where": {
+      "page": 31,
+      "source_kind": "math",
+      "quote": "LSD = 2*1.59*sqrt(2/14) = 1.20"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "difference_of_means",
+     "term": "Blue less White",
+     "value": "1.43",
+     "where": {
+      "page": 31,
+      "source_kind": "prose",
+      "quote": "exceeded by the 1.43 difference between white and blue (3.93 - 2.50)"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-dice-stacking-children",
+   "title": "Seconds for four preschool children to stack three dice of 1 to 6 dots: blocking out the children",
+   "topics": [
+    "human-factors"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 2, Blocking Out Known Sources of Variation",
+    "pages": "32-37",
+    "tables": [
+     "Table 2-3",
+     "Table 2-4"
+    ],
+    "figures": [
+     "Figure 2-3",
+     "Figure 2-4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "child",
+     "description": "the child, a block",
+     "low": "K1",
+     "high": "K4",
+     "levels": [
+      "K1",
+      "K2",
+      "K3",
+      "K4"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "dots",
+     "description": "number of dots on each of the three dice to stack",
+     "low": "1",
+     "high": "6",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "time to pick out and stack three dice with the same number of dots",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "randomized complete block",
+    "details": "each of 4 children (blocks) did all 6 dot patterns",
+    "n_runs": 24,
+    "treatment_factors": 1,
+    "blocks": "child"
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "child",
+     "dots",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "K1",
+      "1",
+      7.2
+     ],
+     [
+      2,
+      "K2",
+      "1",
+      13.2
+     ],
+     [
+      3,
+      "K3",
+      "1",
+      39.9
+     ],
+     [
+      4,
+      "K4",
+      "1",
+      22.2
+     ],
+     [
+      5,
+      "K1",
+      "2",
+      10.0
+     ],
+     [
+      6,
+      "K2",
+      "2",
+      21.6
+     ],
+     [
+      7,
+      "K3",
+      "2",
+      45.3
+     ],
+     [
+      8,
+      "K4",
+      "2",
+      24.1
+     ],
+     [
+      9,
+      "K1",
+      "3",
+      25.6
+     ],
+     [
+      10,
+      "K2",
+      "3",
+      36.2
+     ],
+     [
+      11,
+      "K3",
+      "3",
+      79.7
+     ],
+     [
+      12,
+      "K4",
+      "3",
+      44.6
+     ],
+     [
+      13,
+      "K1",
+      "4",
+      15.2
+     ],
+     [
+      14,
+      "K2",
+      "4",
+      30.0
+     ],
+     [
+      15,
+      "K3",
+      "4",
+      54.5
+     ],
+     [
+      16,
+      "K4",
+      "4",
+      32.9
+     ],
+     [
+      17,
+      "K1",
+      "5",
+      33.0
+     ],
+     [
+      18,
+      "K2",
+      "5",
+      48.1
+     ],
+     [
+      19,
+      "K3",
+      "5",
+      90.8
+     ],
+     [
+      20,
+      "K4",
+      "5",
+      52.7
+     ],
+     [
+      21,
+      "K1",
+      "6",
+      19.5
+     ],
+     [
+      22,
+      "K2",
+      "6",
+      32.0
+     ],
+     [
+      23,
+      "K3",
+      "6",
+      65.0
+     ],
+     [
+      24,
+      "K4",
+      "6",
+      42.0
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2-3, dot pattern by child; each time is said to be an average of several trials. No run order is printed."
+   },
+   "notes": "The blocked F divides the mean within-dot variance of the corrected times by 15/18 to give the error 15 degrees of freedom instead of 18.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "1",
+     "value": "20.6",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 1 dot ... Within-Dot Mean 20.6"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "2",
+     "value": "25.3",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 2 dots ... Within-Dot Mean 25.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "3",
+     "value": "46.5",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 3 dots ... Within-Dot Mean 46.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "4",
+     "value": "33.1",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 4 dots ... Within-Dot Mean 33.1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "5",
+     "value": "56.1",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 5 dots ... Within-Dot Mean 56.1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "6",
+     "value": "39.6",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 6 dots ... Within-Dot Mean 39.6"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "1",
+     "value": "203.3",
+     "analysis": "within each dot pattern, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 1 dot ... Within-Dot Variance 203.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "2",
+     "value": "216.8",
+     "analysis": "within each dot pattern, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 2 dots ... Within-Dot Variance 216.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "3",
+     "value": "548.3",
+     "analysis": "within each dot pattern, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 3 dots ... Within-Dot Variance 548.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "4",
+     "value": "262.5",
+     "analysis": "within each dot pattern, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 4 dots ... Within-Dot Variance 262.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "5",
+     "value": "604.7",
+     "analysis": "within each dot pattern, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 5 dots ... Within-Dot Variance 604.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "6",
+     "value": "370.9",
+     "analysis": "within each dot pattern, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 ... 6 dots ... Within-Dot Variance 370.9"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "K1",
+     "value": "18.4",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Mean ... K1 18.4"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "K2",
+     "value": "30.2",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Mean ... K2 30.2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "K3",
+     "value": "62.5",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Mean ... K3 62.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "K4",
+     "value": "36.4",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Mean ... K4 36.4"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "block effect",
+     "term": "K1",
+     "value": "-18.47",
+     "analysis": "each child's mean less the grand mean",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Difference ... K1 -18.47"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "block effect",
+     "term": "K2",
+     "value": "-6.71",
+     "analysis": "each child's mean less the grand mean",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Difference ... K2 -6.71"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "block effect",
+     "term": "K3",
+     "value": "25.64",
+     "analysis": "each child's mean less the grand mean",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Difference ... K3 25.64"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "block effect",
+     "term": "K4",
+     "value": "-0.46",
+     "analysis": "each child's mean less the grand mean",
+     "where": {
+      "page": 34,
+      "source_kind": "table",
+      "quote": "Table 2-3 Difference ... K4 -0.46"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "y",
+     "value": "36.9",
+     "where": {
+      "page": 34,
+      "source_kind": "prose",
+      "quote": "how each child's time differs from the overall average of 36.9 seconds"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "367.8",
+     "analysis": "one-way analysis, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "math",
+      "quote": "F = 4*Var(20.6,25.3,46.5,33.1,56.1,39.6)/367.8 = 4*176.9/367.8 = 1.92"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "dot means",
+     "value": "176.9",
+     "where": {
+      "page": 34,
+      "source_kind": "math",
+      "quote": "4*Var(20.6,25.3,46.5,33.1,56.1,39.6) ... = 4*176.9/367.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "dots",
+     "value": "1.92",
+     "analysis": "one-way analysis, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "math",
+      "quote": "= 4*176.9/367.8 = 1.92"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "dots",
+     "value": "5",
+     "where": {
+      "page": 34,
+      "source_kind": "prose",
+      "quote": "This F-value is based on 5 df for the between means comparison (numerator) and 18 df"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "18",
+     "analysis": "one-way analysis, blocks ignored",
+     "where": {
+      "page": 34,
+      "source_kind": "prose",
+      "quote": "5 df for the between means comparison (numerator) and 18 df for the within means comparison"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.05; 5, 18)",
+     "value": "2.773",
+     "where": {
+      "page": 34,
+      "source_kind": "prose",
+      "quote": "The critical F for 5% risk is 2.773"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "1 dot, K1",
+     "value": "25.7",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 1 dot ... K1 25.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "1 dot, K2",
+     "value": "19.9",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 1 dot ... K2 19.9"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "1 dot, K3",
+     "value": "14.3",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 1 dot ... K3 14.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "1 dot, K4",
+     "value": "22.7",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 1 dot ... K4 22.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "2 dots, K1",
+     "value": "28.5",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 2 dots ... K1 28.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "2 dots, K2",
+     "value": "28.3",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 2 dots ... K2 28.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "2 dots, K3",
+     "value": "19.7",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 2 dots ... K3 19.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "2 dots, K4",
+     "value": "24.6",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 2 dots ... K4 24.6"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "3 dots, K1",
+     "value": "44.1",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 3 dots ... K1 44.1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "3 dots, K2",
+     "value": "42.9",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 3 dots ... K2 42.9"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "3 dots, K3",
+     "value": "54.0",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 3 dots ... K3 54.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "3 dots, K4",
+     "value": "45.1",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 3 dots ... K4 45.1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "4 dots, K1",
+     "value": "33.7",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 4 dots ... K1 33.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "4 dots, K2",
+     "value": "36.7",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 4 dots ... K2 36.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "4 dots, K3",
+     "value": "28.8",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 4 dots ... K3 28.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "4 dots, K4",
+     "value": "33.4",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 4 dots ... K4 33.4"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "5 dots, K1",
+     "value": "51.5",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 5 dots ... K1 51.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "5 dots, K2",
+     "value": "54.8",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 5 dots ... K2 54.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "5 dots, K3",
+     "value": "65.2",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 5 dots ... K3 65.2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "5 dots, K4",
+     "value": "53.2",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 5 dots ... K4 53.2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "6 dots, K1",
+     "value": "38.0",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 6 dots ... K1 38.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "6 dots, K2",
+     "value": "38.7",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 6 dots ... K2 38.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "6 dots, K3",
+     "value": "39.4",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 6 dots ... K3 39.4"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "observation",
+     "term": "6 dots, K4",
+     "value": "42.5",
+     "analysis": "the time less the child's difference from the grand mean",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 6 dots ... K4 42.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "1",
+     "value": "23.6",
+     "analysis": "within each dot pattern, after the children's differences are taken away",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 1 dot ... Within-Dot Variance 23.6"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "2",
+     "value": "17.0",
+     "analysis": "within each dot pattern, after the children's differences are taken away",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 2 dots ... Within-Dot Variance 17.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "3",
+     "value": "25.7",
+     "analysis": "within each dot pattern, after the children's differences are taken away",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 3 dots ... Within-Dot Variance 25.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "4",
+     "value": "10.5",
+     "analysis": "within each dot pattern, after the children's differences are taken away",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 4 dots ... Within-Dot Variance 10.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "5",
+     "value": "38.0",
+     "analysis": "within each dot pattern, after the children's differences are taken away",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 5 dots ... Within-Dot Variance 38.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "6",
+     "value": "3.9",
+     "analysis": "within each dot pattern, after the children's differences are taken away",
+     "where": {
+      "page": 35,
+      "source_kind": "table",
+      "quote": "Table 2-4 ... 6 dots ... Within-Dot Variance 3.9"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "variance",
+     "term": "mean within-dot variance",
+     "value": "19.8",
+     "analysis": "after the children's differences are taken away",
+     "where": {
+      "page": 35,
+      "source_kind": "prose",
+      "quote": "It drops more than tenfold from 367.8 (Table 2-3) down to 19.8 (Table 2-4)"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "dots",
+     "value": "29.8",
+     "analysis": "randomized block analysis, children as blocks",
+     "where": {
+      "page": 35,
+      "source_kind": "math",
+      "quote": "F = 4*176.9/(19.8*18/15) = 29.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "15",
+     "analysis": "randomized block analysis, children as blocks",
+     "where": {
+      "page": 36,
+      "source_kind": "prose",
+      "quote": "causes a loss of 3 df (n minus 1 with n = 4) for calculating error, so only 15 df remain"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.05; 5, 15)",
+     "value": "2.901",
+     "where": {
+      "page": 36,
+      "source_kind": "prose",
+      "quote": "On the 5% table, you will find a value of 2.901 under column 5 and row 15"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problem-2-1-bowling",
+   "title": "Six games each of three bowlers: are their scores different? (Problem 2-1)",
+   "topics": [
+    "sport-recreation"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 2, Practice Problems, Problem 2-1",
+    "pages": "37-38",
+    "tables": [
+     "Table 2-5"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "bowler",
+     "description": "the bowler",
+     "low": "Pat",
+     "high": "Shari",
+     "levels": [
+      "Pat",
+      "Mark",
+      "Shari"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "bowling score",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized single-factor comparison, three levels",
+    "details": "6 games for each bowler",
+    "n_runs": 18,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "game",
+     "bowler",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      "Pat",
+      160
+     ],
+     [
+      2,
+      2,
+      "Pat",
+      150
+     ],
+     [
+      3,
+      3,
+      "Pat",
+      140
+     ],
+     [
+      4,
+      4,
+      "Pat",
+      167
+     ],
+     [
+      5,
+      5,
+      "Pat",
+      157
+     ],
+     [
+      6,
+      6,
+      "Pat",
+      148
+     ],
+     [
+      7,
+      1,
+      "Mark",
+      165
+     ],
+     [
+      8,
+      2,
+      "Mark",
+      180
+     ],
+     [
+      9,
+      3,
+      "Mark",
+      170
+     ],
+     [
+      10,
+      4,
+      "Mark",
+      185
+     ],
+     [
+      11,
+      5,
+      "Mark",
+      195
+     ],
+     [
+      12,
+      6,
+      "Mark",
+      175
+     ],
+     [
+      13,
+      1,
+      "Shari",
+      166
+     ],
+     [
+      14,
+      2,
+      "Shari",
+      158
+     ],
+     [
+      15,
+      3,
+      "Shari",
+      145
+     ],
+     [
+      16,
+      4,
+      "Shari",
+      161
+     ],
+     [
+      17,
+      5,
+      "Shari",
+      151
+     ],
+     [
+      18,
+      6,
+      "Shari",
+      156
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2-5, bowler by bowler"
+   },
+   "unanswered": "the analysis of variance it asks for is answered on the Internet, not in the book",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "Pat",
+     "value": "153.7",
+     "where": {
+      "page": 37,
+      "source_kind": "table",
+      "quote": "Table 2-5 ... Mean 153.7 178.3 156.2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Mark",
+     "value": "178.3",
+     "where": {
+      "page": 37,
+      "source_kind": "table",
+      "quote": "Table 2-5 ... Mean 153.7 178.3 156.2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "Shari",
+     "value": "156.2",
+     "where": {
+      "page": 37,
+      "source_kind": "table",
+      "quote": "Table 2-5 ... Mean 153.7 178.3 156.2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problem-2-2-dice-second-toss",
+   "title": "The 56 dice of four colours tossed a second time (Problem 2-2)",
+   "topics": [
+    "sport-recreation"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 2, Practice Problems, Problem 2-2",
+    "pages": "38",
+    "tables": [
+     "Table 2-6"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "colour",
+     "description": "colour of the die, 14 dice of each",
+     "low": "White",
+     "high": "Purple",
+     "levels": [
+      "White",
+      "Blue",
+      "Green",
+      "Purple"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "number of dots face up",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized single-factor comparison, four levels",
+    "details": "14 dice of each colour, tossed once",
+    "n_runs": 56,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "colour",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "White",
+      6
+     ],
+     [
+      2,
+      "White",
+      6
+     ],
+     [
+      3,
+      "White",
+      5
+     ],
+     [
+      4,
+      "White",
+      5
+     ],
+     [
+      5,
+      "White",
+      5
+     ],
+     [
+      6,
+      "White",
+      5
+     ],
+     [
+      7,
+      "White",
+      4
+     ],
+     [
+      8,
+      "White",
+      4
+     ],
+     [
+      9,
+      "White",
+      4
+     ],
+     [
+      10,
+      "White",
+      3
+     ],
+     [
+      11,
+      "White",
+      3
+     ],
+     [
+      12,
+      "White",
+      3
+     ],
+     [
+      13,
+      "White",
+      2
+     ],
+     [
+      14,
+      "White",
+      2
+     ],
+     [
+      15,
+      "Blue",
+      6
+     ],
+     [
+      16,
+      "Blue",
+      6
+     ],
+     [
+      17,
+      "Blue",
+      6
+     ],
+     [
+      18,
+      "Blue",
+      5
+     ],
+     [
+      19,
+      "Blue",
+      4
+     ],
+     [
+      20,
+      "Blue",
+      4
+     ],
+     [
+      21,
+      "Blue",
+      3
+     ],
+     [
+      22,
+      "Blue",
+      3
+     ],
+     [
+      23,
+      "Blue",
+      3
+     ],
+     [
+      24,
+      "Blue",
+      3
+     ],
+     [
+      25,
+      "Blue",
+      2
+     ],
+     [
+      26,
+      "Blue",
+      2
+     ],
+     [
+      27,
+      "Blue",
+      2
+     ],
+     [
+      28,
+      "Blue",
+      1
+     ],
+     [
+      29,
+      "Green",
+      6
+     ],
+     [
+      30,
+      "Green",
+      6
+     ],
+     [
+      31,
+      "Green",
+      6
+     ],
+     [
+      32,
+      "Green",
+      5
+     ],
+     [
+      33,
+      "Green",
+      5
+     ],
+     [
+      34,
+      "Green",
+      5
+     ],
+     [
+      35,
+      "Green",
+      4
+     ],
+     [
+      36,
+      "Green",
+      4
+     ],
+     [
+      37,
+      "Green",
+      3
+     ],
+     [
+      38,
+      "Green",
+      3
+     ],
+     [
+      39,
+      "Green",
+      2
+     ],
+     [
+      40,
+      "Green",
+      2
+     ],
+     [
+      41,
+      "Green",
+      1
+     ],
+     [
+      42,
+      "Green",
+      1
+     ],
+     [
+      43,
+      "Purple",
+      6
+     ],
+     [
+      44,
+      "Purple",
+      6
+     ],
+     [
+      45,
+      "Purple",
+      6
+     ],
+     [
+      46,
+      "Purple",
+      5
+     ],
+     [
+      47,
+      "Purple",
+      5
+     ],
+     [
+      48,
+      "Purple",
+      5
+     ],
+     [
+      49,
+      "Purple",
+      4
+     ],
+     [
+      50,
+      "Purple",
+      4
+     ],
+     [
+      51,
+      "Purple",
+      4
+     ],
+     [
+      52,
+      "Purple",
+      3
+     ],
+     [
+      53,
+      "Purple",
+      2
+     ],
+     [
+      54,
+      "Purple",
+      1
+     ],
+     [
+      55,
+      "Purple",
+      1
+     ],
+     [
+      56,
+      "Purple",
+      1
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2-6 prints a tally of each face by colour (its caption says 50 rolls; the tallies hold 14 dice of each colour, 56 in all); the rows list each colour's tally from 6 down. White has no 1s."
+   },
+   "unanswered": "the table leaves the means and variances blank for the reader; the answers are on the Internet",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-problem-2-3-shipments",
+   "title": "Endplay in four incoming lots of motor shafts: do the lots differ? (Problem 2-3)",
+   "topics": [
+    "electrical-electronic"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 2, Practice Problems, Problem 2-3",
+    "pages": "38-39",
+    "tables": [
+     "Table 2-7"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "lot",
+     "description": "incoming shipment",
+     "low": "A",
+     "high": "M",
+     "levels": [
+      "A",
+      "E",
+      "I",
+      "M"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "endplay of the motor shaft",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "completely randomized single-factor comparison, four levels",
+    "details": "25 shafts from each lot",
+    "n_runs": 100,
+    "treatment_factors": 1
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "lot",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "A",
+      61
+     ],
+     [
+      2,
+      "A",
+      61
+     ],
+     [
+      3,
+      "A",
+      57
+     ],
+     [
+      4,
+      "A",
+      56
+     ],
+     [
+      5,
+      "A",
+      60
+     ],
+     [
+      6,
+      "A",
+      52
+     ],
+     [
+      7,
+      "A",
+      62
+     ],
+     [
+      8,
+      "A",
+      59
+     ],
+     [
+      9,
+      "A",
+      62
+     ],
+     [
+      10,
+      "A",
+      67
+     ],
+     [
+      11,
+      "A",
+      55
+     ],
+     [
+      12,
+      "A",
+      56
+     ],
+     [
+      13,
+      "A",
+      52
+     ],
+     [
+      14,
+      "A",
+      60
+     ],
+     [
+      15,
+      "A",
+      59
+     ],
+     [
+      16,
+      "A",
+      59
+     ],
+     [
+      17,
+      "A",
+      60
+     ],
+     [
+      18,
+      "A",
+      59
+     ],
+     [
+      19,
+      "A",
+      49
+     ],
+     [
+      20,
+      "A",
+      42
+     ],
+     [
+      21,
+      "A",
+      55
+     ],
+     [
+      22,
+      "A",
+      67
+     ],
+     [
+      23,
+      "A",
+      53
+     ],
+     [
+      24,
+      "A",
+      66
+     ],
+     [
+      25,
+      "A",
+      60
+     ],
+     [
+      26,
+      "E",
+      56
+     ],
+     [
+      27,
+      "E",
+      56
+     ],
+     [
+      28,
+      "E",
+      61
+     ],
+     [
+      29,
+      "E",
+      67
+     ],
+     [
+      30,
+      "E",
+      58
+     ],
+     [
+      31,
+      "E",
+      63
+     ],
+     [
+      32,
+      "E",
+      56
+     ],
+     [
+      33,
+      "E",
+      60
+     ],
+     [
+      34,
+      "E",
+      55
+     ],
+     [
+      35,
+      "E",
+      46
+     ],
+     [
+      36,
+      "E",
+      62
+     ],
+     [
+      37,
+      "E",
+      65
+     ],
+     [
+      38,
+      "E",
+      63
+     ],
+     [
+      39,
+      "E",
+      59
+     ],
+     [
+      40,
+      "E",
+      60
+     ],
+     [
+      41,
+      "E",
+      60
+     ],
+     [
+      42,
+      "E",
+      59
+     ],
+     [
+      43,
+      "E",
+      60
+     ],
+     [
+      44,
+      "E",
+      65
+     ],
+     [
+      45,
+      "E",
+      65
+     ],
+     [
+      46,
+      "E",
+      62
+     ],
+     [
+      47,
+      "E",
+      51
+     ],
+     [
+      48,
+      "E",
+      62
+     ],
+     [
+      49,
+      "E",
+      52
+     ],
+     [
+      50,
+      "E",
+      58
+     ],
+     [
+      51,
+      "I",
+      62
+     ],
+     [
+      52,
+      "I",
+      62
+     ],
+     [
+      53,
+      "I",
+      72
+     ],
+     [
+      54,
+      "I",
+      63
+     ],
+     [
+      55,
+      "I",
+      51
+     ],
+     [
+      56,
+      "I",
+      65
+     ],
+     [
+      57,
+      "I",
+      62
+     ],
+     [
+      58,
+      "I",
+      59
+     ],
+     [
+      59,
+      "I",
+      62
+     ],
+     [
+      60,
+      "I",
+      63
+     ],
+     [
+      61,
+      "I",
+      68
+     ],
+     [
+      62,
+      "I",
+      64
+     ],
+     [
+      63,
+      "I",
+      67
+     ],
+     [
+      64,
+      "I",
+      60
+     ],
+     [
+      65,
+      "I",
+      59
+     ],
+     [
+      66,
+      "I",
+      59
+     ],
+     [
+      67,
+      "I",
+      61
+     ],
+     [
+      68,
+      "I",
+      58
+     ],
+     [
+      69,
+      "I",
+      65
+     ],
+     [
+      70,
+      "I",
+      64
+     ],
+     [
+      71,
+      "I",
+      70
+     ],
+     [
+      72,
+      "I",
+      63
+     ],
+     [
+      73,
+      "I",
+      68
+     ],
+     [
+      74,
+      "I",
+      62
+     ],
+     [
+      75,
+      "I",
+      61
+     ],
+     [
+      76,
+      "M",
+      70
+     ],
+     [
+      77,
+      "M",
+      70
+     ],
+     [
+      78,
+      "M",
+      50
+     ],
+     [
+      79,
+      "M",
+      68
+     ],
+     [
+      80,
+      "M",
+      71
+     ],
+     [
+      81,
+      "M",
+      65
+     ],
+     [
+      82,
+      "M",
+      70
+     ],
+     [
+      83,
+      "M",
+      73
+     ],
+     [
+      84,
+      "M",
+      70
+     ],
+     [
+      85,
+      "M",
+      69
+     ],
+     [
+      86,
+      "M",
+      64
+     ],
+     [
+      87,
+      "M",
+      68
+     ],
+     [
+      88,
+      "M",
+      65
+     ],
+     [
+      89,
+      "M",
+      72
+     ],
+     [
+      90,
+      "M",
+      73
+     ],
+     [
+      91,
+      "M",
+      75
+     ],
+     [
+      92,
+      "M",
+      72
+     ],
+     [
+      93,
+      "M",
+      75
+     ],
+     [
+      94,
+      "M",
+      64
+     ],
+     [
+      95,
+      "M",
+      69
+     ],
+     [
+      96,
+      "M",
+      60
+     ],
+     [
+      97,
+      "M",
+      68
+     ],
+     [
+      98,
+      "M",
+      66
+     ],
+     [
+      99,
+      "M",
+      69
+     ],
+     [
+      100,
+      "M",
+      72
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2-7, lot by lot in the order printed; lot A is the data of Problem 1-1"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-problem-2-4-fabric",
+   "title": "Wear of old and new fabric sewn into the two legs of the same pants, nine subjects as blocks (Problem 2-4)",
+   "topics": [
+    "textiles"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 2, Practice Problems, Problem 2-4",
+    "pages": "39-40",
+    "tables": [
+     "Table 2-8"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "subject",
+     "description": "the person wearing the pants, a block",
+     "low": "1",
+     "high": "9",
+     "levels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "fabric",
+     "description": "fabric of the leg",
+     "low": "Old",
+     "high": "New",
+     "levels": [
+      "Old",
+      "New"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "wear rating, 1 to 10, higher is better, averaged over a panel",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "randomized complete block (paired comparison)",
+    "details": "each subject's pants carry one leg of each fabric, the leg alternated",
+    "n_runs": 18,
+    "treatment_factors": 1,
+    "blocks": "subject"
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "subject",
+     "fabric",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      "Old",
+      8.1
+     ],
+     [
+      2,
+      "1",
+      "New",
+      9.0
+     ],
+     [
+      3,
+      "2",
+      "Old",
+      5.1
+     ],
+     [
+      4,
+      "2",
+      "New",
+      5.8
+     ],
+     [
+      5,
+      "3",
+      "Old",
+      6.8
+     ],
+     [
+      6,
+      "3",
+      "New",
+      7.2
+     ],
+     [
+      7,
+      "4",
+      "Old",
+      8.5
+     ],
+     [
+      8,
+      "4",
+      "New",
+      8.8
+     ],
+     [
+      9,
+      "5",
+      "Old",
+      6.7
+     ],
+     [
+      10,
+      "5",
+      "New",
+      7.6
+     ],
+     [
+      11,
+      "6",
+      "Old",
+      4.4
+     ],
+     [
+      12,
+      "6",
+      "New",
+      4.3
+     ],
+     [
+      13,
+      "7",
+      "Old",
+      6.4
+     ],
+     [
+      14,
+      "7",
+      "New",
+      6.9
+     ],
+     [
+      15,
+      "8",
+      "Old",
+      6.7
+     ],
+     [
+      16,
+      "8",
+      "New",
+      7.3
+     ],
+     [
+      17,
+      "9",
+      "Old",
+      5.8
+     ],
+     [
+      18,
+      "9",
+      "New",
+      6.1
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 2-8; which leg carried which fabric is not printed"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-microwave-popcorn",
+   "title": "Microwave popcorn: brand, time and power in a 2^3 factorial, with taste and the weight of unpopped kernels",
+   "topics": [
+    "food-beverages",
+    "household"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 3, Two-Level Factorial Design to Diagnosing Residuals, and its Appendix",
+    "pages": "43-74",
+    "tables": [
+     "Table 3-1",
+     "Table 3-2",
+     "Table 3-3",
+     "Table 3-4",
+     "Table 3-5",
+     "Table 3-6",
+     "Table 3-7",
+     "Table 3-8",
+     "Table 3-9",
+     "Table 3-10",
+     "Table 3-11"
+    ],
+    "figures": [
+     "Figure 3-2",
+     "Figure 3-3",
+     "Figure 3-4",
+     "Figure 3-5",
+     "Figure 3-6",
+     "Figure 3-7",
+     "Figure 3-8",
+     "Figure 3-9",
+     "Figure 3-11",
+     "Figure 3-12",
+     "Figure 3-13",
+     "Figure 3-14",
+     "Figure 3-15"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "brand of popcorn",
+     "low": "Cheap",
+     "high": "Costly",
+     "levels": [
+      "Cheap",
+      "Costly"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "time",
+     "low": 4,
+     "high": 6,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "power",
+     "low": 75,
+     "high": 100,
+     "units": "%",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "taste",
+     "description": "taste, a panel's average rating on a scale of 1 to 10, multiplied by 10",
+     "units": ""
+    },
+    {
+     "name": "bullets",
+     "description": "weight of unpopped kernels, lower is better",
+     "units": "oz"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "details": "every combination of three factors at two levels, run in random order",
+    "n_runs": 8,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "Run",
+     "A",
+     "B",
+     "C",
+     "taste",
+     "bullets"
+    ],
+    "rows": [
+     [
+      1,
+      8,
+      -1,
+      -1,
+      -1,
+      74,
+      3.1
+     ],
+     [
+      2,
+      1,
+      1,
+      -1,
+      -1,
+      75,
+      3.5
+     ],
+     [
+      3,
+      2,
+      -1,
+      1,
+      -1,
+      71,
+      1.6
+     ],
+     [
+      4,
+      4,
+      1,
+      1,
+      -1,
+      80,
+      1.2
+     ],
+     [
+      5,
+      3,
+      -1,
+      -1,
+      1,
+      81,
+      0.7
+     ],
+     [
+      6,
+      5,
+      1,
+      -1,
+      1,
+      77,
+      0.7
+     ],
+     [
+      7,
+      7,
+      -1,
+      1,
+      1,
+      42,
+      0.5
+     ],
+     [
+      8,
+      6,
+      1,
+      1,
+      1,
+      32,
+      0.3
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3-3, in standard order with the run order of Table 3-2; the levels are coded -1 and +1"
+   },
+   "notes": "Table 3-6 prints bullets of run 8 as 0.5; Tables 3-2 and 3-3 print 0.3, and the effects of Table 3-6, the cell average 0.4 of Table 3-8 and the ANOVA of Table 3-10 all need 0.3. The text on p. 47 calls B power and C time, the other way about to Table 3-1. The coded models take B and C as -1 and +1.",
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-1.0",
+     "analysis": "effects of taste",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect -1.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "-20.5",
+     "analysis": "effects of taste",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect -20.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-17.0",
+     "analysis": "effects of taste",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect -17.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "0.5",
+     "analysis": "effects of taste",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect 0.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "-6.0",
+     "analysis": "effects of taste",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect -6.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "-21.5",
+     "analysis": "effects of taste",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect -21.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C",
+     "value": "-3.5",
+     "analysis": "effects of taste",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect -3.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste",
+     "value": "66.5",
+     "where": {
+      "page": 48,
+      "source_kind": "table",
+      "quote": "Table 3-4 ... Effect ... Response Y1 66.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste at A+",
+     "value": "66",
+     "where": {
+      "page": 47,
+      "source_kind": "math",
+      "quote": "Effect = (75 + 80 + 77 + 32)/4 - (74 + 71 + 81 + 42)/4 = 66 - 67 = -1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste at A-",
+     "value": "67",
+     "where": {
+      "page": 47,
+      "source_kind": "math",
+      "quote": "Effect = (75 + 80 + 77 + 32)/4 - (74 + 71 + 81 + 42)/4 = 66 - 67 = -1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-0.05",
+     "analysis": "effects of bullets",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect -0.05"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "-1.1",
+     "analysis": "effects of bullets",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect -1.1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-1.8",
+     "analysis": "effects of bullets",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect -1.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "-0.25",
+     "analysis": "effects of bullets",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect -0.25"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "-0.05",
+     "analysis": "effects of bullets",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect -0.05"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "0.80",
+     "analysis": "effects of bullets",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect 0.80"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C",
+     "value": "0.15",
+     "analysis": "effects of bullets",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect 0.15"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "bullets",
+     "value": "1.45",
+     "where": {
+      "page": 52,
+      "source_kind": "table",
+      "quote": "Table 3-6 ... Effect ... Y2 1.45"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A·B",
+     "value": "7.14%",
+     "analysis": "half-normal plot of the effects on taste",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Table 3-5 Point 1 Effect A·B ... Cumulative Probability 7.14%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A",
+     "value": "21.43%",
+     "analysis": "half-normal plot of the effects on taste",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Table 3-5 Point 2 Effect A ... Cumulative Probability 21.43%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A·B·C",
+     "value": "35.71%",
+     "analysis": "half-normal plot of the effects on taste",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Table 3-5 Point 3 Effect A·B·C ... Cumulative Probability 35.71%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A·C",
+     "value": "50.00%",
+     "analysis": "half-normal plot of the effects on taste",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Table 3-5 Point 4 Effect A·C ... Cumulative Probability 50.00%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "C",
+     "value": "64.29%",
+     "analysis": "half-normal plot of the effects on taste",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Table 3-5 Point 5 Effect C ... Cumulative Probability 64.29%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "B",
+     "value": "78.57%",
+     "analysis": "half-normal plot of the effects on taste",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Table 3-5 Point 6 Effect B ... Cumulative Probability 78.57%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "B·C",
+     "value": "92.86%",
+     "analysis": "half-normal plot of the effects on taste",
+     "where": {
+      "page": 50,
+      "source_kind": "table",
+      "quote": "Table 3-5 Point 7 Effect B·C ... Cumulative Probability 92.86%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A",
+     "value": "7.14%",
+     "analysis": "half-normal plot of the effects on bullets",
+     "where": {
+      "page": 53,
+      "source_kind": "table",
+      "quote": "Table 3-7 Point 1 Effect A ... Cumulative Probability 7.14%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A·C",
+     "value": "21.43%",
+     "analysis": "half-normal plot of the effects on bullets",
+     "where": {
+      "page": 53,
+      "source_kind": "table",
+      "quote": "Table 3-7 Point 2 Effect A·C ... Cumulative Probability 21.43%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A·B·C",
+     "value": "35.71%",
+     "analysis": "half-normal plot of the effects on bullets",
+     "where": {
+      "page": 53,
+      "source_kind": "table",
+      "quote": "Table 3-7 Point 3 Effect A·B·C ... Cumulative Probability 35.71%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "A·B",
+     "value": "50.00%",
+     "analysis": "half-normal plot of the effects on bullets",
+     "where": {
+      "page": 53,
+      "source_kind": "table",
+      "quote": "Table 3-7 Point 4 Effect A·B ... Cumulative Probability 50.00%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "B·C",
+     "value": "64.29%",
+     "analysis": "half-normal plot of the effects on bullets",
+     "where": {
+      "page": 53,
+      "source_kind": "table",
+      "quote": "Table 3-7 Point 5 Effect B·C ... Cumulative Probability 64.29%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "B",
+     "value": "78.57%",
+     "analysis": "half-normal plot of the effects on bullets",
+     "where": {
+      "page": 53,
+      "source_kind": "table",
+      "quote": "Table 3-7 Point 6 Effect B ... Cumulative Probability 78.57%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "half-normal probability",
+     "term": "C",
+     "value": "92.86%",
+     "analysis": "half-normal plot of the effects on bullets",
+     "where": {
+      "page": 53,
+      "source_kind": "table",
+      "quote": "Table 3-7 Point 7 Effect C ... Cumulative Probability 92.86%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste at B-C-",
+     "value": "74.5",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 1,2 ... Taste (Y1 Avg.) 74.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste at B+C-",
+     "value": "75.5",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 3,4 ... Taste (Y1 Avg.) 75.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste at B-C+",
+     "value": "79.0",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 5,6 ... Taste (Y1 Avg.) 79.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste at B+C+",
+     "value": "37.0",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 7,8 ... Taste (Y1 Avg.) 37.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "bullets at B-C-",
+     "value": "3.3",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 1,2 ... \"Bullets\" (Y2 Avg.) 3.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "bullets at B+C-",
+     "value": "1.4",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 3,4 ... \"Bullets\" (Y2 Avg.) 1.4"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "bullets at B-C+",
+     "value": "0.7",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 5,6 ... \"Bullets\" (Y2 Avg.) 0.7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "bullets at B+C+",
+     "value": "0.4",
+     "where": {
+      "page": 55,
+      "source_kind": "table",
+      "quote": "Table 3-8 ... Standard 7,8 ... \"Bullets\" (Y2 Avg.) 0.4"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "840.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 59,
+      "source_kind": "math",
+      "quote": "SS_B = 8/4 (-20.5^2) = 840.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "2",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 59,
+      "source_kind": "math",
+      "quote": "= 2 + 0.5 + 72 + 24.5 = 99"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "0.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 59,
+      "source_kind": "math",
+      "quote": "= 2 + 0.5 + 72 + 24.5 = 99"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·C",
+     "value": "72",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 59,
+      "source_kind": "math",
+      "quote": "= 2 + 0.5 + 72 + 24.5 = 99"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B·C",
+     "value": "24.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 59,
+      "source_kind": "math",
+      "quote": "= 2 + 0.5 + 72 + 24.5 = 99"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "2343.0",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Model 2343.0 3 781.0 31.5 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "3",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Model 2343.0 3 781.0 31.5 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "781.0",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Model 2343.0 3 781.0 31.5 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "31.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Model 2343.0 3 781.0 31.5 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "<0.01",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Model 2343.0 3 781.0 31.5 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "840.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 B 840.5 1 840.5 34.0 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "840.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 B 840.5 1 840.5 34.0 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B",
+     "value": "34.0",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 B 840.5 1 840.5 34.0 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B",
+     "value": "<0.01",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 B 840.5 1 840.5 34.0 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "578.0",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 C 578.0 1 578.0 23.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "578.0",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 C 578.0 1 578.0 23.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "C",
+     "value": "23.3",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 C 578.0 1 578.0 23.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "C",
+     "value": "<0.01",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 C 578.0 1 578.0 23.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B·C",
+     "value": "924.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 BC 924.5 1 924.5 37.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·C",
+     "value": "924.5",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 BC 924.5 1 924.5 37.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B·C",
+     "value": "37.3",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 BC 924.5 1 924.5 37.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B·C",
+     "value": "<0.01",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 BC 924.5 1 924.5 37.3 <0.01"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "99.0",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Residual 99.0 4 24.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "4",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Residual 99.0 4 24.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "24.8",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Residual 99.0 4 24.8"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "2442.0",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Cor Total 2442.0 7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "Cor Total",
+     "value": "7",
+     "analysis": "the ANOVA for taste, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 60,
+      "source_kind": "table",
+      "quote": "Table 3-9 Cor Total 2442.0 7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "10.18",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Model 10.18 3 3.39 75.41 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "3",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Model 10.18 3 3.39 75.41 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "3.39",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Model 10.18 3 3.39 75.41 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "75.41",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Model 10.18 3 3.39 75.41 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.0006",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Model 10.18 3 3.39 75.41 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "2.42",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 B 2.42 1 2.42 53.78 0.0018"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "2.42",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 B 2.42 1 2.42 53.78 0.0018"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B",
+     "value": "53.78",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 B 2.42 1 2.42 53.78 0.0018"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B",
+     "value": "0.0018",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 B 2.42 1 2.42 53.78 0.0018"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "6.48",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 C 6.48 1 6.48 144.00 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "6.48",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 C 6.48 1 6.48 144.00 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "C",
+     "value": "144.00",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 C 6.48 1 6.48 144.00 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "C",
+     "value": "0.0003",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 C 6.48 1 6.48 144.00 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B·C",
+     "value": "1.28",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 BC 1.28 1 1.28 28.44 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·C",
+     "value": "1.28",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 BC 1.28 1 1.28 28.44 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B·C",
+     "value": "28.44",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 BC 1.28 1 1.28 28.44 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B·C",
+     "value": "0.0006",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 BC 1.28 1 1.28 28.44 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.18",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Residual 0.18 4 0.045"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "4",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Residual 0.18 4 0.045"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.045",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Residual 0.18 4 0.045"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "10.36",
+     "analysis": "the ANOVA for bullets, model B + C + BC with A, AB, AC and ABC pooled as residual",
+     "where": {
+      "page": 61,
+      "source_kind": "table",
+      "quote": "Table 3-10 Cor Total 10.36 7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "66.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = 66.5 - 10.25 B - 8.50 C - 10.75 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-10.25",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = 66.5 - 10.25 B - 8.50 C - 10.75 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-8.50",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = 66.5 - 10.25 B - 8.50 C - 10.75 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B·C",
+     "value": "-10.75",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = 66.5 - 10.25 B - 8.50 C - 10.75 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "-199",
+     "analysis": "taste, model B + C + BC in the factors' own units",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = -199 + 65 Time + 3.62 Power - 0.86 Time*Power"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time",
+     "value": "65",
+     "analysis": "taste, model B + C + BC in the factors' own units",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = -199 + 65 Time + 3.62 Power - 0.86 Time*Power"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Power",
+     "value": "3.62",
+     "analysis": "taste, model B + C + BC in the factors' own units",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = -199 + 65 Time + 3.62 Power - 0.86 Time*Power"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Time·Power",
+     "value": "-0.86",
+     "analysis": "taste, model B + C + BC in the factors' own units",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "Taste = -199 + 65 Time + 3.62 Power - 0.86 Time*Power"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "1.45",
+     "analysis": "bullets, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "\"bullets\" = 1.45 - 0.55 B - 0.90 C + 0.40 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "-0.55",
+     "analysis": "bullets, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "\"bullets\" = 1.45 - 0.55 B - 0.90 C + 0.40 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "-0.90",
+     "analysis": "bullets, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "\"bullets\" = 1.45 - 0.55 B - 0.90 C + 0.40 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B·C",
+     "value": "0.40",
+     "analysis": "bullets, coded model B + C + BC",
+     "where": {
+      "page": 64,
+      "source_kind": "math",
+      "quote": "\"bullets\" = 1.45 - 0.55 B - 0.90 C + 0.40 BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 1",
+     "value": "74.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 1 ... Taste Pred 74.5 Resid -0.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 1",
+     "value": "-0.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 1 ... Taste Pred 74.5 Resid -0.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 2",
+     "value": "74.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 2 ... Taste Pred 74.5 Resid 0.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 2",
+     "value": "0.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 2 ... Taste Pred 74.5 Resid 0.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 3",
+     "value": "75.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 3 ... Taste Pred 75.5 Resid -4.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 3",
+     "value": "-4.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 3 ... Taste Pred 75.5 Resid -4.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 4",
+     "value": "75.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 4 ... Taste Pred 75.5 Resid 4.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 4",
+     "value": "4.5",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 4 ... Taste Pred 75.5 Resid 4.5"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 5",
+     "value": "79.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 5 ... Taste Pred 79.0 Resid 2.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 5",
+     "value": "2.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 5 ... Taste Pred 79.0 Resid 2.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 6",
+     "value": "79.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 6 ... Taste Pred 79.0 Resid -2.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 6",
+     "value": "-2.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 6 ... Taste Pred 79.0 Resid -2.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 7",
+     "value": "37.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 7 ... Taste Pred 37.0 Resid 5.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 7",
+     "value": "5.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 7 ... Taste Pred 37.0 Resid 5.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "run 8",
+     "value": "37.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 8 ... Taste Pred 37.0 Resid -5.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "run 8",
+     "value": "-5.0",
+     "analysis": "taste, coded model B + C + BC",
+     "where": {
+      "page": 65,
+      "source_kind": "table",
+      "quote": "Table 3-11 Standard 8 ... Taste Pred 37.0 Resid -5.0"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 1",
+     "value": "6.25",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 65,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 2",
+     "value": "18.75",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 65,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 3",
+     "value": "31.25",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 65,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 4",
+     "value": "43.75",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 66,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 5",
+     "value": "56.25",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 66,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 6",
+     "value": "68.75",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 66,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 7",
+     "value": "81.25",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 66,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "normal plot probability",
+     "term": "rank 8",
+     "value": "93.75",
+     "analysis": "normal plot of the eight residuals of taste",
+     "where": {
+      "page": 66,
+      "source_kind": "prose",
+      "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.10; 3, 4)",
+     "value": "4.19",
+     "where": {
+      "page": 60,
+      "source_kind": "figure",
+      "quote": "Figure 3-9 ... 10% 5% 1% 0.1% ... 4.19 6.59 16.69 31.5 56.18"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.05; 3, 4)",
+     "value": "6.59",
+     "where": {
+      "page": 60,
+      "source_kind": "figure",
+      "quote": "Figure 3-9 ... 10% 5% 1% 0.1% ... 4.19 6.59 16.69 31.5 56.18"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.01; 3, 4)",
+     "value": "16.69",
+     "where": {
+      "page": 60,
+      "source_kind": "figure",
+      "quote": "Figure 3-9 ... 10% 5% 1% 0.1% ... 4.19 6.59 16.69 31.5 56.18"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.001; 3, 4)",
+     "value": "56.18",
+     "where": {
+      "page": 60,
+      "source_kind": "figure",
+      "quote": "Figure 3-9 ... 10% 5% 1% 0.1% ... 4.19 6.59 16.69 31.5 56.18"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical F",
+     "term": "F(0.01; 1, 4)",
+     "value": "21.2",
+     "where": {
+      "page": 60,
+      "source_kind": "prose",
+      "quote": "The critical F at 1% for these df (1 and 4) is 21.2."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect_std_error",
+     "term": "C",
+     "value": "0.15",
+     "analysis": "bullets, residual mean square of Table 3-10",
+     "where": {
+      "page": 73,
+      "source_kind": "math",
+      "quote": "t-value_C = |-1.8|/sqrt(0.045(1/4 + 1/4)) = ... = 1.8/0.15 = 12"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "C",
+     "value": "12",
+     "analysis": "bullets, residual mean square of Table 3-10",
+     "where": {
+      "page": 73,
+      "source_kind": "math",
+      "quote": "t-value_C = ... = 1.8/0.15 = 12"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical t",
+     "term": "t(0.05; 4)",
+     "value": "2.776",
+     "where": {
+      "page": 73,
+      "source_kind": "prose",
+      "quote": "the df are 4 (from Table 3-10), so the critical t-value is 2.776"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical t",
+     "term": "t(0.05/7; 4)",
+     "value": "5.1",
+     "analysis": "Bonferroni limit for seven effects",
+     "where": {
+      "page": 73,
+      "source_kind": "math",
+      "quote": "t((alpha_2-tail = 0.05)/k=7, df = 4) = t(0.007,4) = 5.1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problem-3-1-reactor-filtration",
+   "title": "Filtration rate of a pilot-plant chemical reactor: temperature, pressure, concentration and stir rate in a 2^4 (Problem 3-1)",
+   "topics": [
+    "chemical-processes"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 3, Practice Problems, Problem 3-1",
+    "pages": "69-70",
+    "tables": [
+     "Table 3-12",
+     "Table 3-13"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "temperature",
+     "low": 24,
+     "high": 35,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "pressure",
+     "low": 10,
+     "high": 15,
+     "units": "psig",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "concentration of formaldehyde",
+     "low": 2,
+     "high": 4,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "stir rate",
+     "low": 15,
+     "high": 30,
+     "units": "rpm",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "filtration rate",
+     "units": "gal/h"
+    }
+   ],
+   "design": {
+    "type": "2^4 full factorial",
+    "details": "the book cites Montgomery's Design and Analysis of Experiments, example 7-2",
+    "n_runs": 16,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      45.0
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      71.0
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      48.0
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      65.0
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      68.0
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      60.0
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      80.0
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      65.0
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      43.0
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      100.0
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      45.0
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      104.0
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      75.0
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      86.0
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      70.0
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      96.0
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3-13, in standard order"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-problem-3-2-car-shade",
+   "title": "Heat inside a parked car: window cover, direction and location in a 2^3 (Problem 3-2)",
+   "topics": [
+    "automotive"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 3, Practice Problems, Problem 3-2",
+    "pages": "71-72",
+    "tables": [
+     "Table 3-14"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "cover",
+     "low": "White",
+     "high": "Shiny",
+     "levels": [
+      "White",
+      "Shiny"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "orientation of the parked car",
+     "low": "East",
+     "high": "West",
+     "levels": [
+      "East",
+      "West"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "location",
+     "low": "Close/Open",
+     "high": "Far/Shaded",
+     "levels": [
+      "Close/Open",
+      "Far/Shaded"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "temperature increase, inside less outside",
+     "units": "°F"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "details": "run in random order in Minneapolis in early September",
+    "n_runs": 8,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      42.1
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      20.8
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      54.3
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      23.2
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      17.4
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      10.4
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      11.7
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      16.0
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 3-14, in standard order; the low level of each factor is the one of standard order 1"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-tabletop-hockey",
+   "title": "Tabletop hockey: puck weight, stick length, wind-up and puck place in a 2^4, the distance analysed in logs",
+   "topics": [
+    "sport-recreation",
+    "education"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 4, Skating on Thin Ice and Log Transformation Saves the Data",
+    "pages": "75-86",
+    "tables": [
+     "Table 4-1",
+     "Table 4-2",
+     "Table 4-3",
+     "Table 4-4"
+    ],
+    "figures": [
+     "Figure 4-2",
+     "Figure 4-3",
+     "Figure 4-4",
+     "Figure 4-5",
+     "Figure 4-6",
+     "Figure 4-7",
+     "Figure 4-8",
+     "Figure 4-9"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "puck weight",
+     "low": 4,
+     "high": 6,
+     "units": "quarters",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "stick length",
+     "low": 7.5,
+     "high": 15,
+     "units": "cm",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "wind-up",
+     "low": 5,
+     "high": 10,
+     "units": "cm",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "puck place, 0% in front of the ruler and slapped, 100% against it and flung",
+     "low": 0,
+     "high": 100,
+     "units": "%",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "distance the puck slides",
+     "units": "cm"
+    }
+   ],
+   "design": {
+    "type": "2^4 full factorial",
+    "details": "run in random order by workshop students",
+    "n_runs": 16,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      38.2
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      23.3
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      3.0
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      7.6
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      110.0
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      90.6
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      20.6
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      18.9
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      36.6
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      38.0
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      47.4
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      44.9
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      190.0
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      116.8
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      137.5
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      84.5
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 4-2, in standard order; its Log10Y column is recorded as expected values"
+   },
+   "notes": "Table 4-3's log column appears to swap ACD and ABD: from the printed data they are -0.013 and -0.088, while its Y column gives ACD -14.2875 and ABD -2.6125 as the data do. Run 11's Log10Y is printed 1.658; log10(47.4) is 1.676. Table 4-3's effect of CD on log Y, -0.043, has the opposite sign to its effect on Y, 24.2375. The cube plots of Figure 4-8 are the predictions of the log model at A's centre.",
+   "expected": [
+    {
+     "what": "transformed observation",
+     "term": "run 1",
+     "value": "1.582",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 1 ... Log10Y 1.582"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 2",
+     "value": "1.367",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 2 ... Log10Y 1.367"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 3",
+     "value": "0.477",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 3 ... Log10Y 0.477"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 4",
+     "value": "0.881",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 4 ... Log10Y 0.881"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 5",
+     "value": "2.041",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 5 ... Log10Y 2.041"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 6",
+     "value": "1.957",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 6 ... Log10Y 1.957"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 7",
+     "value": "1.314",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 7 ... Log10Y 1.314"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 8",
+     "value": "1.276",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 8 ... Log10Y 1.276"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 9",
+     "value": "1.563",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 9 ... Log10Y 1.563"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 10",
+     "value": "1.580",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 10 ... Log10Y 1.580"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 11",
+     "value": "1.658",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 11 ... Log10Y 1.658"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 12",
+     "value": "1.652",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 12 ... Log10Y 1.652"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 13",
+     "value": "2.279",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 13 ... Log10Y 2.279"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 14",
+     "value": "2.067",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 14 ... Log10Y 2.067"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 15",
+     "value": "2.138",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 15 ... Log10Y 2.138"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "transformed observation",
+     "term": "run 16",
+     "value": "1.927",
+     "analysis": "log10 of the distance",
+     "where": {
+      "page": 77,
+      "source_kind": "table",
+      "quote": "Table 4-2 Standard 16 ... Log10Y 1.927"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-19.8375",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A Effect (Y) -19.8375"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "-34.8875",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B Effect (Y) -34.8875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "66.2375",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 C Effect (Y) 66.2375"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D",
+     "value": "47.9375",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 D Effect (Y) 47.9375"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "6.6875",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B Effect (Y) 6.6875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "-16.9875",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·C Effect (Y) -16.9875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·D",
+     "value": "-11.9875",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·D Effect (Y) -11.9875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "-26.5875",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B·C Effect (Y) -26.5875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·D",
+     "value": "18.1125",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B·D Effect (Y) 18.1125"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·D",
+     "value": "24.2375",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 C·D Effect (Y) 24.2375"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C",
+     "value": "2.7875",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B·C Effect (Y) 2.7875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C·D",
+     "value": "-14.2875",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·C·D Effect (Y) -14.2875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·D",
+     "value": "-2.6125",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B·D Effect (Y) -2.6125"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C·D",
+     "value": "0.9625",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B·C·D Effect (Y) 0.9625"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C·D",
+     "value": "3.2375",
+     "analysis": "effects of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B·C·D Effect (Y) 3.2375"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-0.045",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A ... Effect (Log Y) -0.045"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "-0.39",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B ... Effect (Log Y) -0.39"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "0.53",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 C ... Effect (Log Y) 0.53"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "D",
+     "value": "0.50",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 D ... Effect (Log Y) 0.50"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "0.078",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B ... Effect (Log Y) 0.078"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "-0.091",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·C ... Effect (Log Y) -0.091"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·D",
+     "value": "-0.062",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·D ... Effect (Log Y) -0.062"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "-0.035",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B·C ... Effect (Log Y) -0.035"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·D",
+     "value": "0.36",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B·D ... Effect (Log Y) 0.36"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C·D",
+     "value": "-0.043",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 C·D ... Effect (Log Y) -0.043"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C",
+     "value": "-0.066",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B·C ... Effect (Log Y) -0.066"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C·D",
+     "value": "-0.088",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·C·D ... Effect (Log Y) -0.088"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·D",
+     "value": "-0.013",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B·D ... Effect (Log Y) -0.013"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C·D",
+     "value": "-0.081",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 B·C·D ... Effect (Log Y) -0.081"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B·C·D",
+     "value": "0.076",
+     "analysis": "effects of log10 of the distance",
+     "where": {
+      "page": 78,
+      "source_kind": "table",
+      "quote": "Table 4-3 A·B·C·D ... Effect (Log Y) 0.076"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "C low",
+     "value": "29.87",
+     "analysis": "distance, model C, the axis of the predictions running from the lowest to the highest",
+     "where": {
+      "page": 80,
+      "source_kind": "figure",
+      "quote": "Figure 4-3 (b) Residuals vs. Predicted ... Predicted 29.87 ... 96.11"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "C high",
+     "value": "96.11",
+     "analysis": "distance, model C, the axis of the predictions running from the lowest to the highest",
+     "where": {
+      "page": 80,
+      "source_kind": "figure",
+      "quote": "Figure 4-3 (b) Residuals vs. Predicted ... Predicted 29.87 ... 96.11"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "smallest",
+     "value": "-77.2125",
+     "analysis": "distance, model C, the axis of the residuals running from the smallest to the largest",
+     "where": {
+      "page": 80,
+      "source_kind": "figure",
+      "quote": "Figure 4-3 (a) Normal Plot of Residuals ... -77.2125 ... 93.8875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "largest",
+     "value": "93.8875",
+     "analysis": "distance, model C, the axis of the residuals running from the smallest to the largest",
+     "where": {
+      "page": 80,
+      "source_kind": "figure",
+      "quote": "Figure 4-3 (a) Normal Plot of Residuals ... -77.2125 ... 93.8875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "3.23",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Model 3.23 4 0.81 46.19 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "4",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Model 3.23 4 0.81 46.19 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "0.81",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Model 3.23 4 0.81 46.19 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "46.19",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Model 3.23 4 0.81 46.19 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "<0.0001",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Model 3.23 4 0.81 46.19 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "0.60",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 B 0.60 1 0.60 34.24 0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "0.60",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 B 0.60 1 0.60 34.24 0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B",
+     "value": "34.24",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 B 0.60 1 0.60 34.24 0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B",
+     "value": "0.0001",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 B 0.60 1 0.60 34.24 0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "1.11",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 C 1.11 1 1.11 63.66 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "1.11",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 C 1.11 1 1.11 63.66 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "C",
+     "value": "63.66",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 C 1.11 1 1.11 63.66 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "C",
+     "value": "<0.0001",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 C 1.11 1 1.11 63.66 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "D",
+     "value": "0.99",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 D 0.99 1 0.99 56.76 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "D",
+     "value": "0.99",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 D 0.99 1 0.99 56.76 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "D",
+     "value": "56.76",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 D 0.99 1 0.99 56.76 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "D",
+     "value": "<0.0001",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 D 0.99 1 0.99 56.76 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B·D",
+     "value": "0.53",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 BD 0.53 1 0.53 30.11 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·D",
+     "value": "0.53",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 BD 0.53 1 0.53 30.11 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B·D",
+     "value": "30.11",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 BD 0.53 1 0.53 30.11 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B·D",
+     "value": "0.0002",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 BD 0.53 1 0.53 30.11 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.19",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Residual 0.19 11 0.017"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "11",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Residual 0.19 11 0.017"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.017",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Residual 0.19 11 0.017"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "3.43",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Cor Total 3.43 15"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "Cor Total",
+     "value": "15",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 81,
+      "source_kind": "table",
+      "quote": "Table 4-4 Cor Total 3.43 15"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "smallest",
+     "value": "-0.246097",
+     "analysis": "log10 of the distance, model B + C + D + BD, the axis of the residuals running from the smallest to the largest",
+     "where": {
+      "page": 82,
+      "source_kind": "figure",
+      "quote": "Figure 4-5 (a) ... Residuals -0.246097 -0.145174 -0.0442509 0.0566722 0.157595"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual",
+     "term": "largest",
+     "value": "0.157595",
+     "analysis": "log10 of the distance, model B + C + D + BD, the axis of the residuals running from the smallest to the largest",
+     "where": {
+      "page": 82,
+      "source_kind": "figure",
+      "quote": "Figure 4-5 (a) ... Residuals -0.246097 -0.145174 -0.0442509 0.0566722 0.157595"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "lowest",
+     "value": "0.72",
+     "analysis": "log10 of the distance, model B + C + D + BD, the axis of the predictions running from the lowest to the highest",
+     "where": {
+      "page": 82,
+      "source_kind": "figure",
+      "quote": "Figure 4-5 (b) Residuals vs. Predicted ... Predicted 0.72 1.08 1.43 1.78 2.14"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "fitted",
+     "term": "highest",
+     "value": "2.14",
+     "analysis": "log10 of the distance, model B + C + D + BD, the axis of the predictions running from the lowest to the highest",
+     "where": {
+      "page": 82,
+      "source_kind": "figure",
+      "quote": "Figure 4-5 (b) Residuals vs. Predicted ... Predicted 0.72 1.08 1.43 1.78 2.14"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C-D-",
+     "value": "1.47",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 1.47"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C-D-",
+     "value": "29.73",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 29.73"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C-D-",
+     "value": "0.72",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 0.72"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C-D-",
+     "value": "5.29",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 5.29"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C+D-",
+     "value": "2.00",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 2.00"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C+D-",
+     "value": "100.19",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 100.19"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C+D-",
+     "value": "1.25",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 1.25"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C+D-",
+     "value": "17.82",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 17.82"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C-D+",
+     "value": "1.61",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 1.61"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C-D+",
+     "value": "40.60",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 40.60"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C-D+",
+     "value": "1.58",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 1.58"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C-D+",
+     "value": "38.41",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 38.41"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C+D+",
+     "value": "2.14",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 2.14"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-C+D+",
+     "value": "136.84",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 136.84"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C+D+",
+     "value": "2.11",
+     "analysis": "log10 of the distance, model B + C + D + BD",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (a) Cube Graph Log10 (distance) ... 2.11"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+C+D+",
+     "value": "129.46",
+     "analysis": "log10 of the distance, model B + C + D + BD, the prediction taken back to centimetres by the antilog",
+     "where": {
+      "page": 84,
+      "source_kind": "figure",
+      "quote": "Figure 4-8 (b) Cube Graph Distance ... 129.46"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problem-4-1-postcards",
+   "title": "Requests from a direct-mail postcard: colour, size and paper thickness in a 2^3, a count to transform (Problem 4-1)",
+   "topics": [
+    "business"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 4, Practice Problem, Problem 4-1",
+    "pages": "88-90",
+    "tables": [
+     "Table 4-6"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "colour of printing",
+     "low": "Two",
+     "high": "Four",
+     "levels": [
+      "Two",
+      "Four"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "card size",
+     "low": "Small",
+     "high": "Large",
+     "levels": [
+      "Small",
+      "Large"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "paper stock",
+     "low": "Thin",
+     "high": "Thick",
+     "levels": [
+      "Thin",
+      "Thick"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "requests",
+     "description": "number of requests for a free technical report faxed back",
+     "units": ""
+    },
+    {
+     "name": "cost",
+     "description": "printing cost, deterministic in the factors",
+     "units": "cents/card"
+    }
+   ],
+   "design": {
+    "type": "2^3 full factorial",
+    "details": "each card sent to one of eight equal random segments of the client list",
+    "n_runs": 8,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "requests",
+     "cost"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      152,
+      6
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      57,
+      10
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      248,
+      8
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      31,
+      12
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      250,
+      8
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      131,
+      12
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      398,
+      10
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      96,
+      14
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 4-6, in standard order"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  }
+ ]
+}
