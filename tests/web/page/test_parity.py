@@ -569,6 +569,14 @@ def test_every_marked_word_has_a_definition_and_every_definition_a_word(node):
         assert "\u2014" not in text, key
 
 
+def test_each_goal_reads_its_readings_by_the_ratio_bootstrap_reads_them_by(bootstrap, node):
+    """The page's words for each signal-to-noise ratio, and the code's goal for each, are bootstrap's."""
+    [words] = javascript(node, source("logic.js"), [("SN_WORDS", [])])
+    [kinds] = javascript(node, source("python.js"), [("SN_KINDS", [])])
+    assert kinds == bootstrap.SN_KINDS
+    assert set(words) == set(bootstrap.SN_KINDS.values())
+
+
 def test_confirmation_runs_are_marked_and_counted_as_bootstrap_marks_and_counts_them(bootstrap, node):
     """The run sheet's column, its mark, how many runs the page adds, and how far each factor moves for the chart."""
     asked = ["CONFIRMATION", "CONFIRMS", "CONFIRMATION_RUNS", "NUDGE"]

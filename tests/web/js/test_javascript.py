@@ -30,6 +30,7 @@ SUITES = (
     "catalog.test.mjs",
     "feedback.test.mjs",
     "comparison.test.mjs",
+    "spread.test.mjs",
 )
 
 #: The first Node.js that reads ``web/*.js`` as ES modules without being told.

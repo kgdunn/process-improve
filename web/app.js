@@ -194,7 +194,9 @@ import {
   responsesTitle,
   runBadge,
   showsVif,
+  SN_WORDS,
   splitResults,
+  spreadSentences,
   standouts,
   STANDOUT_TIE,
   storedResponses,
@@ -3009,10 +3011,14 @@ function analysisRequest(name = state.shown) {
   };
 }
 
-/** Whether an analysis compares one factor's levels, which its code then does too, and the control Dunnett's take. */
+/**
+ * Whether an analysis compares one factor's levels, and the control Dunnett's take, and whether it sums up readings
+ * repeated at a setting: its code then does the same.
+ */
 const comparedOf = (analysis) => ({
   compared: Boolean(analysis?.comparison?.difference || analysis?.comparison?.several),
   control: analysis?.comparison?.several?.control ?? null,
+  spread: Boolean(analysis?.spread),
 });
 
 /** The control the reader picked for Dunnett's intervals, while it is a level of the study's one categorical factor. */
@@ -3184,7 +3190,73 @@ function renderAnalysis(reply) {
       ),
     );
   }
+  parts.push(...spreadParts(r.spread));
   out.replaceChildren(...parts);
+}
+
+/**
+ * The results read more than once at a setting (``spread``, as the analysis gives it): what they say, in sentences;
+ * the response table, each summary averaged at each level of each factor; how much each factor moves each summary, and
+ * at which level the spread is smallest and the signal-to-noise ratio highest; and each setting's readings summed up.
+ * Nothing unless two settings were read twice or more.
+ */
+function spreadParts(spread) {
+  if (!spread) return [];
+  const { label, units } = responseWords(shownSpec());
+  const factorUnits = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const ratio = spread.kind ? [`S/N (${SN_WORDS[spread.kind]})`] : [];
+  const tableHeading = el("h4", "", "");
+  tableHeading.append(term("Response table", { key: "response-table", alone: true }));
+  const moved = (f, key) => (f.rank[key] === null ? "" : `${fmt(f.delta[key])} (${f.rank[key]})`); // null: no setting gave it
+  const best = (f, key) => (f.best[key] === undefined ? "" : String(f.best[key]));
+  return [
+    el("h3", "", "The spread of the readings at each setting"),
+    ...spreadSentences(spread, { response: label, units, factorUnits }).map((line) => said("", line)),
+    tableHeading,
+    table(
+      ["Factor", "Level", "Settings", "Mean", "ln s", ...ratio],
+      spread.factors.flatMap((f) =>
+        f.levels.map((l) => [f.name, String(l.level), l.n, fmt(l.mean), fmt(l.ln_std_dev), ...(spread.kind ? [fmt(l.sn)] : [])]),
+      ),
+      { "ln s": "ln-s", ...(spread.kind ? { [ratio[0]]: "signal-to-noise" } : {}) },
+    ),
+    el("h4", "", "How much each factor moves each summary"),
+    table(
+      [
+        "Factor",
+        "Mean: delta (rank)",
+        "ln s: delta (rank)",
+        ...(spread.kind ? ["S/N: delta (rank)"] : []),
+        "Smallest spread at",
+        ...(spread.kind ? ["Highest S/N at"] : []),
+      ],
+      spread.factors.map((f) => [
+        f.name,
+        moved(f, "mean"),
+        moved(f, "ln_std_dev"),
+        ...(spread.kind ? [moved(f, "sn")] : []),
+        best(f, "ln_std_dev"),
+        ...(spread.kind ? [best(f, "sn")] : []),
+      ]),
+    ),
+    said("hint", "A factor's delta is its largest average less its smallest; the factor of the largest delta has rank 1."),
+    el("h4", "", "Each setting's readings"),
+    table(
+      ["Setting", "Runs", "Readings", "Mean", "Std. dev.", "ln s", ...ratio],
+      spread.settings.map((s) => [
+        Object.entries(s.settings)
+          .map(([name, level]) => `${name} ${level}`)
+          .join(", "),
+        s.runs.join(", "),
+        s.n,
+        fmt(s.mean),
+        fmt(s.std_dev),
+        fmt(s.ln_std_dev),
+        ...(spread.kind ? [fmt(s.sn)] : []),
+      ]),
+      { "ln s": "ln-s" },
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------- the numbers a catalog study's source prints

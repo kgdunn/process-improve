@@ -1054,6 +1054,51 @@ export function severalSentence(comparison, { response }) {
     : `These runs do not show that the averages of ${response} at the ${k} levels differ by more than their noise: ${p}.`;
 }
 
+// ---------------------------------------------------------------- the readings repeated at a setting
+/** Taguchi's signal-to-noise ratios in words, by the names bootstrap.SN_KINDS gives each goal's. */
+export const SN_WORDS = { larger: "larger is better", smaller: "smaller is better", nominal: "nominal is best" };
+
+/**
+ * What the readings repeated at each setting say (the analysis's ``spread``), in sentences: which factor moves the
+ * spread most, and at which level the spread is smallest; the level of each factor with the highest signal-to-noise
+ * ratio, as Taguchi's first step sets them, the factor that moves the ratio most first; for a target, the adjustment
+ * factor his second step moves the mean with; and the runs left out. ``factorUnits`` gives each factor's units.
+ */
+export function spreadSentences(spread, { response, units = "", factorUnits = {} }) {
+  const num = (x) => String(Number(Number(x).toPrecision(3)));
+  const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
+  const at = (f, level) => `${f.name} at ${level}${after(factorUnits[f.name])}`;
+  const lines = [];
+  const spreads = spread.factors.find((f) => f.rank.ln_std_dev === 1 && f.best.ln_std_dev !== undefined);
+  if (spreads) {
+    const each = listNames(spreads.levels.map((l) => `${num(l.ln_std_dev)} at ${l.level}`));
+    lines.push(
+      `${spreads.name} moves the spread of ${response} most, its ln s ${each}: the spread is smallest with ` +
+        `${at(spreads, spreads.best.ln_std_dev)}.`,
+    );
+  }
+  const ratio = spread.factors.filter((f) => f.best.sn !== undefined).sort((a, b) => a.rank.sn - b.rank.sn);
+  if (spread.kind && ratio.length) {
+    lines.push(
+      `The signal-to-noise ratio (${SN_WORDS[spread.kind]}) is highest with ${listNames(ratio.map((f) => at(f, f.best.sn)))}` +
+        `${ratio.length > 1 ? ", the factor that moves it most first" : ""}.`,
+    );
+  }
+  const adjusts = spread.factors.find((f) => f.name === spread.adjustment);
+  if (adjusts) {
+    lines.push(
+      `To move the mean to the target, ${adjusts.name} is the adjustment factor: it moves the mean most for its ` +
+        `effect on the spread, by ${num(adjusts.delta.mean)}${after(units)} over its levels and ln s by ` +
+        `${num(adjusts.delta.ln_std_dev)}.`,
+    );
+  }
+  const out = spread.left_out;
+  if (out.length) {
+    lines.push(`${out.length === 1 ? "Run" : "Runs"} ${listNames(out.map(String))}, read once at ${out.length === 1 ? "its setting, is" : "their settings, are"} left out.`);
+  }
+  return lines;
+}
+
 // ---------------------------------------------------------------- results pasted from a spreadsheet
 /** The headings, in lower case, a pasted column of run numbers may have: the run sheet's own, and the usual others. */
 export const RUN_HEADINGS = ["run order", "run", "run number", "run no.", "run #"];

@@ -335,7 +335,7 @@ export function resultsCode(design, results, simulation = null) {
  * is its column then. ``vifModel``, the terms fitted as a formula, is given when the page shows their
  * VIFs: the code then works them out from the same runs, as the page's VIF column has them.
  */
-export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false, control = null } = {}) {
+export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false, control = null, spread = false } = {}) {
   const fitted = complete ? "X, y" : "X[done], y[done]";
   const own = Boolean(spec?.response) && spec.response !== responseNames(spec)[0];
   const vif = vifModel
@@ -359,7 +359,45 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     'print(analysis["coefficients"])',
     ...vif,
     ...(compared ? comparedCode(spec, complete, control) : []),
+    ...(spread ? spreadCode(spec) : []),
   ].join("\n");
+}
+
+/** The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three: bootstrap.SN_KINDS. */
+export const SN_KINDS = { maximize: "larger", minimize: "smaller", target: "nominal" };
+
+/** Each signal-to-noise ratio of the readings ``v`` at one setting, as Python writes it, and its name. */
+const SN_FORMULAS = {
+  larger: ["-10 * np.log10((1 / v**2).mean())", "larger is better"],
+  smaller: ["-10 * np.log10((v**2).mean())", "smaller is better"],
+  nominal: ["10 * np.log10(v.mean() ** 2 / v.var())", "nominal is best"],
+};
+
+/**
+ * The results read more than once at a setting (``spread``, as the page's analysis sums them up): each setting's
+ * readings summed up, with the signal-to-noise ratio of the response's goal, and the response table, each summary's
+ * average at each level of each factor and its delta. A setting read once, and a summary a setting cannot give, such
+ * as the ln s of readings that do not vary, are left out, as the page leaves them out.
+ */
+function spreadCode(spec) {
+  const kind = SN_KINDS[spec?.response_info?.goal];
+  const summaries = ["mean", "ln_std_dev", ...(kind ? ["sn"] : [])];
+  return [
+    "",
+    "# The results read more than once at a setting: each setting's readings summed up, and the response table.",
+    "import numpy as np",
+    "",
+    `factors = ${repr(spec.factors.map((f) => f.name))}`,
+    'readings = runs[factors].assign(y=y).dropna(subset=["y"]).groupby(factors)["y"]',
+    'settings = readings.agg(n="count", mean="mean", std_dev="std")',
+    'settings["ln_std_dev"] = np.log(settings["std_dev"].where(settings["std_dev"] > 0))',
+    ...(kind ? [`settings["sn"] = readings.agg(lambda v: ${SN_FORMULAS[kind][0]})  # ${SN_FORMULAS[kind][1]}`] : []),
+    'settings = settings[settings["n"] > 1].replace([np.inf, -np.inf], np.nan)  # a setting read once has no spread',
+    "print(settings)",
+    "for factor in factors:  # each summary's average at each of the factor's levels, and its delta",
+    `    table = settings.groupby(level=factor)[${repr(summaries)}].mean()`,
+    '    print(table, (table.max() - table.min()).rename("delta"), sep="\\n")',
+  ];
 }
 
 /** The arrangements the randomization test counts at most, drawing that many at random beyond: bootstrap.ARRANGEMENTS. */
@@ -688,7 +726,7 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * analyseCode). ``analyses`` lists each response's ``{response, model, best, vifModel}`` for a
  * study of several responses; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, control = null, version, url, best = null, analyses = null, balance = null }) {
+export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, control = null, spread = false, version, url, best = null, analyses = null, balance = null }) {
   const names = responseNames(design.spec);
   const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
   const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
@@ -706,10 +744,10 @@ export function notebook({ title, design, responses, sources, simulation, model,
     codeCell("results", resultsCode(design, results, simulated ? simulation : null)),
   ];
   // Each response's analysis, and its best settings when it has a goal: the first's alone for a study of one response.
-  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel, compared, control }] : []);
+  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel, compared, control, spread }] : []);
   const fitted = fittedRuns(design);
   let step = 3;
-  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null, compared: levels = false, control: base = null } of each) {
+  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null, compared: levels = false, control: base = null, spread: repeated = false } of each) {
     if (fittedModel === null || fittedModel === undefined) continue;
     const spec = forResponse(design.spec, response);
     const values = results[response] ?? [];
@@ -718,7 +756,7 @@ export function notebook({ title, design, responses, sources, simulation, model,
     const id = names.length > 1 ? `-${names.indexOf(response) + 1}` : ""; // a cell's id is ASCII, as nbformat asks
     cells.push(
       markdownCell(`analysis-step${id}`, names.length > 1 ? `## ${step}. The analysis of ${words}` : `## ${step}. The analysis`),
-      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels, control: base })),
+      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels, control: base, spread: repeated })),
     );
     step += 1;
     if (found?.settings) {

@@ -122,6 +122,32 @@ READS: dict[str, list[str]] = {
         "lack_of_fit.f_statistic: number?",
         "lack_of_fit.p_value: number?",
         "lack_of_fit.df_pure_error: int",
+        "spread: dict?",
+    ],
+    "analysis of readings repeated at each setting": [
+        "spread.kind: str",
+        "spread.settings[].settings{}: any",
+        "spread.settings[].runs[]: int",
+        "spread.settings[].n: int",
+        "spread.settings[].mean: number",
+        "spread.settings[].std_dev: number",
+        "spread.settings[].ln_std_dev: number?",
+        "spread.settings[].sn: number?",
+        "spread.left_out[]: int",
+        "spread.factors[].name: str",
+        "spread.factors[].levels[].level: any",
+        "spread.factors[].levels[].n: int",
+        "spread.factors[].levels[].mean: number?",
+        "spread.factors[].levels[].ln_std_dev: number?",
+        "spread.factors[].levels[].sn: number?",
+        "spread.factors[].delta.mean: number?",
+        "spread.factors[].delta.ln_std_dev: number?",
+        "spread.factors[].delta.sn: number?",
+        "spread.factors[].rank.mean: int?",
+        "spread.factors[].rank.ln_std_dev: int?",
+        "spread.factors[].rank.sn: int?",
+        "spread.factors[].best: dict",
+        "spread.adjustment: str?",
     ],
     "saturated analysis": [
         "summary.r_squared_pred: number?",
@@ -695,6 +721,7 @@ ENTRY_POINTS = {
     "design": "api_make_design",
     "simulation": "api_simulate",
     "analysis": "api_analyze_runs",
+    "analysis of readings repeated at each setting": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
     "charts through the best settings": "api_plots",
@@ -922,6 +949,16 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     def upload() -> dict:
         return api.ok("api_workbook", {**analysed, "sources": ["simulated"] * 15, "simulated": simulated})
 
+    def repeated() -> dict:
+        """Schmidt and Launsby's 2^(3-1) read twice a setting, aimed at a target, one reading still to do."""
+        factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
+        runs = [s for s in ([1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]) for _ in range(2)]
+        info = {"goal": "target", "target": 20}
+        design = api.ok(
+            "api_make_design", {"design_type": "given", "factors": factors, "runs": runs, "response_info": info}
+        )
+        return {**held_of(design), "responses": [20.0, 30.0, 9.0, 11.0, 26.0, 24.0, 15.0, None]}
+
     def slow() -> dict:
         return {"factors": [{"name": n, "low": -1, "high": 1} for n in "ABCDE"], "model": "quadratic"}
 
@@ -966,6 +1003,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "design": lambda: worked_example["demo"]["design"],
         "simulation": lambda: {**held, "seed": 2},
         "analysis": lambda: analysed,
+        "analysis of readings repeated at each setting": repeated,
         "saturated analysis": saturated,
         "charts": lambda: analysed,
         "charts through the best settings": through_best,
