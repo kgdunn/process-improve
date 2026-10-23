@@ -169,6 +169,22 @@ def test_backend_plotly_omits_echarts(grouped_data: list[dict]) -> None:
     assert res["plotly"] is not None
 
 
+def test_both_backends_render_one_chart_spec(grouped_data: list[dict], monkeypatch: pytest.MonkeyPatch) -> None:
+    """The tool builds the ChartSpec once and renders it twice, rather than once per backend plus once (#513)."""
+    built = []
+    to_spec = BoxPlot.to_spec
+
+    def counting(chart: BoxPlot):
+        built.append(chart)
+        return to_spec(chart)
+
+    monkeypatch.setattr(BoxPlot, "to_spec", counting)
+    res = boxplot(data=grouped_data, value_columns=["y"], group_by="lot", backend="both")
+    assert len(built) == 1
+    assert res["plotly"]["data"][0]["type"] == "box"
+    assert res["echarts"]["series"][0]["type"] == "boxplot"
+
+
 # ---------------------------------------------------------------------------
 # Rendered ECharts / Plotly shape
 # ---------------------------------------------------------------------------

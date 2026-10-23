@@ -23,6 +23,8 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_spec import clean, tool_spec
+from process_improve.visualization.adapters.echarts_adapter import EChartsAdapter
+from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
 from process_improve.visualization.charts.boxplot import BoxPlot, BoxStats
 
 logger = logging.getLogger(__name__)
@@ -248,8 +250,9 @@ def boxplot(spec: BoxplotInput) -> dict[str, Any]:  # noqa: PLR0911
             "point_ids": chart_spec.point_ids or [],
         }
 
-        result["plotly"] = chart.to_plotly() if spec.backend in ("both", "plotly") else None
-        result["echarts"] = chart.to_echarts() if spec.backend in ("both", "echarts") else None
+        # Render the spec built above: chart.to_plotly() and chart.to_echarts() would each build it again.
+        result["plotly"] = PlotlyAdapter().render(chart_spec) if spec.backend in ("both", "plotly") else None
+        result["echarts"] = EChartsAdapter().render(chart_spec) if spec.backend in ("both", "echarts") else None
 
         return clean(result)
     except (ValueError, TypeError, KeyError) as e:
