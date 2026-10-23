@@ -204,15 +204,21 @@ jobs:
         python-version: "3.13"
     # The 96% gate cannot apply to one shard of the suite, so it is switched off
     # here and `coverage-report` applies it to the combined data. The total this
-    # step prints covers only this shard.
+    # step prints covers only this shard. `--store-durations` measures this shard's
+    # files again, as tests/.test_durations.json is meant to be measured, so that
+    # `coverage-report` can combine the shards into a fresh copy of it.
     - name: Test with pytest, shard ${{ matrix.shard }} of ${{ strategy.job-total }}
-      run: uv run pytest --shard=${{ matrix.shard }}/${{ strategy.job-total }} --cov-fail-under=0
-    - name: Keep this shard's coverage data
-      run: mv .coverage .coverage.shard-${{ matrix.shard }}
+      run: uv run pytest --shard=${{ matrix.shard }}/${{ strategy.job-total }} --cov-fail-under=0 --store-durations
+    - name: Keep this shard's coverage data and durations
+      run: |
+        mv .coverage .coverage.shard-${{ matrix.shard }}
+        mv tests/.test_durations.json .test_durations.shard-${{ matrix.shard }}.json
     - uses: actions/upload-artifact@v7
       with:
         name: coverage-shard-${{ matrix.shard }}
-        path: .coverage.shard-${{ matrix.shard }}
+        path: |
+          .coverage.shard-${{ matrix.shard }}
+          .test_durations.shard-${{ matrix.shard }}.json
         include-hidden-files: true
         retention-days: 1
 
@@ -231,6 +237,19 @@ jobs:
       with:
         pattern: coverage-shard-*
         merge-multiple: true
+    # The shards' durations, combined into the file `--shard` balances on. It warns when
+    # the shards measured loads far apart; refreshing tests/.test_durations.json is then a
+    # download of the `test-durations` artifact. It runs before the gate, so a coverage dip
+    # does not lose it.
+    - name: Combine the shards' test durations
+      run: >-
+        uv run python tools/shard_durations.py tests/.test_durations.json
+        .test_durations.shard-*.json -o test-durations.json
+    - uses: actions/upload-artifact@v7
+      with:
+        name: test-durations
+        path: test-durations.json
+        retention-days: 30
     - name: Combine the shards and apply the 96% gate
       run: |
         uv run coverage combine
