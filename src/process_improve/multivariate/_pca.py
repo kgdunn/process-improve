@@ -1385,7 +1385,22 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Returns
         -------
         result : sklearn.utils.Bunch
-            With keys ``scores``, ``hotellings_t2``, ``spe``.
+            With keys:
+
+            - ``scores`` (pd.DataFrame, ``(n_samples, n_components)``).
+            - ``hotellings_t2`` (pd.DataFrame, ``(n_samples, n_components)``):
+              cumulative, so column ``a`` holds the T² over the first ``a``
+              components and the last column is the full model's, as in
+              ``hotellings_t2_``.
+            - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
+
+        Notes
+        -----
+        :meth:`PLS.diagnose` (and ``MBPLS`` / ``MBPCA.diagnose``) return
+        ``hotellings_t2`` as a ``pd.Series`` holding the full model's T² only.
+        ``hotellings_t2.iloc[:, -1]`` here is the same quantity. The two shapes
+        are kept as they are because each is public API; compare them through
+        the last column, not the whole object.
         """
         check_is_fitted(self, "loadings_")
         # diagnose() delegates to transform() which already runs validate_data;
