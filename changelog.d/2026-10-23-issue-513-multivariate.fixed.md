@@ -33,3 +33,7 @@
   `not_na_y`) are now taken after preprocessing, in `fit` and in `diagnose`. A fit whose F block has
   a constant column now matches the same fit with that column unobserved; its scores, predictions
   and loadings change.
+- **`TPLS.diagnose` corrects a Z score for the row's missing cells, as `fit` does (#513).** It
+  computed the correction and never applied it, so a row with a missing Z cell scored lower in
+  `diagnose` than in `fit`, and so did its T², SPE and predictions. Rows with every Z cell
+  observed are unchanged.

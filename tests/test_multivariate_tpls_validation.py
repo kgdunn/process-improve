@@ -345,3 +345,16 @@ def test_a_constant_f_column_fits_as_an_unobserved_one() -> None:
     np.testing.assert_allclose(fixed.t_scores_super, absent.t_scores_super, atol=1e-12)
     np.testing.assert_allclose(fixed.hat["Y1"], absent.hat["Y1"], atol=1e-12)
     np.testing.assert_allclose(fixed.diagnose(DataFrameDict(constant)).t_scores_super, fixed.t_scores_super, atol=1e-10)
+
+
+def test_diagnose_scores_a_row_with_a_missing_z_cell_as_the_fit_does() -> None:
+    """#513: diagnose corrects a Z score for its missing cells, as the fit does.
+
+    The fit divides each row's Z score by the squared weights of the cells it has. diagnose
+    computed that same denominator and never divided by it, so the scores of the training
+    rows, diagnosed again, differed in exactly the rows with a missing Z cell.
+    """
+    d_matrix, blocks = _synthetic()
+    blocks["Z"]["Z1"].loc["blend3", "z1"] = np.nan
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    np.testing.assert_allclose(model.diagnose(DataFrameDict(blocks)).t_scores_super, model.t_scores_super, atol=1e-10)

@@ -755,7 +755,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                 score_f_a += np.array(np.sum(df_x_f.values * denom, axis=1))  # numerator portion
                 denominators += np.sum((denom * not_na_f[key]) ** 2, axis=1)
 
-            denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
+            # A row with nothing observed in F has no F score: NaN, as PCA and PLS transform an all-missing row.
+            denominators[denominators == 0] = np.nan
             score_f_a /= denominators
 
             # Repeat for the Z-space: regress the row of each new Z block on the w-loadings, to get the
@@ -764,11 +765,16 @@ class TPLS(RegressorMixin, BaseEstimator):
             if self.n_conditions > 0:
                 score_z_a = np.zeros(num_obs)
                 denominators = np.zeros(num_obs)
+                z_observed = np.zeros(num_obs, dtype=bool)
                 for key, df_x_z in x_z.items():
                     b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
                     denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
                     score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
                     denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
+                    z_observed |= not_na_z[key].any(axis=1)
+                # The correction the comment above describes was computed and never applied, so a row with a
+                # missing Z cell scored lower here than in fit() (#513). A row with no Z value scores 0, as in fit().
+                score_z_a = np.where(z_observed, score_z_a / np.where(z_observed, denominators, 1.0), 0.0)
 
                 # Multiply the individual block scores by the super-weights, to get the super-scores.
                 # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
