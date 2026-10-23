@@ -1090,6 +1090,21 @@ def test_mam_f_test_is_undefined_without_disagreement_to_test_against(scores, cl
         assert (mam.scaling["beta"] == 1.0).all()
 
 
+def test_mam_f_tests_are_nan_with_a_warning_when_a_cell_is_missing():
+    """The closed-form sums of squares need every cell: NaN F-tests and a pointer to the REML fit (#513)."""
+    panel = _scaling_panel()
+    complete = mixed_assessor_model(panel).ftests.iloc[0]
+    assert np.isfinite(complete["f_product_mam"])
+
+    one_missing = panel[~((panel["panelist_id"] == "P3") & (panel["product"] == "prod2"))]
+    with pytest.warns(RuntimeWarning, match=r"\['A'\] a panelist did not score.*mixed_assessor_model_reml"):
+        mam = mixed_assessor_model(one_missing)
+    ftest = mam.ftests.iloc[0]
+    for column in ("f_product_mam", "p_product_mam", "f_product_classical", "p_product_classical"):
+        assert np.isnan(ftest[column]), column
+    assert np.isfinite(mam.scaling["beta"]).all()
+
+
 def test_analyze_correction_align_changes_means_and_reports_mam():
     panel = _scaling_panel()
     obs = pd.DataFrame({"product": sorted(panel["product"].unique()), "d": range(panel["product"].nunique())})

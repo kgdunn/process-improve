@@ -12,3 +12,9 @@
   0 for anti-correlation), a panelist can now be flagged, and dropped by `drop_panelists="auto"` in
   `analyze_descriptive`, where it was not before. The same applies to the `sensory_panel_check` and
   `sensory_analyze_descriptive` tools.
+- **`mixed_assessor_model` gives NaN F-tests, with a `RuntimeWarning`, for an attribute where a
+  panelist did not score every product (#513).** Its sums of squares add up only on a complete
+  panelist-by-product table. With a missing cell the four F-test columns were sometimes NaN and
+  sometimes a finite number on the wrong degrees of freedom, with no warning; a finite value you got
+  before for such an attribute is now NaN. The warning names the attributes and points to
+  `mixed_assessor_model_reml`, which handles missing cells. The scaling coefficients are unchanged.
