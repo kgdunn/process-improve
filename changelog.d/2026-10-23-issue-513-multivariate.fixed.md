@@ -20,3 +20,9 @@
   because a block has no variation for the iteration to follow, now says that rather than naming
   empty rows.
   `regress_a_space_on_b_row` returns 0 rather than NaN for a row with nothing present.
+- **`TPLS` super weights and block weights point the way of the super score (#513).** The inner
+  PLS step's sign convention negated `t`, `w` and `q` but not `u`, and TPLS regresses its blocks on
+  `u`, so on every component the convention flipped, `w_loadings_super`, `r_loadings_f`,
+  `s_loadings_d`, `v_loadings_d` and `w_loadings_z` came out with the opposite sign to the super
+  score: with no Z block the F super weight was -1. Those components change sign now; scores,
+  predictions, SPE, Hotelling's T² and VIP do not change.

@@ -443,6 +443,49 @@ def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFi
     np.testing.assert_allclose(np.abs(fitted["w_i"].ravel()), np.abs(rotation(np.pi / 5)[:, 0]), atol=1e-3)
 
 
+@pytest.mark.parametrize("seed", range(6))
+def test_inner_pls_nipals_flips_u_with_the_rest_of_the_component(seed: int) -> None:
+    """#513: the sign convention flips ``u_i`` too, so it is still ``Yq / q'q`` for the returned ``q_i``.
+
+    Only ``t_i``, ``w_i`` and ``q_i`` were negated, which left ``u_i`` pointing against the
+    score on every component the convention flipped, as PLS and MBPLS never do. Some of
+    these seeds flip and some do not; the relation holds for all of them.
+    """
+    rng = np.random.default_rng(seed)
+    x_space = rng.standard_normal((15, 4))
+    y_space = x_space @ rng.standard_normal((4, 2)) + 0.3 * rng.standard_normal((15, 2))
+    everything = np.ones((15, 4), dtype=bool)
+    fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, np.ones((15, 2), dtype=bool))
+    q_i = fitted["q_i"]
+    np.testing.assert_allclose(fitted["u_i"], y_space @ q_i / float(np.sum(q_i**2)), atol=1e-6)
+
+
+def test_tpls_super_weights_point_the_way_of_the_super_score() -> None:
+    """#513: with ``u`` flipped along with the score, every block score points the super score's way.
+
+    A block's super weight is its score's regression on ``u``, so each is non-negative once
+    ``u`` agrees with the super score; with no Z block the one F weight is +1. The
+    un-flipped ``u`` made it -1 on the components the sign convention flipped. The
+    predictions are the same either way.
+    """
+    rng = np.random.default_rng(3)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    blocks = {
+        "F": {"G": pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)},
+        "Z": {"Z1": pd.DataFrame(rng.normal(size=(n_blends, 2)), index=index, columns=["z1", "z2"])},
+        "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=n_blends)}, index=index)},
+    }
+    with_z = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    assert (with_z.w_loadings_super.to_numpy() >= 0).all()
+
+    blocks["Z"] = {}
+    no_z = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    np.testing.assert_allclose(no_z.w_loadings_super.to_numpy(), 1.0)
+
+
 def test_nipals_unit_normalisation_is_floored() -> None:
     """#513: `_pls` and `_pca` now floor the norm they divide by, as `_mbpls`/`_mbpca` do.
 
