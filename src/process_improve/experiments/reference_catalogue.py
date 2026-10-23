@@ -90,6 +90,7 @@ from process_improve.experiments.random_effects import fixed_columns as _fixed_c
 from process_improve.experiments.run_order import run_order_trends
 from process_improve.experiments.separating import constraint_through_cuts
 from process_improve.experiments.sequential import steepest_path
+from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import minimum_aberration_generators
 from process_improve.experiments.yates import reverse_yates, yates_table
 from process_improve.monitoring.metrics import calculate_cpk
@@ -2846,23 +2847,28 @@ def _component_ss(experiment: dict, check: dict) -> float:
     """Return a 3^k component of interaction: its sum of squares, or a total of the runs in one of its three groups.
 
     The component ``check["word"]``, AB²C say, groups the runs by its defining contrast
-    L = x1 + 2 x2 + x3 (mod 3), each x a factor's level 0, 1 or 2; its sum of squares is that of the
-    three group totals, sum T_u^2 / n_u - T^2 / N, on two degrees of freedom. ``check["key"]`` is
-    ``"ss"`` (the default), ``"total.<u>"`` or ``"count.<u>"`` for the group with L = u.
-    ``check["runs"]`` keeps some runs, as the totals of one level of a third factor.
+    L = x1 + 2 x2 + x3 (mod 3), each x a factor's level 0, 1 or 2; its sum of squares, that of the
+    three group totals on two degrees of freedom, is the one
+    :func:`~process_improve.experiments.interaction_components` gives. ``check["key"]`` is ``"ss"``
+    (the default), ``"total.<u>"`` or ``"count.<u>"`` for the group with L = u. ``check["runs"]``
+    keeps some runs, as the totals of one level of a third factor.
     """
     positions = check.get("runs")
-    contrast = _contrast_values(experiment, check, positions)[:, 0]
     _, responses = _coded_runs(experiment, positions)
     y = responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float)
-    totals = [float(y[contrast == u].sum()) for u in range(3)]
-    counts = [int((contrast == u).sum()) for u in range(3)]
     kind, _, group = check.get("key", "ss").partition(".")
-    if kind == "total":
-        return totals[int(group)]
-    if kind == "count":
-        return float(counts[int(group)])
-    return sum(t * t / n for t, n in zip(totals, counts, strict=True) if n) - y.sum() ** 2 / len(y)
+    if kind in ("total", "count"):
+        in_group = _contrast_values(experiment, check, positions)[:, 0] == int(group)
+        return float(y[in_group].sum() if kind == "total" else in_group.sum())
+    word = _component(_powers(check["word"]))
+    names = check.get("factors") or [f["name"] for f in experiment["factors"]]
+    used = [i for i, e in enumerate(word) if e]
+    levels = _levels_of(experiment, [names[i] for i in used], positions)
+    # Lettered, the factors' components are named as the word is: AB2C. A level a subset of runs lacks stays a level.
+    letters = [_LETTERS[i] for i in used]
+    runs = pd.DataFrame({x: pd.Categorical(levels[:, j], categories=range(3)) for j, x in enumerate(letters)})
+    table = interaction_components(runs.assign(response=y), "response", letters)
+    return float(table.loc[table["component"] == _component_text(word).replace("²", "2"), "sum_of_squares"].item())
 
 
 def _yates_result(experiment: dict, check: dict) -> dict[str, Any]:
