@@ -53,17 +53,20 @@ in string literals, and Python snippets held in strings; a changed data file or
 document affects the code that names it. A change to `pyproject.toml`,
 `pytest.ini` or `.coveragerc`, or a deleted file, runs everything. It is a tool
 for fast local feedback: the analysis is static and cannot see every import-time
-side effect, so CI does not use it. CI runs the whole suite in every job, and
-the `coverage` job splits it into duration-balanced shards:
+side effect, so CI does not use it. CI runs the whole suite on every platform
+and Python it tests, split into duration-balanced shards: two for each `test`,
+`test-under-dash-O` and `test-free-threaded` row, four for the `coverage` job:
 
 ```bash
 pytest --shard=2/4                     # the second of four shards
 pytest --no-cov --store-durations      # refresh tests/.test_durations.json
 ```
 
-The four shards together are exactly the full suite. A stale durations file
-only unbalances them; refresh it when a shard's CI time drifts well away from
-the others.
+The shards of a job together are exactly the full suite. A stale durations file
+only unbalances them. The `coverage-report` job warns when it is stale, and
+uploads a fresh one, measured by the coverage shards, as the `test-durations`
+artifact: refreshing the file is a download of that artifact from a recent run
+on `main`.
 
 Tests use real datasets (LDPE, SIMCA) alongside synthetic data; please keep
 the real-dataset tests in place when adding new ones. New methods should have

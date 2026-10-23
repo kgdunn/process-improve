@@ -142,21 +142,27 @@ jobs:
         # every pull request commit they held the runner queue for hours when many
         # pull requests were open at once.
         # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
-        python-version: ["3.11", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
         os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
         experimental: [false]
+        # Each row runs the suite in two duration-balanced halves (`--shard`, as the
+        # `coverage` job does). The same job took 16 min on one runner and 31 min on
+        # another (#926), so a whole-suite row set the pull request's time by chance;
+        # halves cost two job setups more and end about 14 min sooner.
+        shard: [1, 2]
         exclude:
           - python-version: "3.13"
             os: ubuntu-latest
+          - python-version: "3.12"
+            os: windows-latest
+          - python-version: "3.12"
+            os: macos-latest
         include:
           # The minimum Python installs the lowest release of each dependency that
           # pyproject.toml allows, so its rows test the declared floors (pandas 2.3,
           # numpy 2.2, scipy 1.15) and the other rows test the newest releases.
           - python-version: "3.11"
             resolution: lowest-direct
-          - python-version: "3.12"
-            os: ubuntu-latest
-            experimental: false
           # Free-threaded (no-GIL) Python (3.13t / 3.14t) is intentionally NOT
           # tested yet. Several dependencies still lack free-threaded (cp31Xt)
           # wheels and fall back to building from source, which fails on the
@@ -184,16 +190,18 @@ jobs:
     # Test building & distribution. These used to run before the editable sync; the
     # composite action does the sync, so they follow it now. Neither reads the project
     # venv: `uv build` uses its own build environment, and the import check runs in an
-    # ephemeral `--isolated --no-project` environment.
+    # ephemeral `--isolated --no-project` environment. One half of each row is enough.
     - name: Test building the distributions
+      if: matrix.shard == 1
       run: uv build
     - name: Check if the built package can be installed and imported
+      if: matrix.shard == 1
       run: uv run --isolated --with . --no-project -- python -c "import process_improve"
     # This is where the actual unit and integration tests start. Coverage is
     # measured once, by the `coverage` job; tracing every line costs these cells
     # about twice the time for a number nothing reads.
-    - name: Test with pytest
-      run: uv run pytest --no-cov
+    - name: Test with pytest, half ${{ matrix.shard }} of 2
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/2
 
   # The whole suite on the primary platform, with coverage, split into
   # duration-balanced shards (`--shard`, tests/_selection.py). Adding a shard is
@@ -286,6 +294,10 @@ jobs:
   # a blocking check so a regression turns CI red.
   test-under-dash-O:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]  # two halves, as the `test` rows run (#926)
     steps:
     - uses: actions/checkout@v7
     - name: Set up the project environment
@@ -299,7 +311,7 @@ jobs:
       # job used to strip `-n auto` and run serially.
       env:
         PYTHONOPTIMIZE: "1"
-      run: uv run pytest --no-cov --tb=short
+      run: uv run pytest --no-cov --tb=short --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
   test-free-threaded:
     # Free-threaded CPython (PEP 703), #43. Every dependency ships wheels for it,
@@ -309,6 +321,10 @@ jobs:
     # which this job resolves, declares it. PYTHON_GIL=0 keeps the GIL off either
     # way, so this job exercises the package the way a free-threaded user runs it.
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]  # two halves, as the `test` rows run (#926)
     steps:
     - uses: actions/checkout@v7
     - name: Set up the project environment
@@ -325,7 +341,7 @@ jobs:
         PYTHON_GIL: "0"
       # Coverage is gated in the `coverage` job; here the question is only whether
       # everything passes.
-      run: uv run pytest --no-cov
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
   # The one check to require in branch protection: green only when every job
   # above it succeeded, so a green pull request has passed the whole suite on
