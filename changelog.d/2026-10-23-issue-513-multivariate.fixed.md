@@ -12,3 +12,11 @@
   block's T² went unscaled for every row. `block_hotellings_t2_` changes for fits with missing data
   (by under 1% for scattered missing cells, and by a large factor in the second case); on complete
   data it is unchanged.
+- **`TPLS` fits a blend with nothing observed in F or Z, and a material with nothing observed in D
+  (#513).** The row's regression had an empty denominator, which gave NaN, and the NaN spread to
+  every score of every later component, so since #709 the fit was refused. The row now gets a
+  zero score or loading in that block and no weight in its regressions, as PCA and PLS fit an
+  all-missing row, so through that block it has no effect on the other rows. A fit still refused,
+  because a block has no variation for the iteration to follow, now says that rather than naming
+  empty rows.
+  `regress_a_space_on_b_row` returns 0 rather than NaN for a row with nothing present.

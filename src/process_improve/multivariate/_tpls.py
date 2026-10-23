@@ -217,6 +217,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     1. Matrices in F, Z and Y must all have the same number of rows.
     2. Columns in F must be the same as the **rows** in D.
     3. Conditions in Z may be missing (turning it into an L-shaped data structure).
+    4. A blend with nothing observed in F, Z or Y, or a material with nothing observed in D, is fitted
+       with a zero score or loading in that block and no weight in that block's regressions, as PCA
+       and PLS fit an all-missing row.
 
     Parameters
     ----------
@@ -1112,28 +1115,21 @@ class TPLS(RegressorMixin, BaseEstimator):
         return bool(np.any([max_iter, converged]))
 
     def _refuse_scores_that_are_not_finite(self, component: int, t_super_i: np.ndarray) -> None:
-        """Raise ``ValueError`` when a component's scores are not finite, naming the empty rows that cause it.
+        """Raise ``ValueError`` when a component's scores are not finite.
 
         A NaN never leaves the iteration once it is in it, and the convergence test can never
         pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
-        material with no observed value in D has no loading to give, and a row with no observed
-        value in F no score to take; one of them makes every score NaN.
+        row or a material with nothing observed no longer causes one: it gets a zero score or
+        loading and no weight (#513). What is left is a direction the iteration cannot take,
+        because the vector it regresses on is zero: the first Y column it starts from, or
+        every column of D or F, has no variation.
         """
         if np.isfinite(t_super_i).all():
             return
-        empty = [
-            f"material {str(name)!r} has no observed value in D block {key!r}"
-            for key, present in self.not_na_d.items()
-            for name in np.asarray(self.material_names[key])[~np.asarray(present).any(axis=1)]
-        ] + [
-            f"row {str(name)!r} has no observed value in F block {key!r}"
-            for key, present in self.not_na_f.items()
-            for name in np.asarray(self.observation_names)[~np.asarray(present).any(axis=1)]
-        ]
-        cause = "; ".join(empty) if empty else "a block has a row or a column with no observed value"
         msg = (
-            f"TPLS cannot fit component {component}: its scores are not finite, because {cause}. "
-            "Remove it, or give it observed values."
+            f"TPLS cannot fit component {component}: its scores are not finite, because a block has "
+            "no variation for the iteration to follow. Check that the first column of the first Y "
+            "block, and at least one column of each D and F group, varies and is observed."
         )
         raise ValueError(msg)
 

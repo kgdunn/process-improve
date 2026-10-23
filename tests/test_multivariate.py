@@ -202,7 +202,12 @@ def test_regress_y_space_on_x() -> None:
     present_map = np.logical_not(np.isnan(y_space))
     y_space_filled = nan_to_zeros(y_space)
     regression_vector = regress_a_space_on_b_row(y_space_filled, x_space, present_map)
-    assert pytest.approx(np.array([[1, 1, 1, 1, float("nan"), 2 / 3]]).T, nan_ok=True) == regression_vector
+    # The row with nothing present has no regression: 0, with no weight anywhere (#513), not NaN.
+    assert pytest.approx(np.array([[1, 1, 1, 1, 0, 2 / 3]]).T) == regression_vector
+
+    # Present cells that all meet a zero in the row vector are a degenerate direction, and stay NaN.
+    degenerate = regress_a_space_on_b_row(np.array([[0.0, 5.0]]), np.array([[1.0, 0.0]]), np.array([[False, True]]))
+    assert np.isnan(degenerate).all()
 
 
 @pytest.mark.slow
