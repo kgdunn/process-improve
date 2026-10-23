@@ -27,7 +27,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
@@ -96,7 +96,7 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
     days: dict[str, Day] = defaultdict(Day)
     referrers: Counter[str] = Counter()
     for entry in entries:
-        when = datetime.fromtimestamp(entry.get("ts", 0), timezone.utc)
+        when = datetime.fromtimestamp(entry.get("ts", 0), UTC)
         request = entry["request"]
         if when < since or request.get("method") != "GET" or entry.get("status") not in {200, 304}:
             continue
@@ -161,9 +161,9 @@ def main(argv: list[str] | None = None) -> int:
     if not paths:
         print(f"no log files match {args.log}", file=sys.stderr)
         return 1
-    last = datetime.now(timezone.utc).date()
+    last = datetime.now(UTC).date()
     first = last - timedelta(days=args.days - 1)
-    days, referrers = tally(requests(lines(paths)), datetime.combine(first, time.min, tzinfo=timezone.utc))
+    days, referrers = tally(requests(lines(paths)), datetime.combine(first, time.min, tzinfo=UTC))
     print(report(days, referrers, first, last))
     return 0
 

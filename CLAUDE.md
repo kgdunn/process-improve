@@ -6,7 +6,7 @@
 
 **Repository:** https://github.com/kgdunn/process-improve
 **License:** MIT
-**Python:** >= 3.10 (CI tests 3.10-3.13; 3.13 is the primary version for lint, typecheck, and coverage)
+**Python:** >= 3.11 (CI tests 3.11-3.13, with 3.11 at the lowest dependency versions allowed; 3.13 is the primary version for lint, typecheck, and coverage)
 
 ## Authoritative documents
 
@@ -200,9 +200,10 @@ Workflows in `.github/workflows/`:
 
 - **run-tests.yml**: `lint` (`ruff check .` and `ruff format --check .`, two
   independent gates), `typecheck` (blocking `mypy src/process_improve`), `test`
-  (the full suite without coverage, over Python 3.10-3.13; a pull request runs
+  (the full suite without coverage, over Python 3.11-3.13; the 3.11 rows install
+  the lowest release of each dependency that `pyproject.toml` allows; a pull request runs
   ubuntu only, and pushes to main, the nightly schedule and manual runs add
-  windows and macos at 3.10 and 3.13; ubuntu/3.13 is the `coverage` job
+  windows and macos at 3.11 and 3.13; ubuntu/3.13 is the `coverage` job
   instead), `coverage`
   (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
   `--shard`), `coverage-report` (combines the shards for the 96% gate and the

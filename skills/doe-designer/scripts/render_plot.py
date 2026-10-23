@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = ["process-improve[plotting]>=1.98", "kaleido"]
 # ///
 """Render a ``visualize_doe`` result to an image or an interactive page.

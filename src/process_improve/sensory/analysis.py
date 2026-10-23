@@ -249,7 +249,7 @@ def _fit_pls_safe(x: pd.DataFrame, y: pd.DataFrame, n_components: int) -> tuple[
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
                 return PLS(n_components=k).fit(x, y), k
-        except np.linalg.LinAlgError:  # noqa: PERF203 - retry on singular block; loop is a few iterations
+        except np.linalg.LinAlgError:
             continue
     return None, 0
 
