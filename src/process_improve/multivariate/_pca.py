@@ -1901,7 +1901,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             (:meth:`minka_mle`) and Horn's parallel analysis
             (:meth:`parallel_analysis`). The result Bunch then gains the
             ``minka_n_components``, ``parallel_analysis_n_components``,
-            ``consensus``, and ``consensus_counts`` keys (see Returns).
+            ``consensus``, and ``consensus_counts`` keys (see Returns). The
+            parallel analysis runs with its default ``scale=True`` whatever
+            ``scale_inside_folds`` is.
 
         Returns
         -------
@@ -2148,10 +2150,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         consensus_fields: dict[str, object] = {}
         if return_consensus:
             # Two cheap cross-checks: Minka's PPCA MLE (mean-centred input,
-            # no unit-variance scaling) and Horn's parallel analysis (which
-            # accepts the same scaling convention as the rest of the method).
+            # no unit-variance scaling) and Horn's parallel analysis. The latter
+            # always autoscales: its null is unit-variance noise, and rescaling a
+            # block that is already scaled changes nothing. ``scale_inside_folds``
+            # is about the CV folds and must not reach it, or a raw block passed
+            # with False is compared in its own units against that null (#513).
             minka_n = cls.minka_mle(X)
-            pa_result = cls.parallel_analysis(X, scale=scale_inside_folds, random_state=random_state)
+            pa_result = cls.parallel_analysis(X, random_state=random_state)
             counts = (int(recommended), int(minka_n), int(pa_result.n_components))
             consensus = "agree" if max(counts) - min(counts) <= 1 else "disagree"
             consensus_fields = {

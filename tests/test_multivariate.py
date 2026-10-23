@@ -1527,6 +1527,29 @@ def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> N
     assert standardised.n_components == 0
 
 
+def test_pca_consensus_parallel_analysis_is_scaled_whatever_scale_inside_folds_is() -> None:
+    """#513: the consensus compares the eigenvalues against the N(0, 1) null on a common footing.
+
+    ``scale_inside_folds`` decides how the cross-validation folds are scaled. It was also
+    passed on as ``parallel_analysis(scale=...)``, so with ``scale_inside_folds=False`` the
+    unscaled eigenvalues of loud noise were compared against a unit-variance null and every
+    component was retained. Scaling an already-scaled block changes nothing, so the
+    parallel analysis now always scales, and the noise keeps no component either way.
+    """
+    loud_noise = pd.DataFrame(100.0 * np.random.default_rng(7).standard_normal((30, 5)))
+    expected = PCA.parallel_analysis(loud_noise, random_state=0).n_components
+    assert expected == 0
+
+    with warnings.catch_warnings():
+        # scale_inside_folds=False warns that it leaks the scaling into the folds.
+        warnings.simplefilter("ignore", SpecificationWarning)
+        for inside in (True, False):
+            result = PCA.select_n_components(
+                loud_noise, max_components=3, scale_inside_folds=inside, random_state=0, return_consensus=True
+            )
+            assert result.parallel_analysis_n_components == expected, f"scale_inside_folds={inside}"
+
+
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
     """On pure noise PA correctly retains few components (and may return 0)."""
     rng = np.random.default_rng(3)
