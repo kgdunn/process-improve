@@ -883,6 +883,11 @@ export function projectionSummary(runs, columns) {
 
 const joined = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
 
+/** A fraction's generators as the source writes them, spaced and listed: ["D=AB", "E=AC"] as "D = AB and E = AC". */
+export function generatorsLine(generators) {
+  return joined(generators.map((g) => g.replace(/\s*=\s*/, " = ")));
+}
+
 /** A projection's summary, in a sentence or two. */
 export function projectionText(summary, names) {
   const fits = summary.quadratic

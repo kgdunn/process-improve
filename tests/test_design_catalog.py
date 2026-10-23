@@ -582,6 +582,69 @@ def test_the_pilot_plant_experiment_is_described_as_box_hunter_and_hunter_print_
     assert record["response_values"]["y"] == [60, 72, 54, 68, 52, 83, 45, 80]
 
 
+def test_an_entry_is_named_for_what_it_holds():
+    """A design and its results, a design alone, one sample with nothing varied, or facts about designs."""
+    sample = {"runs": {"columns": ["No.", "y"], "rows": [[1, 2.0], [2, 2.5]]}, "responses": [{"name": "y"}]}
+    assert design_catalog._kind({"responses": [{"name": "y"}]}, [{"name": "A"}]) == "experiment"
+    assert design_catalog._kind({}, [{"name": "A"}]) == "design"
+    assert design_catalog._kind(sample, []) == "sample"
+    assert design_catalog._kind({"runs": None}, []) == "facts"
+
+
+def test_a_fraction_named_only_by_its_generators_is_made_from_them_in_standard_order():
+    entry = {
+        "design": {"type": "2^(5-2) fractional factorial"},
+        "expected": [
+            {"check": {"kind": "aliases", "term": "A", "k": 5, "generators": ["D=AB", "E=AC"]}},
+            {"check": [{"kind": "resolution", "k": 5, "generators": ["D=AB", "E=AC"]}, {"manual": "a count"}]},
+        ],
+    }
+    factors, runs, generators = design_catalog._named_fraction(entry)
+    assert [f["name"] for f in factors] == list("ABCDE")
+    assert {(f["low"], f["high"], f["type"]) for f in factors} == {(-1, 1, "numeric")}
+    assert generators == ["D=AB", "E=AC"]
+    base = [[a, b, c] for c in (-1, 1) for b in (-1, 1) for a in (-1, 1)]
+    assert runs[:, :3].tolist() == base, "standard order: A alternates fastest"
+    assert (runs[:, 3] == runs[:, 0] * runs[:, 1]).all()
+    assert (runs[:, 4] == runs[:, 0] * runs[:, 2]).all()
+
+
+def test_only_an_entry_naming_one_fraction_is_made_and_a_factor_named_by_a_digit_is_written_x1():
+    def entry(kind: str, *named: tuple[list[str] | None, list[str]]) -> dict:
+        checks = [{"k": 6, "generators": g, **({"factors": f} if f else {})} for f, g in named]
+        return {"design": {"type": kind}, "expected": [{"check": c} for c in checks]}
+
+    digits = ["1", "2", "3", "4", "5", "6"]
+    nair = entry("2^(6-2) fractional factorial", (digits, ["5=123", "6=234"]), (digits, ["5=123", "6=234"]))
+    assert [f["name"] for f in design_catalog._named_fraction(nair)[0]] == [f"X{d}" for d in digits]
+    two = entry("2^(6-2) fractional factorial", (None, ["E=ABC", "F=BCD"]), (None, ["E=ABD", "F=ACD"]))
+    assert design_catalog._named_fraction(two) is None, "two fractions compared: no one design"
+    family = entry("two-level designs in six factors", (None, ["F=-ABCDE"]))
+    assert design_catalog._named_fraction(family) is None, "a remark about a family names no design"
+
+
+@pytest.mark.slow
+@pytest.mark.dataset
+def test_the_catalogue_tells_its_designs_from_single_samples_and_facts_about_designs(records):
+    """Montgomery's Problem 2.8 measures one sample, his Table 7.9 lists blocking arrangements."""
+    published = {r["id"]: r for r in records if r["collection"] == "published"}
+    assert published["montgomery-problem-2-8"]["kind"] == "sample"
+    assert published["montgomery-blocking-arrangements"]["kind"] == "facts"
+    for record in published.values():
+        if not record["factors"]:
+            assert record["kind"] in {"facts", "sample"}, record["id"]
+            assert (record["kind"] == "sample") == bool(record["response_values"]), record["id"]
+    table_x = published["montgomery-table-x-2-5-2"]
+    assert (table_x["kind"], table_x["runs_from"], table_x["n_runs"], table_x["n_factors"]) == (
+        "design",
+        ["D=AB", "E=AC"],
+        8,
+        5,
+    )
+    assert published["montgomery-2-7-2-choices"]["runs_from"] is None, "three fractions compared, none made"
+    assert sum(bool(r["runs_from"]) for r in published.values()) == 40
+
+
 # --------------------------------------------------------------------------- generated designs
 def test_every_generated_design_has_a_name_of_its_own():
     assert len(GENERATED) > 100
