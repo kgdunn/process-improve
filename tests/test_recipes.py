@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pickle
+
 import pytest
 
 from process_improve.recipes import (
@@ -56,6 +58,56 @@ def test_planned_recipe_payload_carries_note():
     assert payload["status"] == "planned"
     assert payload["stages"] == []
     assert "note" in payload
+
+
+def test_a_recipe_is_immutable_and_hashable():
+    """``frozen=True`` holds for the contents too: lists passed in are stored as tuples (#513)."""
+    hints = {"x": "1"}
+    stage = RecipeStep(order=1, directive="Do a thing.", tools=["some_tool"], arg_hints=hints)
+    recipe = AnalysisRecipe(
+        key="demo_recipe",
+        title="Demo",
+        summary="A demo.",
+        domain="testing",
+        cue_phrases=["demo cue"],
+        inputs_needed=["nothing"],
+        stages=[stage],
+    )
+    assert recipe.stages == (stage,)
+    assert recipe.cue_phrases == ("demo cue",)
+    assert stage.tools == ("some_tool",)
+    with pytest.raises(AttributeError):
+        recipe.stages.append(stage)
+    hints["x"] = "changed by the caller"
+    assert stage.arg_hints == {"x": "1"}
+    assert pickle.loads(pickle.dumps(recipe)) == recipe  # noqa: S301 - trusted round-trip of our own object
+    same = AnalysisRecipe(
+        key="demo_recipe",
+        title="Demo",
+        summary="A demo.",
+        domain="testing",
+        cue_phrases=("demo cue",),
+        inputs_needed=("nothing",),
+        stages=(RecipeStep(order=1, directive="Do a thing.", tools=("some_tool",), arg_hints={"x": "1"}),),
+    )
+    assert same == recipe
+    assert hash(same) == hash(recipe)
+
+
+def test_select_recipe_canonicalises_the_query_only(monkeypatch: pytest.MonkeyPatch):
+    """The cue phrases are canonicalised once, when the recipe is built, not again on every query (#513)."""
+    from process_improve import recipes
+
+    list_recipes()  # discover the registered recipes before counting
+    seen: list[str] = []
+
+    def counting(text: str) -> str:
+        seen.append(text)
+        return " ".join(text.lower().split())
+
+    monkeypatch.setattr(recipes, "_canonicalise", counting)
+    assert select_recipe("what chemistry drives sweetness").key == "sensory_relate_covariates"
+    assert seen == ["what chemistry drives sweetness"]
 
 
 def test_register_recipe_rejects_duplicate_key():
