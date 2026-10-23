@@ -48,7 +48,7 @@ import re
 import statistics
 import warnings
 from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Hashable, Iterator
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -2876,7 +2876,7 @@ def _component_ss(experiment: dict, check: dict) -> float:
     return float(table.loc[table["component"] == _component_text(word).replace("²", "2"), "sum_of_squares"].item())
 
 
-def _yates_result(experiment: dict, check: dict) -> dict[str, Any]:
+def _yates_result(experiment: dict, check: dict) -> dict[Hashable, Any]:
     """Return Yates's algorithm on a 2^k factorial's runs, by :func:`yates_table`, or run in reverse.
 
     The runs are the entry's settings in coded units and its response, ``check["response"]`` or the
