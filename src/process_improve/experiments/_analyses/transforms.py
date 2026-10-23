@@ -17,7 +17,7 @@ import numpy as np
 from .box_cox import box_cox_profile, box_cox_transform
 
 #: The transforms ``analyze_experiment`` accepts.
-TRANSFORMS = ("log", "sqrt", "inverse", "box_cox")
+TRANSFORMS = ("log", "log10", "sqrt", "inverse", "box_cox")
 
 
 def validate_transform(transform: str | None) -> None:
@@ -28,7 +28,7 @@ def validate_transform(transform: str | None) -> None:
 
 def _check_domain(values: np.ndarray, transform: str, what: str) -> None:
     """Raise when ``values`` fall outside the domain of ``transform``."""
-    if transform in ("log", "box_cox") and np.any(values <= 0):
+    if transform in ("log", "log10", "box_cox") and np.any(values <= 0):
         raise ValueError(
             f"transform={transform!r} needs every {what} to be positive; it has values <= 0. "
             "Shift the response, or pick a different transform."
@@ -90,6 +90,8 @@ def to_model_scale(values: np.ndarray, info: dict[str, Any], what: str = "respon
     _check_domain(values, transform, what)
     if transform == "log":
         return np.log(values)
+    if transform == "log10":  # the common log, whose sums of squares are the natural log's over ln(10)^2
+        return np.log10(values)
     if transform == "sqrt":
         return np.sqrt(values)
     if transform == "inverse":

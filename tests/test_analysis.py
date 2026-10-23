@@ -1121,6 +1121,21 @@ class TestTransforms:
         with pytest.raises(ValueError, match=r"^transform='inverse' is undefined when the response contains zero\."):
             analyze_experiment(df, response_column="y", transform="inverse", analysis_type="coefficients")
 
+    def test_log10_transform_gives_the_common_log_analysis(self) -> None:
+        """Anderson and Whitcomb, DOE Simplified (2007), Table 4-4: the tabletop hockey 2^4 in log10 of distance."""
+        runs = pd.DataFrame(
+            [[a, b, c, d] for d, c, b, a in itertools.product([-1, 1], repeat=4)], columns=list("ABCD"), dtype=float
+        )
+        distance = [38.2, 23.3, 3.0, 7.6, 110.0, 90.6, 20.6, 18.9, 36.6, 38.0, 47.4, 44.9, 190.0, 116.8, 137.5, 84.5]
+        model = "B + C + D + B:D"
+        found = analyze_experiment(runs, pd.Series(distance, name="y"), model=model, transform="log10")
+        rows = {row["source"]: row for row in found["anova_table"]}
+        printed = {"B": 0.60, "C": 1.11, "D": 0.99, "B:D": 0.53, "Residual": 0.19}
+        assert {k: round(rows[k]["sum_sq"], 2) for k in printed} == printed
+        assert round(rows["C"]["F"], 2) == 63.66
+        natural = analyze_experiment(runs, pd.Series(distance, name="y"), model=model, transform="log")
+        assert natural["anova_table"][0]["F"] == pytest.approx(rows["B"]["F"])  # the two logs test alike
+
 
 # ---------------------------------------------------------------------------
 # Validation
