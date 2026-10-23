@@ -146,6 +146,17 @@ def test_f_robust_mad(batch_data: pd.DataFrame) -> None:
     assert (mad.values > 0).all()
 
 
+def test_scale_features_omit_a_missing_value_alike() -> None:
+    """f_iqr omits a missing value, as f_std and f_robust_mad do, instead of returning NaN for the batch (#513)."""
+    data = pd.DataFrame({"Batch": [1, 1, 1, 1, 1], "temp": [1.0, 2.0, np.nan, 3.0, 4.0]})
+    complete = data.dropna()
+    for feature in (features.f_iqr, features.f_std, features.f_robust_mad):
+        with_gap = feature(data, tags=["temp"], batch_col="Batch").iloc[0, 0]
+        without = feature(complete, tags=["temp"], batch_col="Batch").iloc[0, 0]
+        assert with_gap == pytest.approx(without), feature.__name__
+    assert features.f_iqr(data, tags=["temp"], batch_col="Batch").iloc[0, 0] == pytest.approx(1.5)
+
+
 def test_f_agemin_agemax(batch_data: pd.DataFrame) -> None:
     """f_agemin / f_agemax report the index label where the min / max occurs."""
     agemin = features.f_agemin(batch_data, tags=["Temp1"], batch_col="Batch")
@@ -200,6 +211,26 @@ def test_sum_features(batch_data: pd.DataFrame) -> None:
         batch_col="Batch",
         time_tag="UCI_minutes",
     ).values[0] == pytest.approx([-73095.6162, -207910.839, 1648.069279], rel=1e-7)
+
+
+@pytest.mark.parametrize("as_index", [False, True], ids=["time-column", "time-index"])
+def test_f_area_on_a_datetime_axis_is_in_value_seconds(as_index: bool) -> None:
+    """A datetime time axis is measured in seconds: 2.0 for 3 minutes gives 360, not a timedelta (#513)."""
+    data = pd.DataFrame(
+        {
+            "Batch": [1, 1, 1, 1],
+            "time": pd.to_datetime(["2026-01-01 00:00", "2026-01-01 00:01", "2026-01-01 00:02", "2026-01-01 00:03"]),
+            "temp": [2.0, 2.0, 2.0, 2.0],
+        }
+    )
+    if as_index:
+        data = data.set_index("time")
+    area = features.f_area(data, time_tag="time", tags=["temp"], batch_col="Batch")
+    assert area.iloc[0, 0] == pytest.approx(360.0)
+
+    minutes = data.reset_index() if as_index else data
+    minutes = minutes.assign(time=[0.0, 1.0, 2.0, 3.0])
+    assert features.f_area(minutes, time_tag="time", tags=["temp"], batch_col="Batch").iloc[0, 0] == pytest.approx(6.0)
 
 
 # Extreme features
@@ -303,6 +334,23 @@ def test_f_crossing_with_batch_data(batch_data: pd.DataFrame) -> None:
     )
     assert result.shape[1] == 1  # one feature column
     assert "Temp1" in result.columns[0]
+
+
+@pytest.mark.parametrize("only_index", [False, True], ids=["time-value", "index"])
+def test_f_crossing_is_nan_for_a_batch_that_never_crosses(only_index: bool) -> None:
+    """A batch with no crossing gets the documented NaN, not an empty array (#513)."""
+    data = pd.DataFrame(
+        {
+            "Batch": [1, 1, 1, 2, 2, 2],
+            "time": [0.0, 1.0, 2.0, 0.0, 1.0, 2.0],
+            "temp": [-1.0, 1.0, 2.0, 5.0, 6.0, 7.0],
+        }
+    )
+    crossing = features.f_crossing(data, tag="temp", time_tag="time", batch_col="Batch", only_index=only_index)
+    by_batch = crossing["temp_cross-0"].droplevel("__phase_grouper__")
+    assert by_batch[1] == (0 if only_index else 0.5)
+    assert isinstance(by_batch[2], float)
+    assert np.isnan(by_batch[2])
 
 
 def test_f_elbow_returns_x_value(batch_data: pd.DataFrame) -> None:
