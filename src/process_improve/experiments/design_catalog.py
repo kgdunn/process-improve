@@ -48,6 +48,7 @@ from process_improve.experiments.designs import generate_design
 from process_improve.experiments.factor import Factor, FactorType
 from process_improve.experiments.knowledge.engine import load_knowledge_graph
 from process_improve.experiments.reference_catalogue import (
+    _fraction,
     reference_designs,
     reference_experiments,
     reference_sources,
@@ -763,6 +764,59 @@ def _count(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
 
 
+def _named_fraction(entry: dict[str, Any]) -> tuple[list[dict[str, Any]], np.ndarray, list[str]] | None:
+    """Return the factors, runs and generators of the one fraction an entry names by its generators alone.
+
+    An entry that prints facts about a two-level fraction (its aliases, defining relation or resolution)
+    without its runs names the fraction in each check by its generators. It is that fraction when its design
+    is a fractional factorial and every check that names generators names the same ones in the same factors;
+    else it is ``None``. The runs are the library's fraction from those generators, in standard order (the
+    first base factor alternating fastest), each factor coded -1 to +1 and named as the source names it, a
+    name such as 1 written X1.
+    """
+    if "fractional factorial" not in str((entry.get("design") or {}).get("type", "")).lower():
+        return None
+    named = {
+        (tuple(check.get("factors") or ()), tuple(check["generators"]), int(check["k"]))
+        for _, check in _checks(entry)
+        if check.get("generators") is not None and check.get("k")
+    }
+    if len(named) != 1:
+        return None
+    [(names, generators, k)] = named
+    check = {"generators": list(generators), **({"factors": list(names)} if names else {})}
+    result = _fraction(check, k)
+    columns = [str(c) for c in result.factor_names]
+    runs = result.design[columns].to_numpy(dtype=float)
+    made = {g.split("=")[0].strip() for g in generators}
+    base = [j for j, name in enumerate(columns) if name not in made]
+    runs = runs[np.lexsort([runs[:, j] for j in base])]  # lexsort's last key sorts slowest: the first base fastest
+    factors = [
+        {
+            "name": name if name.isidentifier() else f"X{name}",
+            "description": f"factor {name}",
+            "low": -1,
+            "high": 1,
+            "units": "coded",
+            "type": "numeric",
+        }
+        for name in columns
+    ]
+    return factors, runs, list(generators)
+
+
+def _kind(entry: dict[str, Any], factors: list[dict[str, Any]]) -> str:
+    """Say what an entry of the reference catalogue holds.
+
+    ``experiment``: a design and its results. ``design``: a design's runs, or its factors, without results.
+    ``sample``: results with no factor varied, one sample measured over and over. ``facts``: neither
+    factors nor runs, only what the source prints about designs, such as a table of run sizes.
+    """
+    if factors:
+        return "experiment" if entry.get("responses") else "design"
+    return "sample" if (entry.get("runs") or {}).get("rows") else "facts"
+
+
 def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
     """Describe one entry of the reference catalogue as a record of the catalog."""
     design = entry.get("design") or {}
@@ -771,8 +825,11 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
     # A run's block is no factor of the design: its column is kept apart as the run's block.
     columns, apart = _block_columns(entry), _set_apart(entry)
     factors = [f for f in entry.get("factors") or [] if f["name"] not in apart]
-    kinds = [str(f.get("type", "numeric")) for f in factors]
     coded = published_runs({**entry, "factors": factors})
+    runs_from = None
+    if not factors and (coded is None or not coded.size) and (fraction := _named_fraction(entry)):
+        factors, coded, runs_from = fraction  # the source names the fraction by its generators alone
+    kinds = [str(f.get("type", "numeric")) for f in factors]
     responses = _response_values(entry)
     blocked, blocks = _blocks(entry, text, columns)
     n_blocks = len({str(b) for b in blocks if b is not None}) if blocks else None
@@ -780,7 +837,7 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         "id": entry["name"],
         "title": entry.get("title", entry["name"]),
         "collection": "published",
-        "kind": "experiment" if entry.get("responses") else "design",
+        "kind": _kind(entry, factors),
         "family": family,
         "design_type": _DESIGN_TYPES.get(family),
         "design_text": str(design.get("type", "")),
@@ -808,6 +865,7 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         "notes": str(entry.get("notes", "")),
         "where_full": entry.get("where"),
         "coded_runs": None,
+        "runs_from": runs_from,
         "response_values": responses,
     }
     if coded is not None and coded.size:
@@ -979,6 +1037,7 @@ def _generated_record(spec: dict[str, Any]) -> dict[str, Any]:
         "notes": "",
         "where_full": None,
         "coded_runs": coded.round(6).tolist(),
+        "runs_from": None,
         "response_values": {},
     }
     record.update(design_facets(coded, kinds))
@@ -1072,7 +1131,12 @@ def catalog_records(collection: Collection = "both") -> list[dict[str, Any]]:
     Returns
     -------
     list[dict]
-        One record per design. The fields in :data:`INDEX_FIELDS` describe it for searching; a
+        One record per design. ``kind`` says what a published entry holds (see :func:`_kind`): an
+        ``experiment`` (a design and its results), a ``design``, a ``sample`` (results with no factor
+        varied) or ``facts`` about designs (neither factors nor runs); a generated record is a ``design``.
+        An entry that names one two-level fraction by its generators alone has the fraction the library
+        makes from them as its runs, and those generators in ``runs_from``; it is ``None`` for every
+        other record. The fields in :data:`INDEX_FIELDS` describe it for searching; a
         published record's ``checks`` counts its printed numbers (see :func:`printed_checks`) and
         a generated record's is ``None``. Records with the same ``design_class`` hold one design,
         printed in different sources or made by the library (see

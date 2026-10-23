@@ -229,6 +229,35 @@ def test_a_block_listed_as_a_factor_opens_as_the_page_s_blocks(build_script):
     assert sheet.groupby("Block").size().tolist() == [3, 3, 3]
 
 
+@pytest.mark.dataset
+def test_an_entry_that_is_no_design_says_so_and_a_fraction_named_by_its_generators_opens(build_script):
+    """Montgomery's Table 7.9 and Problem 2.8 hold no design; Table X's 2^(5-2) and BHH's cast films are fractions."""
+    records = {
+        r["id"]: r
+        for r in catalog_sample(
+            (
+                "montgomery-blocking-arrangements",
+                "montgomery-problem-2-8",
+                "montgomery-table-x-2-5-2",
+                "bhh-cast-films-2-5-2",
+            )
+        )
+    }
+    with no_bytecode():
+        facts = build_script.given_campaign(records["montgomery-blocking-arrangements"])
+        sample = build_script.given_campaign(records["montgomery-problem-2-8"])
+        table_x, reason, _ = build_script.published_campaign(records["montgomery-table-x-2-5-2"])
+        films, why = build_script.given_campaign(records["bhh-cast-films-2-5-2"])
+    assert facts == (None, "the source prints facts about designs here, not the runs of one")
+    assert sample == (None, "nothing is varied: the runs measure one sample, with no factor to set")
+    assert (reason, table_x["design"]["n_runs"]) == ("", 8), "the page makes D = AB, E = AC itself"
+    assert why == ""
+    cast = records["bhh-cast-films-2-5-2"]
+    assert cast["runs_from"] == ["D=BC", "E=ABC"]
+    sheet = run_sheet(films["design"])
+    assert sheet[list("ABCDE")].to_numpy().tolist() == cast["coded_runs"], "the library's runs, in standard order"
+
+
 def test_a_range_written_high_first_opens_low_to_high_with_the_source_s_settings(build_script, few):
     """The pilot plant's temperature written 180 to 160, as a source codes its larger setting -1: the runs keep it."""
     record = next(r for r in few if r["id"] == "bhh-pilot-plant-2-3")

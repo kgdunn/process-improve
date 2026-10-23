@@ -27,6 +27,7 @@ import {
   correlationMap,
   errataCounts,
   errataShown,
+  generatorsLine,
   familyMarks,
   largestSecondOrderR,
   markInSource,
@@ -803,5 +804,13 @@ describe("a limit on the coded settings", () => {
     assert.deepEqual(ids(results(catalog, state({ limit: "A + B <= 1" }))), ["in"]);
     assert.deepEqual(ids(results(catalog, state({ limit: "A + B <= 1", limitAll: true }))), ["in", "out"]);
     assert.deepEqual(ids(results(catalog, state({ limit: "A + B" }))), ["in", "out", "unjudged"], "a limit that cannot be read keeps every design");
+  });
+});
+
+describe("a fraction named by its generators", () => {
+  test("its generators are spaced and listed as the source writes them", () => {
+    assert.equal(generatorsLine(["C=AB"]), "C = AB");
+    assert.equal(generatorsLine(["D=AB", "E=AC"]), "D = AB and E = AC");
+    assert.equal(generatorsLine(["5=234", "6 = 1234", "F=-ABCDE"]), "5 = 234, 6 = 1234 and F = -ABCDE");
   });
 });
