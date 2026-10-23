@@ -100,6 +100,8 @@ import {
   FULL,
   GIVEN,
   GOALS,
+  INTERACTION_MODELS,
+  MAX_FACTORS,
   MAX_LEVEL_RUNS,
   MAX_REPLICATES,
   MAX_RESPONSES,
@@ -144,7 +146,9 @@ import {
   fittedFormula,
   fmt,
   fractionRuns,
+  highestResolution,
   infoOf,
+  interactionOf,
   isBlank,
   categoricalFactor,
   isCategorical,
@@ -193,11 +197,14 @@ import {
   responsesOf,
   responsesTitle,
   runBadge,
+  screeningSentence,
+  screensOnly,
   showsVif,
   splitResults,
   standouts,
   STANDOUT_TIE,
   storedResponses,
+  tradeOffBeyond,
   tradeOffCell,
   withResponses,
   withUnits,
@@ -1251,14 +1258,20 @@ function setAim(aim) {
 
 function showAim() {
   const factors = readFactors();
+  // Past MAX_INTERACTION_FACTORS factors a study aims at the main effects alone, and the aim moves there.
+  const many = screensOnly(factors.length);
+  if (many && currentAim() !== "main_effects") {
+    setAim("main_effects");
+    return;
+  }
   const aim = currentAim();
   const p = aimTerms(factors, aim);
-  const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM;
+  const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM && !many;
   const box = $("#aim-terms");
   box.replaceChildren();
   // A mixture's model is a Scheffé model of its blends, which its design sets: the aims are for factors with ranges.
   const mixture = mixturePlanned();
-  for (const radio of document.querySelectorAll('input[name="aim"]')) radio.disabled = mixture;
+  for (const radio of document.querySelectorAll('input[name="aim"]')) radio.disabled = mixture || (many && radio.value !== "main_effects");
   if (mixture) {
     box.append(
       "A mixture is analysed with a Scheffé model of its blends, which its design sets: these aims are for factors with ranges.",
@@ -1268,6 +1281,7 @@ function showAim() {
   if (!factors.length) return;
   box.append(`${p} `, term("coefficients", { key: "coefficient", alone: true }), ", the intercept included.");
   if (screening) box.append(` With ${SCREEN_FROM} factors or more, a study starts by finding which matter.`);
+  if (many) box.append(` ${screeningSentence(factors.length, "brief")}`);
 }
 
 // ---------------------------------------------------------------- the design
@@ -1346,6 +1360,9 @@ function setDesignForm(spec) {
  */
 function refreshDesign() {
   const k = factorCount();
+  const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
+  for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
+  $("#factors-full").hidden = !full;
   const select = $("#design-type");
   const labelled = readFactors().filter(isCategorical).map((f) => f.name);
   const several = readFactors().filter(isSeveral);
@@ -1369,9 +1386,10 @@ function refreshDesign() {
   const alpha = axialDistance($("#alpha").value, $("#alpha_value").value);
   $("#alpha-distance").hidden = !allowed.includes("alpha") || $("#alpha").value !== AXIAL_DISTANCE;
 
-  // Resolution IV unless the reader chose another; three factors allow only III.
+  // Resolution IV unless the reader chose another; three factors allow only III, and past MAX_INTERACTION_FACTORS
+  // factors, whose interactions the page does not model, a fraction stops at IV.
   const resolution = $("#resolution");
-  for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
+  for (const choice of resolution.options) choice.disabled = Number(choice.value) > highestResolution(k);
   if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(defaultResolution(k));
 
   // A design in one factor runs each level as often as its replicates say: more of them than a design of more factors.
@@ -1501,7 +1519,7 @@ function drawTradeOff(k, picking) {
   }
   $("#trade-off-table").replaceChildren(head, body);
   const move = "Add or remove a factor in the brief to move across.";
-  $("#trade-off-hint").textContent = TRADE_OFF_FACTORS.includes(k) ? `The column of your ${k} factors takes a pick. ${move}` : move;
+  $("#trade-off-hint").textContent = TRADE_OFF_FACTORS.includes(k) ? `The column of your ${k} factors takes a pick. ${move}` : tradeOffBeyond(k) || move;
 }
 
 /** Take a cell of the grid into the plan: its resolution, or the full factorial. */
@@ -1853,8 +1871,9 @@ function renderCandidates(busy = null) {
   const mixture = mixturePlanned() && factorCount() >= 2;
   const current = Boolean(c) && c.key === candidateKey() && !busy && !mixture;
   $("#compare").disabled = !current || !c.result;
-  // Nothing to compare in detail before the brief's first designs, or for one factor, whose design is its two levels.
-  $("#compare").hidden = !c?.result || mixture || Boolean(c.levels);
+  // Nothing to compare in detail before the brief's first designs, or for one factor, whose design is its two levels;
+  // nor for designs scored on their power alone (bootstrap._powers), whose list already shows all there is.
+  $("#compare").hidden = !c?.result || mixture || Boolean(c.levels) || !c.result.measures.length;
   $("#search").hidden = !current || !c.waiting?.length;
   let note = null;
   const holding = limitsHold();
@@ -2479,10 +2498,15 @@ function pasteResults(e) {
  */
 function showChoicesFor(design) {
   const mixture = isMixture(design.spec.design_type);
+  // Past MAX_INTERACTION_FACTORS factors, Learn offers no model with every two-factor interaction, and says why.
+  const k = design.spec.factors.length;
+  for (const option of $("#model").options) option.disabled = screensOnly(k) && INTERACTION_MODELS.includes(option.value);
+  $("#model-many").textContent = screeningSentence(k, "learn");
+  $("#model-many").hidden = !screensOnly(k);
   for (const [id, fallback] of [["#scenario", mixture ? "blend" : "reactor"], ["#model", ""]]) {
     const select = $(id);
     for (const option of select.options) option.hidden = option.value !== "" && mixture !== ("mixture" in option.dataset);
-    if (select.selectedOptions[0]?.hidden) select.value = fallback;
+    if (select.selectedOptions[0]?.hidden || select.selectedOptions[0]?.disabled) select.value = fallback;
   }
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
   $("#truth-units").textContent = `In ${mixture ? "proportions" : "coded units"}. The analysis estimates these coefficients from the noisy results.`;
@@ -3523,7 +3547,11 @@ const tickedTerms = () => [...document.querySelectorAll("#term-list input:checke
 function renderTermList(ticked) {
   const chosen = new Set(ticked.map((term) => JSON.stringify(term)));
   const groups = new Map();
-  for (const { term, label, group } of candidateTerms(state.design.spec.factors)) {
+  const factors = state.design.spec.factors;
+  // Past MAX_INTERACTION_FACTORS factors the list holds the interactions the reader names, with the boxes to name one.
+  $("#term-adder").hidden = !screensOnly(factors.length);
+  if (screensOnly(factors.length)) fillTermAdder(factors.map((f) => f.name));
+  for (const { term, label, group } of candidateTerms(factors, ticked)) {
     const tick = el("input", "", "");
     tick.type = "checkbox";
     tick.value = JSON.stringify(term);
@@ -3540,6 +3568,30 @@ function renderTermList(ticked) {
       return [el("h4", "", group), row];
     }),
   );
+}
+
+/** List the factors in the two boxes that name an interaction, keeping each box's factor when it is still there. */
+function fillTermAdder(names) {
+  for (const [id, start] of [["#term-first", names[0]], ["#term-second", names[1]]]) {
+    const select = $(id);
+    const before = select.value;
+    select.replaceChildren(...names.map((name) => Object.assign(el("option", "", name), { value: name })));
+    select.value = names.includes(before) ? before : start;
+  }
+  showTermAdder();
+}
+
+/** A factor has no interaction with itself: the button adds one only when the two boxes name different factors. */
+const showTermAdder = () => ($("#add-term").disabled = $("#term-first").value === $("#term-second").value);
+
+/** Add the interaction the two boxes name to the terms ticked, and fit the model with it. */
+function addNamedTerm() {
+  const names = state.design.spec.factors.map((f) => f.name);
+  const term = interactionOf($("#term-first").value, $("#term-second").value, names);
+  if (!term) return;
+  const ticked = tickedTerms().filter((t) => JSON.stringify(t) !== JSON.stringify(term));
+  renderTermList([...ticked, term]);
+  $("#term-list").dispatchEvent(new Event("change"));
 }
 
 /** Start the list of terms from the model chosen before, or the one the design was made for. */
@@ -4757,7 +4809,7 @@ function readDraft() {
   const responses = (Array.isArray(draft.responses) ? draft.responses.slice(0, MAX_RESPONSES - 1) : [])
     .filter((one) => one && typeof one === "object")
     .map((one) => fields(one, ["label", "units", "goal", "target"]));
-  const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, 12) : [])
+  const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, MAX_FACTORS) : [])
     .filter((f) => f && typeof f === "object")
     .map((f) =>
       f.type === "categorical" && Array.isArray(f.levels)
@@ -5617,6 +5669,9 @@ $("#term-list").onchange = () => {
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
+$("#term-first").onchange = showTermAdder;
+$("#term-second").onchange = showTermAdder;
+$("#add-term").onclick = addNamedTerm;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
     const code = button.parentElement.querySelector("code");

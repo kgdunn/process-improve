@@ -175,6 +175,7 @@
           <button type="button" id="add-factor" class="link">+ Add <span class="term" data-term="factor">factor</span></button>
           <button type="button" id="add-categorical" class="link">+ Add <span class="term"
             data-term="categorical">categorical factor</span></button>
+          <span id="factors-full" class="hint" hidden>A study has at most 40 factors.</span>
         </p>
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
         <details id="limits" class="known limits">
@@ -225,6 +226,8 @@
             </p>
             <div id="limit-proposals" class="proposals" aria-live="polite"></div>
           </div>
+          <!-- In place of the corners past bootstrap.PROBE_FACTORS numeric factors: why there is no table to mark. -->
+          <p id="corners-many" class="hint" hidden></p>
         </details>
       </section>
 
@@ -268,13 +271,13 @@
               <select id="design-type" autocomplete="off">
                 <option value="full_factorial" data-options="n_center_points n_replicates n_blocks" data-min-factors="1" data-max-factors="7"
                   data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
-                <option value="fractional_factorial" data-options="n_center_points resolution n_replicates n_blocks" data-min-factors="3" data-max-factors="11"
+                <option value="fractional_factorial" data-options="n_center_points resolution n_replicates n_blocks" data-min-factors="3" data-max-factors="24"
                   data-hint="A fraction of the full factorial; its resolution says what is aliased with what.">Fractional factorial (2-level)</option>
-                <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="11"
+                <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
                   data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
-                <option value="taguchi" data-options="n_levels n_replicates n_blocks" data-min-factors="2" data-max-factors="12"
-                  data-hint="Main effects in a standard array of 4 to 36 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
-                <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="12"
+                <option value="taguchi" data-options="n_levels n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
+                  data-hint="Main effects in a standard array of 4 to 81 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
+                <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="40"
                   data-hint="Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
                 <option value="box_behnken" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="7" selected
                   data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
@@ -286,7 +289,7 @@
                   data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
                 <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
                   data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
-                <option value="given" data-options="" data-min-factors="1" data-max-factors="12" hidden
+                <option value="given" data-options="" data-min-factors="1" data-max-factors="40" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
                 <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
                 <optgroup label="Mixtures: proportions that sum to 1">
@@ -489,9 +492,17 @@
             </select>
           </label>
         </div>
+        <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors: why the models with every interaction are not offered. -->
+        <p id="model-many" class="hint" hidden></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
           <div id="term-list"></div>
+          <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors, the list holds the interactions the reader names here. -->
+          <p id="term-adder" class="term-adder" hidden>Name an interaction:
+            <select id="term-first" aria-label="The interaction's first factor"></select> ·
+            <select id="term-second" aria-label="The interaction's second factor"></select>
+            <button type="button" id="add-term" class="link">Add it to the model</button>
+          </p>
         </fieldset>
         <div id="analysis" hidden></div>
         <!-- The numbers a catalog study's source prints for the model fitted, beside the page's own (app.js renderPrinted). -->
