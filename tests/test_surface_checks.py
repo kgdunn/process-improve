@@ -1,16 +1,26 @@
-"""Checks on a fitted response surface before it is read: third-order contrasts and pooled pure error (#797)."""
+"""Checks on a fitted response surface before it is read (#797).
+
+The note on a fit too imprecise to read, third-order contrasts and pooled pure error.
+"""
 
 from __future__ import annotations
 
 import doctest
 import importlib
 import math
+import warnings
 from collections.abc import Callable
 
 import pandas as pd
 import pytest
 
-from process_improve.experiments import pooled_pure_error, third_order_contrasts
+from process_improve.experiments import (
+    Factor,
+    analyze_experiment,
+    generate_design,
+    pooled_pure_error,
+    third_order_contrasts,
+)
 
 #: Box, Hunter and Hunter, Table 15.4: the composite design in two blocks, the cube with two centre runs and then
 #: the axial runs at plus or minus 1.4 (coded, as printed) with two more. The response is the yield, %.
@@ -27,6 +37,50 @@ _FIRST = pd.DataFrame(
     columns=["time", "temperature", "y"],
 )
 _FACTORS = ["time", "temperature"]
+
+
+class TestThePrecisionNote:
+    """Box and Wetz: read a fitted surface only when its fitted values change by several standard errors (#797 R1)."""
+
+    @staticmethod
+    def _summary(runs: pd.DataFrame, **options: object) -> dict:
+        return analyze_experiment(runs, response_column="y", analysis_type="coefficients", **options)["model_summary"]
+
+    def test_bhh_exercise_15_8_the_plane_is_estimated_well_enough_to_read(self) -> None:
+        """The fitted values span 2(2.35 + 4.50) = 13.7, which is 14 times their average standard error, sqrt(0.964)."""
+        summary = self._summary(_FIRST, model="main_effects", sigma=1.5)
+        assert summary["adequate_precision"] == pytest.approx(13.7 / math.sqrt(3 * 1.5**2 / 7))
+        assert "model_note" not in summary
+
+    def test_the_same_plane_against_ten_times_the_noise_is_noted(self) -> None:
+        """With sigma = 10 the span of 13.7 is 2.09 average standard errors, below Design-Expert's 4."""
+        note = self._summary(_FIRST, model="main_effects", sigma=10.0)["model_note"]
+        assert note.startswith("Adequate precision is 2.09: the fitted values change over the runs by less than 4")
+        assert "not estimated precisely enough to read its contours or its optimum" in note
+
+    def test_without_a_sigma_the_ratio_is_read_against_the_residual(self) -> None:
+        """The residual's s = 1.59 leaves the plane at 13.2 standard errors: no note."""
+        summary = self._summary(_FIRST, model="main_effects")
+        assert summary["adequate_precision"] == pytest.approx(13.16, abs=0.01)
+        assert "model_note" not in summary
+
+    def test_a_saturated_fit_has_no_standard_error_to_compare_with(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # statsmodels divides by the 0 residual df
+            summary = self._summary(_FIRST.iloc[:4], model="interactions")
+        assert math.isnan(summary["adequate_precision"])
+        assert "model_note" not in summary
+
+    def test_it_follows_the_note_on_the_default_model(self) -> None:
+        """Twelve Plackett-Burman runs fall back to main effects; read against sigma = 100 they are noise as well."""
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(1, 9)]
+        design = generate_design(factors, design_type="plackett_burman", n_center_points=0).design
+        runs = design.drop(columns="RunOrder").assign(y=range(12))
+        with pytest.warns(UserWarning, match="main-effects model was fitted instead"):
+            note = self._summary(runs, sigma=100.0)["model_note"]
+        fallback, _, precision = note.partition(" Adequate precision is ")
+        assert fallback.endswith("to choose the interactions the data support.")
+        assert precision.startswith("0.104: ")
 
 
 class TestThirdOrderContrasts:

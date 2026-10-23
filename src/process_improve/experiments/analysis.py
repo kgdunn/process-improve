@@ -41,6 +41,7 @@ from process_improve.experiments._analyses._shared import (
     _sums_of_squares,
     _without_blocks,
     average_fitted_variance,
+    precision_note,
     with_prior_sigma,
 )
 from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
@@ -1203,9 +1204,11 @@ def analyze_experiment(  # noqa: PLR0913
         - ``r_squared`` - R^2 of the fit.
         - ``r_squared_adj`` - adjusted R^2.
         - ``r_squared_pred`` - prediction R^2 (leave-one-out style).
-        - ``adequate_precision`` - signal-to-noise ratio (>= 4 is
-          considered adequate): the range of the fitted values over the square root of
-          ``average_fitted_variance``.
+        - ``adequate_precision`` - signal-to-noise ratio: the range of the fitted values
+          over the square root of ``average_fitted_variance``. Box and Wetz's check reads a
+          fitted surface only when its fitted values change by several standard errors;
+          below 4, Design-Expert's threshold for this ratio, ``model_note`` says the surface
+          is not estimated precisely enough to read its contours or its optimum.
         - ``average_fitted_variance`` - the average variance of the fitted values over the
           runs, p s²/n with s² the residual mean square (p sigma²/n with a ``sigma``): the
           runs' leverages sum to p, the number of terms the model estimates, whatever the
@@ -1244,6 +1247,9 @@ def analyze_experiment(  # noqa: PLR0913
           and ``r_squared_without_blocks``, ``r_squared_adj_without_blocks`` and
           ``r_squared_pred_without_blocks``: the three R-squared values over the total less
           the blocks' sum of squares, as Design-Expert reports them.
+        - ``model_note``, only when there is something to say: how the default model was
+          changed to one the design can estimate (see ``model``), and that
+          ``adequate_precision`` is below 4.
 
         Notes from individual analyses are kept apart, as ``anova_note``,
         ``effects_note``, ``lenth_note``, ``significance_note`` and
@@ -1353,11 +1359,13 @@ def analyze_experiment(  # noqa: PLR0913
         # So the result can be passed to optimize_responses as a fitted model as it is.
         "response_name": reported_response,
         "factor_names": list(factor_cols),
-        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
-        | _without_blocks(ols_result, blocks)
-        | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
-        | ({"model_note": model_note} if model_note else {})
-        | _fitted_noise(ols_result, sigma),
+        "model_summary": _with_model_note(
+            _model_summary(ols_result, formula, reported_response, model, transform_info)
+            | _without_blocks(ols_result, blocks)
+            | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
+            | _fitted_noise(ols_result, sigma),
+            model_note,
+        ),
     }
 
     fit = _Fit(
@@ -1419,6 +1427,16 @@ def _fitted_noise(ols_result: RegressionResultsWrapper, sigma: float | None) -> 
         "adequate_precision": _compute_adequate_precision(ols_result, variance),
         "average_fitted_variance": average_fitted_variance(ols_result, variance),
     }
+
+
+def _with_model_note(summary: dict[str, Any], model_note: str | None) -> dict[str, Any]:
+    """Return the model summary with its ``model_note``: why the default model changed, and a fit too imprecise to read.
+
+    The second is :func:`precision_note` of the summary's ``adequate_precision`` (#797 R1), read
+    against the prior sigma when one is given.
+    """
+    notes = [note for note in (model_note, precision_note(summary["adequate_precision"])) if note]
+    return summary | ({"model_note": " ".join(notes)} if notes else {})
 
 
 def _check_options(df_method: str, sigma: float | None) -> None:
