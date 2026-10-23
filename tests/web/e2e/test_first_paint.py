@@ -168,14 +168,16 @@ def test_without_a_built_example_the_worked_example_runs_live(context, site, con
     page.wait_for_function(f"document.querySelectorAll('#charts .js-plotly-plot').length === {EXAMPLE_CHARTS}")
     settled(page)
     fns = [c["fn"] for c in calls(page)]
-    # The next step is asked for once the best settings are known, before the charts are drawn.
-    assert fns[-6:] == [
+    # The next step is asked for once the best settings are known, before the charts are drawn; the what-if
+    # panel's fits come last, so it opens at the best settings.
+    assert fns[-7:] == [
         "api_make_design",
         "api_simulate",
         "api_analyze_runs",
         "api_best_settings",
         "api_next_runs",
         "api_plots",
+        "api_predictors",
     ]
     assert page.text_content("#analysis .equation") == first_paint["analysis"]["equation"]
     assert phase(page) == "learn"

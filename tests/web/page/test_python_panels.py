@@ -9,6 +9,7 @@ would run it.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -944,3 +945,63 @@ def test_the_code_fits_a_factor_nested_in_another_as_the_page_does(api, node):
     assert_same_fit(namespace, analysis)
     shown = namespace["prediction"]["predictions"][0]
     assert shown["predicted"] == pytest.approx(best["predicted"], abs=1e-6)
+
+
+# --------------------------------------------------------------------------- what if
+def printed_predictions(code: str, names: list[str]) -> dict[str, dict]:
+    """Run code as a reader would, and read back each response's prediction it prints: ``Yield {...}``."""
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        exec(code, {})  # noqa: S102 - the page's own code, the subject of this test
+    lines = (line.split(" ", 1) for line in out.getvalue().splitlines())
+    return {name: ast.literal_eval(rest) for name, rest in lines if name in names}
+
+
+def what_if_panel(node: str, held: dict, results: dict, reply: dict, settings: dict) -> tuple:
+    """Return the what-if panel's code at the settings, and what the page's own JavaScript predicts there."""
+    module = source("best.js")
+    [columns] = javascript(node, module, [("columnsAt", [reply["factors"], settings])])
+    fits = [r for r in reply["responses"] if "terms" in r]
+    shown = javascript(node, module, [("predictAt", [fit, columns]) for fit in fits])
+    formulas = {fit["name"]: fit["formula"] for fit in fits}
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("whatIfCode", [held["spec"], formulas, columns, settings]),
+    )
+    return code, dict(zip(formulas, shown, strict=True))
+
+
+def assert_same_predictions(printed: dict[str, dict], shown: dict[str, dict]) -> None:
+    """Assert that the code prints each response's prediction and intervals as the panel shows them."""
+    assert set(printed) == set(shown)
+    for name, at in shown.items():
+        p = printed[name]
+        assert p["predicted"] == pytest.approx(at["predicted"], abs=1e-9), name
+        assert [p["ci_low"], p["ci_high"]] == pytest.approx(at["confidence"], abs=1e-9), name
+        assert [p["pi_low"], p["pi_high"]] == pytest.approx(at["prediction"], abs=1e-9), name
+
+
+@pytest.mark.slow
+def test_the_what_if_code_predicts_each_response_as_the_panel_shows_it(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    results["Cost"] = [None, *results["Cost"][1:]]  # a run still to do for Cost: its model leaves it out
+    request = {**held, **sent_of(results), "models": {"Cost": "interactions"}}
+    reply = api.ok("api_predictors", request)
+    code, shown = what_if_panel(node, held, results, reply, {"T": 181.5, "P": 1.4, "F": 12.0})
+    assert_same_predictions(printed_predictions(code, list(shown)), shown)
+
+
+def test_the_what_if_code_sets_a_factor_of_several_levels_as_its_contrasts(api, node):
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [catalyst, FACTORS[0]], "n_replicates": 2, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    sheet = run_sheet(held)
+    y = (50 + sheet["Catalyst"].map({"A": 0.0, "B": 3.0, "C": -3.0}) + (sheet["T"] - 175) / 12.5).tolist()
+    y = [round(v + 0.1 * (i % 3), 3) for i, v in enumerate(y)]
+    reply = api.ok("api_predictors", {**held, "responses": y, "models": {"y": "interactions"}})
+    code, shown = what_if_panel(node, held, {"y": y}, reply, {"Catalyst": "B", "T": 160.0})
+    assert '"Catalyst_L1": 0, "Catalyst_L2": 1' in code, "level B as its contrasts"
+    assert_same_predictions(printed_predictions(code, list(shown)), shown)

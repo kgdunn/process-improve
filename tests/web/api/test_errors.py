@@ -304,6 +304,22 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     ),
     # The design's settings.
     "unknown design": ("api_make_design", _make(design_type="rocket"), "Unknown design type 'rocket'."),
+    # What if: each response's fit, and the limits the reader's settings break.
+    "models that are not models": (
+        "api_predictors",
+        _runs(models=["quadratic"]),
+        "The page sent models for the responses this page did not write.",
+    ),
+    "settings that are not settings": (
+        "api_outside_limits",
+        lambda ex: {"spec": ex["held"]["spec"], "settings": [175, 2, 15]},
+        "The page sent settings this page did not write.",
+    ),
+    "a setting past its range": (
+        "api_outside_limits",
+        lambda ex: {"spec": ex["held"]["spec"], "settings": {"T": 210, "P": 2, "F": 15}},
+        "Set T to a number from 150 to 200.",
+    ),
     # The settings that balance the responses, and the goals the reader sets for them.
     "goals that are not goals": (
         "api_balance",

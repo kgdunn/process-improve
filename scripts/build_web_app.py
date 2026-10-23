@@ -163,6 +163,7 @@ def worked_example() -> dict[str, Any]:
     analysis = call("api_analyze_runs", request)
     best = call("api_best_settings", request)  # the page finds the best settings for the goal once the model is fitted
     following = call("api_next_runs", request)  # and then what the results call for next
+    models = {design["spec"]["response"]: inputs["model"]}  # the what-if panel's fit of each response
     return {
         "version": version("process-improve"),
         "inputs": inputs,
@@ -171,6 +172,7 @@ def worked_example() -> dict[str, Any]:
         "analysis": analysis,
         "best": best,
         "next": following,
+        "predictors": call("api_predictors", {**request, "models": models}),
         "plots": call("api_plots", {**request, **({"best": best["coded"]} if best.get("coded") else {})}),
         "comparison": comparison,
     }

@@ -55,6 +55,14 @@ import {
   withConfirmationRuns,
   withUnit,
   withoutConfirmationRuns,
+  WHAT_IF_BACK,
+  columnsAt,
+  predictAt,
+  settingsFit,
+  sliderStep,
+  whatIfRows,
+  whatIfSentences,
+  whatIfStart,
 } from "../../../web/best.js";
 import { CONFIRMATION as PYTHON_CONFIRMATION, fittedRuns } from "../../../web/python.js";
 
@@ -667,5 +675,124 @@ describe("the settings that balance the responses", () => {
     assert.deepEqual(IMPORTANCES, [1, 2, 3, 4, 5]);
     assert.equal(IMPORTANCE, 3);
     assert.equal(SHAPE, "even");
+  });
+});
+
+// What if: tests/web/api/test_what_if.py holds predictAt to statsmodels and to the best settings; these hold its arithmetic
+// on a fit small enough to work out by hand, and the panel's words.
+describe("what if", () => {
+  /** T numeric over 150 to 200, Catalyst of three levels as bootstrap.predictors codes them. */
+  const PREDICTED = [
+    { name: "T", kind: "numeric", low: 150, high: 200 },
+    {
+      name: "Catalyst",
+      kind: "categorical",
+      levels: ["A", "B", "C"],
+      columns: [
+        { Catalyst_I1: 1, Catalyst_I2: 0, Catalyst_I3: 0, Catalyst_L1: 1, Catalyst_L2: 0 },
+        { Catalyst_I1: 0, Catalyst_I2: 1, Catalyst_I3: 0, Catalyst_L1: 0, Catalyst_L2: 1 },
+        { Catalyst_I1: 0, Catalyst_I2: 0, Catalyst_I3: 1, Catalyst_L1: -1, Catalyst_L2: -1 },
+      ],
+    },
+  ];
+  /** y = 10 + 2 T + 3 T², fitted to runs whose (X'X)^-1 is a quarter of the identity, with s² = 4 on 6 df. */
+  const FIT = {
+    name: "y",
+    label: "Yield",
+    units: "%",
+    terms: [[], ["T"], ["T", "T"]],
+    coefficients: [10, 2, 3],
+    inverse: [
+      [0.25, 0, 0],
+      [0, 0.25, 0],
+      [0, 0, 0.25],
+    ],
+    mse: 4,
+    t: 2.447,
+    df: 6,
+    level: 0.95,
+    max_leverage: 0.5,
+  };
+
+  test("a numeric setting is coded from its range, a level as the columns Python wrote for it", () => {
+    assert.deepEqual(columnsAt(PREDICTED, { T: 187.5, Catalyst: "C" }), {
+      T: 0.5,
+      Catalyst_I1: 0,
+      Catalyst_I2: 0,
+      Catalyst_I3: 1,
+      Catalyst_L1: -1,
+      Catalyst_L2: -1,
+    });
+  });
+
+  test("the prediction, its intervals and its leverage, as _FittedModel.at works them out", () => {
+    const at = predictAt(FIT, { T: 1 });
+    assert.equal(at.predicted, 15); // 10 + 2 + 3
+    assert.equal(at.leverage, 0.75); // a row of ones, each term a quarter
+    const mean = 2.447 * Math.sqrt(4 * 0.75);
+    const single = 2.447 * Math.sqrt(4 * 1.75);
+    assert.deepEqual(at.confidence, [15 - mean, 15 + mean]);
+    assert.deepEqual(at.prediction, [15 - single, 15 + single]);
+    assert.equal(at.extrapolating, true, "0.75 is above the runs' 0.5");
+    assert.equal(predictAt(FIT, { T: 0 }).extrapolating, false, "the center's 0.25 is within");
+  });
+
+  test("a fit with no runs left over predicts with no interval", () => {
+    const at = predictAt({ ...FIT, mse: null, t: null, df: 0 }, { T: 0 });
+    assert.deepEqual([at.predicted, at.confidence, at.prediction], [10, null, null]);
+  });
+
+  test("the panel opens at the balanced settings, else the best, else the center of the ranges", () => {
+    const balance = { settings: [{ name: "T", value: 160 }, { name: "Catalyst", value: "B" }] };
+    const best = { settings: [{ name: "T", value: 190 }, { name: "Catalyst", value: "A" }] };
+    assert.deepEqual(whatIfStart(PREDICTED, balance, best), { from: "balanced", settings: { T: 160, Catalyst: "B" } });
+    assert.deepEqual(whatIfStart(PREDICTED, null, best), { from: "best", settings: { T: 190, Catalyst: "A" } });
+    assert.deepEqual(whatIfStart(PREDICTED, null, { goal: "learn" }), { from: "center", settings: { T: 175, Catalyst: "A" } });
+    assert.equal(WHAT_IF_BACK.center, "Back to the center of the ranges");
+  });
+
+  test("settings are kept while they fit the factors", () => {
+    assert.equal(settingsFit(PREDICTED, { T: 160, Catalyst: "B" }), true);
+    assert.equal(settingsFit(PREDICTED, { T: 210, Catalyst: "B" }), false, "outside the range");
+    assert.equal(settingsFit(PREDICTED, { T: 160, Catalyst: "D" }), false, "a level the factor lost");
+    assert.equal(settingsFit(PREDICTED, { T: 160 }), false, "a factor added");
+    assert.equal(settingsFit(PREDICTED, null), false);
+  });
+
+  test("a slider steps by about a hundredth of the range", () => {
+    assert.deepEqual(
+      [
+        [150, 200],
+        [1, 3],
+        [0, 0.37],
+        [0, 950],
+      ].map(([low, high]) => sliderStep({ low, high })),
+      [0.5, 0.02, 0.005, 10],
+    );
+  });
+
+  test("a row per response, and what the table cannot say", () => {
+    const at = predictAt(FIT, { T: 1 });
+    const responses = [
+      { ...FIT, at },
+      { name: "Cost", label: "Cost", units: "$/kg", waiting: true },
+      { name: "Purity", label: "Purity", units: "%", error: "The term Supplier·Batch needs Supplier in the model too." },
+    ];
+    assert.deepEqual(whatIfRows(responses), [
+      ["Yield", "15%", "10.76 to 19.24%", "8.526 to 21.47%", "0.75, above 0.5"],
+      ["Cost", "No results yet: enter them in Run.", "", "", ""],
+      ["Purity", "The term Supplier·Batch needs Supplier in the model too.", "", "", ""],
+    ]);
+    const broken = [{ index: 1, expression: "T + 25 * P <= 215" }];
+    assert.deepEqual(whatIfSentences(responses, broken), [
+      "These settings break your limit 2, T + 25 * P <= 215.",
+      "These settings lie beyond the runs for Yield's model: confirm its prediction with a run.",
+    ]);
+    const bare = { ...FIT, label: "Cost", at: predictAt({ ...FIT, mse: null, t: null }, { T: 0 }) };
+    assert.deepEqual(whatIfRows([bare])[0].slice(2, 4), ["none", "none"]);
+    assert.deepEqual(whatIfSentences([{ ...FIT, at }, { ...bare, at: { ...bare.at, extrapolating: true } }]), [
+      "These settings lie beyond the runs for the models of Yield and Cost: confirm their predictions with a run.",
+      "No runs are left to estimate the noise of Cost's model, so it gives no interval.",
+    ]);
   });
 });

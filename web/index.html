@@ -568,6 +568,21 @@
             <button type="button" class="link copy">Copy the code</button>
           </details>
         </section>
+        <!-- What if (app.js, with best.js; bootstrap.predictors): the reader sets each factor, and every response's model
+             predicts there, with its intervals and its leverage, in the page's own JavaScript, so it follows each move. -->
+        <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
+          <h3 id="h-what-if">What if</h3>
+          <p class="hint">Move a setting, and each response's prediction follows.</p>
+          <div id="what-if-settings" class="what-if-settings"></div>
+          <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
+          <div id="what-if-out"></div>
+          <details class="python" id="py-what-if" hidden>
+            <summary>Show the Python code of these predictions</summary>
+            <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
         <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
              with its ranges moved the way the best settings point, and runs to add to this study, each for what its
              design cannot say yet. -->
