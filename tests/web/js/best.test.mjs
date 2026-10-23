@@ -786,12 +786,12 @@ describe("what if", () => {
     const broken = [{ index: 1, expression: "T + 25 * P <= 215" }];
     assert.deepEqual(whatIfSentences(responses, broken), [
       "These settings break your limit 2, T + 25 * P <= 215.",
-      "These settings lie beyond the runs for Yield's model, so its prediction leans on the model here: confirm it with a run.",
+      "These settings lie beyond the runs for Yield's model: confirm its prediction with a run.",
     ]);
     const bare = { ...FIT, label: "Cost", at: predictAt({ ...FIT, mse: null, t: null }, { T: 0 }) };
     assert.deepEqual(whatIfRows([bare])[0].slice(2, 4), ["none", "none"]);
     assert.deepEqual(whatIfSentences([{ ...FIT, at }, { ...bare, at: { ...bare.at, extrapolating: true } }]), [
-      "These settings lie beyond the runs for the models of Yield and Cost, so their predictions lean on the models here: confirm them with a run.",
+      "These settings lie beyond the runs for the models of Yield and Cost: confirm their predictions with a run.",
       "No runs are left to estimate the noise of Cost's model, so it gives no interval.",
     ]);
   });

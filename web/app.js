@@ -4237,7 +4237,7 @@ function whatIfControl(f, units) {
   const box = el("input", "", "");
   Object.assign(box, { type: "number", name: "number", min: String(low), max: String(high), step: "any" });
   box.setAttribute("aria-label", withUnits(f.name, units));
-  row.append(name, slider, box, el("span", "hint", span));
+  row.append(name, slider, box, el("span", "what-if-range", span));
   return row;
 }
 

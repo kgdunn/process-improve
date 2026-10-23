@@ -46,7 +46,9 @@ BUDGET = {
     "a limit proposed from a corner": 270,
     "a new run sheet": 136,  # with the footer's words on Feedback
     "practising": 150,
-    "the worked example's analysis": 270,  # with the best settings for its goal, which add some 55 words
+    # With the best settings for its goal, which add some 55 words, and the what-if panel, some 23: its hint, and its
+    # warning that the best settings lie beyond the runs.
+    "the worked example's analysis": 310,
     "the comparison in detail": 175,
 }
 

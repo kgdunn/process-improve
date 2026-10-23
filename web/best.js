@@ -669,9 +669,9 @@ export function whatIfSentences(responses, broken = []) {
   const said = broken.map((limit) => `These settings break your limit ${limit.index + 1}, ${limit.expression}.`);
   const beyond = responses.filter((r) => r.at?.extrapolating).map((r) => r.label);
   if (beyond.length === 1) {
-    said.push(`These settings lie beyond the runs for ${beyond[0]}'s model, so its prediction leans on the model here: confirm it with a run.`);
+    said.push(`These settings lie beyond the runs for ${beyond[0]}'s model: confirm its prediction with a run.`);
   } else if (beyond.length) {
-    said.push(`These settings lie beyond the runs for the models of ${listed(beyond)}, so their predictions lean on the models here: confirm them with a run.`);
+    said.push(`These settings lie beyond the runs for the models of ${listed(beyond)}: confirm their predictions with a run.`);
   }
   const bare = responses.filter((r) => r.at && !r.at.confidence).map((r) => r.label);
   if (bare.length) {

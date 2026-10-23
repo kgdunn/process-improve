@@ -829,11 +829,12 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .what-if-factor input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
 .what-if-factor input[type="number"] { width: 100%; }
 .what-if-factor select { grid-column: 2 / span 3; justify-self: start; }
+.what-if-range { color: var(--muted); font-size: 0.9rem; }
 .what-if table.data td:nth-child(n + 3) { text-align: left; }
 @media (max-width: 600px) {
   .what-if-settings { grid-template-columns: minmax(0, 1fr) 6em; }
   .what-if-name, .what-if-factor select { grid-column: 1 / -1; }
-  .what-if-factor .hint { display: none; }
+  .what-if-range { display: none; }
 }
 
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
