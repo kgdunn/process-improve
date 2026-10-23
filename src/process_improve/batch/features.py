@@ -336,7 +336,7 @@ def f_area(
         if isinstance(time_axis, pd.DatetimeIndex | pd.TimedeltaIndex):
             # A plain diff gives timedelta64 widths, which made the area a timedelta that a
             # float column cannot hold. Seconds keep it a number in a stated unit.
-            half_base_factor = np.asarray((time_axis[1:] - time_axis[:-1]).total_seconds())
+            half_base_factor = np.asarray(pd.TimedeltaIndex(time_axis[1:] - time_axis[:-1]).total_seconds())
         else:
             half_base_factor = np.diff(time_axis)
         for tag in tags:

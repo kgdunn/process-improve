@@ -215,7 +215,7 @@ def test_sum_features(batch_data: pd.DataFrame) -> None:
 
 @pytest.mark.parametrize("as_index", [False, True], ids=["time-column", "time-index"])
 def test_f_area_on_a_datetime_axis_is_in_value_seconds(as_index: bool) -> None:
-    """A datetime time axis is measured in seconds: 2.0 for 3 minutes gives 360, not a timedelta (#513)."""
+    """A datetime or timedelta axis is measured in seconds: 2.0 for 3 minutes gives 360, not a timedelta (#513)."""
     data = pd.DataFrame(
         {
             "Batch": [1, 1, 1, 1],
@@ -228,8 +228,12 @@ def test_f_area_on_a_datetime_axis_is_in_value_seconds(as_index: bool) -> None:
     area = features.f_area(data, time_tag="time", tags=["temp"], batch_col="Batch")
     assert area.iloc[0, 0] == pytest.approx(360.0)
 
-    minutes = data.reset_index() if as_index else data
-    minutes = minutes.assign(time=[0.0, 1.0, 2.0, 3.0])
+    in_columns = data.reset_index() if as_index else data
+    elapsed = in_columns.assign(time=pd.to_timedelta([0, 1, 2, 3], unit="min"))
+    assert features.f_area(elapsed, time_tag="time", tags=["temp"], batch_col="Batch").iloc[0, 0] == pytest.approx(
+        360.0
+    )
+    minutes = in_columns.assign(time=[0.0, 1.0, 2.0, 3.0])
     assert features.f_area(minutes, time_tag="time", tags=["temp"], batch_col="Batch").iloc[0, 0] == pytest.approx(6.0)
 
 
