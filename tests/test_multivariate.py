@@ -29,7 +29,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
 from process_improve.multivariate._common import _nz
-from process_improve.multivariate._pca import _leverage_corrected_press, _pca_ekf_press
+from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
@@ -950,6 +950,17 @@ def test_pca_select_n_components_ekf_recovers_known_rank() -> None:
     # PRESS rises again past the true rank when extra components fit noise.
     a_star = int(np.argmin(result.press.to_numpy())) + 1
     assert a_star <= true_rank + 1
+
+
+@pytest.mark.parametrize("shape", [(12, 30), (30, 12), (9, 9), (1, 5), (5, 1)])
+@pytest.mark.parametrize("rank", [1, 3, 50])
+def test_low_rank_reconstruction_matches_the_truncated_svd(shape: tuple[int, int], rank: int) -> None:
+    """The Gram-matrix projector gives the truncated SVD's reconstruction, wide or tall, rank capped at full."""
+    X = np.random.default_rng(4).standard_normal(shape)
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    r = min(rank, *shape)
+    expected = (U[:, :r] * S[:r]) @ Vt[:r]
+    np.testing.assert_allclose(_low_rank_reconstruction(X, rank), expected, atol=1e-10)
 
 
 def test_pca_select_n_components_ekf_handles_missing_cells() -> None:
