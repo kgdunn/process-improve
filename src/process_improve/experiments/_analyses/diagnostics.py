@@ -27,7 +27,9 @@ _NOT_IN_RUN_ORDER: dict[str, Any] = {
 }
 
 
-def _in_run_order(residuals: np.ndarray, run_order: Sequence[float] | None) -> tuple[dict[str, Any], str | None]:
+def _in_run_order(
+    residuals: np.ndarray, run_order: pd.Series | Sequence[float] | None
+) -> tuple[dict[str, Any], str | None]:
     """Return the residuals' lag-1 autocorrelation and Durbin-Watson statistic in run order, and a note.
 
     The run order is known when ``run_order`` gives each residual a distinct number; the
@@ -38,7 +40,7 @@ def _in_run_order(residuals: np.ndarray, run_order: Sequence[float] | None) -> t
     ----------
     residuals : numpy.ndarray
         The residuals, in the rows' order.
-    run_order : Sequence[float] or None
+    run_order : pandas.Series, Sequence[float] or None
         Each residual's position in the run order, or ``None`` when it is not known.
 
     Returns
@@ -60,7 +62,7 @@ def _in_run_order(residuals: np.ndarray, run_order: Sequence[float] | None) -> t
     in_order = residuals[np.argsort(order, kind="stable")]
     if np.ptp(in_order) == 0:  # residuals without spread have no autocorrelation (0/0)
         return {**_NOT_IN_RUN_ORDER, "known": True}, None
-    found = autocorrelation(in_order, lags=1)
+    found = autocorrelation(in_order.tolist(), lags=1)
     r1, std_error = found["autocorrelation"][0], found["std_error"]
     # Box, Hunter and Hunter (1978) randomize the run order because successive runs of a process are
     # often serially correlated (r1 = -0.29 in their record of 210 yields, p. 63), and randomizing is
@@ -84,7 +86,7 @@ def _in_run_order(residuals: np.ndarray, run_order: Sequence[float] | None) -> t
 
 
 def _run_residual_diagnostics(
-    ols_result: RegressionResultsWrapper, run_order: Sequence[float] | None = None
+    ols_result: RegressionResultsWrapper, run_order: pd.Series | Sequence[float] | None = None
 ) -> dict[str, Any]:
     """Residual diagnostics: normality, independence, homoscedasticity.
 
@@ -114,7 +116,7 @@ def _run_residual_diagnostics(
     ----------
     ols_result : RegressionResultsWrapper
         The least-squares fit.
-    run_order : Sequence[float] or None
+    run_order : pandas.Series, Sequence[float] or None
         Each residual's position in the order the runs were made, in the order of the
         residuals; ``None`` when it is not known.
 
