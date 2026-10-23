@@ -6769,6 +6769,111 @@ def _crossings(
     return ends
 
 
+# --------------------------------------------------------------------------- what if: the models at any settings
+def predictors(request: dict) -> dict:
+    """Return each response's fitted model as numbers, so the page predicts at any settings without asking again.
+
+    Each response with results is fitted with its own model (``models``, by its column; the design's
+    without one) as Learn fits it (:func:`_fitted`). Its reply holds what :meth:`_FittedModel.at`
+    needs: each term as the columns it multiplies (``I(T ** 2)`` as ``T`` twice), the coefficients,
+    ``(X'X)^-1``, the residual mean square and the t value of 95% intervals (both None without
+    residual degrees of freedom), and the largest leverage of the runs fitted. The page
+    (``predictAt`` in ``web/logic.js``) then gives the prediction, its intervals and its leverage
+    as the reader moves a setting, at once. A block contrast is 0 in the average block, where the
+    page predicts, so its term, its coefficient and its row and column of ``(X'X)^-1`` are left out:
+    they add nothing there.
+
+    ``factors`` says how a setting becomes the columns, the same for every response: a numeric
+    factor is coded from its range, and a categorical factor's level is the columns
+    :func:`_held_columns` writes for it, its contrasts and its indicators. A response without
+    results is ``waiting``; one whose model cannot be fitted has its ``error``. A mixture's blends
+    are not predicted here yet: the reply says ``mixture`` and holds no responses.
+    """
+    whole = _checked_spec(request.get("spec") or {})
+    if _mixture(whole):
+        return {"mixture": True, "factors": [], "responses": []}
+    every_run = _runs_frame(request, whole)
+    design = _design_runs(every_run)
+    names = [f["name"] for f in whole["factors"]]
+    categorical = _categorical_names(whole)
+    raw_models = request.get("models") or {}
+    if not isinstance(raw_models, dict):
+        raise ValueError("The page sent models for the responses this page did not write.")  # noqa: TRY004
+    responses = []
+    for r in _responses(whole):
+        words = {"name": r["name"], "label": _words(r), "units": r.get("units") or ""}
+        if pd.to_numeric(design[r["name"]], errors="coerce").dropna().empty:
+            responses.append(words | {"waiting": True})
+            continue
+        spec = _for_response(whole, r["name"])
+        try:
+            model = _checked_model(raw_models.get(r["name"]) or spec["model"], names, categorical)
+            responses.append(words | _predictor(_fitted(design, spec, model)))
+        except ValueError as exc:
+            responses.append(words | {"error": str(exc)})
+    return {"mixture": False, "factors": [_coding(f, whole) for f in whole["factors"]], "responses": responses}
+
+
+def _predictor(fitted: _FittedModel) -> dict[str, Any]:
+    """Return a fit as the page predicts from it: its terms but the block contrasts, as numbers."""
+    kept = [i for i, term in enumerate(fitted.terms) if not _block_contrast(term, fitted.names)]
+    return {
+        "terms": [list(_parts(fitted.terms[i])) for i in kept],
+        "coefficients": [float(fitted.beta[i]) for i in kept],
+        "inverse": fitted.inverse[np.ix_(kept, kept)].tolist(),
+        "mse": fitted.mse,
+        "t": fitted.t,
+        "df": fitted.df,
+        "level": LEVEL,
+        "max_leverage": fitted.max_leverage,
+    }
+
+
+def _coding(factor: dict, spec: dict) -> dict[str, Any]:
+    """Say how a factor's setting becomes the columns the models are fitted on.
+
+    A numeric factor's column is its setting coded from its range, as :func:`_coded_column` codes it.
+    A categorical factor's level, coded as the library codes it (-1 for its first, +1 for its last),
+    is the columns :func:`_held_columns` writes: its own coded column, or its contrasts, and its
+    indicators.
+    """
+    if not _categorical(factor):
+        return {"name": factor["name"], "kind": "numeric", "low": factor["low"], "high": factor["high"]}
+    levels = _levels_of(factor)
+    codes = np.linspace(-1.0, 1.0, len(levels))
+    columns = [_held_columns({factor["name"]: float(code)}, spec) for code in codes]
+    return {"name": factor["name"], "kind": "categorical", "levels": levels, "columns": columns}
+
+
+def outside_limits(request: dict) -> dict:
+    """Name the limits on the settings that some settings break, each by its place in the study's list.
+
+    ``settings`` holds each numeric factor's setting, a number in its own units inside its range; a
+    limit names numeric factors only. Each limit is judged alone, as the library judges a point
+    (:meth:`~process_improve.experiments.DesignRegion.feasible`).
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    settings = request.get("settings")
+    if not isinstance(settings, dict):
+        raise ValueError("The page sent settings this page did not write.")  # noqa: TRY004
+    factors = _factors(spec)
+    numeric = [f for f in spec["factors"] if not _categorical(f)]
+    x = np.array([[_coded_value(_factor_of(f), _setting_of(f, settings)) for f in numeric]])
+    broken = []
+    for i, limit in enumerate(spec.get("constraints") or []):
+        if not bool(_region(factors, [limit["expression"]]).feasible(x)[0]):
+            broken.append({"index": i, "expression": limit["expression"]})
+    return {"broken": broken}
+
+
+def _setting_of(factor: dict, settings: dict) -> float:
+    """Return a numeric factor's setting as sent, refusing one that is no number or lies outside its range."""
+    value = _number(settings.get(factor["name"]))
+    if value is None or not min(factor["low"], factor["high"]) <= value <= max(factor["low"], factor["high"]):
+        raise ValueError(f"Set {factor['name']} to a number from {factor['low']:g} to {factor['high']:g}.")
+    return value
+
+
 # --------------------------------------------------------------------------- runs added to a study
 #: The ways Learn offers to add runs to a study, in the order it lists them, each the library's
 #: ``augment_design`` with the augmentation it names:
@@ -7398,3 +7503,13 @@ def api_next_runs(payload: str) -> str:
 def api_add_runs(payload: str) -> str:
     """JSON wrapper around :func:`add_runs`."""
     return _reply(add_runs, payload)
+
+
+def api_predictors(payload: str) -> str:
+    """JSON wrapper around :func:`predictors`."""
+    return _reply(predictors, payload)
+
+
+def api_outside_limits(payload: str) -> str:
+    """JSON wrapper around :func:`outside_limits`."""
+    return _reply(outside_limits, payload)
