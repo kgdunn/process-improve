@@ -15,7 +15,7 @@ import importlib.util
 import inspect
 import pkgutil
 import re
-import sys
+import tomllib
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
@@ -23,11 +23,6 @@ from pathlib import Path
 import pytest
 
 import process_improve
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - Python 3.10 only
-    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")

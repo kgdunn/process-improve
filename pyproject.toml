@@ -1,17 +1,16 @@
 [project]
 name = "process-improve"
-version = "2.0.0"
+version = "2.1.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["Designed Experiments", "Design of Experiments", "DoE", "Optimal Design", "Response Surface", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Chemometrics", "Process Monitoring", "Batch data analysis"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -28,17 +27,18 @@ dependencies = [
     # MCP server, JIT speedups) live in extras; install
     # ``process-improve[all]`` to reproduce the pre-1.24.11 closure.
     "numpy>=2.2.6",
-    # Both pandas majors are supported. pandas 3 needs Python 3.11, so CI's
-    # Python 3.10 jobs test pandas 2.3 and the newer Pythons test pandas 3.
+    # Both pandas majors are supported. CI's Python 3.11 jobs install the lowest
+    # version each dependency allows, so they test pandas 2.3; the newer Pythons
+    # test pandas 3.
     "pandas>=2.3.3",
     "patsy>=1.0.2",
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
     "scikit-learn>=1.7.2",
     # Declared directly because generate_omars solves its ILP with
-    # scipy.optimize.milp (HiGHS). 1.15 is the oldest release CI runs (Python
-    # 3.10 resolves 1.15.3); older releases bundle HiGHS 1.2, which reports a
-    # node-limited stop differently and is not tested here.
+    # scipy.optimize.milp (HiGHS). 1.15 is the oldest release CI runs (the
+    # Python 3.11 jobs resolve 1.15.0); older releases bundle HiGHS 1.2, which
+    # reports a node-limited stop differently and is not tested here.
     "scipy>=1.15",
     "statsmodels>=0.14.6",
     # Already required by scikit-learn; declared because the REML fits of the
@@ -248,6 +248,10 @@ ignore = [
     "CPY001", # Missing copyright notice at top of file.
 
     "C408",   # Unnecessary <dict/list/tuple> call - rewrite as a literal. Disagree with this.
+
+    # A `(str, Enum)` class turned into `StrEnum` changes what str() and format()
+    # return for its members, and these enums are public API.
+    "UP042",  # Class inherits from both `str` and `enum.Enum`
 
     # Arguments
     "ARG001", # Unusued argument

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = ["process-improve>=1.98"]
 # ///
 """Verify a two-level design before anyone runs it in a lab.

@@ -6,7 +6,7 @@
 
 **Repository:** https://github.com/kgdunn/process-improve
 **License:** MIT
-**Python:** >= 3.10 (CI tests 3.10-3.13; 3.13 is the primary version for lint, typecheck, and coverage)
+**Python:** >= 3.11 (CI tests 3.11-3.13, with 3.11 at the lowest dependency versions allowed; 3.13 is the primary version for lint, typecheck, and coverage)
 
 ## Authoritative documents
 
@@ -44,7 +44,9 @@ src/process_improve/
     sensory/         # Descriptive panel-data analysis (validate, panel check, relate)
     simulation/      # Fake-data / process-simulator subpackage
     visualization/   # Plotting utilities (raincloud plots, chart spec/IR, adapters)
+    chemistry/       # Product-by-compound block preprocessing (sensory-to-chemistry analysis)
     datasets/        # Sample datasets for examples and tests
+    interactions.py  # Two-factor interaction terms, and whether the data can support them
     recipes.py       # Reusable analysis-recipe framework
     tool_spec.py     # @tool_spec decorator, tool registry, Anthropic tool-use specs
     tool_safety.py   # Subprocess isolation for tool calls over untrusted transports
@@ -53,7 +55,17 @@ src/process_improve/
     _extras.py       # Clean ImportError messages for missing optional extras
     _linalg.py       # Shared numerical-linear-algebra guards
     _random.py       # Shared random_state resolver (see reproducibility.rst)
+    _remote_data.py  # Bounded download of the sample datasets that are not bundled
 ```
+
+Outside the package:
+
+- `web/` is the no-install browser app (https://factori.al/). `scripts/build_web_app.py`
+  builds it, `tests/web/` tests it, and `deploy/factorial/` is its server.
+- `skills/doe-designer/` is an agent skill that calls the `@tool_spec` registry.
+- `tools/` holds the release and gate scripts: `changelog.py`, `complexity_budget.py`,
+  and the link and runtime checkers.
+- `changelog.d/` holds the changelog fragments.
 
 ## Key Architectural Decisions
 
@@ -103,13 +115,9 @@ a separate nested dict-of-callables API and is intentionally not a method.)
 Both PCA and PLS have `__getattr__` methods that raise `AttributeError` with helpful rename messages when old attribute names are used (e.g., `model.x_scores` tells you to use `model.scores_`).
 
 ### `Expt` and the `pi_` prefix
-`Expt` (`experiments/structures.py`) is the canonical and only name for the
-experiment container, a `pd.DataFrame` subclass. Library-managed metadata on it
-is namespaced with a `pi_` prefix (`pi_title`, `pi_units`, `pi_range`, `pi_lo`,
-`pi_hi`, `pi_center`, `pi_name`, `pi_levels`, `pi_is_coded`, ...), which exists
-so these reserved names cannot collide with columns from a user-supplied
-DataFrame. Treat `pi_*` as public API, and give new metadata fields the same
-prefix.
+`Expt` (`experiments/structures.py`) is the only experiment container. Its
+library-managed metadata is namespaced `pi_*`, is public API, and new fields take
+the same prefix: see [`CONTRIBUTING.md`](CONTRIBUTING.md#naming-conventions).
 
 ## Coding Conventions
 
@@ -124,7 +132,13 @@ below are the ones most often got wrong in an agent session.
   says nothing about formatting. Run both before pushing.
 - Keep the `ruff-pre-commit` `rev` in `.pre-commit-config.yaml` in step with the
   `ruff` pin in `pyproject.toml`; if they diverge, locally formatted code can
-  still be rejected by CI.
+  still be rejected by CI. `tests/test_tooling_versions.py` fails the PR until
+  they agree.
+- The four complexity rules (`C901`, `PLR0912`, `PLR0913`, `PLR0915`) are a
+  ratchet, gated in both directions by `tests/test_complexity_ratchet.py`: a new
+  breach fails, and so does a refactor that removes one without lowering `BUDGET`
+  in `tools/complexity_budget.py`. See
+  [`CONTRIBUTING.md`](CONTRIBUTING.md#complexity-budget).
 - Reformatting can strand a trailing `# noqa` on a line the reflow splits, so the
   directive no longer sits on the code it suppresses. Ruff then reports both the
   unsuppressed rule and the now-unused directive (`RUF100`): move the directive to
@@ -138,6 +152,51 @@ below are the ones most often got wrong in an agent session.
 - **No em-dashes** (U+2014) anywhere: docs, docstrings, comments, commit messages,
   PR descriptions, Markdown, reStructuredText or YAML prose. Use a hyphen, a
   semicolon, or split the sentence.
+
+## Making a change
+
+Solve the whole problem with the least new code.
+
+**Before you write**, list every place the change must reach: callers, tests,
+fixtures, `__init__` exports, the `@tool_spec` registry, the README (its code
+blocks run in `tests/test_readme.py`), the docs, the browser app in `web/`, and
+`skills/doe-designer/`. The companion book
+([kgdunn/pid-book](https://github.com/kgdunn/pid-book)) runs its code against the
+PyPI release, so renaming a public name breaks the book's CI once the release
+reaches PyPI. Then check
+what the change could break for users: a removed name, a changed default, a
+different number. That is the scope. Extra features are not.
+
+**Take the first option that fully works:**
+
+1. Is it needed? Skip features, options and flexibility that nobody asked for,
+   and name them in one line.
+2. Is it already in the package? Reuse the shared helper the way the surrounding
+   code does: `multivariate/_common.py` and `_base.py`, `_linalg.py`,
+   `_random.py`, `_extras.py`.
+3. Does the standard library or an installed dependency do it? Use it. Do not add
+   a runtime dependency for a few lines: an optional surface goes in an extra,
+   imported through `_extras.py`.
+4. Otherwise, write the minimum code that works.
+
+- Keep the solution small, never the change: finish every part the task needs,
+  including the callers, tests and fixtures the change breaks.
+- No wrapper, option, config or "for later" code that nobody asked for. Deletion
+  beats addition. Keep the structure the codebase already has.
+- Comment the why that the code cannot show, not the what.
+- Bug fix: grep every caller of the function first, then fix the root cause once,
+  in the shared code. A fix to one estimator of a family (PCA / PLS / TPLS / MBPLS
+  / MBPCA) is checked on the others in the same change
+  ([API consistency](CONTRIBUTING.md#api-consistency)).
+- Code you move or merge keeps its validation and error handling.
+- Between options of equal size, take the one that is correct on the edge cases:
+  missing values, a constant column, a single sample, one component.
+- A shortcut with a known limit carries a comment of this form:
+  `shortcut: <the limit>, <when to upgrade>`.
+
+Never cut: validation at trust boundaries (`@tool_spec` inputs, `mcp_server.py`,
+`tool_safety.py`), error handling that prevents data loss, security, the browser
+app's accessibility, or anything the user asked for.
 
 ## Testing
 
@@ -160,7 +219,8 @@ the suite fails on `ImportError` rather than skipping.
 
 **Tag new tests with the right tier marker.** `pytest.ini` registers `unit`
 (implicit default), `integration`, `slow` (>= 2 s) and `dataset` (loads a
-bundled or remote real dataset). Untagged slow or network-bound tests silently
+bundled or remote real dataset); the browser app's tiers (`e2e`, `live`, `wasm`,
+`smoke`) run only with their flags. Untagged slow or network-bound tests silently
 break `-m 'not slow'` for everyone. The table of when to use each is in
 [`CONTRIBUTING.md`](CONTRIBUTING.md#test-tiers).
 
@@ -172,6 +232,9 @@ Other conventions:
 - New methods need tests for both basic functionality and edge cases.
 - Guard optional dependencies with `pytest.importorskip`, and probe binaries that
   can be present but non-executable (e.g. pulp's bundled CBC solver).
+- The four coverage shards are balanced by `tests/.test_durations.json`. When
+  their times drift apart in CI, refresh it the way the shards run:
+  `uv run pytest --store-durations --cov-fail-under=0` on Python 3.13.
 
 ## Versioning and changelog
 
@@ -199,10 +262,12 @@ Publishing is **manually gated** (ENG-21 / #303): `publish.yml` runs only on a `
 Workflows in `.github/workflows/`:
 
 - **run-tests.yml**: `lint` (`ruff check .` and `ruff format --check .`, two
-  independent gates), `typecheck` (blocking `mypy src/process_improve`), `test`
-  (the full suite without coverage, over Python 3.10-3.13; a pull request runs
+  independent gates), `typecheck` (blocking `mypy src/process_improve`), `web-app`
+  (builds the browser app and runs its Chromium, Pyodide and Node.js tests), `test`
+  (the full suite without coverage, over Python 3.11-3.13; the 3.11 rows install
+  the lowest release of each dependency that `pyproject.toml` allows; a pull request runs
   ubuntu only, and pushes to main, the nightly schedule and manual runs add
-  windows and macos at 3.10 and 3.13; ubuntu/3.13 is the `coverage` job
+  windows and macos at 3.11 and 3.13; ubuntu/3.13 is the `coverage` job
   instead), `coverage`
   (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
   `--shard`), `coverage-report` (combines the shards for the 96% gate and the
@@ -242,7 +307,8 @@ Docs are Sphinx with the PyData theme, NumPy docstrings via `sphinx.ext.napoleon
 **Default workflow for any non-trivial task:**
 
 1. **Open a blank PR up front**, before doing the work. Push an empty commit
-   (or the first micro-commit) to `claude/<task-slug>` and open the PR as
+   (or the first micro-commit) to the session's working branch (for example
+   `claude/<task-slug>`) and open the PR as
    ready-for-review with a description of what's about to be done. Do not
    open it as a draft.
 2. **Micro-commit as you go.** Each commit should be a small, self-contained
@@ -282,6 +348,8 @@ when they want one.
 - Write in the spirit of ASD-STE100 (Simplified Technical English). Keep
   sentence structures direct. Limit each procedural step to a single action.
   Avoid unnecessary synonyms: use one term for one thing.
+- End a report with one or two lines: what you skipped or did not check, and any
+  risk the user must know.
 
 ## Updating this file (CLAUDE.md)
 
