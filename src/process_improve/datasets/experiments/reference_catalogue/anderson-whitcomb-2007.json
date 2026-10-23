@@ -18,16 +18,3061 @@
   ],
   "title": "DOE Simplified: Practical Tools for Effective Experimentation",
   "edition": "2nd edition",
-  "pages": "front matter and chapters 1 to 4, pp. 1-90",
+  "pages": "front matter, chapters 1 to 11, Appendices 1 and 2, the glossary and index, pp. 1-188 and 189-237",
   "year": 2007,
   "publisher": "Productivity Press, an imprint of CRC Press, Taylor & Francis Group, Boca Raton",
   "isbn": "978-1-56327-344-5",
   "url": "https://search.worldcat.org/search?q=bn:9781563273445",
   "cite": "Anderson, M. J. and Whitcomb, P. J. (2007), DOE Simplified: Practical Tools for Effective Experimentation, 2nd edition, Productivity Press",
-  "read": "2026-10-23, from scans of the front matter and chapters 1 to 4 (pp. 1-90); every number copied by hand from the page images",
+  "read": "2026-10-23, from scans of the whole book in five parts (the front matter to p. 237); every number copied by hand from the page images. Appendix 1's t and F tables are not recorded: they are tables of distributions, not experiments",
   "rights": "The book is protected by copyright (© 2007 Mark J. Anderson and Patrick J. Whitcomb) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
- "designs": [],
+ "designs": [
+  {
+   "name": "anderson-whitcomb-screening-4-factors",
+   "title": "The recommended two-level screening fraction for 4 factors, 12 runs",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 5",
+    "pages": "91",
+    "tables": [
+     "Table 5-1"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(4) irregular 3/4 fraction",
+    "factors": 4,
+    "n_runs": 12
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "12",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 4 ... Fraction for Screening 12 Savings 25%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "other",
+     "term": "savings on the full factorial",
+     "value": "25%",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 4 ... Savings 25%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "number of terms",
+     "term": null,
+     "value": "10",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 4 Main Effects and Two-Factor Interactions 10"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-screening-5-factors",
+   "title": "The recommended two-level screening fraction for 5 factors, 16 runs",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 5",
+    "pages": "91",
+    "tables": [
+     "Table 5-1"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(5-1) fractional factorial",
+    "factors": 5,
+    "n_runs": 16
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "16",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 5 ... Fraction for Screening 16 Savings 50%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "other",
+     "term": "savings on the full factorial",
+     "value": "50%",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 5 ... Savings 50%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "number of terms",
+     "term": null,
+     "value": "15",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 5 Main Effects and Two-Factor Interactions 15"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-screening-6-factors",
+   "title": "The recommended two-level screening fraction for 6 factors, 32 runs",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 5",
+    "pages": "91",
+    "tables": [
+     "Table 5-1"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(6-1) fractional factorial",
+    "factors": 6,
+    "n_runs": 32
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "32",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 6 ... Fraction for Screening 32 Savings 50%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "other",
+     "term": "savings on the full factorial",
+     "value": "50%",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 6 ... Savings 50%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "number of terms",
+     "term": null,
+     "value": "21",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 6 Main Effects and Two-Factor Interactions 21"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-screening-7-factors",
+   "title": "The recommended two-level screening fraction for 7 factors, 32 runs",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 5",
+    "pages": "91",
+    "tables": [
+     "Table 5-1"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(7-2) fractional factorial",
+    "factors": 7,
+    "n_runs": 32
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "32",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 7 ... Fraction for Screening 32 Savings 75%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "other",
+     "term": "savings on the full factorial",
+     "value": "75%",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 7 ... Savings 75%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "number of terms",
+     "term": null,
+     "value": "28",
+     "where": {
+      "page": 91,
+      "source_kind": "table",
+      "quote": "Table 5-1 7 Main Effects and Two-Factor Interactions 28"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-resolution-table",
+   "title": "Resolutions of the standard two-level fractions for 3 to 7 factors in 4 to 64 runs",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 5",
+    "pages": "102",
+    "tables": [
+     "Table 5-6"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "two-level fractional factorials",
+    "details": "the fractions of Table 5-6"
+   },
+   "expected": [
+    {
+     "what": "resolution",
+     "term": "3 factors in 4 runs",
+     "value": "III",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 4 runs, 3 factors: 1/2 Rep Res III"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "4 factors in 8 runs",
+     "value": "IV",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 8 runs, 4 factors: 1/2 Rep Res IV"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "5 factors in 8 runs",
+     "value": "III",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 8 runs, 5 factors: 1/4 Rep Res III"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "6 factors in 8 runs",
+     "value": "III",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 8 runs, 6 factors: 1/8 Rep Res III"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "7 factors in 8 runs",
+     "value": "III",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 8 runs, 7 factors: 1/16 Rep Res III"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "5 factors in 16 runs",
+     "value": "V",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 16 runs, 5 factors: 1/2 Rep Res V"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "6 factors in 16 runs",
+     "value": "IV",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 16 runs, 6 factors: 1/4 Rep Res IV"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "7 factors in 16 runs",
+     "value": "IV",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 16 runs, 7 factors: 1/8 Rep Res IV"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "6 factors in 32 runs",
+     "value": "VI",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 32 runs, 6 factors: 1/2 Rep Res VI"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "7 factors in 32 runs",
+     "value": "IV",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 32 runs, 7 factors: 1/4 Rep Res IV"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": "7 factors in 64 runs",
+     "value": "VII",
+     "where": {
+      "page": 102,
+      "source_kind": "table",
+      "quote": "Table 5-6 64 runs, 7 factors: 1/2 Rep Res VII"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-half-fraction-2-4-1",
+   "title": "The 2^(4-1) half fraction with ABCD = +: every two-factor interaction aliased with another",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 5",
+    "pages": "100-101",
+    "tables": [
+     "Table 5-5"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(4-1) fractional factorial",
+    "factors": 4,
+    "n_runs": 8
+   },
+   "expected": [
+    {
+     "what": "generator",
+     "term": null,
+     "value": "D = ABC",
+     "where": {
+      "page": 100,
+      "source_kind": "prose",
+      "quote": "The rows where ABCD is minus have been grayed out."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "IV",
+     "where": {
+      "page": 100,
+      "source_kind": "prose",
+      "quote": "all the two-factor interactions are aliased with each other, so this design is resolution IV"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AD",
+     "value": "AD = BC",
+     "where": {
+      "page": 100,
+      "source_kind": "prose",
+      "quote": "Hint: Start in the middle, at AD-BC and work outward."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AB",
+     "value": "AB = CD",
+     "where": {
+      "page": 101,
+      "source_kind": "prose",
+      "quote": "if AB shows significance, it might really be due to CD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-2-7-3",
+   "title": "Seven factors in 16 runs, the 2^(7-3): its aliases among two-factor interactions",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 5",
+    "pages": "102-103",
+    "tables": [
+     "Table 5-7"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(7-3) fractional factorial, resolution IV",
+    "factors": 7,
+    "n_runs": 16
+   },
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "AB",
+     "value": "AB + CE + FG",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 103,
+      "source_kind": "table",
+      "quote": "Table 5-7 AB AB + CE + FG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AC",
+     "value": "AC + BE + DG",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 103,
+      "source_kind": "table",
+      "quote": "Table 5-7 AC AC + BE + DG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AD",
+     "value": "AD + CG + EF",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 103,
+      "source_kind": "table",
+      "quote": "Table 5-7 AD AD + CG + EF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AE",
+     "value": "AE + BC + DF",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 103,
+      "source_kind": "table",
+      "quote": "Table 5-7 AE AE + BC + DF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AF",
+     "value": "AF + BG + DE",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 103,
+      "source_kind": "table",
+      "quote": "Table 5-7 AF AF + BG + DE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AG",
+     "value": "AG + BF + CD",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 103,
+      "source_kind": "table",
+      "quote": "Table 5-7 AG AG + BF + CD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BD",
+     "value": "BD + CF + EG",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 103,
+      "source_kind": "table",
+      "quote": "Table 5-7 BD BD + CF + EG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-appendix-2-4-2-7-2",
+   "title": "Seven factors in 32 runs, the 2^(7-2): DE, DF and DG aliased with FG, EG and EF",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Appendix 2-4 and Chapter 6",
+    "pages": "101, 126, 200-202",
+    "tables": [
+     "Table 6-6"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "factor E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "factor F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "factor G",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(7-2) fractional factorial, resolution IV",
+    "details": "F = ABCD, G = ABCE",
+    "n_runs": 32,
+    "treatment_factors": 7
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      17,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      18,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      19,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      20,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      21,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      22,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      23,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      24,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      25,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      26,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      27,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      28,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      29,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      30,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      31,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      32,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Appendix 2-4, in standard order"
+   },
+   "expected": [
+    {
+     "what": "defining_relation",
+     "term": null,
+     "value": "I = DEFG = ABCDF = ABCEG",
+     "where": {
+      "page": 201,
+      "source_kind": "table",
+      "quote": "[Intercept] = Intercept + DEFG + ABCDF + ABCEG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "A + BCDF + BCEG + ADEFG",
+     "where": {
+      "page": 201,
+      "source_kind": "table",
+      "quote": "[A] = A + BCDF + BCEG + ADEFG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "D",
+     "value": "D + EFG + ABCF + ABCDEG",
+     "where": {
+      "page": 201,
+      "source_kind": "table",
+      "quote": "[D] = D + EFG + ABCF + ABCDEG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AB",
+     "value": "AB + CDF + CEG + ABDEFG",
+     "where": {
+      "page": 201,
+      "source_kind": "table",
+      "quote": "[AB] = AB + CDF + CEG + ABDEFG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "DE",
+     "value": "DE + FG + ABCDG + ABCEF",
+     "where": {
+      "page": 202,
+      "source_kind": "table",
+      "quote": "[DE] = DE + FG + ABCDG + ABCEF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "DF",
+     "value": "DF + EG + ABC + ABCDEFG",
+     "where": {
+      "page": 202,
+      "source_kind": "table",
+      "quote": "[DF] = DF + EG + ABC + ABCDEFG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "DG",
+     "value": "DG + EF + ABCDE + ABCFG",
+     "where": {
+      "page": 202,
+      "source_kind": "table",
+      "quote": "[DG] = DG + EF + ABCDE + ABCFG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "DE",
+     "value": "DE + FG",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 126,
+      "source_kind": "table",
+      "quote": "Table 6-6 DE DE + FG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "DF",
+     "value": "DF + EG",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 126,
+      "source_kind": "table",
+      "quote": "Table 6-6 DF DF + EG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "DG",
+     "value": "DG + EF",
+     "analysis": "two-factor interactions only",
+     "where": {
+      "page": 126,
+      "source_kind": "table",
+      "quote": "Table 6-6 DG DG + EF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "IV",
+     "where": {
+      "page": 101,
+      "source_kind": "prose",
+      "quote": "the seven factors in 32-run design (1/4 fraction) shown on Table 5-6 is listed as a resolution IV"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-appendix-2-2-2-5-1",
+   "title": "Five factors in 16 runs, the 2^(5-1) with E = ABCD",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Appendix 2-2",
+    "pages": "196-197",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "factor E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(5-1) fractional factorial, resolution V",
+    "details": "E = ABCD",
+    "n_runs": 16,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Appendix 2-2, in standard order"
+   },
+   "expected": [
+    {
+     "what": "aliases",
+     "term": "Intercept",
+     "value": "Intercept + ABCDE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[Intercept] = Intercept + ABCDE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "A + BCDE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[A] = A + BCDE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "B + ACDE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[B] = B + ACDE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "C + ABDE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[C] = C + ABDE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "D",
+     "value": "D + ABCE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[D] = D + ABCE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "E",
+     "value": "E + ABCD",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[E] = E + ABCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AB",
+     "value": "AB + CDE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[AB] = AB + CDE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AC",
+     "value": "AC + BDE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[AC] = AC + BDE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AD",
+     "value": "AD + BCE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[AD] = AD + BCE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AE",
+     "value": "AE + BCD",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[AE] = AE + BCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BC",
+     "value": "BC + ADE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[BC] = BC + ADE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BD",
+     "value": "BD + ACE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[BD] = BD + ACE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "BE",
+     "value": "BE + ACD",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[BE] = BE + ACD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "CD",
+     "value": "CD + ABE",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[CD] = CD + ABE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "CE",
+     "value": "CE + ABD",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[CE] = CE + ABD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "DE",
+     "value": "DE + ABC",
+     "where": {
+      "page": 197,
+      "source_kind": "table",
+      "quote": "[DE] = DE + ABC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-appendix-2-3-2-6-1",
+   "title": "Six factors in 32 runs, the 2^(6-1) with F = ABCDE",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Appendix 2-3",
+    "pages": "198-199",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "factor E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "factor F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "2^(6-1) fractional factorial, resolution VI",
+    "details": "F = ABCDE",
+    "n_runs": 32,
+    "treatment_factors": 6
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      17,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      18,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      19,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      20,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      21,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      22,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      23,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      24,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      25,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      26,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      27,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      28,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      29,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      30,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      31,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      32,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Appendix 2-3, in standard order"
+   },
+   "expected": [
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "VI",
+     "where": {
+      "page": 198,
+      "source_kind": "prose",
+      "quote": "allows you to estimate all main effects and two-factor interactions aliased only by four-factor or higher-order interactions"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "other",
+     "term": "estimable three-factor interactions",
+     "value": "10",
+     "where": {
+      "page": 199,
+      "source_kind": "prose",
+      "quote": "This design also estimates 10 of the 20 three-factor interactions that are aliased with each other."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-appendix-2-1-irregular-3-4",
+   "title": "Four factors in 12 runs, the irregular 3/4 fraction of the 2^4, and its aliases",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Appendix 2-1 and Chapter 5",
+    "pages": "104, 194-195",
+    "tables": [],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "irregular 3/4 fraction of the 2^4",
+    "details": "three of its four quarter fractions",
+    "n_runs": 12,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      2,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      4,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      5,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      6,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      7,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      8,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      9,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      10,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      11,
+      1,
+      -1,
+      1,
+      1
+     ],
+     [
+      12,
+      -1,
+      1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Appendix 2-1, in standard order; the layout of the RGB projector study, Table 5-9"
+   },
+   "expected": [
+    {
+     "what": "alias matrix",
+     "term": "Intercept",
+     "value": "Intercept - 0.5 * ABC - 0.5 * ABD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[Intercept] = Intercept - 0.5 * ABC - 0.5 * ABD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "A",
+     "value": "A - ACD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[A] = A - ACD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "B",
+     "value": "B - BCD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[B] = B - BCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "C",
+     "value": "C - ABCD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[C] = C - ABCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "D",
+     "value": "D - ABCD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[D] = D - ABCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "AB",
+     "value": "AB - ABCD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[AB] = AB - ABCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "AC",
+     "value": "AC - BCD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[AC] = AC - BCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "AD",
+     "value": "AD - BCD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[AD] = AD - BCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "BC",
+     "value": "BC - ACD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[BC] = BC - ACD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "BD",
+     "value": "BD - ACD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[BD] = BD - ACD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "CD",
+     "value": "CD - ABD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[CD] = CD - ABD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "ABC",
+     "value": "ABC - ABD",
+     "analysis": "two-factor interaction model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[ABC] = ABC - ABD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "Intercept",
+     "value": "Intercept - 0.333 * CD - 0.333 * ABC - 0.333 * ABD",
+     "analysis": "main-effect model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[Intercept] = Intercept - 0.333 * CD - 0.333 * ABC - 0.333 * ABD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "A",
+     "value": "A - 0.333 * BC - 0.333 * BD - 0.333 * ACD",
+     "analysis": "main-effect model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[A] = A - 0.333 * BC - 0.333 * BD - 0.333 * ACD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "B",
+     "value": "B - 0.333 * AC - 0.333 * AD - 0.333 * BCD",
+     "analysis": "main-effect model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[B] = B - 0.333 * AC - 0.333 * AD - 0.333 * BCD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "C",
+     "value": "C - 0.5 * AB",
+     "analysis": "main-effect model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[C] = C - 0.5 * AB"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "alias matrix",
+     "term": "D",
+     "value": "D - 0.5 * AB",
+     "analysis": "main-effect model",
+     "where": {
+      "page": 195,
+      "source_kind": "table",
+      "quote": "[D] = D - 0.5 * AB"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-mr5-six-factors",
+   "title": "A minimum-run resolution V (MR5) design for six factors in 22 runs",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 6, Appendix",
+    "pages": "130-132",
+    "tables": [
+     "Table 6-10"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "factor A",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "factor B",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "factor C",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "factor D",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "factor E",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "factor F",
+     "low": -1,
+     "high": 1,
+     "units": "",
+     "type": "numeric"
+    }
+   ],
+   "responses": [],
+   "design": {
+    "type": "minimum-run resolution V (MR5) two-level design",
+    "details": "equireplicated: 11 runs at each level of every factor",
+    "n_runs": 22,
+    "treatment_factors": 6
+   },
+   "runs": {
+    "columns": [
+     "Row",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1
+     ],
+     [
+      2,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      3,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      4,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      5,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      6,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      7,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1
+     ],
+     [
+      8,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      9,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      10,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      11,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      13,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      14,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      15,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1
+     ],
+     [
+      16,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      17,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      -1
+     ],
+     [
+      18,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+     ],
+     [
+      19,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      -1
+     ],
+     [
+      20,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     [
+      21,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1
+     ],
+     [
+      22,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 6-10, in the order printed"
+   },
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "22",
+     "where": {
+      "page": 130,
+      "source_kind": "prose",
+      "quote": "the \"MR5\" (minimum-run resolution five) shown in Table 6-10 for six factors in only 22 runs"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "MR5 for seven factors",
+     "value": "30",
+     "where": {
+      "page": 132,
+      "source_kind": "prose",
+      "quote": "the 7-factor design lays out 30 runs-15 each at the low and high levels"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "n_runs",
+     "term": "MR5 for seven factors",
+     "value": "30",
+     "where": {
+      "page": 126,
+      "source_kind": "prose",
+      "quote": "With just 30 runs all main effects and two-factor interactions can be estimated."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-power-five-factors-8-runs",
+   "title": "Power to detect main effects of five factors in 8 runs (resolution III)",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 10",
+    "pages": "174-178",
+    "tables": [
+     "Table 10-1",
+     "Table 10-2"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(5-2) fractional factorial",
+    "factors": 5,
+    "n_runs": 8
+   },
+   "expected": [
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 0.5",
+     "value": "7.3%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 8 Resolution III ... Signal/Noise 0.5 ... 7.3%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 1",
+     "value": "13.8%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 8 Resolution III ... Signal/Noise 1 ... 13.8%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 2",
+     "value": "35.7%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 8 Resolution III ... Signal/Noise 2 ... 35.7%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 4",
+     "value": "80.0%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 8 Resolution III ... Signal/Noise 4 ... 80.0%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-power-five-factors-12-runs",
+   "title": "Power to detect main effects of five factors in 12 runs (resolution Min-Run IV)",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 10",
+    "pages": "174-178",
+    "tables": [
+     "Table 10-1",
+     "Table 10-2"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "minimum-run resolution IV (MR4) design",
+    "factors": 5,
+    "n_runs": 12
+   },
+   "expected": [
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 0.5",
+     "value": "9.0%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 0.5 ... 9.0%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 1",
+     "value": "21.3%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 1 ... 21.3%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 2",
+     "value": "61.9%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 2 ... 61.9%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 4",
+     "value": "99.1%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 4 ... 99.1%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-power-five-factors-16-runs",
+   "title": "Power to detect main effects of five factors in 16 runs (resolution V)",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 10",
+    "pages": "174-178",
+    "tables": [
+     "Table 10-1",
+     "Table 10-2"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^(5-1) fractional factorial",
+    "factors": 5,
+    "n_runs": 16
+   },
+   "expected": [
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 0.5",
+     "value": "14.8%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 16 Resolution V ... Signal/Noise 0.5 ... 14.8%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 1",
+     "value": "44.0%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 16 Resolution V ... Signal/Noise 1 ... 44.0%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 2",
+     "value": "94.9%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 16 Resolution V ... Signal/Noise 2 ... 94.9%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 4",
+     "value": "99.9%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 16 Resolution V ... Signal/Noise 4 ... 99.9%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 2",
+     "value": "94.9%",
+     "analysis": "the call-center case study, 5% type I risk",
+     "where": {
+      "page": 178,
+      "source_kind": "prose",
+      "quote": "The power for a signal-to-noise ratio of 2 for this 16-run design is 94.9% at a type I risk level of 0.05"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-power-five-factors-32-runs",
+   "title": "Power to detect main effects of five factors in 32 runs (resolution Full)",
+   "topics": [
+    "general"
+   ],
+   "kind": "design",
+   "where": {
+    "section": "Chapter 10",
+    "pages": "174-178",
+    "tables": [
+     "Table 10-1",
+     "Table 10-2"
+    ],
+    "figures": []
+   },
+   "design": {
+    "type": "2^5 full factorial",
+    "factors": 5,
+    "n_runs": 32
+   },
+   "expected": [
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 0.5",
+     "value": "27.5%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 32 Resolution Full ... Signal/Noise 0.5 ... 27.5%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 1",
+     "value": "77.7%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 32 Resolution Full ... Signal/Noise 1 ... 77.7%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 2",
+     "value": "99.9%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 32 Resolution Full ... Signal/Noise 2 ... 99.9%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "power",
+     "term": "main effect, signal/noise 4",
+     "value": ">99.9%",
+     "analysis": "5% type I risk",
+     "where": {
+      "page": 174,
+      "source_kind": "table",
+      "quote": "Table 10-1 Runs 32 Resolution Full ... Signal/Noise 4 ... >99.9%"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  }
+ ],
  "experiments": [
   {
    "name": "anderson-whitcomb-dice-50-rolls",
@@ -4324,8 +7369,8 @@
    ],
    "kind": "example",
    "where": {
-    "section": "Chapter 3, Two-Level Factorial Design to Diagnosing Residuals, and its Appendix",
-    "pages": "43-74",
+    "section": "Chapter 3, Two-Level Factorial Design to Diagnosing Residuals, and its Appendix; Chapter 8, Finding Your Sweet Spot for Multiple Responses",
+    "pages": "43-74, 157-159",
     "tables": [
      "Table 3-1",
      "Table 3-2",
@@ -4352,7 +7397,8 @@
      "Figure 3-12",
      "Figure 3-13",
      "Figure 3-14",
-     "Figure 3-15"
+     "Figure 3-15",
+     "Figure 8-9"
     ]
    },
    "factors": [
@@ -6331,6 +9377,48 @@
       "page": 73,
       "source_kind": "math",
       "quote": "t((alpha_2-tail = 0.05)/k=7, df = 4) = t(0.007,4) = 5.1"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "desirability",
+     "term": "taste",
+     "value": "0.40",
+     "analysis": "taste 79 maximised between 65 and 100",
+     "where": {
+      "page": 159,
+      "source_kind": "math",
+      "quote": "d1 = ((79 - 65)/(100 - 65)) = (14/35) = 0.40"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "desirability",
+     "term": "bullets",
+     "value": "0.30",
+     "analysis": "bullets 0.7 oz minimised between 0 and 1",
+     "where": {
+      "page": 159,
+      "source_kind": "math",
+      "quote": "d2 = ((1 - 0.7)/(1 - 0)) = (0.3/1) = 0.30"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "desirability",
+     "term": "overall",
+     "value": "0.35",
+     "analysis": "the geometric mean of the two desirabilities",
+     "where": {
+      "page": 159,
+      "source_kind": "math",
+      "quote": "D = (0.40 * 0.30)^(1/2) = sqrt(0.12) = 0.35"
      },
      "check": {
       "manual": "TO CHECK"
@@ -8400,6 +11488,6272 @@
    },
    "unanswered": "the book posts its answers on the Internet, not in the book",
    "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-weed-whacker",
+   "title": "Pulls to start a weed whacker: prime pumps, choke pulls, gas and choke settings in a 2^(5-1) half fraction",
+   "topics": [
+    "household"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 5, Example of Fractional Factorial at Its Finest",
+    "pages": "92-97",
+    "tables": [
+     "Table 5-2",
+     "Table 5-3"
+    ],
+    "figures": [
+     "Figure 5-2",
+     "Figure 5-3",
+     "Figure 5-4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "prime pumps",
+     "low": 3,
+     "high": 5,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "pulls at full choke",
+     "low": 3,
+     "high": 5,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "gas during full choke pulls",
+     "low": 0,
+     "high": 100,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "final choke setting",
+     "low": 0,
+     "high": 50,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "gas for start",
+     "low": 0,
+     "high": 100,
+     "units": "%",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "pulls needed to start the engine",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(5-1) fractional factorial, resolution V",
+    "details": "E = ABCD",
+    "n_runs": 16,
+    "treatment_factors": 5
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1
+     ],
+     [
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      4
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      4
+     ],
+     [
+      4,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      2
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      8
+     ],
+     [
+      6,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      2
+     ],
+     [
+      7,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      3
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      5
+     ],
+     [
+      9,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      3
+     ],
+     [
+      10,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+     ],
+     [
+      11,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      3
+     ],
+     [
+      12,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      4
+     ],
+     [
+      13,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      3
+     ],
+     [
+      14,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      4
+     ],
+     [
+      15,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      6
+     ],
+     [
+      16,
+      1,
+      1,
+      1,
+      1,
+      1,
+      5
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 5-3, in standard order; no run order is printed"
+   },
+   "notes": "Figure 5-4's corners are the predictions of the model C + E, not the averages of their four runs (1.75, 3.25, 3.75, 5.75), though its sidebar calls each point an average of four results. The text calls C pre-throttle and E post-throttle on Figure 5-4.",
+   "expected": [
+    {
+     "what": "generator",
+     "term": null,
+     "value": "E = ABCD",
+     "where": {
+      "page": 93,
+      "source_kind": "prose",
+      "quote": "The fifth factor column (E) is the product of the first four columns (ABCD)."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "C + ABDE",
+     "where": {
+      "page": 94,
+      "source_kind": "prose",
+      "quote": "The effect of C is also aliased with a four-factor interaction: ABDE."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "V",
+     "where": {
+      "page": 97,
+      "source_kind": "prose",
+      "quote": "The half-fractional design on the five weed-whacker factors is a resolution V"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "E",
+     "value": "-2.25",
+     "analysis": "the largest effect, E, at the end of the half-normal plot's axis",
+     "where": {
+      "page": 95,
+      "source_kind": "figure",
+      "quote": "Figure 5-2 ... Effect 0.00 0.56 1.12 1.69 2.25 ... E"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "t_value",
+     "term": "E",
+     "value": "3.91",
+     "analysis": "pulls, model C + E, the largest t-value at the top of the Pareto chart's axis",
+     "where": {
+      "page": 95,
+      "source_kind": "figure",
+      "quote": "Figure 5-3 ... t-Value of |Effect| ... 3.91 ... E"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical t",
+     "term": "t(0.05; 13)",
+     "value": "2.16037",
+     "where": {
+      "page": 95,
+      "source_kind": "figure",
+      "quote": "Figure 5-3 ... t-Value Limit 2.16037"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "critical t",
+     "term": "t(0.05/15; 13)",
+     "value": "3.58384",
+     "analysis": "Bonferroni limit for 15 effects",
+     "where": {
+      "page": 95,
+      "source_kind": "figure",
+      "quote": "Figure 5-3 ... Bonferroni Limit 3.58384"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "C-E+",
+     "value": "1.625",
+     "analysis": "pulls, model C + E",
+     "where": {
+      "page": 96,
+      "source_kind": "figure",
+      "quote": "Figure 5-4 ... C-E+ ... 1.625"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "C+E+",
+     "value": "3.375",
+     "analysis": "pulls, model C + E",
+     "where": {
+      "page": 96,
+      "source_kind": "figure",
+      "quote": "Figure 5-4 ... C+E+ ... 3.375"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "C-E-",
+     "value": "3.875",
+     "analysis": "pulls, model C + E",
+     "where": {
+      "page": 96,
+      "source_kind": "figure",
+      "quote": "Figure 5-4 ... C-E- ... 3.875"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "C+E-",
+     "value": "5.625",
+     "analysis": "pulls, model C + E",
+     "where": {
+      "page": 96,
+      "source_kind": "figure",
+      "quote": "Figure 5-4 ... C+E- ... 5.625"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "<0.001",
+     "analysis": "pulls, model C + E",
+     "where": {
+      "page": 96,
+      "source_kind": "prose",
+      "quote": "The F-test on the resulting model was significant at a 99.9% confidence level."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-popcorn-half-fraction",
+   "title": "The popcorn 2^3 cut to the half fraction ABC = +: a resolution III design and its aliases",
+   "topics": [
+    "food-beverages",
+    "household"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 5, Potential Confusion Caused by Aliasing in Lower Resolution Factorials",
+    "pages": "97-99",
+    "tables": [
+     "Table 5-4"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "brand of popcorn",
+     "low": "Cheap",
+     "high": "Costly",
+     "levels": [
+      "Cheap",
+      "Costly"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "time",
+     "low": 4,
+     "high": 6,
+     "units": "min",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "power",
+     "low": 75,
+     "high": 100,
+     "units": "%",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "taste",
+     "description": "taste, a panel's average rating multiplied by 10",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(3-1) fractional factorial, resolution III",
+    "details": "C = AB, the runs with ABC = +",
+    "n_runs": 4,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "taste"
+    ],
+    "rows": [
+     [
+      2,
+      1,
+      -1,
+      -1,
+      75
+     ],
+     [
+      3,
+      -1,
+      1,
+      -1,
+      71
+     ],
+     [
+      5,
+      -1,
+      -1,
+      1,
+      81
+     ],
+     [
+      8,
+      1,
+      1,
+      1,
+      32
+     ]
+    ],
+    "coded": true,
+    "notes": "the unshaded rows of Table 5-4, numbered by their standard order in the full 2^3 of Table 3-3"
+   },
+   "expected": [
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-22.5",
+     "analysis": "the half fraction",
+     "where": {
+      "page": 98,
+      "source_kind": "table",
+      "quote": "Table 5-4 ... Effect ... -22.5 ... Fraction"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B",
+     "value": "-26.5",
+     "analysis": "the half fraction",
+     "where": {
+      "page": 98,
+      "source_kind": "table",
+      "quote": "Table 5-4 ... Effect ... -26.5 ... Fraction"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "C",
+     "value": "-16.5",
+     "analysis": "the half fraction",
+     "where": {
+      "page": 98,
+      "source_kind": "table",
+      "quote": "Table 5-4 ... Effect ... -16.5 ... Fraction"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·B",
+     "value": "-16.5",
+     "analysis": "the half fraction",
+     "where": {
+      "page": 98,
+      "source_kind": "table",
+      "quote": "Table 5-4 ... Effect ... -16.5 ... Fraction"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A·C",
+     "value": "-26.5",
+     "analysis": "the half fraction",
+     "where": {
+      "page": 98,
+      "source_kind": "table",
+      "quote": "Table 5-4 ... Effect ... -26.5 ... Fraction"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "B·C",
+     "value": "-22.5",
+     "analysis": "the half fraction",
+     "where": {
+      "page": 98,
+      "source_kind": "table",
+      "quote": "Table 5-4 ... Effect ... -22.5 ... Fraction"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "taste",
+     "value": "64.75",
+     "where": {
+      "page": 99,
+      "source_kind": "prose",
+      "quote": "The calculated value of 64.75, labeled as an effect, is actually an estimate of the overall mean"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "A = BC",
+     "where": {
+      "page": 98,
+      "source_kind": "prose",
+      "quote": "A = BC (+, -, -, +)"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "B = AC",
+     "where": {
+      "page": 98,
+      "source_kind": "prose",
+      "quote": "B = AC (-, +, -, +)"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "C = AB",
+     "where": {
+      "page": 98,
+      "source_kind": "prose",
+      "quote": "C = AB (-, -, +, +)"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "where": {
+      "page": 99,
+      "source_kind": "prose",
+      "quote": "Statisticians consider such a design to be resolution III"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-rgb-projector",
+   "title": "Readability of a projected screen: font size, font style, background and room lighting in a 12-run 3/4 fraction",
+   "topics": [
+    "human-factors",
+    "education"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 5, Irregular Fractions Provide a Clearer View",
+    "pages": "104-110",
+    "tables": [
+     "Table 5-8",
+     "Table 5-9",
+     "Table 5-10"
+    ],
+    "figures": [
+     "Figure 5-5",
+     "Figure 5-6",
+     "Figure 5-7",
+     "Figure 5-8"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "font size",
+     "low": 10,
+     "high": 18,
+     "units": "point",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "font style",
+     "low": "Arial",
+     "high": "Times",
+     "levels": [
+      "Arial",
+      "Times"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "background",
+     "low": "Black",
+     "high": "White",
+     "levels": [
+      "Black",
+      "White"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "D",
+     "description": "room lighting",
+     "low": "Off",
+     "high": "On",
+     "levels": [
+      "Off",
+      "On"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "time to read a column of numbers, lower is better",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "irregular 3/4 fraction of the 2^4, 12 runs",
+    "details": "three of the four quarter fractions; the layout of Appendix 2-1",
+    "n_runs": 12,
+    "treatment_factors": 4
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "D",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      52
+     ],
+     [
+      2,
+      1,
+      1,
+      -1,
+      -1,
+      39
+     ],
+     [
+      3,
+      -1,
+      -1,
+      1,
+      -1,
+      42
+     ],
+     [
+      4,
+      1,
+      -1,
+      1,
+      -1,
+      27
+     ],
+     [
+      5,
+      -1,
+      1,
+      1,
+      -1,
+      37
+     ],
+     [
+      6,
+      1,
+      1,
+      1,
+      -1,
+      31
+     ],
+     [
+      7,
+      -1,
+      -1,
+      -1,
+      1,
+      57
+     ],
+     [
+      8,
+      1,
+      -1,
+      -1,
+      1,
+      28
+     ],
+     [
+      9,
+      -1,
+      1,
+      -1,
+      1,
+      52
+     ],
+     [
+      10,
+      1,
+      1,
+      -1,
+      1,
+      30
+     ],
+     [
+      11,
+      1,
+      -1,
+      1,
+      1,
+      19
+     ],
+     [
+      12,
+      -1,
+      1,
+      1,
+      1,
+      47
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 5-9, in standard order; the levels are coded -1 and +1 as printed in its brackets"
+   },
+   "notes": "The book analyses the students as one block, though each student was a block in the classroom.",
+   "expected": [
+    {
+     "what": "mean",
+     "term": "y at A+",
+     "value": "29.00",
+     "where": {
+      "page": 105,
+      "source_kind": "math",
+      "quote": "Effect_A = (39 + 27 + 31 + 28 + 30 + 19)/6 - (52 + 42 + 37 + 57 + 52 + 47)/6 = 29.00 - 47.83 = -18.83"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "mean",
+     "term": "y at A-",
+     "value": "47.83",
+     "where": {
+      "page": 105,
+      "source_kind": "math",
+      "quote": "= 29.00 - 47.83 = -18.83"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "A",
+     "value": "-18.83",
+     "where": {
+      "page": 105,
+      "source_kind": "math",
+      "quote": "= 29.00 - 47.83 = -18.83"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "1501.58",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Model 1501.58 4 375.40 60.64 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "4",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Model 1501.58 4 375.40 60.64 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "375.40",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Model 1501.58 4 375.40 60.64 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "60.64",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Model 1501.58 4 375.40 60.64 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "<0.0001",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Model 1501.58 4 375.40 60.64 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "1064.08",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 A 1064.08 1 1064.08 171.89 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A",
+     "value": "171.89",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 A 1064.08 1 1064.08 171.89 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A",
+     "value": "<0.0001",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 A 1064.08 1 1064.08 171.89 <0.0001"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "266.67",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 C 266.67 1 266.67 43.08 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "C",
+     "value": "43.08",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 C 266.67 1 266.67 43.08 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "C",
+     "value": "0.0003",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 C 266.67 1 266.67 43.08 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "D",
+     "value": "16.67",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 D 16.67 1 16.67 2.69 0.1448"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "D",
+     "value": "2.69",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 D 16.67 1 16.67 2.69 0.1448"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "D",
+     "value": "0.1448",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 D 16.67 1 16.67 2.69 0.1448"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·D",
+     "value": "168.75",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 AD 168.75 1 168.75 27.26 0.0012"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A·D",
+     "value": "27.26",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 AD 168.75 1 168.75 27.26 0.0012"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A·D",
+     "value": "0.0012",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 AD 168.75 1 168.75 27.26 0.0012"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "43.33",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Residual 43.33 7 6.19"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "7",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Residual 43.33 7 6.19"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "6.19",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Residual 43.33 7 6.19"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "1544.92",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 107,
+      "source_kind": "table",
+      "quote": "Table 5-10 Cor Total 1544.92 11"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A-C-D-",
+     "value": "50.3",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 50.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A-C-D+",
+     "value": "55.3",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 55.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A-C+D-",
+     "value": "40.3",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 40.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A-C+D+",
+     "value": "45.3",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 45.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A+C-D-",
+     "value": "39",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 39"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A+C-D+",
+     "value": "29",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 29"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A+C+D-",
+     "value": "29",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 29"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A+C+D+",
+     "value": "19",
+     "analysis": "readability, model A + C + D + AD",
+     "where": {
+      "page": 110,
+      "source_kind": "figure",
+      "quote": "Figure 5-8 Cube Graph Readability ... 19"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problem-5-1-molding",
+   "title": "Part shrinkage of an injection molder: seven factors in a 2^(7-2) run on two production lines as blocks (Problem 5-1)",
+   "topics": [
+    "plastics-rubber"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 5, Practice Problem, Problem 5-1",
+    "pages": "110-113",
+    "tables": [
+     "Table 5-11",
+     "Table 5-12"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "mold temperature",
+     "low": 130,
+     "high": 180,
+     "units": "°F",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "cycle time",
+     "low": 25,
+     "high": 30,
+     "units": "s",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "booster pressure",
+     "low": 1500,
+     "high": 1800,
+     "units": "psig",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "moisture",
+     "low": 0.05,
+     "high": 0.15,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "screw speed",
+     "low": 1.5,
+     "high": 4.0,
+     "units": "in/s",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "holding pressure",
+     "low": 1200,
+     "high": 1500,
+     "units": "psig",
+     "type": "numeric"
+    },
+    {
+     "name": "G",
+     "description": "gate size",
+     "low": 30,
+     "high": 50,
+     "units": "0.001 in",
+     "type": "numeric"
+    },
+    {
+     "name": "Line",
+     "description": "production line, a block",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "shrinkage",
+     "units": "%"
+    }
+   ],
+   "design": {
+    "type": "2^(7-2) fractional factorial in two blocks",
+    "details": "F = ABCD, G = ABCE; the blocks confounded with CDG, CEF, ABDE and ABFG",
+    "n_runs": 32,
+    "treatment_factors": 7,
+    "blocks": "Line"
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "Run",
+     "Line",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      19,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      0.833
+     ],
+     [
+      2,
+      4,
+      2,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0.784
+     ],
+     [
+      3,
+      10,
+      2,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0.966
+     ],
+     [
+      4,
+      25,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      0.898
+     ],
+     [
+      5,
+      28,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0.916
+     ],
+     [
+      6,
+      11,
+      2,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1.13
+     ],
+     [
+      7,
+      3,
+      2,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      0.76
+     ],
+     [
+      8,
+      29,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      0.73
+     ],
+     [
+      9,
+      13,
+      2,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      0.838
+     ],
+     [
+      10,
+      17,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      0.669
+     ],
+     [
+      11,
+      27,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1.06
+     ],
+     [
+      12,
+      14,
+      2,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      0.956
+     ],
+     [
+      13,
+      8,
+      2,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1.78
+     ],
+     [
+      14,
+      22,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1.66
+     ],
+     [
+      15,
+      18,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1.08
+     ],
+     [
+      16,
+      12,
+      2,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1.23
+     ],
+     [
+      17,
+      16,
+      2,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      0.922
+     ],
+     [
+      18,
+      24,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      0.815
+     ],
+     [
+      19,
+      20,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1.1
+     ],
+     [
+      20,
+      9,
+      2,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      0.858
+     ],
+     [
+      21,
+      2,
+      2,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1.17
+     ],
+     [
+      22,
+      30,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1.04
+     ],
+     [
+      23,
+      26,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      0.78
+     ],
+     [
+      24,
+      15,
+      2,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1.02
+     ],
+     [
+      25,
+      21,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      0.939
+     ],
+     [
+      26,
+      1,
+      2,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      0.909
+     ],
+     [
+      27,
+      5,
+      2,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1.06
+     ],
+     [
+      28,
+      31,
+      1,
+      1,
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      0.916
+     ],
+     [
+      29,
+      23,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1.68
+     ],
+     [
+      30,
+      6,
+      2,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1.44
+     ],
+     [
+      31,
+      7,
+      2,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1.33
+     ],
+     [
+      32,
+      32,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1.21
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 5-12, in standard order with its run order and line"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": [
+    {
+     "what": "block confounding",
+     "term": null,
+     "value": "Block 1 + CDG + CEF + ABDE + ABFG",
+     "where": {
+      "page": 111,
+      "source_kind": "prose",
+      "quote": "[Block 1] = Block 1 + CDG + CEF + ABDE + ABFG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "block confounding",
+     "term": null,
+     "value": "Block 2 - CDG - CEF - ABDE - ABFG",
+     "where": {
+      "page": 111,
+      "source_kind": "prose",
+      "quote": "[Block 2] = Block 2 - CDG - CEF - ABDE - ABFG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-dancing-raisins",
+   "title": "Dancing raisins: seven factors in a 2^(7-4) and its complete fold-over in a second block",
+   "topics": [
+    "food-beverages",
+    "education"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 6, Minimal-Resolution Design and Complete Foldover of Resolution III Design",
+    "pages": "116-125",
+    "tables": [
+     "Table 6-1",
+     "Table 6-2",
+     "Table 6-3",
+     "Table 6-4",
+     "Table 6-5"
+    ],
+    "figures": [
+     "Figure 6-1",
+     "Figure 6-2",
+     "Figure 6-3",
+     "Figure 6-4",
+     "Figure 6-5",
+     "Figure 6-6"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "material of container",
+     "low": "Plastic",
+     "high": "Glass",
+     "levels": [
+      "Plastic",
+      "Glass"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "size of container",
+     "low": "Small",
+     "high": "Large",
+     "levels": [
+      "Small",
+      "Large"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "liquid",
+     "low": "Club soda",
+     "high": "Lemon lime",
+     "levels": [
+      "Club soda",
+      "Lemon lime"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "D",
+     "description": "temperature",
+     "low": "Room",
+     "high": "Ice cold",
+     "levels": [
+      "Room",
+      "Ice cold"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "E",
+     "description": "cap on container",
+     "low": "No",
+     "high": "Yes",
+     "levels": [
+      "No",
+      "Yes"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "F",
+     "description": "type of object",
+     "low": "Popcorn",
+     "high": "Raisin",
+     "levels": [
+      "Popcorn",
+      "Raisin"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "G",
+     "description": "age of object",
+     "low": "Fresh",
+     "high": "Stale",
+     "levels": [
+      "Fresh",
+      "Stale"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "Blk",
+     "description": "block: 1 the first design, 2 its fold-over",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "dancing performance of ten objects, rated 0 to 10",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "2^(7-4) fractional factorial and its complete fold-over",
+    "details": "D = AB, E = AC, F = BC, G = ABC in block 1; every sign reversed in block 2",
+    "n_runs": 16,
+    "treatment_factors": 7,
+    "blocks": "Blk"
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "Blk",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      -1,
+      1.5
+     ],
+     [
+      2,
+      "1",
+      1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      2.0
+     ],
+     [
+      3,
+      "1",
+      -1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1.0
+     ],
+     [
+      4,
+      "1",
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      -1,
+      4.0
+     ],
+     [
+      5,
+      "1",
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1.5
+     ],
+     [
+      6,
+      "1",
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      -1,
+      1.0
+     ],
+     [
+      7,
+      "1",
+      -1,
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      -1,
+      5.0
+     ],
+     [
+      8,
+      "1",
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1.0
+     ],
+     [
+      9,
+      "2",
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      -1,
+      1,
+      1.0
+     ],
+     [
+      10,
+      "2",
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      -1,
+      1.0
+     ],
+     [
+      11,
+      "2",
+      1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      -1,
+      4.5
+     ],
+     [
+      12,
+      "2",
+      -1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1.5
+     ],
+     [
+      13,
+      "2",
+      1,
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      0.5
+     ],
+     [
+      14,
+      "2",
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      1,
+      1.5
+     ],
+     [
+      15,
+      "2",
+      1,
+      -1,
+      -1,
+      1,
+      1,
+      -1,
+      1,
+      1.0
+     ],
+     [
+      16,
+      "2",
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      4.5
+     ]
+    ],
+    "coded": true,
+    "notes": "Tables 6-2 and 6-4, in standard order; Table 6-4 repeats block 1 and adds AD, BE, BG and EG columns"
+   },
+   "notes": "The first analysis uses runs 1 to 8 only.",
+   "expected": [
+    {
+     "what": "generator",
+     "term": "D",
+     "value": "D = AB",
+     "analysis": "the generators the printed columns follow",
+     "where": {
+      "page": 117,
+      "source_kind": "table",
+      "quote": "Table 6-2 Results from first dancing-raisin experiment ... A B C D E F G"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "E",
+     "value": "E = AC",
+     "analysis": "the generators the printed columns follow",
+     "where": {
+      "page": 117,
+      "source_kind": "table",
+      "quote": "Table 6-2 Results from first dancing-raisin experiment ... A B C D E F G"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "F",
+     "value": "F = BC",
+     "analysis": "the generators the printed columns follow",
+     "where": {
+      "page": 117,
+      "source_kind": "table",
+      "quote": "Table 6-2 Results from first dancing-raisin experiment ... A B C D E F G"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "generator",
+     "term": "G",
+     "value": "G = ABC",
+     "analysis": "the generators the printed columns follow",
+     "where": {
+      "page": 117,
+      "source_kind": "table",
+      "quote": "Table 6-2 Results from first dancing-raisin experiment ... A B C D E F G"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "resolution",
+     "term": null,
+     "value": "III",
+     "where": {
+      "page": 117,
+      "source_kind": "prose",
+      "quote": "This is a minimal design with resolution III."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "A + BD + CE + FG",
+     "analysis": "the first block, two-factor interactions only",
+     "where": {
+      "page": 119,
+      "source_kind": "table",
+      "quote": "Table 6-3 A A + BD + CE + FG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "B + AD + CF + EG",
+     "analysis": "the first block, two-factor interactions only",
+     "where": {
+      "page": 119,
+      "source_kind": "table",
+      "quote": "Table 6-3 B B + AD + CF + EG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "C + AE + BF + DG",
+     "analysis": "the first block, two-factor interactions only",
+     "where": {
+      "page": 119,
+      "source_kind": "table",
+      "quote": "Table 6-3 C C + AE + BF + DG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "D",
+     "value": "D + AB + CG + EF",
+     "analysis": "the first block, two-factor interactions only",
+     "where": {
+      "page": 119,
+      "source_kind": "table",
+      "quote": "Table 6-3 D D + AB + CG + EF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "E",
+     "value": "E + AC + BG + DF",
+     "analysis": "the first block, two-factor interactions only",
+     "where": {
+      "page": 119,
+      "source_kind": "table",
+      "quote": "Table 6-3 E E + AC + BG + DF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "F",
+     "value": "F + AG + BC + DE",
+     "analysis": "the first block, two-factor interactions only",
+     "where": {
+      "page": 119,
+      "source_kind": "table",
+      "quote": "Table 6-3 F F + AG + BC + DE"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "G",
+     "value": "G + AF + BE + CD",
+     "analysis": "the first block, two-factor interactions only",
+     "where": {
+      "page": 119,
+      "source_kind": "table",
+      "quote": "Table 6-3 G G + AF + BE + CD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "27.78",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 118,
+      "source_kind": "prose",
+      "quote": "an F-value of 27.78 with an associated probability of 0.0039"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.0039",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 118,
+      "source_kind": "prose",
+      "quote": "an F-value of 27.78 with an associated probability of 0.0039"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-E-G-",
+     "value": "3.25",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... 3.25"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+E-G-",
+     "value": "4.50",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... 4.50"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-E+G-",
+     "value": "1.25",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... 1.25"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+E+G-",
+     "value": "2.50",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... 2.50"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-E-G+",
+     "value": "1.75",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... 1.75"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+E-G+",
+     "value": "3.00",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... 3.00"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B-E+G+",
+     "value": "-0.25",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... -0.25"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "B+E+G+",
+     "value": "1.00",
+     "analysis": "the first block, model B + E + G",
+     "where": {
+      "page": 119,
+      "source_kind": "figure",
+      "quote": "Figure 6-2 Cube Graph Dancing ... 1.00"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "effect",
+     "term": "E",
+     "value": "1.94",
+     "analysis": "both blocks, the largest effect at the end of the half-normal plot's axis",
+     "where": {
+      "page": 122,
+      "source_kind": "figure",
+      "quote": "Figure 6-4 ... Effect 0.00 0.48 0.97 1.45 1.94 ... E"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "A",
+     "value": "A + BD + FG",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 A A + BD + FG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "B",
+     "value": "B + AD + CF",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 B B + AD + CF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "C",
+     "value": "C + BF + DG",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 C C + BF + DG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "D",
+     "value": "D + AB + CG",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 D D + AB + CG"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "E",
+     "value": "E",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 E E"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "F",
+     "value": "F + AG + BC",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 F F + AG + BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "G",
+     "value": "G + AF + CD",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 G G + AF + CD"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "aliases",
+     "term": "AC",
+     "value": "AC + BG + DF",
+     "analysis": "the first block and a fold-over on E alone, main effects and two-factor interactions",
+     "where": {
+      "page": 125,
+      "source_kind": "table",
+      "quote": "Table 6-5 AC AC + BG + DF"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problems-6-1-6-2-skates",
+   "title": "Lap times on experimental in-line skates: a 2^(7-4) and its complete fold-over (Problems 6-1 and 6-2)",
+   "topics": [
+    "sport-recreation"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 6, Practice Problems, Problems 6-1 and 6-2",
+    "pages": "126-128",
+    "tables": [
+     "Table 6-7",
+     "Table 6-8"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "heel pad",
+     "low": "Out",
+     "high": "In",
+     "levels": [
+      "Out",
+      "In"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "bearing material",
+     "low": "Old",
+     "high": "New",
+     "levels": [
+      "Old",
+      "New"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "gloves",
+     "low": "On",
+     "high": "Off",
+     "levels": [
+      "On",
+      "Off"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "D",
+     "description": "helmet logo",
+     "low": "Back",
+     "high": "Front",
+     "levels": [
+      "Back",
+      "Front"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "E",
+     "description": "wheel polymer",
+     "low": "Hard",
+     "high": "Soft",
+     "levels": [
+      "Hard",
+      "Soft"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "F",
+     "description": "wheel covers",
+     "low": "On",
+     "high": "Off",
+     "levels": [
+      "On",
+      "Off"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "G",
+     "description": "neon lighting",
+     "low": "Off",
+     "high": "On",
+     "levels": [
+      "Off",
+      "On"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "Blk",
+     "description": "block: 1 the first design, 2 its fold-over",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "time around the track",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "2^(7-4) fractional factorial and its complete fold-over",
+    "details": "D = AB, E = AC, F = BC, G = ABC in block 1; every sign reversed in block 2",
+    "n_runs": 16,
+    "treatment_factors": 7,
+    "blocks": "Blk"
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "Blk",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "G",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      "Out",
+      "Old",
+      "On",
+      "Front",
+      "Soft",
+      "Off",
+      "Off",
+      195
+     ],
+     [
+      2,
+      "1",
+      "In",
+      "Old",
+      "On",
+      "Back",
+      "Hard",
+      "Off",
+      "On",
+      192
+     ],
+     [
+      3,
+      "1",
+      "Out",
+      "New",
+      "On",
+      "Back",
+      "Soft",
+      "On",
+      "On",
+      200
+     ],
+     [
+      4,
+      "1",
+      "In",
+      "New",
+      "On",
+      "Front",
+      "Hard",
+      "On",
+      "Off",
+      165
+     ],
+     [
+      5,
+      "1",
+      "Out",
+      "Old",
+      "Off",
+      "Front",
+      "Hard",
+      "On",
+      "On",
+      190
+     ],
+     [
+      6,
+      "1",
+      "In",
+      "Old",
+      "Off",
+      "Back",
+      "Soft",
+      "On",
+      "Off",
+      195
+     ],
+     [
+      7,
+      "1",
+      "Out",
+      "New",
+      "Off",
+      "Back",
+      "Hard",
+      "Off",
+      "Off",
+      166
+     ],
+     [
+      8,
+      "1",
+      "In",
+      "New",
+      "Off",
+      "Front",
+      "Soft",
+      "Off",
+      "On",
+      201
+     ],
+     [
+      9,
+      "2",
+      "In",
+      "New",
+      "Off",
+      "Back",
+      "Hard",
+      "On",
+      "On",
+      175
+     ],
+     [
+      10,
+      "2",
+      "Out",
+      "New",
+      "Off",
+      "Front",
+      "Soft",
+      "On",
+      "Off",
+      211
+     ],
+     [
+      11,
+      "2",
+      "In",
+      "Old",
+      "Off",
+      "Front",
+      "Hard",
+      "Off",
+      "Off",
+      202
+     ],
+     [
+      12,
+      "2",
+      "Out",
+      "Old",
+      "Off",
+      "Back",
+      "Soft",
+      "Off",
+      "On",
+      205
+     ],
+     [
+      13,
+      "2",
+      "In",
+      "New",
+      "On",
+      "Back",
+      "Soft",
+      "Off",
+      "Off",
+      212
+     ],
+     [
+      14,
+      "2",
+      "Out",
+      "New",
+      "On",
+      "Front",
+      "Hard",
+      "Off",
+      "On",
+      175
+     ],
+     [
+      15,
+      "2",
+      "In",
+      "Old",
+      "On",
+      "Front",
+      "Soft",
+      "On",
+      "On",
+      204
+     ],
+     [
+      16,
+      "2",
+      "Out",
+      "Old",
+      "On",
+      "Back",
+      "Hard",
+      "On",
+      "Off",
+      201
+     ]
+    ],
+    "coded": false,
+    "notes": "Tables 6-7 and 6-8, in standard order; the low level of each factor is the first level of p. 127"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-mr4-fermentation",
+   "title": "Yield density of a fermentation: six factors screened in a 12-run minimum-run resolution IV (MR4) design",
+   "topics": [
+    "bioprocessing"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 6, Appendix: Minimum-Run Designs for Screening",
+    "pages": "129-130",
+    "tables": [
+     "Table 6-9"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "temperature",
+     "low": 35,
+     "high": 39,
+     "units": "°C",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "pH",
+     "low": 6.8,
+     "high": 7.4,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "C",
+     "description": "dissolved oxygen",
+     "low": 5,
+     "high": 40,
+     "units": "%",
+     "type": "numeric"
+    },
+    {
+     "name": "D",
+     "description": "load density",
+     "low": 6,
+     "high": 20,
+     "units": "",
+     "type": "numeric"
+    },
+    {
+     "name": "E",
+     "description": "complex feed",
+     "low": 3.2,
+     "high": 4.8,
+     "units": "g/min",
+     "type": "numeric"
+    },
+    {
+     "name": "F",
+     "description": "inducer feed",
+     "low": 4.8,
+     "high": 7.2,
+     "units": "g/min",
+     "type": "numeric"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "yield density",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "minimum-run resolution IV (MR4) two-level design",
+    "details": "2k = 12 runs for six factors, from Anderson and Whitcomb, Chemical Processing, October 2006",
+    "n_runs": 12,
+    "treatment_factors": 6
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      39,
+      6.8,
+      40,
+      6,
+      4.8,
+      4.8,
+      70.39
+     ],
+     [
+      2,
+      35,
+      6.8,
+      40,
+      20,
+      4.8,
+      7.2,
+      101.4
+     ],
+     [
+      3,
+      39,
+      6.8,
+      40,
+      20,
+      3.2,
+      4.8,
+      86.88
+     ],
+     [
+      4,
+      39,
+      6.8,
+      5,
+      20,
+      4.8,
+      7.2,
+      79.71
+     ],
+     [
+      5,
+      39,
+      6.8,
+      40,
+      6,
+      3.2,
+      7.2,
+      61.68
+     ],
+     [
+      6,
+      35,
+      6.8,
+      5,
+      6,
+      3.2,
+      4.8,
+      50.2
+     ],
+     [
+      7,
+      35,
+      7.4,
+      5,
+      20,
+      3.2,
+      7.2,
+      97.23
+     ],
+     [
+      8,
+      39,
+      7.4,
+      5,
+      6,
+      3.2,
+      4.8,
+      73.33
+     ],
+     [
+      9,
+      35,
+      7.4,
+      5,
+      6,
+      4.8,
+      7.2,
+      67.51
+     ],
+     [
+      10,
+      35,
+      7.4,
+      40,
+      6,
+      3.2,
+      4.8,
+      71.71
+     ],
+     [
+      11,
+      35,
+      7.4,
+      5,
+      20,
+      4.8,
+      4.8,
+      111.2
+     ],
+     [
+      12,
+      39,
+      7.4,
+      40,
+      20,
+      4.8,
+      7.2,
+      74.92
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 6-9, in the order printed"
+   },
+   "unanswered": "the book prints the data and no analysis of it",
+   "expected": [
+    {
+     "what": "n_runs",
+     "term": null,
+     "value": "12",
+     "where": {
+      "page": 129,
+      "source_kind": "prose",
+      "quote": "In general, the MR4 designs require only two times the number of factors (2k)."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-spring-toys-replicated",
+   "title": "Time for three spring toys to walk down a plank at two inclines: a 3 x 2 general factorial, replicated",
+   "topics": [
+    "sport-recreation",
+    "education"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 7, Putting a Spring in Your Step",
+    "pages": "134-138",
+    "tables": [
+     "Table 7-1",
+     "Table 7-2"
+    ],
+    "figures": [
+     "Figure 7-2"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "spring toy",
+     "type": "categorical",
+     "units": "",
+     "low": "Metal Slinky",
+     "high": "Generic plastic",
+     "levels": [
+      "Metal Slinky",
+      "Slinky Junior",
+      "Generic plastic"
+     ]
+    },
+    {
+     "name": "B",
+     "description": "incline",
+     "low": "Shallow",
+     "high": "Steep",
+     "levels": [
+      "Shallow",
+      "Steep"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "time to walk a four-foot inclined plank",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "3 x 2 full factorial, replicated twice",
+    "details": "completely randomized",
+    "n_runs": 12,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "Metal Slinky",
+      "Shallow",
+      5.57
+     ],
+     [
+      2,
+      "Metal Slinky",
+      "Shallow",
+      5.75
+     ],
+     [
+      3,
+      "Slinky Junior",
+      "Shallow",
+      5.08
+     ],
+     [
+      4,
+      "Slinky Junior",
+      "Shallow",
+      5.36
+     ],
+     [
+      5,
+      "Generic plastic",
+      "Shallow",
+      3.03
+     ],
+     [
+      6,
+      "Generic plastic",
+      "Shallow",
+      3.34
+     ],
+     [
+      7,
+      "Metal Slinky",
+      "Steep",
+      4.67
+     ],
+     [
+      8,
+      "Metal Slinky",
+      "Steep",
+      4.95
+     ],
+     [
+      9,
+      "Slinky Junior",
+      "Steep",
+      4.23
+     ],
+     [
+      10,
+      "Slinky Junior",
+      "Steep",
+      4.98
+     ],
+     [
+      11,
+      "Generic plastic",
+      "Steep",
+      3.58
+     ],
+     [
+      12,
+      "Generic plastic",
+      "Steep",
+      4.5
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 7-1, two replicates a cell in standard order; no run order is printed"
+   },
+   "expected": [
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "7.73",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Model 7.73 5 1.55 10.96 0.0056"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "5",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Model 7.73 5 1.55 10.96 0.0056"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "1.55",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Model 7.73 5 1.55 10.96 0.0056"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "10.96",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Model 7.73 5 1.55 10.96 0.0056"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.0056",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Model 7.73 5 1.55 10.96 0.0056"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "5.90",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 A 5.90 2 2.95 20.90 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "A",
+     "value": "2",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 A 5.90 2 2.95 20.90 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "2.95",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 A 5.90 2 2.95 20.90 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A",
+     "value": "20.90",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 A 5.90 2 2.95 20.90 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A",
+     "value": "0.0020",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 A 5.90 2 2.95 20.90 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "0.12",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 B 0.12 1 0.12 0.88 0.3848"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B",
+     "value": "0.88",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 B 0.12 1 0.12 0.88 0.3848"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B",
+     "value": "0.3848",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 B 0.12 1 0.12 0.88 0.3848"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "1.71",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 AB 1.71 2 0.85 6.05 0.0365"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B",
+     "value": "0.85",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 AB 1.71 2 0.85 6.05 0.0365"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A·B",
+     "value": "6.05",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 AB 1.71 2 0.85 6.05 0.0365"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A·B",
+     "value": "0.0365",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 AB 1.71 2 0.85 6.05 0.0365"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.85",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Residual 0.85 6 0.14"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "6",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Residual 0.85 6 0.14"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.14",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Residual 0.85 6 0.14"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "8.58",
+     "analysis": "the full model A * B",
+     "where": {
+      "page": 137,
+      "source_kind": "table",
+      "quote": "Table 7-2 Cor Total 8.58 11"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-spring-toys-unreplicated",
+   "title": "Four spring toys, two inclines and a child or adult operator: an unreplicated 4 x 2 x 2 general factorial",
+   "topics": [
+    "sport-recreation",
+    "education"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 7, How to Analyze Unreplicated General Factorials, and its Appendix",
+    "pages": "138-146",
+    "tables": [
+     "Table 7-3",
+     "Table 7-4",
+     "Table 7-5"
+    ],
+    "figures": [
+     "Figure 7-3",
+     "Figure 7-4",
+     "Figure 7-5"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "spring toy",
+     "type": "categorical",
+     "units": "",
+     "low": "Metal Slinky",
+     "high": "Small generic",
+     "levels": [
+      "Metal Slinky",
+      "Slinky Junior",
+      "Plastic Slinky",
+      "Small generic"
+     ]
+    },
+    {
+     "name": "B",
+     "description": "incline",
+     "low": "Shallow",
+     "high": "Steep",
+     "levels": [
+      "Shallow",
+      "Steep"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "C",
+     "description": "operator",
+     "low": "Child",
+     "high": "Adult",
+     "levels": [
+      "Child",
+      "Adult"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "time to walk a four-foot inclined plank",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "4 x 2 x 2 full factorial, unreplicated",
+    "details": "16 combinations",
+    "n_runs": 16,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "C",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "Metal Slinky",
+      "Shallow",
+      "Child",
+      5.57
+     ],
+     [
+      2,
+      "Slinky Junior",
+      "Shallow",
+      "Child",
+      5.08
+     ],
+     [
+      3,
+      "Plastic Slinky",
+      "Shallow",
+      "Child",
+      6.37
+     ],
+     [
+      4,
+      "Small generic",
+      "Shallow",
+      "Child",
+      3.03
+     ],
+     [
+      5,
+      "Metal Slinky",
+      "Steep",
+      "Child",
+      4.67
+     ],
+     [
+      6,
+      "Slinky Junior",
+      "Steep",
+      "Child",
+      4.23
+     ],
+     [
+      7,
+      "Plastic Slinky",
+      "Steep",
+      "Child",
+      4.7
+     ],
+     [
+      8,
+      "Small generic",
+      "Steep",
+      "Child",
+      3.28
+     ],
+     [
+      9,
+      "Metal Slinky",
+      "Shallow",
+      "Adult",
+      6.51
+     ],
+     [
+      10,
+      "Slinky Junior",
+      "Shallow",
+      "Adult",
+      5.21
+     ],
+     [
+      11,
+      "Plastic Slinky",
+      "Shallow",
+      "Adult",
+      6.25
+     ],
+     [
+      12,
+      "Small generic",
+      "Shallow",
+      "Adult",
+      3.47
+     ],
+     [
+      13,
+      "Metal Slinky",
+      "Steep",
+      "Adult",
+      4.88
+     ],
+     [
+      14,
+      "Slinky Junior",
+      "Steep",
+      "Adult",
+      3.39
+     ],
+     [
+      15,
+      "Plastic Slinky",
+      "Steep",
+      "Adult",
+      6.72
+     ],
+     [
+      16,
+      "Small generic",
+      "Steep",
+      "Adult",
+      2.8
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 7-3, in standard order"
+   },
+   "notes": "Table 7-5's Model F, 12.06, is the main-effects model with the interactions pooled into the residual.",
+   "expected": [
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "18.68",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 A 18.68 73.1% 3 6.23"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "percent_of_total",
+     "term": "A",
+     "value": "73.1%",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 A 18.68 73.1% 3 6.23"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "A",
+     "value": "3",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 A 18.68 73.1% 3 6.23"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A",
+     "value": "6.23",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 A 18.68 73.1% 3 6.23"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "2.91",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 B 2.91 11.4% 1 2.91"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "percent_of_total",
+     "term": "B",
+     "value": "11.4%",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 B 2.91 11.4% 1 2.91"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "B",
+     "value": "1",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 B 2.91 11.4% 1 2.91"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B",
+     "value": "2.91",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 B 2.91 11.4% 1 2.91"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "C",
+     "value": "0.33",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 C 0.33 1.3% 1 0.33"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "percent_of_total",
+     "term": "C",
+     "value": "1.3%",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 C 0.33 1.3% 1 0.33"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "C",
+     "value": "1",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 C 0.33 1.3% 1 0.33"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "C",
+     "value": "0.33",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 C 0.33 1.3% 1 0.33"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "0.88",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AB 0.88 3.4% 3 0.29"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "percent_of_total",
+     "term": "A·B",
+     "value": "3.4%",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AB 0.88 3.4% 3 0.29"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "A·B",
+     "value": "3",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AB 0.88 3.4% 3 0.29"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B",
+     "value": "0.29",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AB 0.88 3.4% 3 0.29"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·C",
+     "value": "1.03",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AC 1.03 4.0% 3 0.34"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "percent_of_total",
+     "term": "A·C",
+     "value": "4.0%",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AC 1.03 4.0% 3 0.34"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "A·C",
+     "value": "3",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AC 1.03 4.0% 3 0.34"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·C",
+     "value": "0.34",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 AC 1.03 4.0% 3 0.34"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B·C",
+     "value": "0.014",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 BC 0.014 0.1% 1 0.014"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "percent_of_total",
+     "term": "B·C",
+     "value": "0.1%",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 BC 0.014 0.1% 1 0.014"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "B·C",
+     "value": "1",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 BC 0.014 0.1% 1 0.014"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "B·C",
+     "value": "0.014",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 BC 0.014 0.1% 1 0.014"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B·C",
+     "value": "1.71",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 ABC 1.71 6.7% 3 0.57"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "percent_of_total",
+     "term": "A·B·C",
+     "value": "6.7%",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 ABC 1.71 6.7% 3 0.57"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_df",
+     "term": "A·B·C",
+     "value": "3",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 ABC 1.71 6.7% 3 0.57"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_mean_sq",
+     "term": "A·B·C",
+     "value": "0.57",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 ABC 1.71 6.7% 3 0.57"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "25.55",
+     "analysis": "the saturated model A * B * C",
+     "where": {
+      "page": 140,
+      "source_kind": "table",
+      "quote": "Table 7-4 Total 25.55 100.0% 15"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "21.92",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Model 21.92 5 4.38 12.06 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "df_model",
+     "term": null,
+     "value": "5",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Model 21.92 5 4.38 12.06 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_regression",
+     "term": null,
+     "value": "4.38",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Model 21.92 5 4.38 12.06 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "12.06",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Model 21.92 5 4.38 12.06 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.0006",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Model 21.92 5 4.38 12.06 0.0006"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A",
+     "value": "17.14",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 A 18.68 3 6.23 17.14 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A",
+     "value": "0.0003",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 A 18.68 3 6.23 17.14 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B",
+     "value": "8.00",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 B 2.91 1 2.91 8.00 0.0179"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B",
+     "value": "0.0179",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 B 2.91 1 2.91 8.00 0.0179"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "C",
+     "value": "0.91",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 C 0.33 1 0.33 0.91 0.3626"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "C",
+     "value": "0.3626",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 C 0.33 1 0.33 0.91 0.3626"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "3.63",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Residual 3.63 10 0.36"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "10",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Residual 3.63 10 0.36"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.36",
+     "analysis": "main effects A + B + C",
+     "where": {
+      "page": 141,
+      "source_kind": "table",
+      "quote": "Table 7-5 Residual 3.63 10 0.36"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-problem-7-1-battery",
+   "title": "Battery life for three materials at three temperatures, a 3 x 3 general factorial replicated four times (Problem 7-1)",
+   "topics": [
+    "electrical-electronic"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 7, Practice Problems, Problem 7-1",
+    "pages": "143-144",
+    "tables": [
+     "Table 7-6"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "material type",
+     "low": "A1",
+     "high": "A3",
+     "levels": [
+      "A1",
+      "A2",
+      "A3"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "temperature",
+     "low": 15,
+     "high": 125,
+     "units": "°F",
+     "type": "numeric",
+     "levels": [
+      15,
+      70,
+      125
+     ]
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "battery life",
+     "units": "h"
+    }
+   ],
+   "design": {
+    "type": "3 x 3 full factorial, replicated four times",
+    "details": "completely randomized; Montgomery's example 5-3.1",
+    "n_runs": 36,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "A1",
+      15,
+      130
+     ],
+     [
+      2,
+      "A1",
+      15,
+      155
+     ],
+     [
+      3,
+      "A1",
+      15,
+      74
+     ],
+     [
+      4,
+      "A1",
+      15,
+      180
+     ],
+     [
+      5,
+      "A1",
+      70,
+      34
+     ],
+     [
+      6,
+      "A1",
+      70,
+      40
+     ],
+     [
+      7,
+      "A1",
+      70,
+      80
+     ],
+     [
+      8,
+      "A1",
+      70,
+      75
+     ],
+     [
+      9,
+      "A1",
+      125,
+      20
+     ],
+     [
+      10,
+      "A1",
+      125,
+      70
+     ],
+     [
+      11,
+      "A1",
+      125,
+      82
+     ],
+     [
+      12,
+      "A1",
+      125,
+      58
+     ],
+     [
+      13,
+      "A2",
+      15,
+      150
+     ],
+     [
+      14,
+      "A2",
+      15,
+      188
+     ],
+     [
+      15,
+      "A2",
+      15,
+      159
+     ],
+     [
+      16,
+      "A2",
+      15,
+      126
+     ],
+     [
+      17,
+      "A2",
+      70,
+      136
+     ],
+     [
+      18,
+      "A2",
+      70,
+      122
+     ],
+     [
+      19,
+      "A2",
+      70,
+      106
+     ],
+     [
+      20,
+      "A2",
+      70,
+      115
+     ],
+     [
+      21,
+      "A2",
+      125,
+      25
+     ],
+     [
+      22,
+      "A2",
+      125,
+      70
+     ],
+     [
+      23,
+      "A2",
+      125,
+      58
+     ],
+     [
+      24,
+      "A2",
+      125,
+      45
+     ],
+     [
+      25,
+      "A3",
+      15,
+      138
+     ],
+     [
+      26,
+      "A3",
+      15,
+      110
+     ],
+     [
+      27,
+      "A3",
+      15,
+      168
+     ],
+     [
+      28,
+      "A3",
+      15,
+      160
+     ],
+     [
+      29,
+      "A3",
+      70,
+      174
+     ],
+     [
+      30,
+      "A3",
+      70,
+      120
+     ],
+     [
+      31,
+      "A3",
+      70,
+      150
+     ],
+     [
+      32,
+      "A3",
+      70,
+      139
+     ],
+     [
+      33,
+      "A3",
+      125,
+      96
+     ],
+     [
+      34,
+      "A3",
+      125,
+      104
+     ],
+     [
+      35,
+      "A3",
+      125,
+      82
+     ],
+     [
+      36,
+      "A3",
+      125,
+      60
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 7-6, cell by cell; each cell's four lives read across its two printed rows"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-problem-7-2-commute",
+   "title": "Commute times by three routes, leaving early or late: a 3 x 2 general factorial replicated twice (Problem 7-2)",
+   "topics": [
+    "operations"
+   ],
+   "kind": "exercise",
+   "where": {
+    "section": "Chapter 7, Practice Problems, Problem 7-2",
+    "pages": "144",
+    "tables": [
+     "Table 7-7"
+    ],
+    "figures": []
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "route",
+     "low": "South",
+     "high": "North",
+     "levels": [
+      "South",
+      "Central",
+      "North"
+     ],
+     "units": "",
+     "type": "categorical"
+    },
+    {
+     "name": "B",
+     "description": "departure",
+     "low": "Early",
+     "high": "Late",
+     "levels": [
+      "Early",
+      "Late"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "commute time",
+     "units": "min"
+    }
+   ],
+   "design": {
+    "type": "3 x 2 full factorial, replicated twice",
+    "details": "run in random order",
+    "n_runs": 12,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "A",
+     "B",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "South",
+      "Early",
+      27.4
+     ],
+     [
+      2,
+      "South",
+      "Early",
+      29.1
+     ],
+     [
+      3,
+      "Central",
+      "Early",
+      29.0
+     ],
+     [
+      4,
+      "Central",
+      "Early",
+      28.7
+     ],
+     [
+      5,
+      "North",
+      "Early",
+      28.5
+     ],
+     [
+      6,
+      "North",
+      "Early",
+      27.4
+     ],
+     [
+      7,
+      "South",
+      "Late",
+      33.6
+     ],
+     [
+      8,
+      "South",
+      "Late",
+      32.9
+     ],
+     [
+      9,
+      "Central",
+      "Late",
+      30.7
+     ],
+     [
+      10,
+      "Central",
+      "Late",
+      29.1
+     ],
+     [
+      11,
+      "North",
+      "Late",
+      29.8
+     ],
+     [
+      12,
+      "North",
+      "Late",
+      30.9
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 7-7, two replicates a cell in standard order"
+   },
+   "unanswered": "the book posts its answers on the Internet, not in the book",
+   "expected": []
+  },
+  {
+   "name": "anderson-whitcomb-confetti",
+   "title": "Flight time of paper confetti: a 2^2 with four centre points shows curvature, then augmented to a CCD",
+   "topics": [
+    "education"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 8, Center Points Detect Curvature in Confetti and Augmenting to a CCD",
+    "pages": "148-156",
+    "tables": [
+     "Table 8-1",
+     "Table 8-2",
+     "Table 8-3",
+     "Table 8-4",
+     "Table 8-5"
+    ],
+    "figures": [
+     "Figure 8-3",
+     "Figure 8-4",
+     "Figure 8-6",
+     "Figure 8-7"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "width",
+     "low": 1,
+     "high": 3,
+     "units": "in",
+     "type": "numeric"
+    },
+    {
+     "name": "B",
+     "description": "length (height in Table 8-1)",
+     "low": 3,
+     "high": 5,
+     "units": "in",
+     "type": "numeric"
+    },
+    {
+     "name": "Block",
+     "description": "block: 1 the factorial and centre runs, 2 the axial and centre runs",
+     "low": "1",
+     "high": "2",
+     "levels": [
+      "1",
+      "2"
+     ],
+     "units": "",
+     "type": "categorical"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "flight time from a height of 5 feet, the mean of 10 drops",
+     "units": "s"
+    }
+   ],
+   "design": {
+    "type": "central composite design in two blocks",
+    "details": "a 2^2 with four centre points, then four axial runs at 1.4 coded units and four more centre points",
+    "n_runs": 16,
+    "treatment_factors": 2,
+    "blocks": "Block"
+   },
+   "runs": {
+    "columns": [
+     "Std",
+     "Block",
+     "Type",
+     "A",
+     "B",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      "1",
+      "Factorial",
+      1.0,
+      3.0,
+      2.5
+     ],
+     [
+      2,
+      "1",
+      "Factorial",
+      3.0,
+      3.0,
+      1.9
+     ],
+     [
+      3,
+      "1",
+      "Factorial",
+      1.0,
+      5.0,
+      2.8
+     ],
+     [
+      4,
+      "1",
+      "Factorial",
+      3.0,
+      5.0,
+      2.0
+     ],
+     [
+      5,
+      "1",
+      "Center",
+      2.0,
+      4.0,
+      2.8
+     ],
+     [
+      6,
+      "1",
+      "Center",
+      2.0,
+      4.0,
+      2.7
+     ],
+     [
+      7,
+      "1",
+      "Center",
+      2.0,
+      4.0,
+      2.6
+     ],
+     [
+      8,
+      "1",
+      "Center",
+      2.0,
+      4.0,
+      2.7
+     ],
+     [
+      9,
+      "2",
+      "Axial",
+      0.6,
+      4.0,
+      2.5
+     ],
+     [
+      10,
+      "2",
+      "Axial",
+      3.4,
+      4.0,
+      1.8
+     ],
+     [
+      11,
+      "2",
+      "Axial",
+      2.0,
+      2.6,
+      2.6
+     ],
+     [
+      12,
+      "2",
+      "Axial",
+      2.0,
+      5.4,
+      3.0
+     ],
+     [
+      13,
+      "2",
+      "Center",
+      2.0,
+      4.0,
+      2.5
+     ],
+     [
+      14,
+      "2",
+      "Center",
+      2.0,
+      4.0,
+      2.6
+     ],
+     [
+      15,
+      "2",
+      "Center",
+      2.0,
+      4.0,
+      2.6
+     ],
+     [
+      16,
+      "2",
+      "Center",
+      2.0,
+      4.0,
+      2.9
+     ]
+    ],
+    "coded": false,
+    "notes": "Table 8-4, in standard order; its first eight rows are Table 8-2"
+   },
+   "notes": "The first analysis (Table 8-3) uses runs 1 to 8. The text gives the lack-of-fit probability of Table 8-5 as 0.3578 where the table prints 0.3402. The axial widths and lengths are printed to two decimals, 1.4 coded units, though software sets them at sqrt(2) = 1.414.",
+   "expected": [
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "0.49",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Model 0.49 1 0.49 35.00 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A",
+     "value": "35.00",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 A 0.49 1 0.49 35.00 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A",
+     "value": "0.0020",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 A 0.49 1 0.49 35.00 0.0020"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "curvature ss",
+     "term": null,
+     "value": "0.32",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Curvature 0.32 1 0.32 22.86 0.0050"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "curvature f",
+     "term": null,
+     "value": "22.86",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Curvature 0.32 1 0.32 22.86 0.0050"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "curvature p",
+     "term": null,
+     "value": "0.0050",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Curvature 0.32 1 0.32 22.86 0.0050"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.070",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Residual 0.070 5 0.014"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "5",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Residual 0.070 5 0.014"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.014",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Residual 0.070 5 0.014"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lack_of_fit_ss",
+     "term": null,
+     "value": "0.050",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Lack of Fit 0.050 2 0.025 3.75 0.1527"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lack_of_fit_f",
+     "term": null,
+     "value": "3.75",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Lack of Fit 0.050 2 0.025 3.75 0.1527"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lack_of_fit_p",
+     "term": null,
+     "value": "0.1527",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Lack of Fit 0.050 2 0.025 3.75 0.1527"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "pure_error_ss",
+     "term": null,
+     "value": "0.020",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Pure Error 0.020 3 0.0067"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "pure_error_ms",
+     "term": null,
+     "value": "0.0067",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Pure Error 0.020 3 0.0067"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "0.88",
+     "analysis": "the first block, model A, with B and AB pooled as lack of fit and a curvature row",
+     "where": {
+      "page": 151,
+      "source_kind": "table",
+      "quote": "Table 8-3 Cor Total 0.88 7"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "Intercept",
+     "value": "2.68",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 154,
+      "source_kind": "math",
+      "quote": "Time = 2.68 - 0.30A + 0.12B - 0.050AB - 0.31A^2 + 0.020B^2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "-0.30",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 154,
+      "source_kind": "math",
+      "quote": "Time = 2.68 - 0.30A + 0.12B - 0.050AB - 0.31A^2 + 0.020B^2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "0.12",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 154,
+      "source_kind": "math",
+      "quote": "Time = 2.68 - 0.30A + 0.12B - 0.050AB - 0.31A^2 + 0.020B^2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-0.050",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 154,
+      "source_kind": "math",
+      "quote": "Time = 2.68 - 0.30A + 0.12B - 0.050AB - 0.31A^2 + 0.020B^2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A^2",
+     "value": "-0.31",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 154,
+      "source_kind": "math",
+      "quote": "Time = 2.68 - 0.30A + 0.12B - 0.050AB - 0.31A^2 + 0.020B^2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B^2",
+     "value": "0.020",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 154,
+      "source_kind": "math",
+      "quote": "Time = 2.68 - 0.30A + 0.12B - 0.050AB - 0.31A^2 + 0.020B^2"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "Block",
+     "value": "0.016",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Block 0.016 1 0.016"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_regression",
+     "term": null,
+     "value": "1.59",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Model 1.59 5 0.32 15.50 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression",
+     "term": null,
+     "value": "15.50",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Model 1.59 5 0.32 15.50 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "f_regression_p",
+     "term": null,
+     "value": "0.0003",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Model 1.59 5 0.32 15.50 0.0003"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A",
+     "value": "0.71",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 A 0.71 1 0.71 34.72 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A",
+     "value": "34.72",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 A 0.71 1 0.71 34.72 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A",
+     "value": "0.0002",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 A 0.71 1 0.71 34.72 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B",
+     "value": "0.12",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 B 0.12 1 0.12 5.67 0.0412"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B",
+     "value": "5.67",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 B 0.12 1 0.12 5.67 0.0412"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B",
+     "value": "0.0412",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 B 0.12 1 0.12 5.67 0.0412"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A^2",
+     "value": "0.75",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 A^2 0.75 1 0.75 36.49 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A^2",
+     "value": "36.49",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 A^2 0.75 1 0.75 36.49 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A^2",
+     "value": "0.0002",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 A^2 0.75 1 0.75 36.49 0.0002"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "B^2",
+     "value": "0.003",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 B^2 0.003 1 0.003 0.14 0.7201"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "B^2",
+     "value": "0.14",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 B^2 0.003 1 0.003 0.14 0.7201"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "B^2",
+     "value": "0.7201",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 B^2 0.003 1 0.003 0.14 0.7201"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_sum_sq",
+     "term": "A·B",
+     "value": "0.010",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 AB 0.010 1 0.010 0.49 0.5032"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_f",
+     "term": "A·B",
+     "value": "0.49",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 AB 0.010 1 0.010 0.49 0.5032"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "anova_p",
+     "term": "A·B",
+     "value": "0.5032",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 AB 0.010 1 0.010 0.49 0.5032"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_residual",
+     "term": null,
+     "value": "0.19",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Residual 0.19 9 0.021"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "residual_df",
+     "term": null,
+     "value": "9",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Residual 0.19 9 0.021"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ms_residual",
+     "term": null,
+     "value": "0.021",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Residual 0.19 9 0.021"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lack_of_fit_ss",
+     "term": null,
+     "value": "0.075",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Lack of Fit 0.075 3 0.025 1.36 0.3402"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lack_of_fit_f",
+     "term": null,
+     "value": "1.36",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Lack of Fit 0.075 3 0.025 1.36 0.3402"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lack_of_fit_p",
+     "term": null,
+     "value": "0.3402",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Lack of Fit 0.075 3 0.025 1.36 0.3402"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "pure_error_ss",
+     "term": null,
+     "value": "0.11",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Pure Error 0.11 6 0.018"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "pure_error_ms",
+     "term": null,
+     "value": "0.018",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Pure Error 0.11 6 0.018"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "ss_total",
+     "term": null,
+     "value": "1.79",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "table",
+      "quote": "Table 8-5 Cor Total 1.79 15"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "lack_of_fit_p",
+     "term": null,
+     "value": "0.3578",
+     "analysis": "both blocks, the full quadratic in coded units with a block term",
+     "where": {
+      "page": 155,
+      "source_kind": "prose",
+      "quote": "the probability value of 0.3578 exceeds the threshold value of 0.05"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "axial distance",
+     "term": null,
+     "value": "1.4",
+     "where": {
+      "page": 153,
+      "source_kind": "prose",
+      "quote": "the best place to add points is 1.4 coded units from the center"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "optimum",
+     "term": "width",
+     "value": "1.44",
+     "analysis": "both blocks, the full quadratic in coded units with a block term, maximised within the factorial range",
+     "where": {
+      "page": 156,
+      "source_kind": "prose",
+      "quote": "The maximum flight time within this factorial range occurs at a width of 1.44 inches and length of 5 inches."
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "optimum",
+     "term": "length",
+     "value": "5",
+     "analysis": "both blocks, the full quadratic in coded units with a block term, maximised within the factorial range",
+     "where": {
+      "page": 156,
+      "source_kind": "prose",
+      "quote": "occurs at a width of 1.44 inches and length of 5 inches"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-gold-copper",
+   "title": "Melt point of gold and copper blends: a replicated two-component mixture design",
+   "topics": [
+    "metals"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 9, Two-Component Mixture Design: Good as Gold",
+    "pages": "162-165",
+    "tables": [
+     "Table 9-3"
+    ],
+    "figures": [
+     "Figure 9-1"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "gold",
+     "low": 0,
+     "high": 1,
+     "units": "proportion",
+     "type": "mixture"
+    },
+    {
+     "name": "B",
+     "description": "copper",
+     "low": 0,
+     "high": 1,
+     "units": "proportion",
+     "type": "mixture"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "melt point",
+     "units": "°C"
+    }
+   ],
+   "design": {
+    "type": "two-component simplex lattice {2, 2}, replicated",
+    "details": "pure blends and the 50/50 blend, each made twice",
+    "n_runs": 6,
+    "treatment_factors": 2
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      0,
+      1039
+     ],
+     [
+      2,
+      1,
+      0,
+      1047
+     ],
+     [
+      3,
+      0.5,
+      0.5,
+      918
+     ],
+     [
+      4,
+      0.5,
+      0.5,
+      922
+     ],
+     [
+      5,
+      0,
+      1,
+      1073
+     ],
+     [
+      6,
+      0,
+      1,
+      1074
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 9-3, its weight percentages written as proportions"
+   },
+   "notes": "The least-squares fit to the six runs gives AB = -553.0; the book prints -553.2.",
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "1043.0",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 163,
+      "source_kind": "math",
+      "quote": "Melt point = 1043.0A + 1073.5B - 553.2AB"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "1073.5",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 163,
+      "source_kind": "math",
+      "quote": "Melt point = 1043.0A + 1073.5B - 553.2AB"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "-553.2",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 163,
+      "source_kind": "math",
+      "quote": "Melt point = 1043.0A + 1073.5B - 553.2AB"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "A = B = 0.5",
+     "value": "919.95",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 165,
+      "source_kind": "math",
+      "quote": "= 1058.25 - 138.3 = 919.95"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "prediction",
+     "term": "linear blend at 0.5",
+     "value": "1058.25",
+     "analysis": "the linear terms only",
+     "where": {
+      "page": 165,
+      "source_kind": "math",
+      "quote": "(1043.0 + 1073.5)/2 - 553.2/4 = 1058.25 - 138.3"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "other",
+     "term": "deflection at 0.5",
+     "value": "138.3",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 165,
+      "source_kind": "prose",
+      "quote": "The equation predicts a deflection of 138.3 degrees C"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
+  },
+  {
+   "name": "anderson-whitcomb-teeny-beanies",
+   "title": "Taste of jelly candy blends of apple, cinnamon and lemon: a simplex centroid with replicates",
+   "topics": [
+    "food-beverages"
+   ],
+   "kind": "example",
+   "where": {
+    "section": "Chapter 9, Three-Component Design: Teeny Beany Experiment",
+    "pages": "166-169",
+    "tables": [
+     "Table 9-4"
+    ],
+    "figures": [
+     "Figure 9-3",
+     "Figure 9-4"
+    ]
+   },
+   "factors": [
+    {
+     "name": "A",
+     "description": "apple",
+     "low": 0,
+     "high": 1,
+     "units": "proportion",
+     "type": "mixture"
+    },
+    {
+     "name": "B",
+     "description": "cinnamon",
+     "low": 0,
+     "high": 1,
+     "units": "proportion",
+     "type": "mixture"
+    },
+    {
+     "name": "C",
+     "description": "lemon",
+     "low": 0,
+     "high": 1,
+     "units": "proportion",
+     "type": "mixture"
+    }
+   ],
+   "responses": [
+    {
+     "name": "y",
+     "description": "taste rating 1 to 10, the mean of a panel",
+     "units": ""
+    }
+   ],
+   "design": {
+    "type": "simplex centroid, three components",
+    "details": "pure blends and the centroid made twice, the binary blends once",
+    "n_runs": 11,
+    "treatment_factors": 3
+   },
+   "runs": {
+    "columns": [
+     "No.",
+     "A",
+     "B",
+     "C",
+     "y"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      0,
+      0,
+      5.1
+     ],
+     [
+      2,
+      1,
+      0,
+      0,
+      5.2
+     ],
+     [
+      3,
+      0,
+      1,
+      0,
+      6.5
+     ],
+     [
+      4,
+      0,
+      1,
+      0,
+      7.0
+     ],
+     [
+      5,
+      0,
+      0,
+      1,
+      4.0
+     ],
+     [
+      6,
+      0,
+      0,
+      1,
+      4.5
+     ],
+     [
+      7,
+      0.5,
+      0.5,
+      0,
+      6.9
+     ],
+     [
+      8,
+      0.5,
+      0,
+      0.5,
+      2.8
+     ],
+     [
+      9,
+      0,
+      0.5,
+      0.5,
+      3.5
+     ],
+     [
+      10,
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333,
+      4.2
+     ],
+     [
+      11,
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333,
+      4.3
+     ]
+    ],
+    "coded": true,
+    "notes": "Table 9-4, its percentages written as proportions; 33.33% as 1/3"
+   },
+   "expected": [
+    {
+     "what": "coefficient",
+     "term": "A",
+     "value": "5.14",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 167,
+      "source_kind": "math",
+      "quote": "Taste = 5.14A + 6.74B + 4.24C + 4.12AB - 7.28AC - 7.68BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B",
+     "value": "6.74",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 167,
+      "source_kind": "math",
+      "quote": "Taste = 5.14A + 6.74B + 4.24C + 4.12AB - 7.28AC - 7.68BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "C",
+     "value": "4.24",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 167,
+      "source_kind": "math",
+      "quote": "Taste = 5.14A + 6.74B + 4.24C + 4.12AB - 7.28AC - 7.68BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·B",
+     "value": "4.12",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 167,
+      "source_kind": "math",
+      "quote": "Taste = 5.14A + 6.74B + 4.24C + 4.12AB - 7.28AC - 7.68BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "A·C",
+     "value": "-7.28",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 167,
+      "source_kind": "math",
+      "quote": "Taste = 5.14A + 6.74B + 4.24C + 4.12AB - 7.28AC - 7.68BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    },
+    {
+     "what": "coefficient",
+     "term": "B·C",
+     "value": "-7.68",
+     "analysis": "Scheffe quadratic mixture model",
+     "where": {
+      "page": 167,
+      "source_kind": "math",
+      "quote": "Taste = 5.14A + 6.74B + 4.24C + 4.12AB - 7.28AC - 7.68BC"
+     },
+     "check": {
+      "manual": "TO CHECK"
+     }
+    }
+   ]
   }
  ]
 }
