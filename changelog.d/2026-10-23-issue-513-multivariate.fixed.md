@@ -26,3 +26,10 @@
   `s_loadings_d`, `v_loadings_d` and `w_loadings_z` came out with the opposite sign to the super
   score: with no Z block the F super weight was -1. Those components change sign now; scores,
   predictions, SPE, Hotelling's T² and VIP do not change.
+- **`TPLS` leaves a column with no variance out of every score (#513).** Such a column is scaled to
+  NaN and zeroed, as it was, but its cells were still counted as observed, so in F they entered
+  every row's denominator and shrank every score; the warning added earlier said the column was
+  excluded when it was only partly so. The presence maps (`not_na_d`, `not_na_f`, `not_na_z`,
+  `not_na_y`) are now taken after preprocessing, in `fit` and in `diagnose`. A fit whose F block has
+  a constant column now matches the same fit with that column unobserved; its scores, predictions
+  and loadings change.

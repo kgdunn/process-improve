@@ -323,3 +323,25 @@ def test_a_block_with_no_variation_still_stops_the_fit_at_once() -> None:
         ),
     ):
         TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+
+def test_a_constant_f_column_fits_as_an_unobserved_one() -> None:
+    """#513: a column excluded for having no variance is absent from the fit, not a column of zeros.
+
+    Scaling turns a constant column into NaN, which is then zeroed, but the presence maps
+    were taken from the raw blocks, so its cells still counted in every row's denominator
+    and shrank every score. A material used at a fixed fraction in every blend now fits as
+    the same material left unobserved does, in fit and in diagnose.
+    """
+    d_matrix, blocks = _synthetic()
+    constant, unobserved = copy.deepcopy(blocks), copy.deepcopy(blocks)
+    constant["F"]["G"]["mat3"] = 0.25
+    unobserved["F"]["G"]["mat3"] = np.nan
+
+    with pytest.warns(UserWarning, match=r"Block F\[\"G\"\] has columns with no variance.*'mat3'"):
+        fixed = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(constant)))
+    absent = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(unobserved))
+
+    np.testing.assert_allclose(fixed.t_scores_super, absent.t_scores_super, atol=1e-12)
+    np.testing.assert_allclose(fixed.hat["Y1"], absent.hat["Y1"], atol=1e-12)
+    np.testing.assert_allclose(fixed.diagnose(DataFrameDict(constant)).t_scores_super, fixed.t_scores_super, atol=1e-10)

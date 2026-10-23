@@ -289,7 +289,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         Deflated block matrices (per group for D/F, per Z-block / Y-block
         for Z/Y).
     not_na_d, not_na_f, not_na_z, not_na_y : dict[str, np.ndarray]
-        Boolean observed-value masks matching the shapes above.
+        Boolean observed-value masks matching the shapes above. A column excluded for having
+        no variance is marked absent in every row.
     observation_names : pd.Index
         Row index shared across the F/Z/Y blocks.
     property_names, material_names : dict[str, list[str]]
@@ -564,6 +565,15 @@ class TPLS(RegressorMixin, BaseEstimator):
             }
         ]
 
+        # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
+        # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps). They are
+        # taken from the preprocessed blocks, not the raw ones, so a column excluded for having no variance (NaN
+        # after scaling) is absent too: it is zeroed below, and counted as present it shrank every score (#513).
+        self.not_na_d = {key: ~np.isnan(self.d_mats[key]) for key in group_keys}
+        self.not_na_f = {key: ~np.isnan(self.f_mats[key]) for key in group_keys}
+        self.not_na_z = {key: ~np.isnan(self.z_mats[key]) for key in X["Z"]}
+        self.not_na_y = {key: ~np.isnan(self.y_mats[key]) for key in X["Y"]}
+
         # Then set missing data values to zeros (not because we are ignoring the values), but because we will use
         # the missing value maps to identify where the missing values are and therefore ignore them. But set to zero,
         # so these values have no influence on the calculations.
@@ -578,13 +588,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.material_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
         self.quality_names = {key: X["Y"][key].columns.to_list() for key in X["Y"]}
-
-        # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
-        # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
-        self.not_na_d = {key: ~np.isnan(self.d_matrix[key].values) for key in self.d_mats}
-        self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in self.f_mats}
-        self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in self.z_mats}
-        self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in self.y_mats}
 
         # Model parameters. Naming convention: x_i_j
         # x = block letter (P, W, R, T, etc)
@@ -699,8 +702,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         for key, df_z in x_z.items():
             x_z[key] = (df_z - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key]["scale"]
 
-        not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
-        not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
+        # From the preprocessed blocks, as in fit(), so a column excluded for having no variance is absent.
+        not_na_f = {key: ~np.isnan(df.values) for key, df in x_f.items()}
+        not_na_z = {key: ~np.isnan(df.values) for key, df in x_z.items()}
         # Zero out missing cells AFTER building the presence maps, exactly as
         # fit() does via nan_to_zeros. The score numerators below multiply the
         # data by a zeroed weight at missing positions, but NaN * 0.0 is NaN,
