@@ -50,10 +50,12 @@ def _prepare_data(  # noqa: C901, PLR0912
     if phase_col is None:
         phase_col = "__phase_grouper__"
 
+    # The fake grouping columns are added with `assign`, which returns a new frame: an
+    # in-place `insert` added them to the caller's DataFrame as well.
     if phase_col not in df:
         # Cannot use "None" or 'nan'; else it won't group in the
         # groupby([batch_col, phase_col]) statement below.
-        df.insert(0, phase_col, "NoPhases")
+        df = df.assign(**{phase_col: "NoPhases"})
 
     # If no batch_col: add a fake column with all the same values
     if batch_col not in df or batch_col is None:
@@ -61,7 +63,7 @@ def _prepare_data(  # noqa: C901, PLR0912
         if batch_col not in df:
             # Cannot use "None" or 'nan'; else it won't group in the
             # groupby([batch_col, phase_col]) statement below.
-            df.insert(0, batch_col, 1)
+            df = df.assign(**{batch_col: 1})
 
     if tags is None:
         tags = list(df.columns)

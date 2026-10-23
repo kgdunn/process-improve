@@ -72,6 +72,17 @@ def test_default_tags_exclude_the_batch_and_phase_columns() -> None:
     assert means["temp_mean"].to_dict() == {(1, "heat"): 15.0, (1, "hold"): 40.0, (2, "heat"): 5.0, (2, "hold"): 7.0}
 
 
+def test_a_feature_leaves_the_callers_dataframe_unchanged() -> None:
+    """The fake batch and phase grouping columns go on a copy, not on the caller's frame (#513)."""
+    data = pd.DataFrame({"temp": [10.0, 20.0, 30.0], "time": [0.0, 1.0, 2.0]})
+    before = data.copy()
+
+    features.f_mean(data, tags=["temp"])
+    features.f_area(data, time_tag="time", tags=["temp"])
+
+    pd.testing.assert_frame_equal(data, before)
+
+
 def test_slope_against_an_x_axis_column_of_the_batch() -> None:
     """Without age_col the x-axis is read from the batch's own column; with all tags it includes itself (slope 1)."""
     ramps = pd.DataFrame(
