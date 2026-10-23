@@ -25,7 +25,7 @@
   "isbn": "0-471-09315-7",
   "url": "https://search.worldcat.org/search?q=bn:0471093157",
   "cite": "Box, G. E. P., Hunter, W. G. and Hunter, J. S. (1978), Statistics for Experimenters, Wiley",
-  "read": "2026-10-14, from scans of the whole book: front matter, chapters 1 to 18, the problems for Parts I to IV, and the appendix tables and indexes; tables taken from the text layer and checked against the totals and averages the book prints; Table 2.3's circled entries, one average of Table 2.2, Exercise 2.6, the run orders of Tables 6.1 and 7.1, Exercise 7.1 (a), Table 7.15, the second square of Table 8.8 the days of Problem 11 of Part II, the run orders of Table 10.3, the first popcorn yield of Exercise 10.3, the cubes of Figures 10.10 and 11.4, Tables 11.2, 11.3 and 11A.1, Tables 12.1b, 12.7 and 12.15, Tables 13.5 to 13.8, Problems 2, 9, 20 and 21 of Part III and Tables 14.6, 14.10 to 14.12, Table 17.3, and Tables 15.1 to 15.3 read from the page image",
+  "read": "2026-10-14, the whole book: front matter, chapters 1 to 18, the problems for Parts I to IV, and the appendix tables and indexes; tables checked against the totals and averages the book prints",
   "rights": "The book is protected by copyright (© 1978 John Wiley & Sons, Inc.) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -1816,7 +1816,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 2.2, read downwards across both pages; all 201 printed averages of 10 reproduce, one (83.96, beside obs. 114) read from the page image"
+    "notes": "Table 2.2, read downwards across both pages; all 201 printed averages of 10 reproduce, one (83.96, beside obs. 114) hard to read"
    },
    "notes": "Not an experiment: the past record from which the book builds external reference distributions for the plant trial (bhh-plant-trial-two-methods).",
    "expected": [
@@ -15698,7 +15698,7 @@
       "quote": "Answer: y = 35.5, s² = 48.72, s = 6.98, with ν = 9 degrees of freedom."
      },
      "check": {
-      "manual": "used to restore the two values the scan damages, so not an independent check"
+      "manual": "used to restore the two illegible values, so not an independent check"
      }
     },
     {
@@ -15711,7 +15711,7 @@
       "quote": "Answer: y = 35.5, s² = 48.72, s = 6.98, with ν = 9 degrees of freedom."
      },
      "check": {
-      "manual": "used to restore the two values the scan damages, so not an independent check"
+      "manual": "used to restore the two illegible values, so not an independent check"
      }
     },
     {
@@ -15728,7 +15728,7 @@
      }
     }
    ],
-   "notes": "The fifth and eighth values are damaged in the scan (3_ and illegible). They are the only whole numbers that give the printed average 35.5 and variance 48.72: 33 and 29."
+   "notes": "The fifth and eighth values are illegible (the fifth shows only 3_). They are the only whole numbers that give the printed average 35.5 and variance 48.72: 33 and 29."
   },
   {
    "name": "bhh-ex-2-7-airfoil",
@@ -18286,7 +18286,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 6.1, by diet; order is the random order in which the observations were obtained (the superscripts), read from the page image"
+    "notes": "Table 6.1, by diet; order is the random order in which the observations were obtained (the superscripts)"
    },
    "expected": [
     {
@@ -19708,7 +19708,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 7.1; order is the random order within the blend, read from the page image. The book altered the yields slightly to give whole-number averages."
+    "notes": "Table 7.1; order is the random order within the blend. The book altered the yields slightly to give whole-number averages."
    },
    "notes": "The same data reappear as Problem 1 of Part II (operators and batches of raw material).",
    "expected": [
@@ -20651,7 +20651,7 @@
      ]
     ],
     "coded": false,
-    "notes": "listed by treatment, as the book lists its residuals; data set (a) read from the page image"
+    "notes": "listed by treatment, as the book lists its residuals"
    },
    "notes": "Six identical samples; blocks are technicians.",
    "expected": [
@@ -26133,7 +26133,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 8.8, run by run; the Greek letters of the emery papers written out, and the second square read from the page image; every printed average reproduces"
+    "notes": "Table 8.8, run by run; the Greek letters of the emery papers written out; every printed average reproduces"
    },
    "expected": [
     {
@@ -29031,7 +29031,7 @@
      ]
     ],
     "coded": false,
-    "notes": "the days in parentheses read from the page image; Problem 12 repeats the analysis with the runs up to day 60"
+    "notes": "Problem 12 repeats the analysis with the runs up to day 60"
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
@@ -30762,7 +30762,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 10.3, the duplicates of each condition in turn; order is the order of running, read from the page image"
+    "notes": "Table 10.3, the duplicates of each condition in turn; order is the order of running"
    },
    "expected": [
     {
@@ -31598,7 +31598,7 @@
      ]
     ],
     "coded": true,
-    "notes": "the first yield, 6 1/4, read from the page image; the centre runs are those of Exercise 10.6"
+    "notes": "the first yield is 6 1/4; the centre runs are those of Exercise 10.6"
    },
    "expected": [
     {
@@ -32083,7 +32083,7 @@
      ]
     ],
     "coded": true,
-    "notes": "the three replications of each condition in turn; Exercise 10.5 uses replications 1 and 2. The planting depths are printed as fractions of an inch the scan does not show clearly, so the levels are named, not measured."
+    "notes": "the three replications of each condition in turn; Exercise 10.5 uses replications 1 and 2. The planting depths are printed as fractions of an inch that are not legible, so the levels are named, not measured."
    },
    "expected": [
     {
@@ -34355,7 +34355,7 @@
      ]
     ],
     "coded": true,
-    "notes": "read off the cubes of Figure 10.10 (a) into standard order. The scan of the corner with A, B low and C high reads 4.88 or 4.98; the logged cube (c) prints 0.70, which is log10 of 4.98 (4.88 gives 0.69), and 4.98 is Daniel's value."
+    "notes": "read off the cubes of Figure 10.10 (a) into standard order. The corner with A, B low and C high reads 4.88 or 4.98; the logged cube (c) prints 0.70, which is log10 of 4.98 (4.88 gives 0.69), and 4.98 is Daniel's value."
    },
    "expected": [
     {
@@ -34583,7 +34583,7 @@
      ]
     ],
     "coded": true,
-    "notes": "read off the cube of Figure 11.4 (a) into standard order; the scan was checked at high resolution, and the corner C low, H high, F high reads 86"
+    "notes": "read off the cube of Figure 11.4 (a) into standard order; the corner C low, H high, F high reads 86"
    },
    "notes": "Phases (b) to (e) of the study change the screens and the variables; see not_captured.",
    "expected": [
@@ -34865,7 +34865,7 @@
      ]
     ],
     "coded": true,
-    "notes": "the information board of Table 11.2 at the end of phase I, read off the page image"
+    "notes": "the information board of Table 11.2 at the end of phase I"
    },
    "expected": [
     {
@@ -35064,7 +35064,7 @@
      ]
     ],
     "coded": true,
-    "notes": "the information board of Table 11.2 at the end of phase II, read off the page image"
+    "notes": "the information board of Table 11.2 at the end of phase II"
    },
    "expected": [
     {
@@ -35260,7 +35260,7 @@
      ]
     ],
     "coded": true,
-    "notes": "the information board of Table 11.2 at the end of phase III, read off the page image"
+    "notes": "the information board of Table 11.2 at the end of phase III"
    },
    "expected": [
     {
@@ -35457,7 +35457,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 11.3, phase I (temperature 120 °F), twelve cycles; read off the page image"
+    "notes": "Table 11.3, phase I (temperature 120 °F), twelve cycles"
    },
    "expected": [
     {
@@ -35657,7 +35657,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 11.3, phase II (temperature 120 °F), eighteen cycles; read off the page image"
+    "notes": "Table 11.3, phase II (temperature 120 °F), eighteen cycles"
    },
    "expected": [
     {
@@ -35854,7 +35854,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 11.3, phase III (stirring rate 88 rpm); read off the page image"
+    "notes": "Table 11.3, phase III (stirring rate 88 rpm)"
    },
    "expected": [
     {
@@ -36051,7 +36051,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 11.3, phase IV (addition time 2:45); read off the page image"
+    "notes": "Table 11.3, phase IV (addition time 2:45)"
    },
    "expected": [
     {
@@ -36248,7 +36248,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 11.3, phase V (stirring rate 78 rpm); read off the page image"
+    "notes": "Table 11.3, phase V (stirring rate 78 rpm)"
    },
    "expected": [
     {
@@ -39677,7 +39677,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Tables 12.5 and 12.7, in the order printed; the times of Table 12.7 read from the page image. The book marks each factor's levels up/down, off/on and so on; which is + follows the tables' column heads."
+    "notes": "Tables 12.5 and 12.7, in the order printed. The book marks each factor's levels up/down, off/on and so on; which is + follows the tables' column heads."
    },
    "notes": "A hypothetical extension of the bicycle experiment of Appendix 11A, with a different rider and bicycle.",
    "expected": [
@@ -42652,7 +42652,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Tables 13.4 and 13.6; Table 13.6 read from the page image"
+    "notes": "Tables 13.4 and 13.6"
    },
    "expected": [
     {
@@ -43438,7 +43438,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 13.8, read from the page image"
+    "notes": "Table 13.8"
    },
    "notes": "The book does not name the eight factors; they are numbered 1 to 8.",
    "expected": [
@@ -44074,7 +44074,7 @@
      ]
     ],
     "coded": true,
-    "notes": "as printed; read from the page image"
+    "notes": "as printed"
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
@@ -44444,7 +44444,7 @@
      ]
     ],
     "coded": true,
-    "notes": "as printed; the codings print as x1 = (temperature - 150 °C)/10 °C, x2 = (pH - 8.0)/0.5 and x3 = (agitation rate - 30 rpm)/5 rpm; the scale of x1 and x2 is blurred in the scan"
+    "notes": "as printed; the codings print as x1 = (temperature - 150 °C)/10 °C, x2 = (pH - 8.0)/0.5 and x3 = (agitation rate - 30 rpm)/5 rpm; the scale of x1 and x2 is not legible"
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
@@ -44795,7 +44795,7 @@
      ]
     ],
     "coded": true,
-    "notes": "as printed; read from the page image"
+    "notes": "as printed"
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
@@ -45791,7 +45791,7 @@
      ]
     ],
     "coded": true,
-    "notes": "as printed; the order of running read from the page image; the third run was the first made"
+    "notes": "as printed; the third run was the first made"
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
@@ -46013,7 +46013,7 @@
      ]
     ],
     "coded": true,
-    "notes": "as printed; read from the page image"
+    "notes": "as printed"
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
@@ -46534,7 +46534,7 @@
      ]
     ],
     "coded": true,
-    "notes": "as printed; Stegner, Wu and Braton (1967); x5 is printed as 1 or -1 (one entry is blank and follows x5 = x1 x2 x3 x4); the extension's two settings do not show in the scan"
+    "notes": "as printed; Stegner, Wu and Braton (1967); x5 is printed as 1 or -1 (one entry is blank and follows x5 = x1 x2 x3 x4); the extension's two settings are not legible"
    },
    "unanswered": "the book asks the problem and prints no solution, so there is no result to reproduce; the runs are kept as data",
    "expected": []
@@ -46648,7 +46648,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 14.1; the order of the eighth run is blank in the scan and is the one order left, 1"
+    "notes": "Table 14.1; the order of the eighth run is not legible and is the one order left, 1"
    },
    "expected": [
     {
@@ -48278,7 +48278,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 14.10, read from the page image"
+    "notes": "Table 14.10"
    },
    "expected": [
     {
@@ -59944,7 +59944,7 @@
   "Table 10.7 (p. 326): the signs of the 2^4 contrasts, a layout without numbers; Table 10.4 likewise for the 2^3",
   "Table 10.11, Figure 10.11 and Table 10B.2 (pp. 337-350): runs allotted to blocks, layouts of arrangements whose confounded interactions are checked through Table 10B.1; Table 10.12 (partial confounding over four replicates) prints no data",
   "11.1 and 11.2 (pp. 352-354): the floor-wax clarity of Figure 11.1 and the polymer solutions of Table 11.1 record yes-or-no judgements (milky, viscous, yellow), not measurements",
-  "11.3, phases (b) to (e) (pp. 360-362): the storm-water screens with the horizontal screen removed, in steel, and with backwashing. Phase (b) stopped after two runs, and (d) and (e) print data but no result computed from them. Phase (c) prints effects for y and z, but the scan of its cube cannot be read with confidence (98 and 99, 39 and 89 look alike), and no reading tried reproduces its interactions, so it is not held",
+  "11.3, phases (b) to (e) (pp. 360-362): the storm-water screens with the horizontal screen removed, in steel, and with backwashing. Phase (b) stopped after two runs, and (d) and (e) print data but no result computed from them. Phase (c) prints effects for y and z, but its cube cannot be read with confidence (98 and 99, 39 and 89 look alike), and no reading tried reproduces its interactions, so it is not held",
   "12.7 and Table 12.13 (pp. 404-407): fractions run in blocks, including the 2^(8-4) in eight blocks of two; Table 12.14's blocking of the resolution V designs (its generators are those of Table 12.15, checked there). Figure 12.4, Exercises 12.1, 12.2 and 12.5 to 12.13 and 12A.1 to 12A.2: constructions and derivations in words",
   "12A, the signed defining relation of a 2^(7-4) fraction (p. 411): an example of sign bookkeeping, not held",
   "13.1 (Table 13.1): the cast films' six responses are yes, no or slightly; the design's alias structure is held as bhh-cast-films-2-5-2",

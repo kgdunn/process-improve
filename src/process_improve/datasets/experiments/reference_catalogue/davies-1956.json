@@ -30,7 +30,7 @@
   "isbn": "0-582-46053-0",
   "url": "https://search.worldcat.org/search?q=bn:0582460530",
   "cite": "Davies, O. L. (ed.) (1956), The Design and Analysis of Industrial Experiments, 2nd edition, Longman for ICI",
-  "read": "2026-10-14, from scans of pp. i-xiii and 1-637 (chapters 1 to 11, glossary, tables and indexes) of the 1979 reprint; every number copied by hand and checked against the totals the book prints; two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices, and Tables 4-3, 8-3, 8-61, 9-3, 10-31, 11-21, 11-411 and the estimates of pp. 512 and 517 read from the page image",
+  "read": "2026-10-14, pp. i-xiii and 1-637 (chapters 1 to 11, glossary, tables and indexes) of the 1979 reprint; numbers checked against the totals the book prints, and the two tables printed sideways (4-1 and 5-6) taken from their reprints in the appendices",
   "rights": "The book is protected by copyright (© 1956 Imperial Chemical Industries Limited) and is not reproduced here. This file holds facts it reports (numbers, layouts, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
@@ -2841,7 +2841,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 4-3 (p. 123), printed sideways; read from the page image and checked against its twelve averages (less 90)"
+    "notes": "Table 4-3 (p. 123), printed sideways; checked against its twelve averages (less 90)"
    },
    "expected": [
     {
@@ -10173,7 +10173,7 @@
     "coded": true,
     "notes": "Table 7-7, in standard order (Table 7-71)"
    },
-   "notes": "Table 7-71's line for abd is illegible in the scan; its sum of squares, 0.0410, is printed again in Table 7-9 and checked there and in the column. Table 7-72 lists the main effects and two-factor interactions with the error from the higher-order ones.",
+   "notes": "Table 7-71's line for abd is illegible; its sum of squares, 0.0410, is printed again in Table 7-9 and checked there and in the column. Table 7-72 lists the main effects and two-factor interactions with the error from the higher-order ones.",
    "expected": [
     {
      "what": "effect",
@@ -14029,7 +14029,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 8-3 (p. 305), read from the page image and confirmed against a clean re-scan of the page; its row and column sums check"
+    "notes": "Table 8-3 (p. 305); its row and column sums check"
    },
    "notes": "Each polynomial component is checked in the model that holds it and the lower ones: with five equally spaced levels, B, B^2, B^3 and B^4 adjusted for the lower powers are the orthogonal polynomials. The slopes and curvatures of Table 8-35 are per level of B and are not checked.",
    "expected": [
@@ -15296,7 +15296,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 8-61 (p. 333), printed sideways and read from the page image; every pair checks against its printed sum. Group is the Greek letter and subscript printed beside each yield, which the book introduces 'for a purpose to be described in a later chapter' (confounding in blocks of nine); it is not used here"
+    "notes": "Table 8-61 (p. 333), printed sideways; every pair checks against its printed sum. Group is the Greek letter and subscript printed beside each yield, which the book introduces 'for a purpose to be described in a later chapter' (confounding in blocks of nine); it is not used here"
    },
    "notes": "All three factors are quantitative with equally spaced levels, so every effect is split into linear and quadratic components (Table 8-62). With levels coded -1, 0, +1 and the full model of 27 components, each component adjusted for the others is its orthogonal-polynomial sum of squares.",
    "expected": [
@@ -18045,7 +18045,7 @@
      ]
     ],
     "coded": false,
-    "notes": "Table 9-3 (read from the page image) and Table 9-31; every log is log10 of the yield rounded to three decimals. Set is worked out from the signs of ABC and ADE and matches the four block totals of Table 9-461"
+    "notes": "Table 9-3 and Table 9-31; every log is log10 of the yield rounded to three decimals. Set is worked out from the signs of ABC and ADE and matches the four block totals of Table 9-461"
    },
    "notes": "The book analyses log yields because the error was expected to be proportional to the yield. Example 9-3 is an illustration on the same data, not a separate experiment.",
    "expected": [
@@ -19376,7 +19376,7 @@
      ]
     ],
     "coded": true,
-    "notes": "Table 10-31 (p. 457), read from the page image; its comparison totals in Table 10-32 check"
+    "notes": "Table 10-31 (p. 457); its comparison totals in Table 10-32 check"
    },
    "notes": "The standard error was known to be about 1%. The two significant interactions, (BC, -DE) and (BD, -CE), are each read two ways in Tables 10-33 to 10-341.",
    "expected": [
