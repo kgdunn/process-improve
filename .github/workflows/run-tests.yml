@@ -105,6 +105,14 @@ jobs:
       with:
         path: ~/.cache/process-improve/cdn
         key: web-app-cdn-${{ hashFiles('web/runtime.json') }}
+    # The browser Playwright drives. Its download took 25 s in some runs and 7 to 10 min in
+    # others (#926); kept here, the install below finds it and installs only the system
+    # packages. tests/web/_browser.py holds the Playwright pin, so a new pin starts a new cache.
+    - name: Cache Chromium for Playwright
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/web/_browser.py') }}
     - name: Install Chromium for Playwright
       run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
     - name: Build the app
