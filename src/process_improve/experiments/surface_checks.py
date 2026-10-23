@@ -236,8 +236,8 @@ def stationary_point_region(
     ------
     ValueError
         If there is no factor, a run has a missing value, the runs cannot estimate every term of
-        the second-order model, there is no residual and no ``sigma``, or ``sigma`` or
-        ``significance_level`` is out of range.
+        the second-order model, the response does not vary, there is no residual and no
+        ``sigma``, or ``sigma`` or ``significance_level`` is out of range.
 
     Examples
     --------
@@ -290,8 +290,10 @@ def stationary_point_region(
             f"The runs cannot estimate every term of the second-order model in {names}: it has {model.shape[1]} "
             f"terms and {len(x)} runs, and each factor needs three levels or more."
         )
-    unscaled = np.linalg.inv(model.T @ model)
     y = design[response_col].to_numpy(dtype=float)
+    if np.ptp(y) == 0:
+        raise ValueError("The response does not vary, so its surface is flat and has no stationary point.")
+    unscaled = np.linalg.inv(model.T @ model)
     coefficients = unscaled @ model.T @ y
     scale, scale_df = _region_scale(y - model @ coefficients, model.shape[1], sigma)
     level = 1 - significance_level

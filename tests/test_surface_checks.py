@@ -320,6 +320,7 @@ class TestStationaryPointRegion:
             (_FIRST, {"factor_cols": []}, "at least one factor"),
             (_FIRST, {}, "cannot estimate every term"),
             (_FIRST.assign(y=[*_FIRST["y"][:-1], None]), {}, "missing value"),
+            (_COMPOSITE.assign(y=5.0), {}, "response does not vary"),
             (_COMPOSITE, {"sigma": -1.0}, "sigma must be a positive number"),
             (_COMPOSITE, {"significance_level": 1.0}, "between 0 and 1"),
         ],
