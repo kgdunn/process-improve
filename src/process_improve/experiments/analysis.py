@@ -1096,7 +1096,9 @@ def analyze_experiment(  # noqa: PLR0913
     significance_level : float
         Default 0.05. Used by every test's ``significant`` flag and every interval.
     transform : str or None
-        ``"log"``, ``"sqrt"``, ``"inverse"``, ``"box_cox"``, or ``None``. The model is
+        ``"log"`` (natural), ``"log10"``, ``"sqrt"``, ``"inverse"``, ``"box_cox"``, or ``None``.
+        The two logs give the same F tests and p-values; the sums of squares, coefficients and
+        predictions are on the scale chosen. The model is
         fitted on the transformed response, so predictions and intervals are on that
         scale (reported as ``prediction_scale`` / ``scale``), and confirmation runs are
         transformed the same way before they are compared. Box-Cox chooses ``lambda``

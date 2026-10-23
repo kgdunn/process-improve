@@ -55,7 +55,7 @@ class AnalyzeExperimentInput(BaseModel):
         0.05,
         description="Significance level (default 0.05).",
     )
-    transform: Literal["log", "sqrt", "inverse", "box_cox"] | None = Field(
+    transform: Literal["log", "log10", "sqrt", "inverse", "box_cox"] | None = Field(
         None,
         description="Optional response transform before fitting.",
     )
