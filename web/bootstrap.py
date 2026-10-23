@@ -2847,10 +2847,13 @@ def _spread(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | N
     highest ratio. For a target, ``adjustment`` names the factor that moves the mean most for its
     effect on the spread, each as a share of the largest; Taguchi's second step moves the mean to the
     target with it. A setting read once is left out, and ``left_out`` lists its runs. None unless two
-    settings are read twice or more. A summary a setting cannot give, such as the ln s of readings
+    settings are read twice or more, and None for a study of one factor, whose comparison of its levels
+    gives each level's mean and spread. A summary a setting cannot give, such as the ln s of readings
     that do not vary, is left out of the averages.
     """
     names = list(coded.columns)
+    if len(names) < 2:
+        return None
     runs = np.array(order if order is not None else range(1, len(y) + 1))
     kind = SN_KINDS.get((spec.get("response_info") or {}).get("goal", ""))
     groups = list(coded.round(9).groupby(names, sort=True).indices.values())  # equal settings agree to round-off

@@ -131,6 +131,16 @@ def test_a_setting_repeated_alone_is_no_table(api):
     assert analysis["spread"] is None
 
 
+def test_a_study_of_one_factor_has_its_levels_compared_instead(api):
+    """Each level of one factor is a setting: the comparison of its levels already gives their means and spreads."""
+    factor = [{"name": "A", "low": 1, "high": 2, "units": ""}]
+    runs = [[1], [1], [1], [2], [2], [2]]
+    design = api.ok("api_make_design", {"design_type": "given", "factors": factor, "runs": runs, "response": "y"})
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": [20.0, 30, 25, 9, 11, 10]})
+    assert analysis["comparison"]["difference"] is not None
+    assert analysis["spread"] is None
+
+
 def test_a_setting_read_once_is_left_out_and_named_by_its_run(api):
     readings = [[20, 30], [9, 11], [26, 24], [15, None]]
     spread = analysed(api, "target", readings)["spread"]
