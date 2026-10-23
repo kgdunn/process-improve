@@ -328,6 +328,27 @@ def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.D
     return X
 
 
+def _component_curve(values: np.ndarray | pd.Series | list[float], name: str) -> np.ndarray:
+    """Return a per-component curve as a float array whose entry ``i`` belongs to ``i + 1`` components.
+
+    Every selection rule below returns a position plus one, which is a component count
+    only when the curve starts at one component and skips none. An array or list cannot
+    say otherwise, so it is taken as that; a count that was not evaluated keeps its place
+    as NaN. A Series can say otherwise, through its index, and is refused unless the
+    index is ``1..A``: dropping it would turn a curve indexed from 2 into an answer one
+    count too small, with no sign of it (#513).
+
+    Raises
+    ------
+    ValueError
+        If ``values`` is a Series whose index is not ``1..A``.
+    """
+    if isinstance(values, pd.Series) and not values.index.equals(pd.RangeIndex(1, len(values) + 1)):
+        msg = f"{name} must be indexed by component count 1..{len(values)}; got {values.index.tolist()}."
+        raise ValueError(msg)
+    return np.asarray(values, dtype=float)
+
+
 def _recommend_n_components_q2(
     q2_cumulative: np.ndarray | pd.Series | list[float],
     *,
@@ -345,8 +366,10 @@ def _recommend_n_components_q2(
     This is a Wold's-R-style heuristic: parsimonious and cheap, but the
     threshold is absolute and hand-tuned. Prefer the 1-SE rule
     (:func:`_recommend_n_components_one_se`) when per-fold errors are available.
+    Entry ``i`` of the curve must belong to ``i + 1`` components; see
+    :func:`_component_curve`.
     """
-    q2 = np.asarray(q2_cumulative, dtype=float)
+    q2 = _component_curve(q2_cumulative, "q2_cumulative")
     recommended = 1
     previous = 0.0
     for a, value in enumerate(q2, start=1):
@@ -376,11 +399,12 @@ def _recommend_n_components_one_se(
     integer hyperparameters like the number of latent variables.
 
     Non-finite entries in ``mean_error`` are skipped. The selection always
-    returns at least ``1``. If ``se_error`` at the minimum is non-finite or
-    zero, the rule degenerates to the argmin.
+    returns at least ``1``. If ``se_error`` at the minimum is non-finite, zero
+    or negative, the rule degenerates to the argmin. Entry ``i`` of each curve
+    must belong to ``i + 1`` components; see :func:`_component_curve`.
     """
-    mean = np.asarray(mean_error, dtype=float)
-    se = np.asarray(se_error, dtype=float)
+    mean = _component_curve(mean_error, "mean_error")
+    se = _component_curve(se_error, "se_error")
     if mean.shape != se.shape:
         raise ValueError(f"mean_error and se_error must have the same shape; got {mean.shape} and {se.shape}.")
     if mean.ndim != 1:
@@ -392,12 +416,10 @@ def _recommend_n_components_one_se(
         return 1
     masked = np.where(finite, mean, np.inf)
     best = int(np.argmin(masked))
-    se_best = se[best] if np.isfinite(se[best]) else 0.0
-    threshold = masked[best] + se_best
-    for a, value in enumerate(masked, start=1):
-        if value <= threshold:
-            return a
-    return best + 1  # pragma: no cover - a standard error is never negative, so the minimum meets its threshold
+    # Floored at zero, so the minimum always meets its own threshold and the search
+    # below always finds a count.
+    se_best = float(se[best]) if np.isfinite(se[best]) and se[best] > 0 else 0.0
+    return int(np.flatnonzero(masked <= masked[best] + se_best)[0]) + 1
 
 
 def _select_n_components(
@@ -412,10 +434,11 @@ def _select_n_components(
 
     See :data:`SelectionRule` for the rule semantics. Raises ``ValueError`` if
     a rule is requested without the data it needs (``"1se"`` needs
-    ``se_error``; ``"q2_increment"`` needs ``q2_cumulative``).
+    ``se_error``; ``"q2_increment"`` needs ``q2_cumulative``), or if a curve it
+    reads is a Series not indexed ``1..A`` (see :func:`_component_curve`).
     """
     if rule == "min":
-        mean = np.asarray(mean_error, dtype=float)
+        mean = _component_curve(mean_error, "mean_error")
         if not np.isfinite(mean).any():
             return 1
         return int(np.nanargmin(mean)) + 1

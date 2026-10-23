@@ -4510,6 +4510,32 @@ def test_recommend_n_components_one_se_rule() -> None:
     with pytest.raises(ValueError, match="same shape"):
         _recommend_n_components_one_se([0.4, 0.3], [0.05])
 
+    # A negative standard error is floored at zero, so the rule falls back to the argmin.
+    assert _recommend_n_components_one_se([0.5, 0.4, 0.3], [0.0, 0.0, -0.1]) == 3
+
+
+@pytest.mark.parametrize("rule", ["min", "1se", "q2_increment"])
+def test_selection_rules_refuse_a_curve_not_indexed_by_component_count(rule: str) -> None:
+    """#513: every rule returns a position plus one, which is a component count only for a curve indexed 1..A.
+
+    A Series indexed from 2, as a caller that left out one component would build it, came
+    back as a count one too small, with no sign that anything was wrong. It is refused now,
+    and the same values indexed 1..A give the answer they always did.
+    """
+    from process_improve.multivariate._common import _select_n_components
+
+    curves = {
+        "mean_error": [0.60, 0.42, 0.40, 0.41],
+        "se_error": [0.03, 0.03, 0.05, 0.05],
+        "q2_cumulative": [0.30, 0.62, 0.625, 0.50],
+    }
+    shifted = {name: pd.Series(values, index=[2, 3, 4, 5]) for name, values in curves.items()}
+    with pytest.raises(ValueError, match=r"must be indexed by component count 1\.\.4; got \[2, 3, 4, 5\]\.$"):
+        _select_n_components(rule, **shifted)
+
+    indexed = {name: pd.Series(values, index=range(1, 5)) for name, values in curves.items()}
+    assert _select_n_components(rule, **indexed) == _select_n_components(rule, **curves)
+
 
 def test_select_n_components_dispatcher() -> None:
     """The selection-rule dispatcher routes to the right helper and validates inputs."""
