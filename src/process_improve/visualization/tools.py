@@ -46,9 +46,16 @@ def _box_from_values(
 
     Whiskers use the 1.5*IQR convention: the lower whisker is the
     smallest value >= Q1 - 1.5*IQR, the upper whisker is the largest
-    value <= Q3 + 1.5*IQR; anything beyond is an outlier.
+    value <= Q3 + 1.5*IQR; anything beyond is an outlier. Missing
+    values are left out; a group with no values left raises
+    ``ValueError``, since there is no box to draw for it.
     """
     arr = np.asarray(values, dtype=float)
+    # One NaN makes every percentile NaN, and the box then renders as nothing.
+    present = ~np.isnan(arr)
+    arr, original_index = arr[present], np.asarray(original_index)[present]
+    if arr.size == 0:
+        raise ValueError(f"{group!r} has no values to plot: every value is missing.")
     q1, median, q3 = (float(x) for x in np.percentile(arr, [25, 50, 75]))
     iqr = q3 - q1
     lo_fence = q1 - 1.5 * iqr

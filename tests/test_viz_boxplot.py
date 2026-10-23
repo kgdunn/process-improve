@@ -120,6 +120,24 @@ def test_outliers_flagged_beyond_1p5_iqr() -> None:
     assert upper == 15.0
 
 
+def test_a_missing_value_is_left_out_of_the_box() -> None:
+    """One missing value made every quartile NaN, so the box drew as nothing (#513); now it is skipped."""
+    values = [10, None, 11, 12, 13, 14, 15, 50]
+    data = [{"row_id": f"r{i}", "y": v} for i, v in enumerate(values)]
+    res = boxplot(data=data, value_columns=["y"], id_column="row_id")
+    present = [v for v in values if v is not None]
+    q1, median, q3 = np.percentile(present, [25, 50, 75])
+    assert res["data"]["quartiles"][0]["q_stats"] == pytest.approx([10.0, q1, median, q3, 15.0])
+    # The outlier keeps its own id: dropping the missing row does not shift the ids along.
+    assert res["data"]["outliers"] == [{"group": "y", "value": 50.0, "id": "r7"}]
+
+
+def test_a_column_with_every_value_missing_returns_error() -> None:
+    """A box needs at least one value; an all-missing column is refused by name rather than drawn empty."""
+    res = boxplot(data=[{"y": None, "z": 1.0}, {"y": None, "z": 2.0}], value_columns=["y", "z"])
+    assert res == {"error": "'y' has no values to plot: every value is missing."}
+
+
 # ---------------------------------------------------------------------------
 # Grouping
 # ---------------------------------------------------------------------------
