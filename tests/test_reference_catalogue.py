@@ -1701,6 +1701,30 @@ def test_3k_blocks_and_fractions_are_the_runs_with_one_value_of_each_defining_co
     assert not _component_fraction(fraction, {"words": ["ABC"]}, "")[1]
 
 
+def test_yates_columns_and_their_checks_are_read_forwards_and_in_reverse():
+    """A 2^2 in standard order, y = 10, 14, 12, 20: column (2) is 56, 12, 8, 4, and A alone fits 11, 17, 11, 17."""
+    entry = {
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in "AB"],
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["A", "B", "y"],
+            "rows": [[-1, -1, 10], [1, -1, 14], [-1, 1, 12], [1, 1, 20]],
+            "coded": True,
+        },
+    }
+
+    def reproduced(printed, **check):
+        return reference_catalogue._reproduce(entry, {"value": printed}, {"kind": "yates", **check}, FITS)
+
+    assert reproduced(["56", "12", "8", "4"], key="(2)")[1]
+    assert reproduced(["14.0", "6.0", "4.0", "2.0"], key="estimate")[1]
+    assert reproduced("12", key="(2).1")[1]
+    assert reproduced("1,680", key="sum_of_squares.(1)")[1], "the crude sum of squares, 840, doubled"
+    assert not reproduced(["56", "12", "8", "5"], key="(2)")[1]
+    assert reproduced(["11", "17", "11", "17"], key="fitted", keep=["A"])[1]
+    assert reproduced("820", key="sum_of_squares.fitted", keep=["A"])[1]
+
+
 def test_a_design_printed_as_columns_of_another_is_a_projection_of_it(tmp_path, monkeypatch):
     from process_improve.experiments.reference_catalogue import _projection
 

@@ -91,6 +91,7 @@ from process_improve.experiments.run_order import run_order_trends
 from process_improve.experiments.separating import constraint_through_cuts
 from process_improve.experiments.sequential import steepest_path
 from process_improve.experiments.trade_off import minimum_aberration_generators
+from process_improve.experiments.yates import reverse_yates, yates_table
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 from process_improve.sensory.designed import tukey_hsd
@@ -2864,6 +2865,24 @@ def _component_ss(experiment: dict, check: dict) -> float:
     return sum(t * t / n for t, n in zip(totals, counts, strict=True) if n) - y.sum() ** 2 / len(y)
 
 
+def _yates_result(experiment: dict, check: dict) -> dict[str, Any]:
+    """Return Yates's algorithm on a 2^k factorial's runs, by :func:`yates_table`, or run in reverse.
+
+    The runs are the entry's settings in coded units and its response, ``check["response"]`` or the
+    first. ``check["keep"]`` runs the algorithm in reverse, by :func:`reverse_yates`, on the effects a
+    model keeps, such as ``["T", "C", "T:K"]``. ``check["key"]`` reads a column of the table, whole
+    (``"(1)"``, ``"estimate"``) or one entry of it (``"(3).1"``, 0-based in standard order, or
+    ``"(2).sum"``), or one of the checks on the columns (``"sum_of_squares.(1)"``, or
+    ``"sum_of_squares.fitted"``, the crude sum of squares of the fitted values, in reverse).
+    """
+    settings, responses = _coded_runs(experiment, None)
+    response = check.get("response") or responses.columns[0]
+    table = yates_table(pd.concat([settings, responses[[response]]], axis=1), response)
+    if "keep" in check:
+        table = reverse_yates(table, check["keep"])
+    return {**table.to_dict("list"), "sum_of_squares": table.attrs["sum_of_squares"]}
+
+
 def _design_columns(experiment: dict, check: dict) -> np.ndarray:
     """Return a two-level design's columns: the entry's ``check["columns"]``, or a design ``check["design"]`` names."""
     if check.get("design"):
@@ -3350,6 +3369,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "expected_mean_squares": _expected_mean_squares,
     "least_squares_means": _least_squares_means,
     "multistratum": _multistratum,
+    "yates": lambda e, c: _read(_yates_result(e, c), c.get("key")),
 }
 
 
@@ -3417,6 +3437,7 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
 _ARRAY_KINDS: dict[str, Callable[[dict, dict], np.ndarray]] = {
     "design_metric": _design_metric_array,
     "normal_equations": _normal_equations_array,
+    "yates": lambda e, c: np.asarray(_walk(_yates_result(e, c), c.get("key")), dtype=float),
 }
 
 
@@ -3538,16 +3559,18 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     of signs is the product of the factor columns it is headed with; a Plackett-Burman design is
     matched to the library's by its projections onto one, two and three columns; and a stepwise
     regression's tests are nested tests, held to what the rounding of responses printed rounded
-    carries. A 3^k design's components of interaction, blocks and fractions are worked from their
-    defining contrasts modulo 3; screening designs are compared on their main-effect and two-factor
-    interaction columns; and JMP's relative variances code a categorical factor as JMP does. A
-    response surface design is compared on the determinant of (X'X)^-1, its trace and the
-    prediction variance at a point, and on how far its runs lie from the centre, whether its blocks
-    are orthogonal and whether its runs are fold-over pairs; several fitted responses are scored at
-    a point by the library's desirability functions, and a mixture is fitted in pseudocomponents. A
-    printed alias chain can be held to every alias up to an order, and the effects confounded with a
-    fraction's blocks are read as alias chains. A number without a check is reported with the reason
-    it is not recomputed.
+    carries. A 2^k factorial's columns of Yates's algorithm, run forwards or in reverse, and the
+    checks on them are those of :func:`~process_improve.experiments.yates_table` and
+    :func:`~process_improve.experiments.reverse_yates`. A 3^k design's components of interaction,
+    blocks and fractions are worked from their defining contrasts modulo 3; screening designs are
+    compared on their main-effect and two-factor interaction columns; and JMP's relative variances
+    code a categorical factor as JMP does. A response surface design is compared on the determinant
+    of (X'X)^-1, its trace and the prediction variance at a point, and on how far its runs lie from
+    the centre, whether its blocks are orthogonal and whether its runs are fold-over pairs; several
+    fitted responses are scored at a point by the library's desirability functions, and a mixture is
+    fitted in pseudocomponents. A printed alias chain can be held to every alias up to an order, and
+    the effects confounded with a fraction's blocks are read as alias chains. A number without a
+    check is reported with the reason it is not recomputed.
 
     Parameters
     ----------
