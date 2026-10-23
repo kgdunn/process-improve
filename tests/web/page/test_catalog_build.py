@@ -531,3 +531,20 @@ def test_the_page_keys_a_term_s_parts_as_the_build_wrote_them(build_script, node
     assert javascript(node, source("logic.js"), [("termPart", [t]) for t in texts]) == list(
         map(build_script.term_part, texts)
     )
+
+
+@pytest.mark.dataset
+def test_a_factor_its_source_compares_as_levels_opens_with_the_source_s_comparisons(build_script):
+    """Montgomery's plasma etching: four RF powers, which Learn compares with Tukey's, as the book does."""
+    from process_improve.experiments.reference_catalogue import reference_experiments
+
+    entry = next(e for e in reference_experiments("montgomery-2013") if e["name"] == "montgomery-plasma-etching")
+    (record,) = catalog_sample(("montgomery-plasma-etching",))
+    with no_bytecode():
+        campaign, reason = build_script.given_campaign(record)
+        numbers = build_script.printed_numbers(record, entry, campaign["design"]["spec"])
+    assert reason == ""
+    assert campaign["design"]["spec"]["factors"][0]["levels"] == ["160", "180", "200", "220"]
+    pairs = {(n["read"]["a"], n["read"]["b"]) for n in numbers if n["read"]["table"] == "comparison"}
+    assert ("160", "180") in pairs, "the book's 160.0 less 180.0, in the page's labels"
+    assert all(n["model"] == [["power"]] for n in numbers), "no line or curve in power: the page fits none here"
