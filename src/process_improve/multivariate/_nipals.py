@@ -66,12 +66,15 @@ def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_pre
     denom = np.tile(b_row, (a_space.shape[0], 1))  # tiles, row-by-row the `b_row` row vector, to create `n_rows`
     denominator = np.sum((denom * a_space_present_map) ** 2, axis=1).astype("float")
     numerator = np.sum(a_space * denom, axis=1)
-    empty = ~np.any(a_space_present_map, axis=1)
-    # A row with cells present, but none where ``b_row`` is non-zero, is a degenerate
-    # direction rather than missing data, and stays NaN so the caller can refuse it.
-    denominator[denominator == 0] = np.nan
-    denominator[empty] = 1.0
-    return np.where(empty, 0.0, numerator / denominator).reshape(-1, 1)
+    zero = denominator == 0
+    if zero.any():  # rare, so the common call pays for one comparison only
+        # A row with cells present, but none where ``b_row`` is non-zero, is a degenerate
+        # direction rather than missing data, and stays NaN so the caller can refuse it.
+        empty = ~np.any(a_space_present_map, axis=1)
+        denominator[zero] = np.nan
+        denominator[empty] = 1.0
+        numerator[empty] = 0.0
+    return (numerator / denominator).reshape(-1, 1)
 
 
 def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
