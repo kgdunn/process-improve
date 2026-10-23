@@ -7,7 +7,7 @@ license = "MIT"
 requires-python = ">=3.11"
 keywords = ["Designed Experiments", "Design of Experiments", "DoE", "Optimal Design", "Response Surface", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Chemometrics", "Process Monitoring", "Batch data analysis"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
