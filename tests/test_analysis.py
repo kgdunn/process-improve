@@ -12,7 +12,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from scipy import stats
 
-from process_improve.experiments import Factor, TrueProcess, generate_design
+from process_improve.experiments import Factor, TrueProcess, evaluate_design, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.ols_extractors import _type_ii_by_rank
@@ -631,6 +631,25 @@ class TestLackOfFit:
             _two_factor_replicated(), response_column="y", model="interactions", analysis_type="lack_of_fit"
         )
         assert result["lack_of_fit"] == {"error": "Insufficient degrees of freedom for lack-of-fit test."}
+
+    def test_a_factor_left_out_of_the_model_is_lack_of_fit_not_pure_error(self) -> None:
+        """Anderson and Whitcomb, DOE Simplified (2007), Table 8-3: the confetti 2^2 with four centre points.
+
+        The model holds A and the curvature; B and AB are left out. Runs differing only in B
+        are not replicates, so B and AB are 2 df of lack of fit, and pure error is the centre
+        points' 3 df, as evaluate_design counts them too.
+        """
+        runs = pd.DataFrame({"A": [-1, 1, -1, 1, 0, 0, 0, 0.0], "B": [-1, -1, 1, 1, 0, 0, 0, 0.0]})
+        time = pd.Series([2.5, 1.9, 2.8, 2.0, 2.8, 2.7, 2.6, 2.7], name="y")
+        model = "A + I(A ** 2)"
+        lof = analyze_experiment(runs, time, model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["df_lack_of_fit"], lof["df_pure_error"]) == (2, 3)
+        assert lof["ss_lack_of_fit"] == pytest.approx(0.05)
+        assert lof["ss_pure_error"] == pytest.approx(0.02)
+        assert round(lof["f_statistic"], 2) == 3.75
+        assert round(lof["p_value"], 4) == 0.1527
+        counted = evaluate_design(runs, model=model, metric="degrees_of_freedom")["degrees_of_freedom"]
+        assert (counted["lack_of_fit"], counted["pure_error"]) == (2, 3)
 
     def test_no_factor_columns(self) -> None:
         df = _two_factor_replicated()
