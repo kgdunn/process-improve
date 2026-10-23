@@ -25,7 +25,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pages: read  # configure-pages (main-branch pushes only) queries the Pages config
@@ -91,7 +92,8 @@ jobs:
   check-published-app:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: deploy
-    runs-on: ubuntu-latest
+    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -156,7 +158,8 @@ jobs:
   # the wait only confirms the switch took; the smoke tests then run against factori.al itself.
   check-factorial:
     needs: deploy-factorial
-    runs-on: ubuntu-latest
+    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
