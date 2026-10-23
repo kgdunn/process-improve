@@ -212,14 +212,29 @@ def test_a_limit_opened_in_factorial_rules_out_the_runs_the_catalog_marks(bootst
     assert np.flatnonzero(~meets).tolist() == outcome["outside"], text
 
 
-def test_the_catalog_links_to_the_form_for_proposing_a_design():
-    """The link names an issue form the repository holds, which asks for the source, the runs and where they are."""
+def test_the_catalog_links_to_the_forms_for_proposing_a_design_and_sharing_a_case_study():
+    """Each link names an issue form the repository holds, which asks for what an entry needs.
+
+    A published design needs its source and where its runs are printed; a case study of one's own needs
+    the responses, how the runs were done, and the licence the data are shared under.
+    """
     import yaml
 
     from tests.web._support import WEB
 
-    form = re.search(r"issues/new\?template=([\w.]+)", source(PAGE))
-    assert form, "the catalog links to the form"
-    held = yaml.safe_load((WEB.parent / ".github" / "ISSUE_TEMPLATE" / form[1]).read_text(encoding="utf-8"))
-    required = {item["id"] for item in held["body"] if item.get("validations", {}).get("required")}
-    assert {"source", "where", "factors", "runs"} <= required
+    asks = {
+        "catalog_entry.yml": {"source", "where", "factors", "runs"},
+        "case_study.yml": {"credit", "factors", "responses", "conduct", "runs", "licence", "confirm"},
+    }
+    forms = re.findall(r"issues/new\?template=([\w.]+)", source(PAGE))
+    assert sorted(forms) == sorted(asks), "the catalog links to each form once"
+    for form, needed in asks.items():
+        held = yaml.safe_load((WEB.parent / ".github" / "ISSUE_TEMPLATE" / form).read_text(encoding="utf-8"))
+        required = {item["id"] for item in held["body"] if _required(item)}
+        assert needed <= required, f"{form}: {needed - required} is not required"
+
+
+def _required(item: dict) -> bool:
+    """Whether an issue form field must be filled: a checkbox group is, when one of its boxes must be ticked."""
+    boxes = [o for o in item.get("attributes", {}).get("options", []) if isinstance(o, dict)]
+    return bool(item.get("validations", {}).get("required") or any(o.get("required") for o in boxes))
