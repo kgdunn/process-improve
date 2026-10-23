@@ -54,8 +54,10 @@ document affects the code that names it. A change to `pyproject.toml`,
 `pytest.ini` or `.coveragerc`, or a deleted file, runs everything. It is a tool
 for fast local feedback: the analysis is static and cannot see every import-time
 side effect, so CI does not use it. CI runs the whole suite on every platform
-and Python it tests, split into duration-balanced shards: two for each `test`,
-`test-under-dash-O` and `test-free-threaded` row, four for the `coverage` job:
+and Python it tests, split into duration-balanced shards: two for each `test`
+and `test-free-threaded` row, four for the `coverage` job. The 3.12 `test` row
+runs under `python -O` (`PYTHONOPTIMIZE=1`), to catch validation that an
+`assert` would lose:
 
 ```bash
 pytest --shard=2/4                     # the second of four shards
