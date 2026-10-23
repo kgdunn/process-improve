@@ -669,9 +669,16 @@ def permutation_column_null(  # noqa: PLR0913
     Returns
     -------
     dict
+        An ``ok`` flag is always present. On success (``ok=True``) the dict carries
         ``descriptors`` (per surviving descriptor: ``vip`` / ``cv_beta`` and the
-        ``*_null_threshold`` and ``*_exceeds_null`` fields), plus the settings used and
-        the counts (``n_descriptors``, ``n_knockoffs``, ``n_iter``, ``ignored``).
+        ``*_null_threshold`` and ``*_exceeds_null`` fields) along with
+        ``n_knockoffs`` and ``n_iter`` and the merged settings/counts
+        (``n_descriptors``, ``n_ignored``, ``ignored``, ``fraction``, ``quantile``,
+        ``n_iter_requested``). On an early exit (``ok=False``) the dict carries a
+        human-readable ``reason`` string together with those same merged settings/counts
+        fields, and no ``descriptors`` key is present. Early exits happen when fewer
+        than two descriptors remain after ``ignore`` is applied, or when every
+        permuted fit was singular so no null band could be formed.
 
     See Also
     --------

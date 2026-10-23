@@ -1,0 +1,5 @@
+- Correct `f_sum` See also reference (removed invalid `f_cumsum`).
+- Correct `f_rupture` See also reference (`f_cross` -> `f_crossing`).
+- Add `cusum` to the list of variants in `ControlChart.calculate_limits`.
+- Document the `ok` flag and early-exit shape of `permutation_column_null`.
+- Fix typo "elbox" -> "elbow" in `f_elbow` docstring.
