@@ -12574,7 +12574,9 @@
       "quote": "Table 4-4 Model 3.23 4 0.81 46.19 <0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "ss_regression",
+      "model": "B + C + D + B:D",
+      "transform": "log10"
      }
     },
     {
@@ -12604,7 +12606,9 @@
       "quote": "Table 4-4 Model 3.23 4 0.81 46.19 <0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "ms_regression",
+      "model": "B + C + D + B:D",
+      "transform": "log10"
      }
     },
     {
@@ -12650,7 +12654,10 @@
       "quote": "Table 4-4 B 0.60 1 0.60 34.24 0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_sum_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "B"
      }
     },
     {
@@ -12664,7 +12671,10 @@
       "quote": "Table 4-4 B 0.60 1 0.60 34.24 0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_mean_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "B"
      }
     },
     {
@@ -12712,7 +12722,10 @@
       "quote": "Table 4-4 C 1.11 1 1.11 63.66 <0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_sum_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "C"
      }
     },
     {
@@ -12726,7 +12739,10 @@
       "quote": "Table 4-4 C 1.11 1 1.11 63.66 <0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_mean_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "C"
      }
     },
     {
@@ -12774,7 +12790,10 @@
       "quote": "Table 4-4 D 0.99 1 0.99 56.76 <0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_sum_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "D"
      }
     },
     {
@@ -12788,7 +12807,10 @@
       "quote": "Table 4-4 D 0.99 1 0.99 56.76 <0.0001"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_mean_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "D"
      }
     },
     {
@@ -12836,7 +12858,10 @@
       "quote": "Table 4-4 BD 0.53 1 0.53 30.11 0.0002"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_sum_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "B:D"
      }
     },
     {
@@ -12850,7 +12875,10 @@
       "quote": "Table 4-4 BD 0.53 1 0.53 30.11 0.0002"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "anova_mean_sq",
+      "model": "B + C + D + B:D",
+      "transform": "log10",
+      "term": "B:D"
      }
     },
     {
@@ -12898,7 +12926,9 @@
       "quote": "Table 4-4 Residual 0.19 11 0.017"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "ss_residual",
+      "model": "B + C + D + B:D",
+      "transform": "log10"
      }
     },
     {
@@ -12928,7 +12958,9 @@
       "quote": "Table 4-4 Residual 0.19 11 0.017"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "ms_residual",
+      "model": "B + C + D + B:D",
+      "transform": "log10"
      }
     },
     {
@@ -12942,7 +12974,9 @@
       "quote": "Table 4-4 Cor Total 3.43 15"
      },
      "check": {
-      "manual": "a sum of squares of log10 y: the library's log transform is the natural log, and a sum of squares on the log10 scale is that on the natural scale over ln(10)^2, which no check option divides by"
+      "kind": "ss_total",
+      "model": "B + C + D + B:D",
+      "transform": "log10"
      }
     },
     {
