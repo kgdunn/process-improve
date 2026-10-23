@@ -106,7 +106,7 @@ def _run_residual_diagnostics(
     ``durbin_watson`` is the Durbin-Watson statistic in run order; and
     ``serially_dependent`` is whether the lag-1 autocorrelation is more than twice its
     standard error, when a ``note`` also says so. Without a usable run order the four are
-    ``None``, and the ``note`` says that the only order is the rows', ``durbin_watson``'s.
+    ``None``, and the ``note`` says that ``durbin_watson``'s order, the rows', is the only one.
 
     A saturated model (no residual degrees of freedom) fits every run exactly, so its
     residuals are rounding noise: the tests are then not run, their entries are
