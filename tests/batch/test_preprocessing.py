@@ -28,6 +28,7 @@ from process_improve.batch.preprocessing import (
     find_average_length,
     find_reference_batch,
     one_iteration_dtw,
+    resample_to_reference,
     reverse_scaling,
 )
 
@@ -537,6 +538,41 @@ def test_batch_dtw_rejects_bad_arguments(reference_batch: str, settings: dict | 
     batches = {"x": _warped_batch(30), "y": _warped_batch(36)}
     with pytest.raises(exc, match=match):
         batch_dtw(batches, columns_to_align=["a", "b"], reference_batch=reference_batch, settings=settings)
+
+
+def test_batch_dtw_keeps_each_batch_key_when_the_keys_differ_in_type() -> None:
+    """The aligned batches keep their own keys: casting to the last key's type turned 1 into '1' (#513)."""
+    batches = {1: _warped_batch(30), "two": _warped_batch(36)}
+    outputs = batch_dtw(batches, columns_to_align=["a", "b"], reference_batch=1, settings={"show_progress": False})
+    assert set(outputs["aligned_batch_dfdict"]) == {1, "two"}
+    assert len(outputs["aligned_batch_dfdict"][1]) == 100
+
+
+def test_batch_dtw_runs_one_iteration_even_when_the_tolerance_is_already_met() -> None:
+    """A tolerance above the norm of the unit weights (sqrt(2) here) used to skip the alignment and crash (#513)."""
+    batches = {"x": _warped_batch(30), "y": _warped_batch(36)}
+    outputs = batch_dtw(
+        batches, columns_to_align=["a", "b"], reference_batch="y", settings={"show_progress": False, "tolerance": 5}
+    )
+    assert outputs["weight_history"].to_numpy() == pytest.approx(np.ones((1, 2)))
+    assert set(outputs["aligned_batch_dfdict"]) == {"x", "y"}
+
+
+@pytest.mark.parametrize("reference_batch", ["long", "one"], ids=["short-batch", "short-reference"])
+def test_resample_to_reference_rejects_a_batch_of_one_row(reference_batch: str) -> None:
+    """One row has no duration to rescale, so it is refused by name instead of failing inside scipy (#513)."""
+    batches = {"long": _warped_batch(30), "one": _warped_batch(1)}
+    with pytest.raises(ValueError, match=r"at least 2 rows in every batch.*\{'one': 1\}"):
+        resample_to_reference(batches, columns_to_align=["a", "b"], reference_batch=reference_batch)
+
+
+def test_resample_to_reference_puts_every_batch_on_the_reference_length() -> None:
+    """Two rows are enough for a linear interpolation onto the reference's rows."""
+    batches = {"long": _warped_batch(30), "two": _warped_batch(2)}
+    out = resample_to_reference(
+        batches, columns_to_align=["a", "b"], reference_batch="long", settings={"interpolate_kind": "linear"}
+    )
+    assert {batch_id: frame.shape for batch_id, frame in out.items()} == {"long": (30, 2), "two": (30, 2)}
 
 
 @pytest.mark.parametrize(

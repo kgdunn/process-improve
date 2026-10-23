@@ -7,3 +7,9 @@
   widths were timedeltas, so the area could not be stored as a number. A numeric axis is unchanged.
 - **`f_crossing` gives NaN for a batch that never crosses the threshold, as documented (#513).** It
   gave an empty array.
+- **`batch_dtw` keeps each batch's own key (#513).** With keys of mixed types, such as `1` and
+  `"two"`, every key was cast to the type of the last one, so batch `1` came back as `"1"`.
+- **`batch_dtw` always runs its first iteration (#513).** A `tolerance` at or above the square root of
+  the number of aligned columns skipped the alignment and raised an `IndexError`.
+- **`resample_to_reference` refuses a batch of fewer than 2 rows, naming it (#513).** It divided by
+  zero and then failed inside scipy with "`x` array is all-nan".
