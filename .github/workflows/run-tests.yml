@@ -125,25 +125,26 @@ jobs:
       fail-fast: false
       matrix:
         # Minimum and primary supported Python on all three operating systems, so the
-        # oldest interpreter the package claims to support is finally validated off
-        # Linux (#449). The two intermediate versions run on ubuntu only: that is 8 jobs
-        # rather than the 12-job full product, and the OS extremes at min and max Python
-        # catch platform problems without doubling the bill.
+        # oldest interpreter the package claims to support is validated off Linux
+        # (#449). The intermediate version runs on ubuntu only: the OS extremes at min
+        # and max Python catch platform problems without the full product's bill.
         # A pull request runs the ubuntu jobs only. The 4 Windows and macOS jobs run on
         # each push to main and nightly: they rarely fail where ubuntu passes, and on
         # every pull request commit they held the runner queue for hours when many
         # pull requests were open at once.
         # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.11", "3.13"]
         os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
         experimental: [false]
         exclude:
           - python-version: "3.13"
             os: ubuntu-latest
         include:
+          # The minimum Python installs the lowest release of each dependency that
+          # pyproject.toml allows, so its rows test the declared floors (pandas 2.3,
+          # numpy 2.2, scipy 1.15) and the other rows test the newest releases.
           - python-version: "3.11"
-            os: ubuntu-latest
-            experimental: false
+            resolution: lowest-direct
           - python-version: "3.12"
             os: ubuntu-latest
             experimental: false
@@ -170,6 +171,7 @@ jobs:
       uses: ./.github/actions/setup-env
       with:
         python-version: ${{ matrix.python-version }}
+        resolution: ${{ matrix.resolution || 'highest' }}
     # Test building & distribution. These used to run before the editable sync; the
     # composite action does the sync, so they follow it now. Neither reads the project
     # venv: `uv build` uses its own build environment, and the import check runs in an

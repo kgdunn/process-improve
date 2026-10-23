@@ -11,6 +11,12 @@ inputs:
       Python version for uv to install and select, e.g. "3.13". Passed
       straight through to astral-sh/setup-uv.
     required: true
+  resolution:
+    description: >
+      How uv picks each dependency's version: "highest", or "lowest-direct" for
+      the lowest release pyproject.toml allows.
+    required: false
+    default: highest
 
 runs:
   using: composite
@@ -33,6 +39,13 @@ runs:
         ago() { date -u -d "$1 minutes ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-"$1"M +%Y-%m-%dT%H:%M:%SZ; }
         echo "UV_EXCLUDE_NEWER=$(ago 60)" >> "$GITHUB_ENV"
         echo "UV_EXCLUDE_EARLIER=$(ago 75)" >> "$GITHUB_ENV"
+    - name: Resolve every dependency the same way in each uv command
+      # Exported like the cutoff: the sync below, `uv build`, and the `uv run` that
+      # re-checks the environment before each command all resolve alike.
+      shell: bash
+      env:
+        RESOLUTION: ${{ inputs.resolution }}
+      run: echo "UV_RESOLUTION=$RESOLUTION" >> "$GITHUB_ENV"
     - name: Install the project (editable)
       # `defaults.run.shell` from the calling job does not reach a composite
       # action, so the shell is named here. The jobs that set one use

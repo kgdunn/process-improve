@@ -6,7 +6,7 @@ import gzip
 import importlib.util
 import json
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -15,7 +15,7 @@ SCRIPT = Path(__file__).resolve().parents[2] / "deploy" / "factorial" / "usage.p
 BROWSER = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari"
 PHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1"
 HEADLESS = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari"
-SINCE = datetime(2026, 10, 1, tzinfo=timezone.utc)
+SINCE = datetime(2026, 10, 1, tzinfo=UTC)
 
 
 def load():
@@ -37,7 +37,7 @@ def logged(uri: str, agent: str = BROWSER, *, when: str = "2026-10-12T10:00", **
     ip = fields.get("ip", "203.0.113.0")
     request = {"remote_ip": ip, "client_ip": ip, "proto": "HTTP/2.0", "method": fields.get("method", "GET"),
                "host": "factori.al", "uri": uri, "headers": headers}  # fmt: skip
-    ts = datetime.fromisoformat(when).replace(tzinfo=timezone.utc).timestamp()
+    ts = datetime.fromisoformat(when).replace(tzinfo=UTC).timestamp()
     return {"level": "info", "ts": ts, "logger": "http.log.access.log0", "msg": "handled request",
             "request": request, "status": fields.get("status", 200), "size": 10, "duration": 0.001}  # fmt: skip
 
@@ -165,7 +165,7 @@ def test_the_report_has_a_row_for_every_day_and_the_periods_totals():
 
 
 def test_the_report_reads_the_live_log_and_the_rolled_ones_gzipped(tmp_path, capsys):
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M")
     (tmp_path / "factorial-access.log").write_text(
         json.dumps(logged("/", when=now)) + "\n" + '{"cut short by a rotation', encoding="utf-8"
     )

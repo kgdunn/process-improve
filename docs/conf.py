@@ -1,9 +1,8 @@
 # Configuration file for the Sphinx documentation builder.
 
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 # Add the src/ directory to the path so autodoc can find the package (ENG-14).
 _repo_root = Path(__file__).resolve().parent.parent

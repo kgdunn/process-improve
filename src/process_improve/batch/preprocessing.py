@@ -721,7 +721,7 @@ def one_iteration_dtw(
             aligned_batches[batch_id] = result
             successful_alignments += 1
 
-        except ValueError as exc:  # noqa: PERF203
+        except ValueError as exc:
             # Chain the cause: a band constraint that is too narrow explains itself, and
             # that explanation is the actionable part. `from None` discarded it.
             raise ValueError(f"Failed on batch {batch_id}: {exc}") from exc

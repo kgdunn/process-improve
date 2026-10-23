@@ -34,7 +34,7 @@ import tarfile
 import tempfile
 import time
 import zlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, BinaryIO
 
@@ -84,7 +84,7 @@ def history(root: Path) -> list[list[str]]:
 
 def now() -> str:
     """Return the time, in UTC, as history records it."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def remove(path: Path) -> None:

@@ -9,7 +9,8 @@
 ``pytest --shard=2/4``
     Run the second of four duration-balanced slices. The four slices together
     are exactly the full suite. Durations come from ``tests/.test_durations.json``;
-    refresh that file with ``pytest --no-cov --store-durations``. Stale entries
+    refresh that file as the coverage shards run, with
+    ``pytest --store-durations --cov-fail-under=0`` on Python 3.13. Stale entries
     only cost balance, never correctness: every collected file lands in exactly
     one shard.
 
@@ -20,6 +21,7 @@ the workers agree on what was collected.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections import Counter, defaultdict
 from functools import cache
@@ -31,6 +33,20 @@ from tests._selection import affected_test_files, assign_shard, load_durations
 
 ROOT = Path(__file__).resolve().parents[1]
 DURATIONS = Path(__file__).with_name(".test_durations.json")
+#: The thread counts of OpenBLAS, OpenMP and MKL, which each library reads when it loads.
+ONE_THREAD = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Run the BLAS of each xdist worker on one thread, unless the environment already sets a count.
+
+    ``-n auto`` starts one worker per core, and each worker's BLAS would start a pool as wide again:
+    sixteen threads on a four-core runner, which made the BLAS-heavy tests about a fifth slower. A
+    worker loads no BLAS before this hook runs, so the variables take effect.
+    """
+    if hasattr(config, "workerinput"):
+        for name in ONE_THREAD:
+            os.environ.setdefault(name, "1")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

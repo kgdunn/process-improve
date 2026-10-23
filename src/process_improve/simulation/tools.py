@@ -47,7 +47,7 @@ exposed to the LLM.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -208,7 +208,7 @@ def create_simulator(spec: CreateSimulatorInput) -> dict:
 
     seed_value = int(spec.seed) if spec.seed is not None else draw_initial_seed()
     sim_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
 
     private_state: dict[str, Any] = {
         "seed": seed_value,

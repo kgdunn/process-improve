@@ -270,7 +270,7 @@ pip install 'process-improve[fast]'            # adds numba (JIT speedups for ba
 pip install 'process-improve[all]'             # everything above
 ```
 
-Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`, `scipy`,
+Requires Python 3.11 or newer. The core install pulls in `numpy`, `pandas`, `scipy`,
 `scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, `threadpoolctl` and `tqdm`.
 Heavier optional surfaces (plotting, Taguchi arrays, batch IO, batch control, the MCP server, numba JIT)
 live in extras, so a caller who only needs, say, `detect_multivariate_outliers` does not have
