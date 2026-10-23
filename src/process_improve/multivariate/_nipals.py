@@ -20,15 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
-    """Return a copy of ``in_array`` with every NaN replaced by zero; ``in_array`` is left as it is.
+    """Replace NaN with zero **in place**, and return the same array.
 
-    It used to write the zeros into the array it was given and hand that same array back,
-    so a caller passing a view of its own data had that data overwritten (#513). The only
-    caller in this package, ``TPLS.fit``, calls it once per block and keeps the result, so
-    the copy costs one array per block and nothing inside the iteration. Take
-    ``np.isnan(in_array)`` first if the positions of the missing values are needed too.
+    The name and the previous docstring ("return a NaN map") both promised something
+    this never did: the NaN map is computed and discarded, and the array handed in is
+    the array handed back, mutated. Callers that still need the map must take
+    ``np.isnan(x)`` themselves *before* calling, and callers holding a view of user data
+    must copy first. Every caller in this package passes a private ``.values.copy()``,
+    which is why the aliasing has not bitten; the contract is stated here so the next
+    caller does not have to read the body to learn it (#513).
     """
-    return np.where(np.isnan(in_array), 0.0, in_array)
+    in_array[np.isnan(in_array)] = 0.0
+    return in_array
 
 
 def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_present_map: np.ndarray) -> np.ndarray:

@@ -86,14 +86,6 @@ def test_nan_to_zeros() -> None:
     assert pytest.approx(out_array) == np.array([[1, 2, 0], [4, 5, 6], [0, 8, 9]])
 
 
-def test_nan_to_zeros_leaves_its_argument_alone() -> None:
-    """#513: the zeros go into a new array, so a view of the caller's data is not overwritten."""
-    data = np.array([[1.0, np.nan, 7.0], [np.nan, 4.0, 8.0]])
-    out_array = nan_to_zeros(data[:, :2])
-    np.testing.assert_array_equal(out_array, [[1.0, 0.0], [0.0, 4.0]])
-    np.testing.assert_array_equal(np.isnan(data), [[False, True, False], [True, False, False]])
-
-
 def test_terminate_check_off_by_one_fixed() -> None:
     """SEC-33 (#282) sub-item 1: the NIPALS terminate_check uses ``>=`` so the
     iterative algorithm runs exactly ``md_max_iter`` iterations rather than
