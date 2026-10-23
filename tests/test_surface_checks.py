@@ -1,24 +1,30 @@
 """Checks on a fitted response surface before it is read (#797).
 
-The note on a fit too imprecise to read, third-order contrasts and pooled pure error.
+The note on a fit too imprecise to read, third-order contrasts, pooled pure error, and the confidence region of
+the stationary point.
 """
 
 from __future__ import annotations
 
 import doctest
 import importlib
+import itertools
 import math
 import warnings
 from collections.abc import Callable
 
+import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from process_improve.experiments import (
     Factor,
     analyze_experiment,
     generate_design,
+    optimize_responses,
     pooled_pure_error,
+    stationary_point_region,
     third_order_contrasts,
 )
 
@@ -162,6 +168,164 @@ class TestPooledPureError:
     def test_nothing_to_pool_is_refused(self, designs: list, message: str) -> None:
         with pytest.raises(ValueError, match=message):
             pooled_pure_error(designs, "y", _FACTORS)
+
+
+def _composite_runs(k: int = 2, centre: int = 5) -> pd.DataFrame:
+    """Return the factor settings of a rotatable composite design in k factors, with ``centre`` centre runs."""
+    cube = list(itertools.product([-1.0, 1.0], repeat=k))
+    reach = (2**k) ** 0.25
+    axial = [tuple(sign * reach * (i == j) for j in range(k)) for i in range(k) for sign in (-1, 1)]
+    return pd.DataFrame(cube + axial + [(0.0,) * k] * centre, columns=[f"x{i + 1}" for i in range(k)])
+
+
+#: Second-order surfaces in x1 and x2 with a known stationary point: b0, b (linear) and B (b_ii on the diagonal, half
+#: b_ij off it).
+_MAXIMUM = (80.0, np.array([2.0, -1.5]), np.array([[-3.0, 0.5], [0.5, -2.0]]))
+_SADDLE = (80.0, np.array([2.0, -1.5]), np.array([[-3.0, 0.5], [0.5, 2.0]]))
+#: One draw of the noise, sigma = 1, for the 13 runs of the two-factor composite design.
+_NOISE = np.random.default_rng(13).normal(0.0, 1.0, 13)
+
+
+def _surface(x: np.ndarray, truth: tuple) -> np.ndarray:
+    b0, b, quadratic = truth
+    return b0 + x @ b + np.einsum("ni,ij,nj->n", x, quadratic, x)
+
+
+def _true_point(truth: tuple) -> np.ndarray:
+    return np.linalg.solve(2 * truth[2], -truth[1])
+
+
+class TestStationaryPointRegion:
+    """Box and Hunter (1954): where the fitted gradient does not differ significantly from zero (#797 R5)."""
+
+    def test_the_gradient_is_zero_at_the_estimate_which_is_inside(self) -> None:
+        runs = _composite_runs().assign(y=lambda d: _surface(d.to_numpy(), _MAXIMUM) + _NOISE)
+        region = stationary_point_region(runs, "y", ["x1", "x2"])
+        assert region["classification"] == "maximum"
+        assert float(region["statistic"](region["stationary_point"])) == pytest.approx(0.0, abs=1e-20)
+        assert bool(region["contains"](region["stationary_point"]))
+        assert region["critical_value"] == pytest.approx(stats.f.ppf(0.95, 2, 7))
+        assert (region["sigma_df"], region["confidence_level"]) == (7, 0.95)
+
+    def test_box_hunter_and_hunter_s_composite_design_is_nearly_a_ridge(self) -> None:
+        """The stationary point is 3.7 and 3.0 coded units out, along a ridge, so neither is known to within 15."""
+        runs = _COMPOSITE.drop(columns="Block").replace({1.4: math.sqrt(2), -1.4: -math.sqrt(2)})
+        region = stationary_point_region(runs, "y", _FACTORS)
+        found = optimize_responses(
+            [analyze_experiment(runs, response_column="y", model="quadratic", analysis_type="coefficients")],
+            method="stationary_point",
+        )["stationary_point"]
+        assert region["stationary_point"] == pytest.approx(found["stationary_point_coded"])
+        assert min(region["std_error"].values()) > 15
+        # along the ridge, through the estimate and the centre, and on beyond the estimate
+        ridge = np.outer([0.0, 1.0, 2.0], list(region["stationary_point"].values()))
+        assert region["contains"](ridge).all()
+        assert not region["contains"]([1.0, 0.0])
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize("truth", [_MAXIMUM, _SADDLE], ids=["maximum", "saddle"])
+    def test_the_region_covers_the_true_stationary_point_as_often_as_it_says(self, truth: tuple) -> None:
+        """The F test is exact at the true point under normal errors, so 95% of regions cover it, for a saddle too."""
+        runs = _composite_runs()
+        mean, true_point = _surface(runs.to_numpy(), truth), _true_point(truth)
+        rng = np.random.default_rng(797)
+        regions = (
+            stationary_point_region(runs.assign(y=mean + rng.normal(0, 1.0, len(runs))), "y", ["x1", "x2"])
+            for _ in range(800)
+        )
+        covered = [bool(region["contains"](true_point)) for region in regions]
+        assert np.mean(covered) == pytest.approx(0.95, abs=0.02)  # 800 regions: a standard error of 0.008
+
+    @pytest.mark.slow
+    def test_the_delta_method_standard_errors_are_the_spread_of_the_estimates(self) -> None:
+        runs = _composite_runs()
+        mean = _surface(runs.to_numpy(), _MAXIMUM)
+        rng = np.random.default_rng(1954)
+        fits = [
+            stationary_point_region(runs.assign(y=mean + rng.normal(0, 0.5, len(runs))), "y", ["x1", "x2"])
+            for _ in range(800)
+        ]
+        points = np.array([list(fit["stationary_point"].values()) for fit in fits])
+        reported = np.array([list(fit["std_error"].values()) for fit in fits])
+        assert points.std(axis=0, ddof=1) == pytest.approx(np.median(reported, axis=0), rel=0.1)
+
+    def test_with_one_factor_the_region_is_fieller_s_interval(self) -> None:
+        """The x at which (b1 + 2 b11 x)^2 = F s^2 var(b1 + 2 b11 x) / s^2: the roots of a quadratic in x."""
+        x = np.repeat([-1.0, 0.0, 1.0], 3)
+        runs = pd.DataFrame({"x": x, "y": 10 + x - 2 * x**2 + np.tile([0.4, -0.3, -0.1], 3)})
+        region = stationary_point_region(runs, "y", ["x"])
+        model = np.column_stack([np.ones_like(x), x, x**2])
+        (_, b1, b11), *_ = np.linalg.lstsq(model, runs["y"], rcond=None)
+        v = np.linalg.inv(model.T @ model)[1:, 1:] * region["sigma"] ** 2  # cov(b1, b11)
+        f = region["critical_value"]
+        # (b1 + 2 b11 x)^2 - f (v11 + 4 v12 x + 4 v22 x^2) = 0
+        roots = np.sort(np.roots([4 * b11**2 - 4 * f * v[1, 1], 4 * b1 * b11 - 4 * f * v[0, 1], b1**2 - f * v[0, 0]]))
+        assert region["statistic"](roots[:, None]) == pytest.approx([f, f])
+        assert region["contains"]([[roots[0] + 1e-6], [roots[1] - 1e-6]]).all()
+        assert not region["contains"]([[roots[0] - 1e-6], [roots[1] + 1e-6]]).any()
+        assert region["stationary_point"]["x"] == pytest.approx(-b1 / (2 * b11))
+
+    def test_along_a_stationary_ridge_the_point_is_not_determined(self) -> None:
+        """80 - 1.5 (x1 - x2)^2: every point of the line x1 = x2 is a maximum."""
+        runs = _composite_runs().assign(y=lambda d: 80 - 1.5 * (d["x1"] - d["x2"]) ** 2)
+        region = stationary_point_region(runs, "y", ["x1", "x2"], sigma=1.0)
+        assert region["classification"] == "stationary_ridge"
+        assert region["std_error"] is None
+        assert region["stationary_point"] == pytest.approx({"x1": 0.0, "x2": 0.0}, abs=1e-12)
+        assert region["contains"]([[5.0, 5.0], [-20.0, -20.0]]).all()
+        assert not region["contains"]([2.0, -2.0])
+
+    def test_a_grid_gives_a_mask_of_its_shape_and_coding_does_not_move_the_region(self) -> None:
+        runs = _composite_runs().assign(y=lambda d: _surface(d.to_numpy(), _SADDLE) + _NOISE)
+        actual = runs.assign(x1=150 + 10 * runs["x1"], x2=2 + 0.5 * runs["x2"])
+        grid = np.meshgrid(np.linspace(-1, 1, 21), np.linspace(-1, 1, 11))
+        coded = stationary_point_region(runs, "y", ["x1", "x2"])
+        mask = coded["contains"]({"x1": grid[0], "x2": grid[1]})
+        assert mask.shape == (11, 21)
+        assert 0 < mask.sum() < mask.size
+        uncoded = stationary_point_region(actual, "y", ["x1", "x2"])
+        assert uncoded["contains"]({"x1": 150 + 10 * grid[0], "x2": 2 + 0.5 * grid[1]}).tolist() == mask.tolist()
+        assert uncoded["stationary_point"]["x1"] == pytest.approx(150 + 10 * coded["stationary_point"]["x1"])
+        assert coded["classification"] == "saddle_point"
+
+    def test_blocks_are_fitted_and_cost_a_degree_of_freedom(self) -> None:
+        """BHH's composite design blocks orthogonally at sqrt(2): the point does not move, the residual loses a df."""
+        runs = _COMPOSITE.replace({1.4: math.sqrt(2), -1.4: -math.sqrt(2)})
+        blocked = stationary_point_region(runs, "y", _FACTORS)
+        plain = stationary_point_region(runs.drop(columns="Block"), "y", _FACTORS)
+        assert blocked["stationary_point"] == pytest.approx(plain["stationary_point"])
+        assert (blocked["sigma_df"], plain["sigma_df"]) == (5, 6)
+
+    def test_a_given_sigma_reads_the_chi_square_and_needs_no_residual(self) -> None:
+        """Six runs fit the six terms exactly: there is no residual, but a prior sigma still gives the region."""
+        runs = pd.DataFrame(
+            [(-1, -1, 5.0), (1, -1, 7.0), (-1, 1, 6.0), (1, 1, 6.5), (0, 0, 9.0), (1, 0, 8.0)],
+            columns=["x1", "x2", "y"],
+        )
+        with pytest.raises(ValueError, match="no residual"):
+            stationary_point_region(runs, "y", ["x1", "x2"])
+        region = stationary_point_region(runs, "y", ["x1", "x2"], sigma=0.5, significance_level=0.1)
+        assert region["critical_value"] == pytest.approx(stats.chi2.ppf(0.9, 2) / 2)
+        assert (region["sigma"], region["sigma_df"], region["confidence_level"]) == (0.5, None, 0.9)
+
+    @pytest.mark.parametrize(
+        ("runs", "options", "message"),
+        [
+            (_FIRST, {"factor_cols": []}, "at least one factor"),
+            (_FIRST, {}, "cannot estimate every term"),
+            (_FIRST.assign(y=[*_FIRST["y"][:-1], None]), {}, "missing value"),
+            (_COMPOSITE, {"sigma": -1.0}, "sigma must be a positive number"),
+            (_COMPOSITE, {"significance_level": 1.0}, "between 0 and 1"),
+        ],
+    )
+    def test_what_cannot_give_a_region_is_refused(self, runs: pd.DataFrame, options: dict, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            stationary_point_region(runs, "y", **{"factor_cols": _FACTORS, **options})
+
+    def test_a_setting_must_hold_every_factor(self) -> None:
+        region = stationary_point_region(_COMPOSITE, "y", _FACTORS)
+        with pytest.raises(ValueError, match="2 values in the last axis"):
+            region["contains"]([0.0, 0.0, 0.0])
 
 
 def test_the_examples_in_the_docstrings_print_what_they_show() -> None:
