@@ -6,6 +6,7 @@ The pilot plant is a 2^3 factorial in temperature (T), concentration (C) and cat
 
 from __future__ import annotations
 
+import doctest
 import json
 
 import numpy as np
@@ -13,7 +14,7 @@ import pandas as pd
 import pytest
 import statsmodels.formula.api as smf
 
-from process_improve.experiments import reference_catalogue, reverse_yates, yates_table
+from process_improve.experiments import reference_catalogue, reverse_yates, yates, yates_table
 
 
 @pytest.fixture(scope="module")
@@ -81,6 +82,29 @@ def test_the_factors_can_be_named_and_ordered(pilot):
     table = yates_table(pilot, "y", factors=["K", "T", "C"])
     assert table["effect"].tolist() == ["mean", "K", "T", "K:T", "C", "K:C", "T:C", "K:T:C"]
     assert dict(zip(table["effect"], table["estimate"], strict=True))["K:T"] == 10.0
+
+
+def test_a_half_fraction_is_worked_on_its_basic_factors(pilot):
+    """The pilot plant's half with K = TC, on T and C alone: C estimates C + TK (-5 + 10), and T:C TC + K."""
+    half = pilot[pilot["K"] == pilot["T"] * pilot["C"]]
+    with pytest.raises(ValueError, match="give a fraction's basic factors"):
+        yates_table(half, "y")
+    table = yates_table(half, "y", factors=["T", "C"])
+    assert table.columns.tolist()[:3] == ["T", "C", "y"], "the generated factor is left out"
+    assert dict(zip(table["effect"], table["estimate"], strict=True)) == {"mean": 64.5, "T": 23.0, "C": 5.0, "T:C": 3.0}
+
+
+def test_one_factor_is_one_pass():
+    table = yates_table(pd.DataFrame({"A": [1, -1], "y": [7.0, 3.0]}), "y")
+    assert table[["(1)", "effect", "estimate"]].to_numpy().tolist() == [[10.0, "mean", 5.0], [4.0, "A", 4.0]]
+    assert reverse_yates(table, keep=[])["fitted"].tolist() == [5.0, 5.0]
+
+
+def test_the_docstring_examples_print_what_they_show():
+    """No CI step runs doctests, so an example whose output drifted would go unnoticed."""
+    result = doctest.testmod(yates, report=False)
+    assert result.attempted > 0
+    assert result.failed == 0
 
 
 @pytest.mark.parametrize(

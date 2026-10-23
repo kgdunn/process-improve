@@ -105,6 +105,20 @@ def yates_table(design: pd.DataFrame, response: str, factors: Sequence[str] | No
     ValueError
         If the response is not a column, a factor is not coded -1 and +1, the runs are not each run of the full
         factorial once, a response is missing, or a name would collide with a column of the table.
+
+    Examples
+    --------
+    A 2^2 factorial, its runs in any order. The table puts them in standard order, and each pass of
+    the algorithm doubles the sum of squares of the responses, 840.
+
+    >>> runs = pd.DataFrame({"A": [1, -1, 1, -1], "B": [1, 1, -1, -1], "y": [20.0, 12.0, 14.0, 10.0]})
+    >>> table = yates_table(runs, "y")
+    >>> table["y"].tolist()
+    [10.0, 14.0, 12.0, 20.0]
+    >>> dict(zip(table["effect"], table["sum_sq"].tolist(), strict=True))
+    {'mean': 784.0, 'A': 36.0, 'B': 16.0, 'A:B': 4.0}
+    >>> table.attrs["sum_of_squares"]
+    {'y': 840.0, '(1)': 1680.0, '(2)': 3360.0}
     """
     if response not in design.columns:
         raise ValueError(f"The response {response!r} is not a column of the design.")
@@ -164,6 +178,17 @@ def reverse_yates(table: pd.DataFrame, keep: Sequence[str]) -> pd.DataFrame:
     ------
     ValueError
         If ``table`` is not a table from :func:`yates_table`, or ``keep`` names an effect it does not have.
+
+    Examples
+    --------
+    The 2^2 factorial of :func:`yates_table`, fitted with A alone: B and AB go into the residuals.
+
+    >>> runs = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1], "y": [10.0, 14.0, 12.0, 20.0]})
+    >>> fit = reverse_yates(yates_table(runs, "y"), keep=["A"])
+    >>> fit[["effect", "kept", "fitted", "residual"]].values.tolist()
+    [['mean', 56.0, 11.0, -1.0], ['A', 12.0, 17.0, -3.0], ['B', 0.0, 11.0, 1.0], ['A:B', 0.0, 17.0, 3.0]]
+    >>> fit.attrs["sum_of_squares"]["fitted"], fit.attrs["sum_of_squares"]["residual"]
+    (820.0, 20.0)
     """
     n = len(table)
     k = n.bit_length() - 1
