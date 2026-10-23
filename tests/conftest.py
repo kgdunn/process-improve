@@ -9,7 +9,8 @@
 ``pytest --shard=2/4``
     Run the second of four duration-balanced slices. The four slices together
     are exactly the full suite. Durations come from ``tests/.test_durations.json``;
-    refresh that file with ``pytest --no-cov --store-durations``. Stale entries
+    refresh that file as the coverage shards run, with
+    ``pytest --store-durations --cov-fail-under=0`` on Python 3.13. Stale entries
     only cost balance, never correctness: every collected file lands in exactly
     one shard.
 
