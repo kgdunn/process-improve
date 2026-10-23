@@ -91,13 +91,16 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
 
     int_x_list: list[float] = []
     int_y_list: list[float] = []
+    # On fewer than about 2 * max_iter points the floored window sizes repeat, so each size is
+    # fitted once. A repeat still adds its intersection again, which keeps the median unchanged.
+    intersections: dict[int, tuple] = {}
     for i in np.floor(np.linspace(0, int(N / 2 - start) + 1, max_iter)):
         idx = int(start + i)
-        lo_x, lo_y = x[0:idx], y[0:idx]
-        hi_x, hi_y = x[-idx:], y[-idx:]
-        lft = fit_robust_lm(lo_x, lo_y)
-        rgt = fit_robust_lm(hi_x, hi_y)
-        int_x, int_y = find_line_intersection(lft[1], lft[0], rgt[1], rgt[0])
+        if idx not in intersections:
+            lft = fit_robust_lm(x[0:idx], y[0:idx])
+            rgt = fit_robust_lm(x[-idx:], y[-idx:])
+            intersections[idx] = find_line_intersection(lft[1], lft[0], rgt[1], rgt[0])
+        int_x, int_y = intersections[idx]
         int_x_list.append(int_x)
         int_y_list.append(int_y)
 
