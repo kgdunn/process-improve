@@ -621,7 +621,7 @@ describe("designs side by side", () => {
     assert.equal(compareRefusal(catalog, ["a"], "b"), "");
     assert.match(compareRefusal(catalog, ["a"], "c"), /have 3 factors, and this one has 4/);
     assert.match(compareRefusal(catalog, [], "d"), /all numeric/);
-    assert.match(compareRefusal(catalog, [], "d"), /at most 12 factors and 1000 runs: it scores each on models up to the full quadratic/);
+    assert.match(compareRefusal(catalog, [], "d"), /at most 12 factors and 1000 runs, since it scores each on models up to the full quadratic/);
     assert.match(compareRefusal(catalog, ["a", "b", "a", "b"], "b"), new RegExp(`${COMPARE_MOST} designs at most`));
     assert.deepEqual(toggled(["a", "b"], "a"), ["b"]);
     assert.deepEqual(toggled(["b"], "a"), ["b", "a"]);

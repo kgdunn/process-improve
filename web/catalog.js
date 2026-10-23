@@ -8,10 +8,12 @@
 import { LINK_KEY, packCampaign } from "./campaign.js";
 import { correlationFigure, draw, fdsFigure, palette } from "./charts.js";
 import {
+  COMPARED_FACTORS,
   DEFAULT_STATE,
   FAMILY_COLOURS,
   MAP_TERMS_FACTORS,
   MODELS,
+  NOT_COMPARED,
   OTHER_COLOUR,
   SORTS,
   applicationLine,
@@ -840,6 +842,7 @@ function detailHead(design, detail, source) {
     said.push(element("p", { class: "hint", text: `Factorial does not open this ${what}: ${detail.closed}.` }));
   }
   if (design.compared) actions.append(compareButton(design)); // append() writes a null out as the text "null"
+  else if (design.n_factors > COMPARED_FACTORS) said.push(element("p", { class: "hint", text: `It cannot join a comparison: ${NOT_COMPARED}.` }));
   actions.append(
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),

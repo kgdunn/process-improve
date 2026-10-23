@@ -786,15 +786,20 @@ export function markInSource(designs) {
 /** The most designs the comparison sets side by side. */
 export const COMPARE_MOST = 4;
 
+/** The most factors and runs of a design the catalog compares; mirrors design_catalog.COMPARED_FACTORS and _RUNS. */
+export const COMPARED_FACTORS = 12;
+export const COMPARED_RUNS = 1000;
+
+/** Why the catalog does not compare a design, in words: its factors, or its size. */
+export const NOT_COMPARED =
+  `the catalog compares designs whose factors are all numeric, with at most ${COMPARED_FACTORS} factors and ` +
+  `${COMPARED_RUNS} runs, since it scores each on models up to the full quadratic, and past ${COMPARED_FACTORS} ` +
+  "factors those have more terms than a screening design has runs";
+
 /** Why a design cannot join the designs being compared, in words; empty when it can. */
 export function compareRefusal(catalog, ids, id) {
   const design = catalog.designs.find((d) => d.id === id);
-  if (!design?.compared) {
-    return (
-      "the catalog compares designs whose factors are all numeric, with at most 12 factors and 1000 runs: it scores " +
-      "each on models up to the full quadratic, and past 12 factors those have more terms than a screening design has runs"
-    );
-  }
+  if (!design?.compared) return NOT_COMPARED;
   if (ids.length >= COMPARE_MOST) return `the comparison holds ${COMPARE_MOST} designs at most`;
   const first = catalog.designs.find((d) => d.id === ids[0]);
   if (first && first.n_factors !== design.n_factors) {
