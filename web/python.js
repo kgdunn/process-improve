@@ -803,3 +803,31 @@ export function balanceCode(balance, spec) {
     'print(balanced["composite_desirability"])  # the overall desirability, D',
   ].join("\n");
 }
+
+/**
+ * What if: each response's prediction at the reader's settings, from its own model fitted to the runs that have its
+ * result, with its 95% confidence interval for the mean and prediction interval for one new run. ``formulas`` holds
+ * each response's model as bootstrap.predictors fitted it, by its column; ``at`` the settings as the columns of ``X``
+ * (best.js columnsAt), and ``settings`` as the reader set them, for the comment. It builds on the design and its results.
+ */
+export function whatIfCode(spec, formulas, at, settings) {
+  const words = spec.factors.map((f) =>
+    labelled(f) ? `${f.name} at ${settings[f.name]}` : `${f.name} = ${Number(settings[f.name].toPrecision(4))}${f.units ? ` ${f.units}` : ""}`,
+  );
+  const models = Object.values(formulas).join(" + ");
+  const used = new Set([...spec.factors.flatMap(columnsOf), ...spec.factors.flatMap((f) => indicatorsIn(models, f).map(({ name }) => name))]);
+  return [
+    "import pandas as pd",
+    "from process_improve.experiments import analyze_experiment",
+    "",
+    ...indicatorLines(spec, models),
+    `# The settings, ${words.join(", ")}, in coded units as the columns of X.`,
+    `at = pd.DataFrame([${repr(Object.fromEntries(Object.entries(at).filter(([name]) => used.has(name))))}])`,
+    "# Each response's prediction there, from its own model fitted to the runs that have its result, with its 95%",
+    "# confidence interval for the mean (ci_low to ci_high) and prediction interval for one new run (pi_low to pi_high).",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    '    prediction = analyze_experiment(X[done], runs[name][done], model=model, analysis_type="prediction", new_points=at)',
+    '    print(name, prediction["predictions"][0])',
+  ].join("\n");
+}

@@ -661,6 +661,32 @@ READS: dict[str, list[str]] = {
         "slice.curves[].trace.x[]: number",
         "slice.curves[].trace.crossings[].[]: number",
     ],
+    "predictors": [
+        "mixture: bool",
+        "factors[].name: str",
+        "factors[].kind: str",
+        "factors[].low: number",
+        "factors[].high: number",
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].terms[]: list",
+        "responses[].terms[].[]: str",
+        "responses[].coefficients[]: number",
+        "responses[].inverse[].[]: number",
+        "responses[].mse: number?",
+        "responses[].t: number?",
+        "responses[].max_leverage: number",
+    ],
+    "predictors of levels": [
+        "factors[].kind: str",
+        "factors[].levels[]: str",
+        "factors[].columns[].{}: number",
+    ],
+    "nothing to predict yet": ["responses[].waiting: bool"],
+    "predictors refused": ["responses[].error: str"],
+    "mixture predictors": ["mixture: bool", "factors: list", "responses: list"],
+    "limits broken": ["broken[].index: int", "broken[].expression: str"],
 }
 
 #: The entry point each reply comes from.
@@ -698,6 +724,12 @@ ENTRY_POINTS = {
     "slow candidates": "api_candidates",
     "design with limits": "api_make_design",
     "next runs": "api_next_runs",
+    "predictors": "api_predictors",
+    "predictors of levels": "api_predictors",
+    "nothing to predict yet": "api_predictors",
+    "predictors refused": "api_predictors",
+    "mixture predictors": "api_predictors",
+    "limits broken": "api_outside_limits",
     "next runs outside the limits": "api_next_runs",
     "next runs called for": "api_next_runs",
     "next runs confirmed at": "api_next_runs",
@@ -865,6 +897,15 @@ def two_blends(api) -> dict:
     return {**held, "responses": simulation["responses"], "more_responses": more}
 
 
+def levels(api) -> dict:
+    """Return a full factorial in a catalyst of three levels and a supplier of two, with results."""
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
+    supplier = {"name": "S", "low": "x", "high": "y", "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [catalyst, supplier], "n_replicates": 2, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    return {**held, "responses": [float(i % 4) for i in range(len(held["rows"]))]}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -979,6 +1020,12 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
             "constraints": [{"expression": "T * F <= 3000"}],
             "slice": {"x": "T", "y": "F", "at": {"P": 2}},
         },
+        "predictors": several_responses(api)["balance"],
+        "predictors of levels": lambda: levels(api),
+        "nothing to predict yet": lambda: {**held, "responses": [None] * len(held["rows"])},
+        "predictors refused": lambda: {**levels(api), "models": {"y": {"terms": [["Catalyst", "S"]]}}},
+        "mixture predictors": lambda: blend(3),
+        "limits broken": lambda: {"spec": on_a_limit()["spec"], "settings": {"T": 200, "P": 3, "F": 20}},
     }
     return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))
 

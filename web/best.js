@@ -568,3 +568,115 @@ export function balanceConfirmation(group, factors, responses) {
   const state = judged.some((v) => !v.inside) ? "outside" : judged.length === group.responses.length ? "inside" : "waiting";
   return { said, state };
 }
+
+// ---------------------------------------------------------------- what if: each model at the reader's settings
+/**
+ * The columns the models are fitted on at the reader's settings: a numeric factor's setting coded from its range, -1 at
+ * its low end and +1 at its high end, as bootstrap._coded_column codes it, and a categorical factor's level as the
+ * columns Python wrote for it (bootstrap._coding). ``factors`` is bootstrap.predictors' ``factors``; ``settings``
+ * holds each factor's number in its own units, or its level.
+ */
+export function columnsAt(factors, settings) {
+  const columns = {};
+  for (const f of factors) {
+    if (f.kind === "numeric") columns[f.name] = (settings[f.name] - (f.high + f.low) / 2) / ((f.high - f.low) / 2);
+    else Object.assign(columns, f.columns[f.levels.indexOf(settings[f.name])]);
+  }
+  return columns;
+}
+
+/**
+ * A response's prediction at the columns of some settings (see columnsAt), from its fit as bootstrap.predictors sends
+ * it, as bootstrap._FittedModel.at gives it: the prediction, its confidence interval for the mean and prediction
+ * interval for one new run (null without residual degrees of freedom), and the leverage there, with whether it is
+ * above the largest of the runs', as best_settings judges it. Each term is the product of the columns it names.
+ */
+export function predictAt(fit, columns) {
+  const row = fit.terms.map((parts) => parts.reduce((product, name) => product * columns[name], 1));
+  const predicted = row.reduce((sum, x, i) => sum + x * fit.coefficients[i], 0);
+  const spread = row.map((_, i) => fit.inverse[i].reduce((sum, v, j) => sum + v * row[j], 0));
+  const leverage = Math.max(0, row.reduce((sum, x, i) => sum + x * spread[i], 0)); // never below 0 but by round-off
+  const extrapolating = leverage > fit.max_leverage * (1 + 1e-9) + 1e-12;
+  const out = { predicted, confidence: null, prediction: null, leverage, max_leverage: fit.max_leverage, extrapolating };
+  if (fit.mse === null || fit.t === null) return out;
+  const mean = fit.t * Math.sqrt(fit.mse * leverage);
+  const single = fit.t * Math.sqrt(fit.mse * (1 + leverage));
+  return { ...out, confidence: [predicted - mean, predicted + mean], prediction: [predicted - single, predicted + single] };
+}
+
+/**
+ * Where the what-if panel starts, and comes back to: the balanced settings while the responses are balanced, else the
+ * best settings for the goal of the response Learn shows, else each numeric factor at the center of its range and each
+ * categorical one at its first level. ``factors`` is bootstrap.predictors' ``factors``; ``balance`` and ``best`` are
+ * what bootstrap.balance and best_settings answered, or null. Returns ``from``, which of the three, and the settings.
+ */
+export function whatIfStart(factors, balance, best) {
+  const [from, found] = balance?.settings ? ["balanced", balance.settings] : best?.settings ? ["best", best.settings] : ["center", []];
+  const given = Object.fromEntries(found.map((s) => [s.name, s.value]));
+  const middle = (f) => (f.kind === "numeric" ? (f.low + f.high) / 2 : f.levels[0]);
+  return { from, settings: Object.fromEntries(factors.map((f) => [f.name, given[f.name] ?? middle(f)])) };
+}
+
+/** The button that brings the what-if panel back to where it started, by whatIfStart's ``from``. */
+export const WHAT_IF_BACK = {
+  balanced: "Back to the balanced settings",
+  best: "Back to the best settings",
+  center: "Back to the center of the ranges",
+};
+
+/**
+ * Whether settings the panel holds still fit the factors: every factor has one, a number inside its range or one of
+ * its levels. Settings kept from before an analysis are kept after it when they do.
+ */
+export function settingsFit(factors, settings) {
+  return Boolean(settings) && factors.every((f) => {
+    const v = settings[f.name];
+    return f.kind === "numeric" ? Number.isFinite(v) && v >= Math.min(f.low, f.high) && v <= Math.max(f.low, f.high) : f.levels.includes(v);
+  });
+}
+
+/** The step of a numeric factor's slider: about a hundredth of its range, as 1, 2 or 5 times a power of ten. */
+export function sliderStep(f) {
+  const raw = Math.abs(f.high - f.low) / 100;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const step = ([1, 2, 5].find((m) => m * power >= raw) ?? 10) * power;
+  return Number(step.toPrecision(1)); // 0.3, not 0.30000000000000004
+}
+
+/**
+ * Each response at the what-if settings, a row each for a table: its name, its prediction, its 95% confidence interval
+ * for the mean, its 95% prediction interval for one new run, and its leverage beside the runs' largest. ``responses`` is
+ * bootstrap.predictors' list, each with ``at``, what predictAt gave at the settings; one without results, or whose
+ * model cannot be fitted, says so in its row.
+ */
+export function whatIfRows(responses) {
+  const range = (pair, units) => (pair ? `${num(pair[0])} to ${withUnit(pair[1], units)}` : "none");
+  return responses.map((r) => {
+    if (r.waiting) return [r.label, "No results yet: enter them in Run.", "", "", ""];
+    if (r.error) return [r.label, r.error, "", "", ""];
+    const { at } = r;
+    const leverage = `${lev(at.leverage)}, ${at.extrapolating ? "above" : "within"} ${lev(at.max_leverage)}`;
+    return [r.label, withUnit(at.predicted, r.units), range(at.confidence, r.units), range(at.prediction, r.units), leverage];
+  });
+}
+
+/**
+ * What the panel says beside the table: the limits the settings break, numbered as the brief lists them; the models
+ * the settings lean on beyond their runs; and the models with no runs left to estimate the noise. ``broken`` is what
+ * bootstrap.outside_limits answered.
+ */
+export function whatIfSentences(responses, broken = []) {
+  const said = broken.map((limit) => `These settings break your limit ${limit.index + 1}, ${limit.expression}.`);
+  const beyond = responses.filter((r) => r.at?.extrapolating).map((r) => r.label);
+  if (beyond.length === 1) {
+    said.push(`These settings lie beyond the runs for ${beyond[0]}'s model: confirm its prediction with a run.`);
+  } else if (beyond.length) {
+    said.push(`These settings lie beyond the runs for the models of ${listed(beyond)}: confirm their predictions with a run.`);
+  }
+  const bare = responses.filter((r) => r.at && !r.at.confidence).map((r) => r.label);
+  if (bare.length) {
+    const whose = bare.length === 1 ? `${bare[0]}'s model, so it gives` : `the models of ${listed(bare)}, so they give`;
+    said.push(`No runs are left to estimate the noise of ${whose} no interval.`);
+  }
+  return said;
+}
