@@ -819,20 +819,20 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 
 /* What if: a row per factor, its name, a slider and a number box over its range (a list of its levels for a categorical
    one), then each response predicted there. */
-.what-if-settings { display: grid; gap: 6px; margin: 8px 0 4px; }
-.what-if-factor {
+/* One grid for every factor, each row's parts in its cells, so the sliders and the boxes line up. */
+.what-if-settings {
   display: grid; grid-template-columns: minmax(4em, auto) minmax(6rem, 1fr) 7em minmax(0, auto); align-items: center;
-  gap: 4px 10px; font-size: 0.95rem;
+  gap: 6px 10px; margin: 8px 0 4px; font-size: 0.95rem;
 }
-.what-if-name { font-weight: 600; overflow-wrap: anywhere; }
+.what-if-factor { display: contents; }
+.what-if-name { grid-column: 1; font-weight: 600; overflow-wrap: anywhere; }
 .what-if-factor input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
 .what-if-factor input[type="number"] { width: 100%; }
-.what-if-factor select { grid-column: 2 / span 2; justify-self: start; }
-.what-if table.data td:nth-child(n + 3) { white-space: normal; }
+.what-if-factor select { grid-column: 2 / span 3; justify-self: start; }
+.what-if table.data td:nth-child(n + 3) { text-align: left; }
 @media (max-width: 600px) {
-  .what-if-factor { grid-template-columns: minmax(0, 1fr) 7em; }
-  .what-if-name { grid-column: 1 / -1; }
-  .what-if-factor select { grid-column: 1 / -1; }
+  .what-if-settings { grid-template-columns: minmax(0, 1fr) 6em; }
+  .what-if-name, .what-if-factor select { grid-column: 1 / -1; }
   .what-if-factor .hint { display: none; }
 }
 

@@ -4265,8 +4265,12 @@ function renderWhatIf() {
   showWhatIfSettings();
   $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
   $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
-  const columns = ["Response", "Prediction", "95% confidence interval for the mean", "95% prediction interval for one new run", "Leverage"];
-  const terms = { "95% confidence interval for the mean": "confidence-interval", "95% prediction interval for one new run": "prediction-interval", Leverage: "leverage" };
+  const columns = ["Response", "Prediction", "95% confidence interval", "95% prediction interval", "Leverage, against the runs' largest"];
+  const terms = {
+    "95% confidence interval": "confidence-interval",
+    "95% prediction interval": "prediction-interval",
+    "Leverage, against the runs' largest": "leverage",
+  };
   $("#what-if-out").replaceChildren(table(columns, whatIfRows(responses), terms), ...noteList(whatIfSentences(responses, w.broken), "warnings"));
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
   showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings));

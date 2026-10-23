@@ -645,7 +645,7 @@ export function sliderStep(f) {
 
 /**
  * Each response at the what-if settings, a row each for a table: its name, its prediction, its 95% confidence interval
- * for the mean, its 95% prediction interval for one new run, and its leverage beside the runs'. ``responses`` is
+ * for the mean, its 95% prediction interval for one new run, and its leverage beside the runs' largest. ``responses`` is
  * bootstrap.predictors' list, each with ``at``, what predictAt gave at the settings; one without results, or whose
  * model cannot be fitted, says so in its row.
  */
@@ -655,7 +655,7 @@ export function whatIfRows(responses) {
     if (r.waiting) return [r.label, "No results yet: enter them in Run.", "", "", ""];
     if (r.error) return [r.label, r.error, "", "", ""];
     const { at } = r;
-    const leverage = `${lev(at.leverage)}, ${at.extrapolating ? "above" : "within"} the runs': ${lev(at.max_leverage)} at most`;
+    const leverage = `${lev(at.leverage)}, ${at.extrapolating ? "above" : "within"} ${lev(at.max_leverage)}`;
     return [r.label, withUnit(at.predicted, r.units), range(at.confidence, r.units), range(at.prediction, r.units), leverage];
   });
 }

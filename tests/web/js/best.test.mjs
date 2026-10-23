@@ -779,7 +779,7 @@ describe("what if", () => {
       { name: "Purity", label: "Purity", units: "%", error: "The term Supplier·Batch needs Supplier in the model too." },
     ];
     assert.deepEqual(whatIfRows(responses), [
-      ["Yield", "15%", "10.76 to 19.24%", "8.526 to 21.47%", "0.75, above the runs': 0.5 at most"],
+      ["Yield", "15%", "10.76 to 19.24%", "8.526 to 21.47%", "0.75, above 0.5"],
       ["Cost", "No results yet: enter them in Run.", "", "", ""],
       ["Purity", "The term Supplier·Batch needs Supplier in the model too.", "", "", ""],
     ]);
