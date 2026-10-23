@@ -591,7 +591,18 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             **_runs(responses=[-1.0] * len(ex["held"]["rows"]))(ex),
             "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "log"}},
         },
-        "The log of Yield needs every result above 0, and run 1 has -1. Analyse it as it is, or with another transform.",
+        (
+            "The log of Yield needs every result above 0, and run 1 has -1. "
+            "Analyse it as it is, or with another transform."
+        ),
+    ),
+    "an acceptable range below 0 for a logged response": (
+        "api_balance",
+        lambda ex: {
+            **_balanced(goals={"Cost": {"low": 0, "high": 30}})(ex),
+            "spec": {**_balanced()(ex)["spec"], "analysis_transforms": {"Cost": "log"}},
+        },
+        "The log of Cost needs an acceptable range above 0.",
     ),
     "a target at 0 for its log": (
         "api_best_settings",

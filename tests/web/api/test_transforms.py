@@ -6,12 +6,14 @@ and what the replies say in the response's units is put back in them: a predicti
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from process_improve.experiments import analyze_experiment
-from tests.web._support import held_of
+from tests.web._support import FACTORS, held_of
 
 
 def transformed(held: dict, transform: str | None, response: str | None = None) -> dict:
@@ -165,3 +167,70 @@ def test_the_best_of_a_logged_response_is_its_median_at_the_best_corner(api, hel
     step = next(s for s in best["sensitivity"] if s["name"] == first)
     assert step["down"] < 0 < step["up"]
     assert step["up"] > -step["down"], "on a log scale a step up raises the median more than one down lowers it"
+
+
+# --------------------------------------------------------------------------- the pictures, the what-if, the balance
+def test_the_surface_of_a_logged_response_is_drawn_in_its_units_and_its_residuals_on_its_scale(api, held):
+    reply = api.ok("api_plots", {**transformed(held, "log"), "responses": lognormal(held), "model": "main_effects"})
+    contour = json.loads(reply["figures"]["contour"])
+    z = [v for t in contour["data"] if t.get("type") == "contour" and t.get("z") for row in t["z"] for v in row]
+    assert min(v for v in z if v is not None) > np.exp(2), "the median, put back, not its log, which is about 3"
+    residuals = json.loads(reply["figures"]["residuals"])
+    assert residuals["layout"]["xaxis"]["title"]["text"] == "Fitted ln(Yield)"
+    assert residuals["layout"]["yaxis"]["title"]["text"] == "Residual", "a log has no units"
+
+
+def test_the_what_if_models_say_which_response_is_on_which_scale(api, held):
+    y = lognormal(held)
+    reply = api.ok("api_predictors", {**transformed(held, "log"), "responses": y, "models": {"Yield": "main_effects"}})
+    (fit,) = reply["responses"]
+    assert fit["transform"] == "log"
+    logged = api.ok("api_analyze_runs", {**transformed(held, "log"), "responses": y, "model": "main_effects"})
+    assert fit["coefficients"][0] == pytest.approx(logged["coefficients"][0]["coefficient"]), "fitted to ln y"
+
+
+#: A yield to maximise and a cost to minimise, over a face-centred design in T and P.
+TWO = [
+    {"name": "Yield", "label": "Yield", "units": "%", "goal": "maximize"},
+    {"name": "Cost", "label": "Cost", "units": "$/kg", "goal": "minimize"},
+]
+
+
+def test_a_balance_works_a_logged_response_s_d_on_its_scale_and_says_it_in_its_units(api):
+    held = held_of(
+        api.ok(
+            "api_make_design",
+            {"design_type": "ccd", "factors": FACTORS[:2], "responses": TWO, "alpha": "face_centered"},
+        )
+    )
+    x = coded(held)
+    yield_ = (60 + 4 * x["T"] + 2 * x["P"] - 3 * x["T"] ** 2 - 2 * x["P"] ** 2).tolist()
+    cost = np.exp(3 + 0.3 * x["T"] + 0.1 * x["P"]).tolist()
+    request = {
+        **held,
+        "responses": yield_,
+        "more_responses": {"Cost": cost},
+        "models": {"Yield": "quadratic", "Cost": "quadratic"},
+        "goals": {},
+    }
+    request["spec"] = {**held["spec"], "analysis_transforms": {"Cost": "log"}}
+    reply = api.ok("api_balance", request)
+    by = {r["name"]: r for r in reply["responses"]}
+    assert by["Cost"]["transform"] == "log"
+    assert "transform" not in by["Yield"]
+    assert (by["Cost"]["default_low"], by["Cost"]["default_high"]) == pytest.approx((min(cost), max(cost)))
+    assert min(cost) <= by["Cost"]["predicted"] <= max(cost), "in $/kg, not in ln($/kg)"
+    assert 0 <= by["Cost"]["d"] <= 1
+    narrower = {"Cost": {"low": 22.0, "high": 30.0}}  # the reader's range, in $/kg
+    reply = api.ok("api_balance", {**request, "goals": narrower})
+    cost_goal = next(g for g in reply["search"]["goals"] if g["response"] == "Cost")
+    assert (cost_goal["low"], cost_goal["high"]) == pytest.approx((np.log(22.0), np.log(30.0))), "searched on ln"
+    assert next(r for r in reply["responses"] if r["name"] == "Cost")["low"] == pytest.approx(22.0)
+
+
+def test_the_next_step_for_a_transformed_response_says_its_numbers_are_on_the_model_s_scale(api, held, simulated):
+    called = api.ok("api_next_runs", {**transformed(held, "sqrt"), "responses": simulated["responses"]})
+    assert (
+        called["recommendation"]["reasons"][0]
+        == "The model is fitted to √Yield, so the numbers below are on that scale."
+    )
