@@ -13,3 +13,6 @@
   the number of aligned columns skipped the alignment and raised an `IndexError`.
 - **`resample_to_reference` refuses a batch of fewer than 2 rows, naming it (#513).** It divided by
   zero and then failed inside scipy with "`x` array is all-nan".
+- **`OLS` gives a near-perfect fit its `pi_range_` grid (#513).** Below a residual standard error of
+  about 1e-7 the grid was NaN, and `multiple_linear_regression` left out its `pi_range` key; the band
+  now has the near-zero width that `prediction_interval()` already gave.

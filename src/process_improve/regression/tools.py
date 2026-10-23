@@ -64,7 +64,9 @@ class RobustRegressionInput(BaseModel):
         "highly resistant to outliers - up to half of the data can be contaminated before "
         "the slope estimate breaks down (Siegel's repeated median has a 50% breakdown point). "
         "Returns slope, intercept, R-squared, standard errors, prediction intervals, and "
-        "fitted values. "
+        "fitted values. Only the slope and intercept are robust: the standard errors, R-squared "
+        "and intervals use least-squares formulas on the residuals, so they are approximate, "
+        "and an outlier widens the intervals even when it does not move the slope. "
         "Use this when you suspect outliers in the data or want a more reliable fit."
     ),
     input_model=RobustRegressionInput,
