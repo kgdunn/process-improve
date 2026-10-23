@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["process-improve[expt]"]
+# dependencies = ["process-improve>=1.98"]
 # ///
 """Verify a two-level design before anyone runs it in a lab.
 
@@ -171,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
     except ImportError as exc:  # pragma: no cover - environment guard
         sys.exit(
             f"Could not import process_improve ({exc}).\n"
-            "Install it with:  pip install 'process-improve[expt]'\n"
+            "Install it with:  pip install process-improve\n"
             "or run this script with:  uv run --script verify_design.py ..."
         )
 
