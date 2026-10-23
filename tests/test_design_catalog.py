@@ -582,6 +582,19 @@ def test_the_pilot_plant_experiment_is_described_as_box_hunter_and_hunter_print_
     assert record["response_values"]["y"] == [60, 72, 54, 68, 52, 83, 45, 80]
 
 
+def test_a_study_of_one_factor_its_source_compares_as_levels_takes_it_as_categorical():
+    """Montgomery's plasma etching compares four RF powers, C(power): the catalog takes power as its four levels."""
+    power = {"name": "power", "type": "numeric", "low": 160, "high": 220, "levels": [160, 180, 200, 220]}
+    compared = {"expected": [{"check": {"kind": "anova_f", "model": "C(power)"}}]}
+    assert design_catalog._compared_as_levels(compared, [power]) == [{**power, "type": "categorical"}]
+    fitted = {"expected": [{"check": {"kind": "r_squared", "model": "power + I(power ** 2)"}}]}
+    assert design_catalog._compared_as_levels(fitted, [power]) == [power], "a curve in power takes it as a number"
+    two = [power, {**power, "name": "time"}]
+    assert design_catalog._compared_as_levels(compared, two) == two, "a study of one factor only"
+    ends = {**power, "levels": [160, 220]}
+    assert design_catalog._compared_as_levels(compared, [ends]) == [ends], "two levels are a numeric factor's ends"
+
+
 def test_an_entry_is_named_for_what_it_holds():
     """A design and its results, a design alone, one sample with nothing varied, or facts about designs."""
     sample = {"runs": {"columns": ["No.", "y"], "rows": [[1, 2.0], [2, 2.5]]}, "responses": [{"name": "y"}]}

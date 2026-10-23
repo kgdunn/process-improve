@@ -490,6 +490,23 @@ export function levelsText(factor) {
 // ---------------------------------------------------------------- words for a design
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** Whether a catalog entry is a design to run: not facts a source prints about designs, nor one sample measured. */
+export const isDesign = (design) => design.kind !== "facts" && design.kind !== "sample";
+
+/**
+ * Say how many of the catalog's designs the list shows, published and generated; an entry of facts about designs,
+ * or of one sample with nothing varied, is listed but counted apart, as it is no design.
+ */
+export function countSentence(list, catalog) {
+  const designs = list.filter(isDesign);
+  const of = `${designs.length} of ${plural(catalog.designs.filter(isDesign).length, "design")}`;
+  if (!list.length) return `${of}: change a filter or the search to see more`;
+  const published = designs.filter((d) => d.collection === "published").length;
+  const others = list.length - designs.length;
+  const more = others ? `; and ${plural(others, "entry", "entries")} of facts about designs or a single sample` : "";
+  return `${of}: ${published} published, ${designs.length - published} generated${more}`;
+}
+
 /** The largest model a design estimates in full, in words; null when the catalog does not state it. */
 export function largestModel(models) {
   if (!models) return null;

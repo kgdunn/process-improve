@@ -738,13 +738,17 @@ def _variable(name: str) -> str:
     return found.group(1) if found else name
 
 
-def page_terms(formula: str, spec: dict[str, Any], block: tuple[str, ...] = ()) -> list[list[str]] | None:
+def page_terms(
+    formula: str, spec: dict[str, Any], block: tuple[str, ...] = (), as_number: frozenset[str] = frozenset()
+) -> list[list[str]] | None:
     """Return a source's model, as patsy reads it, as the page's chosen terms; None for one the page cannot fit.
 
     The page cannot fit a model without an intercept, a numeric factor taken as levels, a transformed factor,
     a square of a categorical factor, or an interaction of four factors or more. A study in blocks is fitted
     with its blocks, so the model must name the block's columns as terms of their own, as the page's blocks
-    are; a model without them, or with a block column in an interaction, is not the page's.
+    are; a model without them, or with a block column in an interaction, is not the page's. A factor the page
+    takes as levels that the source records as a number (``as_number``) is the page's only where the model takes it
+    as levels, ``C(power)``: ``power`` alone is a line in it, which the page does not fit.
     """
     from patsy import ModelDesc  # noqa: PLC0415 - the docs environment has it
 
@@ -768,6 +772,8 @@ def page_terms(formula: str, spec: dict[str, Any], block: tuple[str, ...] = ()) 
             square = re.fullmatch(r"I\(\s*(\w+)\s*\*\*\s*2\s*\)", name)
             variable = square.group(1) if square else _variable(name)
             numeric_as_levels = name.startswith("C(") and variable not in categorical
+            if variable in categorical and variable in as_number and not name.startswith("C("):
+                return None  # the source fits it as a number here
             transformed = not square and not name.startswith("C(") and name != variable
             if variable not in factors or numeric_as_levels or transformed or (square and variable in categorical):
                 return None
@@ -867,9 +873,10 @@ def _shown(check: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]) -
     known = kind in ANOVA_NUMBERS or kind in FIT_NUMBERS or kind in COEFFICIENT_NUMBERS or kind in COMPARISON_NUMBERS
     if not known or any(check.get(key) for key in NOT_SHOWN) or check.get("confidence", 0.95) != 0.95:
         return False
-    own_units = any(f.get("coding") in ("none", "pseudocomponent") for f in entry["factors"]) or entry["runs"].get(
-        "exact"
-    )
+    levels = {f["name"] for f in spec["factors"] if load_bootstrap()._categorical(f)}  # each level an effect of its own
+    own_units = any(
+        f.get("coding") in ("none", "pseudocomponent") and f["name"] not in levels for f in entry["factors"]
+    ) or entry["runs"].get("exact")
     if kind in COEFFICIENT_NUMBERS and own_units:
         return False  # the source fits settings in their own units; the page, coded
     if kind in COMPARISON_NUMBERS:  # the page compares the levels of one categorical factor, on no other model
@@ -897,8 +904,28 @@ def _reading(
         if any(name in block or name == "Block" for name, _ in _level_parts(check["term"])):
             return None  # the page fits the blocks, but shows no coefficient of theirs
         return _coefficient_reading(check, spec, flipped)
+    return _comparison_reading(check, spec)
+
+
+def _comparison_reading(check: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the pair of levels, or the level, of the page's comparison a check reads, in the page's labels."""
     asked = _asked(check)
-    return None if asked is None else {"table": "comparison", **asked}
+    if asked is None:
+        return None
+    a, b = _page_label(asked["a"], spec), _page_label(asked["b"], spec)
+    levels = load_bootstrap()._levels_of(spec["factors"][0])
+    if asked["method"] == "dunnett" and b != str(levels[0]):
+        return None  # the page compares with its first level unless the reader picks another control
+    return {"table": "comparison", **asked, "a": a, "b": b}
+
+
+def _page_label(text: str, spec: dict[str, Any]) -> str:
+    """Write a level a source names as the page labels it: 160.0 for a factor whose levels read 160, 180, ..."""
+    bootstrap = load_bootstrap()
+    factor = spec["factors"][0] if len(spec["factors"]) == 1 else None
+    levels = bootstrap._levels_of(factor) if factor and bootstrap._categorical(factor) else []
+    at = bootstrap._level_index(text, levels) if levels and text else None
+    return str(levels[at]) if at is not None else text
 
 
 def _anova_reading(check: dict[str, Any], block: tuple[str, ...]) -> dict[str, Any] | None:
@@ -966,12 +993,17 @@ def printed_checks(
     flipped = frozenset(
         f["name"] for f in record["factors"] if f.get("type") == "numeric" and _page_factor(f) and f["low"] > f["high"]
     )
-    own_units = any(f.get("coding") == "none" for f in entry["factors"])
+    levels = {f["name"] for f in spec["factors"] if load_bootstrap()._categorical(f)}
+    as_number = frozenset(f["name"] for f in entry["factors"] if f.get("type", "numeric") == "numeric") & levels
+    own_units = any(f.get("coding") == "none" and f["name"] not in levels for f in entry["factors"])
     for expected in entry.get("expected", []):
         for check in rc._checks(expected):
             if not _shown(check, entry, spec) or check.get("runs") or (check.get("response") or first) != response:
                 continue
-            terms = page_terms(check["factor"] if check["kind"] == "tukey" else check["model"], spec, block)
+            # A comparison names the factor whose levels it compares, bare: levels, however the source records it.
+            compared = check["kind"] in COMPARISON_NUMBERS
+            model = check["factor"] if check["kind"] == "tukey" else check["model"]
+            terms = page_terms(model, spec, block, frozenset() if compared else as_number)
             if terms and own_units and not _hierarchical(terms):
                 continue  # fitted in the factors' own units, a model without its lower terms is not the page's
             printed = check.get("printed", expected["value"])

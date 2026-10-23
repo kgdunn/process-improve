@@ -26,7 +26,9 @@ import {
   compareRows,
   correlationMap,
   errataCounts,
+  countSentence,
   errataShown,
+  isDesign,
   generatorsLine,
   familyMarks,
   largestSecondOrderR,
@@ -812,5 +814,23 @@ describe("a fraction named by its generators", () => {
     assert.equal(generatorsLine(["C=AB"]), "C = AB");
     assert.equal(generatorsLine(["D=AB", "E=AC"]), "D = AB and E = AC");
     assert.equal(generatorsLine(["5=234", "6 = 1234", "F=-ABCDE"]), "5 = 234, 6 = 1234 and F = -ABCDE");
+  });
+});
+
+describe("the count of the designs listed", () => {
+  const designs = [
+    { id: "a", kind: "experiment", collection: "published" },
+    { id: "b", kind: "design", collection: "generated" },
+    { id: "c", kind: "facts", collection: "published" },
+    { id: "d", kind: "sample", collection: "published" },
+  ];
+  const catalog = { designs };
+
+  test("facts about designs and a single sample are listed, but counted apart from the designs", () => {
+    assert.deepEqual(designs.map(isDesign), [true, true, false, false]);
+    assert.equal(countSentence(designs, catalog), "2 of 2 designs: 1 published, 1 generated; and 2 entries of facts about designs or a single sample");
+    assert.equal(countSentence(designs.slice(0, 3), catalog), "2 of 2 designs: 1 published, 1 generated; and 1 entry of facts about designs or a single sample");
+    assert.equal(countSentence(designs.slice(0, 1), catalog), "1 of 2 designs: 1 published, 0 generated");
+    assert.equal(countSentence([], catalog), "0 of 2 designs: change a filter or the search to see more");
   });
 });

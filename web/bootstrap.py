@@ -414,6 +414,8 @@ VIF_HIGH = 5.0
 
 #: How many alias groups a summary sentence names before saying how many more.
 ALIASES_SHOWN = 4
+#: The words of a defining relation the design's note lists before it counts the rest: a 2^(k-3) fraction's whole one.
+RELATION_SHOWN = 7
 
 #: A coefficient within this fraction of the largest result is round-off, not an estimate: an
 #: orthogonal design whose results make a term exactly zero estimates it as 1e-16, and the page
@@ -1425,13 +1427,19 @@ def _given_design(spec: dict) -> dict:
         if len(names) == 1
         else _aliasing_sentence(groups)
     )
-    notes = [GIVEN_NOTE, said, *([_blocks_sentence(coded, blocks, stored)] if blocks else [])]
+    relation = _relation_of_runs(coded, names) if len(names) > 1 else []
+    notes = [
+        GIVEN_NOTE,
+        *([_relation_sentence(relation)] if relation else []),
+        said,
+        *([_blocks_sentence(coded, blocks, stored)] if blocks else []),
+    ]
     if limits:
         notes.append(_given_limits_sentence(factors, limits, coded))
     facts = {
-        "resolution": None,
+        "resolution": min(w.lstrip("-").count("·") + 1 for w in relation) if relation else None,
         "generators": [],
-        "defining_relation": [],
+        "defining_relation": [f"I = {w}" for w in relation],
         "aliases": groups,
         "center_runs": int(np.all(np.abs(coded) < ALIAS_TOLERANCE, axis=1).sum()),
         "notes": notes,
@@ -2202,6 +2210,41 @@ def _levels_sentence(factor: dict, coded: np.ndarray, *, given: bool = False) ->
         middle = f"{(low + high) / 2:.4g}{units}"
         centre = f", and {at[0]} run{'s' if at[0] != 1 else ''} at its center, {middle}"
     return f"The runs compare {factor['name']} at {shown[0]} and at {shown[1]}{units}: {each}{centre}{order}."
+
+
+def _relation_of_runs(coded: np.ndarray, names: list[str]) -> list[str]:
+    """Return the defining relation of runs that make a regular two-level fraction, shortest word first; else [].
+
+    Each run must be a corner of the cube or its centre. The corners make a regular fraction 2^(k-p) when they
+    are 2^(k-p) distinct runs on which the product of some of the factors' columns is the same run for run:
+    each such product is a word of the relation, ``A·B·C·D``, or ``-A·B·C·D`` where it is -1 on every run, and
+    there are 2^p - 1 of them. A full factorial has none, and nor has a design that is no such fraction, such
+    as a Plackett-Burman design.
+    """
+    corner = np.all(np.isclose(np.abs(coded), 1.0), axis=1)
+    centre = np.all(np.abs(coded) < ALIAS_TOLERANCE, axis=1)
+    k = len(names)
+    if k < 3 or not np.all(corner | centre):
+        return []
+    distinct = np.unique(np.sign(coded[corner]), axis=0)
+    n = len(distinct)
+    if n < 4 or n >= 2**k or n & (n - 1):
+        return []
+    words = []
+    for size in range(1, k + 1):
+        for subset in itertools.combinations(range(k), size):
+            product = np.prod(distinct[:, list(subset)], axis=1)
+            if np.all(product == product[0]):
+                words.append(("-" if product[0] < 0 else "") + "·".join(names[j] for j in subset))
+    return words if len(words) == 2 ** (k - int(math.log2(n))) - 1 else []
+
+
+def _relation_sentence(words: list[str]) -> str:
+    """Say the resolution and the defining relation of runs given as a regular fraction, its first words listed."""
+    resolution = min(w.lstrip("-").count("·") + 1 for w in words)
+    shown = " = ".join(words[:RELATION_SHOWN])
+    more = f", and {len(words) - RELATION_SHOWN} more words" if len(words) > RELATION_SHOWN else ""
+    return f"Resolution {ROMAN.get(resolution, resolution)}: the runs make the defining relation I = {shown}{more}."
 
 
 def _resolution_sentence(resolution: int, generators: list[str]) -> str:

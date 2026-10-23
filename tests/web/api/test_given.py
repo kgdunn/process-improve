@@ -150,3 +150,28 @@ def test_the_factor_count_is_the_page_s(api):
     assert np.array(
         api.ok("api_make_design", given([[0, 1], [1, 0], [1, 1]], factors_named("A", "B")))["rows"]
     ).shape == (3, 5)
+
+
+def test_runs_that_make_a_regular_fraction_say_its_resolution_and_defining_relation(api):
+    """Box, Hunter and Hunter's cast films, D = BC and E = ABC: a 2^(5-2) of resolution III, read off its runs."""
+    runs = [[a, b, c, b * c, a * b * c] for c in (-1, 1) for b in (-1, 1) for a in (-1, 1)]
+    facts = api.ok("api_make_design", given([*runs, [0] * 5], factors_named(*"ABCDE")))["facts"]
+    assert facts["resolution"] == 3
+    assert facts["defining_relation"] == ["I = A·D·E", "I = B·C·D", "I = A·B·C·E"], (
+        "shortest first, then in factor order"
+    )
+    assert facts["notes"][1] == "Resolution III: the runs make the defining relation I = A·D·E = B·C·D = A·B·C·E."
+    turned = [[a, b, c, -a * b] for c in (-1, 1) for b in (-1, 1) for a in (-1, 1)]
+    other = api.ok("api_make_design", given(turned, factors_named(*"ABCD")))["facts"]
+    assert other["defining_relation"] == ["I = -A·B·D"], "the other half: the word is -1 on every run"
+
+
+@pytest.mark.parametrize(
+    "runs",
+    [CUBE, CCD, CUBE[:3], [[1, -1, 1], [-1, 1, 1], [1, 1, -1], [-1, -1, -1], [1, 1, 1]]],
+    ids=["full-factorial", "central-composite", "three-runs", "irregular"],
+)
+def test_runs_that_make_no_regular_fraction_have_no_defining_relation(api, runs):
+    facts = api.ok("api_make_design", given(runs))["facts"]
+    assert (facts["resolution"], facts["defining_relation"]) == (None, [])
+    assert not any(note.startswith("Resolution") for note in facts["notes"])

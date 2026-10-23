@@ -27,15 +27,18 @@ runs:
         python-version: ${{ inputs.python-version }}
     - name: Take only releases whose upload ended an hour ago
       # A release still being uploaded to PyPI can show only some of its wheels, and an
-      # install that finds none for its platform fails before any test runs (#812). Each
-      # file is compared with this time, so a release is used once all of it is up. The
-      # time is fixed here and exported, so every later uv command in the job resolves
-      # against the same cutoff. GNU date (Linux, Git Bash on Windows) takes -d; BSD date
-      # (macOS) takes -v.
+      # install that finds none for its platform fails before any test runs (#812). uv
+      # compares each file's upload time with this cutoff, not the release's, so a release
+      # whose upload straddles it is seen half uploaded (hypothesis 6.170.7 on #920). The
+      # install below then tries once more with a cutoff a quarter of an hour earlier,
+      # before that upload began. The times are fixed here and exported, so every later uv
+      # command in the job resolves against the same cutoff. GNU date (Linux, Git Bash on
+      # Windows) takes -d; BSD date (macOS) takes -v.
       shell: bash
       run: |
-        cutoff=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)
-        echo "UV_EXCLUDE_NEWER=$cutoff" >> "$GITHUB_ENV"
+        ago() { date -u -d "$1 minutes ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-"$1"M +%Y-%m-%dT%H:%M:%SZ; }
+        echo "UV_EXCLUDE_NEWER=$(ago 60)" >> "$GITHUB_ENV"
+        echo "UV_EXCLUDE_EARLIER=$(ago 75)" >> "$GITHUB_ENV"
     - name: Resolve every dependency the same way in each uv command
       # Exported like the cutoff: the sync below, `uv build`, and the `uv run` that
       # re-checks the environment before each command all resolve alike.
@@ -47,6 +50,12 @@ runs:
       # `defaults.run.shell` from the calling job does not reach a composite
       # action, so the shell is named here. The jobs that set one use
       # `bash -e {0}`; GitHub's `bash` adds `-o pipefail`, which changes nothing
-      # for a single command with no pipe.
+      # for a single command with no pipe. A failed install is tried once more with the
+      # earlier cutoff, which the rest of the job then uses too.
       shell: bash
-      run: uv sync --dev --all-extras
+      run: |
+        if ! uv sync --dev --all-extras; then
+          echo "::warning::The install failed with the packages uploaded by $UV_EXCLUDE_NEWER; trying those uploaded by $UV_EXCLUDE_EARLIER, in case a release was still being uploaded then."
+          echo "UV_EXCLUDE_NEWER=$UV_EXCLUDE_EARLIER" >> "$GITHUB_ENV"
+          UV_EXCLUDE_NEWER="$UV_EXCLUDE_EARLIER" uv sync --dev --all-extras
+        fi

@@ -805,6 +805,25 @@ def _named_fraction(entry: dict[str, Any]) -> tuple[list[dict[str, Any]], np.nda
     return factors, runs, list(generators)
 
 
+def _compared_as_levels(entry: dict[str, Any], factors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a study's factors with its one factor categorical where its source compares that factor's levels.
+
+    A study of one numeric factor at three or more listed levels whose source fits it as levels, ``C(power)``, is a
+    comparison of those levels, as Montgomery's plasma etching compares four RF powers: the catalog takes the factor
+    as categorical, labelled by its levels, so the page compares them as the source does. A source that also fits
+    the factor as a number keeps those models; the page shows numbers of the comparison only.
+    """
+    if len(factors) != 1:
+        return factors
+    (factor,) = factors
+    if factor.get("type", "numeric") != "numeric" or len(factor.get("levels") or []) < 3:
+        return factors
+    as_levels = re.compile(rf"C\(\s*{re.escape(str(factor['name']))}\b")
+    if not any(as_levels.search(str(check.get("model") or "")) for _, check in _checks(entry)):
+        return factors
+    return [{**factor, "type": "categorical"}]
+
+
 def _kind(entry: dict[str, Any], factors: list[dict[str, Any]]) -> str:
     """Say what an entry of the reference catalogue holds.
 
@@ -824,7 +843,7 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
     family = normalise_family(str(design.get("type", "")))
     # A run's block is no factor of the design: its column is kept apart as the run's block.
     columns, apart = _block_columns(entry), _set_apart(entry)
-    factors = [f for f in entry.get("factors") or [] if f["name"] not in apart]
+    factors = _compared_as_levels(entry, [f for f in entry.get("factors") or [] if f["name"] not in apart])
     coded = published_runs({**entry, "factors": factors})
     runs_from = None
     if not factors and (coded is None or not coded.size) and (fraction := _named_fraction(entry)):
