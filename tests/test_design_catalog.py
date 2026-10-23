@@ -655,7 +655,7 @@ def test_the_catalogue_tells_its_designs_from_single_samples_and_facts_about_des
         5,
     )
     assert published["montgomery-2-7-2-choices"]["runs_from"] is None, "three fractions compared, none made"
-    assert sum(bool(r["runs_from"]) for r in published.values()) == 40
+    assert sum(bool(r["runs_from"]) for r in published.values()) == 42
 
 
 # --------------------------------------------------------------------------- generated designs

@@ -19564,38 +19564,21 @@
       "source_kind": "table",
       "quote": "Table 8-3 Lack of Fit 0.050 2 0.025 3.75 0.1527"
      },
-     "check": [
-      {
-       "kind": "extra_ss",
-       "model": "A + B + A:B + I(A ** 2)",
-       "after": "A + I(A ** 2)",
-       "runs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-       ]
-      },
-      {
-       "kind": "lack_of_fit_ss",
-       "model": "A + I(A ** 2)",
-       "runs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-       ],
-       "disagreement": "the library takes pure error from runs alike in the model's factors, so with B out of the model the corners alike in A count as replicates and leave lack of fit no degrees of freedom; the book takes it from runs alike in every factor of the design. The extra sum of squares of B and AB, tested on the pure error, is the book's lack of fit"
-      }
-     ]
+     "check": {
+      "kind": "extra_ss",
+      "model": "A + B + A:B + I(A ** 2)",
+      "after": "A + I(A ** 2)",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
     },
     {
      "what": "lack_of_fit_f",
@@ -19607,38 +19590,21 @@
       "source_kind": "table",
       "quote": "Table 8-3 Lack of Fit 0.050 2 0.025 3.75 0.1527"
      },
-     "check": [
-      {
-       "kind": "extra_f",
-       "model": "A + B + A:B + I(A ** 2)",
-       "after": "A + I(A ** 2)",
-       "runs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-       ]
-      },
-      {
-       "kind": "lack_of_fit_f",
-       "model": "A + I(A ** 2)",
-       "runs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-       ],
-       "disagreement": "the library takes pure error from runs alike in the model's factors, so with B out of the model the corners alike in A count as replicates and leave lack of fit no degrees of freedom; the book takes it from runs alike in every factor of the design. The extra sum of squares of B and AB, tested on the pure error, is the book's lack of fit"
-      }
-     ]
+     "check": {
+      "kind": "extra_f",
+      "model": "A + B + A:B + I(A ** 2)",
+      "after": "A + I(A ** 2)",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
     },
     {
      "what": "lack_of_fit_p",
@@ -19650,38 +19616,21 @@
       "source_kind": "table",
       "quote": "Table 8-3 Lack of Fit 0.050 2 0.025 3.75 0.1527"
      },
-     "check": [
-      {
-       "kind": "extra_p",
-       "model": "A + B + A:B + I(A ** 2)",
-       "after": "A + I(A ** 2)",
-       "runs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-       ]
-      },
-      {
-       "kind": "lack_of_fit_p",
-       "model": "A + I(A ** 2)",
-       "runs": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-       ],
-       "disagreement": "the library takes pure error from runs alike in the model's factors, so with B out of the model the corners alike in A count as replicates and leave lack of fit no degrees of freedom; the book takes it from runs alike in every factor of the design. The extra sum of squares of B and AB, tested on the pure error, is the book's lack of fit"
-      }
-     ]
+     "check": {
+      "kind": "extra_p",
+      "model": "A + B + A:B + I(A ** 2)",
+      "after": "A + I(A ** 2)",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
     },
     {
      "what": "pure_error_ss",
