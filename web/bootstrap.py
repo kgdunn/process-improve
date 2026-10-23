@@ -6774,14 +6774,14 @@ def predictors(request: dict) -> dict:
     """Return each response's fitted model as numbers, so the page predicts at any settings without asking again.
 
     Each response with results is fitted with its own model (``models``, by its column; the design's
-    without one) as Learn fits it (:func:`_fitted`). Its reply holds what :meth:`_FittedModel.at`
-    needs: each term as the columns it multiplies (``I(T ** 2)`` as ``T`` twice), the coefficients,
-    ``(X'X)^-1``, the residual mean square and the t value of 95% intervals (both None without
-    residual degrees of freedom), and the largest leverage of the runs fitted. The page
-    (``predictAt`` in ``web/logic.js``) then gives the prediction, its intervals and its leverage
-    as the reader moves a setting, at once. A block contrast is 0 in the average block, where the
-    page predicts, so its term, its coefficient and its row and column of ``(X'X)^-1`` are left out:
-    they add nothing there.
+    without one) as Learn fits it (:func:`_fitted`). Its reply holds the formula fitted, for the code
+    the page shows, and what :meth:`_FittedModel.at` needs: each term as the columns it multiplies
+    (``I(T ** 2)`` as ``T`` twice), the coefficients, ``(X'X)^-1``, the residual mean square and the
+    t value of 95% intervals (both None without residual degrees of freedom), and the largest
+    leverage of the runs fitted. The page (``predictAt`` in ``web/best.js``) then gives the
+    prediction, its intervals and its leverage as the reader moves a setting, at once. A block
+    contrast is 0 in the average block, where the page predicts, so its term, its coefficient and
+    its row and column of ``(X'X)^-1`` are left out: they add nothing there.
 
     ``factors`` says how a setting becomes the columns, the same for every response: a numeric
     factor is coded from its range, and a categorical factor's level is the columns
@@ -6818,6 +6818,7 @@ def _predictor(fitted: _FittedModel) -> dict[str, Any]:
     """Return a fit as the page predicts from it: its terms but the block contrasts, as numbers."""
     kept = [i for i, term in enumerate(fitted.terms) if not _block_contrast(term, fitted.names)]
     return {
+        "formula": fitted.formula,
         "terms": [list(_parts(fitted.terms[i])) for i in kept],
         "coefficients": [float(fitted.beta[i]) for i in kept],
         "inverse": fitted.inverse[np.ix_(kept, kept)].tolist(),

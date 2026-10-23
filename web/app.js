@@ -41,6 +41,7 @@ import {
   IMPORTANCES,
   GOOD_END,
   UNCLEAR,
+  WHAT_IF_BACK,
   balanceConfirmation,
   balanceLead,
   balanceLeverage,
@@ -79,6 +80,13 @@ import {
   withConfirmationRuns,
   withUnit,
   withoutConfirmationRuns,
+  columnsAt,
+  predictAt,
+  settingsFit,
+  sliderStep,
+  whatIfRows,
+  whatIfSentences,
+  whatIfStart,
 } from "./best.js";
 import {
   AXIAL_DISTANCE,
@@ -232,7 +240,7 @@ import {
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -379,6 +387,7 @@ const state = {
   analysis: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
+  whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
@@ -1718,6 +1727,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.simulation = null;
   state.analysis = null;
   clearBalance();
+  clearWhatIf();
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
@@ -2937,6 +2947,7 @@ async function readUpload(file) {
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   state.goals = {};
   clearBalance();
+  clearWhatIf();
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
@@ -3019,6 +3030,7 @@ async function analyseRuns() {
   if (!state.design || !anyResult(state.results)) {
     clearAnalysis();
     clearBalance();
+    clearWhatIf();
     setStatus("No results to analyse yet.");
     return;
   }
@@ -3029,6 +3041,7 @@ async function analyseRuns() {
     $("#analyse-empty").textContent = `No results for ${wordsOf(state.shown).label} yet: enter them in Run.`;
     setStatus(`No results for ${wordsOf(state.shown).label} yet.`);
     await findBalance();
+    await findWhatIf();
     return;
   }
   const mine = ++ticket;
@@ -3050,6 +3063,7 @@ async function analyseRuns() {
     if (mine !== ticket) return;
   }
   await findBalance();
+  await findWhatIf(); // after the best settings and the balance, which it opens at
 }
 
 /** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
@@ -3957,6 +3971,7 @@ async function findBalance() {
   const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), state.results), models: modelsByName(), goals: sentGoals() });
   if (mine !== balanceTicket) return;
   renderBalance(reply);
+  if (state.whatIf) renderWhatIf(); // the balanced settings it comes back to have moved
 }
 
 /**
@@ -4143,6 +4158,156 @@ async function drawBalanceChart() {
   } catch {
     card.hidden = true; // the tables and the sentences above hold what it shows
   }
+}
+
+// ---------------------------------------------------------------- what if: each model at the reader's settings
+// Python fits every response once an analysis is done (bootstrap.predictors) and sends each fit as numbers; best.js
+// predicts from them as the reader moves a setting, so every response follows at once. Only the limits the settings
+// break are asked of Python, a moment after the last move.
+let whatIfTicket = 0;
+let whatIfLimitsTimer = null;
+
+/** Take the what-if panel away: there are no results to fit, or the study is a mixture's. */
+function clearWhatIf() {
+  whatIfTicket += 1;
+  clearTimeout(whatIfLimitsTimer);
+  state.whatIf = null;
+  $("#what-if").hidden = true;
+  hidePython("what-if");
+}
+
+/**
+ * Fit every response for the what-if panel, and show it: after each analysis, once the best settings and the balance
+ * are found, so it can open at them. Settings the reader chose are kept while they still fit the factors.
+ */
+async function findWhatIf() {
+  if (!state.design || !anyResult(state.results)) {
+    clearWhatIf();
+    return;
+  }
+  const mine = ++whatIfTicket;
+  const reply = await call("api_predictors", { ...held(), ...splitResults(resultNames(), state.results), models: modelsByName() });
+  if (mine !== whatIfTicket) return;
+  showWhatIf(reply.ok ? reply.result : null);
+}
+
+/** Show the what-if panel for the fits Python sent (bootstrap.predictors); with none to predict from, take it away. */
+function showWhatIf(result) {
+  if (!result || result.mixture || !result.responses.some((r) => r.terms)) {
+    clearWhatIf();
+    return;
+  }
+  const { factors, responses } = result;
+  const kept = state.whatIf?.settings;
+  const settings = settingsFit(factors, kept) ? kept : whatIfStart(factors, state.balance, state.best).settings;
+  state.whatIf = { factors, responses, settings, broken: [] };
+  renderWhatIfControls();
+  renderWhatIf();
+  checkWhatIfLimits();
+}
+
+/** Build a control for each factor, once a study: a slider and a number box over a numeric factor's range, a list of a categorical one's levels. */
+function renderWhatIfControls() {
+  const box = $("#what-if-settings");
+  const key = JSON.stringify(state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels]));
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name])));
+}
+
+/** One factor's control in the what-if panel, its row named by the factor. */
+function whatIfControl(f, units) {
+  const row = el("div", "what-if-factor", "");
+  row.dataset.factor = f.name;
+  const name = el("span", "what-if-name", withUnits(f.name, units));
+  if (f.kind === "categorical") {
+    const select = el("select", "", "");
+    select.name = "level";
+    select.setAttribute("aria-label", f.name);
+    for (const level of f.levels) select.append(new Option(level, level));
+    row.append(name, select);
+    return row;
+  }
+  const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+  const span = `${num(low)} to ${withUnit(high, units)}`;
+  const slider = el("input", "", "");
+  Object.assign(slider, { type: "range", name: "slider", min: String(low), max: String(high), step: String(sliderStep(f)) });
+  slider.setAttribute("aria-label", `${f.name}, from ${span}`);
+  const box = el("input", "", "");
+  Object.assign(box, { type: "number", name: "number", min: String(low), max: String(high), step: "any" });
+  box.setAttribute("aria-label", withUnits(f.name, units));
+  row.append(name, slider, box, el("span", "hint", span));
+  return row;
+}
+
+/** Show the settings the panel holds in its controls; a number box the reader is typing in keeps what is typed. */
+function showWhatIfSettings() {
+  for (const row of $("#what-if-settings").children) {
+    const value = state.whatIf.settings[row.dataset.factor];
+    for (const input of row.querySelectorAll("input, select")) {
+      if (input.name === "number" && input === document.activeElement) continue;
+      input.value = input.name === "number" ? num(value) : String(value);
+    }
+  }
+}
+
+/**
+ * Show every response at the panel's settings, as best.js predicts it from the fits Python sent: the table, the limits
+ * the settings break, the models they lean on beyond their runs, and the code that makes the same predictions.
+ */
+function renderWhatIf() {
+  const w = state.whatIf;
+  const at = columnsAt(w.factors, w.settings);
+  const responses = w.responses.map((r) => (r.terms ? { ...r, at: predictAt(r, at) } : r));
+  const start = whatIfStart(w.factors, state.balance, state.best);
+  $("#what-if").hidden = false;
+  showWhatIfSettings();
+  $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
+  $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
+  const columns = ["Response", "Prediction", "95% confidence interval for the mean", "95% prediction interval for one new run", "Leverage"];
+  const terms = { "95% confidence interval for the mean": "confidence-interval", "95% prediction interval for one new run": "prediction-interval", Leverage: "leverage" };
+  $("#what-if-out").replaceChildren(table(columns, whatIfRows(responses), terms), ...noteList(whatIfSentences(responses, w.broken), "warnings"));
+  const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
+  showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings));
+}
+
+/** The reader moved a setting: every response follows at once, and the limits it breaks a moment later. */
+function whatIfChanged(e) {
+  const row = e.target.closest("[data-factor]");
+  if (!row || !state.whatIf) return;
+  const f = state.whatIf.factors.find((one) => one.name === row.dataset.factor);
+  let value = e.target.value;
+  if (f.kind === "numeric") {
+    value = numberOrNull(value);
+    if (value === null) return; // a number half typed: the panel waits for the rest
+    value = Math.min(Math.max(value, Math.min(f.low, f.high)), Math.max(f.low, f.high)); // the models hold inside the range
+  }
+  state.whatIf.settings = { ...state.whatIf.settings, [f.name]: value };
+  renderWhatIf();
+  clearTimeout(whatIfLimitsTimer);
+  whatIfLimitsTimer = setTimeout(checkWhatIfLimits, 150);
+}
+
+/** Ask Python which limits on the settings the panel's settings break, and say so; a study without limits breaks none. */
+async function checkWhatIfLimits() {
+  clearTimeout(whatIfLimitsTimer);
+  const w = state.whatIf;
+  if (!w || !(state.design.spec.constraints ?? []).length) return;
+  const mine = whatIfTicket;
+  const settings = w.settings;
+  const reply = await call("api_outside_limits", { spec: state.design.spec, settings });
+  if (mine !== whatIfTicket || state.whatIf?.settings !== settings) return; // the reader has moved on
+  w.broken = reply.ok ? reply.result.broken : [];
+  renderWhatIf();
+}
+
+/** Bring the panel back to where it starts: the balanced settings, the best settings, or the center of the ranges. */
+function whatIfBack() {
+  if (!state.whatIf) return;
+  state.whatIf.settings = whatIfStart(state.whatIf.factors, state.balance, state.best).settings;
+  renderWhatIf();
+  checkWhatIfLimits();
 }
 
 // ---------------------------------------------------------------- the next step
@@ -4408,6 +4573,7 @@ async function showBuiltExample() {
     state.best = example.best;
     renderBest({ ok: true, result: example.best });
   }
+  showWhatIf(example.predictors ?? null); // the build's fit, so the panel follows each move before Python starts
   if (example.next) state.next = { design: state.design, key: null, ...nextOf(example.next) }; // asked again on a change
   renderNext(); // what its results call for; its Box-Behnken design takes no runs added
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -4505,6 +4671,7 @@ function newStudy() {
   $("#run-empty").hidden = false;
   clearAnalysis();
   clearBalance();
+  clearWhatIf();
   renderPicker();
   setModel("");
   for (const key of ["design", "run", "analyse", "best", "compare"]) hidePython(key);
@@ -4901,6 +5068,7 @@ async function openCampaign(c, record, message) {
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
   clearBalance();
+  clearWhatIf();
   state.simulation = c.simulation;
   state.analysis = null;
   state.example = false;
@@ -5092,7 +5260,14 @@ async function shareLink() {
 
 // ---------------------------------------------------------------- show the Python code
 /** The steps whose panels build on each other, in order, and the code each step last showed. */
-const BUILDS_ON = { design: [], run: ["design"], analyse: ["design", "run"], best: ["design", "run", "analyse"], balance: ["design", "run"] };
+const BUILDS_ON = {
+  design: [],
+  run: ["design"],
+  analyse: ["design", "run"],
+  best: ["design", "run", "analyse"],
+  balance: ["design", "run"],
+  "what-if": ["design", "run"],
+};
 const stepCode = {};
 
 /**
@@ -5405,6 +5580,13 @@ $("#add-confirmation").onclick = () => addConfirmationRuns(state.best?.confirm_a
 $("#add-balance-confirmation").onclick = () => addConfirmationRuns(state.balance?.confirm_at, blendStudy() ? "the balanced blend" : "the balanced settings");
 $("#remove-balance-confirmation").onclick = removeConfirmationRuns;
 $("#balance-goals").addEventListener("input", goalChanged);
+// The what-if panel follows each setting as it moves; a number box shows the setting kept once the reader leaves it.
+$("#what-if-settings").addEventListener("input", whatIfChanged);
+$("#what-if-settings").addEventListener("change", (e) => {
+  const row = e.target.closest("[data-factor]");
+  if (e.target.name === "number" && row && state.whatIf) e.target.value = num(state.whatIf.settings[row.dataset.factor]);
+});
+$("#what-if-back").onclick = whatIfBack;
 $("#balance-reset").onclick = () => {
   state.goals = {};
   scheduleSave();

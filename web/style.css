@@ -817,6 +817,25 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 .next .offer { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 3px solid var(--line); }
 .next .offer p { margin: 2px 0 6px; font-size: 0.95rem; }
 
+/* What if: a row per factor, its name, a slider and a number box over its range (a list of its levels for a categorical
+   one), then each response predicted there. */
+.what-if-settings { display: grid; gap: 6px; margin: 8px 0 4px; }
+.what-if-factor {
+  display: grid; grid-template-columns: minmax(4em, auto) minmax(6rem, 1fr) 7em minmax(0, auto); align-items: center;
+  gap: 4px 10px; font-size: 0.95rem;
+}
+.what-if-name { font-weight: 600; overflow-wrap: anywhere; }
+.what-if-factor input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+.what-if-factor input[type="number"] { width: 100%; }
+.what-if-factor select { grid-column: 2 / span 2; justify-self: start; }
+.what-if table.data td:nth-child(n + 3) { white-space: normal; }
+@media (max-width: 600px) {
+  .what-if-factor { grid-template-columns: minmax(0, 1fr) 7em; }
+  .what-if-name { grid-column: 1 / -1; }
+  .what-if-factor select { grid-column: 1 / -1; }
+  .what-if-factor .hint { display: none; }
+}
+
 /* The balance of the responses: each response's goal in a compact table of boxes and choices, then the balance as the
    best settings show theirs, and the overlay of the acceptable ranges. */
 table.balance-goals th, table.balance-goals td, table.balance-table th, table.balance-table td { padding: 4px 10px; vertical-align: middle; }
