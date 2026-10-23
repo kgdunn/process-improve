@@ -12,7 +12,7 @@
   "commit": "28e5b8800b5eab9d5e4e1b70ac085d7c3bddb347",
   "license": "CC-BY-SA-4.0",
   "cite": "Dunn, K. G. (2026), Process Improvement using Data, version 2026.10.17, https://learnche.org/pid",
-  "read": "2026-10-13, from the book's RST source at commit 0c53703 (its design-of-experiments chapter, the mixed-level profile case study, and the latent-variable chapters, which hold no designed experiment): each number copied verbatim with its file and line, and a quotation checked against that line; carried to commit 28e5b88 on 2026-10-17 through a line diff of the seven files changed between them, each changed quotation read again",
+  "read": "2026-10-13, the book's RST source at commit 0c53703 (its design-of-experiments chapter, the mixed-level profile case study, and the latent-variable chapters, which hold no designed experiment): each number verbatim with its file and line, and a quotation checked against that line; carried to commit 28e5b88 on 2026-10-17 through the seven files changed between them, each changed quotation read again",
   "rights": "Copyright Kevin G. Dunn, under the Creative Commons Attribution-ShareAlike 4.0 licence (https://creativecommons.org/licenses/by-sa/4.0/). The quotations and data taken from the book stay under that licence, not the MIT licence of process-improve."
  },
  "experiments": [

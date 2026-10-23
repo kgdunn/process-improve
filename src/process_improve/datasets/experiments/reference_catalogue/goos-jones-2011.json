@@ -12,7 +12,7 @@
   "isbn": "978-0-470-74461-1",
   "url": "https://search.worldcat.org/search?q=bn:9780470744611",
   "cite": "Goos, P. and Jones, B. (2011), Optimal Design of Experiments: A Case Study Approach, Wiley",
-  "read": "2026-10-18, from six PDFs supplied by the user, of chapters 1 and 2 (pp. 1 to 45), 3 and 4 (pp. 47 to 93), 5 and 6 (pp. 95 to 133), 7 and 8 (pp. 135 to 185), 9 and 10 (pp. 187 to 254) and 11 with the bibliography and the index (pp. 255 to 287), the whole book, one PDF page a book page; every number copied from the PDF's text layer and checked against the page, and Table 2.7, whose text layer drops a row of zeros, the matrices of Equations 3.6, 3.7 and 3.14 and of p. 159, which the text layer scrambles, the designs of Figures 10.1 and 10.2, and the columns of Tables 10.8 and 11.2, read from the page images",
+  "read": "2026-10-18, the whole book: chapters 1 to 11 (pp. 1 to 254), the bibliography and the index (pp. 255 to 287)",
   "rights": "The book is protected by copyright (© 2011 John Wiley & Sons, Ltd) and is not reproduced here. This file holds facts it reports (numbers, design matrices, data) and short quotations that locate each one, for citation and for checking software. The MIT licence of process-improve does not extend to them."
  },
  "experiments": [
