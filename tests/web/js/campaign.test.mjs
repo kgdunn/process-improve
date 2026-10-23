@@ -185,6 +185,21 @@ describe("a campaign read back keeps only what the page uses", () => {
     assert.equal({}.polluted, undefined);
   });
 
+  test("a study from the catalog keeps its source; a study from elsewhere has none", () => {
+    const source = { cite: "Montgomery, D. C. (2013)", where: "pp. 379-380", url: "https://example.org/doe", catalog: "montgomery-problem-8-29", printed: 12 };
+    assert.deepEqual(checkCampaign({ ...campaign(), source }).source, source);
+    assert.deepEqual(checkCampaign({ ...campaign(), source: { cite: "A book" } }).source, { cite: "A book", where: "", url: "", catalog: "", printed: 0 });
+    assert.equal("source" in checkCampaign(campaign()), false);
+  });
+
+  test("a source the page would link to or fetch from elsewhere is refused", () => {
+    const refusedSource = (source, why) => assert.throws(() => checkCampaign({ ...campaign(), source: { cite: "A book", ...source } }), why);
+    refusedSource({ url: "javascript:alert(1)" }, /address is not a web address/);
+    refusedSource({ catalog: "../index" }, /id in the catalog is not one the catalog gives/);
+    refusedSource({ printed: -1 }, /count of its printed numbers is not a count/);
+    refusedSource({ cite: 7 }, /citation is not text/);
+  });
+
   test("results without their sources are taken as entered", () => {
     const data = campaign();
     delete data.sources;

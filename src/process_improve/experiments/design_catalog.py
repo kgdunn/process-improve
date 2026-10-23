@@ -620,13 +620,21 @@ def published_runs(entry: dict[str, Any]) -> np.ndarray | None:
     # A table of coded runs may still print a categorical factor's levels, such as supplier 1, 2 and 3, not their codes.
     coded = bool(runs.get("coded"))
     labelled = {f["name"] for f in factors if _prints_levels([row[at[f["name"]]] for row in runs["rows"]], f)}
-    return np.array(
+    table = np.array(
         [
             [_coded_value(row[at[f["name"]]], f, coded=coded and f["name"] not in labelled) for f in factors]
             for row in runs["rows"]
         ],
         dtype=float,
     )
+    # A coded setting printed rounded is the exact one the source worked with, sign kept: 1.414 is the root of 2,
+    # as the reference catalogue fits it. A factor fitted in its own units keeps its printed settings.
+    for printed, exact in ((float(k), float(v)) for k, v in (runs.get("exact") or {}).items()):
+        for j, factor in enumerate(factors):
+            if factor.get("coding") != "none":
+                column = table[:, j]
+                table[:, j] = np.where(np.isclose(np.abs(column), printed), np.sign(column) * exact, column)
+    return table
 
 
 def _response_values(entry: dict[str, Any]) -> dict[str, list[float | None]]:

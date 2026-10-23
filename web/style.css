@@ -791,6 +791,11 @@ details.python code { font-family: ui-monospace, "SFMono-Regular", Menlo, monosp
 /* The best settings for the response's goal: the prediction first, then the settings, how well the model knows the
    response there, how tightly to hold each factor, and the confirmation runs that test it. */
 /* A card, as every section is, so its text keeps clear of the card's edge. */
+.printed { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--ok); }
+.printed h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.printed .lead { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; }
+.printed table.data td:nth-child(3), .printed table.data td:nth-child(4) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.printed .printed-model { margin: 8px 0 0; }
 .best { margin: 24px 0 0; padding: 14px 16px 16px; border-top: 2px solid var(--accent); }
 .best h3 { margin: 0 0 6px; font-size: 1.05rem; }
 .best h4 { margin: 0 0 6px; font-size: 0.95rem; }

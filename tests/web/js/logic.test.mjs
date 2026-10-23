@@ -115,6 +115,12 @@ import {
   isMixture,
   mixtureProblem,
   proportionValue,
+  modelKey,
+  modelTermsWords,
+  printedAgrees,
+  printedLike,
+  printedValue,
+  termPart,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -1286,5 +1292,91 @@ describe("results pasted from a spreadsheet", () => {
   test("a block of blanks pastes nothing, and says so", () => {
     assert.deepEqual(paste("\t\n\t"), { values: [], said: "Nothing to paste: every cell was blank." });
     assert.deepEqual(paste(""), { values: [], said: "Nothing to paste: every cell was blank." });
+  });
+});
+
+describe("the numbers a catalogue study's source prints", () => {
+  const result = {
+    summary: { r_squared: 0.9861, df_residual: 4 },
+    anova: [
+      { source: "A", df: 1, sum_sq: 253.125, F: 61.7 },
+      { source: "B:A", df: 1, sum_sq: 21.125, F: 5.15 },
+      { source: "Block", df: 1, sum_sq: 2, F: 0.49 },
+    ],
+    coefficients: [
+      { label: "Intercept", coefficient: 74.375, std_error: 0.7, p_value: 0.001, ci_low: 72.4, ci_high: 76.3 },
+      { label: "A", coefficient: 5.625, std_error: 0.7, t_value: 8.0, p_value: 0.0013, ci_low: 3.68, ci_high: 7.57 },
+      { label: "A·B", coefficient: 1.625, std_error: 0.7, t_value: 2.3, p_value: 0.08, ci_low: -0.3, ci_high: 3.6 },
+      { label: "A²", coefficient: -2.5, std_error: 0.9, p_value: 0.05, ci_low: -5, ci_high: 0 },
+      { label: "diet[A]", coefficient: 1.5, std_error: 0.4, p_value: 0.01, ci_low: 0.4, ci_high: 2.6 },
+      { label: "diet[B]", coefficient: -0.5, std_error: 0.4, p_value: 0.3, ci_low: -1.6, ci_high: 0.6 },
+    ],
+    comparison: {
+      levels: [{ level: "A", mean: 61 }, { level: "B", mean: 66 }],
+      several: {
+        control: "A",
+        pairs: [{ from: "A", to: "B", estimate: 5, ci_low: 1, ci_high: 9, p_value: 0.02 }],
+        versus: [{ level: "B", estimate: 5, ci_low: 2, ci_high: 8, p_value: 0.01 }],
+      },
+    },
+  };
+  const coefficient = (rows, field, sign = 1, times = 1) => ({ table: "coefficients", rows, field, sign, times });
+
+  test("a part of a term is keyed as the build keys it", () => {
+    assert.deepEqual(["A²", "I(A ** 2)", "C(diet, Sum)", "B", "températ²"].map(termPart), ["A^2", "A^2", "diet", "B", "températ^2"]);
+  });
+
+  test("an effect is twice its coefficient, and a factor coded high to low turns its sign and its interval over", () => {
+    assert.equal(printedValue(result, coefficient([[["A"], 1]], "coefficient", 1, 2), 8), 11.25);
+    assert.equal(printedValue(result, coefficient([[["A"], 1]], "coefficient", -1, 2), 8), -11.25);
+    assert.equal(printedValue(result, coefficient([[["A"], 1]], "ci_high", -1), 8), -7.57, "the source's low end: the page's high, turned");
+    assert.equal(printedValue(result, coefficient([[["A"], 1]], "std_error"), 8), 0.7);
+    assert.equal(printedValue(result, coefficient([[["B", "A"], 1]], "t_value"), 8), 2.3, "B·A is the page's A·B");
+    assert.equal(printedValue(result, coefficient([[["A^2"], 1]], "coefficient"), 8), -2.5);
+  });
+
+  test("the last level of a factor is minus the sum of the others, and a two-level factor's low level is minus its high", () => {
+    const last = coefficient([[["diet[A]"], -1], [["diet[B]"], -1]], "coefficient");
+    assert.equal(printedValue(result, last, 8), -1);
+    assert.equal(printedValue(result, { ...last, field: "std_error" }, 8), null, "a sum has no row of its own");
+    assert.equal(printedValue(result, coefficient([[["A"], -1]], "ci_low"), 8), -7.57, "the low level's low end: the high's high, turned");
+    assert.equal(printedValue(result, coefficient([[["C"], 1]], "coefficient"), 8), null, "no such row");
+  });
+
+  test("an ANOVA row is found whatever the order of its parts, and the fit, the total and the blocks are read too", () => {
+    assert.equal(printedValue(result, { table: "anova", source: ["A", "B"], field: "sum_sq" }, 8), 21.125);
+    assert.equal(printedValue(result, { table: "anova", source: ["Block"], field: "F" }, 8), 0.49);
+    assert.equal(printedValue(result, { table: "summary", field: "r_squared" }, 8), 0.9861);
+    assert.equal(printedValue(result, { table: "total_df" }, 8), 7);
+    assert.equal(printedValue(result, { table: "summary", field: "f_statistic" }, 8), null);
+  });
+
+  test("a pair of levels compared is read from Tukey's or Dunnett's, in the order the source subtracts them", () => {
+    const pair = { table: "comparison", method: "tukey", head: "pairs", a: "A", b: "B", key: "difference" };
+    assert.equal(printedValue(result, pair, 8), -5);
+    assert.equal(printedValue(result, { ...pair, a: "B", b: "A", key: "ci_low" }, 8), 1);
+    assert.equal(printedValue(result, { ...pair, method: "dunnett", a: "B", b: "A", key: "half_width" }, 8), 3);
+    assert.equal(printedValue(result, { ...pair, method: "dunnett", a: "A", b: "B" }, 8), null, "B is not the control");
+    assert.equal(printedValue(result, { table: "comparison", method: "tukey", head: "by_level", a: "B", b: "", key: "mean" }, 8), 66);
+  });
+
+  test("a number agrees to within the printed rounding, or beyond a printed bound", () => {
+    assert.equal(printedAgrees(-205.19375, { target: -205.2, bound: null, allowed: 0.05 }), true);
+    assert.equal(printedAgrees(-205.3, { target: -205.2, bound: null, allowed: 0.05 }), false);
+    assert.equal(printedAgrees(0.00002, { target: 0.0001, bound: "<", allowed: 0.00005 }), true);
+    assert.equal(printedAgrees(0.2, { target: 0.0001, bound: "<", allowed: 0.00005 }), false);
+  });
+
+  test("the page's number is written as the printed one, a digit more", () => {
+    assert.equal(printedLike(-205.19375, "-205.2"), "-205.19");
+    assert.equal(printedLike(11.25, "11.25"), "11.250");
+    assert.equal(printedLike(125432100, "1.25E+08"), "1.254e+8");
+    assert.equal(printedLike(0.0000213, "<0.0001"), "0.0000213");
+  });
+
+  test("a model is one key whatever the order of its terms, and reads as the page labels it", () => {
+    assert.equal(modelKey([["B"], ["A"], ["B", "A"]]), modelKey([["A"], ["A", "B"], ["B"]]));
+    assert.notEqual(modelKey([["A"], ["B"]]), modelKey([["A"], ["B"], ["A", "B"]]));
+    assert.equal(modelTermsWords([["A"], ["B"], ["A", "B"], ["A", "A"]]), "A + B + A·B + A²");
   });
 });

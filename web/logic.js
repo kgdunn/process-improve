@@ -1439,3 +1439,101 @@ export function nextMode(current, systemDark) {
 
 /** The theme a mode shows, given whether the system is dark. */
 export const shownTheme = (mode, systemDark) => (mode === "auto" ? (systemDark ? "dark" : "light") : mode);
+
+// ---------------------------------------------------------------- the numbers a catalogue study's source prints
+/**
+ * One part of a term as a key: "A²" and "I(A ** 2)" as "A^2", "C(diet, Sum)" as "diet", anything else as it is.
+ * Mirrors build_web_app.term_part, which wrote the parts a printed number is read by.
+ */
+export function termPart(text) {
+  const t = String(text).trim();
+  const square = t.match(/^I\(\s*([\p{L}\p{N}_]+)\s*\*\*\s*2\s*\)$/u) ?? t.match(/^([\p{L}\p{N}_]+)²$/u);
+  if (square) return `${square[1]}^2`;
+  const factor = t.match(/^C\(\s*([\p{L}\p{N}_]+)/u);
+  return factor ? factor[1] : t;
+}
+
+/** The parts of a term as one key, whatever their order: ["B", "A"], "A·B" and "A:B" alike. */
+const partsKey = (parts) => [...new Set(parts.map(termPart))].sort().join(" ");
+
+/** A model's terms as one key, whatever their order: the page's fit, against the model a source prints a number for. */
+export const modelKey = (terms) => terms.map((t) => [...t].sort().join("*")).sort().join(" + ");
+
+/** A model's terms as the page labels them: "A + B + A·B + A²". */
+export const modelTermsWords = (terms) =>
+  terms.map((t) => (t.length === 2 && t[0] === t[1] ? `${t[0]}²` : t.join("·"))).join(" + ");
+
+/** A number of the page's comparison of one factor's levels: Tukey's or Dunnett's pairs, or a level's average. */
+function comparisonNumber(found, { method, head, a, b, key }) {
+  if (head === "by_level") {
+    const level = (found?.levels ?? []).find((lv) => String(lv.level) === a);
+    return level && key === "mean" ? level.mean : null;
+  }
+  const several = found?.several;
+  if (!several || !["tukey", "dunnett"].includes(method) || (method === "dunnett" && String(several.control) !== b)) return null;
+  const rows =
+    method === "tukey"
+      ? (several.pairs ?? [])
+          .filter((p) => [String(p.from), String(p.to)].sort().join("\n") === [a, b].sort().join("\n"))
+          .map((p) => [p, String(p.to) === a ? 1 : -1])
+      : (several.versus ?? []).filter((x) => String(x.level) === a).map((x) => [x, 1]);
+  if (!rows.length) return null;
+  const [[row, sign]] = rows;
+  const difference = sign * row.estimate;
+  const half = (row.ci_high - row.ci_low) / 2;
+  const values = { difference, ci_low: difference - half, ci_high: difference + half, half_width: half, p: row.p_value, p_value: row.p_value };
+  return values[key] ?? null;
+}
+
+/**
+ * The page's own number for a number a source prints, read where build_web_app.printed_numbers says it sits in
+ * the page's analysis (``read``); null where the analysis has no such number. ``runs`` counts the results fitted:
+ * the total's degrees of freedom are one fewer. An effect is twice its coefficient; a factor the source codes high to
+ * low turns the sign over, and the ends of an interval with it.
+ */
+export function printedValue(result, read, runs) {
+  const number = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  if (read.table === "total_df") return runs - 1;
+  if (read.table === "summary") return number(result.summary?.[read.field]);
+  if (read.table === "anova") {
+    const want = partsKey(read.source);
+    const row = (result.anova ?? []).find((r) => partsKey(String(r.source).split(/[:·]/)) === want);
+    return row ? number(row[read.field]) : null;
+  }
+  if (read.table === "comparison") return number(comparisonNumber(result.comparison, read));
+  if (read.table !== "coefficients") return null;
+  const rows = new Map((result.coefficients ?? []).map((c) => [partsKey(String(c.label).split("·")), c]));
+  const found = read.rows.map(([parts, sign]) => [rows.get(partsKey(parts)), sign]);
+  if (!found.length || found.some(([row]) => !row) || (found.length > 1 && read.field !== "coefficient")) return null;
+  const [[row, sign]] = found;
+  let value;
+  if (read.field === "std_error" || read.field === "p_value") value = row[read.field];
+  else if ((read.field === "ci_low" || read.field === "ci_high") && sign < 0) value = -row[read.field === "ci_low" ? "ci_high" : "ci_low"];
+  else value = found.reduce((sum, [r, s]) => sum + s * r[read.field], 0);
+  return number(value) === null ? null : value * read.sign * read.times;
+}
+
+/**
+ * Whether a number agrees with the one printed, to within the source's rounding, as the catalogue holds it
+ * (reference_catalogue._agrees): within ``allowed`` of ``target``, or beyond it on the side a bound such as "< 0.001"
+ * gives.
+ */
+export function printedAgrees(value, { target, bound, allowed }) {
+  const near = Math.abs(value - target) <= allowed;
+  if (bound === "<") return value < target || near;
+  if (bound === ">") return value > target || near;
+  return near;
+}
+
+/**
+ * The page's number written as the source writes the printed one, a digit more: so -205.19375 beside "-205.2" reads
+ * -205.19, and a number printed as 1.25E+08 is written with four significant digits.
+ */
+export function printedLike(value, printed) {
+  const text = String(printed).replace("−", "-").replace(/[, ]/g, "").trim();
+  const digits = text.match(/^[+-]?(\d*)\.?(\d*)(?:[eE]([+-]?\d+))?%?$/); // none for a bound such as "< 0.001"
+  if (!digits) return Number(value.toPrecision(3)).toString();
+  const [, whole, decimals, exponent] = digits;
+  if (exponent !== undefined) return value.toExponential(Math.min(8, (whole + decimals).replace(/^0+/, "").length));
+  return value.toFixed(Math.min(8, decimals.length + 1));
+}

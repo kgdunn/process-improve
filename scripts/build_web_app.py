@@ -31,7 +31,9 @@ import http.server
 import importlib.util
 import itertools
 import json
+import math
 import os
+import re
 import shutil
 import subprocess
 from collections import Counter
@@ -40,7 +42,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from types import ModuleType
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -679,6 +681,346 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     return _campaign(record["title"], design, values), ""
 
 
+# --------------------------------------------------------------------------- the numbers a source prints for a study
+#: The number of the page's fit a check reads, by the kind of check: a key of the fit's summary.
+FIT_NUMBERS = {
+    "r_squared": "r_squared",
+    "r_squared_adj": "r_squared_adj",
+    "residual_df": "df_residual",
+    "df_model": "df_model",
+    "ms_residual": "mse_residual",
+    "ss_residual": "ss_residual",
+    "ss_regression": "ss_model",
+    "ss_total": "ss_total",
+    "f_regression": "f_statistic",
+    "f_regression_p": "f_p_value",
+}
+#: The column of the page's analysis of variance a check reads, by the kind of check.
+ANOVA_NUMBERS = {
+    "anova_sum_sq": "sum_sq",
+    "anova_mean_sq": "mean_sq",
+    "anova_f": "F",
+    "anova_p": "p_value",
+    "anova_df": "df",
+}
+#: The kinds of check a row of the page's coefficients answers.
+COEFFICIENT_NUMBERS = {"coefficient", "effect", "std_error", "t_value", "p_value", "ci_low", "ci_high"}
+#: The kinds of check the page's comparison of one factor's levels answers.
+COMPARISON_NUMBERS = {"tukey", "least_squares_means"}
+#: The numbers the page shows of a pair of levels compared: the difference, its interval and its p-value.
+PAIR_NUMBERS = {"difference", "ci_low", "ci_high", "half_width", "p", "p_value"}
+#: How far the page's own number may sit from a printed one beyond the printed rounding, as a share of it: a fit
+#: worked in coded units, as the page's is, and one worked in a source's own units agree to a few millionths.
+ARITHMETIC = 1e-6
+#: Keys of a check that make its number one the page does not show: a transformed or summarised response, a
+#: number worked from settings or read back on another scale, a one-sided test, a categorical factor coded otherwise.
+NOT_SHOWN = (
+    "summary",
+    "transform",
+    "settings",
+    "squared",
+    "complement",
+    "exp",
+    "log10",
+    "back_transform",
+    "at",
+    "alternative",
+    "scale",
+    "categorical",
+)
+
+
+def _variable(name: str) -> str:
+    """Return the variable a patsy factor reads: ``C(diet, Sum)`` reads diet."""
+    found = re.match(r"C\(\s*(\w+)", name)
+    return found.group(1) if found else name
+
+
+def page_terms(formula: str, spec: dict[str, Any], block: tuple[str, ...] = ()) -> list[list[str]] | None:
+    """Return a source's model, as patsy reads it, as the page's chosen terms; None for one the page cannot fit.
+
+    The page cannot fit a model without an intercept, a numeric factor taken as levels, a transformed factor,
+    a square of a categorical factor, or an interaction of four factors or more. A study in blocks is fitted
+    with its blocks, so the model must name the block's columns as terms of their own, as the page's blocks
+    are; a model without them, or with a block column in an interaction, is not the page's.
+    """
+    from patsy import ModelDesc  # noqa: PLC0415 - the docs environment has it
+
+    bootstrap = load_bootstrap()
+    factors = {f["name"]: f for f in spec["factors"]}
+    categorical = {name for name, f in factors.items() if bootstrap._categorical(f)}
+    desc = ModelDesc.from_formula(formula.split("~", 1)[-1])
+    if not any(not t.factors for t in desc.rhs_termlist) or all(not t.factors for t in desc.rhs_termlist):
+        return None  # no intercept, or the intercept alone
+    terms, named_block = [], False
+    for term in (t for t in desc.rhs_termlist if t.factors):
+        variables = [_variable(f.name()) for f in term.factors]
+        if set(variables) & set(block):
+            if len(variables) > 1:
+                return None  # the page fits no interaction with its blocks
+            named_block = True
+            continue
+        parts = []
+        for factor in term.factors:
+            name = factor.name()
+            square = re.fullmatch(r"I\(\s*(\w+)\s*\*\*\s*2\s*\)", name)
+            variable = square.group(1) if square else _variable(name)
+            numeric_as_levels = name.startswith("C(") and variable not in categorical
+            transformed = not square and not name.startswith("C(") and name != variable
+            if variable not in factors or numeric_as_levels or transformed or (square and variable in categorical):
+                return None
+            parts += [variable, variable] if square else [variable]
+        squared = len(parts) == 2 and parts[0] == parts[1]  # a factor named twice is its square
+        if not squared and (len(set(parts)) != len(parts) or len(parts) > 3):  # three factors at most
+            return None
+        terms.append(parts)
+    return terms if terms and (not block or named_block) else None
+
+
+def term_part(text: str) -> str:
+    """Write one part of a term as a key: ``A²`` and ``I(A ** 2)`` as ``A^2``, ``C(diet, Sum)`` as ``diet``."""
+    square = re.fullmatch(r"I\(\s*(\w+)\s*\*\*\s*2\s*\)", text) or re.fullmatch(r"(\w+)²", text)
+    return f"{square.group(1)}^2" if square else _variable(text)
+
+
+def _source_key(source: str) -> list[str]:
+    """Return the parts of an analysis-of-variance source as keys, sorted: ``B:A`` as ``[A, B]``."""
+    return sorted({term_part(p.strip()) for p in re.split(r"[:·]", source)})
+
+
+def _level_parts(term: str) -> list[tuple[str, str | None]]:
+    """Split a source's term into (factor, level) parts: ``diet[A]:T`` is [(diet, A), (T, None)]."""
+    out = []
+    for part in re.split(r"[:·]", term):
+        level = re.fullmatch(r"(?:C\()?(\w+)(?:,[^\[]*\))?\[(?:S\.)?(.+)\]", part.strip())
+        out.append((level.group(1), level.group(2)) if level else (term_part(part.strip()), None))
+    return out
+
+
+def _choices(term: str, spec: dict[str, Any]) -> list[list[tuple[str, float]]] | None:
+    """Return, for each part of a source's term, the page's label parts that make it and their signs.
+
+    A level of a categorical factor is its effect, its distance from the average level: the page's coefficient of
+    that level, a two-level factor's at -1 or +1, and the last level's minus the sum of the others'.
+    """
+    bootstrap = load_bootstrap()
+    factors = {f["name"]: f for f in spec["factors"]}
+    choices = []
+    for name, level in _level_parts(term):
+        factor = factors.get(name)
+        if level is None:
+            choices.append([(name, 1.0)])
+            continue
+        levels = bootstrap._levels_of(factor) if factor and bootstrap._categorical(factor) else []
+        at = bootstrap._level_index(level, levels) if levels else None
+        if at is None:
+            return None
+        if len(levels) == 2:  # coded -1 and +1
+            choices.append([(name, 1.0 if at else -1.0)])
+        elif at < len(levels) - 1:
+            choices.append([(f"{name}[{levels[at]}]", 1.0)])
+        else:
+            choices.append([(f"{name}[{other}]", -1.0) for other in levels[:-1]])
+    return choices
+
+
+def _asked(check: dict[str, Any]) -> dict[str, str] | None:
+    """Read what a comparison check asks: its method, the two levels or the level, and the number.
+
+    None for a number the page's comparison does not show, such as the studentized range's percentage point.
+    """
+    if check["kind"] == "tukey":
+        if check["key"] not in PAIR_NUMBERS:
+            return None
+        return {
+            "method": "tukey",
+            "head": "pairs",
+            "a": str(check["level"]),
+            "b": str(check["minus"]),
+            "key": check["key"],
+        }
+    head, _, rest = check["key"].partition(".")
+    item, _, key = rest.rpartition(".")
+    a, _, b = item.partition(" - ")
+    method = check.get("comparisons", "tukey")
+    pairs = head == "pairs" and key in PAIR_NUMBERS and method in ("tukey", "dunnett")  # the page's two adjustments
+    shown = pairs or (head == "by_level" and key == "mean")
+    return {"method": method, "head": head, "a": a, "b": b, "key": key} if shown else None
+
+
+def _hierarchical(terms: list[list[str]]) -> bool:
+    """Say whether a model holds every lower-order part of each of its terms: A and B beside A·B, A beside A².
+
+    Only such a model fits alike in coded units and in the factors' own units.
+    """
+    held = {tuple(sorted(t)) for t in terms}
+    return all(
+        sub in held for t in terms for size in range(1, len(t)) for sub in itertools.combinations(sorted(t), size)
+    )
+
+
+def _shown(check: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]) -> bool:
+    """Say whether a check's number is one the page shows for this study."""
+    kind = check.get("kind")
+    known = kind in ANOVA_NUMBERS or kind in FIT_NUMBERS or kind in COEFFICIENT_NUMBERS or kind in COMPARISON_NUMBERS
+    if not known or any(check.get(key) for key in NOT_SHOWN) or check.get("confidence", 0.95) != 0.95:
+        return False
+    own_units = any(f.get("coding") in ("none", "pseudocomponent") for f in entry["factors"]) or entry["runs"].get(
+        "exact"
+    )
+    if kind in COEFFICIENT_NUMBERS and own_units:
+        return False  # the source fits settings in their own units; the page, coded
+    if kind in COMPARISON_NUMBERS:  # the page compares the levels of one categorical factor, on no other model
+        alone = spec["factors"][0] if len(spec["factors"]) == 1 else None
+        model = check["factor"] if kind == "tukey" and not check.get("block") else check.get("model")
+        named = alone is not None and model in (alone["name"], f"C({alone['name']})")
+        return named and load_bootstrap()._categorical(alone)
+    return bool(check.get("model"))
+
+
+def _reading(
+    check: dict[str, Any], spec: dict[str, Any], block: tuple[str, ...], flipped: frozenset[str]
+) -> dict[str, Any] | None:
+    """Return where on the page's analysis a check's number is read, or None where the page has no such number.
+
+    A factor the source codes high to low (``flipped``) is coded low to high on the page, so a coefficient of a
+    term with an odd number of such factors has its sign turned, and each end of its interval is the other's.
+    """
+    kind = check["kind"]
+    if kind in ANOVA_NUMBERS:
+        return _anova_reading(check, block)
+    if kind in FIT_NUMBERS:
+        return {"table": "summary", "field": FIT_NUMBERS[kind]}
+    if kind in COEFFICIENT_NUMBERS:
+        if any(name in block or name == "Block" for name, _ in _level_parts(check["term"])):
+            return None  # the page fits the blocks, but shows no coefficient of theirs
+        return _coefficient_reading(check, spec, flipped)
+    asked = _asked(check)
+    return None if asked is None else {"table": "comparison", **asked}
+
+
+def _anova_reading(check: dict[str, Any], block: tuple[str, ...]) -> dict[str, Any] | None:
+    """Return the row and column of the page's analysis of variance a check reads; the total's df is the runs less 1."""
+    if check["term"] == "Total" and check["kind"] == "anova_df":
+        return {"table": "total_df"}
+    wanted = _source_key(check["term"])
+    if set(wanted) <= set(block):  # the page's row of its blocks, when they are one column
+        if len(block) != 1:
+            return None
+        wanted = ["Block"]
+    return {"table": "anova", "source": wanted, "field": ANOVA_NUMBERS[check["kind"]]}
+
+
+def _coefficient_reading(check: dict[str, Any], spec: dict[str, Any], flipped: frozenset[str]) -> dict[str, Any] | None:
+    """Return the rows of the page's coefficients a check reads, each with its sign, and the column; an effect twice."""
+    sign = (-1) ** sum(name in flipped for name, _ in _level_parts(check["term"]))
+    field = "coefficient" if check["kind"] == "effect" else check["kind"]
+    if sign < 0 and field in ("ci_low", "ci_high"):
+        field = "ci_high" if field == "ci_low" else "ci_low"
+    choices = _choices(check["term"], spec)
+    if choices is None:
+        return None
+    rows = [[[p for p, _ in combo], math.prod(s for _, s in combo)] for combo in itertools.product(*choices)]
+    if len(rows) > 1 and field != "coefficient":
+        return None  # a sum of coefficients has no row of its own
+    unsigned = field in ("std_error", "p_value")
+    times = 2 if check["kind"] == "effect" else 1
+    return {"table": "coefficients", "rows": rows, "field": field, "sign": 1 if unsigned else sign, "times": times}
+
+
+def _agreement(check: dict[str, Any], printed: object) -> dict[str, Any] | None:
+    """Return the printed number, its bound and the rounding it allows, as the catalogue's checks hold a number to it.
+
+    The rule is :func:`~process_improve.experiments.reference_catalogue._agrees`: half a unit in the last digit
+    printed, or in ``decimals`` places, times ``of_rounded``; and ``ARITHMETIC`` of the number besides, as the
+    page's fit, in coded units, takes another path to the same numbers than the source's or the library's. A
+    number printed as an expression, or held to the rounding of the data, is not one the page compares.
+    """
+    from process_improve.experiments import reference_catalogue as rc  # noqa: PLC0415 - the docs environment has it
+
+    if check.get("expression") or check.get("data_rounding") or isinstance(printed, list | dict):
+        return None
+    try:
+        bound, digits = rc._number(str(printed))
+    except ValueError:
+        return None
+    decimals = check.get("decimals")
+    half = rc._tolerance(digits) if decimals is None else 0.5 * 10.0**-decimals
+    side = {"<": "<", "<=": "<", "≤": "<", ">": ">", ">=": ">", "≥": ">"}.get(bound or "")
+    target = float(digits)
+    return {"target": target, "bound": side, "allowed": check.get("of_rounded", 1) * half + ARITHMETIC * abs(target)}
+
+
+def printed_checks(
+    record: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]
+) -> Iterator[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
+    """Yield each number a source prints for a study that the page shows too, with its check: see printed_numbers."""
+    from process_improve.experiments import design_catalog  # noqa: PLC0415 - the docs environment has it
+    from process_improve.experiments import reference_catalogue as rc  # noqa: PLC0415
+
+    response = _response_of(record)
+    first = next((r["name"] for r in entry.get("responses") or [] if r["name"] in entry["runs"]["columns"]), None)
+    block = tuple(design_catalog._block_columns(entry) or ()) if record.get("blocks") else ()
+    flipped = frozenset(
+        f["name"] for f in record["factors"] if f.get("type") == "numeric" and _page_factor(f) and f["low"] > f["high"]
+    )
+    own_units = any(f.get("coding") == "none" for f in entry["factors"])
+    for expected in entry.get("expected", []):
+        for check in rc._checks(expected):
+            if not _shown(check, entry, spec) or check.get("runs") or (check.get("response") or first) != response:
+                continue
+            terms = page_terms(check["factor"] if check["kind"] == "tukey" else check["model"], spec, block)
+            if terms and own_units and not _hierarchical(terms):
+                continue  # fitted in the factors' own units, a model without its lower terms is not the page's
+            printed = check.get("printed", expected["value"])
+            read, agree = (_reading(check, spec, block, flipped), _agreement(check, printed)) if terms else (None, None)
+            if read is None or agree is None:
+                continue
+            where = expected.get("where") or {}
+            number = {
+                "what": expected["what"],
+                "term": expected.get("term"),
+                "printed": str(printed),
+                "where": f"p. {where['page']}" if where.get("page") else "",
+                "model": terms,
+                "read": read,
+                "agree": agree,
+                "reason": check.get("disagreement") or None,
+            }
+            yield expected, check, number
+            break
+
+
+def printed_numbers(record: dict[str, Any], entry: dict[str, Any], spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the numbers a source prints for a study that the page shows too, each with where the page reads it.
+
+    Each holds what the number is and where it is printed (``what``, ``term``, ``printed``, ``where``), the model
+    it is printed for as the page's terms (``model``), where on the page's analysis of that model the page's own
+    number is (``read``), the rule it agrees by (``agree``), and the reason, where the catalogue knows the printed
+    number not to reproduce (``reason``). A number of another response, or of some of the runs only, is not one
+    the page shows; of the checks of one printed number, the first the page shows is kept.
+    """
+    return [number for _, _, number in printed_checks(record, entry, spec)]
+
+
+def study_source(record: dict[str, Any], source: dict[str, Any], printed: int = 0) -> dict[str, Any]:
+    """Name where a published study comes from, as a study the catalog opens keeps it.
+
+    ``cite`` is the source's citation, ``where`` the place it prints the runs and ``url`` that place's address,
+    else the source's; ``catalog`` is the study's id in the catalog, and ``printed`` how many of the numbers its
+    source prints the page shows too, which ``catalog/printed/<id>.json`` holds.
+    """
+    if not re.fullmatch(r"[\w.-]+", record["id"]):
+        raise SystemExit(f"The catalog's design {record['id']!r} has an id that cannot name a file.")
+    return {
+        "cite": source["cite"] or source["title"],
+        "where": record["where"] or "",
+        "url": record["where_url"] or source["url"] or "",
+        "catalog": record["id"],
+        "printed": printed,
+    }
+
+
 def write_catalog(out_dir: Path) -> None:
     """Write the catalog: ``catalog/index.json``, a detail file for each source and the rest, the errata and a feed.
 
@@ -686,7 +1028,9 @@ def write_catalog(out_dir: Path) -> None:
     families, sources and applications it names; a detail file holds what it shows on opening one: its
     factors, coded runs (and the generators the library made them from, where the source prints none),
     results, notes, where its source prints it and that place's address, the measures it is compared on
-    and, where the page makes the design, the campaign that opens it.
+    and, where the page makes the design, the campaign that opens it, which names its source (see
+    :func:`study_source`). ``printed/<id>.json`` holds the numbers a published study's source prints that the
+    page shows too (see :func:`printed_numbers`), which Learn reads beside its own.
     ``errata.json`` lists every printed number the library does not reproduce, and ``feed.xml`` is an
     Atom feed of the sources.
     """
@@ -702,10 +1046,16 @@ def write_catalog(out_dir: Path) -> None:
         catalog_topics,
         shown_where,
     )
+    from process_improve.experiments.reference_catalogue import (  # noqa: PLC0415
+        reference_designs,
+        reference_experiments,
+    )
 
     records = catalog_records()
     comparisons = catalog_comparisons(records)
-    designs, details = [], {}
+    sources = catalog_sources()
+    entries = {e["name"]: e for e in [*reference_experiments(), *reference_designs()]}
+    designs, details, printed = [], {}, {}
     for record in records:
         if record["collection"] == "generated":
             (campaign, reason), regenerable = generated_campaign(record), None
@@ -718,6 +1068,12 @@ def write_catalog(out_dir: Path) -> None:
         if campaign is None:
             campaign, why = given_campaign(record)
             opens_as, reason = ("given", "") if campaign else (None, why)
+        if campaign and record["collection"] == "published":
+            entry, results = entries.get(record["id"]), any(v is not None for v in campaign["responses"])
+            numbers = printed_numbers(record, entry, campaign["design"]["spec"]) if entry and results else []
+            campaign["source"] = study_source(record, sources[record["source"]], len(numbers))
+            if numbers:
+                printed[record["id"]] = numbers
         shard = record["source"] or "generated"
         designs.append(
             {
@@ -762,6 +1118,7 @@ def write_catalog(out_dir: Path) -> None:
     }
     folder = out_dir / "catalog"
     (folder / "detail").mkdir(parents=True)
+    (folder / "printed").mkdir()
 
     def write(path: Path, data: dict[str, Any]) -> None:
         # The page reads these with JSON.parse, which refuses NaN: a value that is no number stops the build here.
@@ -770,6 +1127,8 @@ def write_catalog(out_dir: Path) -> None:
     write(folder / "index.json", index)
     for shard, held in details.items():
         write(folder / "detail" / f"{shard}.json", {"version": CATALOG_VERSION, "designs": held})
+    for name, numbers in printed.items():
+        write(folder / "printed" / f"{name}.json", {"version": CATALOG_VERSION, "printed": numbers})
     write(folder / "errata.json", {"version": CATALOG_VERSION, "errata": catalog_errata()})
     (folder / "feed.xml").write_text(catalog_feed(records), encoding="utf-8")
 
