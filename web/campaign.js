@@ -11,8 +11,9 @@
  * saved in the lowest format that holds it (studyFormat), so a page from before a format opens every study it can.
  * Format 2 holds a study of one factor, which a page of format 1 could not analyse. Format 3 holds a categorical
  * factor that lists its levels: three or more, or two that read as numbers, which an earlier page would misread.
+ * Format 4 holds a study of more than FEW_FACTORS factors, whose factor list an earlier page refuses as too long.
  */
-export const CAMPAIGN_VERSION = 3;
+export const CAMPAIGN_VERSION = 4;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -20,9 +21,24 @@ export const ONE_FACTOR_FORMAT = 2;
 /** The format of a study with a categorical factor that lists its levels; two labels alone keep an earlier format. */
 export const LEVELS_FORMAT = 3;
 
+/** The format of a study of more than FEW_FACTORS factors; a study of fewer keeps an earlier format. */
+export const MANY_FACTORS_FORMAT = 4;
+
+/** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
+export const FEW_FACTORS = 12;
+
 /** The lowest format that holds a study of this specification, which the study is saved in. */
-export const studyFormat = (spec) =>
-  spec.factors.some((f) => Array.isArray(f.levels)) ? LEVELS_FORMAT : spec.factors.length === 1 ? ONE_FACTOR_FORMAT : 1;
+export function studyFormat(spec) {
+  if (spec.factors.length > FEW_FACTORS) return MANY_FACTORS_FORMAT;
+  if (spec.factors.some((f) => Array.isArray(f.levels))) return LEVELS_FORMAT;
+  return spec.factors.length === 1 ? ONE_FACTOR_FORMAT : 1;
+}
+
+/** The most factors a study has; mirrors bootstrap.MAX_FACTORS, as logic.js does. */
+export const FACTORS_HELD = 40;
+
+/** The most columns of a run sheet: every factor, and room for the responses and its orders, blocks and marks. */
+const COLUMNS_HELD = FACTORS_HELD + 20;
 
 /** Where a link carries its campaign: the address's fragment, after this. */
 export const LINK_KEY = "#c=";
@@ -179,7 +195,7 @@ const responseNames = (s) => (s.responses ? s.responses.map((r) => r.name) : [s.
 
 function spec(value) {
   if (!isObject(value)) refuse("it holds no design");
-  const factors = list(value.factors, "the factor list", 12).map(factor);
+  const factors = list(value.factors, "the factor list", FACTORS_HELD).map(factor);
   if (factors.length < 1) refuse("it has no factors");
   const out = {
     design_type: text(value.design_type, "the design type", 40),
@@ -241,7 +257,7 @@ function process(value) {
     sigma: value.sigma,
     seed: value.seed,
     equation: text(value.equation ?? "", "the true process's equation", 4000),
-    inactive: list(value.inactive ?? [], "the inactive factors", 12).map((n) => text(n, "an inactive factor", 64)),
+    inactive: list(value.inactive ?? [], "the inactive factors", FACTORS_HELD).map((n) => text(n, "an inactive factor", 64)),
     truth,
   };
 }
@@ -281,7 +297,7 @@ export function checkCampaign(data) {
   if (!isObject(data.design)) refuse("it holds no design");
   const design = data.design;
   const s = spec(design.spec);
-  const columns = list(design.columns, "the run sheet's columns", 40).map((c) => text(c, "a column's name", 64));
+  const columns = list(design.columns, "the run sheet's columns", COLUMNS_HELD).map((c) => text(c, "a column's name", 64));
   const names = responseNames(s);
   for (const name of [...s.factors.map((f) => f.name), ...names]) {
     if (!columns.includes(name)) refuse(`the run sheet has no column ${JSON.stringify(name)}`);
@@ -304,7 +320,7 @@ export function checkCampaign(data) {
       model: text(design.model ?? s.model, "the design's model", 40),
       n_runs: n,
       facts: facts(design.facts),
-      outside_range: list(design.outside_range ?? [], "the factors outside their ranges", 12).map((name) =>
+      outside_range: list(design.outside_range ?? [], "the factors outside their ranges", FACTORS_HELD).map((name) =>
         text(name, "a factor outside its range", 64),
       ),
     },

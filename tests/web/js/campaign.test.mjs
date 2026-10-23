@@ -8,7 +8,10 @@ import {
   GOAL_SHAPES,
   BOOK_PARAM,
   CAMPAIGN_VERSION,
+  FACTORS_HELD,
+  FEW_FACTORS,
   LEVELS_FORMAT,
+  MANY_FACTORS_FORMAT,
   ONE_FACTOR_FORMAT,
   bookName,
   campaignDone,
@@ -626,8 +629,7 @@ describe("each study is saved in the lowest format that holds it", () => {
     assert.equal(checkCampaign({ ...oneFactor(), v: 1 }).v, ONE_FACTOR_FORMAT);
   });
 
-  test("a factor that lists its levels is format 3, the latest, kept with its type and levels", () => {
-    assert.equal(CAMPAIGN_VERSION, LEVELS_FORMAT);
+  test("a factor that lists its levels is format 3, kept with its type and levels", () => {
     const checked = checkCampaign(threeSuppliers());
     assert.equal(checked.v, LEVELS_FORMAT);
     assert.deepEqual(checked.design.spec.factors[1], { name: "Supplier", type: "categorical", levels: ["A", "B", "C"], units: "" });
@@ -657,5 +659,102 @@ describe("each study is saved in the lowest format that holds it", () => {
     const other = threeSuppliers();
     other.design.spec.factors[1] = { ...other.design.spec.factors[1], levels: ["A", "B", "D"] };
     assert.notEqual(designKey(threeSuppliers().design), designKey(other.design));
+  });
+});
+
+/**
+ * A screening study of k numeric factors X1 to Xk in eight runs, with every response a study can measure, in two
+ * blocks, a confirmation run, and results simulated from a process in the first three factors: the run sheet holds
+ * every kind of column it can.
+ */
+function screening(k) {
+  const names = Array.from({ length: k }, (_, i) => `X${i + 1}`);
+  const responses = ["y", "y2", "y3", "y4", "y5"];
+  const columns = ["Std order", "Run order", "Block", ...names, ...responses, "Confirmation run"];
+  const rows = Array.from({ length: 8 }, (_, run) => [
+    run + 1,
+    run + 1,
+    1 + (run % 2),
+    ...names.map((_, j) => ((run >> j % 3) & 1 ? 1 : -1) * (j % 2 ? -1 : 1)),
+    ...responses.map(() => null),
+    null,
+  ]);
+  const simulation = {
+    scenario: "main_effects",
+    label: "Main effects only",
+    sigma: 1,
+    seed: 3,
+    equation: "y = 50 + 3·X1 - 2·X2 + 1.5·X3",
+    inactive: names.slice(3),
+    truth: [
+      { term: "Intercept", coefficient: 50 },
+      { term: "X1", coefficient: 3 },
+      { term: "X2", coefficient: -2 },
+      { term: "X3", coefficient: 1.5 },
+    ],
+  };
+  return {
+    v: MANY_FACTORS_FORMAT,
+    title: `Plackett-Burman screening in ${k} factors`,
+    design: {
+      spec: {
+        version: 1,
+        design_type: "plackett_burman",
+        factors: names.map((name) => ({ name, low: 0, high: 10, units: "u" })),
+        response: "y",
+        responses: responses.map((name) => ({ name })),
+        model: "main_effects",
+        options: { random_state: 7, n_blocks: 2 },
+      },
+      columns,
+      rows,
+      model: "main_effects",
+      n_runs: 8,
+      facts: { center_runs: 0, notes: [] },
+      outside_range: [...names],
+    },
+    responses: [50, 52, 48, 51, 49, 53, 47, 50],
+    sources: Array(8).fill("simulated"),
+    simulation,
+    simulate: { scenario: "main_effects", sigma: 1, seed: 3 },
+    model: { terms: [...names.map((n) => [n]), ["X1", "X2"]] },
+  };
+}
+
+describe("a study of more factors than an earlier page reads", () => {
+  for (const k of [13, 24, 40]) {
+    test(`a screening study of ${k} factors opens whole, in the format that holds it`, async () => {
+      const checked = checkCampaign(screening(k));
+      assert.equal(checked.v, MANY_FACTORS_FORMAT);
+      assert.equal(checked.design.spec.factors.length, k);
+      assert.deepEqual(checked.simulation.inactive, screening(k).simulation.inactive, "every factor the process leaves out");
+      assert.deepEqual(checked.design.outside_range, screening(k).design.outside_range);
+      assert.deepEqual(checked.model, screening(k).model, "the main effects, and the interaction the reader named");
+      const back = await unpackCampaign(await packCampaign(shareable(checked, true)));
+      assert.deepEqual(back, checked, "a link carries it as it is");
+    });
+  }
+
+  test("format 4 is later than any an earlier page reads, so that page refuses the study by its format", () => {
+    assert.equal(MANY_FACTORS_FORMAT, LEVELS_FORMAT + 1);
+    assert.equal(CAMPAIGN_VERSION, MANY_FACTORS_FORMAT);
+    assert.equal(FEW_FACTORS, 12, "the factor list an earlier page holds");
+    for (const k of [13, 24, 40]) assert.equal(studyFormat(screening(k).design.spec), MANY_FACTORS_FORMAT);
+    const levels = screening(13).design.spec;
+    levels.factors[0] = { name: "X1", type: "categorical", levels: ["A", "B", "C"], units: "" };
+    assert.equal(studyFormat(levels), MANY_FACTORS_FORMAT, "with a factor that lists its levels too");
+  });
+
+  test("a study of 12 factors keeps the format it had, so an earlier page still opens it", () => {
+    const data = screening(13);
+    const spec = { ...data.design.spec, factors: data.design.spec.factors.slice(0, FEW_FACTORS) };
+    assert.equal(studyFormat(spec), 1);
+  });
+
+  test("a study of more factors than a study holds is refused", () => {
+    assert.equal(FACTORS_HELD, 40);
+    const data = screening(40);
+    data.design.spec.factors.push({ name: "X41", low: 0, high: 10, units: "u" });
+    assert.throws(() => checkCampaign(data), /the factor list is too long/);
   });
 });

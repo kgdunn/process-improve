@@ -188,17 +188,24 @@ BOOK = "https://learnche.org/pid/"
 #: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
 WORKED = "worked"
 #: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
-CAMPAIGN_VERSION = 3
+CAMPAIGN_VERSION = 4
 #: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
 #: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
 ONE_FACTOR_FORMAT = 2
 #: The format of a study with a categorical factor that lists its levels (``LEVELS_FORMAT`` in ``web/campaign.js``):
 #: three or more, or two that read as numbers, which a page of an earlier format would misread.
 LEVELS_FORMAT = 3
+#: The format of a study of more than :data:`FEW_FACTORS` factors (``MANY_FACTORS_FORMAT`` in ``web/campaign.js``),
+#: whose factor list a page of an earlier format refuses as too long.
+MANY_FACTORS_FORMAT = 4
+#: The most factors a study of format 3 or earlier holds (``FEW_FACTORS`` in ``web/campaign.js``).
+FEW_FACTORS = 12
 
 
 def study_format(spec: dict[str, Any]) -> int:
     """Return the lowest campaign format that holds a study of this specification (``studyFormat`` in campaign.js)."""
+    if len(spec["factors"]) > FEW_FACTORS:
+        return MANY_FACTORS_FORMAT
     if any("levels" in f for f in spec["factors"]):
         return LEVELS_FORMAT
     return ONE_FACTOR_FORMAT if len(spec["factors"]) == 1 else 1
@@ -660,8 +667,8 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 
     It opens a design the page does not make, or makes differently, with the runs as the source prints
     them, or as the library made them: in their order, in the factors' own units, with the source's
-    results, and in the source's blocks. The page takes runs without whole plots, of 1 to 12 numeric or
-    categorical factors.
+    results, and in the source's blocks. The page takes runs without whole plots, of 1 to ``MAX_FACTORS`` numeric
+    or categorical factors (40, in ``web/bootstrap.py``).
     """
     if why := _not_given(record):
         return None, why
