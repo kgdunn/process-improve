@@ -32,6 +32,7 @@ from ._common import (
     _nz,
     _scale_block_contributions,
     _select_n_components,
+    cumulative_block_t2,
     epsqrt,
     informative_widths,
     resolve_loop_settings,
@@ -592,7 +593,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Per-block squared prediction error per sample and component. NaN where the row has
         nothing observed in that block, for the same reason as ``block_scores_``.
     block_hotellings_t2_ : dict[str, pd.DataFrame]
-        Per-block cumulative Hotelling's T^2 per sample and component.
+        Per-block cumulative Hotelling's T^2 per sample and component. Each component is
+        scaled by its block scores' second moment about zero, as ``super_hotellings_t2_`` is
+        by ``explained_variance_``.
     block_vip_ : dict[str, pd.Series]
         Per-block variable-importance in projection, indexed by variable
         name inside each block. Computed from ``block_weights_``, each component
@@ -920,15 +923,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             for name in self.block_names_
         }
 
-        # Cumulative T^2 from block scores and super scores (using per-component score variance)
-        block_t2: dict[str, np.ndarray] = {}
-        for name in self.block_names_:
-            scores_np = self.block_scores_[name].values  # (N, A)
-            score_var = np.var(scores_np, axis=0, ddof=1)
-            score_var = np.where(score_var > 0, score_var, 1.0)
-            block_t2[name] = np.cumsum((scores_np**2) / score_var, axis=1)
+        # Cumulative T^2 from block scores and super scores, each scaled by its second moment about zero
         self.block_hotellings_t2_ = {
-            name: pd.DataFrame(block_t2[name], index=self._sample_index, columns=component_names)
+            name: pd.DataFrame(
+                cumulative_block_t2(self.block_scores_[name].values), index=self._sample_index, columns=component_names
+            )
             for name in self.block_names_
         }
         super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
