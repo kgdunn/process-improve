@@ -295,7 +295,7 @@ def test_the_most_responses_a_study_measures_is_bootstrap_s(bootstrap, node):
 
 
 def test_the_most_factors_a_study_has_is_bootstrap_s(bootstrap, node):
-    """The page, the studies it reads and its words hold as many factors as bootstrap.py takes, the runs as given too."""
+    """The page, the studies it reads and its words hold as many factors as bootstrap.py takes, as runs as given do."""
     (page_most,) = javascript(node, source("logic.js"), [("MAX_FACTORS", [])])
     (campaign_most,) = javascript(node, source("campaign.js"), [("FACTORS_HELD", [])])
     assert page_most == campaign_most == bootstrap.MAX_FACTORS == bootstrap.GIVEN_INFO["max_factors"] == 40
