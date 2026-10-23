@@ -214,7 +214,7 @@ def test_the_comparison_code_reproduces_the_page_s_table(api, node):
 @pytest.mark.slow
 @pytest.mark.parametrize("goal", ["target", "maximize", "minimize", "learn"])
 def test_the_spread_code_reproduces_the_page_s_settings_and_response_table(api, node, goal):
-    """Schmidt and Launsby's 2^(3-1) read twice a setting, one reading still to do: the code sums up as the page does."""
+    """Schmidt and Launsby's 2^(3-1) read twice a setting, a reading still to do: the code sums up as the page does."""
     settings = [[1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]]
     factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
     spec = {

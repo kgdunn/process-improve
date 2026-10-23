@@ -933,6 +933,17 @@ def levels(api) -> dict:
     return {**held, "responses": [float(i % 4) for i in range(len(held["rows"]))]}
 
 
+def repeated(api) -> dict:
+    """Return Schmidt and Launsby's 2^(3-1) read twice a setting, aimed at a target, one reading still to do."""
+    factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
+    runs = [s for s in ([1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]) for _ in range(2)]
+    info = {"goal": "target", "target": 20}
+    design = api.ok(
+        "api_make_design", {"design_type": "given", "factors": factors, "runs": runs, "response_info": info}
+    )
+    return {**held_of(design), "responses": [20.0, 30.0, 9.0, 11.0, 26.0, 24.0, 15.0, None]}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -948,16 +959,6 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
 
     def upload() -> dict:
         return api.ok("api_workbook", {**analysed, "sources": ["simulated"] * 15, "simulated": simulated})
-
-    def repeated() -> dict:
-        """Schmidt and Launsby's 2^(3-1) read twice a setting, aimed at a target, one reading still to do."""
-        factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
-        runs = [s for s in ([1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]) for _ in range(2)]
-        info = {"goal": "target", "target": 20}
-        design = api.ok(
-            "api_make_design", {"design_type": "given", "factors": factors, "runs": runs, "response_info": info}
-        )
-        return {**held_of(design), "responses": [20.0, 30.0, 9.0, 11.0, 26.0, 24.0, 15.0, None]}
 
     def slow() -> dict:
         return {"factors": [{"name": n, "low": -1, "high": 1} for n in "ABCDE"], "model": "quadratic"}
@@ -1003,7 +1004,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "design": lambda: worked_example["demo"]["design"],
         "simulation": lambda: {**held, "seed": 2},
         "analysis": lambda: analysed,
-        "analysis of readings repeated at each setting": repeated,
+        "analysis of readings repeated at each setting": lambda: repeated(api),
         "saturated analysis": saturated,
         "charts": lambda: analysed,
         "charts through the best settings": through_best,
