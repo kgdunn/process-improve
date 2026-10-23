@@ -49,9 +49,17 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
             \\frac{\\sum_{a=1}^{A} r2_a \\cdot w_{ja}^2}{\\sum_{a=1}^{A} r2_a}}
 
     where :math:`K` is the number of features, :math:`A` the number of
-    components, :math:`r2_a` the fraction of variance explained by component
+    components, :math:`r2_a` the model's ``r2_per_component_`` at component
     :math:`a`, and :math:`w_{ja}` the weight for feature :math:`j` in
     component :math:`a`.
+
+    The same formula weights each component by a different block's variance on
+    the two models: :math:`r2_a` is the fraction of **X** variance component
+    :math:`a` explains for PCA (:math:`R^2X`), and the fraction of **Y**
+    variance for PLS (:math:`R^2Y`). A PLS VIP therefore ranks the variables by
+    how much they contribute to the components that predict Y, and a PCA VIP by
+    how much they contribute to the components that describe X; the two are
+    not comparable with each other.
 
     Parameters
     ----------

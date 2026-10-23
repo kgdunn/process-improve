@@ -788,7 +788,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     loadings_ : pd.DataFrame of shape (n_features, n_components)
         The loading matrix (P).
     r2_per_component_ : pd.Series of length n_components
-        Fractional R² explained by each component.
+        Fractional R² (on X) explained by each component.
     r2_cumulative_ : pd.Series of length n_components
         Cumulative R² after each component.
     r2_per_variable_ : pd.DataFrame of shape (n_features, n_components)

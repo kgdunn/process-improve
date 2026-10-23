@@ -379,7 +379,9 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         Per-block cumulative Hotelling's T^2 per sample and component.
     block_vip_ : dict[str, pd.Series]
         Per-block variable-importance in projection, indexed by variable
-        name inside each block.
+        name inside each block. Computed from ``block_loadings_``, each component
+        weighted by its share of that block's X variance
+        (``r2_x_per_block_per_component_``), as a PCA VIP is.
     r2_x_per_block_cumulative_ : pd.DataFrame, shape (n_blocks, n_components)
         Cumulative R^2X per block and component.
     r2_x_per_block_per_component_ : pd.DataFrame, shape (n_blocks, n_components)

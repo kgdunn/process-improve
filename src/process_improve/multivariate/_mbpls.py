@@ -575,7 +575,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Cumulative Hotelling's T^2 on the super-scores per component.
     super_vip_ : pd.Series
         Variable-importance in projection for each X-block, indexed by
-        block name.
+        block name. Computed from ``super_weights_``, each component weighted
+        by its share of the **Y** variance (``r2_y_per_component_``), as a PLS
+        VIP is: it ranks the blocks by their part in predicting Y.
     block_scores_ : dict[str, pd.DataFrame]
         Per-block X-scores ``t_b``, each shape ``(n_samples, n_components)``. NaN for a row with
         nothing observed in that block: the block has no score of its own there, and reporting
@@ -593,7 +595,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Per-block cumulative Hotelling's T^2 per sample and component.
     block_vip_ : dict[str, pd.Series]
         Per-block variable-importance in projection, indexed by variable
-        name inside each block.
+        name inside each block. Computed from ``block_weights_``, each component
+        weighted by its share of **that block's X** variance
+        (``r2_x_per_block_per_component_``), not of Y as ``super_vip_`` is: it
+        ranks a block's variables by their part in the components that describe
+        the block.
     predictions_ : pd.DataFrame, shape (n_samples, n_targets)
         In-sample Y predictions on the *original* scale.
     explained_variance_ : np.ndarray, shape (n_components,)
