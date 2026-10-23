@@ -9,7 +9,7 @@ from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.compare import DesignComparison, compare_designs
-from process_improve.experiments.crossed_arrays import cross_arrays
+from process_improve.experiments.crossed_arrays import cross_arrays, signal_to_noise
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.designs_factorial import full_factorial
@@ -154,6 +154,7 @@ __all__ = [
     "run_sheet",
     "sampling_scheme_variance",
     "separating_constraint",
+    "signal_to_noise",
     "simulate_design_performance",
     "steepest_path",
     "summary",

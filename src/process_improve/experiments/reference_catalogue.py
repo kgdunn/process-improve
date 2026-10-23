@@ -67,6 +67,7 @@ from process_improve.experiments._desirability import composite_desirability, in
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.crossed_arrays import signal_to_noise
 from process_improve.experiments.design_measures import (
     design_structure,
     projectivity,
@@ -333,13 +334,10 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "sqrt": lambda readings: np.sqrt(readings.iloc[:, 0]),
     "arcsin_sqrt": lambda readings: np.arcsin(np.sqrt(readings.iloc[:, 0])),
     "freeman_tukey_sqrt": lambda readings: (np.sqrt(readings.iloc[:, 0]) + np.sqrt(readings.iloc[:, 0] + 1)) / 2,
-    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
-    # nominal is best in the form 10 log10(mean^2 / variance)
-    "sn_larger": lambda readings: -10 * np.log10((1 / readings**2).mean(axis=1)),
-    "sn_smaller": lambda readings: -10 * np.log10((readings**2).mean(axis=1)),
-    "sn_nominal": lambda readings: pd.Series(
-        10 * np.log10(readings.mean(axis=1) ** 2 / readings.var(axis=1, ddof=1)), index=readings.index
-    ),
+    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and nominal is best
+    "sn_larger": lambda readings: pd.Series(signal_to_noise(readings, "larger"), readings.index),
+    "sn_smaller": lambda readings: pd.Series(signal_to_noise(readings, "smaller"), readings.index),
+    "sn_nominal": lambda readings: pd.Series(signal_to_noise(readings, "nominal"), readings.index),
 }
 
 
