@@ -6,8 +6,10 @@ version of ScorePilot: the same ideas, no server, the data never leaves the mach
 Plain JavaScript modules, Plotly for the charts, and the computation in
 `process_improve` itself.
 
-Deployment, and moving the pieces both apps share into one place, come later. Nothing
-here is published by `scripts/build_web_app.py` yet.
+`scripts/build_web_app.py` publishes it at `mva/` inside the app, beside the
+designed-experiments page: the two share the app's wheel, `wheels/manifest.json` and
+`runtime.json`. Moving the other pieces both pages share (the worker's start-up, the
+Plotly loader) into one place comes later.
 
 ## The layers
 
@@ -153,17 +155,19 @@ and their comparison, a Python console on the same session.
 
 ## Running the demo page
 
-The page needs a wheel of this checkout (the release on PyPI has no workbench yet):
+Build the app, which builds the wheel of this checkout with it, and serve it:
 
 ```bash
-uv build --wheel -o web/mva/wheels
-python -c "import json, pathlib; w = next(pathlib.Path('web/mva/wheels').glob('*.whl')).name; pathlib.Path('web/mva/wheels/manifest.json').write_text(json.dumps({'wheel': w}))"
-python -m http.server -d web 8000   # then open http://localhost:8000/mva/
+uv run python scripts/build_web_app.py --serve   # then open http://localhost:8000/mva/
 ```
 
-`web/mva/wheels/` is git-ignored. The tests:
+Every pull request's build is kept for a week as the artifact `web-app-pr-<number>` of its
+Docs run: download it, unzip it, `python -m http.server -d <the folder>`, and open `/mva/`.
+
+The tests:
 
 ```bash
 uv run pytest tests/workbench tests/web/mva tests/web/js --no-cov
-PI_CHROMIUM=/path/to/chrome uv run --with playwright==1.64.1 pytest tests/web/e2e/test_mva_page.py --e2e --no-cov
+uv run --with playwright==1.64.1 pytest tests/web/e2e/test_mva_page.py --e2e --no-cov
+uv run --with playwright==1.64.1 pytest tests/web/live/test_mva_live.py --live --no-cov  # Pyodide
 ```

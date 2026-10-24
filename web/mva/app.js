@@ -9,7 +9,7 @@ import { Selection } from "./selection.js";
 import { DataTable } from "./table.js";
 import { barFigure, componentTitle, scatterFigure, sequenceFigure } from "./views.js";
 
-/** The Plotly.js that Python's plotly ships, unless the deploy names another in wheels/manifest.json. */
+/** The Plotly.js that Python's plotly ships, unless the build names another in the app's wheels/manifest.json. */
 const PLOTLY_JS = "4.1.1";
 
 const $ = (id) => document.getElementById(id);
@@ -78,7 +78,7 @@ async function act(what, action) {
 
 let plotlyLoading = null;
 function plotly() {
-  plotlyLoading ??= fetch("wheels/manifest.json", { cache: "no-store" })
+  plotlyLoading ??= fetch("../wheels/manifest.json", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : {}))
     .catch(() => ({}))
     .then(

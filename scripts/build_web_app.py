@@ -81,6 +81,16 @@ APP_FILES = (
     "icon-512.png",
     "og-card.png",
     "manifest.webmanifest",
+    # The multivariate page, at mva/: it shares the wheel, wheels/manifest.json and runtime.json.
+    "mva/index.html",
+    "mva/mva.css",
+    "mva/app.js",
+    "mva/selection.js",
+    "mva/views.js",
+    "mva/link.js",
+    "mva/table.js",
+    "mva/worker.js",
+    "mva/bootstrap.py",
 )
 
 
