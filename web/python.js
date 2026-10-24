@@ -428,7 +428,8 @@ function comparisonCode(spec, complete) {
  * with scipy, which the library is built on. The one-way analysis of variance asks whether the averages differ at all,
  * Tukey's intervals compare every pair of levels, and Dunnett's each level with the control, the level the page
  * compares them with. Dunnett's intervals are the page's when each level has the same runs; with unequal runs the
- * page takes the comparisons' average correlation, and scipy each one's own.
+ * page takes the comparisons' average correlation, and scipy each one's own. The library's Bartlett's test and
+ * Kruskal-Wallis test then check what the analysis of variance assumes, as the page checks it.
  */
 function severalCode(spec, complete, control) {
   const f = spec.factors[0];
@@ -439,6 +440,7 @@ function severalCode(spec, complete, control) {
     "",
     `# The ${levels.length} levels of ${f.name} compared: whether their averages differ at all, every pair of levels by`,
     `# Tukey's intervals, and each level against the control, ${base}, by Dunnett's intervals.`,
+    "from process_improve.univariate import bartlett_test, kruskal_wallis_test",
     "from scipy import stats",
     "",
     `levels, control = ${repr(levels)}, ${repr(base)}`,
@@ -449,7 +451,11 @@ function severalCode(spec, complete, control) {
     "# scipy integrates Dunnett's distribution by randomized quasi-Monte Carlo: seeded, it is the same on every run.",
     "others = (g for level, g in groups.items() if level != control)",
     "dunnett = stats.dunnett(*others, control=groups[control], random_state=1)",
-    'print(anova, tukey, dunnett, sep="\\n")',
+    "# The checks of what the analysis of variance assumes: whether each level's runs spread alike, which needs two",
+    "# different results or more at each level, and the analysis of variance of the results' ranks.",
+    "spread = bartlett_test(*groups.values()) if all(g.nunique() > 1 for g in groups.values()) else None",
+    "ranks = kruskal_wallis_test(*groups.values())",
+    'print(anova, tukey, dunnett, spread, ranks, sep="\\n")',
   ];
 }
 

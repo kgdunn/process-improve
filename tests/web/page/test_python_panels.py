@@ -900,6 +900,10 @@ def test_the_code_for_one_factor_of_four_levels_tests_them_as_the_page_does(api,
         assert tukey.statistic[j, i] == pytest.approx(pair["estimate"])
         assert [low_high.low[j, i], low_high.high[j, i]] == pytest.approx([pair["ci_low"], pair["ci_high"]])
         assert tukey.pvalue[j, i] == pytest.approx(pair["p_value"], abs=1e-6)
+    checks = {check["test"]: check for check in several["checks"]}
+    for name, check in (("spread", checks["bartlett"]), ("ranks", checks["kruskal_wallis"])):
+        found = [shown[name]["statistic"], shown[name]["p_value"]]
+        assert found == pytest.approx([check["statistic"], check["p_value"]]), name
     if not blank:  # with the same runs at each level, Dunnett's intervals are the page's, to scipy's integration
         intervals = shown["dunnett"].confidence_interval(0.95)
         for x, low, high in zip(several["versus"], intervals.low, intervals.high, strict=True):
