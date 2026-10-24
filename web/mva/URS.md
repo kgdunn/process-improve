@@ -1,9 +1,10 @@
 # Multivariate app: user requirements
 
-The requirements this app is built to, chosen line by line from a feature catalogue in the review of
-24 October 2026. Each line has an id to quote in commits and pull requests, says what it covers, and
-says how much of it `process_improve` (the library or this page) already has. A line marked *in* or
-*partly* is mostly a matter of wiring the existing code into the page.
+The requirements this app is built to, chosen line by line from the feature catalogue
+([`FEATURES.md`](FEATURES.md)) in the review of 24 October 2026. Each line has an id to quote in
+commits and pull requests, says what it covers, and says how much of it `process_improve` (the
+library or this page) already has. A line marked *in* or *partly* is mostly a matter of wiring the
+existing code into the page.
 
 ## Decisions
 
