@@ -26,6 +26,7 @@ from tests.web._support import (
     CATALOG_SAMPLE,
     ENTRY_POINT,
     FACTORS,
+    MANY_FACTOR_DESIGNS,
     PAIRED_DESIGN,
     WEB,
     catalog_sample,
@@ -104,6 +105,17 @@ def book_catalog_files(build_script: ModuleType, tmp_path_factory: pytest.TempPa
     """Write the catalog of ``CATALOG_SAMPLE`` and ``BOOK_DESIGN``, a design the book prints; return its folder."""
     out = tmp_path_factory.mktemp("book-catalog")
     sample = catalog_sample((*CATALOG_SAMPLE, BOOK_DESIGN))
+    with pytest.MonkeyPatch.context() as patch, no_bytecode():
+        patch.setattr(design_catalog, "catalog_records", lambda: sample)
+        build_script.write_catalog(out)
+    return out / "catalog"
+
+
+@pytest.fixture(scope="session")
+def many_catalog_files(build_script: ModuleType, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Write the catalog of ``CATALOG_SAMPLE`` and ``MANY_FACTOR_DESIGNS``, of 31 and 40 factors; return its folder."""
+    out = tmp_path_factory.mktemp("many-catalog")
+    sample = catalog_sample((*CATALOG_SAMPLE, *MANY_FACTOR_DESIGNS))
     with pytest.MonkeyPatch.context() as patch, no_bytecode():
         patch.setattr(design_catalog, "catalog_records", lambda: sample)
         build_script.write_catalog(out)
@@ -224,6 +236,15 @@ def book_context(context: Any, site: str, book_catalog_files: Path) -> Any:  # n
     """Return a browser context whose catalog also holds ``BOOK_DESIGN``: this route is tried before the sample's."""
     context.route(
         re.compile(re.escape(f"{site}catalog/") + r".+\.json$"), lambda route: _catalog(route, book_catalog_files)
+    )
+    return context
+
+
+@pytest.fixture
+def many_context(context: Any, site: str, many_catalog_files: Path) -> Any:  # noqa: ANN401 - a Playwright BrowserContext
+    """Return a browser context whose catalog also holds designs of 31 and 40 factors, routed before the sample's."""
+    context.route(
+        re.compile(re.escape(f"{site}catalog/") + r".+\.json$"), lambda route: _catalog(route, many_catalog_files)
     )
     return context
 

@@ -530,6 +530,12 @@ READS: dict[str, list[str]] = {
         "waiting[].label: str",
         "waiting[].design_type: str",
     ],
+    # Past 12 factors, scored on power alone: the page hides "Compare them in detail" for no measures.
+    "candidates of many factors": [
+        "result.measures: list",
+        "result.values{}.power_main: number?",
+        "notes[]: str",
+    ],
     "design with limits": [
         "spec.constraints[].expression: str",
         "spec.constraints[].type: str",
@@ -734,6 +740,7 @@ ENTRY_POINTS = {
     "candidates": "api_candidates",
     "candidates with designs left out": "api_candidates",
     "slow candidates": "api_candidates",
+    "candidates of many factors": "api_candidates",
     "design with limits": "api_make_design",
     "next runs": "api_next_runs",
     "predictors": "api_predictors",
@@ -1010,6 +1017,10 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
         "candidates with designs left out": lambda: {"factors": FACTORS[:2], "model": "main_effects"},
         "slow candidates": slow,
+        "candidates of many factors": lambda: {
+            "factors": [{"name": f"X{i}", "low": -1, "high": 1} for i in range(13)],
+            "model": "main_effects",
+        },
         "design with limits": lambda: {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS},
         **next_steps(api),
         "next runs called for": lambda: analysed,

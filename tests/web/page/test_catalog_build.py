@@ -379,12 +379,22 @@ def test_the_whole_catalog_opens_every_generated_design_the_page_makes(build_scr
     bootstrap = build_script.load_bootstrap()
     makes = set(bootstrap.DESIGNS)
     generated = [d for d in designs if d["collection"] == "generated"]
-    # An orthogonal array is made whole, a factor to each column: the page takes the arrays of up to 12 columns.
+    # An orthogonal array is made whole, a factor to each column: the page takes the arrays of up to 40 columns,
+    # whose numeric factors all run at two levels, or all at three.
     most = bootstrap.GIVEN_INFO["max_factors"]
     assert all(d["open"] for d in generated if d["design_type"] in makes and d["n_factors"] <= most)
     detail = json.loads((tmp_path / "catalog" / "detail" / "generated.json").read_text())["designs"]
     made = {name for name, d in detail.items() if name.startswith("lib-taguchi-") and d["opens_as"] == "made"}
-    assert made == {"lib-taguchi-l4-2-3", "lib-taguchi-l8-2-7", "lib-taguchi-l9-3-4", "lib-taguchi-l12-2-11"}
+    assert made == {
+        "lib-taguchi-l4-2-3",
+        "lib-taguchi-l8-2-7",
+        "lib-taguchi-l9-3-4",
+        "lib-taguchi-l12-2-11",
+        "lib-taguchi-l16-2-15",
+        "lib-taguchi-l27-2-1-3-12",
+        "lib-taguchi-l32-2-31",
+        "lib-taguchi-l81-3-40",
+    }
     published = [d for d in designs if d["collection"] == "published"]
     assert sum(d["open"] for d in published) >= 300, "a published design with a complete table of runs opens"
     assert all(d["open"] for d in published if d["regenerable"])
@@ -397,7 +407,9 @@ def _taguchi_record(array: str) -> dict:
 
 
 @pytest.mark.parametrize(
-    ("array", "options"), [("L8(2^7)", {}), ("L9(3^4)", {"n_levels": 3})], ids=["two levels", "three levels"]
+    ("array", "options"),
+    [("L8(2^7)", {}), ("L9(3^4)", {"n_levels": 3}), ("L16(2^15)", {}), ("L81(3^40)", {"n_levels": 3})],
+    ids=["two levels", "three levels", "fifteen columns", "forty columns"],
 )
 def test_an_orthogonal_array_the_page_makes_opens_as_made(build_script, array, options):
     """The page makes the array for as many factors as it has columns, at the levels its columns have."""
@@ -415,9 +427,9 @@ def test_an_orthogonal_array_the_page_makes_opens_as_made(build_script, array, o
     ("array", "reason"),
     [
         ("L16(4^5)", "the page runs every numeric factor of a Taguchi array at 2 levels, or every one at 3"),
-        ("L16(2^15)", "the page makes this design for 2 to 12 factors"),
+        ("L36(3^23)", "the page runs every numeric factor of a Taguchi array at 2 levels, or every one at 3"),
     ],
-    ids=["four levels", "fifteen columns"],
+    ids=["four levels", "two levels and three"],
 )
 def test_an_orthogonal_array_the_page_does_not_make_says_why(build_script, array, reason):
     with no_bytecode():

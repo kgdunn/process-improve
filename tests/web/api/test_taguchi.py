@@ -191,8 +191,9 @@ def test_too_few_results_name_the_model_the_array_was_made_for(api):
 
 # --------------------------------------------------------------------------- what the page refuses
 def test_the_page_takes_the_factor_counts_the_arrays_take(bootstrap):
+    """Up to the 40 columns of L81(3^40), the largest array the library holds, which the page makes whole."""
     info = bootstrap.DESIGNS["taguchi"]
-    assert (info["min_factors"], info["max_factors"]) == (2, 12)
+    assert (info["min_factors"], info["max_factors"]) == (2, 40)
     assert info["model"] == "main_effects"
 
 

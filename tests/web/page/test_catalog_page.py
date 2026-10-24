@@ -37,6 +37,11 @@ def test_the_page_reads_the_fields_and_format_the_build_writes(node, build_scrip
     assert version == build_script.CATALOG_VERSION
 
 
+def test_the_page_says_the_sizes_the_catalog_compares_as_the_library_scores_them(node):
+    held = javascript(node, source(LOGIC), [("COMPARED_FACTORS", []), ("COMPARED_RUNS", [])])
+    assert held == [design_catalog.COMPARED_FACTORS, design_catalog.COMPARED_RUNS]
+
+
 def test_every_family_the_map_colours_is_one_of_the_catalog_s(node):
     (colours,) = javascript(node, source(LOGIC), [("FAMILY_COLOURS", [])])
     assert set(colours) <= set(design_catalog.FAMILIES)

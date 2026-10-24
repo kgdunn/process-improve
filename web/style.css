@@ -231,6 +231,8 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .terms .group { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .terms label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9rem; }
 .terms input { width: auto; padding: 0; }
+.terms .term-adder { margin: 10px 0 0; font-size: 0.9rem; }
+.terms .term-adder select { width: auto; max-width: 10em; }
 input, select {
   font: inherit; color: inherit; background: var(--bg);
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; max-width: 100%;
