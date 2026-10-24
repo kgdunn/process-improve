@@ -6,6 +6,8 @@ import { describe, test } from "node:test";
 
 import {
   AXIAL_DISTANCE,
+  TRANSFORM_WORDS,
+  boxCoxSentence,
   categoricalFactor,
   isSeveral,
   levelsOf,
@@ -1378,5 +1380,39 @@ describe("the numbers a catalogue study's source prints", () => {
     assert.equal(modelKey([["B"], ["A"], ["B", "A"]]), modelKey([["A"], ["A", "B"], ["B"]]));
     assert.notEqual(modelKey([["A"], ["B"]]), modelKey([["A"], ["B"], ["A", "B"]]));
     assert.equal(modelTermsWords([["A"], ["B"], ["A", "B"], ["A", "A"]]), "A + B + A·B + A²");
+  });
+});
+
+describe("what Box-Cox makes of the response", () => {
+  const hint = (lambda, ci, suggests, current = null) => ({ lambda, ci, suggests, current });
+
+  test("it points to the transform its interval holds, with a button that fits it", () => {
+    assert.deepEqual(boxCoxSentence(hint(0.13, [-0.04, 0.31], "log"), "Yield"), {
+      words: "Box-Cox's λ is 0.13 (95% interval -0.04 to 0.31): it points to the log of Yield.",
+      apply: "log",
+      button: "Analyse its log",
+    });
+  });
+
+  test("it says nothing when it agrees with the transform fitted, or when the results need none", () => {
+    assert.equal(boxCoxSentence(hint(0.1, [-0.2, 0.4], "log", "log"), "Yield"), null);
+    assert.equal(boxCoxSentence(hint(0.9, [0.6, 1.3], null), "Yield"), null);
+    assert.equal(boxCoxSentence(null, "Yield"), null);
+  });
+
+  test("a transformed response whose results need none is offered the results as measured", () => {
+    const said = boxCoxSentence(hint(0.9, [0.6, 1.3], null, "sqrt"), "Yield");
+    assert.equal(said.apply, "");
+    assert.equal(said.button, "Analyse Yield as measured");
+  });
+
+  test("a power the page does not offer is said, with nothing to press", () => {
+    const said = boxCoxSentence(hint(2.4, [1.8, 3.1], null), "Yield");
+    assert.equal(said.apply, null);
+    assert.match(said.words, /a power of Yield this page does not offer/);
+  });
+
+  test("each transform has its words", () => {
+    assert.deepEqual(Object.keys(TRANSFORM_WORDS), ["log", "sqrt", "inverse"]);
   });
 });

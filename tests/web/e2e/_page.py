@@ -25,6 +25,7 @@ SELECTS = {
     "mixture_model",
     "scenario",
     "model",
+    "transform",
     "response-goal",
 }
 

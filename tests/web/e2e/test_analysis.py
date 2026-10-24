@@ -121,6 +121,44 @@ def test_choosing_a_model_analyses_the_results_again(page):
     assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F"]
 
 
+def test_choosing_a_transform_analyses_the_response_on_its_scale_and_as_measured_again(page):
+    choose(page, transform="log")
+    settled(page)
+    sent = calls(page, "api_analyze_runs")[-1]["payload"]["spec"]
+    assert sent["analysis_transforms"] == {sent["response"]: "log"}
+    assert page.text_content("#analysis p.equation").startswith("ln(")
+    assert "Low to high" in page.locator("#analysis table").first.locator("th").all_text_contents()
+    assert "np.log(y)" in page.text_content("#py-analyse code"), "the code fits what the page fits"
+    choose(page, transform="")
+    settled(page)
+    assert "analysis_transforms" not in calls(page, "api_analyze_runs")[-1]["payload"]["spec"]
+    assert not page.text_content("#analysis p.equation").startswith("ln(")
+
+
+def test_box_cox_s_hint_fits_the_transform_it_points_to(page):
+    """When Box-Cox's interval holds the log and not 1, the page says so, and its button fits the log."""
+    choose(page, model="interactions")
+    settled(page)
+    reply = page.evaluate("window.__pi.replies.filter((r) => r.fn === 'api_analyze_runs').at(-1).reply")
+    hint = {"lambda": 0.1, "ci": [-0.2, 0.4], "suggests": "log", "current": None}
+    page.evaluate(
+        "(reply) => window.__pi.fake('api_analyze_runs', reply)",
+        {**reply, "result": {**reply["result"], "box_cox": hint}},
+    )
+    choose(page, model="main_effects")
+    settled(page)
+    assert page.is_visible("#box-cox")
+    assert page.text_content("#box-cox-words").startswith(
+        "Box-Cox's λ is 0.1 (95% interval -0.2 to 0.4): it points to the log of "
+    )
+    page.evaluate("() => { delete window.__pi.fakes.api_analyze_runs; }")
+    page.click("#box-cox-apply")
+    settled(page)
+    sent = calls(page, "api_analyze_runs")[-1]["payload"]["spec"]
+    assert sent["analysis_transforms"] == {sent["response"]: "log"}
+    assert page.input_value("#transform") == "log"
+
+
 def test_a_model_the_design_cannot_fit_is_refused_in_a_sentence(page):
     generate(page, design_type="dsd", n_center_points=1)  # nine runs, simulated again
     choose(page, model="quadratic")
