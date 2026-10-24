@@ -22,6 +22,8 @@ from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAME
 from process_improve.experiments.designs_utils import categorical_codes
 
 if TYPE_CHECKING:
+    from types import ModuleType
+
     from process_improve.experiments.factor import DesignResult, Factor
 
 # Minimum-aberration 2^(k-p) fractional factorials for 5 to 11 factors, keyed by the number of
@@ -257,20 +259,28 @@ def _fraction_of_size(k: int, n_runs: int) -> list[_Generator]:
     :func:`~process_improve.experiments.trade_off.minimum_aberration_generators`, which raises
     a ``ValueError`` naming the size of the search when it is too large.
     """
-    from process_improve.experiments.trade_off import (  # noqa: PLC0415 - trade_off imports this module
-        _FACTOR_NAMES,
-        minimum_aberration_generators,
-    )
-
+    trade_off = _trade_off()
     if n_runs == 2 ** (k - 1):
         return [(k - 1, list(range(k - 1)))]
     entry = _MIN_ABERRATION.get(k, {}).get(n_runs)
     if entry is not None:
         return [(_TABLE_LETTERS.index(g[0]), [_TABLE_LETTERS.index(c) for c in g[2:]]) for g in entry]
-    if k > len(_FACTOR_NAMES):
+    if k > len(trade_off._FACTOR_NAMES):
         raise ValueError(f"No minimum-aberration fraction of {k} factors is searched; supply the generators.")
-    chosen = minimum_aberration_generators(n_runs, k)
-    return [(_FACTOR_NAMES.index(g[0]), [_FACTOR_NAMES.index(c) for c in g[2:]]) for g in chosen]
+    return _as_indices(trade_off.minimum_aberration_generators(n_runs, k))
+
+
+def _trade_off() -> ModuleType:
+    """Return :mod:`~process_improve.experiments.trade_off`, imported here because it imports this module."""
+    from process_improve.experiments import trade_off  # noqa: PLC0415
+
+    return trade_off
+
+
+def _as_indices(generators: tuple[str, ...]) -> list[_Generator]:
+    """Turn generators such as ``("D=AB",)`` from the minimum-aberration search into column indices."""
+    names = _trade_off()._FACTOR_NAMES
+    return [(names.index(g[0]), [names.index(c) for c in g[2:]]) for g in generators]
 
 
 def _strongest_at_size(k: int, found: list[_Generator]) -> list[_Generator]:
@@ -282,17 +292,11 @@ def _strongest_at_size(k: int, found: list[_Generator]) -> list[_Generator]:
     the generator search reaches at that size: 16 factors in 32 runs are resolution IV,
     though resolution III was asked for.
     """
-    from process_improve.experiments.trade_off import (  # noqa: PLC0415 - trade_off imports this module
-        _FACTOR_NAMES,
-        SearchLimitError,
-        minimum_aberration_generators,
-    )
-
+    trade_off = _trade_off()
     n_base = k - len(found)
-    if k <= len(_FACTOR_NAMES):
-        with contextlib.suppress(SearchLimitError):
-            chosen = minimum_aberration_generators(2**n_base, k)
-            return [(_FACTOR_NAMES.index(g[0]), [_FACTOR_NAMES.index(c) for c in g[2:]]) for g in chosen]
+    if k <= len(trade_off._FACTOR_NAMES):
+        with contextlib.suppress(trade_off.SearchLimitError):
+            return _as_indices(trade_off.minimum_aberration_generators(2**n_base, k))
     reached = min(mask.bit_count() for mask, _ in _defining_word_masks(found))
     for stronger in range(n_base + 1, reached, -1):  # a generator's word has at most n_base + 1 letters
         better = _search_at_size(k, n_base, stronger)
