@@ -81,8 +81,11 @@ import {
   withUnit,
   withoutConfirmationRuns,
   columnsAt,
+  keptAs,
   predictAt,
+  scenarioProblem,
   settingsFit,
+  settingsWords,
   sliderStep,
   whatIfRows,
   whatIfSentences,
@@ -214,6 +217,7 @@ import {
   BOOK_PARAM,
   EXAMPLE_PARAM,
   LINK_KEY,
+  SCENARIOS_HELD,
   WORKED,
   bookName,
   campaignDone,
@@ -395,6 +399,7 @@ const state = {
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
+  scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
@@ -1233,6 +1238,8 @@ function showRenamed({ spec, simulation, ...design }, names) {
   for (const [name, model] of Object.entries(state.models)) {
     if (model && typeof model === "object") state.models[name] = { terms: renameTerms(model.terms, names) }; // each response's terms
   }
+  const renamed = (settings) => Object.fromEntries(Object.entries(settings).map(([factor, v]) => [names[factor] ?? factor, v]));
+  state.scenarios = state.scenarios.map((s) => ({ ...s, settings: renamed(s.settings) }));
   renderDesign();
   renderRuns();
   renderTruth();
@@ -1742,6 +1749,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.shown = resultNames()[0];
   state.models = {};
   state.goals = {};
+  state.scenarios = [];
   state.simulation = null;
   state.analysis = null;
   clearBalance();
@@ -2625,6 +2633,7 @@ async function downloadWorkbook() {
     simulated: someSimulated() ? state.simulation : null,
     model: modelOf(first),
     ...(Object.keys(models).length ? { models } : {}),
+    ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
   });
   if (!reply.ok) {
     setStatus(reply.error, "error");
@@ -2790,12 +2799,18 @@ async function learnSections() {
   return sections;
 }
 
-/** The sections a report ends with, after the analysis: the balance of the responses, the next step and the code. */
+/**
+ * The sections a report ends with, after the analysis: the balance of the responses, the settings kept with the study,
+ * the next step and the code.
+ */
 async function closingSections() {
   const sections = [];
   if (!$("#balance").hidden && state.balance) {
     const html = [reportCopy($("#balance-out")), chartsHtml(await chartsWithin($("#balance")))];
     sections.push({ heading: $("#h-balance").textContent, html: html.join("\n") });
+  }
+  if (!$("#what-if").hidden && !$("#what-if-kept").hidden) {
+    sections.push({ heading: $("#h-what-if-kept").textContent, html: reportCopy($("#what-if-kept-list")) });
   }
   if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
   const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
@@ -2970,6 +2985,7 @@ async function readUpload(file) {
   setModel(r.spec.analysis_model ?? $("#model").value);
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   state.goals = {};
+  state.scenarios = r.what_if ?? [];
   clearBalance();
   clearWhatIf();
   renderDesign(reply.warnings);
@@ -4252,10 +4268,12 @@ function showWhatIf(result) {
   const { factors, responses } = result;
   const kept = state.whatIf?.settings;
   const settings = settingsFit(factors, kept) ? kept : whatIfStart(factors, state.balance, state.best).settings;
-  state.whatIf = { factors, responses, settings, broken: [] };
+  state.whatIf = { factors, responses, settings, broken: [], keptBroken: new Map() };
   renderWhatIfControls();
   renderWhatIf();
+  renderKept();
   checkWhatIfLimits();
+  checkKeptLimits();
 }
 
 /** Build a control for each factor, once a study: a slider and a number box over a numeric factor's range, a list of a categorical one's levels. */
@@ -4304,28 +4322,38 @@ function showWhatIfSettings() {
   }
 }
 
+/** The what-if table's columns, and the glossary entry of each whose heading is a term. */
+const WHAT_IF_COLUMNS = ["Response", "Prediction", "95% confidence interval", "95% prediction interval", "Leverage, against the runs' largest"];
+const WHAT_IF_TERMS = {
+  "95% confidence interval": "confidence-interval",
+  "95% prediction interval": "prediction-interval",
+  "Leverage, against the runs' largest": "leverage",
+};
+
+/** Each response at the columns of some settings (best.js columnsAt), as best.js predicts it from the fits Python sent. */
+const predictedAt = (w, columns) => w.responses.map((r) => (r.terms ? { ...r, at: predictAt(r, columns) } : r));
+
 /**
  * Show every response at the panel's settings, as best.js predicts it from the fits Python sent: the table, the limits
- * the settings break, the models they lean on beyond their runs, and the code that makes the same predictions.
+ * the settings break, the models they lean on beyond their runs, and the code that makes the same predictions, at the
+ * settings kept with the study too.
  */
 function renderWhatIf() {
   const w = state.whatIf;
   const at = columnsAt(w.factors, w.settings);
-  const responses = w.responses.map((r) => (r.terms ? { ...r, at: predictAt(r, at) } : r));
+  const responses = predictedAt(w, at);
   const start = whatIfStart(w.factors, state.balance, state.best);
   $("#what-if").hidden = false;
   showWhatIfSettings();
   $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
   $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
-  const columns = ["Response", "Prediction", "95% confidence interval", "95% prediction interval", "Leverage, against the runs' largest"];
-  const terms = {
-    "95% confidence interval": "confidence-interval",
-    "95% prediction interval": "prediction-interval",
-    "Leverage, against the runs' largest": "leverage",
-  };
-  $("#what-if-out").replaceChildren(table(columns, whatIfRows(responses), terms), ...noteList(whatIfSentences(responses, w.broken), "warnings"));
+  $("#what-if-out").replaceChildren(
+    table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS),
+    ...noteList(whatIfSentences(responses, w.broken), "warnings"),
+  );
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
-  showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings));
+  const kept = state.scenarios.filter((s) => !keptProblem(w, s)).map((s) => ({ name: s.name, at: columnsAt(w.factors, s.settings) }));
+  showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
 }
 
 /** The reader moved a setting: every response follows at once, and the limits it breaks a moment later. */
@@ -4364,6 +4392,113 @@ function whatIfBack() {
   state.whatIf.settings = whatIfStart(state.whatIf.factors, state.balance, state.best).settings;
   renderWhatIf();
   checkWhatIfLimits();
+}
+
+// ---------------------------------------------------------------- what if: settings kept with the study
+// The reader keeps the panel's settings under a name, and they go with the study (its what_if), through this browser,
+// its file, its link and its workbook. Only the settings are kept: each response there is predicted again from the
+// fits of the latest analysis whenever the list is drawn, so it follows the results.
+
+/** Why the models do not predict at kept settings now, in a sentence, or null (best.js scenarioProblem). */
+const keptProblem = (w, s, units = {}) => scenarioProblem(w.factors, s.settings, units, w.keptBroken.get(JSON.stringify(s.settings)) ?? []);
+
+/** The settings a confirmation run at kept settings is made at: each factor's, and nothing else they hold. */
+const keptAt = (s) => Object.fromEntries(state.whatIf.factors.map((f) => [f.name, s.settings[f.name]]));
+
+/** Keep the panel's settings with the study, under the name typed or the next "Settings N", and list them. */
+function keepWhatIf(e) {
+  e.preventDefault();
+  const w = state.whatIf;
+  if (!w) return;
+  const box = $("#what-if-keep-name");
+  const { name, problem } = keptAs(box.value, state.scenarios, SCENARIOS_HELD);
+  if (problem) {
+    toast(problem, "error");
+    return;
+  }
+  state.scenarios = [...state.scenarios, { name, settings: { ...w.settings } }];
+  box.value = "";
+  renderWhatIf();
+  renderKept();
+  checkKeptLimits();
+  scheduleSave();
+  toast(`Kept these settings as ${name}.`);
+}
+
+/** List the settings kept with the study below the panel, each with every response there, or why there is none. */
+function renderKept() {
+  const w = state.whatIf;
+  $("#what-if-kept").hidden = !w || !state.scenarios.length;
+  if ($("#what-if-kept").hidden) return;
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  $("#what-if-kept-list").replaceChildren(...state.scenarios.map((s) => keptItem(w, s, units)));
+}
+
+/** One kept setting in the list: its name and settings, each response there as the panel's table shows it, and its buttons. */
+function keptItem(w, s, units) {
+  const item = el("li", "", "");
+  const head = el("p", "", "");
+  head.append(el("strong", "", s.name), `: ${settingsWords(w.factors, s.settings, units)}`);
+  item.append(head);
+  const actions = el("p", "actions", "");
+  const problem = keptProblem(w, s, units);
+  if (problem) {
+    item.append(said("hint", problem));
+  } else {
+    const responses = predictedAt(w, columnsAt(w.factors, s.settings));
+    item.append(table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS), ...noteList(whatIfSentences(responses), "warnings"));
+    const runs = `Add ${CONFIRMATION_RUNS} confirmation runs`;
+    if (!confirmedAt(state.design, keptAt(s))) {
+      actions.append(keptButton("confirm", s.name, runs, "button", `${runs} at the settings kept as ${s.name}`)); // none there yet
+    }
+  }
+  actions.append(keptButton("delete", s.name, "Delete", "link", `Delete the settings kept as ${s.name}`));
+  item.append(actions);
+  return item;
+}
+
+/** A button of the kept settings ``name``; its accessible name, ``label``, starts with its ``text`` and names them. */
+function keptButton(action, name, text, cls, label) {
+  const button = el("button", cls, text);
+  button.type = "button";
+  Object.assign(button.dataset, { action, kept: name });
+  button.setAttribute("aria-label", label);
+  return button;
+}
+
+/** A button of a kept setting was pressed: make confirmation runs at the settings, or delete them. */
+function keptPressed(e) {
+  const button = e.target.closest("button[data-kept]");
+  const s = button && state.whatIf ? state.scenarios.find((one) => one.name === button.dataset.kept) : null;
+  if (!s) return;
+  if (button.dataset.action === "confirm") {
+    addConfirmationRuns(keptAt(s), `the settings kept as ${s.name}`);
+    return;
+  }
+  state.scenarios = state.scenarios.filter((one) => one !== s);
+  renderWhatIf();
+  renderKept();
+  scheduleSave();
+  $("#what-if-keep-name").focus(); // the button went with the settings
+  toast(`Deleted the settings kept as ${s.name}.`);
+}
+
+/** Ask Python, once for each, which limits on the settings the kept settings break; a study without limits breaks none. */
+async function checkKeptLimits() {
+  const w = state.whatIf;
+  if (!w || !(state.design.spec.constraints ?? []).length) return;
+  const mine = whatIfTicket;
+  for (const s of state.scenarios) {
+    const key = JSON.stringify(s.settings);
+    if (w.keptBroken.has(key) || keptProblem(w, s)) continue;
+    w.keptBroken.set(key, []); // asked, so not asked again while the reply is on its way
+    const reply = await call("api_outside_limits", { spec: state.design.spec, settings: s.settings });
+    if (mine !== whatIfTicket) return; // another analysis gave the panel new fits
+    if (!reply.ok || !reply.result.broken.length) continue;
+    w.keptBroken.set(key, reply.result.broken);
+    renderWhatIf();
+    renderKept();
+  }
 }
 
 // ---------------------------------------------------------------- the next step
@@ -4700,6 +4835,7 @@ function newStudy() {
     shown: null,
     models: {},
     goals: {},
+    scenarios: [],
     simulation: null,
     analysis: null,
     next: null,
@@ -4876,7 +5012,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec),
+    v: studyFormat(spec, state.scenarios),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -4886,6 +5022,7 @@ function currentCampaign() {
     ...(more.length ? { more_models: Object.fromEntries(more.map((name) => [name, modelOf(name)])) } : {}),
     ...(more.length && Object.keys(sentGoals()).length ? { goals: sentGoals() } : {}),
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
+    ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
   };
 }
 
@@ -5123,6 +5260,7 @@ async function openCampaign(c, record, message) {
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
+  state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();
   state.simulation = c.simulation;
@@ -5643,6 +5781,8 @@ $("#what-if-settings").addEventListener("change", (e) => {
   if (e.target.name === "number" && row && state.whatIf) e.target.value = num(state.whatIf.settings[row.dataset.factor]);
 });
 $("#what-if-back").onclick = whatIfBack;
+$("#what-if-keep").addEventListener("submit", keepWhatIf);
+$("#what-if-kept-list").addEventListener("click", keptPressed);
 $("#balance-reset").onclick = () => {
   state.goals = {};
   scheduleSave();

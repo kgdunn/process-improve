@@ -636,6 +636,15 @@ def test_the_limits_on_the_settings_are_held_as_bootstrap_holds_them(bootstrap, 
     assert javascript(node, source("campaign.js"), [("LIMITS_HELD", [])]) == [held], "a saved study is checked alike"
 
 
+def test_the_settings_kept_from_the_what_if_panel_are_held_as_bootstrap_holds_them(bootstrap, node):
+    """A study and its workbook keep as many, under names as long; the box for a name takes no more."""
+    held = bootstrap.SCENARIOS_HELD
+    assert javascript(node, source("campaign.js"), [("SCENARIOS_HELD", [])]) == [held]
+    box = re.search(r'<input[^>]*id="what-if-keep-name"[^>]*>', source("index.html"))
+    assert box, "the box the reader names the settings in"
+    assert f'maxlength="{held["name"]}"' in box.group(0)
+
+
 def test_a_limit_s_key_is_the_same_as_typed_and_as_python_writes_it(api, node):
     """A run sheet is keyed to its limits as typed; the text Python gives back for each must key the same."""
     typed = [

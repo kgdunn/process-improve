@@ -587,6 +587,17 @@
           <div id="what-if-settings" class="what-if-settings"></div>
           <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
           <div id="what-if-out"></div>
+          <!-- Settings kept with the study under a name (its what_if), each predicted again from the results each time
+               the list is drawn, so a result changed since changes what it shows. -->
+          <form id="what-if-keep" class="actions what-if-keep">
+            <label for="what-if-keep-name">Name these settings</label>
+            <input type="text" id="what-if-keep-name" maxlength="80" autocomplete="off">
+            <button type="submit" class="button">Keep these settings</button>
+          </form>
+          <div id="what-if-kept" hidden>
+            <h4 id="h-what-if-kept">Settings kept with the study</h4>
+            <ol id="what-if-kept-list" class="what-if-kept" aria-labelledby="h-what-if-kept"></ol>
+          </div>
           <details class="python" id="py-what-if" hidden>
             <summary>Show the Python code of these predictions</summary>
             <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
