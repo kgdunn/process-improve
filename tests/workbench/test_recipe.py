@@ -361,3 +361,12 @@ def test_a_recipe_needs_a_source_and_a_list_of_steps() -> None:
 def test_an_expression_that_cannot_be_tokenized_is_reported_as_not_parsing() -> None:
     with pytest.raises(ValueError, match="does not parse"):
         Expression("'unterminated", None)
+
+
+def test_a_source_without_a_digest_writes_a_script_that_reads_it_unchecked(tmp_path, monkeypatch) -> None:
+    content = table().to_csv().encode()
+    (tmp_path / "plant.csv").write_bytes(content)
+    recipe = Recipe(SourceFile("plant.csv", options={"index_col": 0})).then(AddColumn("dT", "Tout - Tin"))
+    script = recipe.to_python()
+    assert "hashlib" not in script
+    assert_identical(run_script(recipe, tmp_path, monkeypatch), recipe.run(content))
