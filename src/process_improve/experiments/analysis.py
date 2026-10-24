@@ -875,15 +875,35 @@ def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     }
 
 
+def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
+    """Give each new point the block contrasts of the block its ``Block`` column names.
+
+    A point that names no block (no ``Block`` column, or a missing value in it) and does not give
+    the contrast columns itself has them at zero: it is predicted for the average over the blocks.
+    """
+    if not fit.blocks or BLOCK_COL not in points:
+        return points.assign(**{b: 0.0 for b in fit.blocks if b not in points})
+    levels = sorted(fit.df[BLOCK_COL].unique(), key=str)  # in the order _add_block_term coded them
+    named = points[BLOCK_COL]
+    unknown = sorted({str(v) for v in named.dropna() if v not in set(levels)})
+    if unknown:
+        raise ValueError(
+            f"new_points names the blocks {unknown}, which the runs do not have: {list(map(str, levels))}."
+        )
+    in_block = {
+        name: np.where(named == level, 1.0, np.where(named == levels[-1], -1.0, 0.0))
+        for name, level in zip(fit.blocks, levels[:-1], strict=True)
+    }
+    return points.assign(**in_block)
+
+
 def _handlers(
     fit: _Fit,
     new_points: pd.DataFrame | None,
     observed_at_new: list[float] | None,
 ) -> dict[str, Callable[[], dict[str, Any]]]:
     """Every analysis, keyed by analysis type, each run only when requested."""
-
-    # Block contrasts a new point does not give are zero: the average over the blocks.
-    points = None if new_points is None else new_points.assign(**{b: 0.0 for b in fit.blocks if b not in new_points})
+    points = None if new_points is None else _in_blocks(new_points, fit)
 
     def prediction() -> dict[str, Any]:
         if points is None:
@@ -1136,8 +1156,10 @@ def analyze_experiment(  # noqa: PLR0913
         the ``low`` and ``high`` that map to -1 and +1 for each factor not already coded.
     new_points : DataFrame or None
         For prediction or confirmation testing, and for the predictions of
-        ``"split_plot"`` and ``"glm"``. In a blocked model, points without the block
-        contrast columns are predicted for the average block.
+        ``"split_plot"`` and ``"glm"``. In a blocked model, a point is predicted in the
+        block its ``Block`` column names, one of the runs' blocks; a point that names no
+        block (no ``Block`` column, or a missing value in it), and does not give the block
+        contrast columns, is predicted for the average block.
     observed_at_new : list[float] or None
         Observed values at *new_points* (for confirmation testing), one per row.
     response_column : str or None

@@ -1342,6 +1342,31 @@ class TestBlocks:
         )
         assert result["predictions"][0]["predicted"] == pytest.approx(df.y.mean())
 
+    def test_prediction_in_a_named_block_is_for_that_block(self) -> None:
+        """Each block is a whole 2^2 factorial, so at its centre a block's prediction is the average of its runs."""
+        df = pd.DataFrame(_full_factorial(2, replicates=3), columns=["A", "B"])
+        df["Block"] = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
+        df["y"] = 10 + 2 * df.A + df.Block.map({"a": 0.0, "b": 3.0, "c": -1.0}) + np.linspace(-0.2, 0.2, 12)
+        points = pd.DataFrame({"A": [0.0] * 4, "B": [0.0] * 4, "Block": ["a", "b", "c", None]})
+        for model in ("main_effects", "y ~ Block + A + B"):
+            found = analyze_experiment(
+                df, response_column="y", model=model, analysis_type="prediction", new_points=points
+            )
+            predicted = [p["predicted"] for p in found["predictions"]]
+            block_means = df.groupby("Block")["y"].mean()
+            assert predicted == pytest.approx([*block_means[["a", "b", "c"]], df.y.mean()]), model
+
+    def test_prediction_in_a_block_the_runs_do_not_have_is_refused(self) -> None:
+        points = pd.DataFrame({"A": [0.0], "B": [0.0], "C": [0.0], "Block": [3]})
+        with pytest.raises(ValueError, match=r"names the blocks \['3'\], which the runs do not have"):
+            analyze_experiment(
+                self._blocked(),
+                response_column="y",
+                model="main_effects",
+                analysis_type="prediction",
+                new_points=points,
+            )
+
     def test_an_explicit_formula_naming_block_fits_it_as_a_named_model_does(self) -> None:
         df = self._blocked()
         types = ["coefficients", "anova", "effects"]

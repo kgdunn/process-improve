@@ -79,6 +79,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
+from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.multistratum import multistratum_anova
@@ -2538,44 +2539,48 @@ def _tukey(experiment: dict, check: dict) -> float:
 def _nonadditivity(experiment: dict, check: dict) -> float:
     """Return a number of Tukey's one-degree-of-freedom test for nonadditivity of a two-factor layout.
 
-    ``check["model"]`` is the additive model, such as ``temperature + pressure``, fitted with
-    :func:`~process_improve.experiments.analyze_experiment` to one observation per cell. Tukey's
-    test is the test of one more regressor, the square of that model's fitted values, so the model
-    is fitted again with it. ``check["key"]`` is ``"ss"`` (the sum of squares for nonadditivity),
-    ``"f"`` or ``"p"`` (its test), ``"ss_error"``, ``"df_error"`` or ``"ms_error"`` (the residual
-    once it is taken out), or ``"f.<term>"`` and ``"p.<term>"``: a term's mean square in the
-    additive model tested against that smaller error, as a source's table of the test prints it.
+    ``check["model"]`` is the additive model, such as ``temperature + pressure``, tested with the
+    library's :func:`~process_improve.experiments.tukey_nonadditivity`: the test of one more
+    regressor, the square of that model's fitted values, against the residual once it is taken out
+    or, with ``check["error"]`` ``"pure"``, against the error within replicated cells. ``check["key"]``
+    is ``"ss"`` (the sum of squares for nonadditivity), ``"f"`` or ``"p"`` (its test), ``"ss_error"``,
+    ``"df_error"`` or ``"ms_error"`` (its denominator), ``"remainder_ss"`` or ``"remainder_ms"`` (the
+    interaction left once it is taken out), or ``"f.<term>"`` and ``"p.<term>"``: a term's mean square
+    in the additive model tested against that denominator, as a source's table of the test prints it.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
-    y = responses[check.get("response") or responses.columns[0]]
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        additive = analyze_experiment(
-            settings, y, model=check["model"], analysis_type=["anova", "residual_diagnostics"]
-        )
-        squared = np.square(additive["residual_diagnostics"]["fitted_values"])
-        tested = analyze_experiment(
-            settings.assign(nonadditivity=squared),
-            y,
-            model=f"{check['model']} + nonadditivity",
-            analysis_type=["anova"],
-        )
-    row = _anova_row(tested, "nonadditivity")
-    summary = tested["model_summary"]
+    response = check.get("response") or responses.columns[0]
+    table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    found = tukey_nonadditivity(table, f"{response} ~ {check['model']}", error=check.get("error", "remainder"))
     kind, _, term = check["key"].partition(".")
     if term:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            additive = analyze_experiment(settings, table[response], model=check["model"], analysis_type=["anova"])
         term_row = _anova_row(additive, term)
-        ratio = term_row["mean_sq"] / summary["mse_residual"]
-        return ratio if kind == "f" else float(f_distribution.sf(ratio, term_row["df"], summary["df_residual"]))
-    found = {
-        "ss": row["sum_sq"],
-        "f": row["F"],
-        "p": row["p_value"],
-        "ss_error": summary["mse_residual"] * summary["df_residual"],
-        "df_error": summary["df_residual"],
-        "ms_error": summary["mse_residual"],
-    }
-    return float(found[kind])
+        ratio = term_row["mean_sq"] / found["ms_error"]
+        return ratio if kind == "f" else float(f_distribution.sf(ratio, term_row["df"], found["df_error"]))
+    if kind == "remainder_ms":
+        return found["remainder_ss"] / found["remainder_df"]
+    return float(found["p_value" if kind == "p" else kind])
+
+
+def _estimate_missing(experiment: dict, check: dict) -> float:
+    """Return a number of the library's approximate analysis of a table completed with estimates of its missing runs.
+
+    The runs ``check["runs"]`` (all by default), and the cells ``check["missing"]``, each a factor
+    setting with no response, are given to :func:`~process_improve.experiments.estimate_missing` under
+    ``check["model"]``; ``check["decimals"]`` rounds the estimates as a source does before it analyses
+    the completed table. ``check["key"]`` is ``"df"``, ``"sum_sq"``, ``"mean_sq"``, ``"f"`` or
+    ``"p_value"`` of the row ``check["term"]`` (a term of the model, or ``"Residual"``) of that analysis.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    response = check.get("response") or responses.columns[0]
+    observed = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    table = pd.concat([observed, pd.DataFrame(check["missing"])], ignore_index=True)
+    found = estimate_missing(table, f"{response} ~ {check['model']}", decimals=check.get("decimals"))
+    row = next(row for row in found["approximate_anova"] if row["term"] == check["term"])
+    return float(row[check["key"]])
 
 
 def _capability(experiment: dict, check: dict) -> float:
@@ -3271,7 +3276,8 @@ def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
 
     ``check["comparisons"]`` is ``"tukey"`` (the default), ``"dunnett"`` (against ``check["control"]``)
     or ``"none"``; ``check["at"]`` holds other factors at one level and ``check["categorical"]`` names
-    the other numeric columns the model takes as levels.
+    the other numeric columns the model takes as levels. ``check["reference_rule"]`` is how the
+    reference scale is worked out, ``"pairwise"`` (the default) or ``"average_replication"``.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
     response = check.get("response") or responses.columns[0]
@@ -3279,7 +3285,12 @@ def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
     model = check["model"]
     for name in check.get("categorical") or []:  # numeric columns the model takes as levels
         model = re.sub(rf"\b{re.escape(name)}\b", f"C({name})", model)
-    method = Comparisons(check.get("comparisons", "tukey"), check.get("control"), check.get("confidence", 0.95))
+    method = Comparisons(
+        check.get("comparisons", "tukey"),
+        check.get("control"),
+        check.get("confidence", 0.95),
+        check.get("reference_rule", "pairwise"),
+    )
     return least_squares_means(table, f"{response} ~ {model}", check["factor"], method, at=check.get("at"))
 
 
@@ -3289,7 +3300,8 @@ def _least_squares_means(experiment: dict, check: dict) -> float:
     ``check["key"]`` reads ``"by_level.<level>.mean"`` (or ``std_error``, ``ci_low``, ``ci_high``),
     ``"pairs.<level> - <versus>.<field>"``, with ``difference``, ``std_error``, ``t``, ``p_value``,
     ``ci_low``, ``ci_high`` or ``half_width``, or one number: ``"critical_value"``,
-    ``"studentized_range"``, ``"individual_confidence"`` or ``"family_confidence"``.
+    ``"studentized_range"``, ``"individual_confidence"``, ``"family_confidence"`` or
+    ``"reference_scale"``.
     """
     found = _least_squares_result(experiment, check)
     head, _, rest = check["key"].partition(".")
@@ -3328,6 +3340,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "relative_efficiency": _relative_efficiency,
     "term_correlations": _term_correlations,
     "estimate_correlations": _estimate_correlations,
+    "estimate_missing": _estimate_missing,
     "average_power": _average_power,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,

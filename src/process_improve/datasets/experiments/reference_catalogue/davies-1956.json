@@ -3788,7 +3788,7 @@
     "coded": false,
     "notes": "Table 5-2, in the order of preparation; y is the coding of Appendix 5B"
    },
-   "notes": "Chlorsulphonation of acetanilide. Section 5.31 repeats the analysis with batches 1 and 15 taken as missing; their estimates are the least-squares predictions in their own blocks. The library averages a prediction over the blocks when a factor is named Block, so those two checks name the model C(Block, Sum) + C(Blend, Sum).",
+   "notes": "Chlorsulphonation of acetanilide. Section 5.31 repeats the analysis with batches 1 and 15 taken as missing; their estimates are the least-squares predictions in their own blocks, which the library gives for a point that names its Block.",
    "expected": [
     {
      "what": "anova_sum_sq",
@@ -4381,7 +4381,7 @@
      },
      "check": {
       "kind": "prediction",
-      "model": "C(Block, Sum) + C(Blend, Sum)",
+      "model": "Block + Blend",
       "runs": [
        2,
        3,
@@ -4415,7 +4415,7 @@
      },
      "check": {
       "kind": "prediction",
-      "model": "C(Block, Sum) + C(Blend, Sum)",
+      "model": "Block + Blend",
       "runs": [
        2,
        3,
@@ -4501,65 +4501,133 @@
      "what": "anova_sum_sq",
      "term": "Blend",
      "value": "10.94",
-     "analysis": "batches 1 and 15 missing",
+     "analysis": "batches 1 and 15 missing: the approximate analysis of the table completed with their estimates (the library's estimate_missing), and the least-squares analysis of the 13 runs",
      "where": {
       "page": 159,
       "source_kind": "table",
       "quote": "Between blends 4 10·94 2·74"
      },
-     "check": {
-      "kind": "anova_sum_sq",
-      "term": "Blend",
-      "model": "Block + Blend",
-      "runs": [
-       2,
-       3,
-       4,
-       5,
-       6,
-       7,
-       8,
-       9,
-       10,
-       11,
-       12,
-       13,
-       14
-      ],
-      "disagreement": "the book analyses the table completed with the two estimated values (5.31), which overstates the sum of squares for blends; the least-squares sum of squares adjusted for blocks is 10.29"
-     }
+     "check": [
+      {
+       "kind": "estimate_missing",
+       "model": "Block + Blend",
+       "runs": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+       ],
+       "missing": [
+        {
+         "Block": "I",
+         "Blend": "B"
+        },
+        {
+         "Block": "III",
+         "Blend": "A"
+        }
+       ],
+       "term": "Blend",
+       "key": "sum_sq",
+       "disagreement": "the table completed with the two estimates, 17.34 and 17.28, gives 10.92 for blends; the book's 10.94 and 2.28 would need 17.40 and 17.30"
+      },
+      {
+       "kind": "anova_sum_sq",
+       "term": "Blend",
+       "model": "Block + Blend",
+       "runs": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+       ],
+       "disagreement": "the book analyses the table completed with the two estimated values (5.31), which overstates the sum of squares for blends; the least-squares sum of squares adjusted for blocks is 10.29"
+      }
+     ]
     },
     {
      "what": "anova_sum_sq",
      "term": "Block",
      "value": "2.28",
-     "analysis": "batches 1 and 15 missing",
+     "analysis": "batches 1 and 15 missing: the approximate analysis of the table completed with their estimates (the library's estimate_missing), and the least-squares analysis of the 13 runs",
      "where": {
       "page": 159,
       "source_kind": "table",
       "quote": "Between blocks 2 2·28 1·14"
      },
-     "check": {
-      "kind": "anova_sum_sq",
-      "term": "Block",
-      "model": "Block + Blend",
-      "runs": [
-       2,
-       3,
-       4,
-       5,
-       6,
-       7,
-       8,
-       9,
-       10,
-       11,
-       12,
-       13,
-       14
-      ],
-      "disagreement": "from the table completed with the two estimated values, as for blends; the least-squares sum of squares adjusted for blends is 1.66"
-     }
+     "check": [
+      {
+       "kind": "estimate_missing",
+       "model": "Block + Blend",
+       "runs": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+       ],
+       "missing": [
+        {
+         "Block": "I",
+         "Blend": "B"
+        },
+        {
+         "Block": "III",
+         "Blend": "A"
+        }
+       ],
+       "term": "Block",
+       "key": "sum_sq",
+       "disagreement": "the table completed with the two estimates gives 2.33 for blocks, as for blends"
+      },
+      {
+       "kind": "anova_sum_sq",
+       "term": "Block",
+       "model": "Block + Blend",
+       "runs": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+       ],
+       "disagreement": "from the table completed with the two estimated values, as for blends; the least-squares sum of squares adjusted for blends is 1.66"
+      }
+     ]
     }
    ]
   },
@@ -8376,8 +8444,35 @@
       "source_kind": "table",
       "quote": "Between rows 103·07 4 25·77"
      },
+     "analysis": "the approximate method: the library's estimate_missing completes the table with the five estimates, to one decimal as printed, and analyses it as complete, which overstates both effects",
      "check": {
-      "manual": "the approximate method: an ordinary analysis of the table completed with the estimated values, which overstates both effects; the exact sums of squares are checked above"
+      "kind": "estimate_missing",
+      "model": "Row + Column",
+      "missing": [
+       {
+        "Row": "1",
+        "Column": "4"
+       },
+       {
+        "Row": "2",
+        "Column": "2"
+       },
+       {
+        "Row": "2",
+        "Column": "4"
+       },
+       {
+        "Row": "4",
+        "Column": "1"
+       },
+       {
+        "Row": "4",
+        "Column": "4"
+       }
+      ],
+      "decimals": 1,
+      "term": "Row",
+      "key": "sum_sq"
      }
     },
     {
@@ -8389,8 +8484,35 @@
       "source_kind": "table",
       "quote": "Between columns .. 51·17 5 10·23"
      },
+     "analysis": "the approximate method, as for rows",
      "check": {
-      "manual": "the approximate method, as for rows"
+      "kind": "estimate_missing",
+      "model": "Row + Column",
+      "missing": [
+       {
+        "Row": "1",
+        "Column": "4"
+       },
+       {
+        "Row": "2",
+        "Column": "2"
+       },
+       {
+        "Row": "2",
+        "Column": "4"
+       },
+       {
+        "Row": "4",
+        "Column": "1"
+       },
+       {
+        "Row": "4",
+        "Column": "4"
+       }
+      ],
+      "decimals": 1,
+      "term": "Column",
+      "key": "sum_sq"
      }
     }
    ]
