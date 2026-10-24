@@ -79,7 +79,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
-from process_improve.experiments.layouts import tukey_nonadditivity
+from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.multistratum import multistratum_anova
@@ -2565,6 +2565,24 @@ def _nonadditivity(experiment: dict, check: dict) -> float:
     return float(found["p_value" if kind == "p" else kind])
 
 
+def _estimate_missing(experiment: dict, check: dict) -> float:
+    """Return a number of the library's approximate analysis of a table completed with estimates of its missing runs.
+
+    The runs ``check["runs"]`` (all by default), and the cells ``check["missing"]``, each a factor
+    setting with no response, are given to :func:`~process_improve.experiments.estimate_missing` under
+    ``check["model"]``; ``check["decimals"]`` rounds the estimates as a source does before it analyses
+    the completed table. ``check["key"]`` is ``"df"``, ``"sum_sq"``, ``"mean_sq"``, ``"f"`` or
+    ``"p_value"`` of the row ``check["term"]`` (a term of the model, or ``"Residual"``) of that analysis.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    response = check.get("response") or responses.columns[0]
+    observed = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    table = pd.concat([observed, pd.DataFrame(check["missing"])], ignore_index=True)
+    found = estimate_missing(table, f"{response} ~ {check['model']}", decimals=check.get("decimals"))
+    row = next(row for row in found["approximate_anova"] if row["term"] == check["term"])
+    return float(row[check["key"]])
+
+
 def _capability(experiment: dict, check: dict) -> float:
     """Return the library's Cpk of a response: the nearer specification's distance from the mean, over 3 sigma.
 
@@ -3322,6 +3340,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "relative_efficiency": _relative_efficiency,
     "term_correlations": _term_correlations,
     "estimate_correlations": _estimate_correlations,
+    "estimate_missing": _estimate_missing,
     "average_power": _average_power,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
