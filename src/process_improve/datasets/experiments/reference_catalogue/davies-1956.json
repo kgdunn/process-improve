@@ -16573,13 +16573,92 @@
      "what": "anova_sum_sq",
      "term": "unconfounded three-factor interactions",
      "value": "10796",
+     "analysis": "X(CVN) and Z(CVN) of the 54 runs, W(CVN) of the second replicate's and Y(CVN) of the first's, added; the book adds the four as it prints them, X and Z each the difference of two numbers it rounds",
      "where": {
       "page": 435,
       "source_kind": "table",
       "quote": "Unconfounded three-factor interactions (X) 6,191 (Z) 1,002 (W) 2,939 (Y) 664 10,796 8 1,350"
      },
      "check": {
-      "manual": "the sum of the X, Z, W and Y components, each checked: arithmetic"
+      "kind": "component_ss",
+      "factors": [
+       "C",
+       "V",
+       "N"
+      ],
+      "parts": [
+       {
+        "word": "AB²C"
+       },
+       {
+        "word": "ABC"
+       },
+       {
+        "word": "AB²C²",
+        "runs": [
+         2,
+         4,
+         6,
+         8,
+         10,
+         12,
+         14,
+         16,
+         18,
+         20,
+         22,
+         24,
+         26,
+         28,
+         30,
+         32,
+         34,
+         36,
+         38,
+         40,
+         42,
+         44,
+         46,
+         48,
+         50,
+         52,
+         54
+        ]
+       },
+       {
+        "word": "ABC²",
+        "runs": [
+         1,
+         3,
+         5,
+         7,
+         9,
+         11,
+         13,
+         15,
+         17,
+         19,
+         21,
+         23,
+         25,
+         27,
+         29,
+         31,
+         33,
+         35,
+         37,
+         39,
+         41,
+         43,
+         45,
+         47,
+         49,
+         51,
+         53
+        ]
+       }
+      ],
+      "of_rounded": 6
      }
     },
     {

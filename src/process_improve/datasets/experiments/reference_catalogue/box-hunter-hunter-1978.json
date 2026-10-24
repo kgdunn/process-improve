@@ -30043,39 +30043,45 @@
      "what": "contrast",
      "term": "mean",
      "value": "514",
+     "analysis": "the total of the runs, the first entry of column (3) of Yates's algorithm",
      "where": {
       "page": 322,
       "source_kind": "table",
       "quote": "(+60 + 72 + 54 + 68 + 52 + 83 + 45 + 80)/8 = 514/8 = 64.25"
      },
      "check": {
-      "manual": "the sum on the way to the average, which is checked"
+      "kind": "yates",
+      "key": "(3).0"
      }
     },
     {
      "what": "contrast",
      "term": "T",
      "value": "92",
+     "analysis": "the contrast total of T, its entry of column (3) of Yates's algorithm",
      "where": {
       "page": 323,
       "source_kind": "table",
       "quote": "(-60 + 72 - 54 + 68 - 52 + 83 - 45 + 80)/4 = 92/4 = 23.0"
      },
      "check": {
-      "manual": "a contrast total on the way to the effect, which is checked"
+      "kind": "yates",
+      "key": "(3).1"
      }
     },
     {
      "what": "contrast",
      "term": "T·K",
      "value": "40",
+     "analysis": "the contrast total of T·K, its entry of column (3) of Yates's algorithm",
      "where": {
       "page": 323,
       "source_kind": "table",
       "quote": "(+60 - 72 + 54 - 68 - 52 + 83 - 45 + 80)/4 = 40/4 = 10.0"
      },
      "check": {
-      "manual": "a contrast total on the way to the effect, which is checked"
+      "kind": "yates",
+      "key": "(3).5"
      }
     },
     {
@@ -30088,7 +30094,18 @@
       "quote": "Table 10.5 ... (1) 132 122 135 125 12 14 31 35"
      },
      "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+      "kind": "yates",
+      "key": "(1)",
+      "printed": [
+       "132",
+       "122",
+       "135",
+       "125",
+       "12",
+       "14",
+       "31",
+       "35"
+      ]
      }
     },
     {
@@ -30101,7 +30118,18 @@
       "quote": "Table 10.5 ... (2) 254 260 26 66 -10 -10 2 4"
      },
      "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+      "kind": "yates",
+      "key": "(2)",
+      "printed": [
+       "254",
+       "260",
+       "26",
+       "66",
+       "-10",
+       "-10",
+       "2",
+       "4"
+      ]
      }
     },
     {
@@ -30114,7 +30142,18 @@
       "quote": "Table 10.5 ... (3) 514 92 -20 6 6 40 0 2"
      },
      "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+      "kind": "yates",
+      "key": "(3)",
+      "printed": [
+       "514",
+       "92",
+       "-20",
+       "6",
+       "6",
+       "40",
+       "0",
+       "2"
+      ]
      }
     },
     {
@@ -30245,21 +30284,52 @@
       "quote": "Table 10A.1 ... estimates 64.25 23.0 -5.0 1.5 1.5 10.0 0.0 0.5"
      },
      "check": {
-      "manual": "the estimates of Table 10.5 again, which are checked there"
+      "kind": "yates",
+      "key": "estimate",
+      "printed": [
+       "64.25",
+       "23.0",
+       "-5.0",
+       "1.5",
+       "1.5",
+       "10.0",
+       "0.0",
+       "0.5"
+      ]
      }
     },
     {
      "what": "yates",
      "term": "sums of squares",
      "value": "34,342 68,684 137,368 274,736",
+     "analysis": "the checks on Yates's columns: the crude sum of squares of the averages, then of each column, each twice the one before",
      "where": {
       "page": 342,
       "source_kind": "table",
       "quote": "sum of squares check 34,342 68,684 137,368 274,736"
      },
-     "check": {
-      "manual": "the checks on Yates's columns, the crude sum of squares of the averages times 1, 2, 4 and 8"
-     }
+     "check": [
+      {
+       "kind": "yates",
+       "key": "sum_of_squares.y",
+       "printed": "34,342"
+      },
+      {
+       "kind": "yates",
+       "key": "sum_of_squares.(1)",
+       "printed": "68,684"
+      },
+      {
+       "kind": "yates",
+       "key": "sum_of_squares.(2)",
+       "printed": "137,368"
+      },
+      {
+       "kind": "yates",
+       "key": "sum_of_squares.(3)",
+       "printed": "274,736"
+      }
+     ]
     },
     {
      "what": "yates",
@@ -30270,9 +30340,17 @@
       "source_kind": "table",
       "quote": "the sum of the entries in column (2) is 592 ... 122 + 125 + 14 + 35 = 296"
      },
-     "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
-     }
+     "check": [
+      {
+       "kind": "yates",
+       "key": "(2).sum",
+       "printed": "592"
+      },
+      {
+       "manual": "the sum of the second, fourth, sixth and eighth entries of column (1), which is checked, and half the 592 checked beside it: arithmetic",
+       "printed": "296"
+      }
+     ]
     },
     {
      "what": "fitted",
@@ -30541,27 +30619,74 @@
      "what": "ss",
      "term": "fitted, crude",
      "value": "34,332.5",
+     "analysis": "the crude sum of squares of the fitted values, Σŷ², of the reverse Yates fit",
      "where": {
       "page": 343,
       "source_kind": "table",
       "quote": "sum of squares ... 34,332.5"
      },
      "check": {
-      "manual": "the crude sum of squares of the fitted values, Σŷ², which no check computes (34,342 - 9.5 reproduces)"
+      "kind": "yates",
+      "keep": [
+       "T",
+       "C",
+       "T:K"
+      ],
+      "key": "sum_of_squares.fitted"
      }
     },
     {
      "what": "yates",
      "term": "reverse columns",
      "value": "274,660 549,320 1,098,640 2,197,280",
+     "analysis": "the checks on the reverse Yates algorithm: the sum of squares of the contrasts kept, then of each column, each twice the one before",
      "where": {
       "page": 343,
       "source_kind": "table",
       "quote": "sum of squares 274,660 549,320 1,098,640 2,197,280"
      },
-     "check": {
-      "manual": "the checks on the columns of the reverse Yates algorithm"
-     }
+     "check": [
+      {
+       "kind": "yates",
+       "keep": [
+        "T",
+        "C",
+        "T:K"
+       ],
+       "key": "sum_of_squares.kept",
+       "printed": "274,660"
+      },
+      {
+       "kind": "yates",
+       "keep": [
+        "T",
+        "C",
+        "T:K"
+       ],
+       "key": "sum_of_squares.(1)",
+       "printed": "549,320"
+      },
+      {
+       "kind": "yates",
+       "keep": [
+        "T",
+        "C",
+        "T:K"
+       ],
+       "key": "sum_of_squares.(2)",
+       "printed": "1,098,640"
+      },
+      {
+       "kind": "yates",
+       "keep": [
+        "T",
+        "C",
+        "T:K"
+       ],
+       "key": "sum_of_squares.(3)",
+       "printed": "2,197,280"
+      }
+     ]
     }
    ]
   },
