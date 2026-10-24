@@ -616,6 +616,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _workbook(_stored(analysis_model="y ~ __import__('os').getcwd()")),
         "Model must be one of main_effects, interactions, quadratic.",
     ),
+    "kept settings that are not settings": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "what_if": [{"name": "Hot", "settings": {"T": [200]}}]},
+        "The page sent kept settings this page did not write.",
+    ),
+    "a workbook keeping two settings under one name": (  # edited by hand: its kept settings are checked as data
+        "api_read_workbook",
+        _workbook(_stored(what_if=[{"name": "Hot", "settings": {"T": 200}}, {"name": "Hot", "settings": {"T": 150}}])),
+        "The page sent kept settings this page did not write.",
+    ),
     "no term the design can estimate": (
         "api_analyze_runs",
         _runs(model={"terms": [["T", "P", "F"]]}),  # zero in every run of a Box-Behnken design

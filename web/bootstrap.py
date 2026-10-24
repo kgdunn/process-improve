@@ -3492,7 +3492,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
             _mixture_model(one)
         else:
             _checked_model(one, names, labelled)
-    dropped = ("response_info", "responses", "aim", "constraints")
+    dropped = ("response_info", "responses", "aim", "constraints", "what_if")  # read_workbook checks what_if itself
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     return {
@@ -3896,7 +3896,8 @@ def read_workbook(request: dict) -> dict:
 
     The first response's results and their sources are ``responses`` and ``sources``, as for a study of
     one response; with several, ``more_responses`` and ``more_sources`` hold each later one's, by its column.
-    A run the workbook marks as simulated has every result it holds marked so.
+    A run the workbook marks as simulated has every result it holds marked so. ``what_if`` holds the settings
+    the reader kept from the what-if panel, when the workbook keeps any (see :func:`_kept_settings`).
     """
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     spec = _checked_spec(stored)
@@ -3928,7 +3929,52 @@ def read_workbook(request: dict) -> dict:
     if len(names) > 1:
         reply["more_responses"] = {name: results[name][0] for name in names[1:]}
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
+    if stored.get("what_if"):
+        reply["what_if"] = _kept_settings(stored["what_if"])
     return reply
+
+
+#: The most settings a study keeps from the what-if panel, and the most characters of the name each is kept under:
+#: as ``SCENARIOS_HELD`` in web/campaign.js holds them (tests/web/page/test_parity.py keeps the two in step).
+SCENARIOS_HELD = {"count": 20, "name": 80}
+
+
+def _kept_settings(value: object) -> list[dict[str, Any]]:
+    """Check the settings the reader kept from the what-if panel, each under a name, as ``checkCampaign`` checks them.
+
+    Only their shape is checked: a name of one line, each name once, and each setting a number or a
+    level, by its factor's name. Whether they still fit the factors is judged where the page lists
+    them, so a workbook edited since still opens; what they predict is worked out from its results.
+    """
+    if (
+        not isinstance(value, list)
+        or len(value) > SCENARIOS_HELD["count"]
+        or not all(map(_kept_one, value))
+        or len({one["name"] for one in value}) < len(value)  # each name once
+    ):
+        raise ValueError("The page sent kept settings this page did not write.")
+    return [{"name": one["name"], "settings": dict(one["settings"])} for one in value]
+
+
+def _kept_one(one: object) -> bool:
+    """Say whether one kept setting is a name of one line and a number or a level for each factor it names."""
+    if not isinstance(one, dict) or not isinstance(one.get("name"), str) or not isinstance(one.get("settings"), dict):
+        return False
+    name, settings = one["name"], one["settings"]
+    return (
+        bool(name.strip())
+        and len(name) <= SCENARIOS_HELD["name"]
+        and not any(unicodedata.category(ch) == "Cc" for ch in name)
+        and len(settings) <= MAX_FACTORS
+        and all(isinstance(k, str) and len(k) <= LABEL_MOST and _kept_value(v) for k, v in settings.items())
+    )
+
+
+def _kept_value(value: object) -> bool:
+    """Say whether a kept setting is a finite number or a level's label."""
+    if isinstance(value, str):
+        return len(value) <= LABEL_MOST
+    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _marks_column(runs: pd.DataFrame, spec: dict) -> str | None:
@@ -3947,7 +3993,8 @@ def workbook(request: dict) -> dict:
     holds each later response's, by its column, kept as ``analysis_models``.
 
     A run is marked simulated when every result it holds is: ``sources`` holds the first
-    response's sources, and ``more_sources`` each later response's, by its column.
+    response's sources, and ``more_sources`` each later response's, by its column. The settings the
+    reader kept from the what-if panel, ``what_if``, are kept in the stored specification too.
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
@@ -3972,6 +4019,8 @@ def workbook(request: dict) -> dict:
     simulated = request.get("simulated")
     if simulated:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
+    if request.get("what_if"):
+        spec = {**spec, "what_if": _kept_settings(request["what_if"])}
     return {"xlsx_base64": _to_workbook(runs, spec)}
 
 

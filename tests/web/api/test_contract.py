@@ -223,6 +223,10 @@ READS: dict[str, list[str]] = {
         "more{}.sigma: number",
         "more{}.seed: int",
     ],
+    "upload with kept settings": [
+        "what_if[].name: str",
+        "what_if[].settings: dict",
+    ],
     "upload of several responses": [
         "spec.responses[].name: str",
         "spec.analysis_models: dict",
@@ -711,6 +715,7 @@ ENTRY_POINTS = {
     "design of several responses": "api_make_design",
     "simulation of several responses": "api_simulate",
     "upload of several responses": "api_read_workbook",
+    "upload with kept settings": "api_read_workbook",
     "relabel of several responses": "api_relabel",
     "balance": "api_balance",
     "balance confirmed": "api_balance",
@@ -913,6 +918,10 @@ def levels(api) -> dict:
     return {**held, "responses": [float(i % 4) for i in range(len(held["rows"]))]}
 
 
+#: Settings the reader kept from the what-if panel, as a workbook keeps them.
+KEPT = [{"name": "Hot", "settings": {"T": 190, "P": 2.5, "F": 12}}]
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -994,6 +1003,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,
+        "upload with kept settings": lambda: api.ok("api_workbook", {**analysed, "what_if": KEPT}),
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
         "candidates with designs left out": lambda: {"factors": FACTORS[:2], "model": "main_effects"},
         "slow candidates": slow,

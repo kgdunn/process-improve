@@ -228,3 +228,56 @@ def test_a_design_s_limits_go_through_the_workbook(api):
         {"expression": "T + 25 * P <= 250", "type": "linear", "note": "the product chars"}
     ]
     assert read["spec"] == design["spec"]
+
+
+#: Two sets of settings the reader kept from the what-if panel, as the page sends them.
+KEPT = [
+    {"name": "Cooler, more pressure", "settings": {"T": 165, "P": 2.5, "F": 12}},
+    {"name": "Hot", "settings": {"T": 200, "P": 1.5, "F": 10.5}},
+]
+
+
+def test_the_settings_kept_from_the_what_if_panel_go_through_the_workbook(api, held, simulated):
+    book = api.ok("api_workbook", {**held, "responses": simulated["responses"], "what_if": KEPT})
+    stored = json.loads(sheets_of(book["xlsx_base64"])["_pi_design"]["spec"].iloc[0])
+    assert stored["what_if"] == KEPT, "beside the design, with no prediction: those come from the results"
+    back = api.ok("api_read_workbook", book)
+    assert back["what_if"] == KEPT
+    assert "what_if" not in back["spec"], "the page keeps them with the study, not with its design"
+    assert back["responses"] == simulated["responses"]
+
+
+def test_a_workbook_without_kept_settings_reads_back_without_them(api, held, simulated):
+    for none in ({}, {"what_if": []}, {"what_if": None}):
+        book = api.ok("api_workbook", {**held, "responses": simulated["responses"], **none})
+        assert "what_if" not in json.loads(sheets_of(book["xlsx_base64"])["_pi_design"]["spec"].iloc[0])
+        assert "what_if" not in api.ok("api_read_workbook", book)
+
+
+def test_kept_settings_edited_in_a_workbook_are_checked_for_their_shape_only(api, design):
+    """A setting the factors do not have reads back, for the page to judge where it lists the settings."""
+    odd = [{"name": "Edited", "settings": {"T": 900, "Catalyst": "Z"}}]
+
+    def keep(sheets: dict) -> None:
+        sheets["_pi_design"]["spec"] = [json.dumps({**design["spec"], "what_if": odd})]
+
+    assert api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(design["xlsx_base64"], keep)})["what_if"] == odd
+
+
+@pytest.mark.parametrize(
+    "kept",
+    [
+        {"name": "Hot", "settings": {"T": 200}},
+        [{"name": "Two\nlines", "settings": {"T": 200}}],
+        [{"name": " ", "settings": {"T": 200}}],
+        [{"name": "x" * 81, "settings": {"T": 200}}],
+        [{"name": "Hot", "settings": {"T": True}}],
+        [{"name": "Hot", "settings": {"T": float("nan")}}],
+        [{"name": "Hot", "settings": [200]}],
+        [{"name": f"Settings {i}", "settings": {"T": 200}} for i in range(21)],
+    ],
+)
+def test_kept_settings_the_page_did_not_write_are_refused(api, held, kept):
+    assert (
+        api.error("api_workbook", {**held, "what_if": kept}) == "The page sent kept settings this page did not write."
+    )
