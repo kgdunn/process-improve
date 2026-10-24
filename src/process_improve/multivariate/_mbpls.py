@@ -211,9 +211,9 @@ def _block_projections(
     if context.algo == "nipals":
         u_a_col = u_a.reshape(-1, 1)
         for b_idx, name in enumerate(context.block_names):
-            w_b = quick_regress(x_def[name], u_a_col).flatten()
+            w_b = quick_regress(x_def[name], u_a_col, per="column").flatten()
             w_b = w_b / _nz(float(np.sqrt(ssq(w_b.reshape(-1, 1)))))
-            t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / context.sqrt_kb[name]
+            t_b = quick_regress(x_def[name], w_b.reshape(-1, 1), per="row").flatten() / context.sqrt_kb[name]
             local_w[name] = w_b
             local_t[name] = t_b
             t_b_summary[:, b_idx] = np.where(context.block_has_data[name], t_b, np.nan)
@@ -236,7 +236,7 @@ def _block_loadings(
     loadings: dict[str, np.ndarray] = {}
     for name in context.block_names:
         if context.algo == "nipals":
-            loadings[name] = quick_regress(x_def[name], t_super_col).flatten()
+            loadings[name] = quick_regress(x_def[name], t_super_col, per="column").flatten()
         else:
             loadings[name] = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
     return loadings
@@ -277,7 +277,7 @@ def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
     component = _fit_one_component(x_def, target, target.shape[1], context)
     t_super = component.super_score
     if context.algo == "nipals":
-        c_a = quick_regress(y_def, t_super.reshape(-1, 1)).flatten()
+        c_a = quick_regress(y_def, t_super.reshape(-1, 1), per="column").flatten()
     else:
         c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
     return component._replace(super_y_loading=c_a, super_y_score=np.zeros_like(t_super))
@@ -312,7 +312,7 @@ def _fit_one_component(
 
         if context.algo == "nipals":
             # Masked, so a block this row has nothing in does not vote on the super weight.
-            w_s = quick_regress(t_b_summary, u_a.reshape(-1, 1)).flatten()
+            w_s = quick_regress(t_b_summary, u_a.reshape(-1, 1), per="column").flatten()
         else:
             w_s = t_b_summary.T @ u_a / _nz(float(u_a @ u_a))
         w_s = w_s / _nz(float(np.linalg.norm(w_s)))
@@ -331,8 +331,8 @@ def _fit_one_component(
         t_super = np.nan_to_num(t_super)
         if context.algo == "nipals":
             t_super_col = t_super.reshape(-1, 1)
-            c_a = quick_regress(y_def, t_super_col).flatten()
-            u_a = quick_regress(y_def, c_a.reshape(-1, 1)).flatten()
+            c_a = quick_regress(y_def, t_super_col, per="column").flatten()
+            u_a = quick_regress(y_def, c_a.reshape(-1, 1), per="row").flatten()
         else:
             c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
             u_a = y_def @ c_a / _nz(float(c_a @ c_a))
@@ -1527,7 +1527,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             for name in self.block_names_:
                 w_b = self.block_weights_[name].values[:, a]
                 weights[name] = w_b
-                t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
+                t_b = quick_regress(x_def[name], w_b.reshape(-1, 1), per="row").flatten() / sqrt_kb[name]
                 block_scores[name][:, a] = np.where(block_has_data[name], t_b, np.nan)
             w_s = self.super_weights_.values[:, a]
             # The same pooled regression the fit uses, so a projected score matches a fitted one.
