@@ -58,6 +58,8 @@ import {
   WHAT_IF_BACK,
   columnsAt,
   predictAt,
+  putBack,
+  rangeWords,
   settingsFit,
   sliderStep,
   whatIfRows,
@@ -735,6 +737,33 @@ describe("what if", () => {
     assert.deepEqual(at.prediction, [15 - single, 15 + single]);
     assert.equal(at.extrapolating, true, "0.75 is above the runs' 0.5");
     assert.equal(predictAt(FIT, { T: 0 }).extrapolating, false, "the center's 0.25 is within");
+  });
+
+  test("a fit on the log scale predicts the median, its intervals put back end by end", () => {
+    const at = predictAt({ ...FIT, transform: "log" }, { T: 1 });
+    const onScale = predictAt(FIT, { T: 1 });
+    assert.equal(at.predicted, Math.exp(15));
+    assert.deepEqual(at.confidence, onScale.confidence.map(Math.exp));
+    assert.equal(at.leverage, onScale.leverage, "the leverage is the design's, on any scale");
+  });
+
+  test("a number on a transform's scale is put back as bootstrap._put_back puts it", () => {
+    assert.ok(Math.abs(putBack(Math.log(20), "log") - 20) < 1e-12);
+    assert.equal(putBack(3, "sqrt"), 9);
+    assert.equal(putBack(-1, "sqrt"), 0, "a square root below 0 is a result of 0");
+    assert.equal(putBack(-0.25, "inverse"), 4, "-1/y = -0.25 is y = 4");
+    assert.equal(putBack(0, "inverse"), null, "-1/y at 0 is a result without bound");
+    assert.equal(putBack(800, "log"), null, "a log too large to put back");
+    assert.deepEqual(putBack([-0.5, 0.1], "inverse"), [2, null]);
+    assert.equal(putBack(5, null), 5);
+    assert.equal(putBack(null, "log"), null);
+  });
+
+  test("an interval with no bound on one side says so", () => {
+    assert.equal(rangeWords([61.2, 68.4], "%"), "61.2 to 68.4%");
+    assert.equal(rangeWords([61.2, 68.4], "%", "and"), "61.2 and 68.4%");
+    assert.equal(rangeWords([2, null], "s"), "2 s or more");
+    assert.equal(rangeWords([null, 7], "s"), "up to 7 s");
   });
 
   test("a fit with no runs left over predicts with no interval", () => {

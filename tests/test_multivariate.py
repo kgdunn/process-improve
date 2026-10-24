@@ -29,7 +29,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
 from process_improve.multivariate._common import _nz
-from process_improve.multivariate._pca import _leverage_corrected_press, _pca_ekf_press
+from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
@@ -340,6 +340,14 @@ def test_ssq(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> None:
     """Test the sum-of-squares calculation."""
     x, _ = fixture_mv_utilities
     assert pytest.approx(ssq(x), abs=1e-9) == (1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6)
+
+
+def test_ssq_per_row_and_column_skips_missing_cells() -> None:
+    """Per-column and per-row sums skip NaN; an all-missing row or column sums to 0."""
+    X = np.array([[1.0, np.nan, 2.0], [3.0, np.nan, np.nan]])
+    np.testing.assert_array_equal(ssq(X, axis=0), [10.0, 0.0, 4.0])
+    np.testing.assert_array_equal(ssq(X, axis=1), [5.0, 9.0])
+    assert ssq(X) == 14.0
 
 
 def test_ssq_refuses_an_axis_a_matrix_does_not_have() -> None:
@@ -950,6 +958,17 @@ def test_pca_select_n_components_ekf_recovers_known_rank() -> None:
     # PRESS rises again past the true rank when extra components fit noise.
     a_star = int(np.argmin(result.press.to_numpy())) + 1
     assert a_star <= true_rank + 1
+
+
+@pytest.mark.parametrize("shape", [(12, 30), (30, 12), (9, 9), (1, 5), (5, 1)])
+@pytest.mark.parametrize("rank", [1, 3, 50])
+def test_low_rank_reconstruction_matches_the_truncated_svd(shape: tuple[int, int], rank: int) -> None:
+    """The Gram-matrix projector gives the truncated SVD's reconstruction, wide or tall, rank capped at full."""
+    X = np.random.default_rng(4).standard_normal(shape)
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    r = min(rank, *shape)
+    expected = (U[:, :r] * S[:r]) @ Vt[:r]
+    np.testing.assert_allclose(_low_rank_reconstruction(X, rank), expected, atol=1e-10)
 
 
 def test_pca_select_n_components_ekf_handles_missing_cells() -> None:

@@ -616,6 +616,58 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _workbook(_stored(analysis_model="y ~ __import__('os').getcwd()")),
         "Model must be one of main_effects, interactions, quadratic.",
     ),
+    "a transform the page does not offer": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_runs()(ex),
+            "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "box_cox"}},
+        },
+        "A response is analysed as it is, or as its log, square root or inverse.",
+    ),
+    "a workbook analysed with a transform it does not offer": (  # a workbook keeps its transforms, checked as data
+        "api_read_workbook",
+        _workbook(_stored(analysis_transforms={"y": "__import__('os')"})),
+        "A response is analysed as it is, or as its log, square root or inverse.",
+    ),
+    "a result at or below 0 for its log": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_runs(responses=[-1.0] * len(ex["held"]["rows"]))(ex),
+            "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "log"}},
+        },
+        (
+            "The log of Yield needs every result above 0, and run 1 has -1. "
+            "Analyse it as it is, or with another transform."
+        ),
+    ),
+    "an acceptable range below 0 for a logged response": (
+        "api_balance",
+        lambda ex: {
+            **_balanced(goals={"Cost": {"low": 0, "high": 30}})(ex),
+            "spec": {**_balanced()(ex)["spec"], "analysis_transforms": {"Cost": "log"}},
+        },
+        "The log of Cost needs an acceptable range above 0.",
+    ),
+    "a target at 0 for its log": (
+        "api_best_settings",
+        lambda ex: {
+            **_runs()(ex),
+            "spec": {
+                **ex["held"]["spec"],
+                "response_info": {**ex["held"]["spec"].get("response_info", {}), "goal": "target", "target": 0},
+                "analysis_transforms": {ex["held"]["spec"]["response"]: "log"},
+            },
+        },
+        "The log of Yield needs a target above 0.",
+    ),
+    "a mixture's response transformed": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_mixed()(ex),
+            "spec": {**ex["mixture"]["spec"], "analysis_transforms": {ex["mixture"]["spec"]["response"]: "log"}},
+        },
+        "A mixture's responses are analysed as they are on this page.",
+    ),
     "no term the design can estimate": (
         "api_analyze_runs",
         _runs(model={"terms": [["T", "P", "F"]]}),  # zero in every run of a Box-Behnken design

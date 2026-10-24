@@ -142,6 +142,7 @@ import {
   describeResponse,
   escape,
   factorType,
+  boxCoxSentence,
   fitStatistics,
   fittedFormula,
   fmt,
@@ -3109,6 +3110,7 @@ function renderAnalysis(reply) {
   renderBadges();
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
+    showBoxCox(null);
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
@@ -3123,10 +3125,15 @@ function renderAnalysis(reply) {
   // The terms fitted, which the design can estimate, from the runs that have a result.
   showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
+  $("#transform-choice").hidden = mixture; // a mixture's responses are analysed as measured
+  $("#transform").value = r.transform ?? "";
+  showBoxCox(boxCoxSentence(r.box_cox, responseWords(shownSpec()).label));
+  const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
+  const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}.` : "In coded units.";
   const parts = [
     ...comparisonParts(r),
     el("p", "equation", r.equation),
-    said("hint", mixture ? "In proportions: each component's share of the blend." : "In coded units."),
+    said("hint", mixture ? "In proportions: each component's share of the blend." : scale),
     ...noteList(fitLines(r), "fit"),
     ...noteList(r.notes),
     ...warningList(reply.warnings),
@@ -3138,6 +3145,7 @@ function renderAnalysis(reply) {
         "Std. error",
         "95% interval",
         "p-value",
+        ...(ratio ? ["Low to high"] : []),
         ...(vif ? ["VIF"] : []),
         ...(simulated ? ["True value"] : []),
       ],
@@ -3147,6 +3155,7 @@ function renderAnalysis(reply) {
         fmt(c.std_error),
         c.std_error === null ? "" : `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`,
         pval(c.p_value),
+        ...(ratio ? [c.ratio === undefined || c.ratio === null ? "" : `×${fmt(c.ratio)}`] : []),
         ...(vif ? [fmt(c.vif)] : []),
         ...(simulated ? [fmt(c.true_value)] : []),
       ]),
@@ -3522,6 +3531,28 @@ function pickResponse(name) {
   if (name === state.shown || !resultNames().includes(name)) return;
   showAnalysisOf(name);
   scheduleSave();
+}
+
+/**
+ * Analyse a response as measured ("") or on a transform's scale (a key of bootstrap.TRANSFORMS). The specification
+ * keeps the choice, as ``analysis_transforms``, so every reply, saved study and workbook has it.
+ */
+function setTransform(name, transform) {
+  const { analysis_transforms: kept = {}, ...spec } = state.design.spec;
+  const { [name]: _, ...others } = kept;
+  const chosen = transform ? { ...others, [name]: transform } : others;
+  state.design.spec = Object.keys(chosen).length ? { ...spec, analysis_transforms: chosen } : spec;
+}
+
+/** Say what Box-Cox makes of the response, with a button that fits what it points to; hidden when it says nothing. */
+function showBoxCox(hint) {
+  $("#box-cox").hidden = !hint;
+  if (!hint) return;
+  $("#box-cox-words").textContent = hint.words;
+  const apply = $("#box-cox-apply");
+  apply.hidden = hint.apply === null;
+  apply.textContent = hint.button;
+  apply.dataset.transform = hint.apply ?? "";
 }
 
 /** Put a response's analysis in Learn, with its own model, keeping the model of the one it showed; resolves once it is there. */
@@ -5663,6 +5694,16 @@ $("#model").onchange = () => {
   if (state.shown) state.models[state.shown] = modelChoice(); // the model of the response Learn shows
   analyseRuns();
   scheduleSave();
+};
+$("#transform").onchange = () => {
+  if (!state.design) return;
+  setTransform(state.shown ?? state.design.spec.response, $("#transform").value);
+  analyseRuns();
+  scheduleSave();
+};
+$("#box-cox-apply").onclick = () => {
+  $("#transform").value = $("#box-cox-apply").dataset.transform;
+  $("#transform").onchange();
 };
 $("#term-list").onchange = () => {
   if (state.shown) state.models[state.shown] = modelChoice();
