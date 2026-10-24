@@ -693,6 +693,13 @@ READS: dict[str, list[str]] = {
         "factors[].levels[]: str",
         "factors[].columns[].{}: number",
     ],
+    "analysis of one factor's levels": [
+        "comparison.several.test.p_value: number",
+        "comparison.several.checks[].test: str",
+        "comparison.several.checks[].statistic: number",
+        "comparison.several.checks[].df: int",
+        "comparison.several.checks[].p_value: number",
+    ],
     "transformed predictors": ["responses[].transform: str"],
     "nothing to predict yet": ["responses[].waiting: bool"],
     "predictors refused": ["responses[].error: str"],
@@ -739,6 +746,7 @@ ENTRY_POINTS = {
     "predictors": "api_predictors",
     "transformed predictors": "api_predictors",
     "predictors of levels": "api_predictors",
+    "analysis of one factor's levels": "api_analyze_runs",
     "nothing to predict yet": "api_predictors",
     "predictors refused": "api_predictors",
     "mixture predictors": "api_predictors",
@@ -919,6 +927,14 @@ def levels(api) -> dict:
     return {**held, "responses": [float(i % 4) for i in range(len(held["rows"]))]}
 
 
+def one_factor_levels(api) -> dict:
+    """Return a full factorial in one catalyst of three levels, three runs at each, every result different."""
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [catalyst], "n_replicates": 3, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    return {**held, "responses": [float(i) for i in range(len(held["rows"]))]}
+
+
 def logged(analysed: dict) -> dict:
     """Analyse the worked example's yield on the log scale, its main effects only, so Box-Cox has a fit to judge."""
     spec = {**analysed["spec"], "analysis_transforms": {analysed["spec"]["response"]: "log"}}
@@ -1043,6 +1059,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "predictors": several_responses(api)["balance"],
         "transformed predictors": lambda: logged(analysed),
         "predictors of levels": lambda: levels(api),
+        "analysis of one factor's levels": lambda: one_factor_levels(api),
         "nothing to predict yet": lambda: {**held, "responses": [None] * len(held["rows"])},
         "predictors refused": lambda: {**levels(api), "models": {"y": {"terms": [["Catalyst", "S"]]}}},
         "mixture predictors": lambda: blend(3),

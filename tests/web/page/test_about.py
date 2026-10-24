@@ -9,6 +9,7 @@ loads (``runtime.json`` and ``wheels/manifest.json``), so none is written into t
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 
@@ -34,6 +35,16 @@ def test_every_link_into_the_repository_names_a_path_that_exists():
     assert len(paths) >= 5, "the links to the code a reader would audit"
     for path in paths:
         assert (ROOT / path).exists(), path
+
+
+def test_each_function_it_says_python_answers_with_is_one_bootstrap_calls():
+    """The worker's functions, a study of one factor's tests among them, are each imported by ``web/bootstrap.py``."""
+    bullet = re.search(r"<li><strong>A Web Worker runs Python\.</strong>(.+?)</li>", about())[1]
+    named = set(re.findall(r"<code>(\w+)</code>", bullet))
+    assert {"analyze_experiment", "bartlett_test", "kruskal_wallis_test"} <= named
+    tree = ast.parse(source("bootstrap.py"))
+    imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
+    assert named <= imported, named - imported
 
 
 def test_what_it_says_the_server_keeps_is_what_the_server_is_configured_to_keep():
