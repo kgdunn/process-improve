@@ -213,10 +213,14 @@ class TPLS(RegressorMixin, BaseEstimator):
     - Z → Z: ``z_mats`` - Process conditions
     - Y → Y: ``y_mats`` - Quality indicators
 
-    Notes
+    Notes on the blocks:
+
     1. Matrices in F, Z and Y must all have the same number of rows.
     2. Columns in F must be the same as the **rows** in D.
     3. Conditions in Z may be missing (turning it into an L-shaped data structure).
+    4. A blend with nothing observed in F, Z or Y, or a material with nothing observed in D, is fitted
+       with a zero score or loading in that block and no weight in that block's regressions, as PCA
+       and PLS fit an all-missing row.
 
     Parameters
     ----------
@@ -286,7 +290,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         Deflated block matrices (per group for D/F, per Z-block / Y-block
         for Z/Y).
     not_na_d, not_na_f, not_na_z, not_na_y : dict[str, np.ndarray]
-        Boolean observed-value masks matching the shapes above.
+        Boolean observed-value masks matching the shapes above. A column excluded for having
+        no variance is marked absent in every row.
     observation_names : pd.Index
         Row index shared across the F/Z/Y blocks.
     property_names, material_names : dict[str, list[str]]
@@ -561,6 +566,15 @@ class TPLS(RegressorMixin, BaseEstimator):
             }
         ]
 
+        # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
+        # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps). They are
+        # taken from the preprocessed blocks, not the raw ones, so a column excluded for having no variance (NaN
+        # after scaling) is absent too: it is zeroed below, and counted as present it shrank every score (#513).
+        self.not_na_d = {key: ~np.isnan(self.d_mats[key]) for key in group_keys}
+        self.not_na_f = {key: ~np.isnan(self.f_mats[key]) for key in group_keys}
+        self.not_na_z = {key: ~np.isnan(self.z_mats[key]) for key in X["Z"]}
+        self.not_na_y = {key: ~np.isnan(self.y_mats[key]) for key in X["Y"]}
+
         # Then set missing data values to zeros (not because we are ignoring the values), but because we will use
         # the missing value maps to identify where the missing values are and therefore ignore them. But set to zero,
         # so these values have no influence on the calculations.
@@ -575,13 +589,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.material_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
         self.quality_names = {key: X["Y"][key].columns.to_list() for key in X["Y"]}
-
-        # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
-        # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
-        self.not_na_d = {key: ~np.isnan(self.d_matrix[key].values) for key in self.d_mats}
-        self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in self.f_mats}
-        self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in self.z_mats}
-        self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in self.y_mats}
 
         # Model parameters. Naming convention: x_i_j
         # x = block letter (P, W, R, T, etc)
@@ -696,8 +703,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         for key, df_z in x_z.items():
             x_z[key] = (df_z - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key]["scale"]
 
-        not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
-        not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
+        # From the preprocessed blocks, as in fit(), so a column excluded for having no variance is absent.
+        not_na_f = {key: ~np.isnan(df.values) for key, df in x_f.items()}
+        not_na_z = {key: ~np.isnan(df.values) for key, df in x_z.items()}
         # Zero out missing cells AFTER building the presence maps, exactly as
         # fit() does via nan_to_zeros. The score numerators below multiply the
         # data by a zeroed weight at missing positions, but NaN * 0.0 is NaN,
@@ -748,7 +756,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                 score_f_a += np.array(np.sum(df_x_f.values * denom, axis=1))  # numerator portion
                 denominators += np.sum((denom * not_na_f[key]) ** 2, axis=1)
 
-            denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
+            # A row with nothing observed in F has no F score: NaN, as PCA and PLS transform an all-missing row.
+            denominators[denominators == 0] = np.nan
             score_f_a /= denominators
 
             # Repeat for the Z-space: regress the row of each new Z block on the w-loadings, to get the
@@ -757,11 +766,17 @@ class TPLS(RegressorMixin, BaseEstimator):
             if self.n_conditions > 0:
                 score_z_a = np.zeros(num_obs)
                 denominators = np.zeros(num_obs)
+                z_observed = np.zeros(num_obs, dtype=bool)
                 for key, df_x_z in x_z.items():
                     b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
                     denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
                     score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
                     denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
+                    z_observed |= not_na_z[key].any(axis=1)
+                # The correction the comment above describes was computed and never applied, so a row with a
+                # missing Z cell scored closer to 0 here than in fit() (#513). A row with no Z value scores 0,
+                # as in fit().
+                score_z_a = np.where(z_observed, score_z_a / np.where(z_observed, denominators, 1.0), 0.0)
 
                 # Multiply the individual block scores by the super-weights, to get the super-scores.
                 # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
@@ -1112,28 +1127,21 @@ class TPLS(RegressorMixin, BaseEstimator):
         return bool(np.any([max_iter, converged]))
 
     def _refuse_scores_that_are_not_finite(self, component: int, t_super_i: np.ndarray) -> None:
-        """Raise ``ValueError`` when a component's scores are not finite, naming the empty rows that cause it.
+        """Raise ``ValueError`` when a component's scores are not finite.
 
         A NaN never leaves the iteration once it is in it, and the convergence test can never
         pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
-        material with no observed value in D has no loading to give, and a row with no observed
-        value in F no score to take; one of them makes every score NaN.
+        row or a material with nothing observed no longer causes one: it gets a zero score or
+        loading and no weight (#513). What is left is a direction the iteration cannot take,
+        because the vector it regresses on is zero: the first Y column it starts from, or
+        every column of D or F, has no variation.
         """
         if np.isfinite(t_super_i).all():
             return
-        empty = [
-            f"material {str(name)!r} has no observed value in D block {key!r}"
-            for key, present in self.not_na_d.items()
-            for name in np.asarray(self.material_names[key])[~np.asarray(present).any(axis=1)]
-        ] + [
-            f"row {str(name)!r} has no observed value in F block {key!r}"
-            for key, present in self.not_na_f.items()
-            for name in np.asarray(self.observation_names)[~np.asarray(present).any(axis=1)]
-        ]
-        cause = "; ".join(empty) if empty else "a block has a row or a column with no observed value"
         msg = (
-            f"TPLS cannot fit component {component}: its scores are not finite, because {cause}. "
-            "Remove it, or give it observed values."
+            f"TPLS cannot fit component {component}: its scores are not finite, because a block has "
+            "no variation for the iteration to follow. Check that the first column of the first Y "
+            "block, and at least one column of each D and F group, varies and is observed."
         )
         raise ValueError(msg)
 
@@ -1359,7 +1367,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         """Return Variable Importance in Projection (VIP) scores for TPLS blocks.
 
         VIP scores are computed during fitting for the D-block (material properties) and
-        F-block (formulation variables) and stored in :attr:`feature_importance`.
+        F-block (formulation variables) and stored in :attr:`feature_importance`. Each
+        component is weighted by its share of that block's own variance (its per-column
+        R2, averaged over the columns of each group and then over the groups), not of Y
+        as a PLS VIP is.
 
         Parameters
         ----------
