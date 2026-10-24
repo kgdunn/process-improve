@@ -106,6 +106,14 @@ def _checked_against_scipy(result: dict, name: str) -> list[str]:
         same = [pair["ci_low"], pair["ci_high"]] == pytest.approx([interval.low[j, i], interval.high[j, i]], rel=1e-6)
         if not same:
             wrong.append(f"{name}: Tukey's interval of {pair['to']} less {pair['from']} is not scipy's")
+    floats = [np.asarray(v, dtype=float) for v in values]  # scipy's bartlett fails on integers
+    for check in several["checks"]:
+        expected = (stats.bartlett if check["test"] == "bartlett" else stats.kruskal)(*floats)
+        if not math.isclose(check["statistic"], expected.statistic, rel_tol=1e-9):
+            wrong.append(f"{name}: {check['test']} {check['statistic']} is not scipy's {expected.statistic}")
+    spread = all(len(set(v)) > 1 for v in values)
+    if spread != any(check["test"] == "bartlett" for check in several["checks"]):
+        wrong.append(f"{name}: Bartlett's test is {'missing' if spread else 'given'}")
     # Dunnett's critical value holds every comparison with the control within it 95% of the time: the
     # multivariate t of the comparisons' correlations, which share the control's average, says how often.
     control = names.index(str(several["control"]))
