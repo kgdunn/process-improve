@@ -86,13 +86,14 @@ One zip file:
 | Member | Holds |
 |---|---|
 | `manifest.json` | format version, library version, the recipe, the variants, the saved selections |
-| `source/columns.json` | column names and types, the row ids |
-| `source/<k>.npy` | each numeric column, exact to the bit |
-| `source/text.json` | the text columns |
-| `fits/<variant>/<array>.npy` | the fitted arrays: scores, loadings, T², SPE |
+| `source/<file name>` | the source file's own bytes, exactly as read; the recipe holds its SHA-256 |
+| `recipe.py` | the recipe as a script: unzip, and it runs next to its source file |
+| `fits/<k>/<array>.npy` | variant `k`'s fitted arrays: scores, loadings, T², SPE |
 
-- Nothing executes on load: JSON and `numpy.load(allow_pickle=False)` only, no pickle.
-- No new dependency: Parquet would need pyarrow, a large download in the browser.
+- Nothing executes on load: JSON checked field by field, and `numpy.load(allow_pickle=False)`.
+  `recipe.py` is written for the reader and never read back.
+- The data is the source file itself, so nothing is re-encoded and no dependency is
+  added (Parquet would need pyarrow, a large download in the browser).
 - Opening a project refits each variant from the source and the recipe, and compares
   the result with the stored arrays. A difference is reported, with what changed (the
   library version or the data), instead of silently trusted.

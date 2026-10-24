@@ -18,6 +18,12 @@ Model variants
 .. automodule:: process_improve.workbench.variant
    :members: Variant, Fit, GroupExplanation, MODELS
 
+Project files
+-------------
+
+.. automodule:: process_improve.workbench.project
+   :members: Project, Opened, Check
+
 Expressions
 -----------
 

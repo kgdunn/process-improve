@@ -8,8 +8,12 @@ alone, and round-trips through JSON.
 A :class:`Variant` is a model (PCA or PLS) over a recipe's table. It leaves its
 excluded rows out of the fit and projects them through it, and its :class:`Fit`
 explains why a group of rows differs from the rest (:meth:`Fit.explain_group`).
+
+A :class:`Project` keeps the source file, its recipe, the variants and the reader's
+saved selections in one zip file, and refits and checks every variant on opening.
 """
 
+from process_improve.workbench.project import Opened, Project
 from process_improve.workbench.recipe import (
     STEPS,
     TRANSFORMS,
@@ -39,6 +43,8 @@ __all__ = [
     "Fit",
     "GroupExplanation",
     "KeepColumns",
+    "Opened",
+    "Project",
     "Recipe",
     "RenameColumns",
     "SetIndex",

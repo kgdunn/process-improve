@@ -13,3 +13,9 @@
   plot asks: per component, each variable's share of the difference between the group's average score and the
   rest's (they add up to that difference), the variables to look at first, their means in the table's own units,
   and their raw values in run order to draw beside the bars.
+- **`process_improve.workbench.Project`: one zip file with a source file, its recipe, its model variants and the
+  reader's saved selections.** It stores the source file's own bytes, a `manifest.json`, the recipe as a script
+  to run next to the source, and each variant's fitted scores, loadings, T2 and SPE as `.npy` arrays. Opening
+  executes nothing from the file (JSON checked field by field, and `numpy.load(allow_pickle=False)`), and
+  `Project.open` refits every variant and compares it with the stored arrays, naming any that no longer
+  reproduce.
