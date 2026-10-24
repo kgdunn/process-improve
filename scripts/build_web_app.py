@@ -188,7 +188,7 @@ BOOK = "https://learnche.org/pid/"
 #: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
 WORKED = "worked"
 #: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
-CAMPAIGN_VERSION = 4
+CAMPAIGN_VERSION = 5
 #: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
 #: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
 ONE_FACTOR_FORMAT = 2
@@ -198,6 +198,9 @@ LEVELS_FORMAT = 3
 #: The format of a study of more than :data:`FEW_FACTORS` factors (``MANY_FACTORS_FORMAT`` in ``web/campaign.js``),
 #: whose factor list a page of an earlier format refuses as too long.
 MANY_FACTORS_FORMAT = 4
+#: The format of a study with settings kept from the what-if panel (``WHAT_IF_FORMAT`` in ``web/campaign.js``), which
+#: a page of an earlier format would drop on its next save. The build keeps none, so no example takes it.
+WHAT_IF_FORMAT = 5
 #: The most factors a study of format 3 or earlier holds (``FEW_FACTORS`` in ``web/campaign.js``).
 FEW_FACTORS = 12
 

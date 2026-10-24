@@ -12,8 +12,9 @@
  * Format 2 holds a study of one factor, which a page of format 1 could not analyse. Format 3 holds a categorical
  * factor that lists its levels: three or more, or two that read as numbers, which an earlier page would misread.
  * Format 4 holds a study of more than FEW_FACTORS factors, whose factor list an earlier page refuses as too long.
+ * Format 5 holds the settings the reader kept from the what-if panel, which an earlier page would drop on its next save.
  */
-export const CAMPAIGN_VERSION = 4;
+export const CAMPAIGN_VERSION = 5;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -24,11 +25,15 @@ export const LEVELS_FORMAT = 3;
 /** The format of a study of more than FEW_FACTORS factors; a study of fewer keeps an earlier format. */
 export const MANY_FACTORS_FORMAT = 4;
 
+/** The format of a study with settings kept from the what-if panel (``what_if``); a study without keeps an earlier format. */
+export const WHAT_IF_FORMAT = 5;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
-/** The lowest format that holds a study of this specification, which the study is saved in. */
-export function studyFormat(spec) {
+/** The lowest format that holds a study of this specification and these kept settings, which the study is saved in. */
+export function studyFormat(spec, kept = []) {
+  if (kept.length) return WHAT_IF_FORMAT;
   if (spec.factors.length > FEW_FACTORS) return MANY_FACTORS_FORMAT;
   if (spec.factors.some((f) => Array.isArray(f.levels))) return LEVELS_FORMAT;
   return spec.factors.length === 1 ? ONE_FACTOR_FORMAT : 1;
@@ -172,6 +177,30 @@ export function checkConstraints(value) {
   });
 }
 
+/**
+ * The most settings a study keeps from the what-if panel, and the most characters of the name each is kept under:
+ * as bootstrap.py holds them (tests/web/page/test_parity.py keeps the two in step).
+ */
+export const SCENARIOS_HELD = { count: 20, name: 80 };
+
+/**
+ * The settings the reader kept from the what-if panel, each under a name, checked for their shape only: a name of one
+ * line, each name once, and each setting a number or a level, by its factor's name. Whether they still fit the
+ * factors is judged where the page lists them (best.js scenarioProblem), so a study edited since still opens.
+ */
+function keptSettings(value) {
+  const kept = list(value, "the kept settings", SCENARIOS_HELD.count).map((s, i) => {
+    if (!isObject(s) || !isObject(s.settings)) refuse(`kept settings ${i + 1} are not a name and settings`);
+    const name = text(s.name, `the name of kept settings ${i + 1}`, SCENARIOS_HELD.name);
+    if (!name.trim() || CONTROL.test(name)) refuse(`the name of kept settings ${i + 1} is not one line of text`);
+    const settings = Object.entries(s.settings);
+    if (settings.length > FACTORS_HELD) refuse(`kept settings ${i + 1} set too many factors`);
+    return { name, settings: Object.fromEntries(settings.map(([f, v]) => [text(f, "a factor's name", 64), level(v, `the setting of ${f}`)])) };
+  });
+  if (new Set(kept.map((s) => s.name)).size !== kept.length) refuse("two of its kept settings share a name");
+  return kept;
+}
+
 /** The most responses a study measures; mirrors bootstrap.MAX_RESPONSES, as logic.js does. */
 export const RESPONSES_HELD = 5;
 
@@ -310,8 +339,9 @@ export function checkCampaign(data) {
   const n = rows.length;
   const [responses, sources] = results(data.responses, data.sources, n);
   const factorNames = s.factors.map((f) => f.name);
+  const kept = data.what_if === undefined || data.what_if === null ? [] : keptSettings(data.what_if);
   const out = {
-    v: studyFormat(s),
+    v: studyFormat(s, kept),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,
@@ -332,6 +362,7 @@ export function checkCampaign(data) {
   };
   if (names.length > 1) Object.assign(out, laterResults(data, names.slice(1), n, factorNames, names[0]));
   if (data.source !== undefined && data.source !== null) out.source = studySource(data.source);
+  if (kept.length) out.what_if = kept;
   return out;
 }
 
@@ -496,6 +527,7 @@ export function shareable(campaign, withResults) {
   const out = { v, title, design: { spec, columns, rows, model: design.model, facts, outside_range }, model };
   if (campaign.more_models) out.more_models = campaign.more_models;
   if (campaign.goals) out.goals = campaign.goals;
+  if (campaign.what_if) out.what_if = campaign.what_if; // settings: what they predict is worked out from the results
   if (withResults) {
     Object.assign(out, { responses: campaign.responses, sources: campaign.sources, simulation: campaign.simulation });
     if (campaign.more_responses) Object.assign(out, { more_responses: campaign.more_responses, more_sources: campaign.more_sources });

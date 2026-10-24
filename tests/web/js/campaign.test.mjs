@@ -13,6 +13,8 @@ import {
   LEVELS_FORMAT,
   MANY_FACTORS_FORMAT,
   ONE_FACTOR_FORMAT,
+  SCENARIOS_HELD,
+  WHAT_IF_FORMAT,
   bookName,
   campaignDone,
   campaignTitle,
@@ -737,7 +739,7 @@ describe("a study of more factors than an earlier page reads", () => {
 
   test("format 4 is later than any an earlier page reads, so that page refuses the study by its format", () => {
     assert.equal(MANY_FACTORS_FORMAT, LEVELS_FORMAT + 1);
-    assert.equal(CAMPAIGN_VERSION, MANY_FACTORS_FORMAT);
+    assert.ok(CAMPAIGN_VERSION >= MANY_FACTORS_FORMAT, "this page reads it");
     assert.equal(FEW_FACTORS, 12, "the factor list an earlier page holds");
     for (const k of [13, 24, 40]) assert.equal(studyFormat(screening(k).design.spec), MANY_FACTORS_FORMAT);
     const levels = screening(13).design.spec;
@@ -756,5 +758,67 @@ describe("a study of more factors than an earlier page reads", () => {
     const data = screening(40);
     data.design.spec.factors.push({ name: "X41", low: 0, high: 10, units: "u" });
     assert.throws(() => checkCampaign(data), /the factor list is too long/);
+  });
+});
+
+describe("settings kept from the what-if panel", () => {
+  /** The study, with two sets of settings kept under their names. */
+  const withKept = () => ({
+    ...campaign(),
+    what_if: [
+      { name: "Cooler, more pressure", settings: { T: 175, Supplier: "B" } },
+      { name: "Hot", settings: { T: 200, Supplier: "A" } },
+    ],
+  });
+
+  test("are kept with the study, in the format that holds them, and only then", () => {
+    const checked = checkCampaign(withKept());
+    assert.deepEqual(checked.what_if, withKept().what_if);
+    assert.equal(checked.v, WHAT_IF_FORMAT);
+    assert.equal(WHAT_IF_FORMAT, MANY_FACTORS_FORMAT + 1, "later than any an earlier page reads");
+    assert.equal(CAMPAIGN_VERSION, WHAT_IF_FORMAT);
+    assert.equal(studyFormat(campaign().design.spec, withKept().what_if), WHAT_IF_FORMAT);
+    assert.equal(checkCampaign({ ...campaign(), what_if: [] }).v, 1, "none kept: the format the study had");
+    assert.equal(checkCampaign({ ...campaign(), what_if: [] }).what_if, undefined);
+    assert.equal(checkCampaign({ ...campaign(), what_if: null }).what_if, undefined);
+  });
+
+  test("go out and back through a link, with its results or without", async () => {
+    const checked = checkCampaign(withKept());
+    for (const withResults of [true, false]) {
+      const carried = shareable(checked, withResults);
+      assert.deepEqual(carried.what_if, withKept().what_if, "they are settings: what they predict comes from the results");
+      const back = await unpackCampaign(await packCampaign(carried));
+      assert.deepEqual(back.what_if, withKept().what_if);
+      assert.equal(back.v, WHAT_IF_FORMAT);
+    }
+    assert.equal(shareable(checkCampaign(campaign()), true).what_if, undefined);
+  });
+
+  test("are checked for their shape: a setting the factors no longer have still opens, to be judged where it is listed", () => {
+    const edited = withKept();
+    edited.what_if[0].settings = { T: 260, Supplier: "C", Gone: 1 };
+    assert.deepEqual(checkCampaign(edited).what_if[0].settings, { T: 260, Supplier: "C", Gone: 1 });
+  });
+
+  test("that are not settings are refused, saying why", () => {
+    const refused = (whatIf, why) => assert.throws(() => checkCampaign({ ...campaign(), what_if: whatIf }), why);
+    refused({ name: "Hot" }, /the kept settings is not a list/);
+    refused([{ name: "Hot" }], /kept settings 1 are not a name and settings/);
+    refused([{ name: "", settings: { T: 175 } }], /the name of kept settings 1 is not one line/);
+    refused([{ name: "Two\nlines", settings: { T: 175 } }], /not one line of text/);
+    refused([{ name: "x".repeat(SCENARIOS_HELD.name + 1), settings: {} }], /the name of kept settings 1 is not text/);
+    refused([{ name: "Hot", settings: { T: [1] } }], /the setting of T is neither a number nor a label/);
+    refused([{ name: "Hot", settings: { T: Infinity } }], /the setting of T is neither a number nor a label/);
+    refused(
+      [
+        { name: "Hot", settings: { T: 200 } },
+        { name: "Hot", settings: { T: 150 } },
+      ],
+      /two of its kept settings share a name/,
+    );
+    const many = Array.from({ length: SCENARIOS_HELD.count + 1 }, (_, i) => ({ name: `Settings ${i + 1}`, settings: { T: 175 } }));
+    refused(many, /the kept settings is too long/);
+    assert.equal(checkCampaign({ ...campaign(), what_if: many.slice(1) }).what_if.length, SCENARIOS_HELD.count);
   });
 });
