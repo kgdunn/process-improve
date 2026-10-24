@@ -374,6 +374,40 @@ def test_discrimination_of_perfectly_separated_products_is_one():
     assert _eta_squared(pd.Series([1.0, 1.0, 3.0, 3.0]), pd.Series(list("XXYY"))) == pytest.approx(1.0)
 
 
+def _two_panelist_panel() -> pd.DataFrame:
+    """Return two panelists scoring three products on two attributes, with different rankings."""
+    scores = {"P1": [2.0, 5.0, 8.0, 3.0, 4.0, 9.0], "P2": [3.0, 7.0, 6.0, 6.0, 2.0, 8.0]}
+    cells = [(product, attribute) for attribute in ("sweet", "sour") for product in ("X", "Y", "Z")]
+    rows = [
+        {"panelist_id": pid, "product": product, "attribute": attribute, "session": 1, "replicate": 1, "score": score}
+        for pid, values in scores.items()
+        for (product, attribute), score in zip(cells, values, strict=True)
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_scorecard_agreement_leaves_the_panelist_out_of_the_consensus():
+    """With two panelists the consensus for each is the other one, so both agree by corr(P1, P2) (#513).
+
+    A consensus that included the panelist gave 0.928 and 0.896 here.
+    """
+    panel = _two_panelist_panel()
+    own = panel.pivot_table(index=["product", "attribute"], columns="panelist_id", values="score")
+    expected = own["P1"].corr(own["P2"])
+
+    table = panel_scorecard(panel).table
+    assert table.loc["P1", "agreement"] == pytest.approx(expected)
+    assert table.loc["P2", "agreement"] == pytest.approx(expected)
+    assert expected == pytest.approx(0.6650, abs=1e-4)
+
+
+def test_scorecard_a_panel_of_one_has_no_agreement():
+    """Nobody is left to agree with: NaN, where the panelist's own mean gave it 1.0 (#513)."""
+    panel = _two_panelist_panel()
+    alone = panel[panel["panelist_id"] == "P1"]
+    assert np.isnan(panel_scorecard(alone).table.loc["P1", "agreement"])
+
+
 def test_relative_outliers_need_four_panelists():
     """The ESD outlier test runs only from four panelists up: the same low value is ignored below that."""
     agreement = pd.Series([0.1, 0.9, 0.95, 0.92], index=["P1", "P2", "P3", "P4"])
@@ -1054,6 +1088,21 @@ def test_mam_f_test_is_undefined_without_disagreement_to_test_against(scores, cl
     assert np.isfinite(ftest["f_product_classical"]) == classical_defined
     if not classical_defined:
         assert (mam.scaling["beta"] == 1.0).all()
+
+
+def test_mam_f_tests_are_nan_with_a_warning_when_a_cell_is_missing():
+    """The closed-form sums of squares need every cell: NaN F-tests and a pointer to the REML fit (#513)."""
+    panel = _scaling_panel()
+    complete = mixed_assessor_model(panel).ftests.iloc[0]
+    assert np.isfinite(complete["f_product_mam"])
+
+    one_missing = panel[~((panel["panelist_id"] == "P3") & (panel["product"] == "prod2"))]
+    with pytest.warns(RuntimeWarning, match=r"\['A'\] a panelist did not score.*mixed_assessor_model_reml"):
+        mam = mixed_assessor_model(one_missing)
+    ftest = mam.ftests.iloc[0]
+    for column in ("f_product_mam", "p_product_mam", "f_product_classical", "p_product_classical"):
+        assert np.isnan(ftest[column]), column
+    assert np.isfinite(mam.scaling["beta"]).all()
 
 
 def test_analyze_correction_align_changes_means_and_reports_mam():

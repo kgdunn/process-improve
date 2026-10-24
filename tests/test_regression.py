@@ -663,6 +663,36 @@ def test_ols_prediction_interval_matches_pi_range_grid(
     np.testing.assert_allclose(pi.upper, model.pi_range_[:, 2], rtol=1e-9)
 
 
+def test_ols_prediction_band_of_a_near_perfect_fit_has_zero_width() -> None:
+    """A near-perfect fit still gets its pi_range_ grid, of zero width: it was NaN below a tiny se_ (#513)."""
+    x = np.arange(1.0, 11.0)
+    model = OLS().fit(x, 2.0 * x + 1.0)
+    assert model.se_ < np.finfo(np.float32).eps
+
+    grid = model.pi_range_
+    assert isinstance(grid, np.ndarray)
+    assert grid.shape == (50, 3)
+    np.testing.assert_allclose(grid[:, 1], 2.0 * grid[:, 0] + 1.0, atol=1e-9)
+    np.testing.assert_allclose(grid[:, 2], grid[:, 1], atol=1e-9)
+    assert "pi_range" in model.to_dict()
+
+
+def test_robust_regression_intervals_widen_with_an_outlier_the_slope_resists() -> None:
+    """The documented limit: least-squares intervals around the robust line, so one outlier widens them."""
+    x = np.arange(1.0, 11.0)
+    y = 2.0 * x + 1.0 + np.array([0.1, -0.1, 0.05, -0.05, 0.1, -0.1, 0.05, -0.05, 0.1, -0.1])
+    with_outlier = y.copy()
+    with_outlier[4] += 100.0
+
+    clean, dirty = robust_regression(x, y), robust_regression(x, with_outlier)
+    assert dirty["coefficients"][0] == pytest.approx(clean["coefficients"][0], abs=0.02)
+
+    def width(out: dict) -> float:
+        return float(np.diff(out["conf_intervals"][0])[0])
+
+    assert width(dirty) > 100 * width(clean)
+
+
 def test_ols_prediction_interval_at_arbitrary_x(
     multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
 ) -> None:

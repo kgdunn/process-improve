@@ -195,7 +195,10 @@ def robust_regression(  # noqa: PLR0913, PLR0915
                                   below), regardless of ``fit_intercept``
         standard_errors:          a length-1 list containing the standard error of the slope
         standard_error_intercept: standard error for the intercept (np.nan if fit_intercept=False)
-        R2:                       the R^2 value
+        R2:                       RegSS / (RegSS + RSS), around the robust line. Around a line
+                                  that is not the least-squares one, RegSS + RSS is not the
+                                  total sum of squares, so this is not 1 - RSS / TSS (the R2
+                                  of ``multiple_linear_regression``)
         SE:                       the model's standard error
         x_ssq:                    the sum of squares of (x - mean(x))
         k:                        the number of model parameters (2 if fit_intercept else 1)
@@ -216,6 +219,14 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     ``N`` is ``None``, ``x_ssq`` is absent, and ``leverage``, ``influence``,
     ``pi_range``, ``t_value``, ``fitted_values``, ``residuals``, and the
     coefficient/interval arrays hold ``np.nan``.
+
+    Only the slope and the intercept are robust. ``SE``, the standard errors, ``t_value``,
+    ``R2``, the confidence intervals and ``pi_range`` use the least-squares formulas, applied
+    to the residuals around the robust line, so they are approximate: they are not derived
+    from the sampling distribution of the repeated-median slope. One gross outlier, which
+    leaves the slope almost where it was, inflates the residual sum of squares and so widens
+    every interval and lowers ``R2``. For an interval that resists outliers as the slope
+    does, bootstrap the slope.
     """
 
     out: dict[str, Any] = {
@@ -730,7 +741,9 @@ class OLS(RegressorMixin, BaseEstimator):
             x_ssq = float(np.sum(np.power(x_col - mean_x, 2)))
             self.x_ssq_ = x_ssq
 
-            if self.fit_intercept and x_ssq > 0 and self.se_ >= eps:
+            # No condition on se_: a near-perfect fit has a band of near-zero width, which is
+            # its prediction interval, and `prediction_interval()` gives the same at any x.
+            if self.fit_intercept and x_ssq > 0:
                 pi_range = np.linspace(np.min(x_col), np.max(x_col), self.pi_resolution)
                 pi_y_pred = self.intercept_ + self.coefficients_[0] * pi_range
                 var_y = (self.se_**2) * (1 + 1.0 / n_samples + (pi_range - mean_x) ** 2 / x_ssq)
