@@ -2071,12 +2071,19 @@ def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int
     """Read the runs of a design that takes a number of them, or give its own (logic.js's ``defaultBudget``).
 
     A space-filling design has :func:`_space_filling_runs`; an optimal one the reader's number, else the
-    coefficients of the model it is made for and :data:`SPARE_RUNS` more.
+    coefficients of the model it is made for and :data:`SPARE_RUNS` more. A number below the coefficients
+    is refused, as the library refuses it, rather than enlarged.
     """
     if design_type in SPACE_FILLING:
         return _space_filling_runs(spec, k)
     budget = spec.get("budget")
-    return int(budget) if budget else _n_terms(k, model_type) + SPARE_RUNS
+    n_terms = _n_terms(k, model_type)
+    if budget and int(budget) < n_terms:
+        model = model_type.replace("_", " ")
+        raise ValueError(
+            f"The {model} model in {k} factors has {n_terms} coefficients, so it needs at least {n_terms} runs."
+        )
+    return int(budget) if budget else n_terms + SPARE_RUNS
 
 
 def _space_filling_runs(spec: dict, k: int) -> int:
@@ -2225,15 +2232,6 @@ def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: d
         # A word confounded with the blocks takes its aliases with it (in a 2^(4-1), C·D goes with A·B).
         confounded = list(dict.fromkeys(t for w in words for t in next((g for g in groups if w in g), [w])))
         notes.append(_blocking_sentence(sizes, confounded))
-    asked = kwargs.get("budget")
-    if asked and len(coded) > asked * replicates:
-        model = kwargs["model_type"]
-        made = len(coded) // replicates
-        notes.append(
-            f"You asked for {asked} runs; the {model.replace('_', ' ')} model in {len(names)} factors has "
-            f"{_n_terms(len(names), model)} coefficients, so the design has {made} runs"
-            f"{' before it is replicated' if replicates > 1 else ''}."
-        )
     return {
         "resolution": result.resolution,
         "generators": [_spaced(g, names) for g in result.generators or []],

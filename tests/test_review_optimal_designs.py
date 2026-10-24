@@ -87,11 +87,11 @@ class TestDispatchOptimal:
         with pytest.raises(ValueError, match="not factors of the design"):
             dispatch_d_optimal(_box(3), 12, hard_to_change=["Zzz"])
 
-    def test_budget_below_the_model_is_recorded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_budget_below_the_model_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Five runs for an interactions model (intercept, 3 main effects, 3 interactions) raise (#957)."""
         monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
-        design, meta = dispatch_d_optimal(_box(3), 5, model_type="interactions")
-        assert len(design) == 7  # intercept, 3 main effects, 3 interactions
-        assert meta["budget_requested"] == 5
+        with pytest.raises(ValueError, match="which has 7 coefficients"):
+            dispatch_d_optimal(_box(3), 5, model_type="interactions")
 
     def test_default_budget_leaves_room_beyond_the_fixed_runs(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Eight fixed runs and no budget: the default 2k + 1 = 7 used to be refused as too small."""
