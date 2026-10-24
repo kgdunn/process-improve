@@ -27,8 +27,6 @@ import process_improve
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-#: Extras a reader is not told to install: the contributors' tools.
-UNDOCUMENTED_EXTRAS = {"dev"}
 _PATH = r"([^\s)\"'#?<>]*)"  # a URL's path, up to a query, an anchor or the end of the link
 REPOSITORY_LINK = re.compile(
     r"https://(?:github\.com/kgdunn/process-improve/(?:blob|tree)/main|"
@@ -184,7 +182,7 @@ def test_installation_instructions_match_pyproject() -> None:
         for name, requirements in PYPROJECT["optional-dependencies"].items()
     }
     install_lines = dict(re.findall(r"pip install 'process-improve\[(\w+)\]'\s+# (.+)", README))
-    assert set(install_lines) == {name for name, packages in extras.items() if packages} - UNDOCUMENTED_EXTRAS
+    assert set(install_lines) == {name for name, packages in extras.items() if packages}
 
     listed = {}
     for extra, comment in install_lines.items():
