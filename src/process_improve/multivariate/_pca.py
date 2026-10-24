@@ -1219,14 +1219,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 t_a_guess = t_a.copy()
 
                 # Regress X onto t_a to get loadings p_a
-                p_a = quick_regress(Xd, t_a)
+                p_a = quick_regress(Xd, t_a, per="column")
                 # Floor the norm: a collapsed ``p_a`` would make this 0/0 -> NaN and
                 # poison every later component. `_mbpca` already guards the identical
                 # expression this way; see `_nz` (#513).
                 p_a = p_a / _nz(float(np.sqrt(ssq(p_a))))
 
                 # Regress X onto p_a to get scores t_a
-                t_a = quick_regress(Xd, p_a)
+                t_a = quick_regress(Xd, p_a, per="row")
 
                 itern += 1
 

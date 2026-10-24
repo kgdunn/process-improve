@@ -150,9 +150,9 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
             # squares. Reuses the same primitives as single-block PCA NIPALS.
             t_super_col = t_super.reshape(-1, 1)
             for b_idx, name in enumerate(context.block_names):
-                p_b = quick_regress(x_def[name], t_super_col).flatten()
+                p_b = quick_regress(x_def[name], t_super_col, per="column").flatten()
                 p_b = p_b / _nz(float(np.sqrt(ssq(p_b.reshape(-1, 1)))))
-                t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / context.sqrt_kb[name]
+                t_b = quick_regress(x_def[name], p_b.reshape(-1, 1), per="row").flatten() / context.sqrt_kb[name]
                 local_loadings[name] = p_b
                 local_scores[name] = t_b
                 t_b_summary[:, b_idx] = t_b
