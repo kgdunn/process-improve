@@ -86,6 +86,10 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # itself requires 2-D input, so promote here before it sees X.
         if isinstance(X, pd.Series):
             X = X.to_frame()
+        # Label from the frame itself, as PCA and PLS do: sklearn sets
+        # feature_names_in_ only for string labels, so integer labels (a
+        # spectrum's wavelengths) would otherwise come out as 0..K-1.
+        index: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,
@@ -96,8 +100,8 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
             dtype="numeric",
             ensure_all_finite="allow-nan",
         )
-        feature_names = getattr(self, "feature_names_in_", None)
-        index = pd.Index(feature_names) if feature_names is not None else pd.RangeIndex(X_arr.shape[1])
+        if index is None:
+            index = pd.RangeIndex(X_arr.shape[1])
 
         # nanmean / nanstd so NaN cells pass through with the right
         # column-level statistics (the chemometric pipeline's missing-data

@@ -531,6 +531,24 @@ def test_mcuv_scaling(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarra
     assert pytest.approx(X_mcuv.std(), 1e-10) == 1
 
 
+def test_mcuv_keeps_integer_column_labels(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
+    """Integer labels survive: the spectra's columns are 1..650, which once came out as 0..649.
+
+    sklearn sets ``feature_names_in_`` only for string labels, so the labels must come from the frame.
+    """
+    spectra, _ = fixture_tablet_spectra_data
+    assert spectra.columns[0] == 1
+    scaler = MCUVScaler().fit(spectra)
+    X_mcuv = scaler.transform(spectra)
+
+    pd.testing.assert_index_equal(scaler.center_.index, spectra.columns)
+    pd.testing.assert_index_equal(X_mcuv.columns, spectra.columns)
+    pd.testing.assert_index_equal(scaler.inverse_transform(X_mcuv).columns, spectra.columns)
+    pd.testing.assert_index_equal(PCA(n_components=1).fit(X_mcuv).loadings_.index, spectra.columns)
+    # An ndarray has no labels, so its columns are numbered from 0.
+    assert list(MCUVScaler().fit_transform(spectra.to_numpy()[:, :3]).columns) == [0, 1, 2]
+
+
 def test_mcuv_round_trips_a_single_column_target_given_as_a_series_and_a_1d_array() -> None:
     """A Series transforms as its one-column frame, and the 1-D array a regressor predicts inverts to that column."""
     y = pd.Series([3.0, 5.0, 4.0, 8.0, 10.0], index=list("abcde"), name="yield")
