@@ -334,6 +334,18 @@ def test_the_checks_are_scipy_s_for_levels_of_unequal_runs(diets):
         assert [found["statistic"], found["p_value"]] == pytest.approx([expected.statistic, expected.pvalue])
 
 
+def test_the_workbook_of_one_factor_comes_back_compared_and_checked_as_the_page_compares_its_runs(api):
+    """Montgomery's etch rates typed into the design's workbook, as in Excel: the same comparison, checks and all."""
+    spec = {"design_type": "full_factorial", "factors": [POWER], "n_replicates": 5, "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    rates = {power: iter(values) for power, values in ETCH.items()}
+    y = [next(rates[power]) for power in run_sheet(design)["Power"]]
+    workbook = fill_workbook(design["xlsx_base64"], lambda _: y)
+    analysed = api.ok("api_analyze", {"xlsx_base64": workbook})["comparison"]
+    assert analysed == api.ok("api_analyze_runs", {**held_of(design), "responses": y})["comparison"]
+    assert round(analysed["several"]["checks"][0]["statistic"], 2) == 0.43, "Bartlett's, as Montgomery prints it"
+
+
 @pytest.mark.parametrize(
     ("runs", "y"),
     [("AAABBBC", [10, 11, 12, 20, 21, 22, 30]), ("AABBBCCC", [10, 10, 20, 21, 22, 30, 31, 33])],
