@@ -103,8 +103,8 @@ MAX_FACTORS = 40
 MAX_INTERACTION_FACTORS = 12
 
 #: The most factors the page compares designs for on every measure. G, the worst prediction, is searched for at
-#: every corner of the ranges, 2^k of them, which past 20 factors no browser holds. With more, the designs are
-#: scored as for a factor of several levels: their runs, their spare runs and their power (see :func:`_powers`).
+#: every corner of the ranges, 2^k of them: a million at 20 factors. With more, the designs are scored as for a
+#: factor of several levels: their runs, their spare runs and their power (see :func:`_powers`).
 MAX_COMPARED_FACTORS = 12
 
 #: The most factors the page works out the next step for. The step weighs runs for every factor whose effect
@@ -7207,7 +7207,7 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
     if (k := len(spec["factors"])) > MAX_NEXT_STEP_FACTORS:
         return (
             f"Past {MAX_NEXT_STEP_FACTORS} factors, the page does not work out what to run next: it weighs runs for "
-            f"every factor whose effect stands out, and with {k} factors that takes minutes here. The factors whose "
+            f"every factor whose effect stands out, and with {k} factors that can take minutes here. The factors whose "
             "effects stand out are the ones to study next."
         )
     try:

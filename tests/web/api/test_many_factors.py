@@ -201,7 +201,7 @@ def test_past_24_factors_the_next_step_is_not_worked_out_and_says_why(api):
     reply = api.ok("api_next_runs", {**held, "spec": spec, "responses": results(held, {"X1": 3})})
     assert reply["recommendation"] is None
     assert reply["waiting"].startswith("Past 24 factors, the page does not work out what to run next:")
-    assert "with 40 factors that takes minutes here" in reply["waiting"]
+    assert "with 40 factors that can take minutes here" in reply["waiting"]
 
 
 @pytest.mark.slow
