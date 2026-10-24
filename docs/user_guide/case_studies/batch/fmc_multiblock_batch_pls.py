@@ -197,12 +197,11 @@ def unfold_trajectories(trajectories: dict) -> tuple[pd.DataFrame, pd.DataFrame]
 
     One row per batch, 11 tags x 325 samples = 3575 columns: the ten process
     measurements and ``ClockTime``, the eleventh trajectory that records how
-    each batch used time. ``MCUVScaler`` returns flat column labels, so the
-    2-level ``(tag, sequence)`` index is re-attached; the batch plots need it.
+    each batch used time. ``MCUVScaler`` keeps the 2-level ``(tag, sequence)``
+    column index, which the batch plots need.
     """
     wide = dict_to_wide(trajectories)
     x_scaled = MCUVScaler().fit_transform(wide)
-    x_scaled.columns = wide.columns
     print(
         f"unfolded trajectories: {wide.shape[0]} batches x {wide.shape[1]} columns, {int(wide.isna().sum().sum())} missing cells"
     )

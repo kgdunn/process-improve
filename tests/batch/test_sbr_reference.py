@@ -30,12 +30,10 @@ pytestmark = [pytest.mark.dataset, pytest.mark.slow]
 
 @pytest.fixture(scope="module")
 def fitted() -> PCA:
-    """PCA(2) on the MCUV-scaled unfolded trajectories, all nine tags, columns re-labelled."""
+    """PCA(2) on the MCUV-scaled unfolded trajectories, all nine tags."""
     sbr = load_or_skip(lambda: load_sbr(url=SBR_URL_OVERRIDE))
     wide = dict_to_wide(sbr.X)
-    scaled = MCUVScaler().fit_transform(wide)
-    scaled.columns = wide.columns  # MCUVScaler drops the 2-level labels
-    return PCA(n_components=2).fit(scaled)
+    return PCA(n_components=2).fit(MCUVScaler().fit_transform(wide))
 
 
 def _sign_aligned(candidate: np.ndarray, reference: np.ndarray) -> np.ndarray:
