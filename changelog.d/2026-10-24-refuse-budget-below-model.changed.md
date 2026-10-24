@@ -5,3 +5,5 @@
   default is still raised to the coefficient count, since nobody chose that number. With `fixed_runs`,
   a budget that leaves too few new runs, and blocks that add block effects, are still raised with a
   warning, as before.
+  The browser app refuses such a run count in the same way, where it used to build the larger design
+  and add a note saying so.

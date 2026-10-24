@@ -508,6 +508,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="maximin_lhs", budget=12.5),
         "A space-filling design in 3 factors has 4 to 200 runs.",
     ),
+    "an optimal design with fewer runs than its model has coefficients": (
+        "api_make_design",
+        _make(design_type="d_optimal", model_type="quadratic", budget=6),
+        "The quadratic model in 3 factors has 10 coefficients, so it needs at least 10 runs.",
+    ),
     "unknown model to design for": (
         "api_make_design",
         _make(design_type="d_optimal", model_type="cubic"),
