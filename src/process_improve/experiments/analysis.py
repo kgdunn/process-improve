@@ -1059,7 +1059,7 @@ def analyze_experiment(  # noqa: PLR0913
         and the Durbin-Watson statistic in run order; a ``note`` says when the autocorrelation
         is more than twice its standard error, a sign that successive runs are serially
         dependent, which is why Box, Hunter and Hunter randomize the run order. Without one,
-        the ``note`` says that the order is the rows'.
+        ``run_order["known"]`` is ``False``.
 
         ``"split_plot"`` is for a design whose hard-to-change factors change only
         between whole plots. Every other analysis is ordinary least squares, which

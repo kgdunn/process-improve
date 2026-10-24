@@ -33,8 +33,10 @@ def _in_run_order(
     """Return the residuals' lag-1 autocorrelation and Durbin-Watson statistic in run order, and a note.
 
     The run order is known when ``run_order`` gives each residual a distinct number; the
-    residuals are sorted on it. Otherwise the check is not run, and the note says that the
-    only order there is, the rows', is the one ``durbin_watson`` is worked in.
+    residuals are sorted on it. Otherwise the check is not run. Without a ``run_order`` there
+    is no note: ``known`` says so, and a note on every such fit would say nothing new. A
+    ``run_order`` that cannot be used (missing, non-numeric or repeated values) gets a note,
+    as the caller meant to give one.
 
     Parameters
     ----------
@@ -49,15 +51,13 @@ def _in_run_order(
         The ``run_order`` entry of the diagnostics, and the note to report, if any.
     """
     order = None if run_order is None else pd.to_numeric(pd.Series(run_order), errors="coerce").to_numpy(float)
-    if order is None or len(order) != len(residuals) or np.isnan(order).any() or len(np.unique(order)) < len(order):
-        reason = (
-            "No RunOrder column gives"
-            if run_order is None
-            else "The RunOrder column has missing, non-numeric or repeated values, so it does not give"
-        )
+    if order is None:
+        return dict(_NOT_IN_RUN_ORDER), None
+    if len(order) != len(residuals) or np.isnan(order).any() or len(np.unique(order)) < len(order):
         return dict(_NOT_IN_RUN_ORDER), (
-            f"{reason} the order the runs were made in: durbin_watson is worked in the rows' order, and the "
-            "residuals are not checked for serial dependence in run order."
+            "The RunOrder column has missing, non-numeric or repeated values, so it does not give the order the "
+            "runs were made in: durbin_watson is worked in the rows' order, and the residuals are not checked for "
+            "serial dependence in run order."
         )
     in_order = residuals[np.argsort(order, kind="stable")]
     if np.ptp(in_order) == 0:  # residuals without spread have no autocorrelation (0/0)
@@ -106,7 +106,7 @@ def _run_residual_diagnostics(
     ``durbin_watson`` is the Durbin-Watson statistic in run order; and
     ``serially_dependent`` is whether the lag-1 autocorrelation is more than twice its
     standard error, when a ``note`` also says so. Without a usable run order the four are
-    ``None``, and the ``note`` says that ``durbin_watson``'s order, the rows', is the only one.
+    ``None``; a ``note`` says so only when a run order was given and could not be used.
 
     A saturated model (no residual degrees of freedom) fits every run exactly, so its
     residuals are rounding noise: the tests are then not run, their entries are

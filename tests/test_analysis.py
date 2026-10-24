@@ -637,8 +637,8 @@ class TestResidualsInRunOrder:
         assert diag["run_order"]["serially_dependent"] is False
         assert "note" not in diag
 
-    def test_without_a_run_order_the_rows_order_is_kept_and_said(self) -> None:
-        """No RunOrder column: durbin_watson as before, nothing checked in run order, and a note says so."""
+    def test_without_a_run_order_the_rows_order_is_kept_quietly(self) -> None:
+        """No RunOrder column: durbin_watson as before, nothing checked in run order, and no note on every fit."""
         df = _standard_order_runs("drift")
         diag = _residual_diagnostics(df.drop(columns="RunOrder"))
         assert diag["durbin_watson"] == pytest.approx(_residual_diagnostics(df)["durbin_watson"])
@@ -649,8 +649,7 @@ class TestResidualsInRunOrder:
             "durbin_watson": None,
             "serially_dependent": None,
         }
-        assert "No RunOrder column" in diag["note"]
-        assert "rows' order" in diag["note"]
+        assert "note" not in diag
 
     def test_a_run_order_with_repeated_values_is_not_used(self) -> None:
         """A run order numbered again within each block does not order the runs, so the rows' order is kept."""
