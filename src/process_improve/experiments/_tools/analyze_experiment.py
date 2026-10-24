@@ -22,7 +22,8 @@ class AnalyzeExperimentInput(BaseModel):
         min_length=2,
         description=(
             "List of dicts, one per run. Must contain factor columns and "
-            "optionally the response column. Example: "
+            "optionally the response column. A RunOrder column, the order the runs were made in, is not a factor; "
+            "residual_diagnostics checks the residuals for serial dependence in that order. Example: "
             "[{'A': -1, 'B': -1, 'y': 28}, {'A': 1, 'B': -1, 'y': 36}, ...]"
         ),
     )
@@ -137,7 +138,9 @@ class AnalyzeExperimentInput(BaseModel):
     description=(
         "Fit a model to experimental data and run statistical analyses. "
         "Supports ANOVA, effects, coefficients with p-values, significance testing, "
-        "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance), "
+        "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance, and, when design_matrix "
+        "has a RunOrder column, the residuals' lag-1 autocorrelation in run order with a note when successive runs "
+        "look serially dependent), "
         "lack-of-fit test, curvature test (center points vs factorial points), "
         "stepwise model selection with effect heredity (AICc by default, or AIC/BIC), Box-Cox transformation, "
         "Lenth's method (PSE for unreplicated factorials), confidence intervals, "
