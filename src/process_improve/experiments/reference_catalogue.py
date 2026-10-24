@@ -474,7 +474,8 @@ class _Fits:
     ``check["transform"]`` fits the model to the transformed response (``"log"`` or ``"sqrt"``, as
     :func:`~process_improve.experiments.analyze_experiment` takes it), so its tables, and the
     response the other checks read, are on that scale. ``"settings": "as_printed"`` fits the
-    settings as printed, not their exact values (see :func:`_coded_runs`).
+    settings as printed, not their exact values (see :func:`_coded_runs`). ``check["sigma"]`` is
+    an error standard deviation the source knows before the runs, as ``analyze_experiment`` takes it.
     """
 
     def __init__(self) -> None:
@@ -484,7 +485,15 @@ class _Fits:
         positions = tuple(check["runs"]) if check.get("runs") else None
         summary = json.dumps(check["summary"], sort_keys=True) if check.get("summary") else None
         as_printed = check.get("settings") == "as_printed"
-        options = (check.get("model"), positions, check.get("response"), summary, check.get("transform"), as_printed)
+        options = (
+            check.get("model"),
+            positions,
+            check.get("response"),
+            summary,
+            check.get("transform"),
+            as_printed,
+            check.get("sigma"),
+        )
         key = (experiment["name"], *options)
         if key not in self._done:
             self._done[key] = self._fit(experiment, options)
@@ -492,8 +501,8 @@ class _Fits:
 
     @staticmethod
     def _fit(experiment: dict, options: tuple) -> dict[str, Any]:
-        """Fit a model to a set of runs: the model, run positions, response, summary, transform and settings."""
-        model, positions, response, summary, transform, as_printed = options
+        """Fit a model to a set of runs: the model, run positions, response, summary, transform, settings and sigma."""
+        model, positions, response, summary, transform, as_printed, sigma = options
         settings, responses = _coded_runs(
             experiment,
             list(positions) if positions else None,
@@ -511,7 +520,9 @@ class _Fits:
             for wanted in (_ANALYSES, ["coefficients", "anova", "residual_diagnostics"], ["coefficients"]):
                 try:
                     # The coefficients as the source prints them: fitted to the settings as given.
-                    out |= analyze_experiment(settings, y, model=model, analysis_type=wanted, coding="actual")
+                    out |= analyze_experiment(
+                        settings, y, model=model, analysis_type=wanted, coding="actual", sigma=sigma
+                    )
                     break
                 except (ValueError, np.linalg.LinAlgError, KeyError, ZeroDivisionError):
                     continue
@@ -1286,6 +1297,8 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
     "r_squared_pred": lambda out, _c, _e: out["model_summary"]["r_squared_pred"],
     "adequate_precision": lambda out, _c, _e: out["model_summary"]["adequate_precision"],
+    "average_fitted_variance": lambda out, _c, _e: out["model_summary"]["average_fitted_variance"],
+    "average_fitted_std_error": lambda out, _c, _e: out["model_summary"]["average_fitted_variance"] ** 0.5,
     "residual_df": lambda out, _c, _e: out["model_summary"]["df_residual"],
     "df_model": lambda out, _c, _e: out["model_summary"]["df_model"],
     "ms_residual": lambda out, _c, _e: out["model_summary"]["mse_residual"],
