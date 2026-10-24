@@ -351,6 +351,44 @@ class TestDanielPlot:
         assert len(spec.panels) == 1
 
 
+class TestReferenceDistributionPlot:
+    """Box, Hunter and Hunter's blood-coagulation diets (Section 6.4) under the t of scale 0.97 (#800 E3)."""
+
+    @staticmethod
+    def _diets() -> dict[str, Any]:
+        from process_improve.experiments import Comparisons, least_squares_means, reference_catalogue
+
+        entry = next(e for e in reference_catalogue.reference_experiments() if e["name"] == "bhh-blood-coagulation")
+        blood = pd.DataFrame(entry["runs"]["rows"], columns=entry["runs"]["columns"])
+        return least_squares_means(blood, "y ~ diet", "diet", Comparisons(reference_rule="average_replication"))
+
+    def test_the_averages_sit_under_the_scaled_t(self) -> None:
+        from scipy import stats
+
+        found = self._diets()
+        result = visualize_doe(plot_type="reference_distribution", analysis_results=found, response_column="y")
+        curve, dots, labels = result["data"]["panels"][0]["layers"]
+        assert [(d["mean"], d["height"], d["text"]) for d in dots["data"]] == [
+            (pytest.approx(m), 0.0, level) for level, m in zip("ABCD", (61, 66, 68, 61), strict=True)
+        ]
+        assert labels["data"] == dots["data"]
+        x = np.array([p["mean"] for p in curve["data"]])
+        height = np.array([p["height"] for p in curve["data"]])
+        scale = found["reference_scale"]
+        assert x[height.argmax()] == pytest.approx(64.0)  # centred at the mean of the four averages
+        assert height.max() == pytest.approx(stats.t.pdf(0, 20) / scale)  # 24 animals less 4 diets
+        assert x.min() < 61, "the curve spans every average"
+        assert x.max() > 68
+        assert len(result["plotly"]["data"]) == len(result["echarts"]["series"]) == 3
+
+    @pytest.mark.parametrize(
+        "found", [{}, {"means": [{"level": "A", "mean": 1.0}], "reference_scale": float("nan"), "df": 3.0}]
+    )
+    def test_without_means_or_a_scale_the_plot_says_so(self, found: dict) -> None:
+        spec = create_plot("reference_distribution", analysis_results=found).to_spec()
+        assert spec.title == "Reference Distribution - no least-squares means"
+
+
 # ---------------------------------------------------------------------------
 # Effect plots
 # ---------------------------------------------------------------------------
