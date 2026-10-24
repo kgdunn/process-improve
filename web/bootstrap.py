@@ -365,6 +365,18 @@ TAGUCHI_NOTE = (
     "so a large effect may belong to an interaction."
 )
 
+#: What the analysis says when it compares the levels of a factor and fits a transformed response.
+COMPARED_AS_MEASURED = (
+    "The levels are compared on the results as measured, in {units}; the model is fitted to {scale}, so its "
+    "coefficients and tests are on that scale."
+)
+
+#: What the next step says first when it judges a transformed response, whose numbers are on the model's scale.
+NEXT_STEP_SCALE = "The model is fitted to {scale}, so the numbers below are on that scale."
+
+#: The power of Box-Cox's family each transform of :data:`TRANSFORMS` is, for the hint the analysis gives.
+BOX_COX_POWERS = {"log": 0.0, "sqrt": 0.5, "inverse": -1.0}
+
 #: The most limits a study can have on its settings. The optimal designs take the corners of the region the
 #: limits leave as candidate runs, and with 8 limits in 8 factors those are still quick to find in the browser.
 MAX_CONSTRAINTS = 8
@@ -436,6 +448,17 @@ MODELS = ("main_effects", "interactions", "quadratic")
 #: What the reader wants of the response, as the library's ``ResponseGoal`` names it, or ``learn``:
 #: to see how the factors act on it, with no setting to aim for.
 GOALS = ("maximize", "minimize", "target", "learn")
+
+#: The transforms a response can be analysed with, as ``analysis_transforms`` names them, with the scale each
+#: fits on and the least a result may be. Each is increasing, so a goal and an acceptable range mean the same on
+#: the model's scale as on the response's, and the search for the best settings is unchanged. That is why
+#: ``inverse`` fits -1/y: its tests are 1/y's, and the Box-Cox transform of lambda -1 is 1 - 1/y for the same
+#: reason. The log is natural, as the library's ``transform="log"`` is.
+TRANSFORMS: dict[str, dict[str, Any]] = {
+    "log": {"scale": "ln({})", "words": "log", "positive": True},
+    "sqrt": {"scale": "√{}", "words": "square root", "positive": False},
+    "inverse": {"scale": "-1/{}", "words": "inverse", "positive": True},
+}
 
 #: The most responses a study measures. Each has a column of its own on the run sheet, its own model and its own
 #: analysis; the first one sizes the design, as the brief's typical value, noise and smallest change are its own.
@@ -1842,6 +1865,81 @@ def _for_response(spec: dict, name: object) -> dict[str, Any]:
     return {**view, "response": name, **({"response_info": info} if info else {})}
 
 
+def _transform_of(spec: dict) -> str | None:
+    """Return the transform a specification's response, its ``response``, is analysed with: a key of TRANSFORMS."""
+    return (spec.get("analysis_transforms") or {}).get(spec["response"])
+
+
+def _to_model_scale(values: object, transform: str) -> np.ndarray:
+    """Put results, a target or a range's ends on the scale ``transform`` fits on (see :data:`TRANSFORMS`)."""
+    v = np.asarray(values, dtype=float)
+    if transform == "log":
+        return np.log(v)
+    return np.sqrt(v) if transform == "sqrt" else -1.0 / v
+
+
+def _put_back(value: Any, transform: str | None) -> Any:  # noqa: ANN401 - a number, a list of them, or None
+    """Put a number on a transform's scale back in the response's units; a list item by item, None as None.
+
+    A prediction put back is the response's median, not its mean: an increasing transform keeps the median.
+    An interval's end past the transform's range is the edge of the response's: a square root below 0 is a
+    result of 0, and -1/y at 0 or above, like a log too large to put back, is a result without bound: None.
+    """
+    if transform is None or value is None:
+        return value
+    if isinstance(value, list):
+        return [_put_back(v, transform) for v in value]
+    v = float(value)
+    if transform == "sqrt":
+        return max(v, 0.0) ** 2
+    if transform == "inverse":
+        return -1.0 / v if v < 0 else None
+    return math.exp(v) if v < math.log(sys.float_info.max) else None
+
+
+def _on_model_scale(runs: pd.DataFrame, spec: dict) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Put each response the reader transforms on the scale its model is fitted on: its results and its target.
+
+    Every fit, the search for the best settings and the next step then work as for any response, and each
+    reply puts what it says in the response's units back (see :func:`_put_back`). A result or a target the
+    transform cannot take, 0 or below for the log, is refused, naming the run.
+    """
+    chosen = spec.get("analysis_transforms") or {}
+    if not chosen:
+        return runs, spec
+    runs = runs.copy()
+    responses = [_scaled(runs, r, chosen[r["name"]]) if r["name"] in chosen else r for r in _responses(spec)]
+    return runs, {**spec, **_stored_responses(responses)}
+
+
+def _scaled(runs: pd.DataFrame, response: dict, transform: str) -> dict[str, Any]:
+    """Put one response's results, in ``runs``, on its model's scale, and return it with its target put there too."""
+    results = pd.to_numeric(runs[response["name"]], errors="coerce")
+    words = f"The {TRANSFORMS[transform]['words']} of {_words(response)} needs"
+    if (bad := results[~_in_domain(results, transform)].dropna()).size:
+        run = runs.loc[bad.index[0], "Run order"] if "Run order" in runs.columns else bad.index[0] + 1
+        raise ValueError(
+            f"{words} every result {_least(transform)}, and run {int(run)} has {bad.iloc[0]:g}. "
+            "Analyse it as it is, or with another transform."
+        )
+    runs[response["name"]] = _to_model_scale(results, transform)
+    if "target" not in response:
+        return response
+    if not _in_domain(pd.Series([response["target"]]), transform).all():
+        raise ValueError(f"{words} a target {_least(transform)}.")
+    return {**response, "target": float(_to_model_scale(response["target"], transform))}
+
+
+def _in_domain(values: pd.Series, transform: str) -> pd.Series:
+    """Say which values a transform takes: above 0 for the log and the inverse, 0 or more for the square root."""
+    return values > 0 if TRANSFORMS[transform]["positive"] else values >= 0
+
+
+def _least(transform: str) -> str:
+    """Say the least result a transform takes, in words."""
+    return "above 0" if TRANSFORMS[transform]["positive"] else "of 0 or more"
+
+
 def _check_factor_count(design_type: str, n_factors: int) -> None:
     """Refuse a design the factor count rules out, saying which counts it takes."""
     info = DESIGNS[design_type]
@@ -2345,7 +2443,9 @@ def analyze(request: dict) -> dict:
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     # A workbook can arrive from anywhere: its specification is checked as data. ``response`` names the response to
     # analyse, by its column; the first without it.
-    spec = _for_response(_checked_spec(stored), request.get("response"))
+    checked = _checked_spec(stored)
+    runs, _ = _on_model_scale(runs, checked)
+    spec = _for_response(checked, request.get("response"))
     return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
@@ -2392,6 +2492,8 @@ def _analysis(
     fit = _fit_estimable(coded, y_done, fitted, columns, categorical)
     out = fit["out"]
     zero = ROUND_OFF * float(y[done].abs().max())
+    transform = _transform_of(spec)  # the runs hold the response on its model's scale (see _on_model_scale)
+    raw = y if transform is None else y.map(lambda v: _put_back(v, transform) if pd.notna(v) else np.nan)
     coefficients = [
         {
             **c,
@@ -2400,13 +2502,19 @@ def _analysis(
             "aliases": fit["chains"].get(c["term"], []),
             "block": _block_contrast(c["term"], columns),
             "vif": fit["vifs"].get(c["term"]),  # none for the intercept
+            # On the log scale a main effect is a ratio: the response's median from the factor's low to its high.
+            **(
+                {"ratio": _put_back(2 * c["coefficient"], "log") if c["term"] in names else None}
+                if transform == "log"
+                else {}
+            ),
         }
         for c in out.get("coefficients", [])
     ]
     lenth = fit["lenth"]
     if lenth:  # an effect is twice its coefficient at most, so twice the coefficients' round-off
         lenth["effects"] = [{**e, "effect": _snapped(e["effect"], 2 * zero)} for e in lenth["effects"]]
-    if truth:
+    if truth and transform is None:  # a simulated process is in the response's units, not on a transform's scale
         _add_true_values(coefficients, coded, fit["formula"], _true_coefficients(truth, columns))
     anova = [{**a, "source": fit["labels"].get(a["source"], _pretty(a["source"]))} for a in out.get("anova_table", [])]
     if columns != names:  # a factor of several levels is tested as one term, over its contrasts together
@@ -2414,14 +2522,15 @@ def _analysis(
     anova = [{**a, "source": _level_words(a["source"], spec)} for a in anova]
     notes = [_level_words(note, spec) for note in fit["notes"]]
     order = runs.loc[done, "Run order"].astype(int).tolist() if "Run order" in runs else None
-    comparison = _comparison(
+    comparison = _comparison(  # of the results as measured, in the response's units, with or without a transform
         _coded(runs, factors)[done].reset_index(drop=True),
-        y[done].to_numpy(dtype=float),
+        raw[done].to_numpy(dtype=float),
         spec,
         order,
         control,
         runs.loc[done, BLOCK].tolist() if blocked else None,
     )
+    notes += _compared_as_measured(spec, transform) if comparison else []
     if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
         true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
         comparison["difference"]["true"] = None if true is None else 2 * true
@@ -2443,10 +2552,53 @@ def _analysis(
         "lenth": lenth,
         "not_estimable": [_level_words(_pretty(t), spec) for t in fit["not_estimable"]],
         "notes": notes,
-        "equation": _equation(_response_words(spec)[0], [c for c in coefficients if not c["block"]]),
+        "equation": _equation(
+            _scale_words(_response_words(spec)[0], transform), [c for c in coefficients if not c["block"]]
+        ),
         "comparison": comparison,
-        "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), y[done].to_numpy(float), spec, order),
+        "transform": transform,
+        "box_cox": _box_cox_hint(coded, raw[done].reset_index(drop=True).rename(response), fit, transform),
+        "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), raw[done].to_numpy(float), spec, order),
     }
+
+
+def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:
+    """Say, when a transformed response's levels are compared, that the comparison is of the results as measured."""
+    if transform is None:
+        return []
+    words, units = _response_words(spec)
+    return [COMPARED_AS_MEASURED.format(units=units or "its own units", scale=_scale_words(words, transform))]
+
+
+def _scale_words(name: str, transform: str | None) -> str:
+    """Write the quantity a model is fitted to: the response's name, or its transform, such as ``ln(Yield)``."""
+    return name if transform is None else TRANSFORMS[transform]["scale"].format(name)
+
+
+def _box_cox_hint(coded: pd.DataFrame, raw: pd.Series, fit: dict, transform: str | None) -> dict[str, Any] | None:
+    """Say what Box-Cox's lambda, for this model fitted to the results as measured, makes of a transform.
+
+    ``lambda`` and its 95% interval ``ci``; ``suggests``, the transform of :data:`TRANSFORMS` the interval
+    holds nearest lambda (``log`` at 0, ``sqrt`` at 0.5, ``inverse`` at -1), or None when it holds 1, the
+    results as they are, or none of them; and ``current``, the transform fitted. None when the method
+    cannot be used: a result at 0 or below, or no residual degrees of freedom to judge a fit by.
+    """
+    if not (raw > 0).all() or fit["out"]["model_summary"]["df_residual"] < 1:
+        return None
+    try:
+        with _listening():
+            found = analyze_experiment(coded, raw, model=fit["formula"], analysis_type="box_cox", coding="actual")
+    except (ValueError, np.linalg.LinAlgError):
+        return None
+    found = found.get("box_cox") or {}
+    if "lambda" not in found:
+        return None
+    low, high = found["lambda_ci"]
+    inside = [t for t, power in BOX_COX_POWERS.items() if low <= power <= high]
+    suggests = (
+        None if low <= 1 <= high or not inside else min(inside, key=lambda t: abs(BOX_COX_POWERS[t] - found["lambda"]))
+    )
+    return {"lambda": found["lambda"], "ci": [low, high], "suggests": suggests, "current": transform}
 
 
 def _grouped_anova(rows: list[dict], frame: pd.DataFrame, y: pd.Series, formula: str, spec: dict) -> list[dict]:
@@ -3505,9 +3657,10 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
             _mixture_model(one)
         else:
             _checked_model(one, names, labelled)
-    dropped = ("response_info", "responses", "aim", "constraints")
+    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms")
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
+    transforms = _checked_transforms(spec, responses)
     return {
         **checked,
         "factors": [_factor_spec(f) for f in factors],
@@ -3517,7 +3670,25 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         **_stored_responses(responses),
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
+        **({"analysis_transforms": transforms} if transforms else {}),
     }
+
+
+def _checked_transforms(spec: dict, responses: list[dict[str, Any]]) -> dict[str, str]:
+    """Check the transform each response is analysed with, by its column: a key of :data:`TRANSFORMS`.
+
+    A response renamed since keeps no transform, rather than stopping every reply: the name is dropped.
+    """
+    raw = spec.get("analysis_transforms")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or not all(t is None or t in TRANSFORMS for t in raw.values()):
+        raise ValueError("A response is analysed as it is, or as its log, square root or inverse.")
+    names = {r["name"] for r in responses}
+    kept = {str(name): t for name, t in raw.items() if t is not None and name in names}
+    if kept and _mixture(spec):
+        raise ValueError("A mixture's responses are analysed as they are on this page.")
+    return kept
 
 
 def _response_words(spec: dict) -> tuple[str, str]:
@@ -3869,7 +4040,7 @@ def analyze_runs(request: dict) -> dict:
     is fitted to the runs that have its result, so a run with some of its results in counts for those.
     """
     spec = _checked_spec(request.get("spec") or {})
-    runs = _runs_frame(request, spec)
+    runs, _ = _on_model_scale(_runs_frame(request, spec), spec)  # the spec as sent: the reply gives it back
     spec = _for_response(spec, request.get("response"))
     model = request.get("model") or spec["model"]
     return _analysis(runs, spec, model, request.get("truth"), control=request.get("control"))
@@ -4013,10 +4184,11 @@ def plots(request: dict) -> dict:
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
-    every_run = _runs_frame(request, spec)
+    every_run, _ = _on_model_scale(_runs_frame(request, spec), spec)
     spec = _for_response(spec, request.get("response"))  # the response drawn: the first, or the one named
     if _mixture(spec):
         return _mixture_plots(request, spec)
+    transform = _transform_of(spec)
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
@@ -4040,25 +4212,27 @@ def plots(request: dict) -> dict:
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
 
-    def draw(kind: str, results: dict, **options: Any) -> str:  # noqa: ANN401
+    def draw(kind: str, results: dict, scale: str | None, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
-        return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair), cls=PlotlyJSONEncoder)
+        return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair, scale), cls=PlotlyJSONEncoder)
 
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
-    figures = {"contour": draw("contour", out, factors_to_plot=pair, **shading)} if surface else {}
+    figures = {"contour": draw("contour", out, transform, factors_to_plot=pair, **shading)} if surface else {}
     truth = request.get("truth")
     if truth and surface:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
         missing = [f for f in process.factors if f not in columns]
         if missing:
             raise ValueError(f"The true process names factors the design does not have: {missing}.")
-        figures["true_contour"] = draw("contour", {"coefficients": _truth(process)}, factors_to_plot=pair, **shading)
+        # the simulated process is in the response's units: its surface has nothing to put back
+        true = {"coefficients": _truth(process)}
+        figures["true_contour"] = draw("contour", true, None, factors_to_plot=pair, **shading)
     if fit["out"]["model_summary"]["df_residual"] > 0:
-        figures["residuals"] = draw("residuals_vs_fitted", out)
+        figures["residuals"] = draw("residuals_vs_fitted", out, transform)
     if fit["lenth"]:
         effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
-        figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]})
+        figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
     return {
         "figures": figures,
         "contour_factors": pair,
@@ -4128,15 +4302,18 @@ def _ticks(factor: dict) -> dict[str, Any]:
     return {"tickvals": [-1, 0, 1], "ticktext": [f"{v:.4g}" for v in (low, (low + high) / 2, high)]}
 
 
-def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
+def _dressed(figure: dict, kind: str, spec: dict, pair: list[str], transform: str | None = None) -> dict:
     """Title a library figure's axes in the reader's words and units, as the page shows it.
 
     The library draws in coded units and names the axes for any reader: the factors by their
     names, the fitted values as "Fitted Values". Here a response surface's axes are the two
     factors with their units, ticked at their own low, middle and high settings, its colours
     are the response with its units, and the residuals and effects are in the response's units.
+    A model fitted on a ``transform``'s scale has its surface put back in the response's units (the
+    median there), and its residuals and effects named on that scale, which has no units.
     """
     label, units = _response_words(spec)
+    scaled, scale_units = (_scale_words(label, transform), "") if transform else (label, units)
     layout = figure.setdefault("layout", {})
 
     def title(axis: str, text: str, **more: Any) -> None:  # noqa: ANN401
@@ -4149,11 +4326,14 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str]) -> dict:
         for trace in figure.get("data", []):  # the response's contours; the shading of a region's limits has no scale
             if trace.get("type") == "contour" and trace.get("contours", {}).get("type") != "constraint":
                 trace["colorbar"] = {**trace.get("colorbar", {}), "title": {"text": _with_units(label, units)}}
+                if transform is not None:
+                    z = np.asarray(trace["z"], dtype=float).tolist()
+                    trace["z"] = [[_put_back(v, transform) for v in row] for row in z]
     elif kind == "residuals_vs_fitted":
-        title("xaxis", _with_units(f"Fitted {label}", units))
-        title("yaxis", _with_units("Residual", units))
+        title("xaxis", _with_units(f"Fitted {scaled}", scale_units))
+        title("yaxis", _with_units("Residual", scale_units))
     elif kind == "half_normal":
-        title("yaxis", _with_units("|Effect|", units))
+        title("yaxis", _with_units("|Effect|", scale_units))
     return figure
 
 
@@ -5535,7 +5715,10 @@ def best_settings(request: dict) -> dict:
         return {"goal": goal, "target": None}
     if _mixture(spec):  # a blend's proportions sum to 1: the search keeps to the blends, not to each factor's range
         return _best_blend(request, whole, spec, goal, target)
-    every_run = _runs_frame(request, whole)
+    # A transformed response is searched on its model's scale, its target too; the reply is put back after.
+    every_run, scaled = _on_model_scale(_runs_frame(request, whole), whole)
+    spec = _for_response(scaled, request.get("response"))
+    on_scale = (spec.get("response_info") or {}).get("target")
     names = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
@@ -5546,7 +5729,7 @@ def best_settings(request: dict) -> dict:
         {"term": c["term"], "coefficient": _snapped(c["coefficient"], zero)} for c in fitted.out["coefficients"]
     ]
     region = _spec_region(spec)
-    found = _search(coefficients, spec, region, goal, target)
+    found = _search(coefficients, spec, region, goal, on_scale)
     reply: dict[str, Any] = {"goal": goal, "target": target, "flat": found is None, "confirmation": []}
     if found is None:
         return reply
@@ -5554,8 +5737,8 @@ def best_settings(request: dict) -> dict:
     numeric = [f for f in spec["factors"] if not _categorical(f)]
     point = _full_point(spec, x, levels)
     predicted, confidence, prediction, leverage = fitted.at(point)
-    reached = None if goal != "target" else abs(predicted - target) <= 1e-4 * max(found["spread"], 1e-12)
-    sense = _sense(goal, target, predicted, reached=bool(reached))
+    reached = None if goal != "target" else abs(predicted - on_scale) <= 1e-4 * max(found["spread"], 1e-12)
+    sense = _sense(goal, on_scale, predicted, reached=bool(reached))
     gradient = _gradient(reduced, [f["name"] for f in numeric], x)
     tiny = 1e-9 * max(found["spread"], 1.0)
     in_model = _factors_in(coefficients, spec)
@@ -5581,7 +5764,36 @@ def best_settings(request: dict) -> dict:
         "confirmation": _confirmation(every_run, spec, fitted),
         "search": {"held": _used(found["held"], fitted.out["coefficients"]), "goal": found["goal"]},
     }
-    return reply
+    return _best_put_back(reply, _transform_of(spec))
+
+
+def _best_put_back(reply: dict[str, Any], transform: str | None) -> dict[str, Any]:
+    """Put what the best settings' reply says in the response's units back in them, for a transformed response.
+
+    The prediction becomes the response's median there, and each interval's ends are put back; a move's
+    change is the change in that median; a confirmation group's average is the average of its results on
+    the model's scale, put back (for the log, their geometric mean). The search, ``search``, stays on the
+    model's scale, as the code the page shows makes it.
+    """
+    if transform is None:
+        return reply
+    at = reply["predicted"]
+
+    def change(by: float | None) -> float | None:
+        moved, here = _put_back(None if by is None else at + by, transform), _put_back(at, transform)
+        return None if moved is None or here is None else moved - here
+
+    return {
+        **reply,
+        "predicted": _put_back(at, transform),
+        "confidence": _put_back(reply["confidence"], transform),
+        "prediction": _put_back(reply["prediction"], transform),
+        "sensitivity": [{**s, "down": change(s["down"]), "up": change(s["up"])} for s in reply["sensitivity"]],
+        "confirmation": [
+            {**c, **{key: _put_back(c[key], transform) for key in ("mean", "predicted", "interval")}}
+            for c in reply["confirmation"]
+        ],
+    }
 
 
 class _FittedModel:
@@ -6484,7 +6696,9 @@ def balance(request: dict) -> dict:
     :func:`_balanced_blend`).
     """
     whole = _checked_spec(request.get("spec") or {})
-    every_run = _runs_frame(request, whole)
+    transforms = whole.get("analysis_transforms") or {}
+    # Each transformed response is balanced on its model's scale, its range's ends put there (see _scaled_range).
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
     design = _design_runs(every_run)
     aimed = [r for r in _responses(whole) if r.get("goal") in AIMED and (r["goal"] != "target" or "target" in r)]
     if len(aimed) < 2:  # two responses or more are balanced
@@ -6506,7 +6720,7 @@ def balance(request: dict) -> dict:
         if results.empty:
             raise ValueError(f"Enter results for {_words(r)} first: the balance is found on each response's model.")
         fits[r["name"]] = _blend_fit(design, spec, model) if mixture else _fitted(design, spec, model)
-        goals.append(_balance_goal(r, results, raw_goals.get(r["name"])))
+        goals.append(_balance_goal(r, results, _scaled_range(raw_goals.get(r["name"]), r, transforms.get(r["name"]))))
     if mixture:
         return _balanced_blend(every_run, whole, aimed, fits, goals)
     region = _spec_region(whole)
@@ -6515,7 +6729,7 @@ def balance(request: dict) -> dict:
     in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
     numeric = [f for f in whole["factors"] if not _categorical(f)]
     still = np.zeros(len(numeric))  # no way to move from the balanced settings is said, so no end has a "beyond"
-    return {
+    reply = {
         **_balanced_at(aimed, goals, fits, point),
         "settings": _settings_reply(whole, point, in_model, still, 1.0),
         "limits": _limits_on(whole, region, found["x"], still, 1.0),
@@ -6528,6 +6742,58 @@ def balance(request: dict) -> dict:
             "formulas": {n: fit.formula for n, fit in fits.items()},
         },
     }
+    return _balance_put_back(reply, transforms)
+
+
+def _scaled_range(raw: object, response: dict, transform: str | None) -> object:
+    """Put the ends of the acceptable range the reader set for a transformed response on its model's scale.
+
+    Its desirability is then worked on that scale between the same two ends, and its target with them, so
+    a result at an end scores as the reader set it; between them, d is a straight line on the model's scale.
+    """
+    if transform is None or not isinstance(raw, dict):
+        return raw
+    ends = {key: _number(raw[key]) for key in ("low", "high") if raw.get(key) is not None}
+    if any(v is None or not _in_domain(pd.Series([v]), transform).all() for v in ends.values()):
+        raise ValueError(
+            f"The {TRANSFORMS[transform]['words']} of {_words(response)} needs an acceptable range {_least(transform)}."
+        )
+    return {**raw, **{key: float(_to_model_scale(v, transform)) for key, v in ends.items()}}
+
+
+def _balance_put_back(reply: dict[str, Any], transforms: dict[str, str]) -> dict[str, Any]:
+    """Put what a balance says in each transformed response's units back in them, and say its ``transform``.
+
+    Its prediction, intervals, acceptable range, target and their defaults; its confirmation groups'
+    averages and predictions; and its surface on the overlay, with the levels drawn on it. Each
+    response's d is as found, on its model's scale; the search, ``search``, stays on that scale.
+    """
+    if not transforms:
+        return reply
+    said = ("predicted", "confidence", "prediction", "low", "high", "target", "default_low", "default_high")
+
+    def back(entry: dict, keys: tuple[str, ...]) -> dict:
+        if (transform := transforms.get(entry["name"])) is None:
+            return entry
+        return {**entry, **{k: _put_back(entry[k], transform) for k in keys if k in entry}, "transform": transform}
+
+    out = {**reply, "responses": [back(r, said) for r in reply["responses"]]}
+    out["confirmation"] = [
+        {**group, "responses": [back(r, ("mean", "predicted", "interval")) for r in group["responses"]]}
+        for group in reply["confirmation"]
+    ]
+    if reply.get("overlay"):
+        surfaces = reply["overlay"]["responses"]
+        out["overlay"] = {**reply["overlay"], "responses": [_surface_put_back(s, transforms) for s in surfaces]}
+    return out
+
+
+def _surface_put_back(surface: dict, transforms: dict[str, str]) -> dict:
+    """Put a response's surface on the balance's overlay, and the levels drawn on it, back in its units."""
+    if (transform := transforms.get(surface["name"])) is None:
+        return surface
+    z = [[_put_back(v, transform) for v in row] for row in surface["z"]]
+    return {**surface, "z": z, "levels": _put_back(list(surface["levels"]), transform)}
 
 
 def _balanced_at(
@@ -6948,16 +7214,23 @@ def predictors(request: dict) -> dict:
     whole = _checked_spec(request.get("spec") or {})
     if _mixture(whole):
         return {"mixture": True, "factors": [], "responses": []}
-    every_run = _runs_frame(request, whole)
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
     design = _design_runs(every_run)
     names = [f["name"] for f in whole["factors"]]
     categorical = _categorical_names(whole)
     raw_models = request.get("models") or {}
     if not isinstance(raw_models, dict):
         raise ValueError("The page sent models for the responses this page did not write.")  # noqa: TRY004
+    transforms = whole.get("analysis_transforms") or {}
     responses = []
     for r in _responses(whole):
-        words = {"name": r["name"], "label": _words(r), "units": r.get("units") or ""}
+        # a transformed response is fitted on its model's scale; the page puts each prediction back (putBack)
+        words = {
+            "name": r["name"],
+            "label": _words(r),
+            "units": r.get("units") or "",
+            **({"transform": transforms[r["name"]]} if r["name"] in transforms else {}),
+        }
         if pd.to_numeric(design[r["name"]], errors="coerce").dropna().empty:
             responses.append(words | {"waiting": True})
             continue
@@ -7184,7 +7457,9 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
     except ImportError:
         return "This version of process-improve cannot say what the results call for yet."
     response = spec["response"]
-    runs = _runs_frame(request, whole)
+    # A transformed response's step is judged on its model's scale, as the analysis fits it, its target there too.
+    runs, scaled = _on_model_scale(_runs_frame(request, whole), whole)
+    target = (_for_response(scaled, request.get("response")).get("response_info") or {}).get("target")
     confirming = _confirming(runs)
     design = runs.loc[~confirming].drop(columns=[CONFIRMATION], errors="ignore")
     confirmations = runs.loc[confirming]
@@ -7215,6 +7490,9 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
         _relay(heard)
     except ValueError as exc:
         return f"The results cannot say what to run next: {exc}"
+    if (transform := _transform_of(spec)) is not None:  # the step's numbers are on the model's scale: say which
+        words = _scale_words(_response_words(spec)[0], transform)
+        found = {**found, "reasons": [NEXT_STEP_SCALE.format(scale=words), *found["reasons"]]}
     return found
 
 

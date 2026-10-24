@@ -14,4 +14,5 @@ API Reference
    visualization
    sensory
    simulation
+   workbench
    tooling

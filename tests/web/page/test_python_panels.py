@@ -521,6 +521,33 @@ def test_the_best_settings_code_finds_the_page_s_best_settings(api, node, worked
     assert_same_best(namespace, best, held["spec"])
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("transform", ["log", "sqrt", "inverse"])
+def test_a_transformed_response_s_code_fits_and_finds_what_the_page_does(api, node, worked_example, transform):
+    """The code fits the response's transform, as the page does, and its prediction put back is the page's."""
+    held = aimed(worked_example["held"], "maximize")
+    held = {**held, "spec": {**held["spec"], "analysis_transforms": {held["spec"]["response"]: transform}}}
+    simulation = worked_example["simulated"]
+    request = {**held, "responses": simulation["responses"]}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, simulation["responses"], simulation]),
+        ("analyseCode", [analysis["formula"], True, held["spec"]]),  # as app.js passes the response's spec
+        ("bestCode", [best, held["spec"], analysis["formula"], True]),
+    )
+    namespace = run(code)
+    assert_same_fit(namespace, analysis)
+    back = {"log": np.exp, "sqrt": np.square, "inverse": lambda v: -1 / v}[transform]
+    shown = namespace["prediction"]["predictions"][0]
+    assert back(shown["predicted"]) == pytest.approx(best["predicted"], rel=1e-6)
+    for setting in best["settings"]:
+        if setting["kind"] == "numeric":
+            assert namespace["best"]["optimal_actual"][setting["name"]] == pytest.approx(setting["value"], rel=1e-6)
+
+
 def test_the_notebook_ends_with_the_best_settings_when_the_page_has_them(api, node, worked_example):
     held = aimed(worked_example["held"], "maximize")
     simulation = worked_example["simulated"]

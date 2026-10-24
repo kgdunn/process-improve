@@ -31,6 +31,9 @@ SUITES = (
     "feedback.test.mjs",
     "comparison.test.mjs",
     "spread.test.mjs",
+    "mva-selection.test.mjs",
+    "mva-table.test.mjs",
+    "mva-views.test.mjs",
 )
 
 #: The first Node.js that reads ``web/*.js`` as ES modules without being told.

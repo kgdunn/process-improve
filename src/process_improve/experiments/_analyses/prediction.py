@@ -8,6 +8,7 @@ run is put on that scale with the same transform before it is compared.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import numpy as np
@@ -15,7 +16,7 @@ import pandas as pd
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
-from .transforms import to_model_scale
+from .transforms import to_model_scale, to_original_scale
 
 
 def _scale_label(transform_info: dict[str, Any] | None) -> str:
@@ -35,10 +36,14 @@ def _run_prediction(
     alpha: float = 0.05,
     transform_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Predictions with confidence and prediction intervals, on the scale the model was fitted on."""
+    """Predictions with confidence and prediction intervals, on the scale the model was fitted on.
+
+    With a transformed response each record also holds ``response_units``: the prediction put back in
+    the response's own units (its ``median``) and the intervals' ends put back, low before high.
+    """
     summary = ols_result.get_prediction(new_points).summary_frame(alpha=alpha)
 
-    records = [
+    records: list[dict[str, Any]] = [
         {
             "predicted": float(row["mean"]),
             "ci_low": float(row["mean_ci_lower"]),
@@ -48,7 +53,22 @@ def _run_prediction(
         }
         for _i, row in summary.iterrows()
     ]
+    if (transform_info or {}).get("transform") is not None:
+        for record in records:
+            record["response_units"] = _in_response_units(record, transform_info or {})
     return {"predictions": records, "prediction_scale": _scale_label(transform_info)}
+
+
+def _in_response_units(record: dict[str, float], info: dict[str, Any]) -> dict[str, float | None]:
+    """Put a prediction and its intervals back in the response's units; an unbounded end is ``None``."""
+    out: dict[str, float | None] = {"median": float(to_original_scale(record["predicted"], info))}
+    for low, high in (("ci_low", "ci_high"), ("pi_low", "pi_high")):
+        ends = sorted(float(v) for v in to_original_scale([record[low], record[high]], info))
+        if info["transform"] == "inverse" and record[low] < 0 < record[high]:
+            # 1/y passes through 0, so y is unbounded: keep the side of the interval the prediction is on
+            ends = [1.0 / record[high], math.inf] if record["predicted"] > 0 else [-math.inf, 1.0 / record[low]]
+        out[low], out[high] = (v if math.isfinite(v) else None for v in ends)
+    return out
 
 
 def _groups_of_settings(new_points: pd.DataFrame) -> list[list[int]]:

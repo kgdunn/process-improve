@@ -169,10 +169,10 @@ CI's `web-app` job runs all three:
 To run them locally:
 
 ```bash
-uv run --with playwright==1.56.0 playwright install chromium     # once, for --e2e and --live
+uv run --with playwright==1.64.1 playwright install chromium     # once, for --e2e and --live
 npm install --prefix ~/.cache/process-improve/node --no-save \
   pyodide@$(jq -r .pyodide web/runtime.json)                      # once, for --wasm
-uv run --with playwright==1.56.0 pytest tests/web --e2e --live --wasm --no-cov
+uv run --with playwright==1.64.1 pytest tests/web --e2e --live --wasm --no-cov
 ```
 
 `--live` and `--wasm` build the app into `~/.cache/process-improve/web-app`, unless

@@ -216,6 +216,16 @@ def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap,
     assert kept == ["", *bootstrap.MODELS, *bootstrap.MIXTURE_MODELS], "a saved study's model is one of these"
 
 
+def test_the_transforms_to_analyse_with_are_bootstrap_s_after_as_measured(bootstrap, node):
+    """The page offers each transform bootstrap fits, names it as bootstrap does, and a saved study keeps those."""
+    assert page().values("transform") == ["", *bootstrap.TRANSFORMS]
+    assert page().selected("transform") == ""
+    (words,) = javascript(node, source("logic.js"), [("TRANSFORM_WORDS", [])])
+    assert words == {name: t["words"] for name, t in bootstrap.TRANSFORMS.items()}
+    (kept,) = javascript(node, source("campaign.js"), [("TRANSFORMS", [])])
+    assert kept == list(bootstrap.TRANSFORMS), "a saved study's transform is one of these"
+
+
 @pytest.mark.parametrize("categorical", [(), ("S",)], ids=["numeric factors", "a categorical factor"])
 def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node, categorical):
     """Each term the page lists is one bootstrap reads, labelled as its fit labels it; a named model's are its own."""

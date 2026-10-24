@@ -1,7 +1,7 @@
 """Running the page in Chromium for the browser tests: serving it, launching Chromium, watching the console.
 
 Playwright is imported only by the fixtures that need it, so the rest of ``tests/web`` runs
-without it. Locally it comes from ``uv run --with playwright==1.56.0``; the Chromium it drives
+without it. Locally it comes from ``uv run --with playwright==1.64.1``; the Chromium it drives
 from ``playwright install chromium``, or from ``PI_CHROMIUM``, the path of another build.
 """
 
@@ -23,7 +23,7 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-PLAYWRIGHT = "playwright==1.56.0"
+PLAYWRIGHT = "playwright==1.64.1"
 RUN_HINT = f"run the browser tests with `uv run --with {PLAYWRIGHT} pytest ...`"
 INSTALL_HINT = f"install Chromium with `uv run --with {PLAYWRIGHT} playwright install chromium`, or set PI_CHROMIUM"
 

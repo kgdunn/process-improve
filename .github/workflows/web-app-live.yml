@@ -18,8 +18,7 @@ permissions:
 
 jobs:
   published-app:
-    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -33,13 +32,13 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.56.0 playwright install --with-deps chromium
+        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
       # A CDN can fail for a moment, so the tests run a second time, a minute later, before the
       # job fails. Nothing is cached, as on a reader's first visit.
       - name: Run the smoke tests against the published app
         run: |
           smoke() {
-            uv run --with playwright==1.56.0 pytest tests/web/live -m smoke --live \
+            uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live \
               --web-app="$APP" --cdn-cache=off --no-cov
           }
           smoke || { echo "The smoke tests failed; running them again in a minute."; sleep 60; smoke; }
@@ -94,8 +93,7 @@ jobs:
           fi
 
   newest-pyodide:
-    # shortcut: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04); move back once the pin supports it
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     continue-on-error: true
     steps:
@@ -132,7 +130,7 @@ jobs:
           NEWEST: ${{ steps.pyodide.outputs.newest }}
         run: |
           npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock "pyodide@$NEWEST"
-          uv run --with playwright==1.56.0 playwright install --with-deps chromium
+          uv run --with playwright==1.64.1 playwright install --with-deps chromium
       - name: Build the app on the newest release
         if: steps.pyodide.outputs.skip != 'true'
         run: uv run python scripts/build_web_app.py -o dist/web-app
@@ -140,7 +138,7 @@ jobs:
         id: tiers
         if: steps.pyodide.outputs.skip != 'true'
         run: >-
-          uv run --with playwright==1.56.0 pytest tests/web/wasm tests/web/live --wasm --live
+          uv run --with playwright==1.64.1 pytest tests/web/wasm tests/web/live --wasm --live
           --web-app=dist/web-app --cdn-cache=off --no-cov
       - name: Say whether the newest Pyodide is safe to pin
         if: steps.pyodide.outputs.skip != 'true' && !cancelled()

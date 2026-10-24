@@ -329,6 +329,40 @@ export function resultsCode(design, results, simulation = null) {
 }
 
 /**
+ * Each transform a response can be analysed with (bootstrap.TRANSFORMS), as the code writes it: how the results are
+ * put on its scale, and how a number on its scale is put back in the response's units. -1/y keeps the results'
+ * order, so the goals mean the same on its scale, and it tests as 1/y does.
+ */
+const SCALES = {
+  log: { on: (y) => `np.log(${y})`, back: "np.exp", words: "its log" },
+  sqrt: { on: (y) => `np.sqrt(${y})`, back: "np.square", words: "its square root" },
+  inverse: { on: (y) => `-1 / ${y}`, back: "lambda v: -1 / v", words: "-1/y, which tests as 1/y does" },
+};
+
+/** The transform a specification's response is analysed with, or null: bootstrap._transform_of. */
+const transformOf = (spec) => spec?.analysis_transforms?.[spec?.response] ?? null;
+
+/** The results as the model is fitted to them: ``y``, or its transform's expression of it. */
+const onScale = (y, transform) => (transform ? SCALES[transform].on(y) : y);
+
+/** The transformed responses of a code that fits several, as a dict of how each is put on its scale, and back. */
+function scaleLines(spec, names) {
+  const kept = Object.entries(spec.analysis_transforms ?? {}).filter(([name]) => names.includes(name));
+  if (!kept.length) return { lines: [], on: (y) => y, back: (v) => v };
+  const as = (key) => `{${kept.map(([name, t]) => `${repr(name)}: ${key === "on" ? SCALES[t].on("v").replace(/^/, "lambda v: ") : SCALES[t].back}`).join(", ")}}`;
+  return {
+    lines: [
+      "import numpy as np",
+      "# The responses fitted on a transform's scale, as the page fits them, and how a number is put back in their units.",
+      `on_scale = ${as("on")}`,
+      `put_back = ${as("back")}`,
+    ],
+    on: (y) => `on_scale.get(name, lambda v: v)(${y})`,
+    back: (v) => `put_back.get(name, lambda v: v)(${v})`,
+  };
+}
+
+/**
  * Step 3: the analysis of step 2's ``X`` and ``y``, with the model the page fitted. ``complete``
  * says every run has its result; when one does not, the runs still to do are left out first.
  * ``spec`` names a response other than the study's first when it is that response's analysis: ``y``
@@ -336,7 +370,8 @@ export function resultsCode(design, results, simulation = null) {
  * VIFs: the code then works them out from the same runs, as the page's VIF column has them.
  */
 export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false, control = null, spread = false } = {}) {
-  const fitted = complete ? "X, y" : "X[done], y[done]";
+  const transform = transformOf(spec);
+  const fitted = complete ? `X, ${onScale("y", transform)}` : `X[done], ${onScale("y[done]", transform)}`;
   const own = Boolean(spec?.response) && spec.response !== responseNames(spec)[0];
   const vif = vifModel
     ? [
@@ -347,9 +382,11 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
       ]
     : [];
   return [
+    ...(transform ? ["import numpy as np"] : []),
     `from process_improve.experiments import analyze_experiment${vifModel ? ", evaluate_design" : ""}`,
     "",
     ...(own ? [`y = runs[${repr(spec.response)}]${responseComment(spec)}`] : []),
+    ...(transform ? [`# The model is fitted to ${SCALES[transform].words}, as the page fits it; y stays as measured.`] : []),
     ...indicatorLines(spec, model),
     ...(complete ? [] : ["done = y.notna()  # leave out the runs still to do, as the page does"]),
     "analysis = analyze_experiment(",
@@ -557,7 +594,8 @@ export function bestCode(best, spec, model, complete = true) {
   const limits = spec.constraints ?? [];
   const response = spec.response || "y";
   const searched = Boolean(best.search?.goal);
-  const fitted = complete ? "X, y" : "X[done], y[done]";
+  const transform = transformOf(spec);
+  const fitted = complete ? `X, ${onScale("y", transform)}` : `X[done], ${onScale("y[done]", transform)}`;
   const point = codedPoint(best, spec);
   const chosen = (f) => best.settings?.find((s) => s.name === f.name)?.value;
   const levels = Object.fromEntries(
@@ -568,6 +606,7 @@ export function bestCode(best, spec, model, complete = true) {
   );
   const imports = [
     ...(holds && searched ? ["import math"] : []),
+    ...(transform ? ["import numpy as np"] : []),
     "import pandas as pd",
     `from process_improve.experiments import ${limits.length && searched ? "DesignRegion, " : ""}analyze_experiment${searched ? ", optimize_responses" : ""}`,
     "",
@@ -580,6 +619,12 @@ export function bestCode(best, spec, model, complete = true) {
     at,
     `prediction = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=at)`,
     'print(prediction["predictions"][0])',
+    ...(transform
+      ? [
+          "# Put back in the response's units, as the page says them: the prediction is its median there.",
+          `print({key: float((${SCALES[transform].back})(v)) for key, v in prediction["predictions"][0].items()})`,
+        ]
+      : []),
   ];
   if (!searched) {
     return [
@@ -801,10 +846,12 @@ export function balanceCode(balance, spec) {
   const formulas = balance.search.formulas;
   const goals = balance.search.goals.map((g) => Object.fromEntries(DESIRABILITY_KEYS.filter((k) => k in g).map((k) => [k, g[k]])));
   const ranges = numeric.map((f) => `${repr(f.name)}: {"low": ${f.low}, "high": ${f.high}}`).join(", ");
+  const scale = scaleLines(spec, Object.keys(formulas));
   const imports = [
     ...(holds ? ["import math"] : []),
     `from process_improve.experiments import ${limits.length || mixture ? "DesignRegion, " : ""}analyze_experiment, optimize_responses`,
     "",
+    ...scale.lines,
   ];
   const searched = mixture
     ? ["    region=DesignRegion(factors),  # the blends: each component between its bounds, the proportions summing to 1"]
@@ -819,12 +866,13 @@ export function balanceCode(balance, spec) {
     "models = []",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    '    fit = analyze_experiment(X[done], runs[name][done], model=model, analysis_type="coefficients", coding="actual")',
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
     `    coefficients = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
     `    models.append({"response_name": name, "coefficients": coefficients, "factor_names": ${repr(numeric.map((f) => f.name))}})`,
     "",
     "# Each goal as a desirability: 0 outside its acceptable range (low to high), 1 at its good end; its weight shapes",
     "# the ramp between, and its importance is how much it counts in the overall desirability.",
+    ...(scale.lines.length ? ["# A transformed response's range and target are on its scale, as the page balances it."] : []),
     "goals = [",
     ...goals.map((g) => `    ${repr(g)},`),
     "]",
@@ -854,10 +902,12 @@ export function whatIfCode(spec, formulas, at, settings) {
   );
   const models = Object.values(formulas).join(" + ");
   const used = new Set([...spec.factors.flatMap(columnsOf), ...spec.factors.flatMap((f) => indicatorsIn(models, f).map(({ name }) => name))]);
+  const scale = scaleLines(spec, Object.keys(formulas));
   return [
     "import pandas as pd",
     "from process_improve.experiments import analyze_experiment",
     "",
+    ...scale.lines,
     ...indicatorLines(spec, models),
     `# The settings, ${words.join(", ")}, in coded units as the columns of X.`,
     `at = pd.DataFrame([${repr(Object.fromEntries(Object.entries(at).filter(([name]) => used.has(name))))}])`,
@@ -865,7 +915,9 @@ export function whatIfCode(spec, formulas, at, settings) {
     "# confidence interval for the mean (ci_low to ci_high) and prediction interval for one new run (pi_low to pi_high).",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
-    '    prediction = analyze_experiment(X[done], runs[name][done], model=model, analysis_type="prediction", new_points=at)',
-    '    print(name, prediction["predictions"][0])',
+    `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=at)`,
+    scale.lines.length
+      ? `    print(name, {key: float(${scale.back("v")}) for key, v in prediction["predictions"][0].items()})  # in its units`
+      : '    print(name, prediction["predictions"][0])',
   ].join("\n");
 }
