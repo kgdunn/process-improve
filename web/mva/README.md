@@ -71,7 +71,28 @@ fitted model, plus every row's scores, Hotelling's T² and SPE, **the excluded r
 included**, projected through the model they were not used to fit, each flagged.
 `variant.to_python()` writes the model code that follows the recipe's code.
 
-## 3. Why is this group different? (`Fit.explain_group`)
+## 3. How many components? (`Variant.cross_validate`)
+
+On request only, since it fits the model many times over: the "Cross-validate" button scores
+every number of components on values the model was not fitted to, with the library's own
+selectors and their defaults. PCA holds out single cells (`PCA.select_n_components`,
+element-wise k-fold); PLS holds out whole rows (`PLS.select_n_components`, shuffled k-fold
+repeated ten times, the one-standard-error rule). Only the fitted rows take part.
+
+- The chart puts R² (the fitted rows) beside Q² (held out) per number of components, Q² with
+  one standard error, the recommendation marked and the count in use outlined. Clicking a bar
+  uses that number.
+- For PLS, Y goes in units of its standard deviation, so the prediction error pools the targets
+  with the weights the model gives them. In their own units Mn and Mw, in the tens of
+  thousands, would decide the count alone.
+- The answer does not depend on the model's number of components, so it is computed once per
+  model. Any other change (a row excluded, a recipe step, a different Y) marks it stale; it
+  runs again only when asked.
+- It writes its code after the model's: `cv = PCA.select_n_components(X.loc[included], random_state=0)`.
+
+Measured under Pyodide on LDPE: 0.6 s for PCA on 14 columns, 6.6 s for PLS (14 X, 5 Y).
+
+## 4. Why is this group different? (`Fit.explain_group`)
 
 Lasso a group of points on a score plot. `explain_group(group, reference=None)` returns,
 for each component of the plot:
@@ -81,7 +102,7 @@ for each component of the plot:
 - the raw data of the top variables, in run order, with the group marked, so each bar
   has its evidence beside it.
 
-## 4. The project file (`.mvproj`, `save_project` / `load_project`)
+## 5. The project file (`.mvproj`, `save_project` / `load_project`)
 
 One zip file:
 
@@ -100,14 +121,14 @@ One zip file:
   the result with the stored arrays. A difference is reported, with what changed (the
   library version or the data), instead of silently trusted.
 
-## 5. The selection store (`web/mva/selection.js`)
+## 6. The selection store (`web/mva/selection.js`)
 
 One store per page. It holds the selected rows and columns, the hovered row and column,
 the excluded rows, and **named sets** (a saved lasso) with set algebra: union,
 intersection, difference. Every view subscribes. Changes are batched, so a lasso of
 5,000 points causes one redraw. The store saves to and loads from the project file.
 
-## 6. Linked views (`web/mva/views.js`, `web/mva/link.js`)
+## 7. Linked views (`web/mva/views.js`, `web/mva/link.js`)
 
 `views.js` builds Plotly figures from points and the store's state, and never touches
 the document:
@@ -127,7 +148,7 @@ the document:
 hover events write to the store, and a store change redraws with `Plotly.react` on the
 next animation frame.
 
-## 7. The data table (`web/mva/table.js`)
+## 8. The data table (`web/mva/table.js`)
 
 A canvas-drawn grid that renders only the visible cells, so 100,000 rows or 1,000
 columns scroll smoothly. Each column header carries a histogram, a run-order sparkline,
@@ -141,6 +162,7 @@ plot shows. Excluded rows show struck through, dropped ones do not show.
 |---|---|
 | Recipe engine, code generation, bit-for-bit test | done: `process_improve.workbench.Recipe` |
 | Variant fit with projected excluded rows; group explanation | done: `Variant`, `Fit.explain_group` |
+| Cross-validation on request, R² beside Q² | done: `Variant.cross_validate`, `CrossValidation` |
 | Project file with refit-and-verify | done: `Project` |
 | Selection store, figure builders, event binder | done: `selection.js`, `views.js`, `link.js` |
 | Canvas table with header sparklines and an ARIA grid | done: `table.js` |
