@@ -18755,8 +18755,13 @@
       "source_kind": "table",
       "quote": "scale factor √(sR²/n) = √(5.6/6) = 0.97"
      },
+     "analysis": "the library's least_squares_means: the scale of the sliding reference t distribution, the residual mean square over the average number of animals a diet, 6",
      "check": {
-      "manual": "the scale of the book's sliding reference distribution, which no check computes"
+      "kind": "least_squares_means",
+      "model": "diet",
+      "factor": "diet",
+      "reference_rule": "average_replication",
+      "key": "reference_scale"
      }
     },
     {
@@ -22597,9 +22602,25 @@
       "source_kind": "table",
       "quote": "scaled by √(0.0222/16) = 0.037 ... √(0.242/16) = 0.123"
      },
-     "check": {
-      "manual": "scales of the book's reference distributions, which no check computes"
-     }
+     "analysis": "the library's least_squares_means of the poisons: the scale of the sliding reference t distribution for their averages of 16 animals, on the survival times and on the rates",
+     "check": [
+      {
+       "kind": "least_squares_means",
+       "model": "poison * treatment",
+       "factor": "poison",
+       "key": "reference_scale",
+       "printed": "0.037"
+      },
+      {
+       "kind": "least_squares_means",
+       "model": "poison * treatment",
+       "factor": "poison",
+       "response": "rate",
+       "key": "reference_scale",
+       "printed": "0.123",
+       "disagreement": "the scale is 0.1225, the root of 0.240/16; the book's 0.123 takes the rates' residual mean square as 0.242, which the runs do not give (0.240 on 36 degrees of freedom)"
+      }
+     ]
     }
    ]
   },
@@ -27514,8 +27535,12 @@
       "source_kind": "table",
       "quote": "a t15 distribution with scale factor √(ks²/tλ) = √(4(1471.42)/(7)(2)) = 20.50"
      },
+     "analysis": "the library's least_squares_means of the treatments in the block model run + treatment: the scale of the reference t distribution for the adjusted averages",
      "check": {
-      "manual": "the scale of the book's reference distribution for adjusted averages"
+      "kind": "least_squares_means",
+      "model": "run + treatment",
+      "factor": "treatment",
+      "key": "reference_scale"
      }
     },
     {
@@ -27995,8 +28020,12 @@
       "source_kind": "table",
       "quote": "a t12 distribution with scale factor √(4(1018.75)/7(2)) = 17.06"
      },
+     "analysis": "the library's least_squares_means of the treatments in the Youden model run + position + treatment: the scale of the reference t distribution for the adjusted averages",
      "check": {
-      "manual": "the scale of the book's reference distribution"
+      "kind": "least_squares_means",
+      "model": "run + position + treatment",
+      "factor": "treatment",
+      "key": "reference_scale"
      }
     }
    ]

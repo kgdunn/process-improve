@@ -3271,7 +3271,8 @@ def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
 
     ``check["comparisons"]`` is ``"tukey"`` (the default), ``"dunnett"`` (against ``check["control"]``)
     or ``"none"``; ``check["at"]`` holds other factors at one level and ``check["categorical"]`` names
-    the other numeric columns the model takes as levels.
+    the other numeric columns the model takes as levels. ``check["reference_rule"]`` is how the
+    reference scale is worked out, ``"pairwise"`` (the default) or ``"average_replication"``.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
     response = check.get("response") or responses.columns[0]
@@ -3279,7 +3280,12 @@ def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
     model = check["model"]
     for name in check.get("categorical") or []:  # numeric columns the model takes as levels
         model = re.sub(rf"\b{re.escape(name)}\b", f"C({name})", model)
-    method = Comparisons(check.get("comparisons", "tukey"), check.get("control"), check.get("confidence", 0.95))
+    method = Comparisons(
+        check.get("comparisons", "tukey"),
+        check.get("control"),
+        check.get("confidence", 0.95),
+        check.get("reference_rule", "pairwise"),
+    )
     return least_squares_means(table, f"{response} ~ {model}", check["factor"], method, at=check.get("at"))
 
 
@@ -3289,7 +3295,8 @@ def _least_squares_means(experiment: dict, check: dict) -> float:
     ``check["key"]`` reads ``"by_level.<level>.mean"`` (or ``std_error``, ``ci_low``, ``ci_high``),
     ``"pairs.<level> - <versus>.<field>"``, with ``difference``, ``std_error``, ``t``, ``p_value``,
     ``ci_low``, ``ci_high`` or ``half_width``, or one number: ``"critical_value"``,
-    ``"studentized_range"``, ``"individual_confidence"`` or ``"family_confidence"``.
+    ``"studentized_range"``, ``"individual_confidence"``, ``"family_confidence"`` or
+    ``"reference_scale"``.
     """
     found = _least_squares_result(experiment, check)
     head, _, rest = check["key"].partition(".")
