@@ -74,7 +74,10 @@ class AnalyzeExperimentInput(BaseModel):
     )
     new_points: list[dict[str, Any]] | None = Field(
         None,
-        description="New factor settings for prediction or confirmation.",
+        description=(
+            "New factor settings for prediction or confirmation. In a blocked design, a 'Block' key predicts in "
+            "that block; without one, the prediction is for the average block."
+        ),
     )
     observed_at_new: list[float] | None = Field(
         None,

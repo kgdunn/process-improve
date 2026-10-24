@@ -3788,7 +3788,7 @@
     "coded": false,
     "notes": "Table 5-2, in the order of preparation; y is the coding of Appendix 5B"
    },
-   "notes": "Chlorsulphonation of acetanilide. Section 5.31 repeats the analysis with batches 1 and 15 taken as missing; their estimates are the least-squares predictions in their own blocks. The library averages a prediction over the blocks when a factor is named Block, so those two checks name the model C(Block, Sum) + C(Blend, Sum).",
+   "notes": "Chlorsulphonation of acetanilide. Section 5.31 repeats the analysis with batches 1 and 15 taken as missing; their estimates are the least-squares predictions in their own blocks, which the library gives for a point that names its Block.",
    "expected": [
     {
      "what": "anova_sum_sq",
@@ -4381,7 +4381,7 @@
      },
      "check": {
       "kind": "prediction",
-      "model": "C(Block, Sum) + C(Blend, Sum)",
+      "model": "Block + Blend",
       "runs": [
        2,
        3,
@@ -4415,7 +4415,7 @@
      },
      "check": {
       "kind": "prediction",
-      "model": "C(Block, Sum) + C(Blend, Sum)",
+      "model": "Block + Blend",
       "runs": [
        2,
        3,
