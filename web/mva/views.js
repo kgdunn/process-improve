@@ -472,7 +472,8 @@ export function sequenceFigure(series, state, options = {}) {
         y: marked.map((i) => s.y[i]),
         customdata: marked.map((i) => s.ids[i]),
         hoverinfo: "skip",
-        marker: { color: colours.bg, size: 9, line: { color: colour, width: 2 } },
+        // Solid and outlined, as a selected point is on a scatter: hollow means excluded, and only that.
+        marker: { color: colour, size: 9, line: { color: colours.fg, width: 1.5 } },
         showlegend: false,
       },
     ];

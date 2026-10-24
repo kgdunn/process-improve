@@ -42,6 +42,7 @@ uv.lock
 
 # Build artifacts (uv build)
 dist/
+web/mva/wheels/
 
 # Pyodide for Node.js, if installed beside the app (npm install --no-save)
 web/node_modules/

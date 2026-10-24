@@ -31,6 +31,7 @@ SUITES = (
     "feedback.test.mjs",
     "comparison.test.mjs",
     "mva-selection.test.mjs",
+    "mva-table.test.mjs",
     "mva-views.test.mjs",
 )
 

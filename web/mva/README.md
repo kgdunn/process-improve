@@ -133,16 +133,37 @@ a strip of its missing values and its quality flags. Clicking or dragging over r
 selects them in every plot; clicking a header selects the variable, which the loading
 plot shows. Excluded rows show struck through, dropped ones do not show.
 
-## This week
+## Where it stands
 
-1. Recipe engine with code generation and the bit-for-bit test.
-2. Variant fit with projected excluded rows, and the group explanation.
-3. Project file with refit-and-verify.
-4. Selection store, figure builders and the event binder.
-5. Canvas table with header sparklines.
-6. Glue and a demo page wiring the two leaps: lasso a group, see why it differs;
-   exclude points, see where they fall.
+| Building block | Status |
+|---|---|
+| Recipe engine, code generation, bit-for-bit test | done: `process_improve.workbench.Recipe` |
+| Variant fit with projected excluded rows; group explanation | done: `Variant`, `Fit.explain_group` |
+| Project file with refit-and-verify | done: `Project` |
+| Selection store, figure builders, event binder | done: `selection.js`, `views.js`, `link.js` |
+| Canvas table with header sparklines and an ARIA grid | done: `table.js` |
+| Glue and a demo page wiring both leaps | done: `bootstrap.py`, `worker.js`, `index.html`, `app.js` |
+
+Measured under Pyodide on the LDPE data: open 36 ms, fit 40 ms, explain a group 19 ms,
+save 30 ms, open a project (refit and verify) 27 ms.
 
 Later: the latent-space what-if with `PLS.invert`, a refit that animates from the old
 model to the new, table cells coloured by their SPE contribution, branching variants
 and their comparison, a Python console on the same session.
+
+## Running the demo page
+
+The page needs a wheel of this checkout (the release on PyPI has no workbench yet):
+
+```bash
+uv build --wheel -o web/mva/wheels
+python -c "import json, pathlib; w = next(pathlib.Path('web/mva/wheels').glob('*.whl')).name; pathlib.Path('web/mva/wheels/manifest.json').write_text(json.dumps({'wheel': w}))"
+python -m http.server -d web 8000   # then open http://localhost:8000/mva/
+```
+
+`web/mva/wheels/` is git-ignored. The tests:
+
+```bash
+uv run pytest tests/workbench tests/web/mva tests/web/js --no-cov
+PI_CHROMIUM=/path/to/chrome uv run --with playwright==1.64.1 pytest tests/web/e2e/test_mva_page.py --e2e --no-cov
+```
