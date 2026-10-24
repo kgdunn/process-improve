@@ -14,6 +14,8 @@ import {
   barFigure,
   chooseLabels,
   componentTitle,
+  componentsFigure,
+  componentsSentence,
   encodingKind,
   labelPositions,
   markerSizes,
@@ -206,6 +208,53 @@ describe("bars and sequences", () => {
     assert.deepEqual(line.x, [1, 2, 3, 4]);
     assert.equal(line.marker.symbol[3], "circle-open");
     assert.deepEqual(marks.customdata, ["3", "4"]);
+  });
+});
+
+describe("how many components", () => {
+  const cv = {
+    components: [1, 2, 3],
+    r2: [0.4, 0.7, 0.8],
+    q2: [0.3, 0.5, 0.45],
+    q2se: [0.05, 0.04, 0.06],
+    recommended: 2,
+    rule: "the lowest prediction error",
+    heldOut: "cells",
+    folds: 5,
+    block: "X",
+  };
+
+  test("R² and Q² stand side by side, Q² with its standard error, the count in use outlined", () => {
+    const figure = componentsFigure(cv, { current: 3 });
+    const [r2, q2] = figure.data;
+    assert.deepEqual([r2.name, q2.name], ["R²X, fitted rows", "Q²X, held out"]);
+    assert.deepEqual(q2.error_y.array, cv.q2se);
+    assert.deepEqual(q2.marker.line.width, [0, 0, 2]);
+    assert.equal(figure.layout.xaxis.dtick, 1);
+    assert.equal(figure.layout.annotations[0].x, 2);
+    assert.equal(figure.layout.annotations[0].y, 0.7);
+  });
+
+  test("a cross-validation of a model since changed is drawn faded", () => {
+    const figure = componentsFigure({ ...cv, block: "Y" }, { stale: true });
+    assert.equal(figure.data[1].name, "Q²Y, held out");
+    assert.ok(figure.data.every((trace) => trace.marker.opacity === FADED));
+  });
+
+  test("a recommendation outside the counts draws no arrow", () => {
+    assert.deepEqual(componentsFigure({ ...cv, recommended: 9 }).layout.annotations, []);
+  });
+
+  test("the sentence names the recommendation, its rule, the count in use and what was held out", () => {
+    assert.equal(
+      componentsSentence(cv, 3),
+      "Recommended: 2 components, by the lowest prediction error. With 3: Q²X 0.45 ± 0.06, R²X 0.80. Q²X is R²X " +
+        "measured on single cells held out of the fitted rows, each predicted from the rest of its row by a model " +
+        "that never saw them (5 fits per count).",
+    );
+    assert.match(componentsSentence({ ...cv, recommended: 1, heldOut: "rows" }), /^Recommended: 1 component, .*rows/);
+    assert.match(componentsSentence({ ...cv, q2: [0.3, 0.5, null] }, 3), /With 3: Q²X not available ± 0.06/);
+    assert.doesNotMatch(componentsSentence(cv, 7), /With/);
   });
 });
 
