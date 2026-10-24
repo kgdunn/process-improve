@@ -1067,7 +1067,7 @@ export const LEVEL_CHECKS = {
  * What each check of a comparison of three levels or more means for its one-way analysis of variance, a sentence a
  * check, at the 5% level: whether the levels' runs spread alike, as the noise pooled from them all takes them to,
  * and whether the ranks of the results, which assume no normal noise, say what the averages say. A sentence says
- * when Bartlett's test is left out. None without a comparison of three levels or more.
+ * when Bartlett's test is left out. No sentence without a comparison of three levels or more.
  */
 export function checkSentences(comparison) {
   const several = comparison?.several;
