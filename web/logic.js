@@ -1054,6 +1054,55 @@ export function severalSentence(comparison, { response }) {
     : `These runs do not show that the averages of ${response} at the ${k} levels differ by more than their noise: ${p}.`;
 }
 
+/**
+ * The checks of what the one-way analysis of variance assumes, as a comparison of three levels or more lists them
+ * (``several.checks``): each check's name, its glossary entry and what it reads, as for ``COMPARISON_TESTS``.
+ */
+export const LEVEL_CHECKS = {
+  bartlett: { name: "Bartlett's test", key: "bartlett", how: "whether each level's runs spread alike" },
+  kruskal_wallis: { name: "Kruskal-Wallis test", key: "kruskal-wallis", how: "the order of the results" },
+};
+
+/**
+ * What each check of a comparison of three levels or more means for its one-way analysis of variance, a sentence a
+ * check, at the 5% level: whether the levels' runs spread alike, as the noise pooled from them all takes them to,
+ * and whether the ranks of the results, which assume no normal noise, say what the averages say. A sentence says
+ * when Bartlett's test is left out. None without a comparison of three levels or more.
+ */
+export function checkSentences(comparison) {
+  const several = comparison?.several;
+  if (!several?.checks) return [];
+  const found = Object.fromEntries(several.checks.map((check) => [check.test, check.p_value < 0.05]));
+  const sentences = [];
+  if (!("bartlett" in found)) {
+    sentences.push("Bartlett's test needs two runs or more at each level, and results at each level that are not all alike.");
+  } else {
+    const pooled = "the one-way analysis of variance, Tukey's intervals and Dunnett's intervals";
+    sentences.push(
+      found.bartlett
+        ? `Bartlett's test finds that the runs at some levels spread more than at others: ${pooled} pool one noise ` +
+            "from every level, so their p-values and intervals are approximate here."
+        : "Bartlett's test does not show that the runs at some levels spread more than at others, so these runs are " +
+            `consistent with the one noise that ${pooled} pool from every level.`,
+    );
+  }
+  if (!("kruskal_wallis" in found)) return sentences;
+  const lead = "The Kruskal-Wallis test, which ranks the results and so does not assume normal noise,";
+  const anova = "the one-way analysis of variance";
+  const said = {
+    "true,true": "also finds that the levels differ.",
+    "true,false":
+      `finds that the levels differ, though ${anova} does not: one result far from the others widens the noise ` +
+      "more than it moves the ranks.",
+    "false,true":
+      `does not show that the levels differ, though ${anova} does: the ranks keep the order of the results, not ` +
+      "how far apart they are.",
+    "false,false": `does not show that the levels differ, nor does ${anova}.`,
+  };
+  sentences.push(`${lead} ${said[`${found.kruskal_wallis},${several.test.p_value < 0.05}`]}`);
+  return sentences;
+}
+
 // ---------------------------------------------------------------- results pasted from a spreadsheet
 /** The headings, in lower case, a pasted column of run numbers may have: the run sheet's own, and the usual others. */
 export const RUN_HEADINGS = ["run order", "run", "run number", "run no.", "run #"];

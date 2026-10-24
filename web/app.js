@@ -95,6 +95,7 @@ import {
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   COMPARISON_TESTS,
+  LEVEL_CHECKS,
   PAIRED_TESTS,
   CHOSEN_TERMS,
   FULL,
@@ -132,6 +133,7 @@ import {
   comparedRow,
   comparisonOrder,
   comparisonSentence,
+  checkSentences,
   severalSentence,
   completeRuns,
   componentProblem,
@@ -3315,7 +3317,8 @@ function comparisonParts(r) {
     return parts;
   }
   const named = d.paired ? PAIRED_TESTS : COMPARISON_TESTS;
-  const tests = table(
+  const tests = testTable(
+    named,
     ["Test", "95% interval", "p-value"],
     d.tests.map((t) => [
       `${named[t.test].name}: ${named[t.test].how}`,
@@ -3324,7 +3327,18 @@ function comparisonParts(r) {
     ]),
     { "95% interval": "interval", "p-value": "p-value" },
   );
-  // Each test's name opens what the test is; the words after it say what it rests on.
+  const ways = d.paired ? `within each of the ${d.paired} pairs, tested three ways` : "tested four ways";
+  const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, ${ways}`);
+  parts.push(heading, tests, ...noteList(comparisonNotes(r)));
+  return parts;
+}
+
+/**
+ * A table of tests, each row's first cell a test's name and what it rests on (``name: how``), as ``named`` lists
+ * them: each name opens what the test is, and the words after it say what it rests on.
+ */
+function testTable(named, columns, rows, terms) {
+  const tests = table(columns, rows, terms);
   const body = tests.querySelector("table");
   body._cell = (row, col) => {
     if (col !== 0) return null;
@@ -3333,10 +3347,7 @@ function comparisonParts(r) {
     return `<span class="term" data-term="${key}">${escape(name)}</span>: ${escape(how)}`;
   };
   fillBody(body, body._rows);
-  const ways = d.paired ? `within each of the ${d.paired} pairs, tested three ways` : "tested four ways";
-  const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, ${ways}`);
-  parts.push(heading, tests, ...noteList(comparisonNotes(r)));
-  return parts;
+  return tests;
 }
 
 /** The words of a comparison that open their definition. */
@@ -3361,6 +3372,7 @@ function severalParts(c) {
     parts.push(said("hint", "The levels are compared once a level has two runs or more, to measure the noise."));
     return parts;
   }
+  parts.push(...checkParts(c));
   const interval = (x) => `${fmt(x.ci_low)} to ${fmt(x.ci_high)}`;
   const heading = (text, word, key) => {
     const h = el("h4", "", text);
@@ -3394,6 +3406,20 @@ function severalParts(c) {
     ),
   );
   return parts;
+}
+
+/** What the one-way analysis of variance assumes, checked: a row a check (``c.several.checks``), and what each means. */
+function checkParts(c) {
+  const rows = (c.several.checks ?? []).map((x) => {
+    const check = LEVEL_CHECKS[x.test];
+    return [`${check.name}: ${check.how}`, fmt(x.statistic), x.df, pval(x.p_value)];
+  });
+  const terms = { df: "df", "p-value": "p-value" };
+  return [
+    el("h4", "", "Checks of what the analysis of variance assumes"),
+    ...(rows.length ? [testTable(LEVEL_CHECKS, ["Check", "Statistic", "df", "p-value"], rows, terms)] : []),
+    ...noteList(checkSentences(c)),
+  ];
 }
 
 /** Each level's runs summarised, a row a level: how many, their average, standard deviation and the average's interval. */
