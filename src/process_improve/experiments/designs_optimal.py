@@ -125,9 +125,11 @@ def _n_model_parameters(factors: list[Factor], model_type: str) -> int:
 
 
 def _floor_budget_at_model_size(factors: list[Factor], budget: int, model_type: str) -> int:
-    """Raise ``budget`` to the model's parameter count, warning when it does.
+    """Raise the default ``budget`` to the model's parameter count, warning when it does.
 
-    Both backends need this floor and neither imposed it consistently. pyoptex
+    Only the default budget reaches this floor: a budget the caller gave is refused by
+    :func:`~process_improve.experiments.designs_utils.refuse_budget_below_model` when it is
+    too small. Both backends need this floor and neither imposed it consistently. pyoptex
     failed with an upstream message about "rank collinearity" between model
     components, which names neither the budget nor the model; the point-exchange
     fallback clamped to one run per factor, one short of the intercept, and even
@@ -167,8 +169,11 @@ def _settled_budget(req: _OptimalRequest) -> int | None:
     With fixed runs and no budget, the default also leaves room for the coefficients the
     fixed runs do not estimate, so it never falls at or below the number of fixed runs.
     """
+    from process_improve.experiments.designs_utils import refuse_budget_below_model  # noqa: PLC0415
+
     if req.budget is not None:
-        return _floor_budget_at_model_size(req.factors, req.budget, req.model_type)
+        refuse_budget_below_model(req.budget, _n_model_parameters(req.factors, req.model_type), repr(req.model_type))
+        return req.budget
     if req.fixed_runs is None or not len(req.fixed_runs):
         return None
     k = len(req.factors)
@@ -737,8 +742,9 @@ _DISPATCH_PARAMETERS = """
         the (possibly constrained) simplex.
     budget : int or None
         Number of runs. Defaults to ``2 * n_factors + 1``, or with ``fixed_runs`` to
-        enough runs beyond them to estimate the model. A budget too small to estimate
-        the model is raised, with a warning, and recorded in
+        enough runs beyond them to estimate the model. A budget below the model's number
+        of coefficients raises a ``ValueError``. With ``fixed_runs``, a budget that leaves
+        too few new runs to estimate the model is raised, with a warning, and recorded in
         ``metadata["budget_requested"]``.
     hard_to_change : list[str] or None
         Names of hard-to-change factors: a split-plot design, found by the built-in

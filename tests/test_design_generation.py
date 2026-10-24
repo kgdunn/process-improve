@@ -1017,10 +1017,11 @@ class TestMixture:
     def test_budget_below_the_default_design_gives_a_d_optimal_subset(self) -> None:
         """A budget is a ceiling: below the 6-run default design, the runs come from the D-optimal engine."""
         factors = [Factor(name=f"x{i}", type="mixture") for i in range(5)]
-        result = generate_design(factors, design_type="mixture", budget=4, model_type="scheffe_linear")
+        result = generate_design(factors, design_type="mixture", budget=5, model_type="scheffe_linear")
         assert result.metadata["method"] == "d_optimal_extreme_vertices"
-        assert result.n_runs == 5  # raised to the 5 model terms, and recorded
-        assert result.metadata["budget_requested"] == 4
+        assert result.n_runs == 5
+        with pytest.raises(ValueError, match=r"budget=4 run.*which has 5 coefficients"):  # below the 5 terms (#957)
+            generate_design(factors, design_type="mixture", budget=4, model_type="scheffe_linear")
 
 
 # ---------------------------------------------------------------------------

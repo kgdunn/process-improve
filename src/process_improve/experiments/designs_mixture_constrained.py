@@ -48,6 +48,7 @@ from process_improve.experiments.designs_constrained import (
     parse_constraint,
     selection_counts,
 )
+from process_improve.experiments.designs_utils import refuse_budget_below_model
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor
@@ -443,8 +444,8 @@ def constrained_mixture_design(
         ``metadata["n_runs_vertices_edges_centroid"]`` records the size avoided. With
         ``options.candidates``, ``None`` means a D-optimal design of ``n_terms + 3``
         runs. With a budget, a D-optimal subset of all candidate blends is chosen;
-        blends may be replicated. A budget below the number of model terms is raised to
-        it, with a warning, and recorded in ``metadata["budget_requested"]``.
+        blends may be replicated. A budget below the number of model terms raises a
+        ``ValueError``.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.
     options : ConstrainedOptions or None
@@ -497,15 +498,7 @@ def constrained_mixture_design(
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
         method, logdet = "extreme_vertices", None
     else:
-        if budget < n_parameters:
-            logger.warning(
-                "A budget of %d run(s) cannot estimate a %s model with %d terms; raising the budget to %d.",
-                budget,
-                model,
-                n_parameters,
-                n_parameters,
-            )
-            budget = n_parameters
+        refuse_budget_below_model(budget, n_parameters, model)
         f_pool = scheffe_matrix(pool, model)
         criterion = make_criterion(opts.criterion, n_parameters, region_rows, f_pool)
         rows, logdet = fedorov_exchange(f_pool, budget, np.empty((0, n_parameters)), rng, criterion)
