@@ -141,6 +141,19 @@ def test_a_study_of_one_factor_has_its_levels_compared_instead(api):
     assert analysis["spread"] is None
 
 
+def test_a_transformed_response_s_spread_is_of_the_results_as_measured(api):
+    """The model may fit ln y; the readings at each setting are summed up as they were measured."""
+    runs = [s for s in SETTINGS for _ in range(2)]
+    design = held_of(
+        api.ok("api_make_design", {"design_type": "given", "factors": LEVELS_1_2, "runs": runs, "response": "y"})
+    )
+    spec = {**design["spec"], "analysis_transforms": {"y": "log"}}
+    results = [float(v) for values in READINGS for v in values]
+    analysis = api.ok("api_analyze_runs", {**design, "spec": spec, "responses": results})
+    assert analysis["transform"] == "log"
+    assert averages(analysis["spread"], "mean")["A"] == [25.0, 10.0]
+
+
 def test_a_setting_read_once_is_left_out_and_named_by_its_run(api):
     readings = [[20, 30], [9, 11], [26, 24], [15, None]]
     spread = analysed(api, "target", readings)["spread"]
