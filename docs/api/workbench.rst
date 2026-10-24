@@ -12,6 +12,12 @@ Recipes
       Transform, ToNumeric, SetIndex, step_from_dict, TRANSFORMS, READ_OPTIONS
    :show-inheritance:
 
+Model variants
+--------------
+
+.. automodule:: process_improve.workbench.variant
+   :members: Variant, Fit, GroupExplanation, MODELS
+
 Expressions
 -----------
 

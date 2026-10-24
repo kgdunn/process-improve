@@ -6,3 +6,10 @@
   the same table bit for bit (and refuses a different file of the same name), and `Recipe.to_dict` /
   `Recipe.from_dict` round-trip it through JSON. Computed columns and conditions use a small expression language
   that is parsed and never evaluated as Python, so a recipe read from someone else's file stays data.
+- **`process_improve.workbench.Variant`: a PCA or PLS model over a recipe's table that excludes rows without
+  losing them.** An excluded row is left out of the fit and of its centring and scaling, then projected through
+  the fitted model, so `Fit.rows()` still reports its scores, Hotelling's T2 and SPE, flagged. `Variant.to_python`
+  writes the model code that follows the recipe's script. `Fit.explain_group` answers what a cluster on a score
+  plot asks: per component, each variable's share of the difference between the group's average score and the
+  rest's (they add up to that difference), the variables to look at first, their means in the table's own units,
+  and their raw values in run order to draw beside the bars.

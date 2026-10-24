@@ -4,6 +4,10 @@ A :class:`Recipe` is a source file and a list of steps (drop, keep or rename col
 drop or filter rows, add a computed column, transform a column, read text as numbers,
 identify the rows). It applies its steps, writes a script that repeats them with pandas
 alone, and round-trips through JSON.
+
+A :class:`Variant` is a model (PCA or PLS) over a recipe's table. It leaves its
+excluded rows out of the fit and projects them through it, and its :class:`Fit`
+explains why a group of rows differs from the rest (:meth:`Fit.explain_group`).
 """
 
 from process_improve.workbench.recipe import (
@@ -23,6 +27,7 @@ from process_improve.workbench.recipe import (
     Transform,
     step_from_dict,
 )
+from process_improve.workbench.variant import Fit, GroupExplanation, Variant
 
 __all__ = [
     "STEPS",
@@ -31,6 +36,8 @@ __all__ = [
     "DropColumns",
     "DropRows",
     "FilterRows",
+    "Fit",
+    "GroupExplanation",
     "KeepColumns",
     "Recipe",
     "RenameColumns",
@@ -39,5 +46,6 @@ __all__ = [
     "Step",
     "ToNumeric",
     "Transform",
+    "Variant",
     "step_from_dict",
 ]
