@@ -22371,9 +22371,30 @@
       "source_kind": "table",
       "quote": "P = 4Σ(...) = 0.1104, Q = 4Σ(...)² = 0.0793, SNA = P²/Q = 0.1537 ... F = 6.9"
      },
-     "check": {
-      "manual": "Tukey's SNA is 0.1537 (nonadditivity, key ss) and the remainder 0.0964, which the table prints in thousandths; its F of 6.9 tests SNA against the within-cell mean square, 0.0222 on 36 degrees of freedom, not the residual the nonadditivity check pools over all 48 runs"
-     }
+     "analysis": "the library's tukey_nonadditivity of the additive model, poisons plus treatments, tested against the error within cells, 0.0222 on 36 degrees of freedom; the table prints SNA and the remainder in thousandths",
+     "check": [
+      {
+       "kind": "nonadditivity",
+       "model": "poison + treatment",
+       "error": "pure",
+       "key": "ss",
+       "printed": "0.1537"
+      },
+      {
+       "kind": "nonadditivity",
+       "model": "poison + treatment",
+       "error": "pure",
+       "key": "remainder_ss",
+       "printed": "0.0964"
+      },
+      {
+       "kind": "nonadditivity",
+       "model": "poison + treatment",
+       "error": "pure",
+       "key": "f",
+       "printed": "6.9"
+      }
+     ]
     },
     {
      "what": "anova_mean_sq",
@@ -22451,9 +22472,25 @@
       "source_kind": "table",
       "quote": "26.2 {45.4 22.3"
      },
-     "check": {
-      "manual": "the reciprocal scale's interaction mean square, 0.262, split into SNA, 0.4543 (nonadditivity on the rate, key ss), and the remainder's mean square, 0.2233, all printed in hundredths; no check scales a number so"
-     }
+     "analysis": "the library's tukey_nonadditivity of the rates: the interaction mean square, 0.262, split into SNA on 1 degree of freedom and the remainder's mean square on 5, printed in hundredths",
+     "check": [
+      {
+       "kind": "nonadditivity",
+       "model": "poison + treatment",
+       "response": "rate",
+       "error": "pure",
+       "key": "ss",
+       "printed": "0.454"
+      },
+      {
+       "kind": "nonadditivity",
+       "model": "poison + treatment",
+       "response": "rate",
+       "error": "pure",
+       "key": "remainder_ms",
+       "printed": "0.223"
+      }
+     ]
     },
     {
      "what": "lambda",
