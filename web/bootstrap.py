@@ -3644,7 +3644,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
             _mixture_model(one)
         else:
             _checked_model(one, names, labelled)
-    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if")  # read_workbook checks what_if itself
+    # read_workbook checks what_if itself.
+    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if")
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     transforms = _checked_transforms(spec, responses)

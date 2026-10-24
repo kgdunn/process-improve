@@ -625,6 +625,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_read_workbook",
         _workbook(_stored(what_if=[{"name": "Hot", "settings": {"T": 200}}, {"name": "Hot", "settings": {"T": 150}}])),
         "The page sent kept settings this page did not write.",
+    ),
     "a transform the page does not offer": (
         "api_analyze_runs",
         lambda ex: {
