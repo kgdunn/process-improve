@@ -45,6 +45,8 @@ from process_improve.experiments.designs_utils import categorical_effect_columns
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from process_improve.experiments.factor import Factor
 
 #: The criteria the search optimises.
@@ -66,6 +68,9 @@ _IMPROVEMENT = 1e-10
 
 #: Ridge, per run, added to M while searching, so a singular start has a finite criterion.
 _RIDGE = 1e-9
+
+#: Random starts drawn, at most, for one that estimates the model.
+_START_DRAWS = 50
 
 
 @dataclass(frozen=True)
@@ -172,7 +177,8 @@ def split_plot_design(
     rng = check_random_state(random_state)
     best_levels, best_score = None, np.inf
     for _ in range(options.n_starts):
-        levels, score = _climb(model, _random_start(model, layout, rng), layout, options, rng)
+        start = _estimable_start(model, lambda: _random_start(model, layout, rng))
+        levels, score = _climb(model, start, layout, options, rng)
         if score < best_score:
             best_levels, best_score = levels, score
     assert best_levels is not None  # n_starts >= 1, checked above
@@ -273,6 +279,23 @@ def _random_start(model: _Model, layout: _Layout, rng: np.random.Generator) -> n
     levels = np.column_stack([rng.integers(n, size=len(layout.whole_plot)) for n in n_levels])
     for j in layout.hard:
         levels[:, j] = rng.integers(n_levels[j], size=layout.whole_plot.max() + 1)[layout.whole_plot]
+    return levels
+
+
+def _estimable_start(model: _Model, draw: Callable[[], np.ndarray]) -> np.ndarray:
+    """Return a start from ``draw``, drawn again up to ``_START_DRAWS`` times until it estimates the model.
+
+    From a singular start the search works on M plus the small ridge, whose condition number is
+    about 1e9, so the criteria of its first exchanges differ in the eighth digit from one BLAS
+    kernel to another. The search then follows a different path, and ends at a different design,
+    on a different processor. From a start that estimates the model the criteria agree far closer
+    than the improvement a change must make.
+    """
+    levels = draw()
+    for _ in range(_START_DRAWS - 1):
+        if np.linalg.matrix_rank(model.rows(levels)) == len(model.parts):
+            break
+        levels = draw()
     return levels
 
 
@@ -472,7 +495,8 @@ def strip_plot_design(
     rng = check_random_state(random_state)
     best_levels, best_score = None, np.inf
     for _ in range(options.n_starts):
-        levels, score = _climb_grid(model, _grid_start(model, grid, len(cells), rng), grid, options.criterion, rng)
+        start = _estimable_start(model, lambda: _grid_start(model, grid, len(cells), rng))
+        levels, score = _climb_grid(model, start, grid, options.criterion, rng)
         if score < best_score:
             best_levels, best_score = levels, score
     assert best_levels is not None  # n_starts >= 1, checked above
