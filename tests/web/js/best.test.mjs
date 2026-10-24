@@ -57,8 +57,11 @@ import {
   withoutConfirmationRuns,
   WHAT_IF_BACK,
   columnsAt,
+  keptAs,
   predictAt,
+  scenarioProblem,
   settingsFit,
+  settingsWords,
   sliderStep,
   whatIfRows,
   whatIfSentences,
@@ -757,6 +760,46 @@ describe("what if", () => {
     assert.equal(settingsFit(PREDICTED, { T: 160, Catalyst: "D" }), false, "a level the factor lost");
     assert.equal(settingsFit(PREDICTED, { T: 160 }), false, "a factor added");
     assert.equal(settingsFit(PREDICTED, null), false);
+  });
+
+  test("settings kept from the panel say why the models do not predict there, once the study has changed", () => {
+    const units = { T: "degC" };
+    assert.equal(scenarioProblem(PREDICTED, { T: 160, Catalyst: "B" }, units), null);
+    assert.equal(
+      scenarioProblem(PREDICTED, { T: 210, Catalyst: "B" }, units),
+      "T = 210 degC is outside its range, 150 to 200 degC, so the models do not predict there.",
+    );
+    assert.equal(
+      scenarioProblem(PREDICTED, { T: 160, Catalyst: "D" }, units),
+      "Catalyst at D is none of its levels, A, B and C, so the models do not predict there.",
+    );
+    assert.equal(scenarioProblem(PREDICTED, { Catalyst: "B" }), "These settings do not set T, so the models do not predict there.");
+    assert.equal(scenarioProblem(PREDICTED, { T: "hot", Catalyst: "B" }), "T = hot is outside its range, 150 to 200, so the models do not predict there.");
+    const broken = [
+      { index: 0, expression: "T <= 190" },
+      { index: 2, expression: "T >= 155" },
+    ];
+    assert.equal(
+      scenarioProblem(PREDICTED, { T: 160, Catalyst: "B" }, units, broken),
+      "These settings break your limit 1, T <= 190 and your limit 3, T >= 155, so the models do not predict there.",
+    );
+    assert.equal(settingsFit(PREDICTED, { T: 160, Catalyst: "B", Gone: 1 }), true, "a setting of no factor is not read");
+  });
+
+  test("settings kept from the panel are written as the best settings are", () => {
+    assert.equal(settingsWords(PREDICTED, { T: 162.5, Catalyst: "B" }, { T: "degC" }), "T = 162.5 degC, Catalyst at B");
+    assert.equal(settingsWords(PREDICTED, { Catalyst: "C", Gone: 3 }), "Catalyst at C", "each factor they set");
+  });
+
+  test("settings are kept under the name typed, on one line, or the next one free", () => {
+    const held = { count: 3, name: 12 };
+    const hot = { name: "Hot", settings: { T: 200 } };
+    assert.deepEqual(keptAs("  Cooler,\tmore\npressure ", [], held), { name: "Cooler, more", problem: null });
+    assert.deepEqual(keptAs("", [], held), { name: "Settings 1", problem: null });
+    assert.deepEqual(keptAs(" ", [hot, { ...hot, name: "Settings 2" }], held), { name: "Settings 3", problem: null });
+    assert.deepEqual(keptAs("Hot", [hot], held), { name: "Hot", problem: "Settings are kept as Hot already: give these another name." });
+    const full = ["A", "B", "C"].map((name) => ({ ...hot, name }));
+    assert.deepEqual(keptAs("D", full, held), { name: "D", problem: "A study keeps 3 settings at most: delete one to keep these." });
   });
 
   test("a slider steps by about a hundredth of the range", () => {

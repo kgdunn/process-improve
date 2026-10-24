@@ -628,11 +628,53 @@ export const WHAT_IF_BACK = {
  * Whether settings the panel holds still fit the factors: every factor has one, a number inside its range or one of
  * its levels. Settings kept from before an analysis are kept after it when they do.
  */
-export function settingsFit(factors, settings) {
-  return Boolean(settings) && factors.every((f) => {
+export const settingsFit = (factors, settings) => Boolean(settings) && scenarioProblem(factors, settings) === null;
+
+/**
+ * Why the models do not predict at settings kept from the panel, in a sentence, or null when they do: a factor the
+ * settings do not set, a number outside its factor's range, a level the factor does not have, or a limit on the
+ * settings they break (``broken``, as bootstrap.outside_limits answered). A study or a workbook edited since the settings
+ * were kept can hold the first three. ``factors`` is bootstrap.predictors' ``factors``; ``units`` each factor's units.
+ */
+export function scenarioProblem(factors, settings, units = {}, broken = []) {
+  const not = "so the models do not predict there";
+  for (const f of factors) {
     const v = settings[f.name];
-    return f.kind === "numeric" ? Number.isFinite(v) && v >= Math.min(f.low, f.high) && v <= Math.max(f.low, f.high) : f.levels.includes(v);
-  });
+    if (v === undefined) return `These settings do not set ${f.name}, ${not}.`;
+    if (f.kind === "categorical") {
+      if (!f.levels.includes(v)) return `${f.name} at ${v} is none of its levels, ${listed(f.levels)}, ${not}.`;
+      continue;
+    }
+    const [low, high] = [Math.min(f.low, f.high), Math.max(f.low, f.high)];
+    if (!(Number.isFinite(v) && v >= low && v <= high)) {
+      const value = typeof v === "number" ? withUnit(v, units[f.name]) : v;
+      return `${f.name} = ${value} is outside its range, ${num(low)} to ${withUnit(high, units[f.name])}, ${not}.`;
+    }
+  }
+  if (!broken.length) return null;
+  return `These settings break ${listed(broken.map((limit) => `your limit ${limit.index + 1}, ${limit.expression}`))}, ${not}.`;
+}
+
+/** Settings as the list of kept settings writes them: "T = 175 degC, Catalyst at B", for each factor they set. */
+export function settingsWords(factors, settings, units = {}) {
+  return factors
+    .filter((f) => f.name in settings)
+    .map((f) => settingWords({ kind: f.kind, name: f.name, value: settings[f.name] }, units[f.name]))
+    .join(", ");
+}
+
+/**
+ * The name settings are kept under, from what the reader typed (on one line, at most ``held.name`` characters), or
+ * "Settings 1" and on when nothing was typed, and what stops them being kept, in a sentence, or null: the study keeps
+ * ``held.count`` already, or keeps settings under that name. ``kept`` is the study's, each {name, settings}.
+ */
+export function keptAs(typed, kept, held) {
+  const taken = new Set(kept.map((s) => s.name));
+  let name = typed.replace(/[\s\u0000-\u001f\u007f-\u009f]+/g, " ").trim().slice(0, held.name).trim();
+  if (name && taken.has(name)) return { name, problem: `Settings are kept as ${name} already: give these another name.` };
+  for (let n = kept.length + 1; !name || taken.has(name); n++) name = `Settings ${n}`;
+  if (kept.length >= held.count) return { name, problem: `A study keeps ${held.count} settings at most: delete one to keep these.` };
+  return { name, problem: null };
 }
 
 /** The step of a numeric factor's slider: about a hundredth of its range, as 1, 2 or 5 times a power of ten. */
