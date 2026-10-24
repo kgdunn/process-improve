@@ -104,6 +104,14 @@ jobs:
       with:
         path: ~/.cache/process-improve/cdn
         key: web-app-cdn-${{ hashFiles('web/runtime.json') }}
+    # The browser Playwright drives. Its download took 25 s in some runs and 7 to 10 min in
+    # others (#926); kept here, the install below finds it and installs only the system
+    # packages. tests/web/_browser.py holds the Playwright pin, so a new pin starts a new cache.
+    - name: Cache Chromium for Playwright
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/web/_browser.py') }}
     - name: Install Chromium for Playwright
       run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
     - name: Build the app
@@ -133,21 +141,32 @@ jobs:
         # every pull request commit they held the runner queue for hours when many
         # pull requests were open at once.
         # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
-        python-version: ["3.11", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
         os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
         experimental: [false]
+        # Each row runs the suite in two duration-balanced halves (`--shard`, as the
+        # `coverage` job does). The same job took 16 min on one runner and 31 min on
+        # another (#926), so a whole-suite row set the pull request's time by chance;
+        # halves cost two job setups more and end about 14 min sooner.
+        shard: [1, 2]
         exclude:
           - python-version: "3.13"
             os: ubuntu-latest
+          - python-version: "3.12"
+            os: windows-latest
+          - python-version: "3.12"
+            os: macos-latest
         include:
           # The minimum Python installs the lowest release of each dependency that
           # pyproject.toml allows, so its rows test the declared floors (pandas 2.3,
           # numpy 2.2, scipy 1.15) and the other rows test the newest releases.
           - python-version: "3.11"
             resolution: lowest-direct
+          # The 3.12 row runs under `python -O` (ENG-15): it catches validation
+          # `assert`s that -O strips (SEC-08, SEC-17 / #266), and the other rows run
+          # with asserts on. It was a job of its own, one more whole suite per run (#926).
           - python-version: "3.12"
-            os: ubuntu-latest
-            experimental: false
+            optimize: "1"
           # Free-threaded (no-GIL) Python (3.13t / 3.14t) is intentionally NOT
           # tested yet. Several dependencies still lack free-threaded (cp31Xt)
           # wheels and fall back to building from source, which fails on the
@@ -175,16 +194,23 @@ jobs:
     # Test building & distribution. These used to run before the editable sync; the
     # composite action does the sync, so they follow it now. Neither reads the project
     # venv: `uv build` uses its own build environment, and the import check runs in an
-    # ephemeral `--isolated --no-project` environment.
+    # ephemeral `--isolated --no-project` environment. One half of each row is enough.
     - name: Test building the distributions
+      if: matrix.shard == 1
       run: uv build
     - name: Check if the built package can be installed and imported
+      if: matrix.shard == 1
       run: uv run --isolated --with . --no-project -- python -c "import process_improve"
     # This is where the actual unit and integration tests start. Coverage is
     # measured once, by the `coverage` job; tracing every line costs these cells
     # about twice the time for a number nothing reads.
-    - name: Test with pytest
-      run: uv run pytest --no-cov
+    - name: Test with pytest, half ${{ matrix.shard }} of 2
+      # PYTHONOPTIMIZE=1 is `python -O` for every interpreter the run starts, the xdist
+      # workers included; the flag alone would reach only the controller. It is empty,
+      # so asserts stay on, in every row but 3.12's.
+      env:
+        PYTHONOPTIMIZE: ${{ matrix.optimize }}
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/2
 
   # The whole suite on the primary platform, with coverage, split into
   # duration-balanced shards (`--shard`, tests/_selection.py). Adding a shard is
@@ -203,15 +229,21 @@ jobs:
         python-version: "3.13"
     # The 96% gate cannot apply to one shard of the suite, so it is switched off
     # here and `coverage-report` applies it to the combined data. The total this
-    # step prints covers only this shard.
+    # step prints covers only this shard. `--store-durations` measures this shard's
+    # files again, as tests/.test_durations.json is meant to be measured, so that
+    # `coverage-report` can combine the shards into a fresh copy of it.
     - name: Test with pytest, shard ${{ matrix.shard }} of ${{ strategy.job-total }}
-      run: uv run pytest --shard=${{ matrix.shard }}/${{ strategy.job-total }} --cov-fail-under=0
-    - name: Keep this shard's coverage data
-      run: mv .coverage .coverage.shard-${{ matrix.shard }}
+      run: uv run pytest --shard=${{ matrix.shard }}/${{ strategy.job-total }} --cov-fail-under=0 --store-durations
+    - name: Keep this shard's coverage data and durations
+      run: |
+        mv .coverage .coverage.shard-${{ matrix.shard }}
+        mv tests/.test_durations.json .test_durations.shard-${{ matrix.shard }}.json
     - uses: actions/upload-artifact@v7
       with:
         name: coverage-shard-${{ matrix.shard }}
-        path: .coverage.shard-${{ matrix.shard }}
+        path: |
+          .coverage.shard-${{ matrix.shard }}
+          .test_durations.shard-${{ matrix.shard }}.json
         include-hidden-files: true
         retention-days: 1
 
@@ -230,6 +262,19 @@ jobs:
       with:
         pattern: coverage-shard-*
         merge-multiple: true
+    # The shards' durations, combined into the file `--shard` balances on. It warns when
+    # the shards measured loads far apart; refreshing tests/.test_durations.json is then a
+    # download of the `test-durations` artifact. It runs before the gate, so a coverage dip
+    # does not lose it.
+    - name: Combine the shards' test durations
+      run: >-
+        uv run python tools/shard_durations.py tests/.test_durations.json
+        .test_durations.shard-*.json -o test-durations.json
+    - uses: actions/upload-artifact@v7
+      with:
+        name: test-durations
+        path: test-durations.json
+        retention-days: 30
     - name: Combine the shards and apply the 96% gate
       run: |
         uv run coverage combine
@@ -252,27 +297,6 @@ jobs:
         uvx --from diff-cover==10.6.0 diff-cover coverage.xml
         --compare-branch=origin/${{ github.base_ref }} --fail-under=95
 
-  # ENG-15 sub-track: catch validation `assert`s stripped by `python -O`.
-  # SEC-08 swept ~105 sites; SEC-17 (#266) swept the multivariate / bivariate /
-  # batch / experiments / monitoring sites that survived. This job now runs as
-  # a blocking check so a regression turns CI red.
-  test-under-dash-O:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v7
-    - name: Set up the project environment
-      uses: ./.github/actions/setup-env
-      with:
-        python-version: "3.13"
-    - name: Test with pytest under python -O
-      # PYTHONOPTIMIZE=1 is `python -O` for every interpreter the run starts.
-      # The flag alone would reach only the controller: xdist workers are fresh
-      # interpreters and would run with their asserts intact, which is why this
-      # job used to strip `-n auto` and run serially.
-      env:
-        PYTHONOPTIMIZE: "1"
-      run: uv run pytest --no-cov --tb=short
-
   test-free-threaded:
     # Free-threaded CPython (PEP 703), #43. Every dependency ships wheels for it,
     # numba included since 0.67, so the package installs and the whole suite runs.
@@ -281,6 +305,10 @@ jobs:
     # which this job resolves, declares it. PYTHON_GIL=0 keeps the GIL off either
     # way, so this job exercises the package the way a free-threaded user runs it.
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]  # two halves, as the `test` rows run (#926)
     steps:
     - uses: actions/checkout@v7
     - name: Set up the project environment
@@ -297,7 +325,7 @@ jobs:
         PYTHON_GIL: "0"
       # Coverage is gated in the `coverage` job; here the question is only whether
       # everything passes.
-      run: uv run pytest --no-cov
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
   # The one check to require in branch protection: green only when every job
   # above it succeeded, so a green pull request has passed the whole suite on
@@ -308,7 +336,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: ${{ !cancelled() }}
-    needs: [lint, typecheck, web-app, test, coverage, test-under-dash-O, test-free-threaded]
+    needs: [lint, typecheck, web-app, test, coverage, test-free-threaded]
     runs-on: ubuntu-latest
     steps:
     - name: Check that every job succeeded
