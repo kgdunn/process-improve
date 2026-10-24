@@ -19,6 +19,32 @@ export const num = (x) => String(Number(Number(x).toPrecision(4)));
 /** A quantity with its units: "200 degC", "68.25%" (no space before a percent sign), or the number alone. */
 export const withUnit = (x, units = "") => (!units ? num(x) : units === "%" ? `${num(x)}%` : `${num(x)} ${units}`);
 
+/**
+ * An interval as the page writes it: "61.2 to 68.4%", or with ``join`` "and", for "between ... and ...". A transformed
+ * response's interval, put back in its units, can have no bound on one side (bootstrap._put_back gives null there):
+ * "61.2% or more", "up to 68.4%".
+ */
+export function rangeWords([low, high], units = "", join = "to") {
+  if (high === null || high === undefined) return `${withUnit(low, units)} or more`;
+  if (low === null || low === undefined) return `up to ${withUnit(high, units)}`;
+  return `${num(low)} ${join} ${withUnit(high, units)}`;
+}
+
+/**
+ * A number on a transform's scale put back in the response's units, as bootstrap._put_back puts it: a prediction
+ * becomes the response's median. ``transform`` is a key of bootstrap.TRANSFORMS (log, sqrt or inverse, which fits
+ * -1/y), or none. A square root below 0 is a result of 0; -1/y at 0 or above, like a log too large to put back, is a
+ * result without bound: null. Null stays null, and an interval is put back end by end.
+ */
+export function putBack(value, transform) {
+  if (!transform || value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.map((v) => putBack(v, transform));
+  if (transform === "sqrt") return Math.max(value, 0) ** 2;
+  if (transform === "inverse") return value < 0 ? -1 / value : null;
+  const out = Math.exp(value);
+  return Number.isFinite(out) ? out : null;
+}
+
 /** Join words as a sentence does: "A", "A and B", "A, B and C". */
 const listed = (items) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : items.join(""));
 
@@ -76,7 +102,7 @@ const lev = (h) => String(Number(Number(h).toPrecision(2)));
  */
 export function intervalRows(best, { units }) {
   const level = `${Math.round(100 * (best.level ?? 0.95))}%`;
-  const range = ([low, high]) => `${num(low)} to ${withUnit(high, units)}`;
+  const range = (pair) => rangeWords(pair, units);
   const rows = [];
   if (best.confidence) {
     const label = `${level} confidence interval for the mean`;
@@ -227,10 +253,11 @@ export function confirmationSentences(group, factors, { label, units }, where = 
   );
   const runs = (n) => `${n} run${n === 1 ? "" : "s"}`;
   const head = `${group.runs} confirmation ${group.runs === 1 ? "run" : "runs"} at ${at}.`;
-  const range = group.interval ? `${num(group.interval[0])} to ${withUnit(group.interval[1], units)}` : null;
+  const range = group.interval ? rangeWords(group.interval, units) : null;
   if (!group.done) {
-    const between = group.interval ? `${num(group.interval[0])} and ${withUnit(group.interval[1], units)}` : null;
-    const expect = between ? ` When their average is between ${between}, the model holds there.` : "";
+    const bounded = group.interval && group.interval.every((end) => end !== null);
+    const between = group.interval ? (bounded ? `between ${rangeWords(group.interval, units, "and")}` : rangeWords(group.interval, units)) : null;
+    const expect = between ? ` When their average is ${between}, the model holds there.` : "";
     return [`${head} Enter their results in Run.${expect}`];
   }
   const some = group.done < group.runs ? ` ${group.done} of ${group.runs} results are in.` : "";
@@ -442,7 +469,7 @@ export function balanceRows(b) {
   return b.responses.map((r) => [
     r.label,
     withUnit(r.predicted, r.units),
-    r.prediction ? `${num(r.prediction[0])} to ${withUnit(r.prediction[1], r.units)}` : "",
+    r.prediction ? rangeWords(r.prediction, r.units) : "",
     dWords(r.d),
   ]);
 }
@@ -589,7 +616,8 @@ export function columnsAt(factors, settings) {
  * A response's prediction at the columns of some settings (see columnsAt), from its fit as bootstrap.predictors sends
  * it, as bootstrap._FittedModel.at gives it: the prediction, its confidence interval for the mean and prediction
  * interval for one new run (null without residual degrees of freedom), and the leverage there, with whether it is
- * above the largest of the runs', as best_settings judges it. Each term is the product of the columns it names.
+ * above the largest of the runs', as best_settings judges it. Each term is the product of the columns it names. A
+ * response fitted on a transform's scale (its ``transform``) has its prediction and intervals put back in its units.
  */
 export function predictAt(fit, columns) {
   const row = fit.terms.map((parts) => parts.reduce((product, name) => product * columns[name], 1));
@@ -598,10 +626,17 @@ export function predictAt(fit, columns) {
   const leverage = Math.max(0, row.reduce((sum, x, i) => sum + x * spread[i], 0)); // never below 0 but by round-off
   const extrapolating = leverage > fit.max_leverage * (1 + 1e-9) + 1e-12;
   const out = { predicted, confidence: null, prediction: null, leverage, max_leverage: fit.max_leverage, extrapolating };
-  if (fit.mse === null || fit.t === null) return out;
+  if (fit.mse === null || fit.t === null) return putBackAt(out, fit.transform);
   const mean = fit.t * Math.sqrt(fit.mse * leverage);
   const single = fit.t * Math.sqrt(fit.mse * (1 + leverage));
-  return { ...out, confidence: [predicted - mean, predicted + mean], prediction: [predicted - single, predicted + single] };
+  const intervals = { confidence: [predicted - mean, predicted + mean], prediction: [predicted - single, predicted + single] };
+  return putBackAt({ ...out, ...intervals }, fit.transform);
+}
+
+/** A prediction and its intervals on a transform's scale, put back in the response's units; the leverage as it is. */
+function putBackAt(at, transform) {
+  if (!transform) return at;
+  return { ...at, ...Object.fromEntries(["predicted", "confidence", "prediction"].map((key) => [key, putBack(at[key], transform)])) };
 }
 
 /**
@@ -692,7 +727,7 @@ export function sliderStep(f) {
  * model cannot be fitted, says so in its row.
  */
 export function whatIfRows(responses) {
-  const range = (pair, units) => (pair ? `${num(pair[0])} to ${withUnit(pair[1], units)}` : "none");
+  const range = (pair, units) => (pair ? rangeWords(pair, units) : "none");
   return responses.map((r) => {
     if (r.waiting) return [r.label, "No results yet: enter them in Run.", "", "", ""];
     if (r.error) return [r.label, r.error, "", "", ""];

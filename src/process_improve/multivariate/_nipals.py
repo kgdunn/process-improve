@@ -72,24 +72,12 @@ def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
     ``axis`` is 0 (one sum per column), 1 (one per row) or None (the total); any other
     value raises ValueError rather than returning 0.0.
     """
-    N, K = X.shape
-    if axis == 0:
-        out_ax0 = np.zeros(K)
-        for k in np.arange(K):
-            out_ax0[k] = out_ax0[k] + np.nansum(X[:, k] ** 2)
-
-        return out_ax0
-
-    if axis == 1:
-        out_ax1 = np.zeros(N)
-        for n in np.arange(N):
-            out_ax1[n] = out_ax1[n] + np.nansum(X[n, :] ** 2)
-
-        return out_ax1
-
-    if axis is None:
-        return np.nansum(X**2)
-    raise ValueError(f"axis must be 0, 1 or None; got {axis}.")
+    if axis not in (0, 1, None):
+        raise ValueError(f"axis must be 0, 1 or None; got {axis}.")
+    # One vectorised call, not a Python loop over the rows or columns: PLS
+    # cross-validation calls this millions of times per row and column, and the
+    # loop was over half its run time.
+    return np.nansum(np.asarray(X) ** 2, axis=axis)
 
 
 def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, settings: dict) -> bool:

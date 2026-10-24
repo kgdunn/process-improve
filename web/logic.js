@@ -934,6 +934,32 @@ export function fittedFormula(coefficients) {
   return [...(coefficients.some((c) => c.block) ? [BLOCK] : []), ...terms].join(" + ");
 }
 
+/** Each transform a response can be analysed with, as a sentence names it; mirrors the words of bootstrap.TRANSFORMS. */
+export const TRANSFORM_WORDS = { log: "log", sqrt: "square root", inverse: "inverse" };
+
+/**
+ * What the analysis says of Box-Cox's lambda for the model fitted to the results as measured (``box_cox`` of
+ * bootstrap.analyze_runs), or null when there is nothing to say: no lambda, or one that agrees with the transform
+ * fitted. ``apply`` is the transform its button fits ("" for the results as measured), or null for words alone,
+ * when the interval holds none of the transforms the page offers. ``label`` names the response.
+ */
+export function boxCoxSentence(hint, label) {
+  if (!hint) return null;
+  const two = (v) => String(Number(v.toPrecision(2)));
+  const [low, high] = hint.ci;
+  const said = `Box-Cox's λ is ${two(hint.lambda)} (95% interval ${two(low)} to ${two(high)})`;
+  if (hint.suggests) {
+    if (hint.suggests === hint.current) return null;
+    const words = TRANSFORM_WORDS[hint.suggests];
+    return { words: `${said}: it points to the ${words} of ${label}.`, apply: hint.suggests, button: `Analyse its ${words}` };
+  }
+  if (low <= 1 && 1 <= high) {
+    if (!hint.current) return null;
+    return { words: `${said}: ${label} needs no transform.`, apply: "", button: `Analyse ${label} as measured` };
+  }
+  return { words: `${said}: it points to a power of ${label} this page does not offer.`, apply: null, button: "" };
+}
+
 /**
  * The fit at a glance, a line each, as the page lists them: the runs fitted and any still to do,
  * then the fit statistics. One the fit cannot give is left out, and a missing predicted R² is explained.

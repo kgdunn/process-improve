@@ -246,6 +246,28 @@ function spec(value) {
     const limits = checkConstraints(value.constraints);
     if (limits.length) out.constraints = limits;
   }
+  if (value.analysis_transforms !== undefined && value.analysis_transforms !== null) {
+    const kept = transforms(value.analysis_transforms, responseNames(out));
+    if (Object.keys(kept).length) out.analysis_transforms = kept;
+  }
+  return out;
+}
+
+/** The transforms a study's responses are analysed with, by their columns (keys of bootstrap.TRANSFORMS). */
+export const TRANSFORMS = ["log", "sqrt", "inverse"];
+
+/**
+ * Each response's transform, as a study keeps it in its design's specification: one of TRANSFORMS, by a response's
+ * column. A transform the page does not offer is refused; one of a response the study no longer measures is dropped,
+ * as bootstrap._checked_transforms drops it.
+ */
+function transforms(value, names) {
+  if (!isObject(value)) refuse("its responses' transforms are not a list by response");
+  const out = {};
+  for (const [name, transform] of Object.entries(value)) {
+    if (!TRANSFORMS.includes(transform)) refuse(`the transform ${JSON.stringify(transform).slice(0, 40)} is unknown`);
+    if (names.includes(name)) out[name] = transform;
+  }
   return out;
 }
 

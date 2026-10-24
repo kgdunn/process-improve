@@ -16,6 +16,8 @@ from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.ols_extractors import _type_ii_by_rank
+from process_improve.experiments._analyses.prediction import _in_response_units
+from process_improve.experiments._analyses.transforms import to_model_scale, to_original_scale
 from process_improve.experiments.analysis import (
     analyze_experiment,
     build_formula,
@@ -1404,6 +1406,72 @@ class TestTransformedResponse:
         assert confirmation["results"][0]["observed_transformed"] == pytest.approx(3.8)
         assert confirmation["scale"] == "log of the response"
         assert result["prediction_scale"] == "log of the response"
+
+    @pytest.mark.parametrize("transform", ["log", "log10", "sqrt", "inverse", "box_cox"])
+    def test_a_prediction_is_put_back_in_the_response_units(self, transform: str) -> None:
+        """The median is the prediction put back; each interval's ends are put back, low before high."""
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            transform=transform,
+            analysis_type="prediction",
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+        )
+        record = result["predictions"][0]
+        info = {"transform": transform, "box_cox_lambda": result["model_summary"].get("box_cox_lambda")}
+        back = record["response_units"]
+        assert back["median"] == pytest.approx(float(to_original_scale(record["predicted"], info)))
+        if transform in ("log", "log10", "box_cox"):  # the scales on which this model is the true one
+            assert back["median"] == pytest.approx(np.exp(3.8), rel=0.02), "the lognormal's median, exp(3 + 0.5 + 0.3)"
+        for low, high in (("ci_low", "ci_high"), ("pi_low", "pi_high")):
+            # an end is None where the interval is unbounded: 1/y's prediction interval can hold 0
+            assert back[low] is None or back[low] < back["median"], low
+            assert back[high] is None or back["median"] < back[high], high
+            if None not in (back[low], back[high]):
+                assert [back[low], back[high]] == pytest.approx(
+                    sorted(to_original_scale([record[low], record[high]], info))
+                )
+
+    def test_an_untransformed_prediction_has_no_second_scale(self) -> None:
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            analysis_type="prediction",
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+        )
+        assert "response_units" not in result["predictions"][0]
+
+    @pytest.mark.parametrize(
+        ("transform", "lmbda"),
+        [
+            ("log", None),
+            ("log10", None),
+            ("sqrt", None),
+            ("inverse", None),
+            ("box_cox", 0.37),
+            ("box_cox", -0.8),
+            ("box_cox", 0.0),
+        ],
+    )
+    def test_putting_back_undoes_the_transform(self, transform: str, lmbda: float | None) -> None:
+        info = {"transform": transform, "box_cox_lambda": lmbda}
+        y = np.array([0.2, 1.0, 3.5, 40.0])
+        assert to_original_scale(to_model_scale(y, info), info) == pytest.approx(y)
+
+    def test_an_end_past_the_transform_s_range_is_the_response_s_edge(self) -> None:
+        """√y below 0 is y = 0; 1/y through 0 leaves y unbounded on the far side of the prediction."""
+        root = _in_response_units(
+            {"predicted": 1.0, "ci_low": 0.5, "ci_high": 1.5, "pi_low": -0.5, "pi_high": 2.5}, {"transform": "sqrt"}
+        )
+        assert (root["pi_low"], root["pi_high"]) == (0.0, 6.25)
+        inverse = _in_response_units(
+            {"predicted": 0.5, "ci_low": 0.25, "ci_high": 1.0, "pi_low": -0.5, "pi_high": 2.0},
+            {"transform": "inverse"},
+        )
+        assert (inverse["median"], inverse["ci_low"], inverse["ci_high"]) == (2.0, 1.0, 4.0)
+        assert (inverse["pi_low"], inverse["pi_high"]) == (0.5, None)
 
     def test_box_cox_lambda_is_reported_and_reused(self) -> None:
         result = analyze_experiment(

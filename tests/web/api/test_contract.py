@@ -122,6 +122,16 @@ READS: dict[str, list[str]] = {
         "lack_of_fit.f_statistic: number?",
         "lack_of_fit.p_value: number?",
         "lack_of_fit.df_pure_error: int",
+        "transform: str?",
+        "box_cox: dict?",
+    ],
+    "transformed analysis": [
+        "transform: str",
+        "coefficients[].ratio: number?",
+        "box_cox.lambda: number",
+        "box_cox.ci[]: number",
+        "box_cox.suggests: str?",
+        "box_cox.current: str?",
     ],
     "saturated analysis": [
         "summary.r_squared_pred: number?",
@@ -693,6 +703,7 @@ READS: dict[str, list[str]] = {
         "factors[].levels[]: str",
         "factors[].columns[].{}: number",
     ],
+    "transformed predictors": ["responses[].transform: str"],
     "nothing to predict yet": ["responses[].waiting: bool"],
     "predictors refused": ["responses[].error: str"],
     "mixture predictors": ["mixture: bool", "factors: list", "responses: list"],
@@ -705,6 +716,7 @@ ENTRY_POINTS = {
     "design": "api_make_design",
     "simulation": "api_simulate",
     "analysis": "api_analyze_runs",
+    "transformed analysis": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
     "charts through the best settings": "api_plots",
@@ -737,6 +749,7 @@ ENTRY_POINTS = {
     "design with limits": "api_make_design",
     "next runs": "api_next_runs",
     "predictors": "api_predictors",
+    "transformed predictors": "api_predictors",
     "predictors of levels": "api_predictors",
     "nothing to predict yet": "api_predictors",
     "predictors refused": "api_predictors",
@@ -922,6 +935,12 @@ def levels(api) -> dict:
 KEPT = [{"name": "Hot", "settings": {"T": 190, "P": 2.5, "F": 12}}]
 
 
+def logged(analysed: dict) -> dict:
+    """Analyse the worked example's yield on the log scale, its main effects only, so Box-Cox has a fit to judge."""
+    spec = {**analysed["spec"], "analysis_transforms": {analysed["spec"]["response"]: "log"}}
+    return {**analysed, "spec": spec, "model": "main_effects"}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -982,6 +1001,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "design": lambda: worked_example["demo"]["design"],
         "simulation": lambda: {**held, "seed": 2},
         "analysis": lambda: analysed,
+        "transformed analysis": lambda: logged(analysed),
         "saturated analysis": saturated,
         "charts": lambda: analysed,
         "charts through the best settings": through_best,
@@ -1042,6 +1062,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
             "slice": {"x": "T", "y": "F", "at": {"P": 2}},
         },
         "predictors": several_responses(api)["balance"],
+        "transformed predictors": lambda: logged(analysed),
         "predictors of levels": lambda: levels(api),
         "nothing to predict yet": lambda: {**held, "responses": [None] * len(held["rows"])},
         "predictors refused": lambda: {**levels(api), "models": {"y": {"terms": [["Catalyst", "S"]]}}},
