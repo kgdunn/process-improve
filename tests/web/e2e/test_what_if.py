@@ -29,6 +29,7 @@ from tests.web.e2e._page import (
 )
 from tests.web.e2e.test_best_settings import num, table_rows
 from tests.web.e2e.test_layout import WIDE_FONT, overflowing
+from tests.web.e2e.test_rename import rename
 from tests.web.e2e.test_responses import PHONE, three_responses
 
 
@@ -318,3 +319,19 @@ def test_kept_settings_outside_the_ranges_of_a_study_edited_since_say_so(open_co
     [edited] = kept(elsewhere)
     assert edited["hint"] == "T = 260 degC is outside its range, 150 to 200 degC, so the models do not predict there."
     assert edited["rows"] == []
+
+
+def test_kept_settings_follow_a_factor_renamed(page):
+    in_learn(page)
+    set_number(page, "T", 160)
+    keep(page, "Cooler")
+    page.wait_for_selector("#what-if-kept:not([hidden])")
+    [before] = kept(page)
+    rename(page, 0, "Temperature")
+    in_learn(page)
+    page.wait_for_function(
+        "document.querySelector('#what-if-kept-list p')?.textContent.startsWith('Cooler: Temperature = 160 degC')"
+    )
+    [after] = kept(page)
+    assert after["rows"] == before["rows"], "the same settings, under the factor's new name"
+    assert after["hint"] is None
