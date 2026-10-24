@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multivariate workbench</title>
+  <meta name="description" content="PCA and PLS in your browser, with process-improve. Linked plots, a table that shows what the model sees, and the Python that repeats every step. Data never leaves your machine.">
+  <link rel="stylesheet" href="mva.css">
+</head>
+<body>
+  <header class="bar">
+    <h1>Multivariate workbench</h1>
+    <button type="button" id="open-example" class="primary">Open the LDPE example</button>
+    <label>Open a data file <input type="file" id="open-file" accept=".csv,.txt,.xlsx"></label>
+    <button type="button" id="save-project" disabled>Save project</button>
+    <label>Open a project <input type="file" id="open-project" accept=".mvproj,.zip"></label>
+    <span id="status" role="status" aria-live="polite">Starting Python...</span>
+  </header>
+
+  <main class="views">
+    <section class="panel wide" aria-labelledby="table-title">
+      <h2 id="table-title">Data</h2>
+      <div class="toolbar">
+        <span class="count" id="selection-count">Nothing selected</span>
+        <button type="button" id="exclude" disabled>Exclude selected rows</button>
+        <button type="button" id="include" disabled>Put selected rows back</button>
+        <button type="button" id="save-set" disabled>Save selection as a set</button>
+        <button type="button" id="explain" disabled>Why are these rows different?</button>
+        <button type="button" id="drop-rows" disabled>Drop selected rows</button>
+        <button type="button" id="drop-columns" disabled>Drop selected columns</button>
+        <button type="button" id="use-y" disabled>Use selected columns as Y</button>
+      </div>
+      <div class="sets" id="sets" aria-label="Saved sets"></div>
+      <div id="table"></div>
+      <p class="hint">Click, Shift-click or drag over rows to select them; click a header to select a column. Arrow keys move the active cell and Space selects its row.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="model-title">
+      <h2 id="model-title">Model</h2>
+      <div class="toolbar">
+        <label>Model <select id="kind"><option>PCA</option><option>PLS</option></select></label>
+        <label>Components <input type="number" id="components" min="1" max="20" value="3" style="width: 4.5em"></label>
+        <span class="count" id="model-summary"></span>
+      </div>
+      <div id="scores" role="img" aria-label="Score plot"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="loadings-title">
+      <h2 id="loadings-title">Loadings</h2>
+      <div id="loadings" role="img" aria-label="Loading plot"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="spe-title">
+      <h2 id="spe-title">SPE, in run order</h2>
+      <div id="spe" role="img" aria-label="SPE chart"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="t2-title">
+      <h2 id="t2-title">Hotelling's T², in run order</h2>
+      <div id="t2" role="img" aria-label="Hotelling's T-squared chart"></div>
+    </section>
+
+    <section class="panel wide explanation" id="explanation" aria-labelledby="explanation-title" hidden>
+      <h2 id="explanation-title">Why these rows are different</h2>
+      <p class="hint" id="explanation-sentence"></p>
+      <div id="contributions" role="img" aria-label="Contributions to the difference in average score"></div>
+      <table id="summary" aria-label="The variables with the largest contributions"></table>
+      <div class="evidence" id="evidence"></div>
+    </section>
+
+    <section class="panel wide" aria-labelledby="recipe-title">
+      <h2 id="recipe-title">Recipe</h2>
+      <div class="toolbar">
+        <label>Keep the rows where <input type="text" id="filter" placeholder="Tmax1 > 290 and Press < 3100" size="28"></label>
+        <button type="button" id="add-filter">Add</button>
+        <label>New column <input type="text" id="new-name" placeholder="dT1" size="6"></label>
+        <label>= <input type="text" id="new-expression" placeholder="Tout1 - Tin" size="20"></label>
+        <button type="button" id="add-column">Add</button>
+        <button type="button" id="undo" disabled>Undo the last step</button>
+      </div>
+      <ol class="steps" id="steps"></ol>
+      <details>
+        <summary>The Python that repeats every step</summary>
+        <pre class="code"><code id="code"></code></pre>
+      </details>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
