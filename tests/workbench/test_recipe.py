@@ -323,3 +323,41 @@ def test_python_literal_writes_numbers_and_containers_exactly() -> None:
     for value in values:
         assert ast.literal_eval(python_literal(value)) == value
     assert python_literal(float("inf")) == "float('inf')"
+
+
+def test_a_column_whose_name_holds_a_back_tick_cannot_be_transformed() -> None:
+    with pytest.raises(ValueError, match="back-tick"):
+        Transform("odd`name", "log")
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"kind": "transform", "column": "Tin", "function": "log", "new_name": 3},
+    ],
+)
+def test_a_transform_s_new_name_must_be_text(data: dict) -> None:
+    with pytest.raises(TypeError, match="new_name"):
+        step_from_dict(data)
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ({"name": "a.csv", "options": ["index_col"]}, "must be a mapping"),
+        ({"name": "a.csv", "sha256": 12}, "must be text"),
+    ],
+)
+def test_a_source_s_fields_must_have_their_types(data: dict, message: str) -> None:
+    with pytest.raises(TypeError, match=message):
+        SourceFile.from_dict(data)
+
+
+def test_a_recipe_needs_a_source_and_a_list_of_steps() -> None:
+    with pytest.raises(TypeError, match="needs a 'source' mapping"):
+        Recipe.from_dict({"source": "a.csv", "steps": []})
+
+
+def test_an_expression_that_cannot_be_tokenized_is_reported_as_not_parsing() -> None:
+    with pytest.raises(ValueError, match="does not parse"):
+        Expression("'unterminated", None)

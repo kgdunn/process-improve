@@ -239,3 +239,28 @@ def test_a_variant_round_trips_through_json() -> None:
 def test_a_variant_read_from_a_file_is_checked(data) -> None:
     with pytest.raises((TypeError, ValueError)):
         Variant.from_dict(data)
+
+
+def test_a_variant_naming_a_missing_column_says_so() -> None:
+    with pytest.raises(ValueError, match="no column absent"):
+        Variant("PCA", 2, x_columns=("x0", "absent")).blocks(synthetic())
+
+
+def test_the_code_of_a_variant_without_named_x_columns_takes_the_numeric_ones(tmp_path, monkeypatch) -> None:
+    content = synthetic().assign(label="a").to_csv().encode()
+    (tmp_path / "data.csv").write_bytes(content)
+    recipe = Recipe(SourceFile.of("data.csv", content, index_col=0))
+    variant = Variant("PCA", 2, y_columns=("y",))
+    assert '.drop(columns=["y"]).select_dtypes("number")' in variant.to_python()
+    assert "model.project(" not in variant.to_python(), "nothing excluded, nothing to project"
+    fit = variant.fit(recipe.run(content))
+    monkeypatch.chdir(tmp_path)
+    namespace: dict[str, object] = {}
+    exec(recipe.to_python() + variant.to_python(), namespace)  # noqa: S102 - the test runs its own script
+    np.testing.assert_array_equal(namespace["model"].loadings_.to_numpy(), fit.model.loadings_.to_numpy())
+
+
+def test_a_group_of_every_fitted_row_has_nothing_to_compare_against() -> None:
+    fit = Variant("PCA", 2, y_columns=("y",)).fit(synthetic())
+    with pytest.raises(ValueError, match="nothing to compare the group against"):
+        fit.explain_group(list(synthetic().index))

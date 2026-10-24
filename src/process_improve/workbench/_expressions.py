@@ -115,7 +115,7 @@ class Expression:
             raise ValueError(f"The expression {text!r} does not parse: {error.msg}.") from None
         # Python's parser writes every identifier in its NFKC form, so a plain name is
         # matched on that form; a back-ticked name is matched exactly as written.
-        known = list(columns) if columns is not None else [*_typed_names(source), *quoted]
+        known = list(columns) if columns is not None else [*_typed_names(source.strip()), *quoted]
         lookup = {unicodedata.normalize("NFKC", name): name for name in known}
         lookup.update({_PLACEHOLDER.format(i): name for i, name in enumerate(quoted)})
         self._names = lookup
@@ -216,11 +216,11 @@ def _operation(node: ast.expr) -> _Operation | None:
 
 
 def _typed_names(source: str) -> list[str]:
-    """Return the names in ``source`` as typed, before the parser rewrites them in NFKC form."""
-    try:
-        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
-    except (tokenize.TokenError, SyntaxError):
-        return []  # the parse that follows reports the error
+    """Return the names in ``source`` as typed, before the parser rewrites them in NFKC form.
+
+    Called only after ``ast.parse`` accepted ``source``, so the tokenizer cannot fail on it.
+    """
+    tokens = tokenize.generate_tokens(io.StringIO(source).readline)
     return [t.string for t in tokens if t.type == tokenize.NAME and not keyword.iskeyword(t.string)]
 
 

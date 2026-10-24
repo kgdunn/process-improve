@@ -145,7 +145,8 @@ class Variant:
             )
         else:
             lines.append(f"model = PCA(n_components={self.n_components}).fit(scaler_x.transform(X.loc[included]))")
-        lines.append("projected = model.project(scaler_x.transform(X.loc[excluded]))  # scores, T2 and SPE")
+        if self.excluded:  # the scaler refuses an empty block, so a variant that excludes nothing projects nothing
+            lines.append("projected = model.project(scaler_x.transform(X.loc[excluded]))  # scores, T2 and SPE")
         return "\n".join(lines) + "\n"
 
     def to_dict(self) -> dict[str, Any]:

@@ -167,3 +167,36 @@ def test_a_source_name_with_a_path_is_stored_under_its_base_name() -> None:
     names = zipfile.ZipFile(io.BytesIO(project.to_bytes())).namelist()
     assert "source/data.csv" in names
     assert not any(".." in name for name in names)
+
+
+@pytest.mark.dataset
+def test_a_stored_array_that_is_missing_counts_as_not_reproduced() -> None:
+    content = make_project().to_bytes()
+    source = zipfile.ZipFile(io.BytesIO(content))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            if info.filename != "fits/0/T2.npy":
+                target.writestr(info.filename, source.read(info.filename))
+    opened = Project.open(out.getvalue())
+    assert [(c.variant, c.array) for c in opened.checks if not c.ok] == [("Without the upset", "T2")]
+
+
+@pytest.mark.dataset
+@pytest.mark.parametrize(
+    ("replace", "drop", "message"),
+    [
+        ({"manifest.json": b"{not json"}, None, "not valid JSON"),
+        ({}, "source/LDPE.csv", "has no source/LDPE.csv"),
+    ],
+)
+def test_a_damaged_project_file_says_what_is_wrong(replace, drop, message) -> None:
+    content = make_project().to_bytes()
+    source = zipfile.ZipFile(io.BytesIO(content))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            if info.filename != drop:
+                target.writestr(info.filename, replace.get(info.filename, source.read(info.filename)))
+    with pytest.raises(ValueError, match=message):
+        Project.from_bytes(out.getvalue())
