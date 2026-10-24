@@ -1054,13 +1054,20 @@ def _region_over(region: DesignRegion, names: Sequence[str]) -> DesignRegion | N
     Raises
     ------
     ValueError
-        If the region is a mixture region, names a factor the designs do not have, or
-        leaves no setting at all.
+        If the region is a mixture region, has limits that name a categorical level,
+        names a factor the designs do not have, or leaves no setting at all.
     """
     if region.kind != "box":
         raise ValueError(
             "compare_designs scores designs over a box of factor settings; a mixture region (or a mixture-process "
             "one), of proportions that sum to 1, cannot be compared over."
+        )
+    if region.rules is not None:
+        # The designs are numeric, so they hold no level to choose a region by (#783).
+        raise ValueError(
+            "compare_designs scores designs in numeric factors over one region of settings; the region's limits on "
+            f"{region.rules.factors} give one region for each allowed combination of their levels. Compare the "
+            f"designs over each, such as {region._given_example()}; region.allowed_combinations() lists them."
         )
     missing = [f.name for f in region.factors if f.name not in names]
     if missing:
@@ -1183,8 +1190,9 @@ def compare_designs(
     ValueError
         If ``model`` is not one of :data:`MODELS`, ``effect_size`` is not positive,
         ``significance_level`` is not between 0 and 1, no design is given, the
-        designs differ in their factors, or ``region`` is a mixture region, names a
-        factor the designs do not have, or leaves no setting to run.
+        designs differ in their factors, or ``region`` is a mixture region, has limits
+        that name a categorical level (compare over each ``region.given(...)`` instead),
+        names a factor the designs do not have, or leaves no setting to run.
     TypeError
         If a single design is passed instead of a collection of them, or ``region`` is
         neither a :class:`DesignRegion` nor its dict form.

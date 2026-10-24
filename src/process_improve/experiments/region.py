@@ -729,12 +729,16 @@ class DesignRegion:
                 "proportions that sum to 1, where it does not apply."
             )
         if self.rules is not None and not rules_allowed:
-            example = ", ".join(f"{name}={levels[0]!r}" for name, levels in self.rules.levels.items())
             raise ValueError(
                 f"DesignRegion.{method}() describes one region of settings; the rules on {self.rules.factors} give "
-                f"one for each allowed combination of their levels. Ask it of region.given({example}), or see "
+                f"one for each allowed combination of their levels. Ask it of {self._given_example()}, or see "
                 "region.allowed_combinations()."
             )
+
+    def _given_example(self) -> str:
+        """Return a call of :meth:`given` at the first level of each factor the rules name, for a message."""
+        rules = cast("Rules", self.rules)
+        return "region.given(" + ", ".join(f"{name}={levels[0]!r}" for name, levels in rules.levels.items()) + ")"
 
     def _linear(self) -> _Rows:
         """Return the inequalities in coded units, split into unit-length affine rows and the rest (cached)."""

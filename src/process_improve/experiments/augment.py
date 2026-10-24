@@ -1078,6 +1078,8 @@ def _checked_region(region: DesignRegion | dict[str, Any] | None, factor_names: 
     categorical = [f.name for f in region.factors if f.type == FactorType.categorical]
     if categorical:
         msg = f"augment_design works on numeric factors in coded units; the region's {categorical} are categorical."
+        if region.rules is not None:
+            msg += f" Augment the runs at one level, over {region._given_example()}."
         raise ValueError(msg)
     missing = [n for n in factor_names if n not in region.names]
     extra = [n for n in region.names if n not in factor_names]

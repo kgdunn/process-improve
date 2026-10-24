@@ -576,7 +576,9 @@ def separating_constraint(
     ----------
     factors : Sequence[Factor]
         The continuous factors the settings are given for; their ranges set the coded
-        units, and their names are written into the limit.
+        units, and their names are written into the limit. A categorical factor is
+        refused: for settings at one level, propose the limit over the continuous factors
+        and write it with that level, as ``not (K == "B" and T + 25 * P > 250)``.
     cannot : np.ndarray, pandas.DataFrame, or a sequence of sequences or of mappings
         The settings that cannot be run, in actual units: one row per setting with a value
         per factor in factor order (a 2-D array or a list of lists), a pandas DataFrame
