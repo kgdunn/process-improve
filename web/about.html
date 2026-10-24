@@ -87,15 +87,19 @@
   ]
 }</code></pre>
     <p>A study is whole: its brief, its design and run sheet, each response's results and where each came from, the
-      process they were simulated from, and the models. The file is built to grow with Factorial:</p>
+      process they were simulated from, the models, and the settings kept from the what-if panel, each under its name,
+      as <code>"what_if": [{ "name": "Cooler, more pressure", "settings": { "T": 175, "P": 2.5 } }]</code>. Their
+      predictions are not kept: Learn works them out from the models and the results each time, so they follow a
+      result that changes. The file is built to grow with Factorial:</p>
     <ul>
       <li><strong>New things are new keys.</strong> A reader skips a key it does not know, at any level, so a later
-        Factorial adds what it needs beside what is there: a response measured as a curve, a what-if analysis, or a
-        model inverted to find the settings for a target.</li>
+        Factorial adds what it needs beside what is there: a response measured as a curve, or a model inverted to find
+        the settings for a target.</li>
       <li><strong>Each study names its format</strong>, <code>"v"</code>. It goes up when a study holds something an
         earlier Factorial could not keep. That Factorial then refuses the study, and says so, rather than open part of
-        it; the other studies in the file open. A study of one factor is format 2, and a study with a categorical
-        factor that lists its levels (three or more, or two that read as numbers) is format 3; any other study keeps
+        it; the other studies in the file open. A study of one factor is format 2, a study with a categorical factor
+        that lists its levels (three or more, or two that read as numbers) is format 3, a study of more than 12
+        factors is format 4, and a study with settings kept from the what-if panel is format 5; any other study keeps
         format 1, so an earlier Factorial still opens it. The file's own <code>"version"</code> goes up only for a
         change an earlier Factorial would misread.</li>
       <li><strong>A study keeps its <code>"id"</code></strong> through files and copies, so a later study can name the
