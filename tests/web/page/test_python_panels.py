@@ -1005,3 +1005,34 @@ def test_the_what_if_code_sets_a_factor_of_several_levels_as_its_contrasts(api, 
     code, shown = what_if_panel(node, held, {"y": y}, reply, {"Catalyst": "B", "T": 160.0})
     assert '"Catalyst_L1": 0, "Catalyst_L2": 1' in code, "level B as its contrasts"
     assert_same_predictions(printed_predictions(code, list(shown)), shown)
+
+
+def test_the_what_if_code_predicts_at_each_kept_setting_as_the_list_shows_it(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    reply = api.ok("api_predictors", {**held, **sent_of(results)})
+    module = source("best.js")
+    settings = {"Cooler, more pressure": {"T": 160.0, "P": 2.5, "F": 12.0}, "Hot": {"T": 200.0, "P": 1.0, "F": 18.0}}
+    kept = [
+        {"name": name, "at": javascript(node, module, [("columnsAt", [reply["factors"], one])])[0]}
+        for name, one in settings.items()
+    ]
+    fits = [r for r in reply["responses"] if "terms" in r]
+    formulas = {fit["name"]: fit["formula"] for fit in fits}
+    [columns] = javascript(node, module, [("columnsAt", [reply["factors"], settings["Hot"]])])
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("whatIfCode", [held["spec"], formulas, columns, settings["Hot"], kept]),
+    )
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        exec(code, {})  # noqa: S102 - the page's own code, the subject of this test
+    printed = dict(line.split(": ", 1) for line in out.getvalue().splitlines() if ", " in line.split(" {", 1)[0])
+    for one in kept:
+        shown = javascript(node, module, [("predictAt", [fit, one["at"]]) for fit in fits])
+        for fit, at in zip(fits, shown, strict=True):
+            p = ast.literal_eval(printed[f"{fit['name']}, {one['name']}"])
+            assert p["predicted"] == pytest.approx(at["predicted"], abs=1e-9), (fit["name"], one["name"])
+            assert [p["pi_low"], p["pi_high"]] == pytest.approx(at["prediction"], abs=1e-9)

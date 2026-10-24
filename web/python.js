@@ -808,26 +808,40 @@ export function balanceCode(balance, spec) {
  * What if: each response's prediction at the reader's settings, from its own model fitted to the runs that have its
  * result, with its 95% confidence interval for the mean and prediction interval for one new run. ``formulas`` holds
  * each response's model as bootstrap.predictors fitted it, by its column; ``at`` the settings as the columns of ``X``
- * (best.js columnsAt), and ``settings`` as the reader set them, for the comment. It builds on the design and its results.
+ * (best.js columnsAt), and ``settings`` as the reader set them, for the comment. ``kept`` holds the settings kept with
+ * the study that the models predict at, each its ``name`` and its columns ``at``: each response is predicted at them
+ * too. It builds on the design and its results.
  */
-export function whatIfCode(spec, formulas, at, settings) {
+export function whatIfCode(spec, formulas, at, settings, kept = []) {
   const words = spec.factors.map((f) =>
     labelled(f) ? `${f.name} at ${settings[f.name]}` : `${f.name} = ${Number(settings[f.name].toPrecision(4))}${f.units ? ` ${f.units}` : ""}`,
   );
   const models = Object.values(formulas).join(" + ");
   const used = new Set([...spec.factors.flatMap(columnsOf), ...spec.factors.flatMap((f) => indicatorsIn(models, f).map(({ name }) => name))]);
+  const only = (columns) => Object.fromEntries(Object.entries(columns).filter(([name]) => used.has(name)));
+  const keptLines = [
+    "",
+    "# The settings kept with the study, by their names, and each response's prediction at each.",
+    `kept = pd.DataFrame(${repr(kept.map((k) => only(k.at)))}, index=${repr(kept.map((k) => k.name))})`,
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    '    prediction = analyze_experiment(X[done], runs[name][done], model=model, analysis_type="prediction", new_points=kept)',
+    '    for scenario, predicted in zip(kept.index, prediction["predictions"], strict=True):',
+    '        print(f"{name}, {scenario}:", predicted)',
+  ];
   return [
     "import pandas as pd",
     "from process_improve.experiments import analyze_experiment",
     "",
     ...indicatorLines(spec, models),
     `# The settings, ${words.join(", ")}, in coded units as the columns of X.`,
-    `at = pd.DataFrame([${repr(Object.fromEntries(Object.entries(at).filter(([name]) => used.has(name))))}])`,
+    `at = pd.DataFrame([${repr(only(at))}])`,
     "# Each response's prediction there, from its own model fitted to the runs that have its result, with its 95%",
     "# confidence interval for the mean (ci_low to ci_high) and prediction interval for one new run (pi_low to pi_high).",
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
     '    prediction = analyze_experiment(X[done], runs[name][done], model=model, analysis_type="prediction", new_points=at)',
     '    print(name, prediction["predictions"][0])',
+    ...(kept.length ? keptLines : []),
   ].join("\n");
 }
