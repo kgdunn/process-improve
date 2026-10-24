@@ -52,6 +52,7 @@ from process_improve.experiments import (
     generate_design,
     rename_factors,
     separating_constraint,
+    signal_to_noise,
 )
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
@@ -2557,6 +2558,7 @@ def _analysis(
         "comparison": comparison,
         "transform": transform,
         "box_cox": _box_cox_hint(coded, raw[done].reset_index(drop=True).rename(response), fit, transform),
+        "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), raw[done].to_numpy(float), spec, order),
     }
 
 
@@ -2975,6 +2977,117 @@ def _difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> d
 def _snapped(value: float | None, zero: float) -> float | None:
     """Return 0 for a value no larger than ``zero``, the fit's round-off, and the value otherwise."""
     return 0.0 if value is not None and abs(value) <= zero else value
+
+
+# --------------------------------------------------------------------------- the readings repeated at a setting
+#: The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three; to learn has none.
+SN_KINDS = {"maximize": "larger", "minimize": "smaller", "target": "nominal"}
+
+#: What each setting's readings are summed up as, and whether the higher (1) or the lower (-1) of it is the better.
+SUMMARIES = {"mean": 0, "ln_std_dev": -1, "sn": 1}
+
+
+def _spread(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None) -> dict[str, Any] | None:
+    """Sum up the results read more than once at a setting, and how each factor's levels move them.
+
+    The runs at one setting, whatever their blocks, are readings of it. Each setting read twice or
+    more gives its readings' ``mean``, standard deviation, its natural logarithm ``ln_std_dev`` and,
+    for a response with a goal, Taguchi's signal-to-noise ratio ``sn`` (see :data:`SN_KINDS`). The
+    response table, ``factors``, averages each summary over the settings at each level of a factor; a
+    factor's ``delta`` of a summary is its largest average less its smallest, ``rank`` orders the
+    factors by it (1 the largest), and ``best`` names the level of the smallest spread and of the
+    highest ratio. For a target, ``adjustment`` names the factor that moves the mean most for its
+    effect on the spread, each as a share of the largest; Taguchi's second step moves the mean to the
+    target with it. A setting read once is left out, and ``left_out`` lists its runs. None unless two
+    settings are read twice or more, and None for a study of one factor, whose comparison of its levels
+    gives each level's mean and spread. A summary a setting cannot give, such as the ln s of readings
+    that do not vary, is left out of the averages.
+    """
+    names = list(coded.columns)
+    if len(names) < 2:
+        return None
+    runs = np.array(order if order is not None else range(1, len(y) + 1))
+    kind = SN_KINDS.get((spec.get("response_info") or {}).get("goal", ""))
+    groups = list(coded.round(9).groupby(names, sort=True).indices.values())  # equal settings agree to round-off
+    kept = [rows for rows in groups if len(rows) > 1]
+    if len(kept) < 2:
+        return None
+    summaries = [key for key in SUMMARIES if key != "sn" or kind]
+    settings = [_readings_at(coded.iloc[rows[0]], y[rows], runs[rows], spec, kind) for rows in kept]
+    frame = pd.DataFrame(
+        [{**dict(zip(names, coded.iloc[rows[0]], strict=True)), **s} for rows, s in zip(kept, settings, strict=True)]
+    )
+    frame[summaries] = frame[summaries].astype(float)  # a summary a setting cannot give is NaN, left out of means
+    zero = ROUND_OFF * frame[summaries].abs().max()  # a delta no larger is round-off: the levels tie
+    factors = [_level_table(frame, f, summaries, zero) for f in spec["factors"]]
+    ranks = pd.DataFrame([f["delta"] for f in factors]).rank(ascending=False, method="min")
+    for f, (_, rank) in zip(factors, ranks.iterrows(), strict=True):
+        f["rank"] = {key: None if pd.isna(r) else int(r) for key, r in rank.items()}
+    return {
+        "kind": kind,
+        "settings": settings,
+        "left_out": sorted(int(r) for rows in groups if len(rows) == 1 for r in runs[rows]),
+        "factors": factors,
+        "adjustment": _adjustment(factors) if kind == "nominal" else None,
+    }
+
+
+def _readings_at(at: pd.Series, values: np.ndarray, runs: np.ndarray, spec: dict, kind: str | None) -> dict[str, Any]:
+    """Sum up the readings at one setting: where it is, its runs, and its readings' mean, spread and ratio."""
+    s = float(values.std(ddof=1))
+    ratio = None if kind is None else float(signal_to_noise(values, kind))  # type: ignore[arg-type]
+    return {
+        "settings": {f["name"]: _level_name(f, at[f["name"]]) for f in spec["factors"]},
+        "runs": runs.tolist(),
+        "n": len(values),
+        "mean": float(values.mean()),
+        "std_dev": s,
+        "ln_std_dev": math.log(s) if s > 0 else None,
+        "sn": ratio if ratio is not None and math.isfinite(ratio) else None,
+    }
+
+
+def _level_name(factor: dict, coded: float) -> object:
+    """Name a factor's level at its coded setting: a category's label, or a number in the factor's own units."""
+    return _level_at(factor, coded) if _categorical(factor) else _actual(factor, coded)
+
+
+def _level_table(frame: pd.DataFrame, factor: dict, summaries: list[str], zero: pd.Series) -> dict[str, Any]:
+    """Return a factor's row of the response table: each summary's average at each of its levels, delta and best.
+
+    A delta no larger than ``zero``, the round-off of its summary, is 0, and levels that tie have no best.
+    """
+    by_level = frame.groupby(factor["name"], sort=True)
+    means = by_level[summaries].mean()
+    delta = means.max() - means.min()
+    delta = delta.where(delta > zero, 0.0)
+    best = {
+        key: _level_name(factor, means[key].idxmax() if SUMMARIES[key] > 0 else means[key].idxmin())
+        for key in summaries
+        if SUMMARIES[key] and delta[key] > 0
+    }
+    return {
+        "name": factor["name"],
+        "levels": [
+            {"level": _level_name(factor, coded), "coded": float(coded), "n": int(by_level.size()[coded]), **row}
+            for coded, row in means.to_dict("index").items()
+        ],
+        "delta": delta.to_dict(),
+        "best": best,
+    }
+
+
+def _adjustment(factors: list[dict]) -> str | None:
+    """Name the factor that moves the mean most for its effect on the spread, or None when none moves the mean more.
+
+    Each factor's delta of the mean and of ln s is taken as a share of the largest of its kind, so the two
+    compare in no units, and the factor of the largest share of the mean less its share of the spread is
+    the one; none when that is not above 0.
+    """
+    deltas = pd.DataFrame([f["delta"] for f in factors], index=[f["name"] for f in factors])[["mean", "ln_std_dev"]]
+    shares = (deltas / deltas.max()).fillna(0.0)  # a delta of 0 over a largest of 0 is no share
+    score = shares["mean"] - shares["ln_std_dev"]
+    return str(score.idxmax()) if score.max() > 0 else None
 
 
 # --------------------------------------------------------------------------- the analysis of a mixture

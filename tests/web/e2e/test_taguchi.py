@@ -2,13 +2,25 @@
 
 The array takes one setting of its own, the levels of each numeric factor; its facts name the
 array, and Learn fits the main effects and squares a three-level array is made for, saying once
-that the interactions are aliased with them.
+that the interactions are aliased with them. An array run twice at each setting is read for the
+spread at each setting too: the signal-to-noise ratio of the response's goal, and the response table.
 """
 
 from __future__ import annotations
 
 from tests.web._support import FACTORS
-from tests.web.e2e._page import calls, choose, generate, headers, last_reply, practise, reveal, run_sheet, settled
+from tests.web.e2e._page import (
+    calls,
+    choose,
+    generate,
+    headers,
+    last_reply,
+    name_response,
+    practise,
+    reveal,
+    run_sheet,
+    settled,
+)
 
 
 def facts(page) -> list[str]:
@@ -73,3 +85,32 @@ def test_the_array_picked_from_the_designs_for_the_brief_keeps_its_three_levels(
     assert len(run_sheet(page)) == 9
     assert facts(page)[0] == "Taguchi L9 (3^4): 9 runs, main effects and squares."
     assert [f["name"] for f in FACTORS] == headers(page)[2:5]
+
+
+def test_an_array_run_twice_a_setting_is_read_for_its_spread_and_its_signal_to_noise_ratio(blank_page):
+    page = blank_page
+    name_response(page, "Yield", "%", goal="maximize")
+    generate(page, design_type="taguchi", n_replicates=2)
+    assert len(run_sheet(page)) == 8
+    practise(page)
+    reveal(page, "#analysis")
+    spread = last_reply(page, "api_analyze_runs")["result"]["spread"]
+    assert spread["kind"] == "larger"
+    assert len(spread["settings"]) == 4
+    part = page.locator("#analysis h3", has_text="The spread of the readings at each setting")
+    assert part.count() == 1
+    words = page.locator("#analysis p button.term[data-term='signal-to-noise']")
+    assert words.all_text_contents() == ["signal-to-noise ratio"], "the sentence's word opens its definition"
+    tables = page.locator("#analysis h3:has-text('The spread') ~ div.scroll table")
+    assert tables.nth(0).locator("thead th button.sort").all_text_contents() == [
+        "Factor",
+        "Level",
+        "Settings",
+        "Mean",
+        "ln s",
+        "S/N",
+    ]
+    assert tables.nth(0).locator("tbody tr").count() == 6, "three factors at two levels each"
+    assert tables.nth(2).locator("tbody tr").count() == 4, "a row for each setting"
+    code = page.text_content("#py-analyse code")
+    assert "readings.agg(lambda v: -10 * np.log10((1 / v**2).mean()))  # larger is better" in code
