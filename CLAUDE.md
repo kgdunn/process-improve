@@ -350,6 +350,9 @@ when they want one.
   Avoid unnecessary synonyms: use one term for one thing.
 - End a report with one or two lines: what you skipped or did not check, and any
   risk the user must know.
+- Every PR named in chat carries its full link, in this repository or another,
+  never a bare number:
+  [process-improve #958](https://github.com/kgdunn/process-improve/pull/958).
 
 ## Updating this file (CLAUDE.md)
 
