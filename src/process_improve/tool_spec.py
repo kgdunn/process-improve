@@ -293,6 +293,7 @@ def discover_tools() -> None:
         "process_improve.simulation.tools",
         "process_improve.sensory.tools",
         "process_improve.recipes",
+        "process_improve.workbench.tools",
     ]:
         _import_tool_module(module)
 

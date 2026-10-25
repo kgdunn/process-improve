@@ -327,6 +327,8 @@ class _FakePool:
 #: satisfied whether or not the function did anything. A child process sheds the limit on
 #: exit, so the assertion means what it says.
 _CAP_MB = 1024 * 1024  # 1 TB: a real change from infinity, far above anything in use.
+#: What the child may map or unmap between measuring its address space and reading the limit.
+_MAPPING_DRIFT = 16 * 1024 * 1024
 
 
 def _address_space_in_child(body: str) -> dict:
@@ -618,13 +620,14 @@ class TestHelpers:
 
         observed = _address_space_in_child(
             f"""
-            from process_improve.tool_safety import _apply_memory_limit
+            from process_improve.tool_safety import _address_space_in_use, _apply_memory_limit
+            mapped = _address_space_in_use()
             _apply_memory_limit({_CAP_MB})
-            result = {{"soft": resource.getrlimit(resource.RLIMIT_AS)[0]}}
+            result = {{"soft": resource.getrlimit(resource.RLIMIT_AS)[0], "mapped": mapped}}
             """
         )
 
-        assert observed["soft"] == _CAP_MB * 1024 * 1024
+        assert observed["soft"] - _CAP_MB * 1024 * 1024 == pytest.approx(observed["mapped"], abs=_MAPPING_DRIFT)
 
     def test_worker_run_dispatches_to_registry(self) -> None:
         """_worker_run executes a registered tool in the current process."""
@@ -644,16 +647,19 @@ class TestHelpers:
             f"""
             from process_improve.tool_safety import _pool_initializer
             from process_improve.tool_spec import _TOOL_REGISTRY
+            from process_improve.tool_safety import _address_space_in_use
             _pool_initializer({_CAP_MB})
             result = {{
                 "soft": resource.getrlimit(resource.RLIMIT_AS)[0],
+                "mapped": _address_space_in_use(),
                 "n_tools": len(_TOOL_REGISTRY),
                 "has_known_tool": "robust_regression" in _TOOL_REGISTRY,
             }}
             """
         )
 
-        assert observed["soft"] == _CAP_MB * 1024 * 1024
+        # The cap is counted from what the imports mapped, so they do not eat into it.
+        assert observed["soft"] - _CAP_MB * 1024 * 1024 == pytest.approx(observed["mapped"], abs=_MAPPING_DRIFT)
         assert observed["n_tools"] > 0
         assert observed["has_known_tool"]
 
@@ -734,10 +740,27 @@ class TestApplyMemoryLimitInProcess:
     """`_apply_memory_limit` against a stand-in ``resource`` module, so it runs on every OS."""
 
     def test_the_cap_is_set_on_the_address_space(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The cap is what the process has mapped plus the budget, so imports do not count against it."""
+        from process_improve import tool_safety as ts
+
         fake = _FakeResource()
         monkeypatch.setitem(sys.modules, "resource", fake)
+        monkeypatch.setattr(ts, "_address_space_in_use", lambda: 1000)
         _apply_memory_limit(256)
-        assert fake.calls == [(_FakeResource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))]
+        cap = 1000 + 256 * 1024 * 1024
+        assert fake.calls == [(_FakeResource.RLIMIT_AS, (cap, cap))]
+
+    def test_the_address_space_in_use_is_read_or_zero(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Linux reports the mapped address space; without ``/proc`` (macOS) it is 0 and the cap is the budget."""
+        from process_improve import tool_safety as ts
+
+        assert (ts._address_space_in_use() > 0) == sys.platform.startswith("linux")
+
+        def no_proc(*_: object, **__: object) -> None:
+            raise FileNotFoundError
+
+        monkeypatch.setattr(ts.Path, "read_text", no_proc)
+        assert ts._address_space_in_use() == 0
 
     @pytest.mark.parametrize("error", [ValueError, OSError], ids=["value-error", "os-error"])
     def test_a_sandbox_that_refuses_the_limit_is_tolerated(

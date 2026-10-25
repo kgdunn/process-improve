@@ -251,7 +251,7 @@ class Settings:
 
     @property
     def max_memory_mb(self) -> int:
-        """Per-subprocess RSS cap for tool execution (MiB)."""
+        """Address space a tool's subprocess may map beyond what its imports mapped (MiB)."""
         return self._get("max_memory_mb", _read_env_int)
 
     @max_memory_mb.setter
