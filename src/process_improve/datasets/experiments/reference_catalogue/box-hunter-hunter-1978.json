@@ -56518,7 +56518,19 @@
       "quote": "Answer: 0.965"
      },
      "check": {
-      "manual": "the average variance of the fitted values, pσ²/n = 3(1.5²)/7, a property of the design and the prior σ"
+      "kind": "average_fitted_variance",
+      "model": "time + temperature",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ],
+      "sigma": 1.5,
+      "disagreement": "pσ²/n = 3(1.5²)/7 = 0.964 to three decimals; the answer prints 0.965"
      }
     }
    ]
@@ -57315,9 +57327,20 @@
       "source_kind": "prose",
       "quote": "the average variance of the fitted value is 6(1.5)²/12 = 1.125, and the corresponding average standard error of the ŷ's is √1.125 = 1.06"
      },
-     "check": {
-      "manual": "pσ²/n, the average variance of the fitted values over the design whatever the design (Box and Wetz), from the prior σ; no check computes it"
-     }
+     "check": [
+      {
+       "kind": "average_fitted_variance",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "sigma": 1.5,
+       "printed": "1.125"
+      },
+      {
+       "kind": "average_fitted_std_error",
+       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
+       "sigma": 1.5,
+       "printed": "1.06"
+      }
+     ]
     },
     {
      "what": "canonical",

@@ -67,7 +67,11 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
-from process_improve.experiments.surface_checks import pooled_pure_error, third_order_contrasts
+from process_improve.experiments.surface_checks import (
+    pooled_pure_error,
+    stationary_point_region,
+    third_order_contrasts,
+)
 from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.true_process import TrueProcess
@@ -156,6 +160,7 @@ __all__ = [
     "separating_constraint",
     "signal_to_noise",
     "simulate_design_performance",
+    "stationary_point_region",
     "steepest_path",
     "summary",
     "supplement",
