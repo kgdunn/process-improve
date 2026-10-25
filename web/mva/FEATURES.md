@@ -565,7 +565,8 @@ The items both sources describe, by section: the first candidates for priority.
     follows no stated degrees of freedom (URS STA-5);
   - optionally weighted by modelling power.
 - Distance to the model in Y (DModY): sᵢ = √(Σfᵢₘ²/M), normalized by its s₀ `[A B]` (B:
-  residual Y variance per row).
+  residual Y variance per row); measured, A's printed values are √2·v times this for M = 2
+  (URS STA-5).
 - For predictions, "distance +": DModXPS+ = √(DModXPS² + d²), where d is how far the
   projection falls outside the model's score range, in residual units.
 - Coefficients `[A B]`:
