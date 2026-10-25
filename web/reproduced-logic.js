@@ -27,7 +27,7 @@ export const TIERS = [
   },
   {
     key: "not_reproduced",
-    label: "Not reproduced",
+    label: "Unable to reproduce",
     mark: "✕",
     means:
       "A number differs by more than 5%, or a result that is not a number (an alias chain, a list of runs) differs.",
@@ -99,15 +99,17 @@ function haystack(c, sources) {
 }
 
 /**
- * The cases a reader's filters keep: every word of ``query`` in the case's text, its ``source`` and
- * ``kind`` where chosen. A case with no recomputed number is never kept: it is no reproduction.
+ * The cases a reader's filters keep: every word of ``query`` in the case's text, its ``source``, the
+ * ``form`` of its source and its ``kind`` where chosen. A case with no recomputed number is never kept:
+ * it is no reproduction.
  */
-export function filterCases(cases, sources, { query = "", source = "", kind = "" } = {}) {
+export function filterCases(cases, sources, { query = "", source = "", form = "", kind = "" } = {}) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   return cases.filter(
     (c) =>
       c.tier &&
       (!source || c.source === source) &&
+      (!form || sources[c.source]?.form === form) &&
       (!kind || kindOf(c) === kind) &&
       (!words.length || words.every((word) => haystack(c, sources).includes(word))),
   );
@@ -123,26 +125,60 @@ export function kinds(cases) {
   return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
+/** Counts of cases by tier and of printed numbers, recomputed (``numbers``) and agreeing (``agree``), from none. */
+const tally = () => ({ total: 0, tiers: Object.fromEntries(TIER_KEYS.map((key) => [key, 0])), numbers: 0, agree: 0 });
+
+function count(into, c) {
+  into.total += 1;
+  into.tiers[c.tier] += 1;
+  into.numbers += c.checked;
+  into.agree += c.checked - c.differs.length;
+}
+
+/** The orders the page lists the sources in: none ranks them by how much of them reproduces. */
+export const SOURCE_ORDERS = {
+  year: (a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.short.localeCompare(b.short),
+  name: (a, b) => a.short.localeCompare(b.short) || (a.year ?? 9999) - (b.year ?? 9999),
+  cases: (a, b) => b.total - a.total || a.short.localeCompare(b.short),
+};
+
 /**
- * Each source's cases by tier, the sources with most cases first. ``reproducedShare`` is the share of
- * its recomputed cases that reproduce in full, which the page also sorts by.
+ * Each source's counts: its cases by tier, and its printed numbers recomputed and agreeing (see
+ * ``tally``), with its name, year and form, in the ``order`` of SOURCE_ORDERS (oldest first unless told).
  */
-export function bySource(cases, sources) {
+export function bySource(cases, sources, order = "year") {
   const rows = new Map();
   for (const c of cases) {
     if (!c.tier) continue;
     if (!rows.has(c.source)) {
       const info = sources[c.source] ?? {};
-      const tiers = Object.fromEntries(TIER_KEYS.map((key) => [key, 0]));
-      rows.set(c.source, { key: c.source, short: info.short ?? c.source, year: info.year ?? null, title: info.title ?? "", total: 0, tiers });
+      rows.set(c.source, { key: c.source, short: info.short ?? c.source, year: info.year ?? null, title: info.title ?? "", form: info.form ?? "other", ...tally() });
     }
-    const row = rows.get(c.source);
-    row.total += 1;
-    row.tiers[c.tier] += 1;
+    count(rows.get(c.source), c);
   }
-  return [...rows.values()]
-    .map((row) => ({ ...row, reproducedShare: row.tiers.reproduced / row.total }))
-    .sort((a, b) => b.total - a.total || a.short.localeCompare(b.short));
+  return [...rows.values()].sort(SOURCE_ORDERS[order] ?? SOURCE_ORDERS.year);
+}
+
+/**
+ * The sources' rows grouped by the form their source takes, in the order of ``forms`` (the JSON's, form to
+ * its name), each group with its totals, and the totals of all of them. A form with no row is left out.
+ */
+export function byForm(rows, forms) {
+  const sum = (list) => {
+    const out = tally();
+    for (const row of list) {
+      out.total += row.total;
+      out.numbers += row.numbers;
+      out.agree += row.agree;
+      for (const key of TIER_KEYS) out.tiers[key] += row.tiers[key];
+    }
+    return out;
+  };
+  const groups = Object.entries(forms)
+    .map(([form, label]) => ({ form, label, rows: rows.filter((row) => row.form === form) }))
+    .filter((group) => group.rows.length)
+    .map((group) => ({ ...group, totals: sum(group.rows) }));
+  return { groups, totals: sum(rows) };
 }
 
 /**
@@ -186,16 +222,17 @@ export function groupByTier(cases, tier, order) {
 }
 
 // ---------------------------------------------------------------- the address
-const KEYS = { query: "q", source: "src", kind: "kind", open: "open", focus: "case" };
+const KEYS = { query: "q", source: "src", form: "form", kind: "kind", open: "open", focus: "case" };
 const AN_ID = /^[a-z0-9][a-z0-9-]{0,120}$/;
 
-export const DEFAULT_VIEW = { query: "", source: "", kind: "", open: [], focus: "" };
+export const DEFAULT_VIEW = { query: "", source: "", form: "", kind: "", open: [], focus: "" };
 
 /** Write the reader's view into the part of the address after "#", leaving out whatever is at its default. */
 export function toHash(view) {
   const params = new URLSearchParams();
   if (view.query) params.set(KEYS.query, view.query);
   if (view.source) params.set(KEYS.source, view.source);
+  if (view.form) params.set(KEYS.form, view.form);
   if (view.kind) params.set(KEYS.kind, view.kind);
   if (view.open.length) params.set(KEYS.open, view.open.join(","));
   if (view.focus) params.set(KEYS.focus, view.focus);
@@ -204,12 +241,13 @@ export function toHash(view) {
 }
 
 /** Read the view back from an address, which anyone can write: a value the page does not know is ignored. */
-export function fromHash(text, sources = {}) {
+export function fromHash(text, sources = {}, forms = {}) {
   const params = new URLSearchParams(String(text ?? "").replace(/^#/, ""));
   const read = (name) => params.get(KEYS[name]) ?? "";
   return {
     query: read("query").slice(0, 200),
     source: Object.hasOwn(sources, read("source")) ? read("source") : "",
+    form: Object.hasOwn(forms, read("form")) ? read("form") : "",
     kind: read("kind").slice(0, 40),
     open: [...new Set(read("open").split(",").filter((key) => TIER_KEYS.includes(key)))],
     focus: AN_ID.test(read("focus")) ? read("focus") : "",

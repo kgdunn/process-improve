@@ -1175,24 +1175,31 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
   .tiers tbody td:last-child { grid-column: 1 / -1; padding-top: 0; }
 }
 .sources__head { display: flex; justify-content: flex-end; margin: -6px 0 6px; font-size: 0.9rem; }
-.sources { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.source {
-  display: grid; grid-template-columns: minmax(10em, 15em) minmax(0, 1fr) 7.5em; gap: 12px; align-items: center;
-  width: 100%; padding: 6px 8px; border: 1px solid transparent; background: none; text-align: left;
-}
-.source:hover { background: var(--bg); border-color: var(--line); }
-.source[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
-.source__name { font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.source__track { display: block; }
-.source__bar { display: flex; gap: 2px; height: 12px; }
+.bysource { width: 100%; border-collapse: collapse; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
+.bysource th, .bysource td { padding: 5px 8px; text-align: left; vertical-align: middle; }
+.bysource thead th { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+.bysource .num { text-align: right; white-space: nowrap; }
+.bysource .zero { color: var(--muted); opacity: 0.6; }
+.bysource tbody th { font-weight: 400; }
+.bysource tbody + tbody .bysource__group th, .bysource tbody + tbody .bysource__group td { padding-top: 14px; }
+.bysource__group th, .bysource__group td { border-bottom: 1px solid var(--line); font-weight: 600; }
+.bysource tbody tr:not(.bysource__group) th { padding-left: 20px; }
+.bysource tfoot th, .bysource tfoot td { border-top: 2px solid var(--line); font-weight: 600; padding-top: 8px; }
+.bysource .link { padding: 0; text-align: left; font: inherit; }
+.bysource .link[aria-pressed="true"] { color: var(--fg); text-decoration: underline; text-decoration-thickness: 2px; }
+.bysource tr:has(.link[aria-pressed="true"]) { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.bysource__bar { width: 22%; min-width: 90px; }
+.source__bar { display: flex; gap: 2px; height: 10px; }
 .source__bar span { min-width: 3px; background: var(--tier); }
 .source__bar span:first-child { border-radius: 3px 0 0 3px; }
 .source__bar span:last-child { border-radius: 0 3px 3px 0; }
-.source__count { color: var(--muted); font-size: 0.84rem; text-align: right; font-variant-numeric: tabular-nums; }
-.source__count strong { color: var(--fg); }
+/* On a phone the table keeps the counts by tier and the share that agree; the bar and the totals they add to go. */
 @media (max-width: 640px) {
-  .source { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
-  .source__track { grid-column: 1 / -1; grid-row: 2; }
+  .bysource .bysource__bar, .bysource .bysource__numbers, .bysource .bysource__cases { display: none; }
+  .bysource { font-size: 0.82rem; }
+  .bysource th, .bysource td { padding: 5px 3px; }
+  .bysource tbody tr:not(.bysource__group) th { padding-left: 8px; }
+  .bysource .tierchip { min-width: 0; padding: 0 3px; font-size: 0.68rem; }
 }
 /* Below 720px the chart keeps its labels legible and scrolls in its own box, never the page. */
 .bands { margin: 0; overflow-x: auto; }

@@ -49,7 +49,8 @@ def test_the_catalog_leads_to_the_page_and_its_table_counts_every_case(reproduce
     numbers = sum(c["checked"] for c in recomputed)
     assert page.text_content("#stat-numbers") == f"{numbers:,}"
     assert page.text_content("#stat-cases") == str(len(recomputed))
-    assert page.locator("#sources .source").count() == 2
+    assert page.locator("#bysource .source").count() == 2
+    assert page.locator("#bysource tfoot th").text_content() == "All 2 sources"
 
 
 def test_a_tier_opens_its_list_and_a_case_shows_each_number_that_differs_and_why(reproduced_context, site):
@@ -79,10 +80,10 @@ def test_an_address_opens_the_case_it_names(reproduced_context, site):
 
 def test_a_source_chosen_narrows_the_page_and_the_address_keeps_it(reproduced_context, site):
     page = open_page(reproduced_context, site)
-    page.click("#sources .source:has-text('Lenth')")
+    page.click("#bysource .source:has-text('Lenth')")
     page.wait_for_function("location.hash.includes('src=lenth-1989')")
     assert tier_counts(page) == {"reproduced": 1, "within_1": 0, "within_5": 0, "not_reproduced": 1}
-    assert page.locator("#sources .source[aria-pressed=true]").count() == 1
+    assert page.locator("#bysource .source[aria-pressed=true]").count() == 1
     assert page.input_value("#source") == "lenth-1989"
     page.reload()
     page.wait_for_selector("#tiers tbody tr")
@@ -108,3 +109,19 @@ def test_on_a_phone_the_page_never_scrolls_sideways(reproduced_context, site):
     for case in page.locator(".case summary").all():
         case.click()
     assert page.evaluate("document.documentElement.scrollWidth") <= 390
+
+
+def test_the_sources_add_up_by_kind_and_a_kind_chosen_keeps_its_cases(reproduced_context, site, reproduction):
+    """Both sources of the sample are journal papers: one group, with the page's totals, and bars on totals only."""
+    page = open_page(reproduced_context, site)
+    group = page.locator("#bysource .bysource__group")
+    assert group.count() == 1
+    assert group.locator("th").text_content() == "Journal papers 2 sources"
+    recomputed = [c for c in reproduction["cases"] if c["tier"]]
+    assert group.locator(".bysource__cases").text_content() == str(len(recomputed))
+    assert page.locator("#bysource tr[data-source] .source__bar").count() == 0, "no bar beside a single source"
+    assert page.locator("#bysource .bysource__group .source__bar span").count() > 0
+    group.locator("button").click()
+    page.wait_for_function("location.hash.includes('form=paper')")
+    assert page.input_value("#source") == "form:paper"
+    assert sum(tier_counts(page).values()) == len(recomputed)

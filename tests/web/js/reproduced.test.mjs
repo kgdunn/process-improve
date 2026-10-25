@@ -8,6 +8,8 @@ import {
   BANDS,
   DEFAULT_VIEW,
   TIER_KEYS,
+  SOURCE_ORDERS,
+  byForm,
   bySource,
   errorBands,
   filterCases,
@@ -22,10 +24,11 @@ import {
   toHash,
 } from "../../../web/reproduced-logic.js";
 
+const FORMS = { book: "Books", paper: "Journal papers", other: "Handbooks, encyclopedias and courses" };
 const LIMITS = { reproduced: 0, within_1: 0.01, within_5: 0.05, not_reproduced: null };
 const SOURCES = {
-  lenth: { short: "Lenth", year: 1989, title: "Quick and easy analysis of unreplicated factorials" },
-  davies: { short: "Davies", year: 1956, title: "The Design and Analysis of Industrial Experiments" },
+  lenth: { short: "Lenth", year: 1989, title: "Quick and easy analysis of unreplicated factorials", form: "paper" },
+  davies: { short: "Davies", year: 1956, title: "The Design and Analysis of Industrial Experiments", form: "book" },
 };
 
 const number = (error, reason = "a misprint") => ({ what: "coefficient", term: "x1", printed: "1", found: "1.1", error, where: "p. 1", reason });
@@ -93,10 +96,28 @@ describe("the search", () => {
 });
 
 describe("the sources and the lists", () => {
-  test("each source counts its cases by tier, the sources with most first", () => {
+  test("each source counts its cases by tier and its numbers that agree, the oldest first", () => {
     const rows = bySource(CASES, SOURCES);
-    assert.deepEqual(rows.map((r) => [r.key, r.total, r.tiers.reproduced]), [["davies", 2, 0], ["lenth", 2, 1]]);
-    assert.equal(rows[1].reproducedShare, 0.5);
+    assert.deepEqual(rows.map((r) => [r.key, r.form, r.total, r.tiers.reproduced]), [["davies", "book", 2, 0], ["lenth", "paper", 2, 1]]);
+    assert.deepEqual([rows[1].numbers, rows[1].agree], [70, 68]);
+    assert.deepEqual(bySource(CASES, SOURCES, "name").map((r) => r.key), ["davies", "lenth"]);
+  });
+
+  test("no order ranks the sources by how much of them reproduces", () => {
+    assert.deepEqual(Object.keys(SOURCE_ORDERS), ["year", "name", "cases"]);
+  });
+
+  test("the sources group by the form of their source, each group with its totals, and all of them", () => {
+    const { groups, totals } = byForm(bySource(CASES, SOURCES), FORMS);
+    assert.deepEqual(groups.map((g) => [g.form, g.label, g.rows.map((r) => r.key)]), [["book", "Books", ["davies"]], ["paper", "Journal papers", ["lenth"]]]);
+    assert.deepEqual(groups[1].totals, { total: 2, tiers: { reproduced: 1, within_1: 0, within_5: 0, not_reproduced: 1 }, numbers: 70, agree: 68 });
+    assert.equal(totals.total, 4);
+    assert.equal(totals.numbers, 88);
+    assert.equal(totals.agree, 88 - 4);
+  });
+
+  test("a form chosen keeps the cases of its sources", () => {
+    assert.deepEqual(filterCases(CASES, SOURCES, { form: "paper" }).map((c) => c.id), ["a", "b"]);
   });
 
   test("a tier's list groups its cases by source, the worst first", () => {
@@ -125,13 +146,13 @@ describe("the sources and the lists", () => {
 describe("the address", () => {
   test("keeps the view, leaving out what is at its default", () => {
     assert.equal(toHash(DEFAULT_VIEW), "");
-    const view = { query: "misprint", source: "lenth", kind: "example", open: ["within_1", "not_reproduced"], focus: "b" };
-    assert.equal(toHash(view), "#q=misprint&src=lenth&kind=example&open=within_1%2Cnot_reproduced&case=b");
-    assert.deepEqual(fromHash(toHash(view), SOURCES), view);
+    const view = { query: "misprint", source: "lenth", form: "paper", kind: "example", open: ["within_1", "not_reproduced"], focus: "b" };
+    assert.equal(toHash(view), "#q=misprint&src=lenth&form=paper&kind=example&open=within_1%2Cnot_reproduced&case=b");
+    assert.deepEqual(fromHash(toHash(view), SOURCES, FORMS), view);
   });
 
   test("ignores what it does not know", () => {
-    const read = fromHash("#src=nobody&open=within_1,everything&case=<script>", SOURCES);
+    const read = fromHash("#src=nobody&form=pamphlet&open=within_1,everything&case=<script>", SOURCES, FORMS);
     assert.deepEqual(read, { ...DEFAULT_VIEW, open: ["within_1"] });
     assert.deepEqual(TIER_KEYS, ["reproduced", "within_1", "within_5", "not_reproduced"]);
   });

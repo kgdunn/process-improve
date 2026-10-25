@@ -180,7 +180,7 @@ How closely each case reproduces
 reference catalogue in one of four tiers, by the largest relative difference between a number its
 source prints and the library's value (:data:`~process_improve.experiments.design_catalog.REPRODUCTION_TIERS`):
 fully reproduced, when every recomputed number agrees to the source's last printed digit; within 1%;
-within 5%; and not reproduced, when a number differs by more than 5% or a result that is not a
+within 5%; and unable to reproduce, when a number differs by more than 5% or a result that is not a
 number, such as an alias chain, differs. A case is placed by its worst number, so one misprint puts
 a case in the last tier. Each number that differs comes with its printed value, the library's value
 and the reason the catalogue records:
@@ -193,8 +193,12 @@ and the reason the catalogue records:
        print(case["tier"], case["title"][:40], [n["reason"][:30] for n in case["differs"]])
 
 The catalog's page `Reproduced from the books <https://factori.al/catalog/reproduced/>`_ draws the
-same classification for every source: a table of the tiers, by case and by number, a bar per source,
-the spread of the differences, and a list of the cases in each tier.
+same classification for every source: a table of the tiers, by case and by number; a table by source,
+with the sources grouped by their form (:func:`~process_improve.experiments.design_catalog.source_form`:
+books, journal papers, and handbooks, encyclopedias and courses) and each group's totals; the spread
+of the differences; and a list of the cases in each tier. The tiers describe how far the library
+reproduces a source, not the quality of the source: a difference may be the source's own rounding, a
+misprint, or a method that differs from the library's.
 
 Opening a design, and limits on its settings
 --------------------------------------------

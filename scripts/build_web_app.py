@@ -1186,24 +1186,29 @@ def write_catalog(out_dir: Path) -> None:
 def write_reproduction(out_dir: Path) -> None:
     """Write ``catalog/reproduction.json``: how closely the library reproduces each case of each source.
 
-    It holds each tier's largest relative difference (``null`` for the last, which has none), the sources
-    as the catalog names them, and every case (see
+    It holds each tier's largest relative difference (``null`` for the last, which has none), the forms a
+    source takes, the sources as the catalog names them with the form of each, and every case (see
     :func:`~process_improve.experiments.design_catalog.catalog_reproduction`), which
     ``catalog/reproduced/`` draws. It is kept apart from :func:`write_catalog` because it recomputes the
     numbers that differ, which takes a minute or two.
     """
     from process_improve.experiments.design_catalog import (  # noqa: PLC0415 - the docs environment has it
         REPRODUCTION_TIERS,
+        SOURCE_FORMS,
         catalog_reproduction,
         catalog_sources,
+        source_form,
     )
+    from process_improve.experiments.reference_catalogue import reference_sources  # noqa: PLC0415
 
+    full = reference_sources()
     data = {
         "version": CATALOG_VERSION,
         "library": version("process-improve"),
         "tiers": {tier: None if math.isinf(limit) else limit for tier, limit in REPRODUCTION_TIERS.items()},
+        "forms": SOURCE_FORMS,
         "sources": {
-            key: {k: source[k] for k in ("short", "title", "cite", "year", "url")}
+            key: {**{k: source[k] for k in ("short", "title", "cite", "year", "url")}, "form": source_form(full[key])}
             for key, source in catalog_sources().items()
         },
         "cases": catalog_reproduction(),

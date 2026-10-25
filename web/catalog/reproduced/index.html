@@ -63,16 +63,25 @@
   </section>
 
   <section aria-labelledby="sources-title" id="sources-section" hidden>
-    <h2 id="sources-title">Source by source</h2>
-    <p class="hint">Each bar is one source's cases, by tier. Choose a source to see only its cases on this page.</p>
+    <h2 id="sources-title">By source</h2>
+    <p class="hint">Each row counts one source's cases in each tier, and the share of its printed numbers that agree
+      with the library. A difference is between the library and what a source prints, whatever its cause: the
+      source's own rounding, a misprint, or a method that differs from the library's. The tiers describe how far
+      the library reproduces each source, not the quality of the source. Choose a source, or a kind of source, to see
+      only its cases on this page.</p>
     <div class="sources__head">
       <label>Order <select id="source-order">
-        <option value="cases">Most cases first</option>
-        <option value="share">Most reproduced in full first</option>
         <option value="year">Oldest first</option>
+        <option value="name">By name</option>
+        <option value="cases">Most cases first</option>
       </select></label>
     </div>
-    <ul class="sources" id="sources"></ul>
+    <div class="table-scroll">
+      <table class="bysource" id="bysource">
+        <caption class="visually-hidden">The cases of each source in each tier, grouped by the kind of source</caption>
+        <thead></thead>
+      </table>
+    </div>
   </section>
 
   <section aria-labelledby="bands-title" id="bands-section" hidden>

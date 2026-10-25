@@ -982,6 +982,15 @@ def test_a_case_falls_in_the_best_tier_that_holds_its_worst_number(errors, tier)
     assert design_catalog._tier(errors) == tier
 
 
+def test_a_source_s_form_is_read_from_what_the_catalogue_records_of_it():
+    sources = reference_sources()
+    forms = {key: design_catalog.source_form(source) for key, source in sources.items()}
+    assert set(forms.values()) == set(design_catalog.SOURCE_FORMS)
+    assert forms["montgomery-2013"] == forms["pid-book"] == "book"
+    assert forms["fries-hunter-1980"] == forms["goos-2025"] == "paper"
+    assert forms["ullmann-doe-2012"] == forms["nist-ehandbook-ch5"] == forms["efi-mooc-quizzes"] == "other"
+
+
 def test_each_case_says_how_closely_it_reproduces_and_why_a_number_differs():
     cases = {case["id"]: case for case in design_catalog.catalog_reproduction("lenth-1989")}
     assert {case["source"] for case in cases.values()} == {"lenth-1989"}

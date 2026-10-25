@@ -1238,6 +1238,31 @@ def short_citation(cite: str) -> str:
     return names if len(names) <= 40 else names.split(", ", 1)[0]
 
 
+#: The forms a published source takes, in the order the reproduction page groups them, each with its name there.
+SOURCE_FORMS: dict[str, str] = {
+    "book": "Books",
+    "paper": "Journal papers",
+    "other": "Handbooks, encyclopedias and courses",
+}
+
+
+def source_form(source: dict[str, Any]) -> str:
+    """Return the form of a published source, read from what the reference catalogue records of it.
+
+    A source that is a work of its own, with no ``work`` it is printed in, is a ``"book"``; one printed in
+    an issue of a journal is a ``"paper"``; any other (an encyclopedia article, a chapter of a handbook, a
+    course's quizzes, tutorial slides) is ``"other"``. See :data:`SOURCE_FORMS`.
+
+    Examples
+    --------
+    >>> source_form(reference_sources()["box-hunter-hunter-1978"]), source_form(reference_sources()["lenth-1989"])
+    ('book', 'paper')
+    """
+    if not source.get("work"):
+        return "book"
+    return "paper" if source.get("issue") else "other"
+
+
 def catalog_sources() -> dict[str, dict[str, Any]]:
     """Return what the catalog shows of each published source: its citation, address, year and terms of use.
 

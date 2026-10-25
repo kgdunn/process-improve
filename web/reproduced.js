@@ -1,12 +1,13 @@
 // The reproduction page (catalog/reproduced/index.html, at factori.al/catalog/reproduced/): it reads
 // catalog/reproduction.json once and draws how closely the library reproduces each published case, as a
-// table of tiers, a bar per source, the spread of the differences and a list of the cases of each tier.
+// table of tiers, a table by source, the spread of the differences and a list of the cases of each tier.
 // The rules are in reproduced-logic.js; this module draws them. No Python runs here.
 
 import { element } from "./catalog-views.js";
 import {
   DEFAULT_VIEW,
   TIERS,
+  byForm,
   bySource,
   errorBands,
   filterCases,
@@ -32,7 +33,7 @@ const GROUP_SHOWN = 25;
 
 let data = null;
 let view = structuredClone(DEFAULT_VIEW);
-let sourceOrder = "cases";
+let sourceOrder = "year";
 /** Draws a tier's list into its box, once: the page calls it when it opens a tier itself, not waiting for the toggle. */
 const fillers = new Map();
 
@@ -64,7 +65,7 @@ function drawStats() {
 
 function drawBreakdown(cases) {
   const s = summarise(cases, data.tiers);
-  const filtered = view.query || view.source || view.kind;
+  const filtered = view.query || view.source || view.form || view.kind;
   $("#scope").replaceChildren(
     filtered ? `Of the ${plural(s.recomputed, "case")} your filters keep. ` : `Of all ${plural(s.recomputed, "case")} with a recomputed number. `,
     ...(filtered ? [element("button", { type: "button", class: "link", text: "Show every case", onclick: () => setView(DEFAULT_VIEW) })] : []),
@@ -107,47 +108,96 @@ function drawBreakdown(cases) {
   );
 }
 
-// ---------------------------------------------------------------- source by source
+// ---------------------------------------------------------------- by source
+/** A count in the table by source: a zero is drawn muted, so the counts that are there stand out. */
+const cell = (n, extra = {}) => element("td", { class: n ? "num" : "num zero", ...extra }, count(n));
+
+/**
+ * A row of the table by source: its counts by tier, its numbers recomputed and the share that agree. Only
+ * a row that adds up several sources (a kind of source, or all of them) draws its cases by tier as a bar:
+ * a bar beside one source would make a source of one hard case look like a source in error.
+ */
+function sourceRow(head, tally, { bar = false, ...attributes } = {}) {
+  const parts = element("span", { class: "source__bar", "aria-hidden": "true" });
+  for (const t of bar ? TIERS : []) {
+    if (!tally.tiers[t.key]) continue;
+    const part = element("span", { "data-tier": t.key });
+    part.style.flexGrow = String(tally.tiers[t.key]);
+    parts.append(part);
+  }
+  return element(
+    "tr",
+    attributes,
+    element("th", { scope: "row" }, ...head),
+    cell(tally.total, { class: "num bysource__cases" }),
+    ...TIERS.map((t) => cell(tally.tiers[t.key], { "data-tier": t.key })),
+    cell(tally.numbers, { class: "num bysource__numbers" }),
+    element("td", { class: "num" }, element("strong", { text: percent(tally.agree, tally.numbers) })),
+    element("td", { class: "bysource__bar" }, bar ? parts : null),
+  );
+}
+
+/**
+ * The table by source: a group of rows for each form a source takes (books, journal papers, the rest),
+ * each with its totals, and the totals of all. It counts the cases the search and the kind keep, from
+ * every source, so a reader who has chosen one source can still see and choose the others.
+ */
 function drawSources() {
-  const rows = bySource(data.cases, data.sources);
-  const order = {
-    cases: () => 0,
-    share: (a, b) => b.reproducedShare - a.reproducedShare || b.total - a.total,
-    year: (a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.short.localeCompare(b.short),
-  }[sourceOrder];
-  rows.sort(order);
-  const most = Math.max(...rows.map((row) => row.total));
-  $("#sources").replaceChildren(
-    ...rows.map((row) => {
-      const bar = element("span", { class: "source__bar", "aria-hidden": "true" });
-      bar.style.width = `${Math.max(8, (100 * row.total) / most)}%`;
-      for (const t of TIERS) {
-        if (!row.tiers[t.key]) continue;
-        const part = element("span", { "data-tier": t.key });
-        part.style.flexGrow = String(row.tiers[t.key]);
-        bar.append(part);
-      }
-      const chosen = view.source === row.key;
-      const said = TIERS.filter((t) => row.tiers[t.key]).map((t) => `${count(row.tiers[t.key])} ${t.label.toLowerCase()}`).join(", ");
-      return element(
-        "li",
-        {},
-        element(
-          "button",
-          {
-            type: "button",
-            class: "source",
-            "aria-pressed": String(chosen),
-            title: row.title,
-            "aria-label": `${sourceName(row.key)}: ${plural(row.total, "case")}, ${said}`,
-            onclick: () => setView({ ...view, source: chosen ? "" : row.key, open: view.open, focus: "" }),
-          },
-          element("span", { class: "source__name", text: sourceName(row.key) }),
-          element("span", { class: "source__track" }, bar),
-          element("span", { class: "source__count" }, element("strong", { text: `${count(row.tiers.reproduced)}/${count(row.total)}` }), " in full"),
+  const kept = filterCases(data.cases, data.sources, { ...view, source: "", form: "" });
+  const { groups, totals } = byForm(bySource(kept, data.sources, sourceOrder), data.forms);
+  const choose = (next) => setView({ ...view, source: "", form: "", ...next, focus: "" });
+  $("#bysource thead").replaceChildren(
+    element(
+      "tr",
+      {},
+      element("th", { scope: "col", text: "Source" }),
+      element("th", { scope: "col", class: "num bysource__cases", text: "Cases" }),
+      ...TIERS.map((t) => element("th", { scope: "col", class: "num", title: t.label }, chip(t.key), element("span", { class: "visually-hidden", text: t.label }))),
+      element("th", { scope: "col", class: "num bysource__numbers", text: "Numbers" }),
+      element("th", { scope: "col", class: "num", title: "The share of the printed numbers that agree with the library", text: "Agree" }),
+      element("th", { scope: "col", class: "bysource__bar" }, element("span", { class: "visually-hidden", text: "Cases by tier" })),
+    ),
+  );
+  $("#bysource").replaceChildren(
+    $("#bysource caption"),
+    $("#bysource thead"),
+    ...groups.map((group) =>
+      element(
+        "tbody",
+        { "data-form": group.form },
+        sourceRow(
+          [
+            element("button", {
+              type: "button",
+              class: "link bysource__form",
+              "aria-pressed": String(view.form === group.form),
+              text: group.label,
+              onclick: () => choose(view.form === group.form ? {} : { form: group.form }),
+            }),
+            element("span", { class: "hint", text: ` ${plural(group.rows.length, "source")}` }),
+          ],
+          group.totals,
+          { class: "bysource__group", bar: true },
         ),
-      );
-    }),
+        ...group.rows.map((row) =>
+          sourceRow(
+            [
+              element("button", {
+                type: "button",
+                class: "link source",
+                "aria-pressed": String(view.source === row.key),
+                title: row.title,
+                text: sourceName(row.key),
+                onclick: () => choose(view.source === row.key ? {} : { source: row.key }),
+              }),
+            ],
+            row,
+            { "data-source": row.key },
+          ),
+        ),
+      ),
+    ),
+    element("tfoot", {}, sourceRow([`All ${plural(groups.reduce((n, g) => n + g.rows.length, 0), "source")}`], totals, { bar: true })),
   );
 }
 
@@ -304,7 +354,8 @@ function sourceGroup({ source, cases }) {
 }
 
 function drawLists(cases) {
-  const order = bySource(data.cases, data.sources).map((row) => row.key);
+  // The cases of a tier are grouped by source in the order of the table by source: by form, then oldest first.
+  const order = byForm(bySource(data.cases, data.sources), data.forms).groups.flatMap((g) => g.rows.map((row) => row.key));
   $("#lists").replaceChildren(
     ...TIERS.map((t) => {
       const n = cases.filter((c) => c.tier === t.key).length;
@@ -381,9 +432,9 @@ function draw() {
   drawBands(cases);
   drawLists(cases);
   $("#query").value = view.query;
-  $("#source").value = view.source;
+  $("#source").value = view.form ? `form:${view.form}` : view.source;
   $("#kind").value = view.kind;
-  $("#clear").hidden = !(view.query || view.source || view.kind);
+  $("#clear").hidden = !(view.query || view.source || view.form || view.kind);
   const all = data.cases.filter((c) => c.tier).length;
   $("#count").textContent =
     cases.length === all ? `${plural(all, "case")}, in four tiers.` : `${plural(cases.length, "case")} of ${count(all)} kept.`;
@@ -396,16 +447,28 @@ function setView(next) {
 }
 
 function wire() {
-  const sources = Object.keys(data.sources).filter((key) => data.cases.some((c) => c.source === key && c.tier));
-  sources.sort((a, b) => sourceName(a).localeCompare(sourceName(b)));
-  $("#source").append(...sources.map((key) => element("option", { value: key, text: sourceName(key) })));
+  // One choice of where the cases come from: every source of a form ("form:<form>"), or one source.
+  const { groups } = byForm(bySource(data.cases, data.sources, "name"), data.forms);
+  $("#source").append(
+    ...groups.map((group) =>
+      element(
+        "optgroup",
+        { label: group.label },
+        element("option", { value: `form:${group.form}`, text: `All ${group.label.toLowerCase()} (${count(group.totals.total)})` }),
+        ...group.rows.map((row) => element("option", { value: row.key, text: sourceName(row.key) })),
+      ),
+    ),
+  );
   $("#kind").append(...kinds(data.cases).map(([kind, n]) => element("option", { value: kind, text: `${kind[0].toUpperCase()}${kind.slice(1)} (${count(n)})` })));
   let typing = null;
   $("#query").addEventListener("input", (event) => {
     clearTimeout(typing);
     typing = setTimeout(() => setView({ ...view, query: event.target.value.trim(), focus: "" }), 200);
   });
-  $("#source").addEventListener("change", (event) => setView({ ...view, source: event.target.value, focus: "" }));
+  $("#source").addEventListener("change", (event) => {
+    const [form, source] = event.target.value.startsWith("form:") ? [event.target.value.slice(5), ""] : ["", event.target.value];
+    setView({ ...view, source, form, focus: "" });
+  });
   $("#kind").addEventListener("change", (event) => setView({ ...view, kind: event.target.value, focus: "" }));
   $("#clear").addEventListener("click", () => setView({ ...DEFAULT_VIEW, open: view.open }));
   // A word of the reasons the catalogue records: the search keeps the cases whose numbers differ for it.
@@ -420,7 +483,7 @@ function wire() {
     drawSources();
   });
   window.addEventListener("hashchange", () => {
-    view = fromHash(location.hash, data.sources);
+    view = fromHash(location.hash, data.sources, data.forms);
     draw();
     focusCase();
   });
@@ -436,7 +499,7 @@ async function main() {
     $("#status").classList.add("error");
     return;
   }
-  view = fromHash(location.hash, data.sources);
+  view = fromHash(location.hash, data.sources, data.forms);
   $("#status").hidden = true;
   for (const id of ["#breakdown", "#sources-section", "#bands-section", "#cases"]) $(id).hidden = false;
   $("#built").textContent = `Recomputed with process-improve ${data.library}.`;
