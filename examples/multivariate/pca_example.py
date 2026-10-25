@@ -49,5 +49,5 @@ print(pca.pca.squared_prediction_error)  # use the last column, for the last PCA
 # PLots:
 pca.score_plot(pc_horiz=1, pc_vert=2)
 pca.loadings_plot(pc_horiz=2, pc_vert=3)
-pca.spe_plot(with_a=3)  # for components 1, 2, 3 (inclusive)
-pca.T2_plot(with_a=2)
+pca.spe_plot(n_components=3)  # for components 1, 2, 3 (inclusive)
+pca.T2_plot(n_components=2)

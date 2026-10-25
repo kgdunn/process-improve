@@ -140,7 +140,7 @@ class TestPlotLimits:
         return PCA(n_components=3).fit(frame)
 
     def test_t2_plot_limit_matches_sub_model(self, model: PCA) -> None:
-        fig = model.t2_plot(with_a=1)
+        fig = model.t2_plot(n_components=1)
         expected = hotellings_t2_limit(0.95, n_components=1, n_rows=model.n_samples_)
         limit_line = fig.layout.shapes[0]
         assert np.isclose(limit_line.y0, expected)
@@ -148,7 +148,7 @@ class TestPlotLimits:
         assert "T2 values" in fig.layout.yaxis.title.text
 
     def test_spe_plot_limit_matches_sub_model(self, model: PCA) -> None:
-        fig = model.spe_plot(with_a=1)
+        fig = model.spe_plot(n_components=1)
         expected = spe_calculation(model.spe_[1], conf_level=0.95)
         limit_line = fig.layout.shapes[0]
         assert np.isclose(limit_line.y0, expected)
