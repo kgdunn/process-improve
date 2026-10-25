@@ -78,6 +78,8 @@ def test_a_model_grown_from_another_keeps_its_parents_settings_and_only_adds(tab
     assert model["changes"] == ["Transform d with log10", "leaves out row r3", "leaves out row r7"]
     assert model["n_rows_fitted"] == 28
     assert model["parent"] == "M1"
+    d = next(c for c in model["columns"] if c["name"] == "d")
+    assert d["skewness"] == pytest.approx(np.log10(table["d"].drop(["r3", "r7"])).skew())
     # The later transform is M2's own: M1, refitted from the final session, is the model it was.
     again = call("mva_predict", session=second["session"], model="M1", rows=["r0"])
     before = call("mva_predict", session=session, model="M1", rows=["r0"])

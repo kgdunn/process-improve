@@ -18,7 +18,7 @@ as it was.
 Tool               Does
 =================  ===========================================================================
 ``mva_open``       start a session; describe each column (missing cells, range, skewness)
-``mva_fit``        add a model, new or grown from another, and report its fit and outliers
+``mva_fit``        add a model, new or grown from another; report its fit, outliers and columns
 ``mva_explain``    say which variables set some rows apart from the others, per component
 ``mva_predict``    project rows of the table, or new rows, through a model
 ``mva_script``     write the Python that rebuilds each model, for a record outside MCP
@@ -360,6 +360,10 @@ def _report(loaded: _Loaded, model: Model, fit: Fit, cv: CrossValidation | None,
         "r2x_per_component": r2x,
         "r2x_cumulative": np.cumsum(r2x),
     }
+    # The work set statistics: did the model's steps make a skewed column symmetric?
+    x, y = fit.variant.blocks(fit.table)
+    work_set = x if y is None else pd.concat([x, y], axis=1)
+    report["columns"] = _describe(work_set.loc[fit.variant.included(fit.table)])["columns"]
     if fit.variant.kind == "PLS":
         report["y_columns"] = list(fit.variant.y_columns)
         report["r2y_per_component"] = fit.model.r2_per_component_
@@ -379,7 +383,8 @@ def _report(loaded: _Loaded, model: Model, fit: Fit, cv: CrossValidation | None,
     name="mva_fit",
     description=(
         "Add a PCA or PLS model to a multivariate session and report its fit: R² (and Q² by cross-validation) "
-        "per component, the T² and SPE limits, and the rows beyond them, each with the variables that set it apart. "
+        "per component, the T² and SPE limits, and the rows beyond them, each with the variables that set it apart; "
+        "and each of its columns as fitted (after its steps, on its rows), to check that a transform worked. "
         "Grow a model from an earlier one with `parent` to change one thing at a time: leave rows out (they are "
         "still projected), fit rows again, add recipe steps such as a log10 transform, or change the components. "
         "Say why in `reason`. Returns the session with the model added; pass it to the next mva_ call."
