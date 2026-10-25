@@ -548,17 +548,20 @@ The items both sources describe, by section: the first candidates for priority.
   - for MLR, hᵢ = 1/I + xᵢ'(X'X)⁻¹xᵢ `[B]`.
 - Hotelling's T², identical in both `[A B]`:
   - Tᵢ² = Σₐ tᵢₐ²/sₐ² `[A B]`;
-  - T²·N(N − A)/(A(N² − 1)) ~ F(A, N − A), which gives the limit `[A B]`;
+  - T²·N(N − A)/(A(N² − 1)) ~ F(A, N − A), which gives the limit `[A B]`; measured, A's own
+    exports use the fitted-row form, T²(N − A)/(A(N − 1)) ~ F(A, N − A), and one published
+    figure of A's draws its ellipse at A·F(A, N − A) (URS STA-4);
   - the ellipse axes are (sₐ²·F(2, N−2, α)·2(N² − 1)/(N(N − 2)))^½ `[A B]`;
   - any range of components;
   - 0.05 and 0.01 limits `[A B]`;
   - a zero significance hides them.
 - Distance to the model in X (DModX) `[A B]`:
   - sᵢ = √(Σeᵢₖ²/(K − A))·v, where v is a correction factor slightly above 1 for fitted
-    rows `[A B]`;
+    rows `[A B]`; measured on A's screenshots, v = √(N/(N − A − A₀)) (URS STA-5);
   - normalized by the pooled RSD s₀ = √(ΣΣe²/((N − A − A₀)(K − A))) `[A B]`;
   - (sᵢ/s₀)² ~ F, which gives the critical distance and the probability of belonging
-    `[A B]`;
+    `[A B]`; A's guide gives F(K − A, (N − A − A₀)(K − A)), but a limit A printed (1.389)
+    follows no stated degrees of freedom (URS STA-5);
   - optionally weighted by modelling power.
 - Distance to the model in Y (DModY): sᵢ = √(Σfᵢₘ²/M), normalized by its s₀ `[A B]` (B:
   residual Y variance per row).

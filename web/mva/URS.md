@@ -24,7 +24,7 @@ existing code into the page.
 - **Designed experiments** are out of this tool: the designed-experiments app covers them.
 - **Batch data** comes later, together with PLS-DA and the drawing of chemical structures.
 
-In numbers: 91 Definitely lines, of which 13 are in process-improve and 57 partly.
+In numbers: 91 Definitely lines, of which 12 are in process-improve and 58 partly.
 
 ## Requirements
 
@@ -162,7 +162,8 @@ In numbers: 91 Definitely lines, of which 13 are in process-improve and 57 partl
 - **MOD-10** Validation choices: cross-validation groups, a test set, leverage correction, re-scaling per segment. *(partly in process-improve)*
   - Validation methods: cross-validation (7 rounds by default; groups by every n-th row, by a score, a column or an id; random or systematic; frozen rows), a test set chosen at random or by hand, leverage correction (fast, no refit), or no validation.
   - Whether each segment re-centres and re-scales its data is a stated choice.
-  - Already there: select_n_components takes any scikit-learn splitter and repeats it; diagnose and predict score a test set. No leverage correction. PCA.select_n_components takes scale_inside_folds; compare_cv_criteria scales inside the folds and warns about scaling traps.
+  - A held-out row with missing cells is predicted by the same choice of projection as a new row (PRD-2). On a published example with missing cells, source A's single-component projection gives the printed cross-validated Q² of 16 %; trimmed score regression gives 18.5 %.
+  - Already there: select_n_components takes any scikit-learn splitter and repeats it; diagnose and predict score a test set. No leverage correction. PCA.select_n_components takes scale_inside_folds; compare_cv_criteria scales inside the folds and warns about scaling traps. No choice of projection for held-out rows: select_n_components uses trimmed score regression.
 
 ### STA: Statistics and diagnostics
 
@@ -177,11 +178,13 @@ In numbers: 91 Definitely lines, of which 13 are in process-improve and 57 partl
 - **STA-3** Modelling power of each variable, and leverages of rows and variables. *(not in process-improve)*
   - Modelling power of each variable, 1 − SVₖ/SV₀ₖ (1 is fully relevant; near A/K is little relevance).
   - Leverages of rows in X and in Y (with 1/I for the centring), of variables, and for MLR.
-- **STA-4** Hotelling's T², with its limits and ellipse. *(in process-improve)*
+- **STA-4** Hotelling's T², with its limits and ellipse. *(partly in process-improve)*
   - Hotelling's T² over any range of components, with its F-based limits (95% and 99%) and the T² ellipse; a zero significance hides the limits.
-  - Already there: hotellings_t2_limit, ellipse_coordinates and t2_plot; the page draws the ellipse and the limit.
+  - The limit depends on the row. A fitted row's limit is A(N − 1)/(N − A)·F(A, N − A), as source A's own exports give it, and the score plot's ellipse is drawn at it with A = 2. A new row's limit is A(N² − 1)/(N(N − A))·F(A, N − A), (N + 1)/N larger, as source A's guide gives it. A third form source A has drawn, A·F(A, N − A) with no N factor, is not used.
+  - Already there: hotellings_t2_limit, ellipse_coordinates and t2_plot; the page draws the ellipse and the limit. hotellings_t2_limit gives the new-row form only, and the ellipse is drawn at it, so a fitted row's limit is (N + 1)/N too large and the ellipse's axes √((N + 1)/N).
 - **STA-5** Distance to the model in X and in Y, with its critical limit and probability. *(partly in process-improve)*
   - Distance to the model in X (DModX), absolute or normalized by the pooled residual SD, with its F-based critical distance and probability of belonging, optionally weighted by modelling power; the distance in Y (DModY); for predictions, the distance plus how far a row falls outside the model's score range.
+  - A fitted row's DModX is sᵢ = √(Σeᵢₖ²/(K − A))·v, with v = √(N/(N − A − A₀)) and A₀ = 1 when the data are centred; it is normalized by s₀ = √(ΣΣe²/((N − A − A₀)(K − A))). The critical distance and the probability come from (sᵢ/s₀)² ~ F(K − A, (N − A − A₀)(K − A)), the degrees of freedom of source A's guide. An older version of source A printed 1.389 for a limit these give as 1.285; no stated rule gives 1.389.
   - Already there: SPE per row with spe_limit; the page's SPE plot. No normalized DModX or probability.
 - **STA-6** Regression coefficients in every form: scaled, raw with intercept, MLR form. *(partly in process-improve)*
   - Regression coefficients in every form: scaled and centred; raw, with the intercept b₀ = ȳ − x̄'b; Y in original units with X centred; the multiple-regression form; squared and cross terms handled; B = W(P'W)⁻¹C'; rotated toward pure profiles.
@@ -222,6 +225,7 @@ In numbers: 91 Definitely lines, of which 13 are in process-improve and 57 partl
 - **PRD-2** Prediction gives scores, ŷ with its error, T², distances and residuals, missing values handled. *(partly in process-improve)*
   - Prediction projects each new row through the model, with missing values handled, and gives its scores and residuals as well as ŷ; a short form gives ŷ = b₀ + x'b alone.
   - Prediction results: scores, distance in X with its probability, T², predicted Y back-transformed with standard errors and jackknife intervals, residuals, distance in Y with its probability, hierarchical Y.
+  - A row with missing cells is projected by a stated method: trimmed score regression by default, or the single-component projection source A uses, which scores each component from the row's observed cells alone.
   - Already there: PCA.project and PLS.project estimate scores, predictions and diagnostics for rows with missing values; PLS.predict. diagnose returns scores, T², SPE and predictions; prediction_interval gives the intervals.
 - **PRD-3** Prediction statistics when Y is known: RMSEP, bias, SEP, slope. *(partly in process-improve)*
   - Prediction with reference values: when Y is known for the prediction set, RMSEP, SEP, bias, slope, offset, correlation and the corrected SEP.
