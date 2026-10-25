@@ -149,7 +149,8 @@
       "quote": "14 14 4 1 5 1 0.98 0.1429"
      },
      "check": {
-      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 1 (all 4 sign choices give the same determinant)"
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 1 (all 4 sign choices give the same determinant)",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -164,7 +165,8 @@
       "quote": "14 14 4 1 5 1 0.98 0.1429"
      },
      "check": {
-      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 0.9800; generate_design(design_type='dsd') with 4 continuous and 1 two-level categorical factors, over the ORTH design's closed-form X'X, gives 0.9800"
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 0.9800; generate_design(design_type='dsd') with 4 continuous and 1 two-level categorical factors, over the ORTH design's closed-form X'X, gives 0.9800",
+      "cause": "check_gap"
      }
     },
     {
@@ -400,7 +402,8 @@
       "quote": "14 16 4 2 6 1 1.04 0.1429"
      },
      "check": {
-      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 0.966"
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 0.966",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -415,7 +418,8 @@
       "quote": "14 16 4 2 6 1 1.04 0.1429"
      },
      "check": {
-      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0035; generate_design(design_type='dsd') with 4 continuous and 2 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0386"
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0035; generate_design(design_type='dsd') with 4 continuous and 2 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0386",
+      "cause": "check_gap"
      }
     },
     {
@@ -434,7 +438,8 @@
       "metric": "alias_matrix",
       "key": "max_abs",
       "model": "main_effects",
-      "disagreement": "the printed Figure 1a design gives 0.4286 (6/14, the intercept's alias with x5:x6, since x5'x6 = 6). Table 4 and Table 3 fit the design with z2 reversed (rows 11 and 12 of x6 swapped), for which every intercept-row entry is 2/14 = 0.1429; generate_design(design_type='dsd') with 4 continuous and 2 categorical factors also gives 0.1429"
+      "disagreement": "the printed Figure 1a design gives 0.4286 (6/14, the intercept's alias with x5:x6, since x5'x6 = 6). Table 4 and Table 3 fit the design with z2 reversed (rows 11 and 12 of x6 swapped), for which every intercept-row entry is 2/14 = 0.1429; generate_design(design_type='dsd') with 4 continuous and 2 categorical factors also gives 0.1429",
+      "cause": "source_error"
      }
     },
     {
@@ -473,7 +478,8 @@
       "key": "xtx",
       "rows": 1,
       "printed": ["0", "10", "0", "0", "0", "2", "-2"],
-      "disagreement": "the printed Figure 1a design gives the row 0 10 0 0 0 2 2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
+      "disagreement": "the printed Figure 1a design gives the row 0 10 0 0 0 2 2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6",
+      "cause": "source_error"
      }
     },
     {
@@ -493,7 +499,8 @@
       "key": "xtx",
       "rows": 2,
       "printed": ["0", "0", "10", "0", "0", "-2", "-2"],
-      "disagreement": "the printed Figure 1a design gives the row 0 0 10 0 0 −2 2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
+      "disagreement": "the printed Figure 1a design gives the row 0 0 10 0 0 −2 2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6",
+      "cause": "source_error"
      }
     },
     {
@@ -513,7 +520,8 @@
       "key": "xtx",
       "rows": 3,
       "printed": ["0", "0", "0", "10", "0", "-2", "2"],
-      "disagreement": "the printed Figure 1a design gives the row 0 0 0 10 0 −2 −2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
+      "disagreement": "the printed Figure 1a design gives the row 0 0 0 10 0 −2 −2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6",
+      "cause": "source_error"
      }
     },
     {
@@ -533,7 +541,8 @@
       "key": "xtx",
       "rows": 4,
       "printed": ["0", "0", "0", "0", "10", "2", "2"],
-      "disagreement": "the printed Figure 1a design gives the row 0 0 0 0 10 2 −2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
+      "disagreement": "the printed Figure 1a design gives the row 0 0 0 0 10 2 −2: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6",
+      "cause": "source_error"
      }
     },
     {
@@ -553,7 +562,8 @@
       "key": "xtx",
       "rows": 5,
       "printed": ["0", "2", "-2", "-2", "2", "14", "2"],
-      "disagreement": "the printed Figure 1a design gives the row 0 2 −2 −2 2 14 6: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
+      "disagreement": "the printed Figure 1a design gives the row 0 2 −2 −2 2 14 6: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6",
+      "cause": "source_error"
      }
     },
     {
@@ -573,7 +583,8 @@
       "key": "xtx",
       "rows": 6,
       "printed": ["0", "-2", "-2", "2", "2", "2", "14"],
-      "disagreement": "the printed Figure 1a design gives the row 0 2 2 −2 −2 6 14: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6"
+      "disagreement": "the printed Figure 1a design gives the row 0 2 2 −2 −2 6 14: the printed X'X is that of the design with z2's runs 11 and 12 reversed in x6",
+      "cause": "source_error"
      }
     },
     {
@@ -614,7 +625,8 @@
       "quote": "which can potentially take on values −2, 2, and 6"
      },
      "check": {
-      "manual": "the values a cross product can take, which no check kind reports; this design has x5'x6 = 6, and the c = 3 and c = 4 designs of Figure 1a have 2 for every pair"
+      "manual": "the values a cross product can take, which no check kind reports; this design has x5'x6 = 6, and the c = 3 and c = 4 designs of Figure 1a have 2 for every pair",
+      "cause": "check_gap"
      }
     },
     {
@@ -638,7 +650,8 @@
       "printed": [
        ["2"]
       ],
-      "disagreement": "as printed, x5'x6 = 6, the case the paper says is usually eliminated; equation (2) has +2 or -2"
+      "disagreement": "as printed, x5'x6 = 6, the case the paper says is usually eliminated; equation (2) has +2 or -2",
+      "cause": "source_error"
      }
     },
     {
@@ -789,7 +802,8 @@
       "metric": "alias_matrix",
       "key": "matrix.0.4",
       "model": "main_effects",
-      "disagreement": "the printed Figure 1a c = 2 design gives +0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+      "disagreement": "the printed Figure 1a c = 2 design gives +0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X",
+      "cause": "source_error"
      }
     },
     {
@@ -826,7 +840,8 @@
       "metric": "alias_matrix",
       "key": "matrix.0.8",
       "model": "main_effects",
-      "disagreement": "the printed Figure 1a c = 2 design gives +0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+      "disagreement": "the printed Figure 1a c = 2 design gives +0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X",
+      "cause": "source_error"
      }
     },
     {
@@ -863,7 +878,8 @@
       "metric": "alias_matrix",
       "key": "matrix.0.11",
       "model": "main_effects",
-      "disagreement": "the printed Figure 1a c = 2 design gives -0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+      "disagreement": "the printed Figure 1a c = 2 design gives -0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X",
+      "cause": "source_error"
      }
     },
     {
@@ -900,7 +916,8 @@
       "metric": "alias_matrix",
       "key": "matrix.0.13",
       "model": "main_effects",
-      "disagreement": "the printed Figure 1a c = 2 design gives -0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+      "disagreement": "the printed Figure 1a c = 2 design gives -0.1429. Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X",
+      "cause": "source_error"
      }
     },
     {
@@ -919,7 +936,8 @@
       "metric": "alias_matrix",
       "key": "matrix.0.14",
       "model": "main_effects",
-      "disagreement": "the printed Figure 1a c = 2 design gives 0.4286 (x5'x6/14 = 6/14). Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X"
+      "disagreement": "the printed Figure 1a c = 2 design gives 0.4286 (x5'x6/14 = 6/14). Table 3 is the alias matrix of the design with z2 reversed (rows 11 and 12 of x6 swapped), which reproduces every entry, as does equation (2)'s X'X",
+      "cause": "source_error"
      }
     },
     {
@@ -1281,7 +1299,8 @@
       "quote": "18 20 4 3 7 1 1.03 0.1111"
      },
      "check": {
-      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 0.998"
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 0.998",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -1296,7 +1315,8 @@
       "quote": "18 20 4 3 7 1 1.03 0.1111"
      },
      "check": {
-      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0230; generate_design(design_type='dsd') with 4 continuous and 3 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0250"
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0230; generate_design(design_type='dsd') with 4 continuous and 3 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0250",
+      "cause": "check_gap"
      }
     },
     {
@@ -1477,7 +1497,8 @@
       "quote": "18 20 4 4 8 1 1.01 0.1111"
      },
      "check": {
-      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 1 (it is the best of its 256 sign choices)"
+      "manual": "a ratio to a constrained D-optimal design found by coordinate exchange, which neither the paper nor the library gives; no check kind compares two designs. Against the best of the 2^(2c) sign choices on the same base (what the library's DSD-augment chooses), this printed design reaches 1 (it is the best of its 256 sign choices)",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -1492,7 +1513,8 @@
       "quote": "18 20 4 4 8 1 1.01 0.1111"
      },
      "check": {
-      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0104; generate_design(design_type='dsd') with 4 continuous and 4 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0104"
+      "manual": "a ratio of two designs' D-efficiencies, and a design_metric check reads one design. evaluate_design's d_efficiency for this design over that for the Figure 1b design with the same c gives 1.0104; generate_design(design_type='dsd') with 4 continuous and 4 two-level categorical factors, over the ORTH design's closed-form X'X, gives 1.0104",
+      "cause": "check_gap"
      }
     },
     {
@@ -3503,7 +3525,8 @@
        "key": "xtx.1.1",
        "printed": "16 - 4",
        "expression": true,
-       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer",
+       "cause": "source_error"
       },
       {
        "kind": "normal_equations",
@@ -3511,7 +3534,8 @@
        "key": "xtx.2.2",
        "printed": "16 - 4",
        "expression": true,
-       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer",
+       "cause": "source_error"
       },
       {
        "kind": "normal_equations",
@@ -3519,7 +3543,8 @@
        "key": "xtx.3.3",
        "printed": "16 - 4",
        "expression": true,
-       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer",
+       "cause": "source_error"
       },
       {
        "kind": "normal_equations",
@@ -3527,7 +3552,8 @@
        "key": "xtx.4.4",
        "printed": "16 - 4",
        "expression": true,
-       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer"
+       "disagreement": "these 16 runs give 10, n - 6: each continuous column is 0 in the two conference-matrix runs and the four centre runs. n - 4 holds for the 14-run DSD-augment design of the same size, two centre runs fewer",
+       "cause": "source_error"
       }
      ]
     },
@@ -3907,7 +3933,8 @@
       "quote": "14 14 5 1 6 1 0.98 0.1429"
      },
      "check": {
-      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 14 runs"
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 14 runs",
+      "cause": "check_gap"
      }
     },
     {
@@ -3922,7 +3949,8 @@
       "quote": "14 14 5 1 6 1 0.98 0.1429"
      },
      "check": {
-      "manual": "the ORTH-augmented design is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and n_ORTH = n1 + 2 with n1 = 12 (the DSD-augmented run size less two) gives 14"
+      "manual": "the ORTH-augmented design is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and n_ORTH = n1 + 2 with n1 = 12 (the DSD-augmented run size less two) gives 14",
+      "cause": "check_gap"
      }
     },
     {
@@ -3937,7 +3965,8 @@
       "quote": "14 14 5 1 6 1 0.98 0.1429"
      },
      "check": {
-      "manual": "m + c = 6; the design is not printed, and no check kind can make a design with categorical factors"
+      "manual": "m + c = 6; the design is not printed, and no check kind can make a design with categorical factors",
+      "cause": "not_a_result"
      }
     },
     {
@@ -3952,7 +3981,8 @@
       "quote": "14 14 5 1 6 1 0.98 0.1429"
      },
      "check": {
-      "manual": "a ratio to a coordinate-exchange optimum that is not printed; no check kind compares two designs"
+      "manual": "a ratio to a coordinate-exchange optimum that is not printed; no check kind compares two designs",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -3967,7 +3997,8 @@
       "quote": "14 14 5 1 6 1 0.98 0.1429"
      },
      "check": {
-      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors, over the ORTH design's closed-form diagonal X'X (n_ORTH on the intercept and categorical entries, n1 - 2 on the continuous ones), gives 0.9782"
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors, over the ORTH design's closed-form diagonal X'X (n_ORTH on the intercept and categorical entries, n1 - 2 on the continuous ones), gives 0.9782",
+      "cause": "check_gap"
      }
     },
     {
@@ -3982,7 +4013,8 @@
       "quote": "14 14 5 1 6 1 0.98 0.1429"
      },
      "check": {
-      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 0.142857"
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 0.142857",
+      "cause": "check_gap"
      }
     },
     {
@@ -3997,7 +4029,8 @@
       "quote": "34 36 12 4 16 1 1.03 0.0588"
      },
      "check": {
-      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors gives 34 runs"
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors gives 34 runs",
+      "cause": "check_gap"
      }
     },
     {
@@ -4012,7 +4045,8 @@
       "quote": "34 36 12 4 16 1 1.03 0.0588"
      },
      "check": {
-      "manual": "the ORTH-augmented design is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and n_ORTH = n1 + 4 with n1 = 32 (the DSD-augmented run size less two) gives 36"
+      "manual": "the ORTH-augmented design is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and n_ORTH = n1 + 4 with n1 = 32 (the DSD-augmented run size less two) gives 36",
+      "cause": "check_gap"
      }
     },
     {
@@ -4027,7 +4061,8 @@
       "quote": "34 36 12 4 16 1 1.03 0.0588"
      },
      "check": {
-      "manual": "m + c = 16; the design is not printed, and no check kind can make a design with categorical factors"
+      "manual": "m + c = 16; the design is not printed, and no check kind can make a design with categorical factors",
+      "cause": "not_a_result"
      }
     },
     {
@@ -4042,7 +4077,8 @@
       "quote": "34 36 12 4 16 1 1.03 0.0588"
      },
      "check": {
-      "manual": "a ratio to a coordinate-exchange optimum that is not printed; no check kind compares two designs"
+      "manual": "a ratio to a coordinate-exchange optimum that is not printed; no check kind compares two designs",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -4057,7 +4093,8 @@
       "quote": "34 36 12 4 16 1 1.03 0.0588"
      },
      "check": {
-      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors, over the ORTH design's closed-form diagonal X'X (n_ORTH on the intercept and categorical entries, n1 - 2 on the continuous ones), gives 1.0282"
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors, over the ORTH design's closed-form diagonal X'X (n_ORTH on the intercept and categorical entries, n1 - 2 on the continuous ones), gives 1.0282",
+      "cause": "check_gap"
      }
     },
     {
@@ -4072,7 +4109,8 @@
       "quote": "34 36 12 4 16 1 1.03 0.0588"
      },
      "check": {
-      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors gives 0.058824"
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 12 continuous and 4 two-level categorical factors gives 0.058824",
+      "cause": "check_gap"
      }
     },
     {
@@ -4087,7 +4125,8 @@
       "quote": "and for m = 5 and c = 1, in which case the maximum absolute entry in the first row of the alias matrix was 1/7"
      },
      "check": {
-      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 0.142857 = 1/7. Table 4 also prints 0.1429 for m = 4, c = 2, which this sentence does not list"
+      "manual": "the design is not printed, and no check kind can make a design with categorical factors; generate_design(design_type='dsd') with 5 continuous and 1 two-level categorical factors gives 0.142857 = 1/7. Table 4 also prints 0.1429 for m = 4, c = 2, which this sentence does not list",
+      "cause": "check_gap"
      }
     },
     {
@@ -4102,7 +4141,8 @@
       "quote": "the worst-case D-efficiency of a DSD-based design is 98%"
      },
      "check": {
-      "manual": "the smallest entry of Table 4's normalized-efficiency column (0.98, for c = 1 with m = 4 and 5); a comparison of two designs, which no check kind makes. Over all 36 rows, generate_design(design_type='dsd') against the closed-form ORTH X'X gives its smallest value, 0.9782, at m = 5, c = 1"
+      "manual": "the smallest entry of Table 4's normalized-efficiency column (0.98, for c = 1 with m = 4 and 5); a comparison of two designs, which no check kind makes. Over all 36 rows, generate_design(design_type='dsd') against the closed-form ORTH X'X gives its smallest value, 0.9782, at m = 5, c = 1",
+      "cause": "check_gap"
      }
     }
    ]
@@ -4134,7 +4174,8 @@
       "quote": "4 6 4 0.0364"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 4, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 4, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries",
+      "cause": "check_gap"
      }
     },
     {
@@ -4149,7 +4190,8 @@
       "quote": "4 6 4 0.0364"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0364, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0364, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries",
+      "cause": "check_gap"
      }
     },
     {
@@ -4164,7 +4206,8 @@
       "quote": "4 8 8 0.0513"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 8, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 8, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries",
+      "cause": "check_gap"
      }
     },
     {
@@ -4179,7 +4222,8 @@
       "quote": "4 8 8 0.0513"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0513, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0513, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries",
+      "cause": "check_gap"
      }
     },
     {
@@ -4194,7 +4238,8 @@
       "quote": "4 10 16 0.0762"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 16, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 16, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries",
+      "cause": "check_gap"
      }
     },
     {
@@ -4209,7 +4254,8 @@
       "quote": "4 10 16 0.0762"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries",
+      "cause": "check_gap"
      }
     },
     {
@@ -4224,7 +4270,8 @@
       "quote": "for m = 4 and c = 10, in which case fnz = 0.0762"
      },
      "check": {
-      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries"
+      "manual": "the ORTH-augmented design for c > 4 is not printed and no check kind can make a design with categorical factors; generate_design(design_type='dsd', categorical_method='orth') builds it (tests/test_orth_augmented_dsd.py), and the paper's formula n_nz = 2 n_B (c - 2 n_B - 2), over (m + c + 1)(m + c) for the fraction, gives 0.0762, and so does building the design as the paper describes (a DSD from the library's conference_matrix, the categorical zeros set to +1, four centre runs carrying (B, B, ...)) and counting X'X's nonzero off-diagonal entries",
+      "cause": "check_gap"
      }
     },
     {
@@ -4239,7 +4286,8 @@
       "quote": "This fraction approaches 25% as c → ∞"
      },
      "check": {
-      "manual": "a limit of the paper's formula, not a property of a printed design: 2 n_B (c - 2 n_B - 2) with n_B about c/4 grows as c^2/4, over (m + c + 1)(m + c), which grows as c^2"
+      "manual": "a limit of the paper's formula, not a property of a printed design: 2 n_B (c - 2 n_B - 2) with n_B about c/4 grows as c^2/4, over (m + c + 1)(m + c), which grows as c^2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -4254,7 +4302,8 @@
       "quote": "For c = 13 through c = 16, each categorical factor added beyond eight adds three new nonzero correlations"
      },
      "check": {
-      "manual": "a property of designs that are not printed. Building them as the paper describes, and the paper's own formula, give 12 nonzero upper-triangle entries at c = 12 and 15, 18, 21, 24 at c = 13 to 16: three per factor beyond twelve, not beyond eight (counting from eight, c = 13 would have 4 + 5 x 3 = 19)"
+      "manual": "a property of designs that are not printed. Building them as the paper describes, and the paper's own formula, give 12 nonzero upper-triangle entries at c = 12 and 15, 18, 21, 24 at c = 13 to 16: three per factor beyond twelve, not beyond eight (counting from eight, c = 13 would have 4 + 5 x 3 = 19)",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -4284,7 +4333,8 @@
       "quote": "For a standard DSD design, JN showed that the correlation is 1/3 − 2/(n − 3)"
      },
      "check": {
-      "manual": "a formula in n, not a number; for generate_design(design_type='dsd') with 4, 6, 8 and 10 factors (9, 13, 17 and 21 runs) the Pearson correlation of two squared columns is 0, 0.1333, 0.1905 and 0.2222, as the formula gives"
+      "manual": "a formula in n, not a number; for generate_design(design_type='dsd') with 4, 6, 8 and 10 factors (9, 13, 17 and 21 runs) the Pearson correlation of two squared columns is 0, 0.1333, 0.1905 and 0.2222, as the formula gives",
+      "cause": "not_a_result"
      }
     }
    ]

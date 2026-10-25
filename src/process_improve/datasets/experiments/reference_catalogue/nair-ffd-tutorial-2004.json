@@ -904,7 +904,8 @@
        "factors": ["1", "2", "3", "4", "5", "6"],
        "generators": ["5=123", "6=234"],
        "printed": "2346",
-       "disagreement": "1 times 2346 or 1456 is 12346, not 2346: the slide writes the word of the defining relation"
+       "disagreement": "1 times 2346 or 1456 is 12346, not 2346: the slide writes the word of the defining relation",
+       "cause": "source_error"
       }
      ]
     },
@@ -941,7 +942,8 @@
        "factors": ["1", "2", "3", "4", "5", "6"],
        "generators": ["5=123", "6=234"],
        "printed": "1456",
-       "disagreement": "2 times 2346 or 1456 is 12456, not 1456: the slide writes the word of the defining relation"
+       "disagreement": "2 times 2346 or 1456 is 12456, not 1456: the slide writes the word of the defining relation",
+       "cause": "source_error"
       }
      ]
     },
@@ -978,7 +980,8 @@
        "factors": ["1", "2", "3", "4", "5", "6"],
        "generators": ["5=123", "6=234"],
        "printed": "1456",
-       "disagreement": "3 times 2346 or 1456 is 13456, not 1456: the slide writes the word of the defining relation"
+       "disagreement": "3 times 2346 or 1456 is 13456, not 1456: the slide writes the word of the defining relation",
+       "cause": "source_error"
       }
      ]
     },
@@ -1125,7 +1128,8 @@
       "quote": "15-possible 2-factor interactions:"
      },
      "check": {
-      "manual": "a count, 6 choose 2 = 15, which no check here computes; the seven alias chains checked here hold all 15"
+      "manual": "a count, 6 choose 2 = 15, which no check here computes; the seven alias chains checked here hold all 15",
+      "cause": "not_a_result"
      }
     }
    ]

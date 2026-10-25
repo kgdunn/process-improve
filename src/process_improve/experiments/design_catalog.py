@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import dataclasses
 import functools
+import math
 import re
 import warnings
 import xml.etree.ElementTree as ET
@@ -48,7 +49,12 @@ from process_improve.experiments.designs import generate_design
 from process_improve.experiments.factor import Factor, FactorType
 from process_improve.experiments.knowledge.engine import load_knowledge_graph
 from process_improve.experiments.reference_catalogue import (
+    _ROMAN,
+    _arithmetic,
+    _Fits,
     _fraction,
+    _number,
+    _reproduce,
     reference_designs,
     reference_experiments,
     reference_sources,
@@ -1232,6 +1238,31 @@ def short_citation(cite: str) -> str:
     return names if len(names) <= 40 else names.split(", ", 1)[0]
 
 
+#: The forms a published source takes, in the order the reproduction page groups them, each with its name there.
+SOURCE_FORMS: dict[str, str] = {
+    "book": "Books",
+    "paper": "Journal papers",
+    "other": "Handbooks, encyclopedias and courses",
+}
+
+
+def source_form(source: dict[str, Any]) -> str:
+    """Return the form of a published source, read from what the reference catalogue records of it.
+
+    A source that is a work of its own, with no ``work`` it is printed in, is a ``"book"``; one printed in
+    an issue of a journal is a ``"paper"``; any other (an encyclopedia article, a chapter of a handbook, a
+    course's quizzes, tutorial slides) is ``"other"``. See :data:`SOURCE_FORMS`.
+
+    Examples
+    --------
+    >>> source_form(reference_sources()["box-hunter-hunter-1978"]), source_form(reference_sources()["lenth-1989"])
+    ('book', 'paper')
+    """
+    if not source.get("work"):
+        return "book"
+    return "paper" if source.get("issue") else "other"
+
+
 def catalog_sources() -> dict[str, dict[str, Any]]:
     """Return what the catalog shows of each published source: its citation, address, year and terms of use.
 
@@ -1352,6 +1383,157 @@ def catalog_errata() -> list[dict[str, Any]]:
                 }
             )
     return found
+
+
+#: How well the library reproduces a published case, best first, each with the largest relative difference
+#: from its source that it allows. ``reproduced``: every recomputed number agrees to within the source's rounding.
+REPRODUCTION_TIERS: dict[str, float] = {
+    "reproduced": 0.0,
+    "within_1": 0.01,
+    "within_5": 0.05,
+    "not_reproduced": math.inf,
+}
+
+_FLOAT = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+
+
+def _relative_error(printed: object, found: str, *, expression: bool = False) -> float | None:
+    """Return how far the value found is from the printed one, as a fraction of the printed one.
+
+    A printed vector or matrix is compared entry by entry, and its worst entry counts; a resolution printed
+    as a Roman numeral is its number, and a number printed as arithmetic (``expression``) is worked out.
+    ``None`` where the difference has no relative size: either is no number (an alias chain, a list of
+    runs), the two differ in shape, or the printed number is zero.
+    """
+    entries = np.asarray(printed, dtype=object).ravel() if isinstance(printed, list) else [printed]
+    try:
+        wanted = np.array(
+            [
+                _arithmetic(str(w)) if expression else float(_number(str(_ROMAN.get(str(w).strip(), w)))[1])
+                for w in entries
+            ]
+        )
+        got = np.array([float(x) for x in _FLOAT.findall(found)] if isinstance(printed, list) else [float(found)])
+    except (ValueError, SyntaxError):
+        return None
+    if got.shape != wanted.shape or not np.all(wanted):
+        return None
+    return float(np.max(np.abs(got - wanted) / np.abs(wanted)))
+
+
+def _worst(errors: list[float | None]) -> float | None:
+    """Return the largest of a case's differences, 0 for none, and ``None`` if one has no relative size."""
+    sized = [error for error in errors if error is not None]
+    return max(sized, default=0.0) if len(sized) == len(errors) else None
+
+
+def _tier(errors: list[float | None]) -> str:
+    """Return the best tier that holds every difference of a case: only a case where none differs is reproduced.
+
+    The value found is text of six significant figures, so a difference below about one part in a million
+    reads as 0; it still differs from the source by more than its rounding, so it is held within 1%.
+    """
+    if not errors:
+        return "reproduced"
+    worst = _worst(errors)
+    if worst is None:
+        return "not_reproduced"
+    return next(tier for tier, limit in list(REPRODUCTION_TIERS.items())[1:] if worst <= limit)
+
+
+#: The causes of a difference in which the library's value is the right one: the source is in error, or the number
+#: is a quiz option that its answer key marks incorrect. A case's tier leaves these out.
+LIBRARY_RIGHT = frozenset({"source_error", "incorrect_option"})
+
+
+def _printed(expected: dict[str, Any], check: dict[str, Any]) -> dict[str, Any]:
+    """Return what a printed number is and where its source prints it, as the reproduction page lists it."""
+    printed = check.get("printed", expected["value"])
+    return {
+        "what": expected.get("what"),
+        "term": expected.get("term"),
+        "printed": printed if isinstance(printed, list) else str(printed),
+        "where": _errata_where(expected.get("where")),
+    }
+
+
+def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
+    """Say, for every case of the reference catalogue, how closely the library reproduces what its source prints.
+
+    A number agrees when it is within the source's own rounding; the test suite requires that of every
+    recomputed number unless the catalogue records why it does not (its ``disagreement``) and the cause, one
+    of :data:`~process_improve.experiments.reference_catalogue.DISAGREEMENT_CAUSES`. Only those are
+    recomputed here, to measure how far each one is from its source, so this takes a minute or two rather
+    than the several minutes of
+    :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue`. A case falls in
+    the best of :data:`REPRODUCTION_TIERS` that holds every number of it that differs, leaving out those in
+    which the library's value is the right one (:data:`LIBRARY_RIGHT`).
+
+    Parameters
+    ----------
+    source : str, optional
+        The key of one source; every source when ``None``.
+
+    Returns
+    -------
+    list[dict]
+        One per experiment and design, in the catalogue's order: ``id``, ``title``, ``source``, ``kind`` (a
+        worked example, an exercise, ...), ``checked`` (how many of its printed numbers are recomputed),
+        ``tier`` (``None`` when none is), ``worst`` (the largest relative difference of the numbers the tier
+        holds, ``None`` when one has no relative size, 0 when none differs), ``differs``, ``unchecked`` and
+        ``missing``. ``differs`` lists each number that differs, with ``what``, ``term``, ``printed``,
+        ``found`` (the library's value, as text), ``error`` (its relative difference, see ``worst``),
+        ``where`` (its place in the source, in a few words), ``reason`` (why it differs) and ``cause``.
+        ``unchecked`` counts the printed numbers not recomputed by their cause, one of
+        :data:`~process_improve.experiments.reference_catalogue.UNCHECKED_CAUSES`, and ``missing`` lists
+        those the library has no function for yet (``"library_gap"``), each with ``reason``.
+
+    Examples
+    --------
+    >>> cases = catalog_reproduction("ullmann-doe-2012")
+    >>> sorted({case["tier"] or "not recomputed" for case in cases})
+    ['not recomputed', 'reproduced']
+    """
+    fits = _Fits()
+    cases = []
+    for entry in [*reference_experiments(source), *reference_designs(source)]:
+        checked = [(expected, check) for expected, check in _checks(entry) if "kind" in check]
+        unchecked = [(expected, check) for expected, check in _checks(entry) if "kind" not in check]
+        differs: list[dict[str, Any]] = []
+        for expected, check in checked:
+            if not check.get("disagreement"):
+                continue
+            found, _ = _reproduce(entry, expected, check, fits)
+            printed = check.get("printed", expected["value"])
+            differs.append(
+                {
+                    **_printed(expected, check),
+                    "found": found,
+                    "error": _relative_error(printed, found, expression=bool(check.get("expression"))),
+                    "reason": str(check["disagreement"]),
+                    "cause": check.get("cause"),
+                }
+            )
+        errors = [number["error"] for number in differs if number["cause"] not in LIBRARY_RIGHT]
+        cases.append(
+            {
+                "id": entry["name"],
+                "title": entry.get("title") or entry["name"],
+                "source": entry["source"],
+                "kind": entry.get("kind"),
+                "checked": len(checked),
+                "tier": _tier(errors) if checked else None,
+                "worst": _worst(errors),
+                "differs": differs,
+                "unchecked": dict(Counter(check.get("cause") for _, check in unchecked)),
+                "missing": [
+                    {**_printed(expected, check), "reason": str(check.get("manual"))}
+                    for expected, check in unchecked
+                    if check.get("cause") == "library_gap"
+                ],
+            }
+        )
+    return cases
 
 
 def catalog_feed(records: Sequence[dict[str, Any]]) -> str:

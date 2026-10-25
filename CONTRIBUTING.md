@@ -359,6 +359,55 @@ change; a divergence introduced quietly is expensive to find later.
    same API signature.
 5. Verify with `pytest tests/test_multivariate.py -v -o "addopts="`.
 
+## Adding a case to the reference catalogue
+
+A case is an experiment or a design in one of the source files of
+`src/process_improve/datasets/experiments/reference_catalogue/`. It holds the
+source's runs as printed and every number the source prints for them, each with
+where it is printed (a page and a short quotation) and a `check` that says how
+to recompute it.
+
+**Every number that is not recomputed, and every recomputed number that does not
+agree with its source, records its cause.** Put a `"cause"` key in the same
+check, right after the reason:
+
+- A check without a `kind` gives the reason in `manual` and a cause from
+  `reference_catalogue.UNCHECKED_CAUSES`:
+  - `library_gap`: the library has no function for it yet. The page
+    *Reproduced from the books* lists these as what the library lacks, so the
+    reason names the missing method in a clause that starts "the library has
+    no ...".
+  - `check_gap`: the library computes it, but no check kind reads it yet.
+  - `data_not_printed`: the source does not print the data it is worked from.
+  - `not_a_result`: there is nothing to recompute: a statement in words, an
+    input or a choice, a reading off a plot, a unit conversion, or arithmetic
+    on numbers that are checked.
+- A check whose number does not agree gives the reason in `disagreement` and a
+  cause from `reference_catalogue.DISAGREEMENT_CAUSES`:
+  - `source_error`: the source misprints the number or works it out wrongly,
+    and the library's value follows from the source's own data. The reason
+    shows how.
+  - `incorrect_option`: a quiz option that the answer key marks incorrect
+    (`where.answer_key` is `"incorrect"`). Use it then, and only then.
+  - `source_rounding`: the source works from values it has already rounded,
+    or it is one unit off in its last digit.
+  - `method`: the source uses another convention, definition, model or
+    software.
+  - `library`: a bug or a limitation of the library.
+  - `unexplained`: the cause is not known yet.
+
+`source_error` and `incorrect_option` do not count against the case on the
+page: the library's value is the right one. So when two causes fit, choose
+the one that does not clear the library (`unexplained` or `method` before
+`source_error`).
+
+A number that agrees has no `cause`. `tests/test_reference_catalogue.py` fails
+on a case that breaks these rules. Run it before you push:
+
+```bash
+uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option"
+```
+
 ## Submitting changes
 
 - Open a pull request against `main` with a clear description of the change

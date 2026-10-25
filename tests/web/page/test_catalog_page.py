@@ -50,17 +50,38 @@ def test_every_file_the_catalog_loads_is_published(build_script):
     """
     refs = set(re.findall(r'(?:href|src)="([^"]+)"', source(PAGE)))
     refs = {ref for ref in refs if "://" not in ref and not ref.startswith("#")}
-    loaded = {posixpath.normpath(posixpath.join("catalog", ref)) for ref in refs}
+    # A link to a folder is to the page in it: the app's, one up, and the reproduction page's, one down.
+    loaded = {posixpath.normpath(posixpath.join("catalog", _page_of(ref))) for ref in refs}
     imported = set(re.findall(r'from "\./([^"]+)"', source("catalog.js")))
     fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("catalog.js")))
-    assert {"style.css", "catalog.js", "."} <= loaded, "the page's stylesheet, its script, and the app"
+    assert {"style.css", "catalog.js", "index.html"} <= loaded, "the page's stylesheet, its script, and the app"
     assert {"campaign.js", "charts.js", "catalog-logic.js", "catalog-views.js"} <= imported
     assert set(re.findall(r'from "\./([^"]+)"', source("catalog-views.js"))) == {"catalog-logic.js"}
     assert fetched == {"catalog/index.json", "wheels/manifest.json", "catalog/detail/", "catalog/errata.json"}
     assert source("catalog.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert not any(ref.startswith("/") for ref in refs | fetched), "an absolute address breaks on GitHub Pages"
-    assert (loaded - {"."}) | imported <= set(build_script.APP_FILES)
+    assert loaded | imported <= set(build_script.APP_FILES)
     assert "app.js" not in imported, "importing app.js would start the app's Python worker"
+
+
+def _page_of(ref: str) -> str:
+    """Return the file a relative address loads: a folder below this one is its ``index.html``."""
+    return f"{ref}index.html" if ref.endswith("/") else ref
+
+
+def test_every_file_the_reproduction_page_loads_is_published(build_script):
+    """What ``catalog/reproduced/`` and reproduced.js load is copied or written by the build, at a relative address."""
+    page = "catalog/reproduced/index.html"
+    refs = {ref for ref in re.findall(r'(?:href|src)="([^"]+)"', source(page)) if "://" not in ref and ref[0] != "#"}
+    loaded = {posixpath.normpath(posixpath.join("catalog/reproduced", _page_of(ref))) for ref in refs}
+    imported = set(re.findall(r'from "\./([^"]+)"', source("reproduced.js")))
+    fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("reproduced.js")))
+    assert loaded == {"catalog/index.html", "favicon.svg", "style.css", "reproduced.js"}
+    assert imported == {"catalog-views.js", "reproduced-logic.js"}
+    assert fetched == {"catalog/reproduction.json"}
+    assert source("reproduced.js").count("fetch(") == len(fetched), "every fetch goes through app()"
+    assert loaded | imported <= set(build_script.APP_FILES)
+    assert '<a href="reproduced/">' in source(PAGE), "the catalog links to it"
 
 
 def test_the_app_links_to_the_catalog_and_the_catalog_back():
@@ -238,3 +259,13 @@ def _required(item: dict) -> bool:
     """Whether an issue form field must be filled: a checkbox group is, when one of its boxes must be ticked."""
     boxes = [o for o in item.get("attributes", {}).get("options", []) if isinstance(o, dict)]
     return bool(item.get("validations", {}).get("required") or any(o.get("required") for o in boxes))
+
+
+def test_the_reproduction_page_names_every_cause_the_catalogue_records(node):
+    """The page names each cause the library defines, and no other; the JSON says what each means."""
+    from process_improve.experiments.reference_catalogue import DISAGREEMENT_CAUSES, UNCHECKED_CAUSES
+
+    (causes,) = javascript(node, source("reproduced-logic.js"), [("CAUSES", [])])
+    assert set(causes["differs"]) == set(DISAGREEMENT_CAUSES)
+    assert set(causes["unchecked"]) == set(UNCHECKED_CAUSES)
+    assert design_catalog.LIBRARY_RIGHT.issubset(DISAGREEMENT_CAUSES)

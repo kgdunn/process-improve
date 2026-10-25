@@ -105,7 +105,8 @@ def test_a_design_s_detail_opens_on_the_design_its_source_and_its_use(context, s
     assert "d=bhh-pilot-plant-2-3" in page.url
     page.keyboard.press("Escape")
     page.wait_for_selector("#detail:not([open])", state="attached")
-    assert "d=" not in page.url
+    # The dialog's close event, which takes the design out of the address, fires after its open attribute goes.
+    page.wait_for_function("!location.hash.includes('d=')")
 
 
 def test_a_click_outside_a_design_s_detail_closes_it_but_a_selection_dragged_out_does_not(context, site):
@@ -123,7 +124,8 @@ def test_a_click_outside_a_design_s_detail_closes_it_but_a_selection_dragged_out
     assert page.evaluate("getSelection().toString()") != ""
     page.mouse.click(box["x"] + box["width"] + 8, box["y"] + 8)
     page.wait_for_selector("#detail:not([open])", state="attached")
-    assert "d=" not in page.url
+    # The dialog's close event, which takes the design out of the address, fires after its open attribute goes.
+    page.wait_for_function("!location.hash.includes('d=')")
 
 
 def test_a_book_design_s_detail_links_to_its_section_and_names_its_figures(book_context, site):

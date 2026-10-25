@@ -173,6 +173,42 @@ the test suite requires. The catalog's page lists them by source and by words, a
 ``catalog/feed.xml`` (:func:`~process_improve.experiments.design_catalog.catalog_feed`) is an Atom
 feed with an entry for each source as it enters the catalogue.
 
+How closely each case reproduces
+--------------------------------
+
+:func:`~process_improve.experiments.design_catalog.catalog_reproduction` puts every case of the
+reference catalogue in one of four tiers, by the largest relative difference between a number its
+source prints and the library's value (:data:`~process_improve.experiments.design_catalog.REPRODUCTION_TIERS`):
+fully reproduced, when every recomputed number agrees to the source's last printed digit; within 1%;
+within 5%; and unable to reproduce, when a number differs by more than 5% or a result that is not a
+number, such as an alias chain, differs. A case is placed by its worst number.
+
+The catalogue records the cause of every number that differs, one of
+:data:`~process_improve.experiments.reference_catalogue.DISAGREEMENT_CAUSES`: an error in the source,
+a quiz option its answer key marks incorrect, the source's rounding, another method or convention,
+the library, or not known yet. In the first two the library's value is the right one
+(:data:`~process_improve.experiments.design_catalog.LIBRARY_RIGHT`), so they do not count against a
+case. A printed number that is not recomputed records its cause too, one of
+:data:`~process_improve.experiments.reference_catalogue.UNCHECKED_CAUSES`, which tells a number the
+library has no function for yet from one with nothing to recompute:
+
+.. code-block:: python
+
+   from process_improve.experiments.design_catalog import catalog_reproduction
+
+   for case in catalog_reproduction("lenth-1989"):
+       print(case["tier"], case["title"][:40], [n["cause"] for n in case["differs"]])
+
+The catalog's page `Reproduced from the books <https://factori.al/catalog/reproduced/>`_ draws the
+same classification for every source: a table of the tiers, by case and by number; the causes of the
+differences and of the numbers not recomputed, for all the sources together; a table by source, with
+the sources grouped by their form (:func:`~process_improve.experiments.design_catalog.source_form`:
+books, journal papers, and handbooks, encyclopedias and courses) and each group's totals; the spread
+of the differences; a list of the cases in each tier; and a list of what the library lacks, the
+missing methods that would recompute the most printed numbers first. The tiers describe how far the
+library reproduces a source, not the quality of the source, and the errors found in the sources are
+counted for all of them together only.
+
 Opening a design, and limits on its settings
 --------------------------------------------
 

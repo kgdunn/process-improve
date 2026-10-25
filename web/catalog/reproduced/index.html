@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reproduced from the books: Factorial</title>
+  <meta name="description" content="Every worked example, exercise and design of the books and papers in the design catalog, recomputed by process-improve: which reproduce in full, which within 1% or 5%, and why each number that differs does.">
+  <link rel="canonical" href="https://factori.al/catalog/reproduced/">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="Reproduced from the books: Factorial">
+  <meta property="og:description" content="Every published case in the design catalog, recomputed by process-improve, with how close it comes to the numbers its source prints.">
+  <meta property="og:url" content="https://factori.al/catalog/reproduced/">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+<main class="reproduced">
+  <p class="about__back"><a href="../"><img src="../../favicon.svg" alt="" width="28" height="28"> Back to the design catalog</a></p>
+  <h1>Reproduced from the books</h1>
+  <p class="lede">The design catalog holds the worked examples, exercises and designs of textbooks, handbooks and
+    papers, with every number each source prints. process-improve recomputes those numbers from the source's own
+    runs on every change to the library. This page shows, case by case, how close it comes.</p>
+
+  <p class="reproduced__status" id="status" role="status" aria-live="polite">Loading the cases...</p>
+
+  <div class="stats" id="stats" hidden>
+    <div class="stat"><span class="stat__value" id="stat-numbers"></span><span class="stat__label" id="stat-numbers-label">printed numbers recomputed</span></div>
+    <div class="stat"><span class="stat__value" id="stat-agree"></span><span class="stat__label">agree with the source to its last printed digit</span></div>
+    <div class="stat"><span class="stat__value" id="stat-full"></span><span class="stat__label" id="stat-full-label">of the cases reproduce in full</span></div>
+    <div class="stat"><span class="stat__value" id="stat-errors"></span><span class="stat__label">printed numbers in error in their source, where the library's value follows from the data</span></div>
+    <div class="stat"><a class="stat__link" href="#missing-section"><span class="stat__value" id="stat-missing"></span><span class="stat__label">printed numbers not in the library yet</span></a></div>
+  </div>
+
+  <section aria-labelledby="breakdown-title" id="breakdown" hidden>
+    <h2 id="breakdown-title">How closely each case reproduces</h2>
+    <p class="hint scope" id="scope"></p>
+    <div class="tierbar" id="tierbar" role="img"></div>
+    <div class="table-scroll">
+      <table class="tiers" id="tiers">
+        <caption class="visually-hidden">The cases and the printed numbers in each tier</caption>
+        <thead>
+          <tr><th scope="col">Tier</th><th scope="col">What it means</th><th scope="col" class="num">Cases</th><th scope="col" class="num">Numbers</th><th scope="col"><span class="visually-hidden">The list</span></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="hint">A case is placed by its worst number, so one large difference puts a case in the last tier even
+      when every other number it prints agrees; the Numbers column counts each number in its own tier. A number the
+      source prints in error, or a quiz option its answer key marks wrong, does not count against a case: the
+      library's value is the right one.</p>
+  </section>
+
+  <section aria-labelledby="causes-title" id="causes-section" hidden>
+    <h2 id="causes-title">Why numbers differ, and which are not recomputed</h2>
+    <p class="hint">For all the sources together. The catalogue records the cause of every number that differs from
+      its source and of every printed number the library does not recompute.</p>
+    <div class="causes">
+      <div class="table-scroll">
+        <table class="causes__table" id="causes-differs">
+          <caption id="causes-differs-caption">Numbers that differ from their source</caption>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="table-scroll">
+        <table class="causes__table" id="causes-unchecked">
+          <caption id="causes-unchecked-caption">Printed numbers not recomputed</caption>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="sources-title" id="sources-section" hidden>
+    <h2 id="sources-title">By source</h2>
+    <p class="hint">Each row counts one source's cases in each tier, and the share of its printed numbers that agree
+      with the library. A difference is between the library and what a source prints, whatever its cause: the
+      source's own rounding, a misprint, or a method that differs from the library's. The tiers describe how far
+      the library reproduces each source, not the quality of the source. Choose a source, or a kind of source, to see
+      only its cases on this page.</p>
+    <div class="sources__head">
+      <label>Order <select id="source-order">
+        <option value="year">Oldest first</option>
+        <option value="name">By name</option>
+        <option value="cases">Most cases first</option>
+      </select></label>
+    </div>
+    <div class="table-scroll">
+      <table class="bysource" id="bysource">
+        <caption class="visually-hidden">The cases of each source in each tier, grouped by the kind of source</caption>
+        <thead></thead>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="bands-title" id="bands-section" hidden>
+    <h2 id="bands-title">How far off the differences are</h2>
+    <p class="hint" id="bands-caption"></p>
+    <figure class="bands">
+      <svg id="bands" role="group" aria-labelledby="bands-title"></svg>
+    </figure>
+  </section>
+
+  <section aria-labelledby="cases-title" id="cases" hidden>
+    <h2 id="cases-title">Every case</h2>
+    <div class="reproduced__filters">
+      <label class="catalog__query">
+        <span class="visually-hidden">Search the cases</span>
+        <input id="query" type="search" autocomplete="off" spellcheck="false"
+          placeholder="Search: a title, a quantity, a reason (misprint, rounding)">
+      </label>
+      <select id="source" aria-label="The source"><option value="">Every source</option></select>
+      <select id="kind" aria-label="The kind of case"><option value="">Every kind</option></select>
+      <button type="button" class="link" id="clear" hidden>Clear</button>
+    </div>
+    <p class="hint reproduced__try">Why do numbers differ? Try:
+      <button type="button" class="link try">misprint</button>
+      <button type="button" class="link try">slip</button>
+      <button type="button" class="link try">rounding</button>
+      <button type="button" class="link try">software</button>
+      <button type="button" class="link try">unexplained</button>
+    </p>
+    <p class="hint" id="count" role="status" aria-live="polite"></p>
+    <div id="lists"></div>
+  </section>
+
+  <section aria-labelledby="missing-title" id="missing-section" hidden>
+    <h2 id="missing-title">Not in the library yet</h2>
+    <p class="hint">The printed numbers the library has no function for, grouped by what is missing, those that
+      would recompute the most numbers first. The list follows the search and the source chosen above.</p>
+    <p class="hint" id="missing-count" role="status" aria-live="polite"></p>
+    <ol class="missing" id="missing"></ol>
+    <button type="button" class="button" id="missing-more" hidden>Show more</button>
+  </section>
+
+  <footer>
+    <p>The cases are those of the reference catalogue of
+      <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve</a>, which holds each
+      source's runs and every number it prints, with where it is printed. Its test suite recomputes each number on
+      every change to the library, and fails unless the number agrees with the source to within the source's own
+      rounding, or the catalogue records why it does not. A relative difference here is the library's value less the
+      printed one, as a share of the printed one.
+      <a href="https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml" target="_blank" rel="noopener">Propose
+        a case for the catalog</a>.</p>
+    <p class="hint" id="built"></p>
+  </footer>
+</main>
+<script src="../../reproduced.js" type="module"></script>
+</body>
+</html>

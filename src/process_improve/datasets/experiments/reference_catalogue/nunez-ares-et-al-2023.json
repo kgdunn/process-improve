@@ -383,7 +383,8 @@
       "metric": "correlation",
       "key": "mean_abs_r",
       "model": "(Q1 + Q2 + Q3 + Q4 + C1 + C2 + C3 + C4) ** 2 + I(Q1 ** 2) + I(Q2 ** 2) + I(Q3 ** 2) + I(Q4 ** 2)",
-      "disagreement": "found 0.1739 over all 32 second-order columns (496 pairs). The correlations are those of the centred columns; the maximum quadratic correlation of 0.2 printed alongside reproduces with the same definition. Leaving out the six interactions of two categorical factors gives 0.1503, which would print as 0.15, but the paper says all second-order effects; with the quadratic columns not centred the full set gives 0.1564. Design 2's average (0.138) does not reproduce under either definition, so the paper's exact definition is unclear."
+      "disagreement": "found 0.1739 over all 32 second-order columns (496 pairs). The correlations are those of the centred columns; the maximum quadratic correlation of 0.2 printed alongside reproduces with the same definition. Leaving out the six interactions of two categorical factors gives 0.1503, which would print as 0.15, but the paper says all second-order effects; with the quadratic columns not centred the full set gives 0.1564. Design 2's average (0.138) does not reproduce under either definition, so the paper's exact definition is unclear.",
+      "cause": "method"
      }
     }
    ]
@@ -765,7 +766,8 @@
       "metric": "correlation",
       "key": "mean_abs_r",
       "model": "(Q1 + Q2 + Q3 + Q4 + Q5 + C1 + C2 + C3 + C4 + C5 + C6 + C7 + C8 + C9 + C10 + C11 + C12 + C13 + C14) ** 2 + I(Q1 ** 2) + I(Q2 ** 2) + I(Q3 ** 2) + I(Q4 ** 2) + I(Q5 ** 2)",
-      "disagreement": "found 0.1358 (absolute correlations of the centred columns over all 176 second-order columns); without the quadratics 0.1360, with uncentred quadratics 0.1339, and without the interactions of two categorical factors 0.1576. The maximum printed alongside, 0.5, reproduces. The printed matrix passes every OMARS property, so a copying error is unlikely; the paper's definition of the average is not stated precisely enough to reproduce it."
+      "disagreement": "found 0.1358 (absolute correlations of the centred columns over all 176 second-order columns); without the quadratics 0.1360, with uncentred quadratics 0.1339, and without the interactions of two categorical factors 0.1576. The maximum printed alongside, 0.5, reproduces. The printed matrix passes every OMARS property, so a copying error is unlikely; the paper's definition of the average is not stated precisely enough to reproduce it.",
+      "cause": "method"
      }
     },
     {
@@ -1424,7 +1426,8 @@
       "quote": "Design 3 was constructed from a 34-run three-level OMARS design in the catalog of Núñez-Ares and Goos (2020)"
      },
      "check": {
-      "manual": "a property of the starting design, which the paper does not print; in the captured runs the quantitative columns of runs 1-34 contain no centre run and pass is_omars() (10 zeros per column), and no check kind applies is_omars"
+      "manual": "a property of the starting design, which the paper does not print; in the captured runs the quantitative columns of runs 1-34 contain no centre run and pass is_omars() (10 zeros per column), and no check kind applies is_omars",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -1852,7 +1855,8 @@
       "quote": "we provide 587 mixed-level OMARS designs as supplementary material"
      },
      "check": {
-      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 245 + 123 + 219, Table 2's Solutions"
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 245 + 123 + 219, Table 2's Solutions",
+      "cause": "library_gap"
      }
     },
     {
@@ -1867,7 +1871,8 @@
       "quote": "a computational search for mixed-level OMARS designs with up to 48 runs and 14 factors, resulting in 449 mixed-level OMARS designs"
      },
      "check": {
-      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It contradicts the 587 designs of the abstract and of Section 5, which is 245 + 123 + 219 from Table 2; probably a figure left from an earlier version"
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It contradicts the 587 designs of the abstract and of Section 5, which is 245 + 123 + 219 from Table 2; probably a figure left from an earlier version",
+      "cause": "library_gap"
      }
     },
     {
@@ -1882,7 +1887,8 @@
       "quote": "a computational search for mixed-level OMARS designs with up to 48 runs and 14 factors"
      },
      "check": {
-      "manual": "a description of the authors' search, not a result; Section 5 says the search went up to 32 runs, with the 48-run Design 2 (19 factors) and the 40-run Design 3 from a dedicated search, and 14 factors is the largest number Figure 1a shows (at 32 runs)"
+      "manual": "a description of the authors' search, not a result; Section 5 says the search went up to 32 runs, with the 48-run Design 2 (19 factors) and the 40-run Design 3 from a dedicated search, and 14 factors is the largest number Figure 1a shows (at 32 runs)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1897,7 +1903,8 @@
       "quote": "we explored the existence of mixed-level OMARS designs with up to 32 runs"
      },
      "check": {
-      "manual": "a setting of the authors' search, not a result that can be recomputed"
+      "manual": "a setting of the authors' search, not a result that can be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1912,7 +1919,8 @@
       "quote": "Our exploration resulted in 587 different designs"
      },
      "check": {
-      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 245 + 123 + 219, Table 2's Solutions"
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 245 + 123 + 219, Table 2's Solutions",
+      "cause": "library_gap"
      }
     },
     {
@@ -1927,7 +1935,8 @@
       "quote": "set a computing time limit of one hour"
      },
      "check": {
-      "manual": "a setting of the authors' search, not a result that can be recomputed"
+      "manual": "a setting of the authors' search, not a result that can be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1942,7 +1951,8 @@
       "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -1957,7 +1967,8 @@
       "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -1972,7 +1983,8 @@
       "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -1987,7 +1999,8 @@
       "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 245 + 488 + 581 = 1314 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2002,7 +2015,8 @@
       "quote": "Table 2: From Scratch 1314 245 488 581 30.4"
      },
      "check": {
-      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed"
+      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2017,7 +2031,8 @@
       "quote": "Table 2: From OA 1173 123 894 156 18.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2032,7 +2047,8 @@
       "quote": "Table 2: From OA 1173 123 894 156 18.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2047,7 +2063,8 @@
       "quote": "Table 2: From OA 1173 123 894 156 18.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2062,7 +2079,8 @@
       "quote": "Table 2: From OA 1173 123 894 156 18.4"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 123 + 894 + 156 = 1173 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2077,7 +2095,8 @@
       "quote": "Table 2: From OA 1173 123 894 156 18.4"
      },
      "check": {
-      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed"
+      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2092,7 +2111,8 @@
       "quote": "Table 2: From OMARS 973 219 572 182 13.5"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2107,7 +2127,8 @@
       "quote": "Table 2: From OMARS 973 219 572 182 13.5"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2122,7 +2143,8 @@
       "quote": "Table 2: From OMARS 973 219 572 182 13.5"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2137,7 +2159,8 @@
       "quote": "Table 2: From OMARS 973 219 572 182 13.5"
      },
      "check": {
-      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances"
+      "manual": "a count from the authors' CPLEX 12.71 runs of the integer program of Section 3. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. The row is consistent: 219 + 572 + 182 = 973 instances",
+      "cause": "library_gap"
      }
     },
     {
@@ -2152,7 +2175,8 @@
       "quote": "Table 2: From OMARS 973 219 572 182 13.5"
      },
      "check": {
-      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed"
+      "manual": "the authors' total computing time on the Flemish Supercomputer Centrum, which cannot be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2167,7 +2191,8 @@
       "quote": "we set up 3460 systems of linear equations in total and had them solved by CPLEX"
      },
      "check": {
-      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 1314 + 1173 + 973, Table 2's Instances (the text calls this Table 2's second column; it is the first column of numbers)"
+      "manual": "a count of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. It equals 1314 + 1173 + 973, Table 2's Instances (the text calls this Table 2's second column; it is the first column of numbers)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2182,7 +2207,8 @@
       "quote": "We selected all tuples with an even number of runs ranging from 14 to 32"
      },
      "check": {
-      "manual": "a setting of the authors' search, not a result that can be recomputed"
+      "manual": "a setting of the authors' search, not a result that can be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2197,7 +2223,8 @@
       "quote": "such that there were 2 to 7 three-level factors and the total number of factors did not exceed half of the number of runs"
      },
      "check": {
-      "manual": "a setting of the authors' search, not a result that can be recomputed"
+      "manual": "a setting of the authors' search, not a result that can be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2212,7 +2239,8 @@
       "quote": "As input to the construction from a given OA, we used 57 strength-3 OAs in total"
      },
      "check": {
-      "manual": "a count of the authors' inputs, not a result; it equals 2 + 6 + 49, the counts by run size"
+      "manual": "a count of the authors' inputs, not a result; it equals 2 + 6 + 49, the counts by run size",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2227,7 +2255,8 @@
       "quote": "we used two OAs with 16 runs, six with 24 runs and 49 with 32 runs"
      },
      "check": {
-      "manual": "a count of the authors' inputs, not a result that can be recomputed"
+      "manual": "a count of the authors' inputs, not a result that can be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2242,7 +2271,8 @@
       "quote": "we used two OAs with 16 runs, six with 24 runs and 49 with 32 runs"
      },
      "check": {
-      "manual": "a count of the authors' inputs, not a result that can be recomputed"
+      "manual": "a count of the authors' inputs, not a result that can be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2257,7 +2287,8 @@
       "quote": "we used two OAs with 16 runs, six with 24 runs and 49 with 32 runs"
      },
      "check": {
-      "manual": "a count of the authors' inputs, not a result that can be recomputed"
+      "manual": "a count of the authors' inputs, not a result that can be recomputed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2272,7 +2303,8 @@
       "quote": "we used 223 6- and 7-factor OMARS designs selected from Núñez-Ares and Goos (2020)"
      },
      "check": {
-      "manual": "a count of the authors' inputs, taken from the Nunez-Ares and Goos (2020) catalogue, which the library does not redistribute"
+      "manual": "a count of the authors' inputs, taken from the Nunez-Ares and Goos (2020) catalogue, which the library does not redistribute",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -2287,7 +2319,8 @@
       "quote": "Figure 1 shows that we obtained mixed-level OMARS designs for all even run sizes from 14 to 32"
      },
      "check": {
-      "manual": "a result of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. Figure 1a's run axis begins at 16 and shows no 14-run design, so the figure does not show the 14-run sizes the sentence claims"
+      "manual": "a result of the authors' search. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search. Figure 1a's run axis begins at 16 and shows no 14-run design, so the figure does not show the 14-run sizes the sentence claims",
+      "cause": "library_gap"
      }
     },
     {
@@ -2302,7 +2335,8 @@
       "quote": "However, 15 of the mixed-level OMARS designs are not foldover designs."
      },
      "check": {
-      "manual": "a count over the 587 designs of the authors' search, which the article does not print. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search"
+      "manual": "a count over the 587 designs of the authors' search, which the article does not print. The library has no mixed-level OMARS construction (generate_omars refuses categorical factors) and no check kind reruns the authors' CPLEX search",
+      "cause": "data_not_printed"
      }
     }
    ]

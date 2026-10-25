@@ -266,7 +266,8 @@
       "quote": "Estimated standard deviation of differences s = 1·127"
      },
      "check": {
-      "manual": "the standard deviation of the ten differences, the residual standard error of the paired fit times √2: 1.126499, which rounds to 1.126; the book's 1.127 rounds 1.1265 a second time"
+      "manual": "the standard deviation of the ten differences, the residual standard error of the paired fit times √2: 1.126499, which rounds to 1.126; the book's 1.127 rounds 1.1265 a second time",
+      "cause": "check_gap"
      }
     },
     {
@@ -1059,7 +1060,8 @@
       "kind": "anova_sum_sq",
       "term": "Batch·Sample",
       "model": "Batch + Batch:Sample",
-      "disagreement": "the book gets 25.32 by subtraction from a total of 838.37 (Table 4-11); its own Appendix 4C gives the total as 838.35, and the sum of squares between samples is then 25.30, as the library finds"
+      "disagreement": "the book gets 25.32 by subtraction from a total of 838.37 (Table 4-11); its own Appendix 4C gives the total as 838.35, and the sum of squares between samples is then 25.30, as the library finds",
+      "cause": "source_error"
      }
     },
     {
@@ -1134,7 +1136,8 @@
      "check": {
       "kind": "ss_total",
       "model": "Batch + Batch:Sample",
-      "disagreement": "Table 4-11 prints 838.37; Appendix 4C (p. 133) works the same total out as 838.35, which the library agrees with"
+      "disagreement": "Table 4-11 prints 838.37; Appendix 4C (p. 133) works the same total out as 838.35, which the library agrees with",
+      "cause": "source_error"
      }
     },
     {
@@ -1747,7 +1750,8 @@
       "kind": "anova_sum_sq",
       "term": "Chalk·Laboratory",
       "model": "Chalk + Laboratory + Chalk:Laboratory",
-      "disagreement": "the book gets the interaction by subtraction from rounded sums of squares; the data give 0.0004788, which rounds to 0.000479"
+      "disagreement": "the book gets the interaction by subtraction from rounded sums of squares; the data give 0.0004788, which rounds to 0.000479",
+      "cause": "source_rounding"
      }
     },
     {
@@ -2227,7 +2231,8 @@
       "kind": "anova_f",
       "term": "Chalk·Laboratory",
       "model": "Chalk + Laboratory + Chalk:Laboratory",
-      "disagreement": "the book divides mean squares rounded to one significant figure, 0.000048 / 0.000008 = 6.0; the unrounded ratio is 5.81"
+      "disagreement": "the book divides mean squares rounded to one significant figure, 0.000048 / 0.000008 = 6.0; the unrounded ratio is 5.81",
+      "cause": "source_rounding"
      }
     },
     {
@@ -2953,7 +2958,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "Batch + Laboratory + Batch:Laboratory",
-      "disagreement": "the book adds the within-batch sums of squares after rounding each to two decimals and rounds 29.875 and 17.875 down (Table 4E-2): 214.91 + 134.07 = 348.98; unrounded they are 214.917 + 134.083 = 349.00"
+      "disagreement": "the book adds the within-batch sums of squares after rounding each to two decimals and rounds 29.875 and 17.875 down (Table 4E-2): 214.91 + 134.07 = 348.98; unrounded they are 214.917 + 134.083 = 349.00",
+      "cause": "source_rounding"
      }
     },
     {
@@ -3089,7 +3095,8 @@
      "check": {
       "kind": "ss_total",
       "model": "Batch + Laboratory + Batch:Laboratory",
-      "disagreement": "the sum of the rows as the book rounds them (see the residual); the data give 1197.94"
+      "disagreement": "the sum of the rows as the book rounds them (see the residual); the data give 1197.94",
+      "cause": "source_rounding"
      }
     }
    ]
@@ -4526,7 +4533,8 @@
        13,
        14
       ],
-      "disagreement": "the book analyses the table completed with the two estimated values (5.31), which overstates the sum of squares for blends; the least-squares sum of squares adjusted for blocks is 10.29"
+      "disagreement": "the book analyses the table completed with the two estimated values (5.31), which overstates the sum of squares for blends; the least-squares sum of squares adjusted for blocks is 10.29",
+      "cause": "method"
      }
     },
     {
@@ -4558,7 +4566,8 @@
        13,
        14
       ],
-      "disagreement": "from the table completed with the two estimated values, as for blends; the least-squares sum of squares adjusted for blends is 1.66"
+      "disagreement": "from the table completed with the two estimated values, as for blends; the least-squares sum of squares adjusted for blends is 1.66",
+      "cause": "method"
      }
     }
    ]
@@ -5433,7 +5442,8 @@
       "kind": "anova_mean_sq",
       "term": "Diluent",
       "model": "Method + Ingredient + Diluent",
-      "disagreement": "the book divides the sum of squares rounded to 5,487 by 6, 914.5, and rounds up; unrounded the mean square is 914.45"
+      "disagreement": "the book divides the sum of squares rounded to 5,487 by 6, 914.5, and rounds up; unrounded the mean square is 914.45",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6134,7 +6144,8 @@
       "kind": "anova_mean_sq",
       "term": "Lot",
       "model": "Row + Column + Lot + Number",
-      "disagreement": "4,831.7 / 7 = 690.24; the book prints 690.3"
+      "disagreement": "4,831.7 / 7 = 690.24; the book prints 690.3",
+      "cause": "unexplained"
      }
     },
     {
@@ -6932,7 +6943,8 @@
       "kind": "anova_sum_sq",
       "term": "Square",
       "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "every time and every day lies in one square, so adjusted for the times and days the squares have no degrees of freedom left: the library's Type II analysis cannot test them, and its note points to multistratum_anova with strata Square/Time + Square/Day, which gives 0.356075. The book's sequential split, squares first, is right"
+      "disagreement": "every time and every day lies in one square, so adjusted for the times and days the squares have no degrees of freedom left: the library's Type II analysis cannot test them, and its note points to multistratum_anova with strata Square/Time + Square/Day, which gives 0.356075. The book's sequential split, squares first, is right",
+      "cause": "library"
      }
     },
     {
@@ -6948,7 +6960,8 @@
       "kind": "anova_sum_sq",
       "term": "Time",
       "model": "Square + Time + Day + Twist + Draw",
-      "disagreement": "the data give 6.79396 for the times within squares (6.7939556 in exact arithmetic), which rounds to 6.7940; the book prints 6.7939"
+      "disagreement": "the data give 6.79396 for the times within squares (6.7939556 in exact arithmetic), which rounds to 6.7940; the book prints 6.7939",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6976,7 +6989,8 @@
       "quote": "35 12·0279"
      },
      "check": {
-      "manual": "the Type II rows of this model leave out the squares, which cannot be tested beside the times and days, so they add to the total less the squares' 0.3561; the total itself is the corrected sum of squares of the 36 results, 12.0279"
+      "manual": "the Type II rows of this model leave out the squares, which cannot be tested beside the times and days, so they add to the total less the squares' 0.3561; the total itself is the corrected sum of squares of the 36 results, 12.0279",
+      "cause": "check_gap"
      }
     }
    ]
@@ -7359,7 +7373,8 @@
       "quote": "C ... corrected treatment mean 328·6"
      },
      "check": {
-      "manual": "the book adds P = 30.9 to the grand mean rounded to 297.7; the corrected effect and the grand mean are each checked above, and their exact sum is 328.5"
+      "manual": "the book adds P = 30.9 to the grand mean rounded to 297.7; the corrected effect and the grand mean are each checked above, and their exact sum is 328.5",
+      "cause": "not_a_result"
      }
     },
     {
@@ -7372,7 +7387,8 @@
       "quote": "Total 61,603 11"
      },
      "check": {
-      "manual": "in an incomplete block design the adjusted rows do not add to the total; the total is the corrected sum of squares of the 12 results"
+      "manual": "in an incomplete block design the adjusted rows do not add to the total; the total is the corrected sum of squares of the 12 results",
+      "cause": "check_gap"
      }
     },
     {
@@ -7385,7 +7401,8 @@
       "quote": "Between actual block totals 39,123 3 (Discard)"
      },
      "check": {
-      "manual": "the sum of squares between block totals, ignoring treatments; the library reports each term adjusted for the other"
+      "manual": "the sum of squares between block totals, ignoring treatments; the library reports each term adjusted for the other",
+      "cause": "library_gap"
      }
     }
    ]
@@ -7975,7 +7992,8 @@
       "quote": "Total 8,478·0 19"
      },
      "check": {
-      "manual": "in a Youden square the adjusted rows do not add to the total; the total is the corrected sum of squares of the 20 results"
+      "manual": "in a Youden square the adjusted rows do not add to the total; the total is the corrected sum of squares of the 20 results",
+      "cause": "check_gap"
      }
     }
    ]
@@ -8190,7 +8208,8 @@
       "kind": "anova_sum_sq",
       "term": "Row",
       "model": "Row + Column",
-      "disagreement": "the book subtracts rounded sums of squares, 104.60 - 29.09 = 75.51; unrounded it is 75.5015"
+      "disagreement": "the book subtracts rounded sums of squares, 104.60 - 29.09 = 75.51; unrounded it is 75.5015",
+      "cause": "source_rounding"
      }
     },
     {
@@ -8223,7 +8242,8 @@
       "kind": "anova_sum_sq",
       "term": "Column",
       "model": "Row + Column",
-      "disagreement": "the book subtracts rounded sums of squares, 76.09 - 29.09 = 47.00; unrounded it is 46.992"
+      "disagreement": "the book subtracts rounded sums of squares, 76.09 - 29.09 = 47.00; unrounded it is 46.992",
+      "cause": "source_rounding"
      }
     },
     {
@@ -8377,7 +8397,8 @@
       "quote": "Between rows 103·07 4 25·77"
      },
      "check": {
-      "manual": "the approximate method: an ordinary analysis of the table completed with the estimated values, which overstates both effects; the exact sums of squares are checked above"
+      "manual": "the approximate method: an ordinary analysis of the table completed with the estimated values, which overstates both effects; the exact sums of squares are checked above",
+      "cause": "not_a_result"
      }
     },
     {
@@ -8390,7 +8411,8 @@
       "quote": "Between columns .. 51·17 5 10·23"
      },
      "check": {
-      "manual": "the approximate method, as for rows"
+      "manual": "the approximate method, as for rows",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -10662,7 +10684,8 @@
       "quote": "Total ... 1·0451"
      },
      "check": {
-      "manual": "the sum of the fifteen sums of squares as rounded in the table; the corrected sum of squares, 1.0448, is checked"
+      "manual": "the sum of the fifteen sums of squares as rounded in the table; the corrected sum of squares, 1.0448, is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -10678,7 +10701,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "(A + B + C + D)**2",
-      "disagreement": "the book adds the five three- and four-factor sums of squares as rounded in Table 7-71; unrounded they come to 0.19226"
+      "disagreement": "the book adds the five three- and four-factor sums of squares as rounded in Table 7-71; unrounded they come to 0.19226",
+      "cause": "source_rounding"
      }
     },
     {
@@ -11546,7 +11570,8 @@
       "kind": "anova_sum_sq",
       "term": "A",
       "model": "A + B + C + A:B + A:C + B:C",
-      "disagreement": "the book subtracts a correction rounded to 6,069,348 from a crude sum of squares rounded to 6,547,811 (8.21); unrounded the sum of squares is 478,462.4"
+      "disagreement": "the book subtracts a correction rounded to 6,069,348 from a crude sum of squares rounded to 6,547,811 (8.21); unrounded the sum of squares is 478,462.4",
+      "cause": "source_rounding"
      }
     },
     {
@@ -11738,7 +11763,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "A + B + C + A:B + A:C + B:C",
-      "disagreement": "the remainder by subtraction from the rounded sums of squares above; unrounded it is 7,686.9"
+      "disagreement": "the remainder by subtraction from the rounded sums of squares above; unrounded it is 7,686.9",
+      "cause": "source_rounding"
      }
     },
     {
@@ -14046,7 +14072,8 @@
       "kind": "anova_sum_sq",
       "term": "A",
       "model": "A + B",
-      "disagreement": "(183.3^2 + 139.9^2 + 81.7^2 + 51.8^2)/5 - 456.7^2/20 = 2,077.06; the book prints 2,077.07"
+      "disagreement": "(183.3^2 + 139.9^2 + 81.7^2 + 51.8^2)/5 - 456.7^2/20 = 2,077.06; the book prints 2,077.07",
+      "cause": "unexplained"
      }
     },
     {
@@ -14062,7 +14089,8 @@
       "kind": "anova_mean_sq",
       "term": "A",
       "model": "A + B",
-      "disagreement": "from the sum of squares as the book prints it, 2,077.07 / 3; from the data, 692.35"
+      "disagreement": "from the sum of squares as the book prints it, 2,077.07 / 3; from the data, 692.35",
+      "cause": "unexplained"
      }
     },
     {
@@ -14127,7 +14155,8 @@
       "kind": "anova_sum_sq",
       "term": "I(B ** 4)",
       "model": "A + B + I(B**2) + I(B**3) + I(B**4)",
-      "disagreement": "the book gets the quartic component by subtracting the rounded components 127.09, 0.39 and 4.62 from 132.25; unrounded it is 0.137"
+      "disagreement": "the book gets the quartic component by subtracting the rounded components 127.09, 0.39 and 4.62 from 132.25; unrounded it is 0.137",
+      "cause": "source_rounding"
      }
     },
     {
@@ -14159,7 +14188,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "A + B + I(B**2) + I(B**3) + I(B**4)",
-      "disagreement": "by subtraction from rounded sums of squares; unrounded it is 407.656, which rounds to 407.66"
+      "disagreement": "by subtraction from rounded sums of squares; unrounded it is 407.656, which rounds to 407.66",
+      "cause": "source_rounding"
      }
     },
     {
@@ -14254,7 +14284,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "A*B + A*I(B**2) + A*I(B**3) + I(B**4)",
-      "disagreement": "by subtraction from rounded sums of squares; unrounded it is 33.380"
+      "disagreement": "by subtraction from rounded sums of squares; unrounded it is 33.380",
+      "cause": "source_rounding"
      }
     },
     {
@@ -14270,7 +14301,8 @@
      "check": {
       "kind": "ms_residual",
       "model": "A*B + A*I(B**2) + A*I(B**3) + I(B**4)",
-      "disagreement": "33.37 / 3 from the rounded remainder; unrounded 11.127"
+      "disagreement": "33.37 / 3 from the rounded remainder; unrounded 11.127",
+      "cause": "source_rounding"
      }
     },
     {
@@ -14595,7 +14627,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "Sugar + Conc + I(Conc**2) + I(Conc**3)",
-      "disagreement": "Table 8-371 prints 0.0545; Table 8-39 adds the three interaction components to 0.0544, which the library agrees with (0.05438)"
+      "disagreement": "Table 8-371 prints 0.0545; Table 8-39 adds the three interaction components to 0.0544, which the library agrees with (0.05438)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -15314,7 +15347,8 @@
       "kind": "anova_sum_sq",
       "term": "C",
       "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
-      "disagreement": "the linear contrast of the C totals, (2,123 - 1,407)^2 / 36 = 14,240.4; the book prints 14,241"
+      "disagreement": "the linear contrast of the C totals, (2,123 - 1,407)^2 / 36 = 14,240.4; the book prints 14,241",
+      "cause": "unexplained"
      }
     },
     {
@@ -15331,7 +15365,8 @@
       "kind": "anova_mean_sq",
       "term": "C",
       "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
-      "disagreement": "the linear contrast of the C totals, (2,123 - 1,407)^2 / 36 = 14,240.4; the book prints 14,241"
+      "disagreement": "the linear contrast of the C totals, (2,123 - 1,407)^2 / 36 = 14,240.4; the book prints 14,241",
+      "cause": "unexplained"
      }
     },
     {
@@ -15444,7 +15479,8 @@
       "kind": "anova_sum_sq",
       "term": "N",
       "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
-      "disagreement": "the linear contrast of the N totals, (2,408 - 2,159)^2 / 36 = 1,722.25, as the book's own mean square, 1,722, has it; it prints the sum of squares as 1,723"
+      "disagreement": "the linear contrast of the N totals, (2,408 - 2,159)^2 / 36 = 1,722.25, as the book's own mean square, 1,722, has it; it prints the sum of squares as 1,723",
+      "cause": "source_error"
      }
     },
     {
@@ -15724,7 +15760,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
-      "disagreement": "the remainder by subtraction from the rounded sums of squares above; from the replicate differences it is 21,038.5"
+      "disagreement": "the remainder by subtraction from the rounded sums of squares above; from the replicate differences it is 21,038.5",
+      "cause": "source_rounding"
      }
     },
     {
@@ -16460,7 +16497,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2)",
-      "disagreement": "by subtraction from the rounded sums of squares of Table 8-62 and the blocks; unrounded it is 29,805.7"
+      "disagreement": "by subtraction from the rounded sums of squares of Table 8-62 and the blocks; unrounded it is 29,805.7",
+      "cause": "source_rounding"
      }
     },
     {
@@ -16476,7 +16514,8 @@
      "check": {
       "kind": "ms_residual",
       "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2)",
-      "disagreement": "29,803 / 30 from the remainder as the book rounds it; unrounded 29,805.7 / 30 = 993.5"
+      "disagreement": "29,803 / 30 from the remainder as the book rounds it; unrounded 29,805.7 / 30 = 993.5",
+      "cause": "source_rounding"
      }
     },
     {
@@ -16508,7 +16547,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "Group + C + I(C**2) + V + I(V**2) + N + I(N**2) + C:V + C:I(V**2) + C:N + C:I(N**2) + I(C**2):V + I(C**2):I(V**2) + I(C**2):N + I(C**2):I(N**2) + V:N + V:I(N**2) + I(V**2):N + I(V**2):I(N**2) + C:V:N + C:V:I(N**2) + C:I(V**2):N + C:I(V**2):I(N**2) + I(C**2):V:N + I(C**2):V:I(N**2) + I(C**2):I(V**2):N + I(C**2):I(V**2):I(N**2)",
-      "disagreement": "by subtraction from the rounded sums of squares above; unrounded it is 19,010.9"
+      "disagreement": "by subtraction from the rounded sums of squares above; unrounded it is 19,010.9",
+      "cause": "source_rounding"
      }
     },
     {
@@ -16536,7 +16576,8 @@
       "quote": "Main effects.. 165,383 6"
      },
      "check": {
-      "manual": "the six main-effect components as the book prints them add to 165,383; the data's add to 165,382.0, the difference carried by C's 14,241 and N's 1,723, each recorded as a disagreement"
+      "manual": "the six main-effect components as the book prints them add to 165,383; the data's add to 165,382.0, the difference carried by C's 14,241 and N's 1,723, each recorded as a disagreement",
+      "cause": "not_a_result"
      }
     },
     {
@@ -16579,7 +16620,8 @@
       "quote": "Unconfounded three-factor interactions (X) 6,191 (Z) 1,002 (W) 2,939 (Y) 664 10,796 8 1,350"
      },
      "check": {
-      "manual": "the sum of the X, Z, W and Y components, each checked: arithmetic"
+      "manual": "the sum of the X, Z, W and Y components, each checked: arithmetic",
+      "cause": "not_a_result"
      }
     },
     {
@@ -17189,7 +17231,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "A*B*C",
-      "disagreement": "by subtraction from sums of squares rounded to two decimals; the replicate differences give 685/2 = 342.50 exactly, as the book notes (9A.4)"
+      "disagreement": "by subtraction from sums of squares rounded to two decimals; the replicate differences give 685/2 = 342.50 exactly, as the book notes (9A.4)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17205,7 +17248,8 @@
      "check": {
       "kind": "ms_residual",
       "model": "A*B*C",
-      "disagreement": "342.52 / 8 from the rounded remainder; unrounded 42.8125"
+      "disagreement": "342.52 / 8 from the rounded remainder; unrounded 42.8125",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17282,7 +17326,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "Lot + A + B + C + A:B + A:C + B:C",
-      "disagreement": "by subtraction from sums of squares rounded to two decimals; unrounded it is 44.375, which rounds to 44.38"
+      "disagreement": "by subtraction from sums of squares rounded to two decimals; unrounded it is 44.375, which rounds to 44.38",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17518,7 +17563,8 @@
       "quote": "Process variation 6·25"
      },
      "check": {
-      "manual": "a variance from past records of the process, not from this experiment"
+      "manual": "a variance from past records of the process, not from this experiment",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -17531,7 +17577,8 @@
       "quote": "Effect of a 10% increase in amount of ammonium chloride = 5·88 +/- 2·45"
      },
      "check": {
-      "manual": "limits from the known process variance, 6.25, not from the experiment"
+      "manual": "limits from the known process variance, 6.25, not from the experiment",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -18306,7 +18353,8 @@
       "quote": "Three-factor interactions 0·0020"
      },
      "check": {
-      "manual": "the ten three-factor rows of the library's fit of (A + B + C + D + E)**3 + Week pool to a mean square of 0.0029 (anova_pooled); the table prints 0.0020"
+      "manual": "the ten three-factor rows of the library's fit of (A + B + C + D + E)**3 + Week pool to a mean square of 0.0029 (anova_pooled); the table prints 0.0020",
+      "cause": "check_gap"
      }
     },
     {
@@ -18587,7 +18635,8 @@
       "kind": "ss_total",
       "model": "Set + A + B + C + D + E",
       "response": "LogYield",
-      "disagreement": "the sum of the rows of Table 9-47 as rounded; the corrected sum of squares of the 32 log yields is 0.48489, which rounds to 0.4849"
+      "disagreement": "the sum of the rows of Table 9-47 as rounded; the corrected sum of squares of the 32 log yields is 0.48489, which rounds to 0.4849",
+      "cause": "source_rounding"
      }
     },
     {
@@ -18622,7 +18671,8 @@
       "quote": "Two-factor 0·0727 10 0·0073"
      },
      "check": {
-      "manual": "the ten two-factor rows of the library's analysis add to 0.0728 (anova_pooled); the table prints 0.0727"
+      "manual": "the ten two-factor rows of the library's analysis add to 0.0728 (anova_pooled); the table prints 0.0727",
+      "cause": "check_gap"
      }
     },
     {
@@ -19134,7 +19184,8 @@
       "quote": "The error variance was known from past experiments to be about 4·0"
      },
      "check": {
-      "manual": "a variance from past experiments, not from this one"
+      "manual": "a variance from past experiments, not from this one",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -19615,7 +19666,8 @@
      "check": {
       "kind": "ss_total",
       "model": "A + B + C + D + E + B:C",
-      "disagreement": "the sum of the seven mean squares as rounded; the corrected sum of squares of the eight yields is 509.849, as the book notes (agrees within rounding-off errors)"
+      "disagreement": "the sum of the seven mean squares as rounded; the corrected sum of squares of the eight yields is 509.849, as the book notes (agrees within rounding-off errors)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -20654,7 +20706,8 @@
      "check": {
       "kind": "ss_total",
       "model": "A + B + C + D + E + A:B + A:C + A:D + A:E + B:C + B:D + B:E + C:D + C:E",
-      "disagreement": "the sum of the fifteen mean squares as rounded; the corrected sum of squares of the sixteen results is 21,622.73"
+      "disagreement": "the sum of the fifteen mean squares as rounded; the corrected sum of squares of the sixteen results is 21,622.73",
+      "cause": "source_rounding"
      }
     },
     {
@@ -21530,7 +21583,8 @@
       "quote": "The process variance calculated from plant records was 2500"
      },
      "check": {
-      "manual": "a variance from plant records, not from this experiment"
+      "manual": "a variance from plant records, not from this experiment",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -21907,7 +21961,8 @@
       "quote": "(Approximate standard error of estimates is 0·4, assuming σ = 1)"
      },
      "check": {
-      "manual": "a standard error from an assumed σ = 1 (1/√8 = 0.35), not from these runs"
+      "manual": "a standard error from an assumed σ = 1 (1/√8 = 0.35), not from these runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -21940,7 +21995,8 @@
       "quote": "(4) Unit X b .. 197·5 -0·55 9·0 0·2 0·1"
      },
      "check": {
-      "manual": "the unit times a slope rounded to one decimal (25 x 7.9); the slopes are checked as coefficients"
+      "manual": "the unit times a slope rounded to one decimal (25 x 7.9); the slopes are checked as coefficients",
+      "cause": "not_a_result"
      }
     },
     {
@@ -21981,7 +22037,8 @@
       "steps": 1,
       "key": "x3",
       "from_centre": true,
-      "disagreement": "the change in x3 per 10 c.c. is 0.4552 from the fitted slopes; the book's 0.456 = 10 x 9.0/197.5 is worked from the slopes rounded to 6.0 and 7.9"
+      "disagreement": "the change in x3 per 10 c.c. is 0.4552 from the fitted slopes; the book's 0.456 = 10 x 9.0/197.5 is worked from the slopes rounded to 6.0 and 7.9",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22002,7 +22059,8 @@
       "steps": 1,
       "key": "x4",
       "from_centre": true,
-      "disagreement": "the change in x4 per 10 c.c. is 0.0108 from the fitted slopes; the book's 0.010 = 10 x 0.2/197.5 is worked from the slopes rounded to 0.4 and 7.9"
+      "disagreement": "the change in x4 per 10 c.c. is 0.0108 from the fitted slopes; the book's 0.010 = 10 x 0.2/197.5 is worked from the slopes rounded to 0.4 and 7.9",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22118,7 +22176,8 @@
       "change": 10,
       "steps": 5,
       "key": "x5",
-      "disagreement": "x5 at trial (9) is 3.2754 from the fitted slopes; the book adds its rounded step of 0.005 per 10 c.c. (the book sets the path out from slopes rounded to one decimal)"
+      "disagreement": "x5 at trial (9) is 3.2754 from the fitted slopes; the book adds its rounded step of 0.005 per 10 c.c. (the book sets the path out from slopes rounded to one decimal)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22214,7 +22273,8 @@
       "change": 10,
       "steps": 7,
       "key": "x5",
-      "disagreement": "x5 at trial (10) is 3.2856 from the fitted slopes; the book adds its rounded step of 0.005 per 10 c.c. (the book sets the path out from slopes rounded to one decimal)"
+      "disagreement": "x5 at trial (10) is 3.2856 from the fitted slopes; the book adds its rounded step of 0.005 per 10 c.c. (the book sets the path out from slopes rounded to one decimal)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22227,7 +22287,8 @@
       "quote": "This gave a yield of 80% compared with a mean yield for the first eight trials of 48·5%"
      },
      "check": {
-      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to",
+      "cause": "not_a_result"
      }
     },
     {
@@ -22240,7 +22301,8 @@
       "quote": "A yield of 79·4% was obtained in this trial"
      },
      "check": {
-      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -22540,7 +22602,8 @@
       "quote": "(Approximate standard error of estimates is 0·4, assuming σ = 1)"
      },
      "check": {
-      "manual": "a standard error from an assumed σ = 1, not from these runs"
+      "manual": "a standard error from an assumed σ = 1, not from these runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -22953,7 +23016,8 @@
       "quote": "Trials (19), (20), and (21) performed along the path gave yields of 80·8%, 84·0%, and 81·5% respectively"
      },
      "check": {
-      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to",
+      "cause": "not_a_result"
      }
     },
     {
@@ -22966,7 +23030,8 @@
       "quote": "Trials (19), (20), and (21) performed along the path gave yields of 80·8%, 84·0%, and 81·5% respectively"
      },
      "check": {
-      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to",
+      "cause": "not_a_result"
      }
     },
     {
@@ -22979,7 +23044,8 @@
       "quote": "Trials (19), (20), and (21) performed along the path gave yields of 80·8%, 84·0%, and 81·5% respectively"
      },
      "check": {
-      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to"
+      "manual": "a run on the path of steepest ascent, outside the design the model is fitted to",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -23125,7 +23191,8 @@
       "quote": "η0 9 699·1 77·68 (1) 54,304·53"
      },
      "check": {
-      "manual": "the correction for the mean, n times the mean squared (699.1²/9); the library's sums of squares are about the mean"
+      "manual": "the correction for the mean, n times the mean squared (699.1²/9); the library's sums of squares are about the mean",
+      "cause": "library_gap"
      }
     },
     {
@@ -23138,7 +23205,8 @@
       "quote": "Total .. (9) 54,383·01"
      },
      "check": {
-      "manual": "the uncorrected total, Σy²; the library's total is about the mean (78.48 = 78.06 + 0.42)"
+      "manual": "the uncorrected total, Σy²; the library's total is about the mean (78.48 = 78.06 + 0.42)",
+      "cause": "library_gap"
      }
     },
     {
@@ -23208,7 +23276,8 @@
       "quote": "previous experiments had suggested that the value of σ² was about 0·6"
      },
      "check": {
-      "manual": "an error variance from earlier experiments, not from these runs"
+      "manual": "an error variance from earlier experiments, not from these runs",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -23381,7 +23450,8 @@
       "quote": "β1 6 11·8 1·97 (1) 23·21"
      },
      "check": {
-      "manual": "a sum of products on the way to the estimate, which is checked"
+      "manual": "a sum of products on the way to the estimate, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -23410,7 +23480,8 @@
       "quote": "b0 = 81·22 ± 0·58"
      },
      "check": {
-      "manual": "standard errors from the prior σ² = 0.6, not from these runs' residual; V(b0) = 0.5555σ²"
+      "manual": "standard errors from the prior σ² = 0.6, not from these runs' residual; V(b0) = 0.5555σ²",
+      "cause": "not_a_result"
      }
     },
     {
@@ -23423,7 +23494,8 @@
       "quote": "b1 = 1·97 ± 0·32"
      },
      "check": {
-      "manual": "standard errors from the prior σ² = 0.6, not from these runs' residual"
+      "manual": "standard errors from the prior σ² = 0.6, not from these runs' residual",
+      "cause": "not_a_result"
      }
     },
     {
@@ -23441,7 +23513,8 @@
       "method": "stationary_point",
       "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
       "key": "stationary_point.stationary_point_coded.x1",
-      "disagreement": "x1S is 0.2949 from the fitted coefficients; the book solves (11-6) with the coefficients rounded to two decimals, which gives 0.2952"
+      "disagreement": "x1S is 0.2949 from the fitted coefficients; the book solves (11-6) with the coefficients rounded to two decimals, which gives 0.2952",
+      "cause": "source_rounding"
      }
     },
     {
@@ -23476,7 +23549,8 @@
       "method": "stationary_point",
       "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
       "key": "stationary_point.predicted_response",
-      "disagreement": "Ys is 81.4950 from the fitted coefficients; the book substitutes its S, rounded to (0.30, -0.16), in the equation with rounded coefficients, which gives 81.4934"
+      "disagreement": "Ys is 81.4950 from the fitted coefficients; the book substitutes its S, rounded to (0.30, -0.16), in the equation with rounded coefficients, which gives 81.4934",
+      "cause": "source_rounding"
      }
     },
     {
@@ -23511,7 +23585,8 @@
       "method": "stationary_point",
       "model": "x1 + x2 + x1:x2 + I(x1**2) + I(x2**2)",
       "key": "stationary_point.eigenvalues.1",
-      "disagreement": "the root is -0.9662 from the fitted coefficients; the book's -0.96 (-0.9645) solves the characteristic equation written with the coefficients rounded to two decimals"
+      "disagreement": "the root is -0.9662 from the fitted coefficients; the book's -0.96 (-0.9645) solves the characteristic equation written with the coefficients rounded to two decimals",
+      "cause": "source_rounding"
      }
     },
     {
@@ -23524,7 +23599,8 @@
       "quote": "B² + 5·31B + 4·1913 = 0"
      },
      "check": {
-      "manual": "the characteristic polynomial, whose coefficients are minus the sum and the product of the eigenvalues; from the fitted coefficients they are 5.317 and 4.204, the book's coming from coefficients rounded to two decimals"
+      "manual": "the characteristic polynomial, whose coefficients are minus the sum and the product of the eigenvalues; from the fitted coefficients they are 5.317 and 4.204, the book's coming from coefficients rounded to two decimals",
+      "cause": "check_gap"
      }
     },
     {
@@ -23563,7 +23639,8 @@
       "key": "canonical_analysis.eigenvectors.0.1",
       "abs": true,
       "printed": "0.352",
-      "disagreement": "the eigenvector's x2 element is 0.3511 from the fitted coefficients; the book's 0.352 normalises its ratio 0.376, the mean of 0.378 and 0.374 worked from rounded coefficients"
+      "disagreement": "the eigenvector's x2 element is 0.3511 from the fitted coefficients; the book's 0.352 normalises its ratio 0.376, the mean of 0.378 and 0.374 worked from rounded coefficients",
+      "cause": "source_rounding"
      }
     },
     {
@@ -23583,7 +23660,8 @@
       "key": "canonical_analysis.eigenvectors.1.0",
       "abs": true,
       "printed": "0.352",
-      "disagreement": "the eigenvector's x1 element is 0.3511 from the fitted coefficients; the book's 0.352 normalises its ratio 0.376, the mean of 0.378 and 0.374 worked from rounded coefficients"
+      "disagreement": "the eigenvector's x1 element is 0.3511 from the fitted coefficients; the book's 0.352 normalises its ratio 0.376, the mean of 0.378 and 0.374 worked from rounded coefficients",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24002,7 +24080,8 @@
       "quote": "65·64 ± 0·4"
      },
      "check": {
-      "manual": "a standard error from an assumed σ = 1%, for which there was prior evidence, not from these runs"
+      "manual": "a standard error from an assumed σ = 1%, for which there was prior evidence, not from these runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -24015,7 +24094,8 @@
       "quote": "15b0 + 16b11 + 16b22 + 16b33 = 976·0"
      },
      "check": {
-      "manual": "a right-hand side of the normal equations (11-83), Σy; the estimates they give are checked"
+      "manual": "a right-hand side of the normal equations (11-83), Σy; the estimates they give are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -24028,7 +24108,8 @@
       "quote": "16b0 + 40b11 + 8b22 + 8b33 = 1014·3"
      },
      "check": {
-      "manual": "a right-hand side of the normal equations (11-83), Σx1²y; the estimates they give are checked"
+      "manual": "a right-hand side of the normal equations (11-83), Σx1²y; the estimates they give are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -24041,7 +24122,8 @@
       "quote": "V(b0) = (224/288)σ²"
      },
      "check": {
-      "manual": "an element of the inverse of the C-matrix, a variance multiplier of the design"
+      "manual": "an element of the inverse of the C-matrix, a variance multiplier of the design",
+      "cause": "not_a_result"
      }
     },
     {
@@ -24214,7 +24296,8 @@
       "quote": "the standard error of b0 ... is equal to about 0·9"
      },
      "check": {
-      "manual": "standard errors from an assumed σ² = 1, not from these runs' residual"
+      "manual": "standard errors from an assumed σ² = 1, not from these runs' residual",
+      "cause": "not_a_result"
      }
     },
     {
@@ -24274,7 +24357,8 @@
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
       "key": "stationary_point.stationary_point_coded.T",
-      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x1S = 0.0615"
+      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x1S = 0.0615",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24292,7 +24376,8 @@
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
       "key": "stationary_point.stationary_point_coded.c",
-      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x2S = 0.2163"
+      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x2S = 0.2163",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24310,7 +24395,8 @@
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
       "key": "stationary_point.stationary_point_coded.t",
-      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x3S = 0.4968"
+      "disagreement": "S is worked from the coefficients rounded to three decimals, which move it in the third decimal: from the fitted coefficients x3S = 0.4968",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24327,7 +24413,8 @@
       "method": "stationary_point",
       "model": "(T + c + t)**2 + I(T**2) + I(c**2) + I(t**2)",
       "key": "stationary_point.predicted_response",
-      "disagreement": "Ys is 68.134 from the fitted coefficients, and 68.1345 by the book's formula (11-92) from its own rounded S; the book rounds up"
+      "disagreement": "Ys is 68.134 from the fitted coefficients, and 68.1345 by the book's formula (11-92) from its own rounded S; the book rounds up",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24449,7 +24536,8 @@
       "key": "canonical_analysis.eigenvectors.0.0",
       "abs": true,
       "printed": "0.7511",
-      "disagreement": "the element is 0.7510 from the fitted coefficients; the book's 0.7511 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190"
+      "disagreement": "the element is 0.7510 from the fitted coefficients; the book's 0.7511 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24469,7 +24557,8 @@
       "key": "canonical_analysis.eigenvectors.0.1",
       "abs": true,
       "printed": "0.4884",
-      "disagreement": "the element is 0.4883 from the fitted coefficients; the book's 0.4884 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190"
+      "disagreement": "the element is 0.4883 from the fitted coefficients; the book's 0.4884 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24489,7 +24578,8 @@
       "key": "canonical_analysis.eigenvectors.0.2",
       "abs": true,
       "printed": "0.4443",
-      "disagreement": "the element is 0.4445 from the fitted coefficients; the book's 0.4443 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190"
+      "disagreement": "the element is 0.4445 from the fitted coefficients; the book's 0.4443 comes from its proportional solution 1.6906, 1.0992, 1.0000, worked with B11 rounded to -3.190",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24616,7 +24706,8 @@
       "quote": "0·1502T + 0·1954c + 0·2962t = 32·30"
      },
      "check": {
-      "manual": "the plane X1 = 0 in the original units, the first eigenvector divided by the units; no check computes a canonical axis in actual units (from the library's eigenvector it is 0.1502T + 0.1953c + 0.2963t = 32.30)"
+      "manual": "the plane X1 = 0 in the original units, the first eigenvector divided by the units; no check computes a canonical axis in actual units (from the library's eigenvector it is 0.1502T + 0.1953c + 0.2963t = 32.30)",
+      "cause": "check_gap"
      }
     },
     {
@@ -24629,7 +24720,8 @@
       "quote": "Z = 18·379 + 5·150x1 + 2·362x2 + 2·188x3 + 0·728x1² ..."
      },
      "check": {
-      "manual": "the fit to the yield of the by-product D, whose data the book does not print"
+      "manual": "the fit to the yield of the by-product D, whose data the book does not print",
+      "cause": "data_not_printed"
      }
     }
    ]

@@ -238,6 +238,13 @@ def blocked_context(context: Any, site: str, blocked_catalog_files: Path) -> Any
 
 
 @pytest.fixture
+def reproduced_context(context: Any, site: str, reproduction_file: Path) -> Any:  # noqa: ANN401 - a Playwright BrowserContext
+    """Return a browser context that answers ``catalog/reproduction.json`` with the cases of ``REPRODUCTION_SAMPLE``."""
+    context.route(f"{site}catalog/reproduction.json", lambda route: route.fulfill(path=reproduction_file))
+    return context
+
+
+@pytest.fixture
 def page(context: Any, site: str) -> Any:  # noqa: ANN401 - a Playwright Page
     """Open the worked example, ``?example=worked``; return the page once its charts are drawn and Python answered."""
     page = context.new_page()
