@@ -494,7 +494,8 @@ The items both sources describe, by section: the first candidates for priority.
     eigenvalue is above 2.
 - A suggested number of components, stored with the model `[A B]`.
 - Q² = 1 − PRESS/SS per component. Q²(cum) = 1 − Π(PRESS/SS)ₐ, with PRESS/SS truncated
-  for an insignificant component. Q²V per variable, the same way. B reports the same
+  for an insignificant component; A's guide states the truncation as "to −0.1", which no
+  ratio of sums of squares can be (URS MOD-8). Q²V per variable, the same way. B reports the same
   quantity as the explained validation variance `[A B]`.
 - PCA cross-validation predicts element (i, k) as a score times a loading. The score comes
   from a round with column k held out, the loading from a round with row i held out
@@ -548,20 +549,24 @@ The items both sources describe, by section: the first candidates for priority.
   - for MLR, hᵢ = 1/I + xᵢ'(X'X)⁻¹xᵢ `[B]`.
 - Hotelling's T², identical in both `[A B]`:
   - Tᵢ² = Σₐ tᵢₐ²/sₐ² `[A B]`;
-  - T²·N(N − A)/(A(N² − 1)) ~ F(A, N − A), which gives the limit `[A B]`;
+  - T²·N(N − A)/(A(N² − 1)) ~ F(A, N − A), which gives the limit `[A B]`; measured, A's own
+    exports use the fitted-row form, T²(N − A)/(A(N − 1)) ~ F(A, N − A), and one published
+    figure of A's draws its ellipse at A·F(A, N − A) (URS STA-4);
   - the ellipse axes are (sₐ²·F(2, N−2, α)·2(N² − 1)/(N(N − 2)))^½ `[A B]`;
   - any range of components;
   - 0.05 and 0.01 limits `[A B]`;
   - a zero significance hides them.
 - Distance to the model in X (DModX) `[A B]`:
   - sᵢ = √(Σeᵢₖ²/(K − A))·v, where v is a correction factor slightly above 1 for fitted
-    rows `[A B]`;
+    rows `[A B]`; measured on A's screenshots, v = √(N/(N − A − A₀)) (URS STA-5);
   - normalized by the pooled RSD s₀ = √(ΣΣe²/((N − A − A₀)(K − A))) `[A B]`;
   - (sᵢ/s₀)² ~ F, which gives the critical distance and the probability of belonging
-    `[A B]`;
+    `[A B]`; A's guide gives F(K − A, (N − A − A₀)(K − A)), but a limit A printed (1.389)
+    follows no stated degrees of freedom (URS STA-5);
   - optionally weighted by modelling power.
 - Distance to the model in Y (DModY): sᵢ = √(Σfᵢₘ²/M), normalized by its s₀ `[A B]` (B:
-  residual Y variance per row).
+  residual Y variance per row); measured, A's printed values are √2·v times this for M = 2
+  (URS STA-5).
 - For predictions, "distance +": DModXPS+ = √(DModXPS² + d²), where d is how far the
   projection falls outside the model's score range, in residual units.
 - Coefficients `[A B]`:
