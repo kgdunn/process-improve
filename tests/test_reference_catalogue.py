@@ -63,6 +63,25 @@ def test_every_number_not_recomputed_says_why():
     assert "TO CHECK" not in reasons, "every number is given a check or the reason it has none"
 
 
+def test_every_number_that_differs_or_is_not_recomputed_names_its_cause():
+    """A cause tells an error in a source from a library that differs, and a missing function from no computation."""
+    for _, entry, expected, check in CHECKS:
+        name = f"{entry['name']}: {expected['what']} {expected.get('term')}"
+        if "kind" not in check:
+            assert check.get("cause") in reference_catalogue.UNCHECKED_CAUSES, name
+        elif check.get("disagreement"):
+            assert check.get("cause") in reference_catalogue.DISAGREEMENT_CAUSES, name
+        else:
+            assert "cause" not in check, f"{name}: a number that agrees with its source has no cause"
+
+
+def test_a_difference_is_an_incorrect_option_exactly_where_the_answer_key_marks_it_so():
+    for _, entry, expected, check in CHECKS:
+        if check.get("disagreement"):
+            keyed = (expected.get("where") or {}).get("answer_key") == "incorrect"
+            assert (check["cause"] == "incorrect_option") == keyed, f"{entry['name']}: {expected['what']}"
+
+
 def test_the_report_has_a_row_for_every_check():
     report = reproduce_reference_catalogue("ullmann-doe-2012")
     assert len(report) == sum(key == "ullmann-doe-2012" for key, *_ in CHECKS)

@@ -996,12 +996,23 @@ def test_each_case_says_how_closely_it_reproduces_and_why_a_number_differs():
     assert {case["source"] for case in cases.values()} == {"lenth-1989"}
     isatin, tensile = cases["lenth-example-iv-isatin-yield"], cases["lenth-example-ii-tensile-strength"]
     assert (isatin["tier"], isatin["worst"], isatin["differs"]) == ("reproduced", 0.0, [])
-    assert tensile["tier"] == "not_reproduced"
-    assert tensile["worst"] is None, "a misprinted alias chain has no relative size"
+    # The paper misprints an alias chain and the ME of a footnote: both stay listed, and neither holds the case back.
+    causes = {number["what"]: number["cause"] for number in tensile["differs"]}
+    assert causes == {
+        "aliases": "source_error",
+        "ME": "source_error",
+        ".495th quantile of |C|, in units of tau": "source_rounding",
+    }
+    assert tensile["tier"] == "within_1"
+    assert tensile["worst"] == pytest.approx(0.00247, abs=1e-5), (
+        "the quantile's rounded label, the only difference held"
+    )
     me = next(number for number in tensile["differs"] if number["what"] == "ME")
     assert (me["printed"], me["where"]) == (".56", "p. 471")
     assert me["error"] == pytest.approx(0.0328, abs=1e-4)
     assert "misprint" in me["reason"]
+    assert tensile["unchecked"] == {"not_a_result": 7}
+    assert tensile["missing"] == []
     assert (
         len(tensile["differs"])
         == printed_checks(next(e for e in reference_experiments("lenth-1989") if e["name"] == tensile["id"]))[
