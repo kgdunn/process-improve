@@ -113,9 +113,10 @@ def variance_components(
           Wald interval, estimate :math:`\pm z\,` standard error (JMP's, for a random term), and for
           the residual the chi-squared interval :math:`\nu s^2 / \chi^2` on its degrees of freedom;
         - ``reml_criterion``: minus twice the restricted log-likelihood (JMP's "-2 LogLikelihood");
-        - ``fixed_effects``: each fixed column's estimate, standard error, Satterthwaite degrees of
-          freedom, t and p; ``tests``: each fixed term's F test on Satterthwaite's denominator
-          degrees of freedom;
+        - ``fixed_effects``: each fixed column's ``estimate``, ``std_error``, Satterthwaite degrees of
+          freedom ``df``, ``t_value`` and two-sided ``p_value``; ``tests``: each fixed term's F test on
+          Satterthwaite's denominator degrees of freedom (``f_value``, ``df_num``, ``df_den``,
+          ``p_value``, ``significant``);
         - ``blups``: each random term's best linear unbiased predictions, by level;
         - ``r_squared`` and ``r_squared_adj``: one less the residual sum of squares about the
           fitted values with the random effects predicted, over the total about the mean, as JMP
@@ -186,7 +187,9 @@ def _fixed_effects(fit: Any, columns: list[str]) -> list[dict[str, float | str]]
         df = fit.satterthwaite_df(contrast)
         t = float(fit.beta[i]) / se
         p = float(2 * stats.t.sf(abs(t), df))
-        rows.append({"term": column, "estimate": float(fit.beta[i]), "std_error": se, "df": df, "t": t, "p": p})
+        rows.append(
+            {"term": column, "estimate": float(fit.beta[i]), "std_error": se, "df": df, "t_value": t, "p_value": p}
+        )
     return rows
 
 
@@ -197,7 +200,16 @@ def _fixed_tests(fit: Any, columns: list[str], fixed: Sequence[str], alpha: floa
         picked = [i for i, column in enumerate(columns) if column.startswith(f"{name}_")]
         f, df_den = fit.f_test(np.eye(len(columns))[picked])
         p = float(stats.f.sf(f, len(picked), df_den))
-        tests.append({"term": name, "f": f, "df_num": len(picked), "df_den": df_den, "p": p, "significant": p < alpha})
+        tests.append(
+            {
+                "term": name,
+                "f_value": f,
+                "df_num": len(picked),
+                "df_den": df_den,
+                "p_value": p,
+                "significant": p < alpha,
+            }
+        )
     return tests
 
 
