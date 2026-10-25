@@ -148,15 +148,18 @@ _FAMILY_RULES: tuple[tuple[str, str], ...] = (
     (r"block design|complete block|incomplete block|randomi[sz]ed blocks", "block_design"),
     (r"\b[adgi]-optimal|\boptimal designs?\b|candidate set|minimum-run resolution|measure design", "optimal"),
     (
-        r"\d\^\(\d+-\d+\)|\^\(k-p\)|fraction|two-level design|mirror image|fold-?over|resolution (iii|iv|v) design",
+        (
+            r"\d\^\(\d+-\d+\)|\^\(k-p\)|fraction|two-level design|mirror image|fold-?over|resolution (iii|iv|v) design|"
+            r"factors in \d+ runs|main effects and two-factor interactions"
+        ),
         "fractional_factorial",
     ),
     (r"\d\^\d|\^k\b|factorial|\d+ x \d+|\d-by-\d|evop", "full_factorial"),
     (
         (
             r"regression|comparison|single sample|single.factor|one categorical|one factor at|process record|"
-            r"illustration|confirmation|search along|path of steepest|selection|second-degree|nested|hierarchical|"
-            r"two-way|completely randomi|sampling plan|design types|straight line"
+            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|nested|"
+            r"hierarchical|two-way|completely randomi|sampling plan|design types|straight line"
         ),
         "comparison",
     ),

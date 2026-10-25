@@ -86,6 +86,10 @@ def records() -> list[dict]:
         ("component-amount design in two orthogonal blocks", "mixture"),
         ("exact approximation to a measure design", "optimal"),
         ("symmetric designs for a straight line (m3 = 0)", "comparison"),
+        ("confirmatory runs", "comparison"),
+        ("observational data", "comparison"),
+        ("five factors in 16 runs", "fractional_factorial"),
+        ("designs for main effects and two-factor interactions", "fractional_factorial"),
         ("other", "other"),
     ],
 )
@@ -102,10 +106,11 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
     # pid-book's 19 "other", two projections, and three response surface designs no family holds:
-    # an equiradial hexagon, a hybrid design and a sphere-packing design. Box and Draper's 38: 21 entries
+    # an equiradial hexagon, a hybrid design and a sphere-packing design. Box and Draper's 49: 23 entries
     # that print no design (a fitted equation, an exercise in algebra, a table of values), five Koshal designs,
-    # and 12 response surface designs no family holds (a hexagon, an all-bias design, three-level designs)
-    assert len(unknown) <= 62, f"a rule is needed for: {sorted(set(unknown))}"
+    # and 21 response surface designs no family holds (a hexagon, a dodecahedron, an all-bias design,
+    # third-order and three-level designs)
+    assert len(unknown) <= 73, f"a rule is needed for: {sorted(set(unknown))}"
 
 
 def test_every_family_with_a_year_names_the_work_that_published_it():
@@ -662,7 +667,7 @@ def test_the_catalogue_tells_its_designs_from_single_samples_and_facts_about_des
         5,
     )
     assert published["montgomery-2-7-2-choices"]["runs_from"] is None, "three fractions compared, none made"
-    assert sum(bool(r["runs_from"]) for r in published.values()) == 42
+    assert sum(bool(r["runs_from"]) for r in published.values()) == 49
 
 
 # --------------------------------------------------------------------------- generated designs
