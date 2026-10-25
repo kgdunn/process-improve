@@ -681,6 +681,17 @@ def test_the_total_of_a_runs_readings_is_what_yates_algorithm_takes():
     assert total.iloc[:, 0].tolist() == pytest.approx([2.3407, 1.8164])
 
 
+def test_a_count_of_n_is_read_as_its_angle_in_degrees_with_the_source_s_values_at_the_ends():
+    """Claringbold's counts m of 12 animals: arcsin (m/12)^1/2 in degrees, Bartlett's 8.30 and 81.70 at 0 and 12."""
+    from process_improve.experiments.reference_catalogue import _summarised
+
+    table = pd.DataFrame({"m": [0, 2, 6, 12]})
+    plain = _summarised(table, {"of": ["m"], "statistic": "angular_degrees", "n": 12})
+    assert plain.iloc[:, 0].tolist() == pytest.approx([0.0, 24.0948, 45.0, 90.0], abs=1e-4)
+    bartlett = _summarised(table, {"of": ["m"], "statistic": "angular_degrees", "n": 12, "ends": [8.30, 81.70]})
+    assert bartlett.iloc[:, 0].tolist() == pytest.approx([8.30, 24.0948, 45.0, 81.70], abs=1e-4)
+
+
 def test_software_that_prints_more_digits_than_it_carries_is_held_to_fewer():
     """A fitted value printed -4.70511 by single-precision software, where the fit gives -4.70513."""
     from process_improve.experiments.reference_catalogue import _agrees
@@ -2316,10 +2327,11 @@ def test_box_cox_reads_the_residual_sum_of_squares_of_the_scaled_power_at_any_la
 
 
 def test_a_prediction_can_be_read_back_from_a_transformed_scale():
-    """A value read as e to it, as a common log of a natural one, and as y from t = [sqrt(y) + sqrt(y + 1)]/2."""
+    """A value read as e or 10 to it, as a common log of a natural one, and as y from t = [sqrt(y) + sqrt(y + 1)]/2."""
     found_value = 2.0
     for options, expected in (
         ({"exp": True}, math.exp(2.0)),
+        ({"exp10": True}, 100.0),
         ({"log10": True}, 2.0 / math.log(10)),
         ({"back_transform": "freeman_tukey_sqrt"}, (2.0 - 1 / 8) ** 2),
     ):
@@ -2332,6 +2344,42 @@ def test_a_prediction_can_be_read_back_from_a_transformed_scale():
     y = 12.0
     t = (math.sqrt(y) + math.sqrt(y + 1)) / 2
     assert (t - 1 / (4 * t)) ** 2 == pytest.approx(y, rel=1e-3)
+
+
+def test_an_analysis_of_variance_about_zero_is_read_uncorrected_for_the_mean():
+    """Readings 1, 3, 2, 6 on A + B: Σy² = 50 is nȳ² = 36 and 14 about the mean; Σŷ² = 49 on the model's rank of 3."""
+    entry = _factorial(2, [1.0, 3.0, 2.0, 6.0])
+    wanted = {
+        "ss_total_uncorrected": 50.0,
+        "ss_mean": 36.0,
+        "ss_regression_uncorrected": 49.0,
+        "df_model_uncorrected": 3.0,
+        "ms_regression_uncorrected": 49.0 / 3,
+    }
+    for kind, value in wanted.items():
+        found, agrees = reference_catalogue._reproduce(
+            entry, {"what": kind, "value": f"{value:.4f}", "where": {}}, {"kind": kind, "model": "A + B"}, FITS
+        )
+        assert agrees, (kind, found)
+
+
+def test_an_eigenvector_read_from_a_library_value_takes_the_sign_the_source_prints():
+    """An eigenvector of a printed quadratic comes back with either sign: ``sign_of`` turns it, ``abs`` drops it."""
+    terms = {"Intercept": 50.0, "x1": 1.0, "x2": 2.0, "I(x1 ** 2)": -3.0, "I(x2 ** 2)": -1.0, "x1:x2": -1.0}
+    model = {"response_name": "y", "factor_names": ["x1", "x2"]}
+    model["coefficients"] = [{"term": t, "coefficient": c} for t, c in terms.items()]
+    check = {
+        "kind": "library_value",
+        "function": "optimize_responses",
+        "args": [[model]],
+        "kwargs": {"method": "canonical_analysis"},
+        "key": "canonical_analysis.eigenvectors.0.0",
+    }
+    read = reference_catalogue._library_value(check)
+    other = reference_catalogue._library_value({**check, "key": "canonical_analysis.eigenvectors.1.0"})
+    turned = reference_catalogue._library_value({**check, "sign_of": "canonical_analysis.eigenvectors.1.0"})
+    assert turned == pytest.approx(read * math.copysign(1.0, other))
+    assert reference_catalogue._library_value({**check, "abs": True}) == pytest.approx(abs(read))
 
 
 def test_cross_products_split_into_treatments_and_error():
