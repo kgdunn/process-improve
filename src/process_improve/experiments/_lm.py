@@ -143,17 +143,21 @@ def validate_identifiers_are_safe(names: Iterable[object]) -> None:
     taken = {str(name) for name in names}
     renames = {}
     for name in refused:
-        stem = new = suggest_identifier(name)
-        count = 1
-        while new in taken:
-            count += 1
-            new = f"{stem}_{count}"
-        taken.add(new)
-        renames[name] = new
+        renames[name] = _unused_name(suggest_identifier(name), taken)
+        taken.add(renames[name])
     raise UnsafeFormulaError(
         f"{refused!r} cannot go in a model formula: a name there is letters, digits and '_', does not start "
         f"with a digit and does not hold '__'. Rename them, for example with .rename(columns={renames!r})."
     )
+
+
+def _unused_name(stem: str, taken: set[str]) -> str:
+    """Return *stem*, or the first of ``stem_2``, ``stem_3``, ... that is not in *taken*."""
+    new, count = stem, 1
+    while new in taken:
+        count += 1
+        new = f"{stem.rstrip('_')}_{count}"
+    return new
 
 
 #: Symbols that column names often hold, as words, so that a suggested name keeps their meaning.
@@ -241,7 +245,8 @@ def validate_formula_is_safe(
     ------
     UnsafeFormulaError
         If *formula* is not a string, contains a ``__`` dunder, or references a
-        token / construct outside the permitted subset.
+        token / construct outside the permitted subset; or if a column has the name
+        of a function the formula calls, such as ``I`` in ``I(P ** 2)``.
     """
     if not isinstance(formula, str):
         raise UnsafeFormulaError(f"formula must be a string, got {type(formula).__name__}.")
@@ -287,6 +292,33 @@ def _validate_formula_ast(formula: str, allowed: set[str], *, allow_numpy: bool)
         except SyntaxError as exc:
             raise UnsafeFormulaError(f"formula side {side.strip()!r} is not a valid expression.") from exc
         _check_formula_node(tree.body, allowed, allow_numpy=allow_numpy)
+        _check_no_column_hides_a_call(tree, allowed)
+
+
+def _check_no_column_hides_a_call(tree: ast.AST, columns: set[str]) -> None:
+    """Refuse a column that has the name of a function the formula calls.
+
+    Patsy looks a name up in the data before its own functions, so a column named ``I``
+    turns every ``I(P ** 2)`` into a call of the column, and a column named ``C`` does the
+    same to ``C(A, Sum)``. Each fails with "'Series' object is not callable".
+    """
+    called = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func.value if isinstance(node.func, ast.Attribute) else node.func  # np.log(A) calls np
+        if isinstance(func, ast.Name):
+            called.add(func.id)
+        if isinstance(node.func, ast.Name) and node.func.id == "C":  # the contrast in C(A, Sum) is called too
+            called |= {arg.id for arg in node.args[1:] if isinstance(arg, ast.Name)}
+    hidden = sorted(called & columns)
+    if hidden:
+        renames = {name: _unused_name(f"{name}_", columns) for name in hidden}
+        raise UnsafeFormulaError(
+            f"The formula calls {', '.join(f'{name}()' for name in hidden)}, and a column has the same name, "
+            f"which patsy finds first and tries to call. Rename the column, for example with "
+            f".rename(columns={renames!r})."
+        )
 
 
 def _check_formula_node(node: ast.AST, allowed: set[str], *, allow_numpy: bool) -> None:

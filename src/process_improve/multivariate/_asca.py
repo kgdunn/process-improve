@@ -30,7 +30,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
 from process_improve._random import check_random_state
-from process_improve.experiments._lm import validate_identifiers_are_safe
+from process_improve.experiments._lm import validate_formula_is_safe, validate_identifiers_are_safe
 from process_improve.univariate.metrics import benjamini_hochberg
 
 from ._common import DataMatrix, _model_method, epsqrt
@@ -58,7 +58,8 @@ def _sum_coded_rhs(factors: list[str], model: str) -> str:
         (SEC-14), since the name is interpolated into a formula string.
     model : str
         ``"main_effects"``, ``"interactions"`` (every two-way interaction as well), or a
-        right-hand side to use verbatim.
+        right-hand side to use verbatim. The right-hand side goes through
+        :func:`~process_improve.experiments._lm.validate_formula_is_safe` either way.
 
     Returns
     -------
@@ -69,10 +70,13 @@ def _sum_coded_rhs(factors: list[str], model: str) -> str:
     coded = [f"C({name}, Sum)" for name in factors]
     joined = " + ".join(coded)
     if model == "main_effects":
-        return joined
-    if model == "interactions":
-        return f"({joined}) ** 2" if len(coded) > 1 else joined
-    return model
+        rhs = joined
+    elif model == "interactions":
+        rhs = f"({joined}) ** 2" if len(coded) > 1 else joined
+    else:
+        rhs = model
+    validate_formula_is_safe(rhs, factors, allow_transforms=True)
+    return rhs
 
 
 def _pretty(term_name: str) -> str:
