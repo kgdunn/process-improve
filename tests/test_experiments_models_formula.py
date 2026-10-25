@@ -22,6 +22,8 @@ from process_improve.experiments.models import (
 )
 
 _COLUMNS = ["A", "B", "C", "y", "d"]
+#: No column C beside a formula that calls C(): patsy would find the column first (see TestColumnNamedLikeACall).
+_CATEGORICAL_COLUMNS = ["A", "B", "y", "d"]
 
 
 class TestValidateFormulaIsSafe:
@@ -263,7 +265,7 @@ class TestCategoricalContrasts:
         ],
     )
     def test_categorical_contrasts_allowed(self, formula: str) -> None:
-        validate_formula_is_safe(formula, _COLUMNS, allow_transforms=True)
+        validate_formula_is_safe(formula, _CATEGORICAL_COLUMNS, allow_transforms=True)
 
     @pytest.mark.parametrize(
         "formula",
@@ -287,7 +289,7 @@ class TestCategoricalContrasts:
     )
     def test_literal_contrast_arguments_allowed(self, formula: str) -> None:
         """A reference level or level list given as literals is a legitimate contrast specification."""
-        validate_formula_is_safe(formula, _COLUMNS, allow_transforms=True, allow_numpy=True)
+        validate_formula_is_safe(formula, _CATEGORICAL_COLUMNS, allow_transforms=True, allow_numpy=True)
 
 
 class TestValidateFormulaRejectionMessages:
