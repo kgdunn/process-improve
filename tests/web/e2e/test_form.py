@@ -184,6 +184,9 @@ def test_a_factor_s_name_is_checked_as_it_is_typed(page):
     name.fill("lambda")
     assert problems(page) == "lambda: Python keeps this word for itself, so a model cannot name it; try lambda_."
     assert page.is_disabled("#generate")
+    name.fill("I")
+    assert problems(page) == "I: the model's square terms call I(), which a factor named I would hide; try I_."
+    assert page.is_disabled("#generate")
     name.fill("P")
     assert problems(page) == "P: two factors cannot share a name."
     name.fill("Temp_2")

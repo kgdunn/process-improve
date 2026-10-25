@@ -682,7 +682,7 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: one at least, each a variable name a model can hold, none twice."""
+    """Read and check the factors' names: one at least, each a variable name a model can hold and not I, none twice."""
     if not raw:
         raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
@@ -692,6 +692,10 @@ def _factor_names(raw: list) -> list[str]:
         raise ValueError(
             "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
             f"try {tries}."
+        )
+    if "I" in names:  # patsy finds the column before its own I(), which every square term calls
+        raise ValueError(
+            "A factor cannot be named I: the model's square terms call I(), which it would hide. Try 'I_'."
         )
     if len(set(names)) != len(names):
         raise ValueError("Factor names must be unique.")

@@ -585,7 +585,7 @@ export function suggestName(name) {
 
 /**
  * What a factor's name needs, in a sentence the page shows as the reader types; "" when it is ready.
- * The rules are those bootstrap.py applies: a variable name and not a Python keyword, unlike every
+ * The rules are those bootstrap.py applies: a variable name, not a Python keyword and not I, unlike every
  * other factor's, and unlike ``taken``, the run sheet's other columns a factor renamed on it cannot take
  * (its results, its blocks). A name that breaks the first rule comes with one that keeps it.
  */
@@ -594,6 +594,8 @@ export function nameProblem(name, others = [], place = 1, taken = []) {
   if (!n) return `Factor ${place} needs a name.`;
   if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as ${suggestName(n)}.`;
   if (KEYWORDS.has(n)) return `${n}: Python keeps this word for itself, so a model cannot name it; try ${suggestName(n)}.`;
+  // Patsy finds a column before its own I(), which every square term calls, so a factor I breaks a quadratic model.
+  if (n === "I") return "I: the model's square terms call I(), which a factor named I would hide; try I_.";
   if (others.includes(n)) return `${n}: two factors cannot share a name.`;
   if (taken.includes(n)) return `${n}: the run sheet has a ${n} column already.`;
   return "";
