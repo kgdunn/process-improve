@@ -57366,21 +57366,21 @@
        "kind": "optimum",
        "method": "canonical_analysis",
        "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
-       "key": "canonical_analysis.b_canonical.origin_response",
+       "key": "canonical_analysis.ridge_form.origin_response",
        "printed": "88.2",
-       "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 88.2 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+       "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 88.2 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
       },
       {
        "kind": "optimum",
        "method": "canonical_analysis",
        "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
-       "key": "canonical_analysis.b_canonical.linear",
+       "key": "canonical_analysis.ridge_form.linear",
        "abs": true,
        "printed": "2.4",
-       "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 2.4 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+       "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 2.4 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
       }
      ],
-     "analysis": "the library's B canonical form (Box and Draper): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge"
+     "analysis": "the library's ridge form (Box and Draper's Eq. 11.1.2): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge"
     },
     {
      "what": "canonical",
@@ -57424,12 +57424,12 @@
       "kind": "optimum",
       "method": "canonical_analysis",
       "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
-      "key": "canonical_analysis.b_canonical.offsets.0",
+      "key": "canonical_analysis.ridge_form.offsets.0",
       "sign_of": "canonical_analysis.eigenvectors.0.0",
       "printed": "0.33",
-      "disagreement": "the B canonical form of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 0.33 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+      "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 0.33 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
      },
-     "analysis": "the library's B canonical form (Box and Draper): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge: the constant of the ridge X1 = 0"
+     "analysis": "the library's ridge form (Box and Draper's Eq. 11.1.2): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge: the constant of the ridge X1 = 0"
     }
    ]
   },

@@ -25146,14 +25146,14 @@
       "quote": "θ = M'b = [0.6 0.8; -0.8 0.6][2.272; 3.496] = [4.16; 0.28], (10.3.17)"
      },
      "check": {
-      "manual": "m1'b, the slope along X1 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m1'b, the slope along X1 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
      "what": "canonical",
      "term": "θ2",
      "value": "0.28",
-     "analysis": "canonical analysis of the constructed equation (10.3.11): the slope along the axis of the smaller eigenvalue in size, the library's b_canonical.linear (m2'b), m2 signed as (10.3.15) prints it",
+     "analysis": "canonical analysis of the constructed equation (10.3.11): the slope along the axis of the smaller eigenvalue in size, the library's ridge_form.linear (m2'b), m2 signed as (10.3.15) prints it",
      "where": {
       "page": 332,
       "source_kind": "math",
@@ -25202,7 +25202,7 @@
       "kwargs": {
        "method": "canonical_analysis"
       },
-      "key": "canonical_analysis.b_canonical.linear",
+      "key": "canonical_analysis.ridge_form.linear",
       "sign_of": "canonical_analysis.eigenvectors.1.1"
      }
     },
@@ -25257,7 +25257,7 @@
       "quote": "ŷ = 78.8988 + 4.16X1 + 0.28X2 - 4X1² - 1X2², (10.3.19)"
      },
      "check": {
-      "manual": "the slopes θ of (10.3.17) again; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "the slopes θ of (10.3.17) again; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -25715,14 +25715,14 @@
       "quote": "Slopes θ 4.2 0.3"
      },
      "check": {
-      "manual": "m1'b = 4.16 (10.3.17) rounded; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m1'b = 4.16 (10.3.17) rounded; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
      "what": "canonical",
      "term": "slope θ2",
      "value": "0.3",
-     "analysis": "Example 11.1: the slope along the axis of the smaller eigenvalue, the library's b_canonical.linear",
+     "analysis": "Example 11.1: the slope along the axis of the smaller eigenvalue, the library's ridge_form.linear",
      "where": {
       "page": 348,
       "source_kind": "table",
@@ -25771,7 +25771,7 @@
       "kwargs": {
        "method": "canonical_analysis"
       },
-      "key": "canonical_analysis.b_canonical.linear",
+      "key": "canonical_analysis.ridge_form.linear",
       "sign_of": "canonical_analysis.eigenvectors.1.1"
      }
     },
@@ -211571,7 +211571,7 @@
       "quote": "Slopes θ 0.1 -2.3 2.2"
      },
      "check": {
-      "manual": "m1'b = 0.110; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m1'b = 0.110; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -211585,14 +211585,14 @@
       "quote": "Slopes θ 0.1 -2.3 2.2"
      },
      "check": {
-      "manual": "m2'b = -2.301; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m2'b = -2.301; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
      "what": "canonical",
      "term": "slope θ3",
      "value": "2.2",
-     "analysis": "Example 11.2: the slope along the axis of the smallest eigenvalue, the library's b_canonical.linear (m3'b)",
+     "analysis": "Example 11.2: the slope along the axis of the smallest eigenvalue, the library's ridge_form.linear (m3'b)",
      "where": {
       "page": 348,
       "source_kind": "table",
@@ -211658,7 +211658,7 @@
       "kwargs": {
        "method": "canonical_analysis"
       },
-      "key": "canonical_analysis.b_canonical.linear",
+      "key": "canonical_analysis.ridge_form.linear",
       "sign_of": "canonical_analysis.eigenvectors.2.0"
      }
     },
@@ -214760,7 +214760,7 @@
       "quote": "Slopes θ 2.3 0.3 0.3"
      },
      "check": {
-      "manual": "m1'b; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m1'b; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -214774,14 +214774,14 @@
       "quote": "Slopes θ 2.3 0.3 0.3"
      },
      "check": {
-      "manual": "m2'b; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m2'b; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
      "what": "canonical",
      "term": "slope θ3",
      "value": "0.3",
-     "analysis": "the summary table of the canonical analysis of (11.3.5), the eigenvectors signed as (11.3.8) prints them: the slope along the axis of the smallest eigenvalue, the library's b_canonical.linear (m3'b)",
+     "analysis": "the summary table of the canonical analysis of (11.3.5), the eigenvectors signed as (11.3.8) prints them: the slope along the axis of the smallest eigenvalue, the library's ridge_form.linear (m3'b)",
      "where": {
       "page": 351,
       "source_kind": "table",
@@ -214847,7 +214847,7 @@
       "kwargs": {
        "method": "canonical_analysis"
       },
-      "key": "canonical_analysis.b_canonical.linear",
+      "key": "canonical_analysis.ridge_form.linear",
       "sign_of": "canonical_analysis.eigenvectors.2.0"
      }
     },
@@ -217774,7 +217774,7 @@
       "quote": "ŷ = 57.71 - 10.49X̃1² + 1.25Ẋ2 + 6.53Ẋ3. (11.4.10)"
      },
      "check": {
-      "manual": "ŷ at R, the point of the plane X̃1 = 0 nearest the design origin, from (11.4.9); the library's B form (b_canonical) takes one axis, that of the smallest eigenvalue, as the ridge and sets its origin where the response is stationary along all the others; it has no form that treats several eigenvalues as negligible and takes as origin the point R of the plane X̃1 = 0 nearest the design centre"
+      "manual": "ŷ at R, the point of the plane X̃1 = 0 nearest the design origin, from (11.4.9); the library's ridge form (ridge_form) takes one axis, that of the smallest eigenvalue, as the ridge and sets its origin where the response is stationary along all the others; it has no form that treats several eigenvalues as negligible and takes as origin the point R of the plane X̃1 = 0 nearest the design centre"
      }
     },
     {
@@ -217804,14 +217804,14 @@
       "quote": "ŷ = 57.71 - 10.49X̃1² + 1.25Ẋ2 + 6.53Ẋ3. (11.4.10)"
      },
      "check": {
-      "manual": "2(1.7109)(0.3649), the slope along X2 at R; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "2(1.7109)(0.3649), the slope along X2 at R; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
      "what": "canonical",
      "term": "approximating form, Ẋ3",
      "value": "6.53",
-     "analysis": "canonical analysis of the fitted equation (11.4.2): the slope along the ridge axis X3, the axis of the smallest eigenvalue, which is the library's b_canonical.linear (m3'b), m3 signed as (11.4.5) prints it",
+     "analysis": "canonical analysis of the fitted equation (11.4.2): the slope along the ridge axis X3, the axis of the smallest eigenvalue, which is the library's ridge_form.linear (m3'b), m3 signed as (11.4.5) prints it",
      "where": {
       "page": 357,
       "source_kind": "math",
@@ -217821,7 +217821,7 @@
       "kind": "optimum",
       "method": "canonical_analysis",
       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
-      "key": "canonical_analysis.b_canonical.linear",
+      "key": "canonical_analysis.ridge_form.linear",
       "sign_of": "canonical_analysis.eigenvectors.2.0",
       "disagreement": "Book slip: (11.4.10) works with λ3 = -0.0925 where (11.4.6) has -0.0965; with the slope m3'b of the fitted equation the coefficient is 6.80762 (and the constant 52.73, not 57.71)."
      }
@@ -217836,7 +217836,7 @@
       "quote": "1.25Ẋ2 + 6.53Ẋ3 = 4.41x1 + 4.03x2 + 2.91x3"
      },
      "check": {
-      "manual": "1.25m2 + 6.53m3, arithmetic on the slopes of (11.4.10) and the eigenvectors; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "1.25m2 + 6.53m3, arithmetic on the slopes of (11.4.10) and the eigenvectors; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -217849,7 +217849,7 @@
       "quote": "= 6.645(0.664x1 + 0.606x2 + 0.438x3) = 6.645X, (11.4.11)"
      },
      "check": {
-      "manual": "the length of (4.41, 4.03, 2.91); arithmetic on numbers of (11.4.11); the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "the length of (4.41, 4.03, 2.91); arithmetic on numbers of (11.4.11); the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -217862,7 +217862,7 @@
       "quote": "= 6.645(0.664x1 + 0.606x2 + 0.438x3) = 6.645X, (11.4.11)"
      },
      "check": {
-      "manual": "(4.41, 4.03, 2.91) normalized; arithmetic on numbers of (11.4.11); the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "(4.41, 4.03, 2.91) normalized; arithmetic on numbers of (11.4.11); the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -217889,7 +217889,7 @@
       "quote": "Slopes θ 6.3 1.3 6.8"
      },
      "check": {
-      "manual": "m1'b, the slope along X1 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m1'b, the slope along X1 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -217903,7 +217903,7 @@
       "quote": "Slopes θ 6.3 1.3 6.8"
      },
      "check": {
-      "manual": "m2'b, the slope along X2 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (b_canonical.linear), not along every canonical axis"
+      "manual": "m2'b, the slope along X2 at the design origin; the library has no A canonical form: it reports the slope theta = m'b only along the axis of the smallest eigenvalue (ridge_form.linear), not along every canonical axis"
      }
     },
     {
@@ -217920,7 +217920,7 @@
       "kind": "optimum",
       "method": "canonical_analysis",
       "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
-      "key": "canonical_analysis.b_canonical.linear",
+      "key": "canonical_analysis.ridge_form.linear",
       "sign_of": "canonical_analysis.eigenvectors.2.0"
      }
     },
