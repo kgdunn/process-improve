@@ -551,7 +551,8 @@ The items both sources describe, by section: the first candidates for priority.
   - Tᵢ² = Σₐ tᵢₐ²/sₐ² `[A B]`;
   - T²·N(N − A)/(A(N² − 1)) ~ F(A, N − A), which gives the limit `[A B]`; measured, A's own
     exports use the fitted-row form, T²(N − A)/(A(N − 1)) ~ F(A, N − A), and one published
-    figure of A's draws its ellipse at A·F(A, N − A) (URS STA-4);
+    figure of A's draws its ellipse at A·F(A, N − A); a fitted row's T² follows a scaled
+    beta (URS STA-4);
   - the ellipse axes are (sₐ²·F(2, N−2, α)·2(N² − 1)/(N(N − 2)))^½ `[A B]`;
   - any range of components;
   - 0.05 and 0.01 limits `[A B]`;
