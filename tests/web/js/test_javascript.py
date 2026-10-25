@@ -7,12 +7,15 @@ tests skip, and CI's web-app job runs them on Node.js 22.
 
 from __future__ import annotations
 
+import json
+import keyword
 import re
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from process_improve.experiments._lm import suggest_identifier
 from tests.web._support import ROOT
 
 HERE = Path(__file__).parent
@@ -58,3 +61,29 @@ def test_the_page_s_javascript(node, suite):
         [node, "--test", str(HERE / suite)], capture_output=True, text=True, encoding="utf-8", check=False, cwd=ROOT
     )
     assert done.returncode == 0, done.stdout[-6000:] + done.stderr[-2000:]
+
+
+#: Names a reader could type that a model cannot hold, and Python's keywords, which it cannot either.
+TYPED_NAMES = [
+    *("Water %", "Yield (%)", "Temp (°C)", "Run #", "Conc. [g/L]", "2nd stage", "  Yield  ", "a__b", "Été", "x²"),
+    *("a·b", "Size (µm)", "__import__('os')", "", "%", "match", *keyword.kwlist),
+]
+
+
+def test_the_page_suggests_the_names_the_library_does(node):
+    """``suggestName`` in ``web/logic.js`` gives each typed name the one ``suggest_identifier`` gives it."""
+    if node_version(node) < LEAST:
+        pytest.skip(f"Node.js {'.'.join(map(str, LEAST))} or later reads web/*.js as ES modules")
+    script = (
+        "import { suggestName } from './web/logic.js';"
+        f"console.log(JSON.stringify({json.dumps(TYPED_NAMES)}.map(suggestName)));"
+    )
+    done = subprocess.run(  # noqa: S603 - Node.js running the page's own module
+        [node, "--input-type=module", "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+        cwd=ROOT,
+    )
+    assert json.loads(done.stdout) == [suggest_identifier(name) for name in TYPED_NAMES]

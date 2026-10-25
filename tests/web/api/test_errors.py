@@ -179,12 +179,23 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "repeated name": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "T"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        "Factor names must be unique.",
     ),
     "name with a space": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "a b"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'a_b' for 'a b'."
+        ),
+    ),
+    "names with a percent sign and a keyword": (
+        "api_make_design",
+        _make(factors=[{**FACTORS[0], "name": "Water %"}, {**FACTORS[1], "name": "lambda"}, FACTORS[2]]),
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'Water_pct' for 'Water %', 'lambda_' for 'lambda'."
+        ),
     ),
     "low above high": (
         "api_make_design",
@@ -550,7 +561,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "response that is not a name": (
         "api_analyze_runs",
         lambda ex: {**_spec(response="__import__('os')")(ex), "responses": ex["simulated"]["responses"]},
-        "The response name must be a variable name different from every factor.",
+        "The response name must be a variable name (letters, digits, _): try 'import_os'.",
     ),
     "unknown model to analyse with": (
         "api_analyze_runs",
