@@ -274,16 +274,31 @@ export function causeTotals(cases) {
   return out;
 }
 
+/** The clause of a reason that names what the library lacks: "the library has no ..." up to a ";" or ":". */
+const LACKS = /\bthe library (?:has no|does not|cannot|lacks|makes no|offers no|works)\b[^;:]*/i;
+
 /**
- * The numbers the library cannot compute yet, grouped by the reason the catalogue gives, the reasons that
- * would recompute most numbers first: a list of what to add to the library. Each holds its cases.
+ * What a number not in the library yet waits on: the clause of its reason that names what the library lacks,
+ * so the numbers of one missing method fall together, or the whole reason where that clause is too short to
+ * tell one missing method from another ("the library does not compute").
+ */
+export function missingKey(reason) {
+  const clause = LACKS.exec(reason)?.[0].trim().replace(/[,.]$/, "");
+  if (!clause || clause.split(/\s+/).length < 6) return reason;
+  return clause[0].toUpperCase() + clause.slice(1);
+}
+
+/**
+ * The numbers the library cannot compute yet, grouped by what they wait on (missingKey), those that would
+ * recompute most numbers first: a list of what to add to the library. Each holds its cases.
  */
 export function missingByReason(cases) {
   const groups = new Map();
   for (const c of cases) {
     for (const number of c.missing ?? []) {
-      if (!groups.has(number.reason)) groups.set(number.reason, { reason: number.reason, numbers: 0, cases: [] });
-      const group = groups.get(number.reason);
+      const key = missingKey(number.reason);
+      if (!groups.has(key)) groups.set(key, { reason: key, numbers: 0, cases: [] });
+      const group = groups.get(key);
       group.numbers += 1;
       if (!group.cases.includes(c)) group.cases.push(c);
     }

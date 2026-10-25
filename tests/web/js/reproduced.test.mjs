@@ -13,6 +13,7 @@ import {
   bySource,
   causeTotals,
   missingByReason,
+  missingKey,
   errorBands,
   filterCases,
   formatError,
@@ -164,9 +165,17 @@ describe("the causes", () => {
     assert.deepEqual(causeTotals(CASES), { differs: { method: 4, source_error: 1 }, unchecked: { library_gap: 3, not_a_result: 3 } });
   });
 
+  test("the numbers of one missing method fall together, whatever each number is", () => {
+    const ridge = "the library has no ridge analysis under linear restrictions: its ridge_analysis traces spheres";
+    assert.equal(missingKey(`a point of path A at 400; ${ridge}`), "The library has no ridge analysis under linear restrictions");
+    assert.equal(missingKey(`x1 of path B; ${ridge}`), missingKey(`a statement; ${ridge}`));
+    const vague = "Larntz and Whitcomb's multiplier, which the library does not compute";
+    assert.equal(missingKey(vague), vague, "too short a clause to tell one missing method from another");
+  });
+
   test("what the library lacks is grouped by its reason, with the numbers and cases that wait on it", () => {
     const groups = missingByReason(CASES);
-    assert.deepEqual(groups.map((g) => [g.reason, g.numbers, g.cases.map((c) => c.id)]), [["the library has no IRLS fit", 3, ["e", "f"]]]);
+    assert.deepEqual(groups.map((g) => [g.reason, g.numbers, g.cases.map((c) => c.id)]), [["The library has no IRLS fit", 3, ["e", "f"]]]);
   });
 });
 

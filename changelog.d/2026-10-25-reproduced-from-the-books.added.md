@@ -8,7 +8,16 @@
   the numbers that differ with the printed value, the library's value, the relative difference, where the source
   prints it and the reason the catalogue records. The page can be searched (a title, a quantity, a word of the
   reasons such as "misprint"), filtered by source, form of source and kind of case, and its address keeps the
-  view, down to one case.
+  view, down to one case. The causes of the differences, and of the printed numbers not recomputed, are counted
+  for all the sources together, and a list of what the library lacks orders the missing methods by how many
+  printed numbers each would recompute.
+- **Every difference and every number not recomputed in the reference catalogue now records its cause.** A
+  check with a `disagreement` names one of `reference_catalogue.DISAGREEMENT_CAUSES` (an error in the source, a
+  quiz option its key marks incorrect, the source's rounding, another method, the library, or not known yet) and a
+  check with a `manual` reason one of `UNCHECKED_CAUSES` (not in the library yet, not read by a check yet, data not
+  printed, nothing to recompute); `reproduce_reference_catalogue` reports it in a `cause` column. A number the source
+  prints in error, or a quiz option keyed incorrect, does not count against a case's tier
+  (`design_catalog.LIBRARY_RIGHT`).
 - **`design_catalog.catalog_reproduction`** returns that classification for every case, or for one source, and
   `REPRODUCTION_TIERS` holds each tier's largest relative difference. **`design_catalog.source_form`** reads the
   form of a source from what the catalogue records of it (`SOURCE_FORMS`). The browser app's build writes both to

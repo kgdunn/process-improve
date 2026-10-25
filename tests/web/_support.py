@@ -387,8 +387,9 @@ CATALOG_SAMPLE = (
     "lib-full-factorial-k3",
 )
 
-#: The sources whose cases the reproduction page is tested on: between them, a case in each of the four tiers.
-REPRODUCTION_SAMPLE = ("lenth-1989", "nunez-ares-goos-2019")
+#: The sources the reproduction page is tested on: between them, a case in each of the four tiers, errors in
+#: the source and numbers the library cannot compute yet.
+REPRODUCTION_SAMPLE = ("lenth-1989", "nunez-ares-et-al-2023")
 
 
 #: A design printed in the book, whose page the catalog links to at its section: a case study of a fed-batch

@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from process_improve.experiments import design_catalog
+from process_improve.experiments.reference_catalogue import DISAGREEMENT_CAUSES, UNCHECKED_CAUSES
 from tests.web._support import (
     BOOK_DESIGN,
     CATALOG_SAMPLE,
@@ -557,6 +558,10 @@ def test_the_reproduction_holds_each_case_its_tier_and_the_sources_it_names(repr
     assert data["tiers"] == {"reproduced": 0.0, "within_1": 0.01, "within_5": 0.05, "not_reproduced": None}
     assert {c["source"] for c in data["cases"]} == set(REPRODUCTION_SAMPLE)
     assert {c["source"] for c in data["cases"]} <= set(data["sources"])
-    assert {c["tier"] for c in data["cases"]} == set(data["tiers"]), "the sample has a case in every tier"
+    assert {c["tier"] for c in data["cases"]} - {None} == set(data["tiers"]), "the sample has a case in every tier"
+    assert data["causes"] == {"differs": DISAGREEMENT_CAUSES, "unchecked": UNCHECKED_CAUSES}
+    assert set(data["library_right"]) == design_catalog.LIBRARY_RIGHT
     for case in data["cases"]:
-        assert (case["tier"] == "reproduced") == (not case["differs"]), case["id"]
+        held = [n for n in case["differs"] if n["cause"] not in data["library_right"]]
+        assert (case["tier"] == "reproduced") == (case["tier"] is not None and not held), case["id"]
+        assert len(case["missing"]) == case["unchecked"].get("library_gap", 0), case["id"]
