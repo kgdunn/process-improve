@@ -465,16 +465,59 @@ def _stack_ccd(cube: np.ndarray, axial_distance: float, n_center_points: int) ->
     return np.vstack([cube, np.zeros((n_center_cube, k)), star, np.zeros((n_center_points - n_center_cube, k))])
 
 
-#: Box and Behnken's (1960) blocks for six and seven factors: each block carries a two-level
-#: factorial in the factors it names, with every other factor at its centre. Six factors use
-#: their partially balanced design (a pair of factors meets in one or two blocks); seven use
-#: the balanced design on the Fano plane, written cyclically (the published table up to a
-#: relabelling of the factors). Pairing every two factors, as ``bbdesign`` does for any k, gives the
-#: published design for three to five factors but 60 and 84 runs at six and seven.
+def _cyclic_blocks(base: tuple[int, ...], k: int) -> tuple[tuple[int, ...], ...]:
+    """Develop the block ``base`` cyclically modulo ``k``: the ``k`` blocks ``base + i``."""
+    return tuple(tuple(sorted((j + i) % k for j in base)) for i in range(k))
+
+
+#: Box and Behnken's (1960) blocks, Table 4: each block carries a two-level factorial in the
+#: factors it names, with every other factor at its centre. Factors are numbered from 0 here,
+#: from 1 in the paper. Six, nine, ten, twelve and sixteen factors use partially balanced
+#: designs (two pairs of factors can meet in a different number of blocks); seven and eleven
+#: use balanced ones. Seven factors are written cyclically on the Fano plane, the published
+#: table up to a relabelling of the factors; the others are as printed. Pairing every two
+#: factors, as ``bbdesign`` does for any k, gives the published design for three to five
+#: factors but more runs from six on: 60, 84 and 144 instead of 48, 56 and 120 at 6, 7 and 9.
 _BOX_BEHNKEN_BLOCKS: dict[int, tuple[tuple[int, ...], ...]] = {
     6: ((0, 1, 3), (1, 2, 4), (2, 3, 5), (0, 3, 4), (1, 4, 5), (0, 2, 5)),
     7: ((0, 1, 3), (1, 2, 4), (2, 3, 5), (3, 4, 6), (0, 4, 5), (1, 5, 6), (0, 2, 6)),
+    # Five sets of three blocks; the fifth repeats the first, so the pairs within a block of
+    # the first set (the paper's first associates) meet twice.
+    9: (
+        *((0, 3, 6), (1, 4, 7), (2, 5, 8)),
+        *((0, 1, 2), (3, 4, 5), (6, 7, 8)),
+        *((0, 4, 8), (2, 3, 7), (1, 5, 6)),
+        *((0, 5, 7), (1, 3, 8), (2, 4, 6)),
+        *((0, 3, 6), (1, 4, 7), (2, 5, 8)),
+    ),
+    10: (
+        (1, 5, 6, 9),
+        (0, 1, 4, 9),
+        (1, 2, 6, 7),
+        (1, 3, 5, 8),
+        (0, 7, 8, 9),
+        (2, 3, 4, 9),
+        (0, 3, 6, 7),
+        (2, 4, 6, 8),
+        (0, 2, 5, 8),
+        (3, 4, 5, 7),
+    ),
+    11: _cyclic_blocks((0, 1, 2, 4, 7), 11),
+    12: _cyclic_blocks((0, 1, 4, 6), 12),
+    # Six sets of four blocks, each set a partition of the sixteen factors.
+    16: (
+        *((0, 1, 5, 8), (2, 3, 7, 10), (4, 9, 12, 13), (6, 11, 14, 15)),
+        *((1, 2, 6, 9), (0, 3, 4, 11), (5, 10, 13, 14), (7, 8, 12, 15)),
+        *((1, 4, 5, 12), (3, 6, 7, 14), (0, 8, 9, 13), (2, 10, 11, 15)),
+        *((2, 5, 6, 13), (0, 4, 7, 15), (1, 9, 10, 14), (3, 8, 11, 12)),
+        *((0, 2, 12, 14), (1, 3, 13, 15), (4, 6, 8, 10), (5, 7, 9, 11)),
+        *((3, 5, 9, 15), (2, 4, 8, 14), (0, 6, 10, 12), (1, 7, 11, 13)),
+    ),
 }
+
+#: Factor counts whose blocks of five carry the half fraction ``x1 x2 x3 x4 x5 = +1`` (Table 4,
+#: design 8) rather than the full 2^5 factorial.
+_BOX_BEHNKEN_HALF_FRACTION = frozenset({11})
 
 
 def dispatch_box_behnken(
@@ -484,10 +527,11 @@ def dispatch_box_behnken(
     """Generate a Box-Behnken design.
 
     Three to five factors: a two-level factorial in every pair of factors
-    (``bbdesign``), which is the published design. Six and seven factors: the published
-    blocks of three factors in ``_BOX_BEHNKEN_BLOCKS`` (48 and 56 runs plus centre
-    points). Eight or more factors: all pairs again, since Box and Behnken's larger
-    designs are not tabulated here; ``metadata["construction"]`` says ``"all_pairs"``.
+    (``bbdesign``), which is the published design. Six, seven, nine, ten, eleven, twelve
+    and sixteen factors: the published blocks in ``_BOX_BEHNKEN_BLOCKS`` (48, 56, 120,
+    160, 176, 192 and 384 runs plus centre points). Box and Behnken published no design
+    for eight, thirteen to fifteen, or more than sixteen factors: these pair every two
+    factors, and ``metadata["construction"]`` says ``"all_pairs"``.
 
     Parameters
     ----------
@@ -518,14 +562,18 @@ def dispatch_box_behnken(
     if blocks is None:
         construction = "published_pairs" if k <= 5 else "all_pairs"
         return bbdesign(k, center=n_center_points), {"construction": construction}
+    half = k in _BOX_BEHNKEN_HALF_FRACTION
     rows = []
     for block in blocks:
         for corner in itertools.product((-1.0, 1.0), repeat=len(block)):
+            if half and np.prod(corner) < 0:
+                continue
             row = np.zeros(k)
             row[list(block)] = corner
             rows.append(row)
     rows.extend(np.zeros(k) for _ in range(n_center_points))
-    return np.asarray(rows), {"construction": "published_blocks_of_three"}
+    size = {3: "three", 4: "four", 5: "five"}[len(blocks[0])]
+    return np.asarray(rows), {"construction": f"published_blocks_of_{size}"}
 
 
 def dsd_conference_order(n_factors: int) -> int:

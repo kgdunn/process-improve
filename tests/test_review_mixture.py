@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import itertools
-import logging
 
 import numpy as np
 import pandas as pd
@@ -28,20 +27,19 @@ def _components(q: int, low: float = 0.0, high: float = 1.0) -> list[Factor]:
 
 
 class TestFullSimplex:
-    def test_special_cubic_with_a_small_budget_can_be_fitted(self) -> None:
-        """6 runs for a 7-term special cubic gave the 6-run {3, 2} lattice, of rank 6."""
+    def test_special_cubic_with_one_run_per_term_can_be_fitted(self) -> None:
+        """6 runs for a 7-term special cubic gave the 6-run {3, 2} lattice, of rank 6; 7 runs fit it."""
         factors = _components(3)
-        result = generate_design(factors, design_type="mixture", budget=6, model_type="scheffe_special_cubic")
+        result = generate_design(factors, design_type="mixture", budget=7, model_type="scheffe_special_cubic")
         x = result.design_actual[["x1", "x2", "x3"]].to_numpy(dtype=float)
         assert np.linalg.matrix_rank(scheffe_matrix(x, "scheffe_special_cubic")) == 7
-        assert result.metadata["budget_requested"] == 6
 
-    def test_budget_below_the_model_is_recorded(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
-            result = generate_design(_components(3), design_type="mixture", budget=2)
-        assert result.n_runs == 6
-        assert result.metadata["budget_requested"] == 2
-        assert "raising the budget to 6" in caplog.text
+    @pytest.mark.parametrize(("budget", "model_type", "n_terms"), [(2, None, 6), (6, "scheffe_special_cubic", 7)])
+    def test_budget_below_the_model_is_refused(self, budget: int, model_type: str | None, n_terms: int) -> None:
+        """A budget the caller gave is a limit: it is refused, not enlarged (#957)."""
+        options = {} if model_type is None else {"model_type": model_type}
+        with pytest.raises(ValueError, match=f"budget={budget} run.*which has {n_terms} coefficients"):
+            generate_design(_components(3), design_type="mixture", budget=budget, **options)
 
     @pytest.mark.parametrize(("q", "runs"), [(8, 9), (10, 11), (13, 14)])
     def test_linear_model_gets_the_vertices_and_centroid(self, q: int, runs: int) -> None:

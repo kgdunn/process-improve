@@ -346,11 +346,10 @@ class TestGenerateDesign:
         assert result.metadata["model_type"] == "main_effects"
         assert "cannot estimate the 'quadratic' model" in caplog.text
 
-    def test_a_budget_below_the_model_size_is_raised(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
-            result = generate_design(list(self.FACTORS), design_type="d_optimal", budget=10)
-        assert result.n_runs == 13
-        assert result.metadata["budget_requested"] == 10
+    def test_a_budget_below_the_model_size_is_refused(self) -> None:
+        """Ten runs for a 13-term mixture-process model raise instead of growing (#957)."""
+        with pytest.raises(ValueError, match=r"budget=10 run.*which has 13 coefficients"):
+            generate_design(list(self.FACTORS), design_type="d_optimal", budget=10)
 
 
 class TestRefusals:

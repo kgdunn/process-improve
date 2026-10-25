@@ -1783,13 +1783,13 @@ def _blocked_search(
     The fixed runs, already made, are a block of their own, the first; the free runs
     fill the others in near-equal shares. Each block the free runs fill gets a copy of
     the candidates, with that block's columns (:func:`block_columns`) and its index as
-    one more categorical column, which the polish never moves. The budget is raised,
-    with a warning, when the block effects leave too few runs to estimate the model.
+    one more categorical column, which the polish never moves.
 
     Raises
     ------
     ValueError
-        If the budget leaves fewer than two new runs for each block they fill.
+        If the block effects leave the budget too few runs to estimate the model, or the
+        budget leaves fewer than two new runs for each block they fill.
     """
     n_fixed = len(f_fixed)
     free_blocks = np.arange(1 if n_fixed else 0, n_blocks)
@@ -1797,17 +1797,11 @@ def _blocked_search(
     n_parameters = pool.rows.shape[1] + n_blocks - 1
     needed = n_fixed + n_parameters - (int(np.linalg.matrix_rank(f_fixed)) if n_fixed else 0)
     if budget < needed:
-        logger.warning(
-            "Running the design in %d blocks adds %d block effect(s) to the model's %d coefficients, so it needs at "
-            "least %d runs; raising the budget from %d to %d.",
-            n_blocks,
-            n_blocks - 1,
-            pool.rows.shape[1],
-            needed,
-            budget,
-            needed,
+        raise ValueError(
+            f"Running the design in {n_blocks} blocks adds {n_blocks - 1} block effect(s) to the model's "
+            f"{pool.rows.shape[1]} coefficients, so it needs at least {needed} runs, more than budget={budget}. "
+            f"Use budget >= {needed} or fewer blocks."
         )
-        budget = needed
     if budget - n_fixed < 2 * len(free_blocks):
         raise ValueError(
             f"{n_blocks} blocks need at least two new runs in each of the {len(free_blocks)} blocks the new runs "
@@ -1866,15 +1860,13 @@ def _fixed_rows(region: _Region, fixed_runs: pd.DataFrame | None, model_type: st
     return model_matrix(region, fixed_coded, fixed_cats, model_type)
 
 
-def _fixed_run_metadata(region: _Region, fixed_runs: pd.DataFrame, requested_budget: int, budget: int) -> dict:
-    """Metadata on the fixed runs: how many, how many lie outside the region, and any budget they raised."""
+def _fixed_run_metadata(region: _Region, fixed_runs: pd.DataFrame) -> dict:
+    """Metadata on the fixed runs: how many, and how many lie outside the region."""
     meta = {"n_fixed_runs": len(fixed_runs)}
     coded, cats = _coded_runs(region, fixed_runs)
     n_outside = int((region.slack(coded, cats) > _FEASIBILITY_TOL).sum())
     if n_outside:
         meta["n_fixed_runs_outside_region"] = n_outside
-    if budget != requested_budget:
-        meta["budget_requested"] = requested_budget
     return meta
 
 
@@ -1987,15 +1979,40 @@ def selection_counts(labels: list, rows: np.ndarray) -> dict[str, int]:
     return {str(label): int(n) for label, n in chosen.items()}
 
 
+def _missing_rank(f_fixed: np.ndarray, n_parameters: int) -> int:
+    """Count the model coefficients the fixed runs leave unestimated: the rank the free runs must supply."""
+    return n_parameters - (int(np.linalg.matrix_rank(f_fixed)) if len(f_fixed) else 0)
+
+
+def refuse_budget_short_of_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) -> None:
+    """Raise when the budget leaves too few new runs to supply the rank the fixed runs lack.
+
+    Fixed runs that repeat a point (three centre runs, say) carry less information than
+    their count, so a budget above the number of coefficients can still be too small.
+
+    Raises
+    ------
+    ValueError
+        If ``budget`` minus the fixed runs is below the rank they lack.
+    """
+    n_fixed = len(f_fixed)
+    missing_rank = _missing_rank(f_fixed, n_parameters)
+    if budget - n_fixed < missing_rank:
+        raise ValueError(
+            f"The {n_fixed} fixed run(s) span only {n_parameters - missing_rank} of the {n_parameters} model "
+            f"coefficients, so at least {missing_rank} more run(s) are needed: budget >= {n_fixed + missing_rank}, "
+            f"not {budget}."
+        )
+
+
 def _budget_for_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) -> int:
     """Raise ``budget`` so the free runs can supply the rank the fixed runs lack, warning when it does.
 
-    Fixed runs that repeat a point (three centre runs, say) carry less information than
-    their count: the floor on the budget counts runs, not rank, so it can leave too few
-    free runs to estimate the model at all.
+    Augmentation (``augment_design``) uses this: its explanation reports the runs added. A design that
+    ``generate_design`` makes refuses such a budget instead (:func:`refuse_budget_short_of_fixed_runs`).
     """
     n_fixed = len(f_fixed)
-    missing_rank = n_parameters - (np.linalg.matrix_rank(f_fixed) if n_fixed else 0)
+    missing_rank = _missing_rank(f_fixed, n_parameters)
     if budget - n_fixed >= missing_rank:
         return budget
     logger.warning(
@@ -2134,9 +2151,8 @@ def constrained_optimal_design(
     factors : list[Factor]
         Continuous and categorical factors. Mixture factors are not supported here.
     budget : int
-        Total number of runs, including ``fixed_runs``. When the fixed runs leave too
-        few free runs to estimate the model, it is raised (with a warning) and the value
-        asked for is recorded in ``metadata["budget_requested"]``.
+        Total number of runs, including ``fixed_runs``. A budget that leaves too few free
+        runs for the rank the fixed runs lack, or for the block effects, raises a ``ValueError``.
     constraints : list[Constraint]
         Inequalities in actual units over the continuous factors, e.g.
         ``Constraint(expression="3*T + 5*D <= 600")``. May be empty.
@@ -2160,7 +2176,6 @@ def constrained_optimal_design(
     rng = check_random_state(random_state)
     opts = options if options is not None else ConstrainedOptions()
     model_type, fixed_runs = opts.model_type, opts.fixed_runs
-    requested_budget = budget
     _check_factors_and_model(factors, model_type)
 
     region = region_with_rules(factors, constraints)
@@ -2172,7 +2187,7 @@ def constrained_optimal_design(
     _check_candidates_support_model(counts, f_fixed, f_cand, model_type)
 
     p = f_cand.shape[1]
-    budget = _budget_for_fixed_runs(f_fixed, p, budget)
+    refuse_budget_short_of_fixed_runs(f_fixed, p, budget)
     criterion = make_criterion(opts.criterion, p, region_rows, f_cand)
     pool = CandidatePool(coded, cats, f_cand, _polish_lattice(region, opts, counts))
     block_labels = None
@@ -2208,10 +2223,8 @@ def constrained_optimal_design(
     meta.update(criterion_metadata(criterion, value))
     if block_labels is not None:
         meta["block_labels"] = (block_labels + 1).tolist()
-    if budget != requested_budget:
-        meta["budget_requested"] = requested_budget
     if fixed_runs is not None:
-        meta.update(_fixed_run_metadata(region, fixed_runs, requested_budget, budget))
+        meta.update(_fixed_run_metadata(region, fixed_runs))
     if labels is not None and rows is not None:
         meta["candidate_source"] = "user"
         meta["selected_candidates"] = selection_counts(labels, rows)

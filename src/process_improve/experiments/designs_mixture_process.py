@@ -95,7 +95,11 @@ from process_improve.experiments.designs_mixture_constrained import (
     mixture_inequalities,
     scheffe_model,
 )
-from process_improve.experiments.designs_utils import categorical_effect_columns, sorted_level_ranks
+from process_improve.experiments.designs_utils import (
+    categorical_effect_columns,
+    refuse_budget_below_model,
+    sorted_level_ranks,
+)
 from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
@@ -580,8 +584,7 @@ def mixture_process_design(
         continuous and categorical process factors, in any order.
     budget : int or None
         Number of runs. ``None`` means the model's number of terms plus 3. A budget below
-        the number of terms is raised to it, with a warning, and recorded in
-        ``metadata["budget_requested"]``. A candidate run may be chosen more than once.
+        the number of terms raises a ``ValueError``. A candidate run may be chosen more than once.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, and inequalities in the process factors'
         actual units; each names components only or process factors only.
@@ -627,17 +630,9 @@ def mixture_process_design(
             f"{model.name!r} model with {p} terms. Use a simpler model or loosen the constraints."
         )
 
-    requested = budget
+    if budget is not None:
+        refuse_budget_below_model(budget, p, repr(model.name))
     budget = p + _EXTRA_RUNS if budget is None else budget
-    if budget < p:
-        logger.warning(
-            "A budget of %d run(s) cannot estimate the %r model with %d terms; raising the budget to %d.",
-            budget,
-            model.name,
-            p,
-            p,
-        )
-        budget = p
 
     def region_rows() -> np.ndarray:
         return model.matrix(_region_sample(factors, constraints, _N_REGION_SAMPLES, rng))
@@ -661,6 +656,4 @@ def mixture_process_design(
         "constraints_enforced": True,
         **criterion_metadata(criterion, value),
     }
-    if requested is not None and requested != budget:
-        meta["budget_requested"] = requested
     return points[rows], meta

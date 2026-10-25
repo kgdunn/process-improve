@@ -10,6 +10,8 @@ that break them.
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -170,14 +172,84 @@ class TestBoxBehnkenProperties:
         assert np.all(varying_per_row == (3 if k in (6, 7) else 2))
         assert np.all(np.isin(non_center_rows, (-1.0, 0.0, 1.0)))
 
-    @pytest.mark.parametrize(("k", "n_runs"), [(3, 12), (4, 24), (5, 40), (6, 48), (7, 56)])
+    @pytest.mark.parametrize(
+        ("k", "n_runs"),
+        [(3, 12), (4, 24), (5, 40), (6, 48), (7, 56), (9, 120), (10, 160), (11, 176), (12, 192), (16, 384)],
+    )
     def test_run_counts_match_the_published_designs(self, k: int, n_runs: int) -> None:
-        """Box and Behnken (1960): 12, 24, 40, 48 and 56 runs before centre points."""
+        """Box and Behnken (1960), Table 4: the runs before centre points, for every design published."""
         x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         assert len(x) == n_runs
 
-    @pytest.mark.parametrize("k", [6, 7])
-    def test_six_and_seven_factor_designs_fit_the_quadratic_model(self, k: int) -> None:
+    def test_eight_factors_pair_every_two_factors(self) -> None:
+        """No eight-factor design was published: every pair of factors carries a 2^2 factorial."""
+        result = generate_design(_factors(8), design_type="box_behnken", n_center_points=0)
+        assert len(_coded(result)) == 4 * 28
+        assert result.metadata["construction"] == "all_pairs"
+
+    @pytest.mark.parametrize(
+        ("k", "block_size", "doubled", "a_constant", "d1_constant"),
+        [
+            # The pairs Table 4 names as associates meet in two blocks, every other pair in one;
+            # A = 1 / sum(x_i^2) and D1 = 1 / sum((x_i x_j)^2) for those associates are Table 5c's constants.
+            (6, 3, {(1, 4), (2, 5), (3, 6)}, 1 / 24, 1 / 16),
+            (9, 3, {(1, 4), (1, 7), (4, 7), (2, 5), (2, 8), (5, 8), (3, 6), (3, 9), (6, 9)}, 1 / 40, 1 / 16),
+            (
+                10,
+                4,
+                {
+                    (1, 8),
+                    (1, 9),
+                    (1, 10),
+                    (2, 6),
+                    (2, 7),
+                    (2, 10),
+                    (3, 5),
+                    (3, 7),
+                    (3, 9),
+                    (4, 5),
+                    (4, 6),
+                    (4, 8),
+                    (5, 10),
+                    (6, 9),
+                    (7, 8),
+                },
+                1 / 64,
+                1 / 32,
+            ),
+            (11, 5, set(itertools.combinations(range(1, 12), 2)), 1 / 80, 1 / 32),
+            (12, 4, {(1, 7), (2, 8), (3, 9), (4, 10), (5, 11), (6, 12)}, 1 / 64, 1 / 32),
+            (
+                16,
+                4,
+                {(i, j) for c in range(1, 5) for i, j in itertools.combinations(range(c, 17, 4), 2)},
+                1 / 96,
+                1 / 32,
+            ),
+        ],
+    )
+    def test_blocks_follow_the_published_association_scheme(
+        self, k: int, block_size: int, doubled: set[tuple[int, int]], a_constant: float, d1_constant: float
+    ) -> None:
+        """Each run varies one block of factors; pairs of factors meet as Box and Behnken's scheme says."""
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
+        assert np.all((x != 0).sum(axis=1) == block_size)
+        expected = {(i, j): 2 if (i + 1, j + 1) in doubled else 1 for i, j in itertools.combinations(range(k), 2)}
+        squares = {(i, j): float(np.sum((x[:, i] * x[:, j]) ** 2)) for i, j in expected}
+        runs_per_pair = 2 ** (block_size - (1 if k == 11 else 0))  # eleven factors run the half fraction
+        assert squares == {pair: n * runs_per_pair for pair, n in expected.items()}
+        assert np.allclose(1 / np.sum(x**2, axis=0), a_constant)
+        first = next(pair for pair, n in expected.items() if n == 2)
+        assert 1 / squares[first] == pytest.approx(d1_constant)
+
+    def test_eleven_factors_run_the_half_fraction_in_each_block(self) -> None:
+        """Table 4, design 8: each block of five carries the 2^(5-1) fraction with x1 x2 x3 x4 x5 = +1."""
+        x = _coded(generate_design(_factors(11), design_type="box_behnken", n_center_points=0))
+        products = [np.prod(row[row != 0]) for row in x]
+        assert set(products) == {1.0}
+
+    @pytest.mark.parametrize("k", [6, 7, 9, 10, 11, 12, 16])
+    def test_published_block_designs_fit_the_quadratic_model(self, k: int) -> None:
         """Main effects orthogonal to every other column; the full quadratic model has full rank."""
         x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=3))
         pairs = [x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]

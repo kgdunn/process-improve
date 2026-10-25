@@ -125,9 +125,11 @@ def _n_model_parameters(factors: list[Factor], model_type: str) -> int:
 
 
 def _floor_budget_at_model_size(factors: list[Factor], budget: int, model_type: str) -> int:
-    """Raise ``budget`` to the model's parameter count, warning when it does.
+    """Raise the default ``budget`` to the model's parameter count, warning when it does.
 
-    Both backends need this floor and neither imposed it consistently. pyoptex
+    Only the default budget reaches this floor: a budget the caller gave is refused by
+    :func:`~process_improve.experiments.designs_utils.refuse_budget_below_model` when it is
+    too small. Both backends need this floor and neither imposed it consistently. pyoptex
     failed with an upstream message about "rank collinearity" between model
     components, which names neither the budget nor the model; the point-exchange
     fallback clamped to one run per factor, one short of the intercept, and even
@@ -161,18 +163,25 @@ def _check_hard_to_change(req: _OptimalRequest) -> None:
 
 
 def _settled_budget(req: _OptimalRequest) -> int | None:
-    """Return the budget to build with: one asked for, floored at the model size, or a default covering fixed runs.
+    """Return the budget to build with: the one asked for, or a default covering blocks and fixed runs.
 
-    Without a budget or fixed runs this is ``None`` (the default ``2 * k + 1`` applies).
-    With fixed runs and no budget, the default also leaves room for the coefficients the
-    fixed runs do not estimate, so it never falls at or below the number of fixed runs.
+    A budget asked for is refused below the model size; with blocks or fixed runs, the engine refuses
+    it later when the block effects or the rank the fixed runs lack need more runs. Without a budget,
+    blocks or fixed runs this is ``None`` (the default ``2 * k + 1`` applies). Without a budget, the
+    default leaves room for the block effects and for the coefficients the fixed runs do not estimate,
+    so it never falls at or below the number of fixed runs.
     """
-    if req.budget is not None:
-        return _floor_budget_at_model_size(req.factors, req.budget, req.model_type)
-    if req.fixed_runs is None or not len(req.fixed_runs):
-        return None
-    k = len(req.factors)
+    from process_improve.experiments.designs_utils import refuse_budget_below_model  # noqa: PLC0415
+
     n_parameters = _n_model_parameters(req.factors, req.model_type)
+    if req.budget is not None:
+        refuse_budget_below_model(req.budget, n_parameters, repr(req.model_type))
+        return req.budget
+    k = len(req.factors)
+    # The blocks' effects are coefficients too; counting them keeps the default above what the engine needs.
+    n_parameters += req.n_blocks - 1 if req.n_blocks and req.n_blocks > 1 else 0
+    if req.fixed_runs is None or not len(req.fixed_runs):
+        return max(2 * k + 1, n_parameters) if req.n_blocks and req.n_blocks > 1 else None
     with contextlib.suppress(ValueError, KeyError, TypeError):  # invalid fixed runs are reported later, in full
         prior = _prepare_prior_runs(req.fixed_runs, req.factors, len(req.fixed_runs) + n_parameters)
         rank = int(np.linalg.matrix_rank(_coded_rows(req.factors, prior, req.model_type)))
@@ -419,10 +428,9 @@ def _run_pyoptex(
     n_tries = opts.n_tries
 
     prior = None
-    requested_budget = budget
     if opts.fixed_runs is not None:
         prior = _prepare_prior_runs(opts.fixed_runs, factors, budget)
-        budget = _budget_for_fixed_rank(factors, prior, model_type, budget)
+        _refuse_budget_short_of_fixed_rank(factors, prior, model_type, budget)
 
     pyoptex_factors = _convert_factors_to_pyoptex(
         factors,
@@ -475,9 +483,6 @@ def _run_pyoptex(
         meta.update(_exchange_scale_metadata(factors, design_df, criterion, model_type))
     if prior is not None:
         meta["n_fixed_runs"] = len(prior)
-    if budget != requested_budget:
-        meta["budget_requested"] = requested_budget
-
     return design_df.values, meta
 
 
@@ -497,13 +502,15 @@ def _coded_rows(factors: list[Factor], design: pd.DataFrame, model_type: str) ->
     return model_matrix(region, coded, cats, model_type)
 
 
-def _budget_for_fixed_rank(factors: list[Factor], prior: pd.DataFrame, model_type: str, budget: int) -> int:
-    """Raise ``budget`` so the free runs can supply the rank the fixed runs lack (see the candidate exchange)."""
-    from process_improve.experiments.designs_constrained import _budget_for_fixed_runs  # noqa: PLC0415
+def _refuse_budget_short_of_fixed_rank(
+    factors: list[Factor], prior: pd.DataFrame, model_type: str, budget: int
+) -> None:
+    """Raise when the free runs cannot supply the rank the fixed runs lack (as the candidate exchange does)."""
+    from process_improve.experiments.designs_constrained import refuse_budget_short_of_fixed_runs  # noqa: PLC0415
 
     model = model_type if model_type in _PYOPTEX_MODEL_MAP else "interactions"
     f_fixed = _coded_rows(factors, prior, model)
-    return _budget_for_fixed_runs(f_fixed, f_fixed.shape[1], budget)
+    refuse_budget_short_of_fixed_runs(f_fixed, f_fixed.shape[1], budget)
 
 
 def _exchange_scale_metadata(factors: list[Factor], design: pd.DataFrame, criterion: str, model_type: str) -> dict:
@@ -690,12 +697,8 @@ def _dispatch_optimal(criterion: str, req: _OptimalRequest) -> tuple[np.ndarray,
         )
     _check_hard_to_change(req)
     settled = _settled_budget(req)
-    if settled != req.budget:
-        # Build with the budget the model and the fixed runs need, and record the one asked for.
-        matrix, meta = _dispatch_optimal(criterion, replace(req, budget=settled))
-        if req.budget is not None:
-            meta["budget_requested"] = req.budget
-        return matrix, meta
+    if settled != req.budget:  # no budget was given: build with the default the blocks and fixed runs need
+        return _dispatch_optimal(criterion, replace(req, budget=settled))
 
     budget = req.budget if req.budget is not None else 2 * len(req.factors) + 1
     budget = _floor_budget_at_model_size(req.factors, budget, req.model_type)
@@ -737,9 +740,9 @@ _DISPATCH_PARAMETERS = """
         the (possibly constrained) simplex.
     budget : int or None
         Number of runs. Defaults to ``2 * n_factors + 1``, or with ``fixed_runs`` to
-        enough runs beyond them to estimate the model. A budget too small to estimate
-        the model is raised, with a warning, and recorded in
-        ``metadata["budget_requested"]``.
+        enough runs beyond them to estimate the model. A budget below the model's number
+        of coefficients raises a ``ValueError``, and so does one that leaves too few runs
+        for the block effects (``n_blocks``) or for the rank ``fixed_runs`` lack.
     hard_to_change : list[str] or None
         Names of hard-to-change factors: a split-plot design, found by the built-in
         coordinate exchange on the GLS information (see

@@ -60,7 +60,7 @@ CASES = {
         {"Supplier": "Vendor", "T": "Temperature"},
     ),
     "a D-optimal design under its budget": (
-        {"design_type": "d_optimal", "model_type": "quadratic", "budget": 6},
+        {"design_type": "d_optimal", "model_type": "quadratic", "budget": 12},
         FACTORS,
         WORDS,
     ),

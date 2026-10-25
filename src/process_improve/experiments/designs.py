@@ -25,6 +25,7 @@ from __future__ import annotations
 import functools
 import itertools
 import logging
+import math
 import warnings
 from collections.abc import Callable
 from typing import Any, NamedTuple
@@ -105,7 +106,52 @@ def _dispatch_fractional_factorial(
         factors,
         resolution=kwargs.get("resolution"),
         generators=kwargs.get("generators"),
+        n_runs=kwargs.get("fraction_runs"),
     )
+
+
+def _fraction_runs(
+    design_type: str | None, factors: list[Factor], budget: int | None, overhead: _RunOverhead
+) -> int | None:
+    """Return the runs of the fraction a budget sizes, or ``None`` when the budget does not size it.
+
+    A budget sizes a two-level fractional factorial asked for by name and without generators: the
+    fraction is the largest power of two that fits once the centre runs are set aside and the
+    replicates divided out, capped at the half fraction (#956). Rounding down warns. The caller
+    passes ``design_type=None`` when the budget must not size the design: generators fix the
+    fraction, and an automatically chosen design is sized by its own rules.
+
+    Raises
+    ------
+    ValueError
+        If the budget leaves fewer runs than the smallest fraction of these factors.
+    """
+    if design_type != "fractional_factorial" or budget is None:
+        return None
+    k = len(factors)
+    n_center_points, n_replicates = overhead
+    room = (budget - n_center_points) // n_replicates
+    smallest = 2 ** math.ceil(math.log2(k + 1))
+    if room < smallest:
+        raise ValueError(
+            f"budget={budget} leaves {max(room, 0)} run(s) for a fractional factorial of {k} factors once "
+            f"{n_center_points} centre run(s) and {n_replicates} replicate(s) are counted; the smallest such "
+            f"fraction has {smallest} runs. Give a larger budget, or use 'plackett_burman' or 'supersaturated'."
+        )
+    n_runs = min(2 ** int(math.log2(room)), 2 ** (k - 1))
+    if n_runs != room:
+        reason = (
+            f"the half fraction of {k} factors has {n_runs} runs (use design_type='full_factorial' for all {2**k})"
+            if n_runs == 2 ** (k - 1)
+            else f"a two-level fraction has a power-of-two number of runs, so {n_runs} is the largest that fits"
+        )
+        warnings.warn(
+            f"budget={budget} leaves {room} run(s) for the fraction after {n_center_points} centre run(s) and "
+            f"{n_replicates} replicate(s); {reason}.",
+            category=UserWarning,
+            stacklevel=3,
+        )
+    return n_runs
 
 
 def _dispatch_plackett_burman(
@@ -863,8 +909,12 @@ def generate_design(  # noqa: PLR0913
         Maximum number of runs the experimenter can afford, centre points and
         replicates included. The optimal, mixture, space-filling and supersaturated
         designs, and OMARS with a budget, are built to it (OMARS to the largest
-        foldover size within it). A family whose size the design structure fixes
-        (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
+        foldover size within it). A fractional factorial without *generators* is the
+        minimum-aberration fraction of the largest power of two of runs that fits, at
+        most the half fraction, with a ``UserWarning`` when that is fewer runs than the
+        budget leaves; with *resolution* as well, it must reach it. A family whose size
+        the design structure fixes (full factorials, a fraction from *generators*,
+        Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
         ``ValueError`` when it needs more runs than *budget*. A DSD with a budget
         above its minimal size gains fake factors (error degrees of freedom); for an
         odd number of factors (5, 7, 9 or 11, all continuous), a budget of ``2k + 1``
@@ -1093,6 +1143,12 @@ def generate_design(  # noqa: PLR0913
         "center_runs": max(n_center_points or 1, 1),
         "resolution": resolution,
         "generators": generators,
+        "fraction_runs": _fraction_runs(
+            None if generators or auto_selected else design_type,
+            factors,
+            budget,
+            _RunOverhead(_default_center_points(factors) if n_center_points is None else n_center_points, n_replicates),
+        ),
         "alpha": alpha,
         "cube": cube,
         "categorical_method": categorical_method,
