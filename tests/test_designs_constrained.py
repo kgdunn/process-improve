@@ -690,7 +690,7 @@ class TestQualityPins:
         ],
     )
     def test_screening_design_augmented_for_a_quadratic_model(self, k: int, n_new: int, log_det_per_p: float) -> None:
-        """The reproducer of the slow ``add_runs_optimal`` report: 16 screening runs plus 40 (55 at k = 10) for a quadratic model."""
+        """The slow ``add_runs_optimal`` report: 16 screening runs plus 40 (55 at k = 10) for a quadratic model."""
         names = [f"X{i}" for i in range(k)]
         cube = np.array(list(itertools.product([-1, 1], repeat=k)), dtype=float)
         base = pd.DataFrame(cube[:: 2 ** (k - 4)][:16], columns=names)
