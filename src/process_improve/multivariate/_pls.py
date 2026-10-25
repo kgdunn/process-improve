@@ -1284,7 +1284,21 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Returns
         -------
         result : sklearn.utils.Bunch
-            With keys ``scores``, ``hotellings_t2``, ``spe``, ``y_hat``.
+            With keys:
+
+            - ``scores`` (pd.DataFrame, ``(n_samples, n_components)``).
+            - ``hotellings_t2`` (pd.Series, ``(n_samples,)``): T² of the full
+              model, the last column of the fitted ``hotellings_t2_``.
+            - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
+            - ``y_hat`` (pd.DataFrame, ``(n_samples, n_targets)``): the
+              predictions, on the original Y scale.
+
+        Notes
+        -----
+        :meth:`PCA.diagnose` returns ``hotellings_t2`` as a cumulative
+        ``pd.DataFrame`` with one column per component, of which the last is
+        this Series. The two shapes are kept as they are because each is public
+        API; compare them through that last column.
 
         See Also
         --------

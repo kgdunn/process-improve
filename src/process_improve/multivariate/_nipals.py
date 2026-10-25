@@ -56,14 +56,29 @@ def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_pre
 
     Returns               [n_rows x 1] = a_space * b_row^T  / ( b_row * b_row^T)
                                          (n x j) * (j x 1)  /  (1 x j)* (j x 1)  = n x 1
+
+    A row with nothing present has no regression, and its coefficient is 0. Its cells are
+    all absent, so the 0 carries no weight in any later regression over that row, and the
+    other rows are as they would be without it: the rule :func:`quick_regress` follows for
+    an empty mask, and the score PCA and PLS give an all-missing row. It used to be NaN,
+    which no later step could drop, so one empty row made every score of every later
+    component NaN (#513). A row whose present cells all meet a zero in `b_row` is still NaN.
     """
     # TPLS hands in DataFrames. Without this, every product and sum below is a pandas
     # operation, about ten times slower, on a function called tens of thousands of times.
     a_space, b_row, a_space_present_map = np.asarray(a_space), np.asarray(b_row), np.asarray(a_space_present_map)
     denom = np.tile(b_row, (a_space.shape[0], 1))  # tiles, row-by-row the `b_row` row vector, to create `n_rows`
     denominator = np.sum((denom * a_space_present_map) ** 2, axis=1).astype("float")
-    denominator[denominator == 0] = np.nan
-    return np.array((np.sum(a_space * denom, axis=1)) / denominator).reshape(-1, 1)
+    numerator = np.sum(a_space * denom, axis=1)
+    zero = denominator == 0
+    if zero.any():  # rare, so the common call pays for one comparison only
+        # A row with cells present, but none where ``b_row`` is non-zero, is a degenerate
+        # direction rather than missing data, and stays NaN so the caller can refuse it.
+        empty = ~np.any(a_space_present_map, axis=1)
+        denominator[zero] = np.nan
+        denominator[empty] = 1.0
+        numerator[empty] = 0.0
+    return (numerator / denominator).reshape(-1, 1)
 
 
 def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
@@ -265,10 +280,9 @@ def internal_pls_nipals_fit_one_pc(
         q_i = regress_a_space_on_b_row(y_space.T, t_i.T, y_present_map.T)
 
         # Step 5. u_new = Yq / q'q. Regress rows of Y on q_i, and store slope coefficients in u_new.
-        # A row with no Y value carries no information about u, so it gets 0 rather than the NaN
-        # of its empty regression: it then has no weight in step 1, as a missing cell has none (#709).
+        # A row with no Y value carries no information about u, so its empty regression gives 0,
+        # and it has no weight in step 1, as a missing cell has none (#709).
         u_new = regress_a_space_on_b_row(y_space, q_i.T, y_present_map)
-        u_new[~np.asarray(y_present_map).any(axis=1)] = 0.0
 
         # Floor ``||u_i||`` so an all-zero starting vector (degenerate
         # Y column) doesn't produce NaN here. SEC-21 (#270) sub-item 1.
@@ -290,11 +304,12 @@ def internal_pls_nipals_fit_one_pc(
     neg = t_i[t_i < 0]
     nonneg = t_i[t_i >= 0]
     if neg.size > 0 and nonneg.size > 0 and np.var(neg) > np.var(nonneg):
+        # The whole component flips, ``u_i`` with it, as PLS and MBPLS flip theirs: it stays
+        # ``Yq / q'q`` for the returned ``q_i``. TPLS regresses its blocks on ``u_i``, so an
+        # un-flipped one turned the sign of its block weights and super weights against the
+        # super score on every component the rule flipped (#513).
         t_i = -t_i
-        # ``u_i`` (the value actually returned) is the converged ``u_new`` and is
-        # only consumed by callers for a sign-invariant convergence check, so it
-        # is intentionally left un-flipped here. (The previous ``u_new = -u_new``
-        # was a dead assignment: ``u_new`` is never read again.)
+        u_i = -u_i
         w_i = -w_i
         q_i = -q_i
 
