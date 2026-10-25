@@ -72,7 +72,7 @@ def _page_of(ref: str) -> str:
 def test_every_file_the_reproduction_page_loads_is_published(build_script):
     """What ``catalog/reproduced/`` and reproduced.js load is copied or written by the build, at a relative address."""
     page = "catalog/reproduced/index.html"
-    refs = {ref for ref in re.findall(r'(?:href|src)="([^"]+)"', source(page)) if "://" not in ref}
+    refs = {ref for ref in re.findall(r'(?:href|src)="([^"]+)"', source(page)) if "://" not in ref and ref[0] != "#"}
     loaded = {posixpath.normpath(posixpath.join("catalog/reproduced", _page_of(ref))) for ref in refs}
     imported = set(re.findall(r'from "\./([^"]+)"', source("reproduced.js")))
     fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("reproduced.js")))
@@ -259,3 +259,13 @@ def _required(item: dict) -> bool:
     """Whether an issue form field must be filled: a checkbox group is, when one of its boxes must be ticked."""
     boxes = [o for o in item.get("attributes", {}).get("options", []) if isinstance(o, dict)]
     return bool(item.get("validations", {}).get("required") or any(o.get("required") for o in boxes))
+
+
+def test_the_reproduction_page_names_every_cause_the_catalogue_records(node):
+    """The page names each cause the library defines, and no other; the JSON says what each means."""
+    from process_improve.experiments.reference_catalogue import DISAGREEMENT_CAUSES, UNCHECKED_CAUSES
+
+    (causes,) = javascript(node, source("reproduced-logic.js"), [("CAUSES", [])])
+    assert set(causes["differs"]) == set(DISAGREEMENT_CAUSES)
+    assert set(causes["unchecked"]) == set(UNCHECKED_CAUSES)
+    assert design_catalog.LIBRARY_RIGHT.issubset(DISAGREEMENT_CAUSES)

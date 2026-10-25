@@ -37,10 +37,11 @@
   <p class="reproduced__status" id="status" role="status" aria-live="polite">Loading the cases...</p>
 
   <div class="stats" id="stats" hidden>
-    <div class="stat"><span class="stat__value" id="stat-numbers"></span><span class="stat__label">printed numbers recomputed</span></div>
+    <div class="stat"><span class="stat__value" id="stat-numbers"></span><span class="stat__label" id="stat-numbers-label">printed numbers recomputed</span></div>
     <div class="stat"><span class="stat__value" id="stat-agree"></span><span class="stat__label">agree with the source to its last printed digit</span></div>
-    <div class="stat"><span class="stat__value" id="stat-cases"></span><span class="stat__label" id="stat-cases-label">cases</span></div>
-    <div class="stat"><span class="stat__value" id="stat-full"></span><span class="stat__label">of the cases reproduce in full</span></div>
+    <div class="stat"><span class="stat__value" id="stat-full"></span><span class="stat__label" id="stat-full-label">of the cases reproduce in full</span></div>
+    <div class="stat"><span class="stat__value" id="stat-errors"></span><span class="stat__label">printed numbers in error in their source, where the library's value follows from the data</span></div>
+    <div class="stat"><a class="stat__link" href="#missing-section"><span class="stat__value" id="stat-missing"></span><span class="stat__label">printed numbers not in the library yet</span></a></div>
   </div>
 
   <section aria-labelledby="breakdown-title" id="breakdown" hidden>
@@ -56,10 +57,30 @@
         <tbody></tbody>
       </table>
     </div>
-    <p class="hint">A case is placed by its worst number. One misprint in a source puts a case in the last tier,
-      even when every other number it prints agrees: the Numbers column counts each number in its own tier. Each
-      number that differs carries the reason the catalogue records for it, most often the source's own rounding,
-      a misprint, or a method that differs from the library's.</p>
+    <p class="hint">A case is placed by its worst number, so one large difference puts a case in the last tier even
+      when every other number it prints agrees; the Numbers column counts each number in its own tier. A number the
+      source prints in error, or a quiz option its answer key marks wrong, does not count against a case: the
+      library's value is the right one.</p>
+  </section>
+
+  <section aria-labelledby="causes-title" id="causes-section" hidden>
+    <h2 id="causes-title">Why numbers differ, and which are not recomputed</h2>
+    <p class="hint">For all the sources together. The catalogue records the cause of every number that differs from
+      its source and of every printed number the library does not recompute.</p>
+    <div class="causes">
+      <div class="table-scroll">
+        <table class="causes__table" id="causes-differs">
+          <caption id="causes-differs-caption">Numbers that differ from their source</caption>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="table-scroll">
+        <table class="causes__table" id="causes-unchecked">
+          <caption id="causes-unchecked-caption">Printed numbers not recomputed</caption>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
   <section aria-labelledby="sources-title" id="sources-section" hidden>
@@ -113,6 +134,15 @@
     </p>
     <p class="hint" id="count" role="status" aria-live="polite"></p>
     <div id="lists"></div>
+  </section>
+
+  <section aria-labelledby="missing-title" id="missing-section" hidden>
+    <h2 id="missing-title">Not in the library yet</h2>
+    <p class="hint">The printed numbers the library has no function for, grouped by what is missing, those that
+      would recompute the most numbers first. The list follows the search and the source chosen above.</p>
+    <p class="hint" id="missing-count" role="status" aria-live="polite"></p>
+    <ol class="missing" id="missing"></ol>
+    <button type="button" class="button" id="missing-more" hidden>Show more</button>
   </section>
 
   <footer>

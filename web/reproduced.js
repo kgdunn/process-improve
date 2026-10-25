@@ -9,6 +9,10 @@ import {
   TIERS,
   byForm,
   bySource,
+  CAUSES,
+  causeTotals,
+  libraryRight,
+  missingByReason,
   errorBands,
   filterCases,
   formatError,
@@ -52,19 +56,58 @@ const chip = (tier, text = TIERS.find((t) => t.key === tier).mark) =>
 const shown = () => filterCases(data.cases, data.sources, view);
 
 // ---------------------------------------------------------------- the headline and the table of tiers
+/** The causes the library is right about, from the JSON (see libraryRight). */
+const right = () => data.library_right;
+
+/** The headline, for all the sources together: it never follows the filters, so no count is one source's. */
 function drawStats() {
-  const all = summarise(data.cases, data.tiers);
+  const all = summarise(data.cases, data.tiers, right());
+  const totals = causeTotals(data.cases);
   const sources = new Set(data.cases.filter((c) => c.tier).map((c) => c.source)).size;
+  const agree = data.cases.reduce((n, c) => n + (c.tier ? c.checked - c.differs.length : 0), 0);
   $("#stat-numbers").textContent = count(all.numbersChecked);
-  $("#stat-agree").textContent = percent(all.numbers.reproduced, all.numbersChecked);
-  $("#stat-cases").textContent = count(all.recomputed);
-  $("#stat-cases-label").textContent = `cases from ${plural(sources, "source")}, each recomputed`;
+  $("#stat-numbers-label").textContent = `printed numbers from ${plural(sources, "source")}, recomputed`;
+  $("#stat-agree").textContent = percent(agree, all.numbersChecked);
   $("#stat-full").textContent = percent(all.cases.reproduced, all.recomputed);
+  $("#stat-full-label").textContent = `of the ${count(all.recomputed)} cases reproduce in full`;
+  $("#stat-errors").textContent = count(totals.differs.source_error ?? 0);
+  $("#stat-missing").textContent = count(totals.unchecked.library_gap ?? 0);
   $("#stats").hidden = false;
 }
 
+/**
+ * The causes of the differences, and why numbers are not recomputed, for all the sources together: the
+ * counts of errors in the sources are shown only here, never source by source.
+ */
+function drawCauses() {
+  const totals = causeTotals(data.cases);
+  const table = (id, kind) => {
+    const counts = totals[kind];
+    const all = Object.values(counts).reduce((a, b) => a + b, 0);
+    const most = Math.max(1, ...Object.values(counts));
+    $(`#${id}-caption`).textContent = `${kind === "differs" ? "Numbers that differ from their source" : "Printed numbers not recomputed"}: ${count(all)}`;
+    $(`#${id} tbody`).replaceChildren(
+      ...Object.keys(data.causes[kind]).map((cause) => {
+        const n = counts[cause] ?? 0;
+        const bar = element("span", { class: "causes__bar", "aria-hidden": "true" }, element("span", { "data-cause": cause }));
+        bar.firstChild.style.width = `${(100 * n) / most}%`;
+        const name = cause === "library_gap" ? element("a", { href: "#missing-section", text: CAUSES[kind][cause] }) : CAUSES[kind][cause];
+        return element(
+          "tr",
+          { "data-cause": cause },
+          element("th", { scope: "row" }, element("span", { class: "causes__name" }, name), element("span", { class: "causes__means", text: data.causes[kind][cause] })),
+          element("td", { class: "num" }, element("strong", { text: count(n) }), element("span", { class: "share", text: percent(n, all) })),
+          element("td", { class: "causes__barcell" }, bar),
+        );
+      }),
+    );
+  };
+  table("causes-differs", "differs");
+  table("causes-unchecked", "unchecked");
+}
+
 function drawBreakdown(cases) {
-  const s = summarise(cases, data.tiers);
+  const s = summarise(cases, data.tiers, right());
   const filtered = view.query || view.source || view.form || view.kind;
   $("#scope").replaceChildren(
     filtered ? `Of the ${plural(s.recomputed, "case")} your filters keep. ` : `Of all ${plural(s.recomputed, "case")} with a recomputed number. `,
@@ -211,12 +254,13 @@ function shape(tag, attributes = {}, text = null) {
 }
 
 function drawBands(cases) {
-  const bands = errorBands(cases, data.tiers);
+  const bands = errorBands(cases, data.tiers, right());
   const total = bands.reduce((sum, band) => sum + band.count, 0);
   const small = bands.filter((band) => band.upTo !== null && band.upTo <= 0.01).reduce((sum, band) => sum + band.count, 0);
   $("#bands-caption").textContent = total
-    ? `Each bar counts the printed numbers that differ from the library's by more than the source's rounding, by how far they differ. ` +
-      `${percent(small, total)} of the ${plural(total, "number")} that differ do so by 1% or less. The lines mark the tiers' limits, 1% and 5%.`
+    ? `Each bar counts the printed numbers that differ from the library's by more than the source's rounding, by how far they differ, ` +
+      `leaving out those the source prints in error and quiz options its answer key marks wrong. ` +
+      `${percent(small, total)} of these ${plural(total, "number")} differ by 1% or less. The lines mark the tiers' limits, 1% and 5%.`
     : "No number of the cases your filters keep differs from the library's.";
   const svg = $("#bands");
   const width = 760;
@@ -255,7 +299,7 @@ function drawBands(cases) {
 
 // ---------------------------------------------------------------- the lists of cases
 function numberCard(number) {
-  const tier = tierOf(number.error, data.tiers);
+  const tier = libraryRight(number, right()) ? "reproduced" : tierOf(number.error, data.tiers);
   const printed = Array.isArray(number.printed) ? JSON.stringify(number.printed) : number.printed;
   return element(
     "li",
@@ -264,7 +308,12 @@ function numberCard(number) {
       "div",
       { class: "number__head" },
       element("span", { class: "number__what", text: quantity(number) || "A printed number" }),
-      element("span", { class: "number__error", "data-tier": tier, text: formatError(number.error) }),
+      element(
+        "span",
+        { class: "number__tags" },
+        element("span", { class: "number__cause", "data-cause": number.cause, text: CAUSES.differs[number.cause] ?? "" }),
+        element("span", { class: "number__error", "data-tier": tier, text: formatError(number.error) }),
+      ),
     ),
     element(
       "dl",
@@ -424,6 +473,54 @@ function focusCase() {
   item.querySelector("summary").focus({ preventScroll: true });
 }
 
+// ---------------------------------------------------------------- not in the library yet
+/** How many of the reasons the list shows at first, and adds with each press of "Show more". */
+const MISSING_SHOWN = 20;
+let missingShown = MISSING_SHOWN;
+
+/** One thing the library lacks: the reason, how many numbers and cases wait on it, and the cases themselves. */
+function missingItem(group) {
+  const cases = element(
+    "ul",
+    { class: "missing__cases" },
+    ...group.cases.map((c) =>
+      element(
+        "li",
+        {},
+        element("a", { href: app(`catalog/#d=${encodeURIComponent(c.id)}`), text: c.title }),
+        element("span", { class: "hint", text: ` ${sourceName(c.source)}` }),
+      ),
+    ),
+  );
+  return element(
+    "li",
+    {},
+    element(
+      "details",
+      { class: "missing__item" },
+      element(
+        "summary",
+        {},
+        element("span", { class: "missing__reason", text: group.reason }),
+        element("span", { class: "badge", text: `${plural(group.numbers, "number")}, ${plural(group.cases.length, "case")}` }),
+      ),
+      cases,
+    ),
+  );
+}
+
+/** The list of what the library lacks, for the cases the reader's filters keep, those with a recomputed number or not. */
+function drawMissing() {
+  const groups = missingByReason(filterCases(data.cases, data.sources, view, { all: true }));
+  const numbers = groups.reduce((n, g) => n + g.numbers, 0);
+  $("#missing-count").textContent = groups.length
+    ? `${plural(numbers, "printed number")}, for ${plural(groups.length, "reason")}.`
+    : "Every printed number of the cases your filters keep that can be recomputed is.";
+  $("#missing").replaceChildren(...groups.slice(0, missingShown).map(missingItem));
+  $("#missing-more").hidden = groups.length <= missingShown;
+  $("#missing-more").textContent = `Show ${count(Math.min(MISSING_SHOWN, groups.length - missingShown))} more of ${count(groups.length - missingShown)}`;
+}
+
 // ---------------------------------------------------------------- the reader's view
 function draw() {
   const cases = shown();
@@ -431,6 +528,7 @@ function draw() {
   drawSources();
   drawBands(cases);
   drawLists(cases);
+  drawMissing();
   $("#query").value = view.query;
   $("#source").value = view.form ? `form:${view.form}` : view.source;
   $("#kind").value = view.kind;
@@ -442,6 +540,7 @@ function draw() {
 
 function setView(next) {
   view = { ...structuredClone(DEFAULT_VIEW), ...next };
+  missingShown = MISSING_SHOWN;
   history.replaceState(null, "", toHash(view) || location.pathname);
   draw();
 }
@@ -471,6 +570,10 @@ function wire() {
   });
   $("#kind").addEventListener("change", (event) => setView({ ...view, kind: event.target.value, focus: "" }));
   $("#clear").addEventListener("click", () => setView({ ...DEFAULT_VIEW, open: view.open }));
+  $("#missing-more").addEventListener("click", () => {
+    missingShown += MISSING_SHOWN;
+    drawMissing();
+  });
   // A word of the reasons the catalogue records: the search keeps the cases whose numbers differ for it.
   for (const button of document.querySelectorAll(".try")) {
     button.addEventListener("click", () => {
@@ -501,9 +604,10 @@ async function main() {
   }
   view = fromHash(location.hash, data.sources, data.forms);
   $("#status").hidden = true;
-  for (const id of ["#breakdown", "#sources-section", "#bands-section", "#cases"]) $(id).hidden = false;
+  for (const id of ["#breakdown", "#causes-section", "#sources-section", "#bands-section", "#cases", "#missing-section"]) $(id).hidden = false;
   $("#built").textContent = `Recomputed with process-improve ${data.library}.`;
   drawStats();
+  drawCauses();
   wire();
   draw();
   focusCase();

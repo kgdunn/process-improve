@@ -11,6 +11,8 @@ import {
   SOURCE_ORDERS,
   byForm,
   bySource,
+  causeTotals,
+  missingByReason,
   errorBands,
   filterCases,
   formatError,
@@ -31,13 +33,15 @@ const SOURCES = {
   davies: { short: "Davies", year: 1956, title: "The Design and Analysis of Industrial Experiments", form: "book" },
 };
 
-const number = (error, reason = "a misprint") => ({ what: "coefficient", term: "x1", printed: "1", found: "1.1", error, where: "p. 1", reason });
+const number = (error, reason = "a misprint", cause = "method") => ({ what: "coefficient", term: "x1", printed: "1", found: "1.1", error, where: "p. 1", reason, cause });
+const RIGHT = ["incorrect_option", "source_error"];
 const CASES = [
   { id: "a", title: "Isatin yield", source: "lenth", kind: "example", checked: 20, tier: "reproduced", worst: 0, differs: [] },
   { id: "b", title: "Tensile strength", source: "lenth", kind: "example", checked: 50, tier: "not_reproduced", worst: null, differs: [number(null, "an alias chain misprinted"), number(0.03)] },
   { id: "c", title: "Penicillin yield", source: "davies", kind: "exercise", checked: 10, tier: "within_1", worst: 0.004, differs: [number(0.004, "the book's rounding")] },
   { id: "d", title: "Dyestuff", source: "davies", kind: "case-study", checked: 8, tier: "within_5", worst: 0.02, differs: [number(0.02)] },
-  { id: "e", title: "A design no number of which is recomputed", source: "davies", kind: null, checked: 0, tier: null, worst: 0, differs: [] },
+  { id: "e", title: "A design no number of which is recomputed", source: "davies", kind: null, checked: 0, tier: null, worst: 0, differs: [], unchecked: { library_gap: 2 }, missing: [{ what: "estimate", term: null, printed: "4", where: "p. 9", reason: "the library has no IRLS fit" }, { what: "estimate", term: null, printed: "5", where: "p. 9", reason: "the library has no IRLS fit" }] },
+  { id: "f", title: "Misprinted pilot plant", source: "davies", kind: "exercise", checked: 12, tier: "reproduced", worst: 0, differs: [number(0.4, "a misprint in the book", "source_error")], unchecked: { library_gap: 1, not_a_result: 3 }, missing: [{ what: "radius", term: null, printed: "2", where: "p. 3", reason: "the library has no IRLS fit" }] },
 ];
 
 describe("the tiers", () => {
@@ -51,12 +55,17 @@ describe("the tiers", () => {
   });
 
   test("the cases count once each, the numbers each in its own tier, and a case with no number apart", () => {
-    const s = summarise(CASES, LIMITS);
-    assert.deepEqual(s.cases, { reproduced: 1, within_1: 1, within_5: 1, not_reproduced: 1 });
-    assert.deepEqual(s.numbers, { reproduced: 20 + 48 + 9 + 7, within_1: 1, within_5: 2, not_reproduced: 1 });
-    assert.equal(s.numbersChecked, 88);
-    assert.equal(s.recomputed, 4);
+    const s = summarise(CASES, LIMITS, RIGHT);
+    assert.deepEqual(s.cases, { reproduced: 2, within_1: 1, within_5: 1, not_reproduced: 1 });
+    assert.deepEqual(s.numbers, { reproduced: 20 + 48 + 9 + 7 + 11 + 1, within_1: 1, within_5: 2, not_reproduced: 1 });
+    assert.equal(s.numbersChecked, 100);
+    assert.equal(s.recomputed, 5);
     assert.equal(s.unchecked, 1);
+  });
+
+  test("a number the library is right about counts as reproduced, and only when its cause says so", () => {
+    assert.equal(summarise(CASES, LIMITS, RIGHT).numbers.not_reproduced, 1);
+    assert.equal(summarise(CASES, LIMITS, []).numbers.not_reproduced, 2, "the misprint, held to its size");
   });
 });
 
@@ -79,7 +88,13 @@ describe("the search", () => {
   const ids = (list) => list.map((c) => c.id);
 
   test("keeps every case with a recomputed number until a filter is chosen", () => {
-    assert.deepEqual(ids(filterCases(CASES, SOURCES)), ["a", "b", "c", "d"]);
+    assert.deepEqual(ids(filterCases(CASES, SOURCES)), ["a", "b", "c", "d", "f"]);
+    assert.deepEqual(ids(filterCases(CASES, SOURCES, {}, { all: true })), ["a", "b", "c", "d", "e", "f"]);
+  });
+
+  test("reads the name of a cause, and what the library cannot compute yet", () => {
+    assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "error in the source" })), ["f"]);
+    assert.deepEqual(ids(filterCases(CASES, SOURCES, { query: "irls" }, { all: true })), ["e", "f"]);
   });
 
   test("reads the title, the source's name and the reasons, every word of it", () => {
@@ -91,14 +106,14 @@ describe("the search", () => {
   test("keeps a source and a kind, the catalogue's two spellings of a case study as one", () => {
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { source: "lenth" })), ["a", "b"]);
     assert.deepEqual(ids(filterCases(CASES, SOURCES, { kind: "case study" })), ["d"]);
-    assert.deepEqual(kinds(CASES), [["example", 2], ["case study", 1], ["exercise", 1]]);
+    assert.deepEqual(kinds(CASES), [["example", 2], ["exercise", 2], ["case study", 1]]);
   });
 });
 
 describe("the sources and the lists", () => {
   test("each source counts its cases by tier and its numbers that agree, the oldest first", () => {
     const rows = bySource(CASES, SOURCES);
-    assert.deepEqual(rows.map((r) => [r.key, r.form, r.total, r.tiers.reproduced]), [["davies", "book", 2, 0], ["lenth", "paper", 2, 1]]);
+    assert.deepEqual(rows.map((r) => [r.key, r.form, r.total, r.tiers.reproduced]), [["davies", "book", 3, 1], ["lenth", "paper", 2, 1]]);
     assert.deepEqual([rows[1].numbers, rows[1].agree], [70, 68]);
     assert.deepEqual(bySource(CASES, SOURCES, "name").map((r) => r.key), ["davies", "lenth"]);
   });
@@ -111,9 +126,9 @@ describe("the sources and the lists", () => {
     const { groups, totals } = byForm(bySource(CASES, SOURCES), FORMS);
     assert.deepEqual(groups.map((g) => [g.form, g.label, g.rows.map((r) => r.key)]), [["book", "Books", ["davies"]], ["paper", "Journal papers", ["lenth"]]]);
     assert.deepEqual(groups[1].totals, { total: 2, tiers: { reproduced: 1, within_1: 0, within_5: 0, not_reproduced: 1 }, numbers: 70, agree: 68 });
-    assert.equal(totals.total, 4);
-    assert.equal(totals.numbers, 88);
-    assert.equal(totals.agree, 88 - 4);
+    assert.equal(totals.total, 5);
+    assert.equal(totals.numbers, 100);
+    assert.equal(totals.agree, 100 - 5);
   });
 
   test("a form chosen keeps the cases of its sources", () => {
@@ -129,9 +144,10 @@ describe("the sources and the lists", () => {
   });
 
   test("the bands count each difference once, their edges at the tiers' limits", () => {
-    const bands = errorBands(CASES, LIMITS);
+    const bands = errorBands(CASES, LIMITS, RIGHT);
     assert.equal(bands.length, BANDS.length);
-    assert.equal(bands.reduce((sum, band) => sum + band.count, 0), 4);
+    assert.equal(bands.reduce((sum, band) => sum + band.count, 0), 4, "the misprint measures the source, not the library");
+    assert.equal(errorBands(CASES, LIMITS, []).reduce((sum, band) => sum + band.count, 0), 5);
     const at = (label) => bands.find((band) => band.label === label);
     assert.equal(at("0.3-1%").count, 1);
     assert.equal(at("0.3-1%").tier, "within_1");
@@ -140,6 +156,17 @@ describe("the sources and the lists", () => {
     assert.equal(at("2-5%").count, 1);
     assert.equal(at("5-20%").tier, "not_reproduced");
     assert.equal(at("Not a number").count, 1);
+  });
+});
+
+describe("the causes", () => {
+  test("count the numbers that differ and those not recomputed, by cause", () => {
+    assert.deepEqual(causeTotals(CASES), { differs: { method: 4, source_error: 1 }, unchecked: { library_gap: 3, not_a_result: 3 } });
+  });
+
+  test("what the library lacks is grouped by its reason, with the numbers and cases that wait on it", () => {
+    const groups = missingByReason(CASES);
+    assert.deepEqual(groups.map((g) => [g.reason, g.numbers, g.cases.map((c) => c.id)]), [["the library has no IRLS fit", 3, ["e", "f"]]]);
   });
 });
 

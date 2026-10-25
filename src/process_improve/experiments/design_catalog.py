@@ -1441,15 +1441,33 @@ def _tier(errors: list[float | None]) -> str:
     return next(tier for tier, limit in list(REPRODUCTION_TIERS.items())[1:] if worst <= limit)
 
 
+#: The causes of a difference in which the library's value is the right one: the source is in error, or the number
+#: is a quiz option that its answer key marks incorrect. A case's tier leaves these out.
+LIBRARY_RIGHT = frozenset({"source_error", "incorrect_option"})
+
+
+def _printed(expected: dict[str, Any], check: dict[str, Any]) -> dict[str, Any]:
+    """Return what a printed number is and where its source prints it, as the reproduction page lists it."""
+    printed = check.get("printed", expected["value"])
+    return {
+        "what": expected.get("what"),
+        "term": expected.get("term"),
+        "printed": printed if isinstance(printed, list) else str(printed),
+        "where": _errata_where(expected.get("where")),
+    }
+
+
 def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
     """Say, for every case of the reference catalogue, how closely the library reproduces what its source prints.
 
     A number agrees when it is within the source's own rounding; the test suite requires that of every
-    recomputed number unless the catalogue records why it does not (its ``disagreement``). Only those are
+    recomputed number unless the catalogue records why it does not (its ``disagreement``) and the cause, one
+    of :data:`~process_improve.experiments.reference_catalogue.DISAGREEMENT_CAUSES`. Only those are
     recomputed here, to measure how far each one is from its source, so this takes a minute or two rather
     than the several minutes of
     :func:`~process_improve.experiments.reference_catalogue.reproduce_reference_catalogue`. A case falls in
-    the best of :data:`REPRODUCTION_TIERS` that holds every number of it that differs.
+    the best of :data:`REPRODUCTION_TIERS` that holds every number of it that differs, leaving out those in
+    which the library's value is the right one (:data:`LIBRARY_RIGHT`).
 
     Parameters
     ----------
@@ -1461,10 +1479,14 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
     list[dict]
         One per experiment and design, in the catalogue's order: ``id``, ``title``, ``source``, ``kind`` (a
         worked example, an exercise, ...), ``checked`` (how many of its printed numbers are recomputed),
-        ``tier`` (``None`` when none is), ``worst`` (the largest relative difference, ``None`` when one has no
-        relative size, 0 when none differs), and ``differs``: each number that differs, with ``what``,
-        ``term``, ``printed``, ``found`` (the library's value, as text), ``error`` (its relative difference,
-        see ``worst``), ``where`` (its place in the source, in a few words) and ``reason`` (why it differs).
+        ``tier`` (``None`` when none is), ``worst`` (the largest relative difference of the numbers the tier
+        holds, ``None`` when one has no relative size, 0 when none differs), ``differs``, ``unchecked`` and
+        ``missing``. ``differs`` lists each number that differs, with ``what``, ``term``, ``printed``,
+        ``found`` (the library's value, as text), ``error`` (its relative difference, see ``worst``),
+        ``where`` (its place in the source, in a few words), ``reason`` (why it differs) and ``cause``.
+        ``unchecked`` counts the printed numbers not recomputed by their cause, one of
+        :data:`~process_improve.experiments.reference_catalogue.UNCHECKED_CAUSES`, and ``missing`` lists
+        those the library has no function for yet (``"library_gap"``), each with ``reason``.
 
     Examples
     --------
@@ -1476,6 +1498,7 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
     cases = []
     for entry in [*reference_experiments(source), *reference_designs(source)]:
         checked = [(expected, check) for expected, check in _checks(entry) if "kind" in check]
+        unchecked = [(expected, check) for expected, check in _checks(entry) if "kind" not in check]
         differs: list[dict[str, Any]] = []
         for expected, check in checked:
             if not check.get("disagreement"):
@@ -1484,16 +1507,14 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
             printed = check.get("printed", expected["value"])
             differs.append(
                 {
-                    "what": expected.get("what"),
-                    "term": expected.get("term"),
-                    "printed": printed if isinstance(printed, list) else str(printed),
+                    **_printed(expected, check),
                     "found": found,
                     "error": _relative_error(printed, found, expression=bool(check.get("expression"))),
-                    "where": _errata_where(expected.get("where")),
                     "reason": str(check["disagreement"]),
+                    "cause": check.get("cause"),
                 }
             )
-        errors = [number["error"] for number in differs]
+        errors = [number["error"] for number in differs if number["cause"] not in LIBRARY_RIGHT]
         cases.append(
             {
                 "id": entry["name"],
@@ -1504,6 +1525,12 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
                 "tier": _tier(errors) if checked else None,
                 "worst": _worst(errors),
                 "differs": differs,
+                "unchecked": dict(Counter(check.get("cause") for _, check in unchecked)),
+                "missing": [
+                    {**_printed(expected, check), "reason": str(check.get("manual"))}
+                    for expected, check in unchecked
+                    if check.get("cause") == "library_gap"
+                ],
             }
         )
     return cases
