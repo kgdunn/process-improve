@@ -86232,7 +86232,7 @@
       "quote": "the length of the vector y = (4, 1, 1)' is |y| = ... = (18)^1/2"
      },
      "check": {
-      "manual": "the length of y, the root of its crude sum of squares Σy² = 18; the library reports sums of squares about the mean and no crude sums"
+      "manual": "the length of y, the root of its crude sum of squares Σy² = 18, which the library's fit gives (model_summary ss_total_uncorrected, checked below as the total about zero); no check kind takes the square root of it"
      }
     },
     {
@@ -86478,7 +86478,7 @@
       "quote": "Table 3.4 ... Total 3 |y - η0|² = Σ(y - η0)²"
      },
      "check": {
-      "manual": "the degrees of freedom of the total about a stated mean, n = 3; the library's totals are about the mean, on n - 1"
+      "kind": "n_runs"
      }
     },
     {
@@ -86533,7 +86533,7 @@
       "quote": "Table 3.4 ... Total 3 |y - η0|² = Σ(y - η0)² = 12.75"
      },
      "check": {
-      "manual": "the total sum of squares about the hypothesised mean 0.5, Σ(y - η0)²; the library's totals are about the mean, and it has no analysis of variance about a stated parameter value"
+      "manual": "the total sum of squares about the hypothesised mean 0.5, Σ(y - η0)²; the library's totals are about the mean or about zero (model_summary ss_total and ss_total_uncorrected), and it has no analysis of variance about a stated parameter value"
      }
     },
     {
@@ -86607,7 +86607,8 @@
       "quote": "(Answer: 12 + 6 = 18, same df.)"
      },
      "check": {
-      "manual": "the crude total Σy², which the library's sums of squares, about the mean, do not report"
+      "kind": "ss_total_uncorrected",
+      "model": "z1 - 1"
      }
     },
     {
@@ -86913,7 +86914,7 @@
       "quote": "Table 3.5 ... Total 3 |y - η0|² = Σ(y - η0)²"
      },
      "check": {
-      "manual": "the degrees of freedom of the total about a stated mean vector, n = 3; the library's totals are about the mean, on n - 1"
+      "kind": "n_runs"
      }
     },
     {
@@ -87185,7 +87186,7 @@
       "quote": "Table 3.6 ... Total 3 |y - η0|² = Σ(y - η0)² = 18.0"
      },
      "check": {
-      "manual": "the degrees of freedom of the crude total, n = 3; the library's totals are about the mean, on n - 1"
+      "kind": "n_runs"
      }
     },
     {
@@ -87226,7 +87227,8 @@
       "quote": "Table 3.6 ... Total 3 |y - η0|² = Σ(y - η0)² = 18.0"
      },
      "check": {
-      "manual": "the crude total Σy², which the library's sums of squares, about the mean, do not report"
+      "kind": "ss_total_uncorrected",
+      "model": "z1 + z2 - 1"
      }
     },
     {
@@ -87955,7 +87957,7 @@
       "quote": "form a right-angled triangle with internal angles of 2° (approximately), 90°, and 88° (approximately)"
      },
      "check": {
-      "manual": "the angle between y and ŷ, arccos(|ŷ|/|y|), from crude sums of squares (2.21 degrees for y = log Y on x); the library reports neither crude sums of squares nor angles between vectors"
+      "manual": "the angle between y and ŷ, arccos(|ŷ|/|y|), from crude sums of squares (2.21 degrees for y = log Y on x); the library's fit gives the crude sums of squares (model_summary ss_total_uncorrected and ss_model_uncorrected, checked below), but no check kind takes the angle between two vectors"
      }
     },
     {
@@ -87981,7 +87983,7 @@
       "quote": "form a right-angled triangle with internal angles of 2° (approximately), 90°, and 88° (approximately)"
      },
      "check": {
-      "manual": "90 degrees less the angle between y and ŷ (87.79 degrees for y = log Y on x); the library reports neither crude sums of squares nor angles between vectors"
+      "manual": "90 degrees less the angle between y and ŷ (87.79 degrees for y = log Y on x); the library's fit gives the crude sums of squares the angle comes from (checked below), but no check kind takes the angle between two vectors"
      }
     },
     {
@@ -88533,7 +88535,10 @@
       "quote": "table of (f), SS row: 10 2.533474 = 2.529508 + 0.003778"
      },
      "check": {
-      "manual": "the crude sum of squares of y = log10 Y; the book squares its four-decimal y (2.533474), the exact value is 2.533382; the library has no crude (uncorrected) sums of squares"
+      "kind": "ss_total_uncorrected",
+      "model": "I((xi - 25.1) / 0.05)",
+      "transform": "log10",
+      "disagreement": "rounding: the book squares y = log Y rounded to four decimals, as its table prints them (2.533474); exactly, Σy² = 2.533382"
      }
     },
     {
@@ -88546,7 +88551,10 @@
       "quote": "table of (f), SS row: 10 2.533474 = 2.529508 + 0.003778"
      },
      "check": {
-      "manual": "the crude sum of squares of the fitted values; the book squares its four-decimal ŷ (2.529508), the exact value is 2.529603; the library has no crude (uncorrected) sums of squares"
+      "kind": "ss_regression_uncorrected",
+      "model": "I((xi - 25.1) / 0.05)",
+      "transform": "log10",
+      "disagreement": "rounding: the book squares ŷ rounded to four decimals, as its table prints them (2.529508); exactly, Σŷ² = 2.529603"
      }
     },
     {
@@ -88679,7 +88687,7 @@
       "quote": "Total Σ(y − η0)² = 96.74 5"
      },
      "check": {
-      "manual": "n, the degrees of freedom of the total about the hypothesized line; the library has no test or sum of squares about a stated parameter vector, and the library has no crude (uncorrected) sums of squares"
+      "kind": "n_runs"
      }
     },
     {
@@ -89637,7 +89645,15 @@
       "quote": "Total 3815.92 6"
      },
      "check": {
-      "manual": "Σy²/100 = 381592/100, the crude total in units of 100; the library has no crude (uncorrected) sums of squares"
+      "kind": "ss_total_uncorrected",
+      "model": "z1 + z2 - 1",
+      "summary": {
+       "of": [
+        "y"
+       ],
+       "statistic": "mean",
+       "scale": 0.1
+      }
      }
     },
     {
@@ -89650,7 +89666,7 @@
       "quote": "Total 3815.92 6"
      },
      "check": {
-      "manual": "n, the degrees of freedom of the crude total; the library has no crude (uncorrected) sums of squares"
+      "kind": "n_runs"
      }
     },
     {
@@ -90162,7 +90178,16 @@
       "quote": "b0 1255.91 1"
      },
      "check": {
-      "manual": "the sum of squares for b0, (ΣY)²/n = 132.6²/14 = 1255.911; the library has no crude (uncorrected) sums of squares"
+      "kind": "ss_mean",
+      "model": "x",
+      "summary": {
+       "of": [
+        "Y1",
+        "Y2",
+        "Y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -90175,7 +90200,16 @@
       "quote": "b0 1255.91 1"
      },
      "check": {
-      "manual": "the degree of freedom for b0 in the crude analysis of variance; the library has no crude (uncorrected) sums of squares"
+      "kind": "df_model_uncorrected",
+      "model": "1",
+      "summary": {
+       "of": [
+        "Y1",
+        "Y2",
+        "Y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -90392,7 +90426,16 @@
       "quote": "Total 2845.80 14"
      },
      "check": {
-      "manual": "ΣY², the crude total of the 14 readings; the library has no crude (uncorrected) sums of squares"
+      "kind": "ss_total_uncorrected",
+      "model": "x",
+      "summary": {
+       "of": [
+        "Y1",
+        "Y2",
+        "Y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -90405,7 +90448,15 @@
       "quote": "Total 2845.80 14"
      },
      "check": {
-      "manual": "n, the degrees of freedom of the crude total; the library has no crude (uncorrected) sums of squares"
+      "kind": "n_runs",
+      "summary": {
+       "of": [
+        "Y1",
+        "Y2",
+        "Y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -97131,7 +97182,9 @@
       "quote": "Table 4.7 ... Strength ... SS due to b0 = (Σy)²/64 7,918.7752"
      },
      "check": {
-      "manual": "the correction factor (Σy)²/64, arithmetic of Σy, which is checked; the library's fit reports it (model_summary ss_mean, which reproduces), but no check kind reads it"
+      "kind": "ss_mean",
+      "model": "x1 + x4 + x6",
+      "response": "strength"
      }
     },
     {
@@ -97596,7 +97649,9 @@
       "quote": "Table 4.7 ... Hue ... SS due to b0 = (Σy)²/64 18,394.1406"
      },
      "check": {
-      "manual": "the correction factor (Σy)²/64, arithmetic of Σy, which is checked; the library's fit reports it (model_summary ss_mean, which reproduces), but no check kind reads it"
+      "kind": "ss_mean",
+      "model": "x1 + x4 + x6",
+      "response": "hue"
      }
     },
     {
@@ -98062,7 +98117,9 @@
       "quote": "Table 4.7 ... Brightness ... SS due to b0 = (Σy)²/64 51,189.0625"
      },
      "check": {
-      "manual": "the correction factor (Σy)²/64, arithmetic of Σy, which is checked; the library's fit reports it (model_summary ss_mean, which reproduces), but no check kind reads it"
+      "kind": "ss_mean",
+      "model": "x1 + x4 + x6",
+      "response": "brightness"
      }
     },
     {
@@ -108387,7 +108444,8 @@
       "quote": "4.12 ... b0 14,012.64 1"
      },
      "check": {
-      "manual": "the sum of squares of the mean, n ȳ² = 16 x 29.59375² = 14,012.64; no check kind reads it (the fit's model_summary ss_mean)"
+      "kind": "ss_mean",
+      "model": "X1 + X2 + X3"
      }
     },
     {
@@ -108400,7 +108458,8 @@
       "quote": "4.12 ... b0 14,012.64 1"
      },
      "check": {
-      "manual": "the one degree of freedom of the mean; no check kind reads it"
+      "kind": "df_model_uncorrected",
+      "model": "1"
      }
     },
     {
@@ -109318,7 +109377,8 @@
       "quote": "4.13 ... b0 54,289.00 1 (same as SS's)"
      },
      "check": {
-      "manual": "the sum of squares of the mean, n ȳ² = 16 x 58.25² = 54,289; no check kind reads it (the fit's model_summary ss_mean)"
+      "kind": "ss_mean",
+      "model": "x2 + x3 + x4 + x2:x3 + x2:x4 + x3:x4"
      }
     },
     {
@@ -109331,7 +109391,8 @@
       "quote": "4.13 ... b0 54,289.00 1 (same as SS's)"
      },
      "check": {
-      "manual": "the one degree of freedom of the mean; no check kind reads it"
+      "kind": "df_model_uncorrected",
+      "model": "1"
      }
     },
     {
@@ -110074,7 +110135,16 @@
       "quote": "The total sum of squares for the 24 observations is 496.87."
      },
      "check": {
-      "manual": "the crude sum of squares Σy² of the 24 readings, given to help the analysis; no check kind computes it over several reading columns (it reproduces)"
+      "kind": "ss_total_uncorrected",
+      "model": "x1*x2*x3",
+      "summary": {
+       "of": [
+        "y1",
+        "y2",
+        "y3"
+       ],
+       "statistic": "each"
+      }
      }
     },
     {
@@ -171871,7 +171941,7 @@
       "quote": "This leads to an 'estimate' for y17 of 497.25 instead of 362."
      },
      "check": {
-      "manual": "the value of y17 that makes the 112233 contrast zero, 362 + 541/4 (its coefficient in that contrast is 4); no check kind solves for a missing value"
+      "manual": "the value of y17 that makes the 112233 contrast zero, 362 + 541/4 (its coefficient in that contrast is 4); estimate_missing gives 497.25 (verified), with run 17 left out and the model of the 26 other terms of the full 3^3 polynomial, but no check kind calls it"
      }
     },
     {
@@ -182329,7 +182399,18 @@
       "quote": "(150.84 - 107.94)/{6(19.612)/12}^1/2 = 13.70"
      },
      "check": {
-      "manual": "arithmetic on the numbers printed beside it; no check kind computes Box and Wetz's ratio"
+      "kind": "adequate_precision",
+      "model": "x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2",
+      "summary": {
+       "of": [
+        "y_1",
+        "y_2",
+        "y_3",
+        "y_4"
+       ],
+       "statistic": "each"
+      },
+      "disagreement": "the book's s² = 19.612 rests on a corrected total of 3,534.19, where the twelve observations give 3,534.92 and s² = 19.728 (see s² above); with it, and the fitted values 150.836 and 107.950, the ratio is 13.65; the book's own numbers give (150.84 - 107.94)/{6(19.612)/12}^1/2 = 13.70"
      }
     },
     {
@@ -201974,7 +202055,7 @@
       "quote": "Table 8.4 Values of (13.729)ξu ln ξu = Ẑu ... -4.76 8.34 31.45 60.20 92.92"
      },
      "check": {
-      "manual": "13.729 xi ln xi at the five charges is -4.758, 8.350, 31.449, 60.197 and 92.923, so 8.34 is 0.01 low (8.35); the library has no transformation of a predictor (np.log is refused in a model formula), nor Box and Tidwell's constructed variable"
+      "manual": "13.729 xi ln xi at the five charges is -4.758, 8.350, 31.449, 60.197 and 92.923, so 8.34 is 0.01 low (8.35); the library has no transformation of a predictor (np.log is refused in a model formula), and regression.box_tidwell builds a constructed variable of its own internally and does not return it"
      }
     },
     {
@@ -202035,7 +202116,7 @@
       "quote": "It follows that α̂ = 0.41."
      },
      "check": {
-      "manual": "one plus the coefficient of Zhat, 1 - 0.5888 = 0.411: arithmetic, no check adds one; the library has no Box-Tidwell estimate of a predictor's power, nor a fit of xi^alpha by nonlinear least squares"
+      "manual": "one plus the coefficient of Zhat, 1 - 0.5888 = 0.411, Box and Tidwell's one-step estimate; regression.box_tidwell gives it from Y and xi as its first step (iterations[1] = 0.4111), and the least-squares power 0.473 (standard error 0.095) where its steps converge; no check kind calls box_tidwell"
      }
     },
     {
@@ -202366,7 +202447,7 @@
       "quote": "γ̂ 0.2808 1"
      },
      "check": {
-      "manual": "27 times the squared mean of y + 3 log xi3 + 5 log xi4, the mean's row of an uncorrected analysis; the library has no transformation of the predictors in a model (analyze_experiment refuses np.log in a formula), so no fit on log xi3 and log xi4 can be checked, and its analysis of variance has no uncorrected rows; numpy gives 0.2829; the book's value is not reproduced and the source of the gap is unexplained (tried: y as Table 7.1 prints it, to two decimals; the logs of the levels rounded to three or four decimals; any one response changed)"
+      "manual": "27 times the squared mean of y + 3 log xi3 + 5 log xi4, the mean's row of an uncorrected analysis; the library's fit gives such a row (model_summary ss_mean), but that response is not a column of the entry and no check kind builds it, and the library has no transformation of the predictors in a model (analyze_experiment refuses np.log in a formula), so no fit on log xi3 and log xi4 can be checked; numpy gives 0.2829; the book's value is not reproduced and the source of the gap is unexplained (tried: y as Table 7.1 prints it, to two decimals; the logs of the levels rounded to three or four decimals; any one response changed)"
      }
     },
     {
@@ -209692,7 +209773,7 @@
       "quote": "The first three contrasts require the coefficients 1 -1 1 -1 1 -1 1 -1 -z z ..."
      },
      "check": {
-      "manual": "the four independent columns of Z2.1, with the 19 runs taken as the 8 cube runs, the 6 axial runs and the 5 centre runs: the first three are x_i^3 orthogonalised against the model (-x_i on the cube, z times the sign of x_i on its axial pair), the fourth x1x2x3; each is orthogonal to every column of the model of (c) (numpy); the library has no checking functions of a composite design"
+      "manual": "the four independent columns of Z2.1, with the 19 runs taken as the 8 cube runs, the 6 axial runs and the 5 centre runs: the first three are x_i^3 orthogonalised against the model (-x_i on the cube, z times the sign of x_i on its axial pair), the fourth x1x2x3; each is orthogonal to every column of the model of (c) (numpy); the library's third_order_contrasts gives the first three as each factor's axial slope less its factorial slope, one eighth of these contrasts (8 x 3.7681 = 30.145 for x1, whose square over 8 + 2z^2 is the 47.06 below), but not their coefficients, nor the fourth; no check kind calls it"
      }
     },
     {
@@ -209706,7 +209787,7 @@
       "quote": "multiplying the 19 observations, where z = 2.3781213"
      },
      "check": {
-      "manual": "8/(2 x 1.682) = 2.3781213, the axial weight that makes each contrast orthogonal to its x_i (the cube's -8 balanced by z times 2 x 1.682): arithmetic; the library has no checking functions"
+      "manual": "8/(2 x 1.682) = 2.3781213, the axial weight that makes each contrast orthogonal to its x_i (the cube's -8 balanced by z times 2 x 1.682): arithmetic; the library's third_order_contrasts works these contrasts as the axial slope less the factorial slope, in which z is the ratio of the factorial slope's divisor 8 to the axial slope's 2 x 1.682, and does not return z"
      }
     },
     {
@@ -222200,7 +222281,9 @@
       "quote": "(ŷmax - ŷmin)/(ps²/n)^1/2 = 14.3"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy, from the fitted values 1.7767 and 0.2898, p = 6, s² = 0.0288915 and n = 16, gives 14.28"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+      "response": "y"
      }
     },
     {
@@ -223923,7 +224006,10 @@
       "quote": "(Ŷmax - Ŷmin)/(ps²/n)^1/2 ... 25.2 (column Ŷ1)"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy, from the range of the 20 fitted values, p = 10, the residual mean square on 10 df and n = 20, gives 24.89"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+      "response": "Y1",
+      "disagreement": "unexplained: the fitted values run from 96.748 to 195.496, which with p = 10, the residual mean square 31.486 on 10 df and n = 20 give 24.89; the observed range gives 25.71 and the printed coefficients 24.38, so neither gives the book's 25.2"
      }
     },
     {
@@ -223936,7 +224022,10 @@
       "quote": "(Ŷmax - Ŷmin)/(ps²/n)^1/2 ... 22.7 (column Ŷ3)"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy, from the range of the 20 fitted values, p = 10, the residual mean square on 10 df and n = 20, gives 28.21"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+      "response": "Y3",
+      "disagreement": "unexplained: the fitted values run from 237.326 to 647.289, which with p = 10, the residual mean square 422.27 on 10 df and n = 20 give 28.21; the observed range gives 27.53 and the printed coefficients 28.22, so neither gives the book's 22.7"
      }
     },
     {
@@ -223949,7 +224038,9 @@
       "quote": "(Ŷmax - Ŷmin)/(ps²/n)^1/2 ... 18.8 (column Ŷ4)"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy, from the range of the 20 fitted values, p = 10, the residual mean square on 10 df and n = 20, gives 18.76"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+      "response": "Y4"
      }
     },
     {
@@ -232801,7 +232892,16 @@
       "quote": "(15.13 - 5.13)/{6(1.5862)/66}^1/2 = 26.34"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy gives 26.33, and the printed numbers 10/(6 × 1.5862/66)^1/2 = 26.33"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+      "summary": {
+       "statistic": "each",
+       "of": [
+        "rep1",
+        "rep2"
+       ]
+      },
+      "disagreement": "the book's own numbers give (15.13 - 5.13)/{6(1.5862)/66}^1/2 = 26.33, and the fit, with fitted values 15.1265 and 5.1285, gives 26.328; the printed 26.34 is 0.01 high"
      }
     },
     {
@@ -235873,7 +235973,53 @@
       "quote": "{13.165 - (-1.413)}/{10(2.5955)/50}^1/2 = 20.24"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy gives 20.23"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2 + x3) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2)",
+      "runs": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       21,
+       22,
+       23,
+       24,
+       25,
+       27,
+       31,
+       33,
+       34,
+       35,
+       36,
+       37,
+       39,
+       40,
+       41,
+       42
+      ],
+      "summary": {
+       "statistic": "each",
+       "of": [
+        "rep1",
+        "rep2"
+       ]
+      },
+      "disagreement": "the book's own numbers give {13.165 - (-1.413)}/{10(2.5955)/50}^1/2 = 20.23, and the fit gives 20.23498; the printed 20.24 is 0.01 high"
      }
     },
     {
@@ -238004,7 +238150,7 @@
       "quote": "(Ŷmax - Ŷmin)/(ps²/n)^1/2 ... 21.5"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), and no check can fit it; numpy from the 80 fitted values, p = 10 and s² on 70 df gives 31.63"
+      "manual": "Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), which the library's fit gives as model_summary adequate_precision; but no check can fit this model, which is in X1 = log ξ1 and X2 = log(10ξ2) (analyze_experiment refuses np.log10 in a formula); numpy from the 80 fitted values, p = 10 and s² on 70 df gives 31.63"
      }
     },
     {
@@ -238238,7 +238384,7 @@
       "quote": "(Ŷmax - Ŷmin)/(ps²/n)^1/2 ... 29.5"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), and no check can fit it; numpy from the 80 fitted values, p = 10 and s² on 70 df gives 29.55"
+      "manual": "Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), which the library's fit gives as model_summary adequate_precision; but no check can fit this model, which is in X1 = log ξ1 and X2 = log(10ξ2) (analyze_experiment refuses np.log10 in a formula); numpy from the 80 fitted values, p = 10 and s² on 70 df gives 29.55"
      }
     },
     {
@@ -238472,7 +238618,7 @@
       "quote": "(Ŷmax - Ŷmin)/(ps²/n)^1/2 ... 16.6"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), and no check can fit it; numpy from the 80 fitted values, p = 10 and s² on 70 df gives 11.62"
+      "manual": "Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), which the library's fit gives as model_summary adequate_precision; but no check can fit this model, which is in X1 = log ξ1 and X2 = log(10ξ2) (analyze_experiment refuses np.log10 in a formula); numpy from the 80 fitted values, p = 10 and s² on 70 df gives 11.62"
      }
     },
     {
@@ -238706,7 +238852,7 @@
       "quote": "(Ŷmax - Ŷmin)/(ps²/n)^1/2 ... 19.0"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), and no check can fit it; numpy from the 80 fitted values, p = 10 and s² on 70 df gives 21.3"
+      "manual": "Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2), which the library's fit gives as model_summary adequate_precision; but no check can fit this model, which is in X1 = log ξ1 and X2 = log(10ξ2) (analyze_experiment refuses np.log10 in a formula); numpy from the 80 fitted values, p = 10 and s² on 70 df gives 21.3"
      }
     },
     {
@@ -245137,7 +245283,10 @@
       "quote": "(9.61 - 2.43)/{14(0.247)/35}^1/2 = 22.84"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy gives 22.83"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2 + x3 + x4) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "response": "y1",
+      "disagreement": "the book takes p = 14, (9.61 - 2.43)/{14(0.247)/35}^1/2 = 22.84; the second-order model in four factors has 15 coefficients (35 runs less the 20 residual df), and with p = 15 the fit gives 22.06"
      }
     },
     {
@@ -249219,7 +249368,16 @@
       "quote": "(ŷmax - ŷmin)/(ps²/n)^1/2 = 39.0 so canonical reduction is worthwhile"
      },
      "check": {
-      "manual": "the library has no such criterion: Box and Wetz's ratio of the range of the fitted values over the root of p s²/n (Section 8.2); numpy, from the fitted values 15.062 and 3.235, p = 15, s² = 0.2427 and n = 45, gives 41.6"
+      "kind": "adequate_precision",
+      "model": "(x1 + x2 + x3 + x4) ** 2 + I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)",
+      "summary": {
+       "of": [
+        "y100"
+       ],
+       "statistic": "mean",
+       "scale": 0.01
+      },
+      "disagreement": "unexplained: the fitted values run from 3.235 to 15.062, which with p = 15, s² = 0.2427 on 30 df and n = 45 give 41.58, and the printed coefficients give the same; the book's 39.0 is 6% low"
      }
     },
     {
@@ -367390,7 +367548,7 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.25 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, where the library's standard errors use the residual mean square and it has no option to use pure error; 0.457 is itself not what the printed data give (see the pure error rows)"
+      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.25 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)"
      }
     },
     {
@@ -367419,7 +367577,7 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.17 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, where the library's standard errors use the residual mean square and it has no option to use pure error; 0.457 is itself not what the printed data give (see the pure error rows)"
+      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.17 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)"
      }
     },
     {
@@ -367448,7 +367606,7 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.17 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, where the library's standard errors use the residual mean square and it has no option to use pure error; 0.457 is itself not what the printed data give (see the pure error rows)"
+      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.17 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)"
      }
     },
     {
@@ -367477,7 +367635,7 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.14 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, where the library's standard errors use the residual mean square and it has no option to use pure error; 0.457 is itself not what the printed data give (see the pure error rows)"
+      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.14 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)"
      }
     },
     {
@@ -367506,7 +367664,7 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.14 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, where the library's standard errors use the residual mean square and it has no option to use pure error; 0.457 is itself not what the printed data give (see the pure error rows)"
+      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.14 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)"
      }
     },
     {
@@ -367535,7 +367693,7 @@
       "quote": "(13.8.8) +-0.25 +-0.17 +-0.17 +-0.14 +-0.14 +-0.24"
      },
      "check": {
-      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.24 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, where the library's standard errors use the residual mean square and it has no option to use pure error; 0.457 is itself not what the printed data give (see the pure error rows)"
+      "manual": "the standard error sqrt(0.457 c_jj) of the coefficient, c = (X'X)^-1 (0.24 reproduces so); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, which analyze_experiment(..., sigma=0.457 ** 0.5) takes in place of the residual mean square (it gives 0.25, 0.17, 0.14 and 0.24, verified), but no check kind passes a sigma; 0.457 is itself not what the printed data give (see the pure error rows)"
      }
     },
     {
@@ -368055,7 +368213,7 @@
       "quote": "c2 - c2' = 1.3925 +- 0.7520 (13.8.30)"
      },
      "check": {
-      "manual": "sigma {1/nc + 1/nc0 + (k^2/alpha^4)[1/(2k rs) + 1/ns0]}^1/2 of Eq. (13.8.28) with sigma^2 = 0.457 (0.75202); it uses the pure error mean square s_e^2 = 0.457 for sigma^2, where the library's standard errors use the residual mean square and it has no option to use pure error; 0.457 is itself not what the printed data give (see the pure error rows)"
+      "manual": "sigma {1/nc + 1/nc0 + (k^2/alpha^4)[1/(2k rs) + 1/ns0]}^1/2 of Eq. (13.8.28) with sigma^2 = 0.457 (0.75202); it uses the pure error mean square s_e^2 = 0.457 for sigma^2; no check kind computes this contrast (see above) or its standard error, and 0.457 is itself not what the printed data give (see the pure error rows)"
      }
     },
     {
@@ -368217,7 +368375,7 @@
       "quote": "this procedure converges to the values lambda1 = -0.23, lambda2 = -0.93"
      },
      "check": {
-      "manual": "the library has no estimation of power transformations of the predictors (Box and Tidwell, or Eq. (13.8.22)), and the natural values xi of these runs, needed for it, are not printed in these pages (Figure 8.5b, Chapter 8)"
+      "manual": "regression.box_tidwell estimates the powers of predictors that enter a model linearly, not those of a second-order model in the transformed predictors, as Eq. (13.8.22) and this fit need; and the natural values xi of these runs, which any such estimate needs, are not printed in Section 13.8 (the coding is that of Figure 8.5b, Chapter 8)"
      }
     },
     {
@@ -368230,7 +368388,7 @@
       "quote": "this procedure converges to the values lambda1 = -0.23, lambda2 = -0.93"
      },
      "check": {
-      "manual": "the library has no estimation of power transformations of the predictors (Box and Tidwell, or Eq. (13.8.22)), and the natural values xi of these runs, needed for it, are not printed in these pages (Figure 8.5b, Chapter 8)"
+      "manual": "regression.box_tidwell estimates the powers of predictors that enter a model linearly, not those of a second-order model in the transformed predictors, as Eq. (13.8.22) and this fit need; and the natural values xi of these runs, which any such estimate needs, are not printed in Section 13.8 (the coding is that of Figure 8.5b, Chapter 8)"
      }
     },
     {
@@ -368243,7 +368401,7 @@
       "quote": "compared with the values lambda1 = 0.09, lambda2 = -0.82"
      },
      "check": {
-      "manual": "the library has no estimation of power transformations of the predictors (Box and Tidwell, or Eq. (13.8.22)), and the natural values xi of these runs, needed for it, are not printed in these pages (Figure 8.5b, Chapter 8)"
+      "manual": "regression.box_tidwell estimates the powers of predictors that enter a model linearly, not those of a second-order model in the transformed predictors, as Eq. (13.8.22) and this fit need; and the natural values xi of these runs, which any such estimate needs, are not printed in Section 13.8 (the coding is that of Figure 8.5b, Chapter 8)"
      }
     },
     {
@@ -368256,7 +368414,7 @@
       "quote": "compared with the values lambda1 = 0.09, lambda2 = -0.82"
      },
      "check": {
-      "manual": "the library has no estimation of power transformations of the predictors (Box and Tidwell, or Eq. (13.8.22)), and the natural values xi of these runs, needed for it, are not printed in these pages (Figure 8.5b, Chapter 8)"
+      "manual": "regression.box_tidwell estimates the powers of predictors that enter a model linearly, not those of a second-order model in the transformed predictors, as Eq. (13.8.22) and this fit need; and the natural values xi of these runs, which any such estimate needs, are not printed in Section 13.8 (the coding is that of Figure 8.5b, Chapter 8)"
      }
     },
     {
@@ -368837,7 +368995,7 @@
       "quote": "where X1 = xi1^-1, X2 = xi2, X3 = xi3^1/2, and epsilon ~ N(0, 4)"
      },
      "check": {
-      "manual": "the power used to construct the data; the library has no estimation of predictor powers (Box-Tidwell), so it is not recomputed"
+      "manual": "the power used to construct the data, a setting of the exercise, not an estimate; regression.box_tidwell estimates the powers of predictors that enter a model linearly, not those of the second-order model in powers of the predictors that the exercise fits, so it is not recomputed"
      }
     },
     {
@@ -368850,7 +369008,7 @@
       "quote": "where X1 = xi1^-1, X2 = xi2, X3 = xi3^1/2, and epsilon ~ N(0, 4)"
      },
      "check": {
-      "manual": "the power used to construct the data; the library has no estimation of predictor powers (Box-Tidwell), so it is not recomputed"
+      "manual": "the power used to construct the data, a setting of the exercise, not an estimate; regression.box_tidwell estimates the powers of predictors that enter a model linearly, not those of the second-order model in powers of the predictors that the exercise fits, so it is not recomputed"
      }
     },
     {
@@ -388105,7 +388263,7 @@
       "quote": "with standard error given by 0.7934 (from a regression printout)"
      },
      "check": {
-      "manual": "the standard error of ŷ at the centroid with σ² = 1, sqrt(x0'(X'X)^-1 x0) = sqrt(51/81) = 0.79349, which rounds to 0.7935 (the book's 0.7934 truncates it); the library's leverage there is 0.62963 (verified), but no check kind takes its square root, and the library has no way to use an external estimate of σ² (here s² = 1 on 20 df) for a prediction's standard error: the fit is saturated, and its prediction intervals are NaN"
+      "manual": "the standard error of ŷ at the centroid with σ² = 1, sqrt(x0'(X'X)^-1 x0) = sqrt(51/81) = 0.79349, which rounds to 0.7935 (the book's 0.7934 truncates it); the library's leverage there is 0.62963 (verified), but no check kind takes its square root; analyze_experiment(..., sigma=1) uses σ² = 1 (here s² = 1 on 20 df) in place of the residual and gives the interval 8 ± 1.96 x 0.7935 there (verified), but no check kind passes a sigma: without one the fit is saturated and its prediction intervals are NaN"
      }
     },
     {
