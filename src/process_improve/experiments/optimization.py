@@ -509,8 +509,8 @@ def _canonical_analysis(
         ``classification_note`` says when an eigenvalue is small next to the
         largest though not flat.
 
-        ``b_canonical`` is the surface in Box and Draper's B canonical form,
-        the form a ridge is read in: y = y0 + theta * X_k + sum of lambda_i X_i^2,
+        ``b_canonical`` is the surface in the ridge form of Box and Draper (2007,
+        Eq. 11.1.2), the form a ridge is read in: y = y0 + theta * X_k + sum of lambda_i X_i^2,
         with X_i = v_i'(x - x0). Its axis ``k`` is that of the smallest
         eigenvalue in size, the ridge's direction, and its ``origin`` x0 is the
         point nearest the design centre where the response stops changing
@@ -519,12 +519,16 @@ def _canonical_analysis(
         the ridge, v_k'b, and each axis's ``offset``, the constant c_i of the
         plane X_i = v_i'x + c_i = 0. The form is exact for any surface: a
         maximum, minimum or saddle is a ridge whose theta is zero and whose
-        smallest eigenvalue is not.
+        smallest eigenvalue is not. Despite its key, it is not Box and Draper's
+        B canonical form, which is centred on the stationary point (below).
 
         When the surface has a stationary point x_s, ``canonical_axes`` gives
         each canonical variable W_i = v_i'(x - x_s) as its ``constant``,
-        -v_i'x_s, and ``coefficients``: the A canonical form is
-        y = y_s + sum of lambda_i W_i^2.
+        -v_i'x_s, and ``coefficients``: Box and Draper's B canonical form is
+        y = y_s + sum of lambda_i W_i^2. Their A canonical form, the axes
+        rotated about the design centre with a slope theta_i = v_i'b along
+        each, y = b0 + sum of theta_i X_i + sum of lambda_i X_i^2, is not
+        returned.
     """
     b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
@@ -548,7 +552,7 @@ def _canonical_analysis(
         "factor_names": factor_names,
         "b_canonical": _b_canonical((b0, b, B), eigenvalues, eigenvectors, factor_names),
     }
-    if not shape.drifts:  # a stationary point exists: the A canonical form's axes are centred on it
+    if not shape.drifts:  # a stationary point exists: the B canonical form's axes are centred on it
         curved = ~shape.flat
         x_s = eigenvectors[:, curved] @ (-0.5 * (eigenvectors[:, curved].T @ b) / eigenvalues[curved])
         result["canonical_axes"] = [
@@ -571,7 +575,7 @@ def _b_canonical(
     eigenvectors: np.ndarray,
     factor_names: list[str],
 ) -> dict[str, Any]:
-    """Return Box and Draper's B canonical form, taking the last axis (the smallest eigenvalue in size) as the ridge.
+    """Return Box and Draper's ridge form (Eq. 11.1.2), taking the last axis (the smallest eigenvalue) as the ridge.
 
     The origin x0 = -1/2 sum over the other axes of (v_i'b / lambda_i) v_i is the point nearest the
     centre where the gradient has no component along them, so the form keeps one linear term, along

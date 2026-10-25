@@ -1629,7 +1629,7 @@ class TestCodedHandoff:
 
 
 class TestCanonicalForms:
-    """The A and B canonical forms re-express the fitted quadratic exactly; the B form keeps the ridge's slope."""
+    """Box and Draper's B form and their ridge form re-express the quadratic exactly; the ridge form keeps its slope."""
 
     @staticmethod
     def _bhh() -> list[dict]:
