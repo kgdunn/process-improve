@@ -5,7 +5,7 @@ For every material ``j`` of the chosen group, the blends that use ``j`` are the 
 the model is trained on all other blends, with ``j`` removed from D and F. Only the properties
 of ``j`` are known at prediction time. This is exactly the situation of a new material.
 
-Run ``python study.py`` from this folder (about 30 minutes on 4 cores); it prints the tables
+Run ``python study.py`` from this folder (about 40 minutes on 4 cores); it prints the tables
 quoted in README.md and writes them to ``results/``.
 """
 
@@ -19,7 +19,7 @@ import methods as mt
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
-from new_materials import centre_f, predict, project_materials
+from new_materials import centre_f, predict
 from simulate import simulate
 
 from process_improve.multivariate.methods import PLS, DataFrameDict
@@ -99,6 +99,50 @@ def _pivot(values: pd.Series, index: str | list, columns: str, aggfunc: str = "m
     return long.pivot_table(index=index, columns=columns, values="value", aggfunc=aggfunc)
 
 
+def invariance_checks(n_components: int = 6) -> pd.DataFrame:
+    """Run the two tests a model must pass to take new materials; changes are in Y standard deviations.
+
+    1. Split one lot into two identical half-lots (the twin entered as a new material).
+    2. Add to D a material that no blend uses, and predict the training blends again.
+
+    Each entry is the largest change of any prediction; a model that passes shows 0.
+    """
+    sim = simulate(seed=7)
+    data = {"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}
+    sd = sim.Y["Y"].std().to_numpy()
+    lot = sim.F["A"].std().idxmin()  # the lot whose usage varied least, so autoscaling matters most
+    twin = sim.D["A"].loc[[lot]].rename(index={lot: "twin"})
+    unused = sim.D["A"].iloc[[0]].rename(index={sim.D["A"].index[0]: "unused"}) * 1.05
+    split_f = {**sim.F, "A": sim.F["A"].assign(**{lot: sim.F["A"][lot] / 2, "twin": sim.F["A"][lot] / 2})}
+    padded_f = {**sim.F, "A": sim.F["A"].assign(unused=0.0)}
+    rows = {}
+    variants = (
+        ("TPLS, autoscaled F", False, True),
+        ("TPLS, centred F", True, True),
+        ("TPLS, centred F, no D deflation", True, False),
+    )
+    for name, centred, deflate_d in variants:
+        mt.FIT_CACHE.clear()
+        model, means = mt.fit_tpls(data, n_components, centred=centred, deflate_d=deflate_d)
+
+        def run(f: dict, d_new: dict | None = None, model=model, means=means, centred=centred) -> np.ndarray:
+            f = centre_f(f, means) if centred else f
+            return predict(model, DataFrameDict({"F": f, "Z": sim.Z, "Y": {}}), d_new).to_numpy()
+
+        base = run(sim.F)
+        rows[name] = {
+            "split a lot in two": np.max(np.abs(run(split_f, {"A": twin}) - base) / sd),
+            "add an unused material, projected": np.max(np.abs(run(padded_f, {"A": unused}) - base) / sd),
+        }
+        padded = {**data, "D": {**sim.D, "A": pd.concat([sim.D["A"], unused])}, "F": padded_f}
+        mt.FIT_CACHE.clear()
+        refit, refit_means = mt.fit_tpls(padded, n_components, centred=centred, deflate_d=deflate_d)
+        f = centre_f(padded_f, refit_means) if centred else padded_f
+        new = predict(refit, DataFrameDict({"F": f, "Z": sim.Z, "Y": {}})).to_numpy()
+        rows[name]["add an unused material, refit"] = np.max(np.abs(new - base) / sd)
+    return pd.DataFrame(rows).T
+
+
 def split(data: dict, material: str, group: str) -> tuple[dict, dict, dict, dict, pd.Index]:
     """Training blocks without ``material``; the test blends that use it; its properties."""
     uses = data["F"][group][material] > 0
@@ -114,14 +158,13 @@ def split(data: dict, material: str, group: str) -> tuple[dict, dict, dict, dict
     return train, test_f, test_z, d_new, uses[uses].index
 
 
-def leave_one_material_out(data: dict, group: str, n_components: int, which: dict = ZERO_SHOT) -> tuple:
+def leave_one_material_out(data: dict, group: str, n_components: int, which: dict = ZERO_SHOT) -> pd.DataFrame:
     """Squared errors of every method for every (left-out material, blend that uses it) pair.
 
-    Returns a long frame (method, material, blend, Y column, squared error), and per material
-    its T2 and SPE among the other materials of its group (applicability domain).
+    Returns a long frame: method, material, blend, Y column and squared error.
     """
     key = next(iter(data["Y"]))
-    errors, info = [], []
+    errors = []
     for material in data["F"][group].columns:
         mt.FIT_CACHE.clear()
         train, test_f, test_z, d_new, rows = split(data, material, group)
@@ -138,20 +181,7 @@ def leave_one_material_out(data: dict, group: str, n_components: int, which: dic
                 .melt("blend", var_name="y", value_name="sq")
                 .assign(method=name, material=material)
             )
-        model, _ = mt.fit_tpls(train, n_components, centred=True, deflate_d=False)
-        ad = project_materials(model, d_new)[group]
-        ref = project_materials(model, {group: train["D"][group]})[group]
-        info.append(
-            {
-                "material": material,
-                "n_blends": len(rows),
-                "T2": ad["T2"].iloc[0],
-                "T2_ref95": ref["T2"].quantile(0.95),
-                "SPE": ad["SPE"].iloc[0],
-                "SPE_ref95": ref["SPE"].quantile(0.95),
-            }
-        )
-    return pd.concat(errors, ignore_index=True), pd.DataFrame(info)
+    return pd.concat(errors, ignore_index=True)
 
 
 def leave_one_blend_out(data: dict, n_components: int) -> pd.DataFrame:
@@ -173,28 +203,25 @@ def leave_one_blend_out(data: dict, n_components: int) -> pd.DataFrame:
 REFERENCE = "reference: material seen in training"
 
 
-def _one_dataset(scenario: str, rep: int, components: tuple) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _one_dataset(scenario: str, rep: int, components: tuple) -> pd.DataFrame:
     sim = simulate(seed=1000 * rep + 7, **SCENARIOS[scenario])
     data = {"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}
-    errs, infos = [], []
+    errs = []
     for n_comp in components:
-        err, info = leave_one_material_out(data, "A", n_comp)
+        err = leave_one_material_out(data, "A", n_comp)
         # The reference, scored on the same (material, blend) pairs as the methods.
         sq = ((leave_one_blend_out(data, n_comp) - sim.Y["Y"]) ** 2).rename_axis("blend").reset_index()
         pairs = err.loc[err["method"] == next(iter(ZERO_SHOT)), ["blend", "y", "material"]]
         ref = pairs.merge(sq.melt("blend", var_name="y", value_name="sq"), on=["blend", "y"]).assign(method=REFERENCE)
         err = pd.concat([err, ref], ignore_index=True)
         errs.append(err.assign(A=n_comp, scenario=scenario, rep=rep, noise=sim.noise))
-        infos.append(info.assign(A=n_comp, scenario=scenario, rep=rep))
-    return pd.concat(errs), pd.concat(infos)
+    return pd.concat(errs)
 
 
-def simulation_zero_shot(n_repeats: int = 6, components: tuple = (4, 6, 8)) -> tuple[pd.DataFrame, pd.DataFrame]:
+def simulation_zero_shot(n_repeats: int = 6, components: tuple = (4, 6, 8)) -> tuple[pd.DataFrame, ...]:
     """RMSEP / noise SD (1.0 is the best possible) per scenario and method, at each method's best A."""
     jobs = [(s, r) for s in SCENARIOS for r in range(n_repeats)]
-    out = Parallel(n_jobs=-1)(delayed(_one_dataset)(s, r, components) for s, r in jobs)
-    errors = pd.concat([o[0] for o in out], ignore_index=True)
-    info = pd.concat([o[1] for o in out], ignore_index=True)
+    errors = pd.concat(Parallel(n_jobs=-1)(delayed(_one_dataset)(s, r, components) for s, r in jobs), ignore_index=True)
     # RMSEP per data set (pooled over materials, blends and Y columns), divided by the noise SD.
     per_rep = errors.groupby(["scenario", "rep", "A", "method"]).apply(
         lambda d: np.sqrt(d["sq"].mean()) / d["noise"].iloc[0], include_groups=False
@@ -203,7 +230,7 @@ def simulation_zero_shot(n_repeats: int = 6, components: tuple = (4, 6, 8)) -> t
     order = [*ZERO_SHOT, REFERENCE]
     best = _pivot(mean_a.min(axis=1), "method", "scenario").loc[order, list(SCENARIOS)]
     best_a = _pivot(mean_a.idxmin(axis=1), "method", "scenario", "first").loc[order, list(SCENARIOS)]
-    return best, best_a, errors, info
+    return best, best_a, errors
 
 
 def few_shot(data: dict, group: str, n_components: int, shots: tuple = (1, 2, 3), n_draws: int = 3) -> pd.DataFrame:
@@ -288,7 +315,7 @@ def load_pyphi() -> dict:
 
 def _real_one(group: str, n_comp: int) -> pd.DataFrame:
     data = load_pyphi()
-    err, _ = leave_one_material_out(data, group, n_comp)
+    err = leave_one_material_out(data, group, n_comp)
     return err.assign(group=group, A=n_comp)
 
 
@@ -315,17 +342,21 @@ if __name__ == "__main__":
     RESULTS.mkdir(exist_ok=True)
     t0 = time.time()
 
+    checks = invariance_checks()
+    print("\nLargest change of any prediction, in Y standard deviations (0 = the test is passed)")
+    print(checks.round(4))
+    checks.round(4).to_csv(RESULTS / "invariance_checks.csv")
+
     ceiling = fit_ceiling()
     print("\nIn-sample R2 with 8 components, mean of 6 simulated data sets")
     print(ceiling.round(3))
     ceiling.round(3).to_csv(RESULTS / "fit_ceiling.csv")
 
-    best, best_a, errors, info = simulation_zero_shot()
+    best, best_a, errors = simulation_zero_shot()
     print("\nSimulation, zero-shot: RMSEP / noise SD (1.0 = the noise floor), best A in {4, 6, 8}")
     print(best.round(2))
     print(best_a)
     best.round(3).to_csv(RESULTS / "simulation_zero_shot.csv")
-    info.to_csv(RESULTS / "applicability_domain.csv", index=False)
     per_mat = errors.groupby(["scenario", "rep", "A", "method", "material"])["sq"].mean().rename("mse").reset_index()
     per_mat.to_csv(RESULTS / "per_material_errors.csv", index=False)
     print(f"[{time.time() - t0:.0f} s]")
