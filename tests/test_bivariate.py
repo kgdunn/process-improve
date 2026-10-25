@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from process_improve.bivariate import _elbow_peak
 from process_improve.bivariate.methods import find_elbow_point, find_line_intersection
 from process_improve.bivariate.tools import get_bivariate_tool_specs
 from process_improve.tool_safety import ToolInputInvalidError
@@ -100,6 +101,40 @@ def test__robust_to_gross_outliers(elbow_with_synthetic_data: tuple) -> None:
     expected_elbow = np.argmin(np.abs(x - break_pt))
     found_elbow = find_elbow_point(x, y)
     assert abs(found_elbow - expected_elbow) < 10
+
+
+def _noisy_elbow_in_hours() -> tuple[np.ndarray, np.ndarray]:
+    """Return 60 noisy points over 10 hours, rising steeply to an elbow at 4 hours and slowly after it."""
+    rng = np.random.default_rng(0)
+    hours = np.linspace(0, 10, 60)
+    y = np.where(hours < 4, 2.0 * hours, 8.0 + 0.3 * (hours - 4)) + rng.normal(0, 0.3, hours.size)
+    return hours, y
+
+
+@pytest.mark.filterwarnings("ignore::statsmodels.tools.sm_exceptions.ConvergenceWarning")
+def test__elbow_does_not_depend_on_the_units_of_either_axis() -> None:
+    """Hours, minutes or seconds on x, or y times 1000, give one elbow; in raw units it was 24, 26 and 38 (#513)."""
+    hours, y = _noisy_elbow_in_hours()
+    elbows = {
+        find_elbow_point(x, y_scaled)
+        for x, y_scaled in [(hours, y), (hours * 60, y), (hours * 3600, y), (hours, y * 1000)]
+    }
+    assert elbows == {24}
+
+
+def test__each_window_size_is_fitted_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On 60 points the 41 steps floor to 27 window sizes: 54 robust fits, where there were 82 (#513)."""
+    hours, y = _noisy_elbow_in_hours()
+    calls = []
+    real_fit = _elbow_peak.fit_robust_lm
+
+    def counting_fit(x_window: np.ndarray, y_window: np.ndarray) -> np.ndarray:
+        calls.append(x_window.size)
+        return real_fit(x_window, y_window)
+
+    monkeypatch.setattr(_elbow_peak, "fit_robust_lm", counting_fit)
+    assert find_elbow_point(hours, y) == 24
+    assert len(calls) == 2 * 27
 
 
 def test__corner_case() -> None:

@@ -122,9 +122,9 @@ def _cases() -> list[dict[str, Any]]:
         {"name": "fixed_lambda_zero_n40", "y": stable_40, "kwargs": {"ld_1": 0.0, "ld_2": 0.5}},
         {"name": "fixed_lambdas_one_n40", "y": stable_40, "kwargs": {"ld_1": 1.0, "ld_2": 1.0}},
         {"name": "fixed_int_lambdas_n40", "y": stable_40, "kwargs": {"ld_1": 1, "ld_2": 0}},
-        {"name": "given_target_and_s_n40", "y": stable_40, "kwargs": {"target": 50.0, "s": 2.0}},
+        {"name": "given_target_and_s_n40", "y": stable_40, "kwargs": {"target": 50.0, "sigma": 2.0}},
         {"name": "given_target_n40", "y": stable_40, "kwargs": {"target": 50}},
-        {"name": "given_s_n40", "y": stable_40, "kwargs": {"s": 2}},
+        {"name": "given_s_n40", "y": stable_40, "kwargs": {"sigma": 2}},
         {
             "name": "mad_zero_warmup_given_target_n30",
             "y": mad_zero,

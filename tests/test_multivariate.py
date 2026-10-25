@@ -194,7 +194,12 @@ def test_regress_y_space_on_x() -> None:
     present_map = np.logical_not(np.isnan(y_space))
     y_space_filled = nan_to_zeros(y_space)
     regression_vector = regress_a_space_on_b_row(y_space_filled, x_space, present_map)
-    assert pytest.approx(np.array([[1, 1, 1, 1, float("nan"), 2 / 3]]).T, nan_ok=True) == regression_vector
+    # The row with nothing present has no regression: 0, with no weight anywhere (#513), not NaN.
+    assert pytest.approx(np.array([[1, 1, 1, 1, 0, 2 / 3]]).T) == regression_vector
+
+    # Present cells that all meet a zero in the row vector are a degenerate direction, and stay NaN.
+    degenerate = regress_a_space_on_b_row(np.array([[0.0, 5.0]]), np.array([[1.0, 0.0]]), np.array([[False, True]]))
+    assert np.isnan(degenerate).all()
 
 
 @pytest.mark.slow
@@ -438,6 +443,49 @@ def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFi
     np.testing.assert_allclose(np.abs(fitted["w_i"].ravel()), np.abs(rotation(np.pi / 5)[:, 0]), atol=1e-3)
 
 
+@pytest.mark.parametrize("seed", range(6))
+def test_inner_pls_nipals_flips_u_with_the_rest_of_the_component(seed: int) -> None:
+    """#513: the sign convention flips ``u_i`` too, so it is still ``Yq / q'q`` for the returned ``q_i``.
+
+    Only ``t_i``, ``w_i`` and ``q_i`` were negated, which left ``u_i`` pointing against the
+    score on every component the convention flipped, as PLS and MBPLS never do. Some of
+    these seeds flip and some do not; the relation holds for all of them.
+    """
+    rng = np.random.default_rng(seed)
+    x_space = rng.standard_normal((15, 4))
+    y_space = x_space @ rng.standard_normal((4, 2)) + 0.3 * rng.standard_normal((15, 2))
+    everything = np.ones((15, 4), dtype=bool)
+    fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, np.ones((15, 2), dtype=bool))
+    q_i = fitted["q_i"]
+    np.testing.assert_allclose(fitted["u_i"], y_space @ q_i / float(np.sum(q_i**2)), atol=1e-6)
+
+
+def test_tpls_super_weights_point_the_way_of_the_super_score() -> None:
+    """#513: with ``u`` flipped along with the score, every block score points the super score's way.
+
+    A block's super weight is its score's regression on ``u``, so each is non-negative once
+    ``u`` agrees with the super score; with no Z block the one F weight is +1. The
+    un-flipped ``u`` made it -1 on the components the sign convention flipped. The
+    predictions are the same either way.
+    """
+    rng = np.random.default_rng(3)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    blocks = {
+        "F": {"G": pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)},
+        "Z": {"Z1": pd.DataFrame(rng.normal(size=(n_blends, 2)), index=index, columns=["z1", "z2"])},
+        "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=n_blends)}, index=index)},
+    }
+    with_z = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    assert (with_z.w_loadings_super.to_numpy() >= 0).all()
+
+    blocks["Z"] = {}
+    no_z = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    np.testing.assert_allclose(no_z.w_loadings_super.to_numpy(), 1.0)
+
+
 def test_nipals_unit_normalisation_is_floored() -> None:
     """#513: `_pls` and `_pca` now floor the norm they divide by, as `_mbpls`/`_mbpca` do.
 
@@ -529,6 +577,24 @@ def test_mcuv_scaling(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarra
 
     assert pytest.approx(np.min(np.abs(X_mcuv.std(axis=0))), 1e-10) == 1
     assert pytest.approx(X_mcuv.std(), 1e-10) == 1
+
+
+def test_mcuv_keeps_integer_column_labels(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
+    """Integer labels survive: the spectra's columns are 1..650, which once came out as 0..649.
+
+    sklearn sets ``feature_names_in_`` only for string labels, so the labels must come from the frame.
+    """
+    spectra, _ = fixture_tablet_spectra_data
+    assert spectra.columns[0] == 1
+    scaler = MCUVScaler().fit(spectra)
+    X_mcuv = scaler.transform(spectra)
+
+    pd.testing.assert_index_equal(scaler.center_.index, spectra.columns)
+    pd.testing.assert_index_equal(X_mcuv.columns, spectra.columns)
+    pd.testing.assert_index_equal(scaler.inverse_transform(X_mcuv).columns, spectra.columns)
+    pd.testing.assert_index_equal(PCA(n_components=1).fit(X_mcuv).loadings_.index, spectra.columns)
+    # An ndarray has no labels, so its columns are numbered from 0.
+    assert list(MCUVScaler().fit_transform(spectra.to_numpy()[:, :3]).columns) == [0, 1, 2]
 
 
 def test_mcuv_round_trips_a_single_column_target_given_as_a_series_and_a_1d_array() -> None:
@@ -1544,6 +1610,29 @@ def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> N
     assert as_given.n_components == 5
     assert np.all(as_given.observed_eigenvalues > as_given.null_threshold)
     assert standardised.n_components == 0
+
+
+def test_pca_consensus_parallel_analysis_is_scaled_whatever_scale_inside_folds_is() -> None:
+    """#513: the consensus compares the eigenvalues against the N(0, 1) null on a common footing.
+
+    ``scale_inside_folds`` decides how the cross-validation folds are scaled. It was also
+    passed on as ``parallel_analysis(scale=...)``, so with ``scale_inside_folds=False`` the
+    unscaled eigenvalues of loud noise were compared against a unit-variance null and every
+    component was retained. Scaling an already-scaled block changes nothing, so the
+    parallel analysis now always scales, and the noise keeps no component either way.
+    """
+    loud_noise = pd.DataFrame(100.0 * np.random.default_rng(7).standard_normal((30, 5)))
+    expected = PCA.parallel_analysis(loud_noise, random_state=0).n_components
+    assert expected == 0
+
+    with warnings.catch_warnings():
+        # scale_inside_folds=False warns that it leaks the scaling into the folds.
+        warnings.simplefilter("ignore", SpecificationWarning)
+        for inside in (True, False):
+            result = PCA.select_n_components(
+                loud_noise, max_components=3, scale_inside_folds=inside, random_state=0, return_consensus=True
+            )
+            assert result.parallel_analysis_n_components == expected, f"scale_inside_folds={inside}"
 
 
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
@@ -4506,6 +4595,32 @@ def test_recommend_n_components_one_se_rule() -> None:
     with pytest.raises(ValueError, match="same shape"):
         _recommend_n_components_one_se([0.4, 0.3], [0.05])
 
+    # A negative standard error is floored at zero, so the rule falls back to the argmin.
+    assert _recommend_n_components_one_se([0.5, 0.4, 0.3], [0.0, 0.0, -0.1]) == 3
+
+
+@pytest.mark.parametrize("rule", ["min", "1se", "q2_increment"])
+def test_selection_rules_refuse_a_curve_not_indexed_by_component_count(rule: str) -> None:
+    """#513: every rule returns a position plus one, which is a component count only for a curve indexed 1..A.
+
+    A Series indexed from 2, as a caller that left out one component would build it, came
+    back as a count one too small, with no sign that anything was wrong. It is refused now,
+    and the same values indexed 1..A give the answer they always did.
+    """
+    from process_improve.multivariate._common import _select_n_components
+
+    curves = {
+        "mean_error": [0.60, 0.42, 0.40, 0.41],
+        "se_error": [0.03, 0.03, 0.05, 0.05],
+        "q2_cumulative": [0.30, 0.62, 0.625, 0.50],
+    }
+    shifted = {name: pd.Series(values, index=[2, 3, 4, 5]) for name, values in curves.items()}
+    with pytest.raises(ValueError, match=r"must be indexed by component count 1\.\.4; got \[2, 3, 4, 5\]\.$"):
+        _select_n_components(rule, **shifted)
+
+    indexed = {name: pd.Series(values, index=range(1, 5)) for name, values in curves.items()}
+    assert _select_n_components(rule, **indexed) == _select_n_components(rule, **curves)
+
 
 def test_select_n_components_dispatcher() -> None:
     """The selection-rule dispatcher routes to the right helper and validates inputs."""
@@ -5836,17 +5951,17 @@ def test_t2_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     assert len(fig.data) >= 2
 
 
-def test_t2_plot_rejects_zero_with_a(fixture_pca_for_plots: PCA) -> None:
-    """t2_plot should reject `with_a == 0`."""
-    with pytest.raises(ValueError, match="with_a"):
-        fixture_pca_for_plots.t2_plot(with_a=0)
+def test_t2_plot_rejects_zero_components(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `n_components == 0`."""
+    with pytest.raises(ValueError, match="n_components"):
+        fixture_pca_for_plots.t2_plot(n_components=0)
 
 
-def test_t2_plot_rejects_with_a_above_components(fixture_pca_for_plots: PCA) -> None:
-    """t2_plot should reject `with_a` larger than the number of fitted components."""
+def test_t2_plot_rejects_more_components_than_fitted(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `n_components` larger than the number of fitted components."""
     model = fixture_pca_for_plots
-    with pytest.raises(ValueError, match="with_a"):
-        model.t2_plot(with_a=model.n_components + 1)
+    with pytest.raises(ValueError, match="n_components"):
+        model.t2_plot(n_components=model.n_components + 1)
 
 
 def test_t2_plot_rejects_invalid_conf_level(fixture_pca_for_plots: PCA) -> None:
@@ -5876,8 +5991,12 @@ def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
         ("score_plot", {"pc_horiz": 1, "pc_vert": 1}, r"^Specify distinct components for each axis\.$"),
         ("score_plot", {"settings": {"ellipse_conf_level": 1.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
         ("score_plot", {"settings": {"ellipse_conf_level": 0.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
-        ("spe_plot", {"with_a": 0}, r"^`with_a` must be >= 1, or specified with negative indexing\.$"),
-        ("spe_plot", {"with_a": 4}, r"^`with_a` must be <= the number of components fitted \(3\); got 4\.$"),
+        ("spe_plot", {"n_components": 0}, r"^`n_components` must be >= 1, or specified with negative indexing\.$"),
+        (
+            "spe_plot",
+            {"n_components": 4},
+            r"^`n_components` must be <= the number of components fitted \(3\); got 4\.$",
+        ),
         ("spe_plot", {"settings": {"conf_level": 1.0}}, r"0\.0 < `conf_level` < 1\.0"),
         ("spe_plot", {"settings": {"conf_level": 0.0}}, r"0\.0 < `conf_level` < 1\.0"),
     ],

@@ -6,8 +6,10 @@ version of ScorePilot: the same ideas, no server, the data never leaves the mach
 Plain JavaScript modules, Plotly for the charts, and the computation in
 `process_improve` itself.
 
-Deployment, and moving the pieces both apps share into one place, come later. Nothing
-here is published by `scripts/build_web_app.py` yet.
+`scripts/build_web_app.py` publishes it at `mva/` inside the app, beside the
+designed-experiments page: the two share the app's wheel, `wheels/manifest.json` and
+`runtime.json`. Moving the other pieces both pages share (the worker's start-up, the
+Plotly loader) into one place comes later.
 
 ## The layers
 
@@ -69,7 +71,28 @@ fitted model, plus every row's scores, Hotelling's T² and SPE, **the excluded r
 included**, projected through the model they were not used to fit, each flagged.
 `variant.to_python()` writes the model code that follows the recipe's code.
 
-## 3. Why is this group different? (`Fit.explain_group`)
+## 3. How many components? (`Variant.cross_validate`)
+
+On request only, since it fits the model many times over: the "Cross-validate" button scores
+every number of components on values the model was not fitted to, with the library's own
+selectors and their defaults. PCA holds out single cells (`PCA.select_n_components`,
+element-wise k-fold); PLS holds out whole rows (`PLS.select_n_components`, shuffled k-fold
+repeated ten times, the one-standard-error rule). Only the fitted rows take part.
+
+- The chart puts R² (the fitted rows) beside Q² (held out) per number of components, Q² with
+  one standard error, the recommendation marked and the count in use outlined. Clicking a bar
+  uses that number.
+- For PLS, Y goes in units of its standard deviation, so the prediction error pools the targets
+  with the weights the model gives them. In their own units Mn and Mw, in the tens of
+  thousands, would decide the count alone.
+- The answer does not depend on the model's number of components, so it is computed once per
+  model. Any other change (a row excluded, a recipe step, a different Y) marks it stale; it
+  runs again only when asked.
+- It writes its code after the model's: `cv = PCA.select_n_components(X.loc[included], random_state=0)`.
+
+Measured under Pyodide on LDPE: 0.6 s for PCA on 14 columns, 6.6 s for PLS (14 X, 5 Y).
+
+## 4. Why is this group different? (`Fit.explain_group`)
 
 Lasso a group of points on a score plot. `explain_group(group, reference=None)` returns,
 for each component of the plot:
@@ -79,7 +102,7 @@ for each component of the plot:
 - the raw data of the top variables, in run order, with the group marked, so each bar
   has its evidence beside it.
 
-## 4. The project file (`.mvproj`, `save_project` / `load_project`)
+## 5. The project file (`.mvproj`, `save_project` / `load_project`)
 
 One zip file:
 
@@ -98,14 +121,14 @@ One zip file:
   the result with the stored arrays. A difference is reported, with what changed (the
   library version or the data), instead of silently trusted.
 
-## 5. The selection store (`web/mva/selection.js`)
+## 6. The selection store (`web/mva/selection.js`)
 
 One store per page. It holds the selected rows and columns, the hovered row and column,
 the excluded rows, and **named sets** (a saved lasso) with set algebra: union,
 intersection, difference. Every view subscribes. Changes are batched, so a lasso of
 5,000 points causes one redraw. The store saves to and loads from the project file.
 
-## 6. Linked views (`web/mva/views.js`, `web/mva/link.js`)
+## 7. Linked views (`web/mva/views.js`, `web/mva/link.js`)
 
 `views.js` builds Plotly figures from points and the store's state, and never touches
 the document:
@@ -125,7 +148,7 @@ the document:
 hover events write to the store, and a store change redraws with `Plotly.react` on the
 next animation frame.
 
-## 7. The data table (`web/mva/table.js`)
+## 8. The data table (`web/mva/table.js`)
 
 A canvas-drawn grid that renders only the visible cells, so 100,000 rows or 1,000
 columns scroll smoothly. Each column header carries a histogram, a run-order sparkline,
@@ -139,6 +162,7 @@ plot shows. Excluded rows show struck through, dropped ones do not show.
 |---|---|
 | Recipe engine, code generation, bit-for-bit test | done: `process_improve.workbench.Recipe` |
 | Variant fit with projected excluded rows; group explanation | done: `Variant`, `Fit.explain_group` |
+| Cross-validation on request, R² beside Q² | done: `Variant.cross_validate`, `CrossValidation` |
 | Project file with refit-and-verify | done: `Project` |
 | Selection store, figure builders, event binder | done: `selection.js`, `views.js`, `link.js` |
 | Canvas table with header sparklines and an ARIA grid | done: `table.js` |
@@ -153,17 +177,19 @@ and their comparison, a Python console on the same session.
 
 ## Running the demo page
 
-The page needs a wheel of this checkout (the release on PyPI has no workbench yet):
+Build the app, which builds the wheel of this checkout with it, and serve it:
 
 ```bash
-uv build --wheel -o web/mva/wheels
-python -c "import json, pathlib; w = next(pathlib.Path('web/mva/wheels').glob('*.whl')).name; pathlib.Path('web/mva/wheels/manifest.json').write_text(json.dumps({'wheel': w}))"
-python -m http.server -d web 8000   # then open http://localhost:8000/mva/
+uv run python scripts/build_web_app.py --serve   # then open http://localhost:8000/mva/
 ```
 
-`web/mva/wheels/` is git-ignored. The tests:
+Every pull request's build is kept for a week as the artifact `web-app-pr-<number>` of its
+Docs run: download it, unzip it, `python -m http.server -d <the folder>`, and open `/mva/`.
+
+The tests:
 
 ```bash
 uv run pytest tests/workbench tests/web/mva tests/web/js --no-cov
-PI_CHROMIUM=/path/to/chrome uv run --with playwright==1.64.1 pytest tests/web/e2e/test_mva_page.py --e2e --no-cov
+uv run --with playwright==1.64.1 pytest tests/web/e2e/test_mva_page.py --e2e --no-cov
+uv run --with playwright==1.64.1 pytest tests/web/live/test_mva_live.py --live --no-cov  # Pyodide
 ```

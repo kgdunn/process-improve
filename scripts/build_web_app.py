@@ -81,6 +81,16 @@ APP_FILES = (
     "icon-512.png",
     "og-card.png",
     "manifest.webmanifest",
+    # The multivariate page, at mva/: it shares the wheel, wheels/manifest.json and runtime.json.
+    "mva/index.html",
+    "mva/mva.css",
+    "mva/app.js",
+    "mva/selection.js",
+    "mva/views.js",
+    "mva/link.js",
+    "mva/table.js",
+    "mva/worker.js",
+    "mva/bootstrap.py",
 )
 
 
@@ -745,8 +755,10 @@ def page_terms(
 
     The page cannot fit a model without an intercept, a numeric factor taken as levels, a transformed factor,
     a square of a categorical factor, or an interaction of four factors or more. A study in blocks is fitted
-    with its blocks, so the model must name the block's columns as terms of their own, as the page's blocks
-    are; a model without them, or with a block column in an interaction, is not the page's. A factor the page
+    with its blocks, so the model must name each of the block's columns as a term of its own, as the page's
+    blocks are; a model without them, with only some of them (it fits those as numbers), with a block column
+    in an interaction, or with the blocks coded otherwise than to sum to zero (its intercept is then another
+    one) is not the page's. A factor the page
     takes as levels that the source records as a number (``as_number``) is the page's only where the model takes it
     as levels, ``C(power)``: ``power`` alone is a line in it, which the page does not fit.
     """
@@ -758,13 +770,14 @@ def page_terms(
     desc = ModelDesc.from_formula(formula.split("~", 1)[-1])
     if not any(not t.factors for t in desc.rhs_termlist) or all(not t.factors for t in desc.rhs_termlist):
         return None  # no intercept, or the intercept alone
-    terms, named_block = [], False
+    terms, named_blocks = [], set()
     for term in (t for t in desc.rhs_termlist if t.factors):
         variables = [_variable(f.name()) for f in term.factors]
         if set(variables) & set(block):
-            if len(variables) > 1:
-                return None  # the page fits no interaction with its blocks
-            named_block = True
+            contrast = re.match(r"C\(\s*\w+\s*,\s*(\w+)", term.factors[0].name())
+            if len(variables) > 1 or (contrast and contrast.group(1) != "Sum"):
+                return None  # the page fits no interaction with its blocks, and codes them to sum to zero
+            named_blocks.update(variables)
             continue
         parts = []
         for factor in term.factors:
@@ -782,7 +795,7 @@ def page_terms(
         if not squared and (len(set(parts)) != len(parts) or len(parts) > 3):  # three factors at most
             return None
         terms.append(parts)
-    return terms if terms and (not block or named_block) else None
+    return terms if terms and named_blocks == set(block) else None
 
 
 def term_part(text: str) -> str:

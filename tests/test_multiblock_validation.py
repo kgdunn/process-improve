@@ -198,6 +198,34 @@ def test_spe_limits_follow_the_last_component_spe(cls: type[MultiblockModel]) ->
     assert one_block.super_spe_limit(0.95) == pytest.approx(one_block.block_spe_limit("a", 0.95))
 
 
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+def test_block_t2_is_scaled_as_the_super_t2_is(cls: type[MultiblockModel]) -> None:
+    """#513: block and super T² both scale each component by its second moment about zero.
+
+    Scaled that way, one component's T² sums to n - 1 over the n rows that have a score,
+    so the last column sums to A (n - 1). The block T² was scaled by the variance about
+    the scores' own mean instead. That differs once missing cells leave the scores
+    off-centre, and a row with no score in the block, which MBPLS allows, made it NaN, so
+    every row's T² in that block went unscaled.
+    """
+    blocks, y = _blocks(n=20)
+    gappy = {**blocks, "a": blocks["a"].copy()}
+    gappy["a"].iloc[[1, 5, 9], 0] = np.nan
+    cases = [gappy]
+    if cls is MBPLS:
+        no_score = {**gappy, "a": gappy["a"].copy()}
+        no_score["a"].iloc[3] = np.nan
+        cases.append(no_score)
+
+    for data in cases:
+        model = _fit(cls, data, y)
+        n_components = model.n_components_
+        for name in data:
+            t2 = model.block_hotellings_t2_[name].iloc[:, -1]
+            assert t2.sum() == pytest.approx(n_components * (t2.notna().sum() - 1)), name
+        assert model.super_hotellings_t2_.iloc[:, -1].sum() == pytest.approx(n_components * (len(y) - 1))
+
+
 def test_mbpca_with_one_component_reports_its_r2_as_both_increment_and_total() -> None:
     """A one-component MBPCA has the first component of a two-component fit, R2 and all."""
     blocks, _ = _blocks()

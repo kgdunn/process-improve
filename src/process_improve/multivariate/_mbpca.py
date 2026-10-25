@@ -24,6 +24,7 @@ from ._common import (
     SpecificationWarning,
     _nz,
     _scale_block_contributions,
+    cumulative_block_t2,
     epsqrt,
     informative_widths,
     resolve_loop_settings,
@@ -150,9 +151,9 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
             # squares. Reuses the same primitives as single-block PCA NIPALS.
             t_super_col = t_super.reshape(-1, 1)
             for b_idx, name in enumerate(context.block_names):
-                p_b = quick_regress(x_def[name], t_super_col).flatten()
+                p_b = quick_regress(x_def[name], t_super_col, per="column").flatten()
                 p_b = p_b / _nz(float(np.sqrt(ssq(p_b.reshape(-1, 1)))))
-                t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / context.sqrt_kb[name]
+                t_b = quick_regress(x_def[name], p_b.reshape(-1, 1), per="row").flatten() / context.sqrt_kb[name]
                 local_loadings[name] = p_b
                 local_scores[name] = t_b
                 t_b_summary[:, b_idx] = t_b
@@ -376,10 +377,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     block_spe_ : dict[str, pd.DataFrame]
         Per-block squared prediction error per sample and component.
     block_hotellings_t2_ : dict[str, pd.DataFrame]
-        Per-block cumulative Hotelling's T^2 per sample and component.
+        Per-block cumulative Hotelling's T^2 per sample and component. Each component is
+        scaled by its block scores' second moment about zero, as ``super_hotellings_t2_`` is
+        by ``explained_variance_``.
     block_vip_ : dict[str, pd.Series]
         Per-block variable-importance in projection, indexed by variable
-        name inside each block.
+        name inside each block. Computed from ``block_loadings_``, each component
+        weighted by its share of that block's X variance
+        (``r2_x_per_block_per_component_``), as a PCA VIP is.
     r2_x_per_block_cumulative_ : pd.DataFrame, shape (n_blocks, n_components)
         Cumulative R^2X per block and component.
     r2_x_per_block_per_component_ : pd.DataFrame, shape (n_blocks, n_components)
@@ -650,14 +655,11 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             name: pd.DataFrame(work.block_spe[name], index=self._sample_index, columns=component_names)
             for name in self.block_names_
         }
-        block_t2: dict[str, np.ndarray] = {}
-        for name in self.block_names_:
-            scores_np = self.block_scores_[name].values
-            score_var = np.var(scores_np, axis=0, ddof=1)
-            score_var = np.where(score_var > 0, score_var, 1.0)
-            block_t2[name] = np.cumsum((scores_np**2) / score_var, axis=1)
+        # Scaled by the second moment about zero, as the super T2 is by explained_variance_
         self.block_hotellings_t2_ = {
-            name: pd.DataFrame(block_t2[name], index=self._sample_index, columns=component_names)
+            name: pd.DataFrame(
+                cumulative_block_t2(self.block_scores_[name].values), index=self._sample_index, columns=component_names
+            )
             for name in self.block_names_
         }
         super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)

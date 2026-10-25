@@ -241,22 +241,120 @@ def test_a_row_with_no_y_value_shapes_no_weight() -> None:
     assert np.isfinite(with_gap.t_scores_super.loc["blend19"]).all()
 
 
-@pytest.mark.parametrize(
-    ("block", "row", "message"),
-    [
-        ("D", "mat2", "material 'mat2' has no observed value in D block 'G'"),
-        ("F", "blend3", "row 'blend3' has no observed value in F block 'G'"),
-    ],
-)
-def test_a_row_with_nothing_observed_stops_the_fit_at_once(block: str, row: str, message: str) -> None:
-    """#709: a NaN in the iteration never leaves it, so the fit stops and names the row instead of running on."""
+def _without(blocks: dict, row: str) -> dict:
+    """Return the blocks with one row dropped from every group."""
+    return {name: {key: frame.drop(index=row) for key, frame in block.items()} for name, block in blocks.items()}
+
+
+def test_a_blend_with_nothing_observed_in_f_scores_zero_and_leaves_the_rest_alone() -> None:
+    """#513: a row with no F value gets a zero score, as PCA and PLS give an all-missing row.
+
+    Its regression had an empty denominator, which gave NaN, and the NaN spread to every
+    score, so the fit was refused (#709). Now the row has no weight, and the other rows'
+    scores and the weights are those of the fit without it. Its Y is the mean of the
+    other rows', so the only change to Y's preprocessing is its scale, which no score depends on.
+    """
     d_matrix, blocks = _synthetic()
-    if block == "D":
-        d_matrix = {"G": d_matrix["G"].copy()}
-        d_matrix["G"].loc[row] = np.nan
-    else:
-        blocks["F"]["G"].loc[row] = np.nan
-    with pytest.raises(
-        ValueError, match=rf"^TPLS cannot fit component 1: its scores are not finite, because {message}\."
+    blocks["Z"] = {}
+    fewer = _without(blocks, "blend3")
+    gap = copy.deepcopy(blocks)
+    gap["F"]["G"].loc["blend3"] = np.nan
+    gap["Y"]["Y1"].loc["blend3", "y"] = fewer["Y"]["Y1"]["y"].mean()
+
+    with_gap = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(gap))
+    without = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(fewer))
+
+    np.testing.assert_array_equal(with_gap.t_scores_super.loc["blend3"], [0.0, 0.0])
+    shared = without.t_scores_super.index
+    np.testing.assert_allclose(with_gap.t_scores_super.loc[shared], without.t_scores_super, atol=1e-10)
+    np.testing.assert_allclose(with_gap.r_loadings_f["G"], without.r_loadings_f["G"], atol=1e-10)
+    np.testing.assert_allclose(with_gap.w_loadings_super, without.w_loadings_super, atol=1e-10)
+
+
+def test_a_material_with_nothing_observed_in_d_has_a_zero_loading_and_no_weight() -> None:
+    """#513: a material not yet tested for anything gets a zero loading in every component.
+
+    It used to make every score NaN, and the fit was refused (#709). Its F column now has
+    no part in any score, so every prediction is that of the fit without the material.
+    Leaving it out also changes D's block scale, which moves the scores by one factor
+    and the Y loadings by its inverse, so the predictions are what can be compared.
+    """
+    d_matrix, blocks = _synthetic()
+    blocks["Z"] = {}
+    untested = {"G": d_matrix["G"].copy()}
+    untested["G"].loc["mat2"] = np.nan
+    fewer_d = {"G": d_matrix["G"].drop(index="mat2")}
+    fewer = copy.deepcopy(blocks)
+    fewer["F"]["G"] = fewer["F"]["G"].drop(columns="mat2")
+
+    with_it = TPLS(n_components=2, d_matrix=untested).fit(DataFrameDict(copy.deepcopy(blocks)))
+    without = TPLS(n_components=2, d_matrix=fewer_d).fit(DataFrameDict(fewer))
+
+    np.testing.assert_array_equal(with_it.r_loadings_f["G"].loc["mat2"], [0.0, 0.0])
+    np.testing.assert_allclose(with_it.hat["Y1"], without.hat["Y1"], atol=1e-10)
+
+
+def test_a_blend_with_nothing_observed_in_z_fits_and_diagnoses_alike() -> None:
+    """#513: a row with no Z value has a zero Z score, in the fit and in diagnose alike.
+
+    The fit used to be refused with a message that named no row (#709). Now it converges,
+    and diagnose, which already gave such a row a zero Z score, reproduces every fitted score.
+    """
+    d_matrix, blocks = _synthetic()
+    blocks["Z"]["Z1"].loc["blend3"] = np.nan
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    assert max(model.fitting_statistics["iterations"]) < model.max_iter
+    np.testing.assert_allclose(model.diagnose(DataFrameDict(blocks)).t_scores_super, model.t_scores_super, atol=1e-10)
+
+
+def test_a_block_with_no_variation_still_stops_the_fit_at_once() -> None:
+    """#709: a NaN in the iteration never leaves it, so the fit stops instead of running on.
+
+    An empty row no longer causes one (#513), but a Y block with no variation leaves the
+    iteration nothing to follow, and that is still refused, with a message that says where to look.
+    """
+    d_matrix, blocks = _synthetic()
+    blocks["Y"]["Y1"]["y"] = 3.0
+    with (
+        pytest.warns(UserWarning, match="no variance"),
+        pytest.raises(
+            ValueError,
+            match=r"^TPLS cannot fit component 1: its scores are not finite, because a block has no variation",
+        ),
     ):
         TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+
+def test_a_constant_f_column_fits_as_an_unobserved_one() -> None:
+    """#513: a column excluded for having no variance is absent from the fit, not a column of zeros.
+
+    Scaling turns a constant column into NaN, which is then zeroed, but the presence maps
+    were taken from the raw blocks, so its cells still counted in every row's denominator
+    and shrank every score. A material used at a fixed fraction in every blend now fits as
+    the same material left unobserved does, in fit and in diagnose.
+    """
+    d_matrix, blocks = _synthetic()
+    constant, unobserved = copy.deepcopy(blocks), copy.deepcopy(blocks)
+    constant["F"]["G"]["mat3"] = 0.25
+    unobserved["F"]["G"]["mat3"] = np.nan
+
+    with pytest.warns(UserWarning, match=r"Block F\[\"G\"\] has columns with no variance.*'mat3'"):
+        fixed = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(constant)))
+    absent = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(unobserved))
+
+    np.testing.assert_allclose(fixed.t_scores_super, absent.t_scores_super, atol=1e-12)
+    np.testing.assert_allclose(fixed.hat["Y1"], absent.hat["Y1"], atol=1e-12)
+    np.testing.assert_allclose(fixed.diagnose(DataFrameDict(constant)).t_scores_super, fixed.t_scores_super, atol=1e-10)
+
+
+def test_diagnose_scores_a_row_with_a_missing_z_cell_as_the_fit_does() -> None:
+    """#513: diagnose corrects a Z score for its missing cells, as the fit does.
+
+    The fit divides each row's Z score by the squared weights of the cells it has. diagnose
+    computed that same denominator and never divided by it, so the scores of the training
+    rows, diagnosed again, differed in exactly the rows with a missing Z cell.
+    """
+    d_matrix, blocks = _synthetic()
+    blocks["Z"]["Z1"].loc["blend3", "z1"] = np.nan
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    np.testing.assert_allclose(model.diagnose(DataFrameDict(blocks)).t_scores_super, model.t_scores_super, atol=1e-10)

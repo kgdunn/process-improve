@@ -68,7 +68,7 @@ class TestControlChart:
 
     # test_with_known_s(self):
     cc_hw = ControlChart(variant="hw")
-    cc_hw.calculate_limits(known_s, target=50, s=4)
+    cc_hw.calculate_limits(known_s, target=50, sigma=4)
     assert cc_hw.target == 50
     assert cc_hw.s == 4
 
@@ -203,13 +203,13 @@ def test_calculate_limits_rejects_unknown_kwargs() -> None:
     assert cc3.ld_2 == pytest.approx(0.7)
 
 
-def test_calculate_limits_rejects_non_positive_s() -> None:
+def test_calculate_limits_rejects_a_non_positive_sigma() -> None:
     """A zero or negative standard deviation is rejected up front."""
     rng = np.random.default_rng(1)
     y = 50.0 + rng.standard_normal(40)
     cc = ControlChart()
     with pytest.raises(ValueError, match="must be positive"):
-        cc.calculate_limits(y, s=-1.0)
+        cc.calculate_limits(y, sigma=-1.0)
 
 
 def test_unsupported_variant_cannot_estimate_limits() -> None:
@@ -247,12 +247,12 @@ def test_xbar_no_subgroup_keeps_a_given_target_and_s(style: str) -> None:
         chart.calculate_limits(y, **given)
         return chart
 
-    known, estimated = fit(target=50.0, s=2.0), fit()
+    known, estimated = fit(target=50.0, sigma=2.0), fit()
     assert (known.target, known.s) == (50.0, 2.0)
     assert known.idx_outside_3S == np.nonzero(np.abs(y - 50.0) > 6.0)[0].tolist()
     assert len(known.idx_outside_3S) > len(estimated.idx_outside_3S)
 
-    only_target, only_s = fit(target=50.0), fit(s=2.0)
+    only_target, only_s = fit(target=50.0), fit(sigma=2.0)
     assert (only_target.target, only_target.s) == (50.0, estimated.s)
     assert (only_s.target, only_s.s) == (estimated.target, 2.0)
 
@@ -359,8 +359,10 @@ _SERIES_B = 80.0 + 5.0 * np.random.default_rng(2).standard_normal(60)
     ("variant", "first", "first_kwargs", "second_kwargs"),
     [
         pytest.param("hw", _SERIES_A, {}, {}, id="new-level-and-length"),
-        pytest.param("hw", _SERIES_A, {"target": 50.0, "s": 2.0, "ld_1": 0.4, "ld_2": 0.7}, {}, id="pinned-then-free"),
-        pytest.param("hw", _SERIES_A, {}, {"target": 80.0, "s": 5.0}, id="free-then-pinned"),
+        pytest.param(
+            "hw", _SERIES_A, {"target": 50.0, "sigma": 2.0, "ld_1": 0.4, "ld_2": 0.7}, {}, id="pinned-then-free"
+        ),
+        pytest.param("hw", _SERIES_A, {}, {"target": 80.0, "sigma": 5.0}, id="free-then-pinned"),
         pytest.param("hw", np.full(30, 42.0), {}, {}, id="failed-fit-first"),
         pytest.param("hw", _SERIES_A[:5], {}, {}, id="short-series-first"),
         pytest.param("xbar.no.subgroup", _SERIES_A, {}, {}, id="xbar"),
@@ -740,7 +742,7 @@ class TestControlChartMissingValues:
         with warnings.catch_warnings():
             warnings.simplefilter("error", RuntimeWarning)
             with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
-                cc.calculate_limits(y, target=100.0, s=2.0, ld_1=0.4, ld_2=0.7)
+                cc.calculate_limits(y, target=100.0, sigma=2.0, ld_1=0.4, ld_2=0.7)
 
 
 @pytest.mark.parametrize(

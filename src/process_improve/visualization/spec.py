@@ -17,6 +17,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any
 
+from process_improve.tool_spec import clean
 from process_improve.visualization.types import (
     AnnotationType,
     MarkType,
@@ -306,10 +307,11 @@ class ChartSpec:
     def to_dict(self) -> dict[str, Any]:
         """Serialise the entire spec to a plain dict (JSON-safe).
 
-        Enum values are converted to their string representations.
+        Enum values are converted to their string representations, and numpy scalars and
+        arrays in the layers' data to plain Python values, with NaN and infinity as ``None``
+        (:func:`process_improve.tool_spec.clean`).
         """
-        raw = asdict(self)
-        return _clean_enums(raw)
+        return _clean_enums(clean(asdict(self)))
 
     def to_data_dict(self) -> dict[str, Any]:
         """Extract computed data arrays from the spec.

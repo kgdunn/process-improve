@@ -37,7 +37,7 @@ Montgomery's Example 4.5, four catalysts in four batches of three:
 ...     "time": [73, 74, 71, 75, 67, 72, 73, 75, 68, 75, 72, 75],
 ... })
 >>> found = bibd_analysis(runs, "catalyst", "batch", "time")
->>> found["lambda"], {t: round(v, 2) for t, v in found["interblock_effects"].items()}
+>>> found["concurrences"], {t: round(v, 2) for t, v in found["interblock_effects"].items()}
 (2, {'1': 10.5, '2': -3.5, '3': -0.5, '4': -6.5})
 """
 
@@ -67,7 +67,9 @@ def bibd_analysis(data: pd.DataFrame, treatment: str, block: str, response: str)
     Returns
     -------
     dict[str, Any]
-        The design's ``a``, ``b``, ``k``, ``r``, ``lambda`` and ``n``; by treatment label (as a
+        The design's ``n_treatments`` (a in Montgomery's notation), ``n_blocks`` (b), ``block_size``
+        (k), ``replicates`` (r, the runs of each treatment), ``concurrences`` (lambda, the blocks each
+        pair of treatments shares) and ``n_runs`` (N); by treatment label (as a
         string): ``treatment_totals`` :math:`y_{i.}`, ``adjusted_treatment_totals`` :math:`Q_i`,
         ``intrablock_effects`` :math:`\hat\tau_i`, ``totals_of_blocks_with`` :math:`\sum_j n_{ij}
         y_{.j}`, ``interblock_effects`` :math:`\tilde\tau_i` and ``combined_effects``
@@ -114,12 +116,12 @@ def bibd_analysis(data: pd.DataFrame, treatment: str, block: str, response: str)
         return dict(zip(treatments, values.tolist(), strict=True))
 
     return {
-        "a": a,
-        "b": b,
-        "k": k,
-        "r": r,
-        "lambda": lam,
-        "n": n,
+        "n_treatments": a,
+        "n_blocks": b,
+        "block_size": k,
+        "replicates": r,
+        "concurrences": lam,
+        "n_runs": n,
         "treatment_totals": by_treatment(treatment_totals),
         "adjusted_treatment_totals": by_treatment(adjusted),
         "intrablock_effects": by_treatment(k * adjusted / (lam * a)),

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -193,13 +191,12 @@ class TestDesigns:
         assert np.linalg.matrix_rank(scheffe_matrix(design, model)) == scheffe_matrix(design[:1], model).shape[1]
         assert meta["constraints_enforced"] is True
 
-    def test_budget_below_the_model_is_raised(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
-            design, _ = constrained_mixture_design(
-                BOUNDED, 3, None, ConstrainedOptions("scheffe_quadratic"), random_state=0
-            )
-        assert len(design) == 6
-        assert "raising the budget to 6" in caplog.text
+    def test_budget_below_the_model_is_refused(self) -> None:
+        """A budget the caller gave is a limit: 3 runs for a 6-term model raise instead of growing (#957)."""
+        with pytest.raises(
+            ValueError, match=r"budget=3 run\(s\) cannot estimate the scheffe_quadratic model, which has 6"
+        ):
+            constrained_mixture_design(BOUNDED, 3, None, ConstrainedOptions("scheffe_quadratic"), random_state=0)
 
     def test_generate_design_picks_the_constrained_path_for_bounded_components(self) -> None:
         result = generate_design(BOUNDED)

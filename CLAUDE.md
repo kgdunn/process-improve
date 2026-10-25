@@ -149,6 +149,9 @@ below are the ones most often got wrong in an agent session.
   / `scale()` for preparing data before fitting.
 - `N` = samples, `K` = features, `M` = targets, `A` = components as local
   variables; stored as `n_samples_`, `n_features_in_`, `n_targets_`.
+- Name arguments and result keys for what they are, never by a letter or a source's
+  label, and never reuse a retired name for something else: see
+  [`CONTRIBUTING.md`](CONTRIBUTING.md#naming-conventions).
 - **No em-dashes** (U+2014) anywhere: docs, docstrings, comments, commit messages,
   PR descriptions, Markdown, reStructuredText or YAML prose. Use a hyphen, a
   semicolon, or split the sentence.
@@ -350,6 +353,9 @@ when they want one.
   Avoid unnecessary synonyms: use one term for one thing.
 - End a report with one or two lines: what you skipped or did not check, and any
   risk the user must know.
+- Every PR named in chat carries its full link, in this repository or another,
+  never a bare number:
+  [process-improve #958](https://github.com/kgdunn/process-improve/pull/958).
 
 ## Updating this file (CLAUDE.md)
 

@@ -11,6 +11,7 @@ single-component PLS NIPALS inner loop. Depends only on
 from __future__ import annotations
 
 import logging
+import typing
 
 import numpy as np
 
@@ -55,14 +56,29 @@ def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_pre
 
     Returns               [n_rows x 1] = a_space * b_row^T  / ( b_row * b_row^T)
                                          (n x j) * (j x 1)  /  (1 x j)* (j x 1)  = n x 1
+
+    A row with nothing present has no regression, and its coefficient is 0. Its cells are
+    all absent, so the 0 carries no weight in any later regression over that row, and the
+    other rows are as they would be without it: the rule :func:`quick_regress` follows for
+    an empty mask, and the score PCA and PLS give an all-missing row. It used to be NaN,
+    which no later step could drop, so one empty row made every score of every later
+    component NaN (#513). A row whose present cells all meet a zero in `b_row` is still NaN.
     """
     # TPLS hands in DataFrames. Without this, every product and sum below is a pandas
     # operation, about ten times slower, on a function called tens of thousands of times.
     a_space, b_row, a_space_present_map = np.asarray(a_space), np.asarray(b_row), np.asarray(a_space_present_map)
     denom = np.tile(b_row, (a_space.shape[0], 1))  # tiles, row-by-row the `b_row` row vector, to create `n_rows`
     denominator = np.sum((denom * a_space_present_map) ** 2, axis=1).astype("float")
-    denominator[denominator == 0] = np.nan
-    return np.array((np.sum(a_space * denom, axis=1)) / denominator).reshape(-1, 1)
+    numerator = np.sum(a_space * denom, axis=1)
+    zero = denominator == 0
+    if zero.any():  # rare, so the common call pays for one comparison only
+        # A row with cells present, but none where ``b_row`` is non-zero, is a degenerate
+        # direction rather than missing data, and stays NaN so the caller can refuse it.
+        empty = ~np.any(a_space_present_map, axis=1)
+        denominator[zero] = np.nan
+        denominator[empty] = 1.0
+        numerator[empty] = 0.0
+    return (numerator / denominator).reshape(-1, 1)
 
 
 def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
@@ -102,21 +118,52 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
     return bool(np.any([max_iter, converged]))
 
 
-def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
+Per = typing.Literal["column", "row"]
+
+
+def _case(Y: np.ndarray, x: np.ndarray, per: Per | None) -> Per:
+    """Return whether ``x`` is regressed on each column of ``Y`` or on each row: as asked, else from the shapes.
+
+    Raises
+    ------
+    ValueError
+        If ``x`` fits neither axis of ``Y``, or ``per`` is not given and ``x`` fits both (``Y`` is
+        square), so the shapes cannot tell which regression is meant.
     """
-    Quick least-squares regression with two shape-driven modes.
+    fits: dict[Per, bool] = {"column": Y.shape[0] == x.shape[0], "row": Y.shape[1] == x.shape[0]}
+    if per is None:
+        found = [case for case, fit in fits.items() if fit]
+        if len(found) == 2:
+            raise ValueError(
+                "Y is square, so its shape cannot say whether x is regressed on its columns or on its rows: "
+                "pass per='column' or per='row'."
+            )
+        per = found[0] if found else None
+    if per is None or not fits[per]:
+        raise ValueError("The dimensions of the input arrays are not compatible.")
+    return per
 
-    The mode is selected from the shapes of ``Y`` (``Ny`` x ``K``) and ``x`` (``Nx`` x 1):
 
-    * **Case A** (``Ny == Nx``): regress ``x`` onto each column of ``Y`` one at a
-      time. Returns a ``(K, 1)`` vector of coefficients ``b_k = (x' y_k) / (x' x)``,
-      one per column of ``Y``.
-    * **Case B** (``Nx == K``): regress ``x`` onto each row of ``Y`` one at a
-      time. Returns a ``(Ny, 1)`` vector of coefficients ``b_n = (y_n x) / (x' x)``,
-      one per row of ``Y``.
+def quick_regress(Y: np.ndarray, x: np.ndarray, *, per: Per | None = None) -> np.ndarray:
+    """
+    Quick least-squares regression, on each column or on each row of ``Y``.
+
+    With ``Y`` of ``Ny`` x ``K`` and ``x`` of ``Nx`` x 1:
+
+    * **Case A** (``per="column"``, ``Ny == Nx``): regress ``x`` onto each column of ``Y`` one
+      at a time. Returns a ``(K, 1)`` vector of coefficients ``b_k = (x' y_k) / (x' x)``, one
+      per column of ``Y``: a weight or loading from a score.
+    * **Case B** (``per="row"``, ``Nx == K``): regress ``x`` onto each row of ``Y`` one at a
+      time. Returns a ``(Ny, 1)`` vector of coefficients ``b_n = (y_n x) / (x' x)``, one per
+      row of ``Y``: a score from a weight or loading.
+
+    Without ``per`` the case is read from the shapes. A square ``Y`` fits both, so NIPALS
+    passes ``per`` at every call: read from the shapes, a score of a block with as many rows
+    as columns was computed as Case A, and the model was wrong.
 
     There may be missing data in ``Y``, but not in ``x``. The ``x`` vector
-    *must* be a column vector. Raises ``ValueError`` if neither case matches.
+    *must* be a column vector. Raises ``ValueError`` if neither case matches, or if ``per``
+    is not given and both do.
 
     Degenerate denominators
     -----------------------
@@ -138,16 +185,16 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
     # or zero value makes every comparison below False, so the degenerate branch is taken,
     # which is the right answer for an ``x`` that is all zero or has already overflowed.
     denom_floor = epsqrt * float(ssq(x))
+    per = _case(Y, x, per)
     if Y.size and np.isfinite(Y).all():
-        return _quick_regress_complete(Y, x, denom_floor)
-    return _quick_regress_masked(Y, x, denom_floor)
+        return _quick_regress_complete(Y, x, denom_floor, per)
+    return _quick_regress_masked(Y, x, denom_floor, per)
 
 
-def _quick_regress_masked(Y: np.ndarray, x: np.ndarray, denom_floor: float) -> np.ndarray:
+def _quick_regress_masked(Y: np.ndarray, x: np.ndarray, denom_floor: float, per: Per | None = None) -> np.ndarray:
     """:func:`quick_regress` one column (Case A) or row (Case B) at a time, masking missing cells of ``Y``."""
     Ny, K = Y.shape
-    Nx = x.shape[0]
-    if Ny == Nx:  # Case A: b' = (x'Y)/(x'x): (1xN)(NxK) = (1xK)
+    if _case(Y, x, per) == "column":  # Case A: b' = (x'Y)/(x'x): (1xN)(NxK) = (1xK)
         b = np.zeros((K, 1))
         for k in np.arange(K):
             numer = np.sum(x.T * np.nan_to_num(Y[:, k]))
@@ -162,27 +209,24 @@ def _quick_regress_masked(Y: np.ndarray, x: np.ndarray, denom_floor: float) -> n
             b[k] = numer / denom if denom > denom_floor else 0.0
         return b
 
-    elif Nx == K:  # Case B: b = (Yx)/(x'x): (NxK)(Kx1) = (Nx1)
-        b = np.zeros((Ny, 1))
-        for n in np.arange(Ny):
-            numer = np.sum(x[:, 0] * np.nan_to_num(Y[n, :]))
-            # This denominator is not always 1.0 and must not be dropped. It is the sum
-            # of squares of `x` restricted to the non-missing cells of row `n`, so it is
-            # 1.0 only when `x` is unit-norm AND that row of Y has no NaN. Two call sites
-            # pass `c_a` (`_pls.py` and `_mbpls.py`), which NIPALS deliberately never
-            # renormalises, and any missing cell in Y shrinks it further. Measured over
-            # real fits: 1.0 for every complete-data PCA call, but only half of the
-            # complete-data PLS calls and 46% of the calls with missing data.
-            denom = ssq(~np.isnan(Y[n, :]) * x.T)
-            # See sub-item 7 note above (mirror of Case A), relative threshold included.
-            b[n] = numer / denom if denom > denom_floor else 0.0
-        return b
-
-    else:
-        raise ValueError("The dimensions of the input arrays are not compatible.")
+    # Case B: b = (Yx)/(x'x): (NxK)(Kx1) = (Nx1)
+    b = np.zeros((Ny, 1))
+    for n in np.arange(Ny):
+        numer = np.sum(x[:, 0] * np.nan_to_num(Y[n, :]))
+        # This denominator is not always 1.0 and must not be dropped. It is the sum
+        # of squares of `x` restricted to the non-missing cells of row `n`, so it is
+        # 1.0 only when `x` is unit-norm AND that row of Y has no NaN. Two call sites
+        # pass `c_a` (`_pls.py` and `_mbpls.py`), which NIPALS deliberately never
+        # renormalises, and any missing cell in Y shrinks it further. Measured over
+        # real fits: 1.0 for every complete-data PCA call, but only half of the
+        # complete-data PLS calls and 46% of the calls with missing data.
+        denom = ssq(~np.isnan(Y[n, :]) * x.T)
+        # See sub-item 7 note above (mirror of Case A), relative threshold included.
+        b[n] = numer / denom if denom > denom_floor else 0.0
+    return b
 
 
-def _quick_regress_complete(Y: np.ndarray, x: np.ndarray, denom_floor: float) -> np.ndarray:
+def _quick_regress_complete(Y: np.ndarray, x: np.ndarray, denom_floor: float, per: Per | None = None) -> np.ndarray:
     """:func:`quick_regress` for a ``Y`` with no missing or infinite cell, without the Python loop.
 
     :func:`_quick_regress_masked` spends nearly all its time on per-row
@@ -197,16 +241,13 @@ def _quick_regress_complete(Y: np.ndarray, x: np.ndarray, denom_floor: float) ->
 
     ``tests/test_nipals_quick_regress.py`` checks the equality on random blocks.
     """
-    Ny, K = Y.shape
-    if Ny == x.shape[0]:  # Case A: one coefficient per column of Y
+    if _case(Y, x, per) == "column":  # Case A: one coefficient per column of Y
         numer = np.multiply(Y.T, x.T, order="C").sum(axis=1)
         temp = ~np.isnan(Y[:, 0]) * x.T
         denom = np.dot(temp, temp.T)[0][0]
-    elif x.shape[0] == K:  # Case B: one coefficient per row of Y
+    else:  # Case B: one coefficient per row of Y
         numer = np.multiply(Y, x[:, 0], order="C").sum(axis=1)
         denom = ssq(~np.isnan(Y[0, :]) * x.T)
-    else:
-        raise ValueError("The dimensions of the input arrays are not compatible.")
     if not denom > denom_floor:
         return np.zeros((numer.shape[0], 1))
     return (numer / denom).reshape(-1, 1)
@@ -239,10 +280,9 @@ def internal_pls_nipals_fit_one_pc(
         q_i = regress_a_space_on_b_row(y_space.T, t_i.T, y_present_map.T)
 
         # Step 5. u_new = Yq / q'q. Regress rows of Y on q_i, and store slope coefficients in u_new.
-        # A row with no Y value carries no information about u, so it gets 0 rather than the NaN
-        # of its empty regression: it then has no weight in step 1, as a missing cell has none (#709).
+        # A row with no Y value carries no information about u, so its empty regression gives 0,
+        # and it has no weight in step 1, as a missing cell has none (#709).
         u_new = regress_a_space_on_b_row(y_space, q_i.T, y_present_map)
-        u_new[~np.asarray(y_present_map).any(axis=1)] = 0.0
 
         # Floor ``||u_i||`` so an all-zero starting vector (degenerate
         # Y column) doesn't produce NaN here. SEC-21 (#270) sub-item 1.
@@ -264,11 +304,12 @@ def internal_pls_nipals_fit_one_pc(
     neg = t_i[t_i < 0]
     nonneg = t_i[t_i >= 0]
     if neg.size > 0 and nonneg.size > 0 and np.var(neg) > np.var(nonneg):
+        # The whole component flips, ``u_i`` with it, as PLS and MBPLS flip theirs: it stays
+        # ``Yq / q'q`` for the returned ``q_i``. TPLS regresses its blocks on ``u_i``, so an
+        # un-flipped one turned the sign of its block weights and super weights against the
+        # super score on every component the rule flipped (#513).
         t_i = -t_i
-        # ``u_i`` (the value actually returned) is the converged ``u_new`` and is
-        # only consumed by callers for a sign-invariant convergence check, so it
-        # is intentionally left un-flipped here. (The previous ``u_new = -u_new``
-        # was a dead assignment: ``u_new`` is never read again.)
+        u_i = -u_i
         w_i = -w_i
         q_i = -q_i
 

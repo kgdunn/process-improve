@@ -55,7 +55,7 @@ def test_fixed_operators_are_tested_on_satterthwaite_degrees_of_freedom(gauge):
     found = variance_components(gauge, "y ~ operator", random=["part", "part:operator"], bounded=False)
     test = found["tests"][0]
     assert (test["term"], test["df_num"]) == ("operator", 2)
-    assert test["f"] == pytest.approx(1.8380, abs=5e-5)
+    assert test["f_value"] == pytest.approx(1.8380, abs=5e-5)
     assert (found["r_squared"], found["r_squared_adj"]) == pytest.approx((0.911896, 0.91039), abs=5e-6)
     assert [row["term"] for row in found["fixed_effects"]] == ["Intercept", "operator_1", "operator_2"]
 

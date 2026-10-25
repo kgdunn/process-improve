@@ -41,7 +41,7 @@ def cycles(record) -> list[list[float]]:
 @pytest.fixture(scope="module")
 def sheets(cycles) -> list[dict]:
     """Work the sheet as Montgomery does, with f_{k,n} rounded to two decimals as Table 11.27 prints it."""
-    return evop_worksheet(cycles, factors=("T", "P"), f_decimals=2)
+    return evop_worksheet(cycles, factors=("T", "P"), range_factor_decimals=2)
 
 
 @pytest.fixture(scope="module")

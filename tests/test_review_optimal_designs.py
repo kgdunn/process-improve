@@ -87,11 +87,11 @@ class TestDispatchOptimal:
         with pytest.raises(ValueError, match="not factors of the design"):
             dispatch_d_optimal(_box(3), 12, hard_to_change=["Zzz"])
 
-    def test_budget_below_the_model_is_recorded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_budget_below_the_model_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Five runs for an interactions model (intercept, 3 main effects, 3 interactions) raise (#957)."""
         monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
-        design, meta = dispatch_d_optimal(_box(3), 5, model_type="interactions")
-        assert len(design) == 7  # intercept, 3 main effects, 3 interactions
-        assert meta["budget_requested"] == 5
+        with pytest.raises(ValueError, match="which has 7 coefficients"):
+            dispatch_d_optimal(_box(3), 5, model_type="interactions")
 
     def test_default_budget_leaves_room_beyond_the_fixed_runs(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Eight fixed runs and no budget: the default 2k + 1 = 7 used to be refused as too small."""
@@ -142,12 +142,16 @@ class TestPyoptexBackend:
         spread = frame.groupby("plot")[["x0", "x1"]].agg(lambda v: v.max() - v.min())
         assert (spread == 0).all().all()  # hard-to-change factors are constant within each whole plot
 
-    def test_fixed_runs_short_of_rank_raise_the_budget(self) -> None:
-        """Six identical fixed runs and a budget of 8 failed inside pyoptex with 'rank collinearity'."""
+    def test_fixed_runs_short_of_rank_are_refused(self) -> None:
+        """Six identical fixed runs and a budget of 8 failed inside pyoptex with 'rank collinearity'.
+
+        The six runs span 1 of the 4 coefficients, so 3 more are needed: 9 runs, not 8. The budget used to be
+        raised to 9; it is now refused, as an explicit budget below the model is.
+        """
         factors = [Factor(name="a", low=10, high=20), Factor(name="b", low=0, high=1)]
         fixed = pd.DataFrame({"a": [0.0] * 6, "b": [0.0] * 6})
-        design, meta = designs_optimal._run_pyoptex(
-            factors, "d_optimal", 8, designs_optimal._PyoptexOptions(model_type="interactions", fixed_runs=fixed)
-        )
+        options = designs_optimal._PyoptexOptions(model_type="interactions", fixed_runs=fixed)
+        with pytest.raises(ValueError, match=r"span only 1 of the 4 model coefficients.*budget >= 9, not 8"):
+            designs_optimal._run_pyoptex(factors, "d_optimal", 8, options)
+        design, _meta = designs_optimal._run_pyoptex(factors, "d_optimal", 9, options)
         assert len(design) == 6 + 3
-        assert meta["budget_requested"] == 8

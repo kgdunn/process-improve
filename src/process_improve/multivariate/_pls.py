@@ -612,7 +612,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 u_a_guess = u_a.copy()
 
                 # 1: w_a = X'u_a / (u_a'u_a)
-                w_a = quick_regress(Xd, u_a)
+                w_a = quick_regress(Xd, u_a, per="column")
 
                 # 2: Normalize w_a to unit length. Floor the norm: a collapsed ``w_a``
                 # would make this 0/0 -> NaN and poison every later component. `_mbpls`
@@ -620,18 +620,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 w_a = w_a / _nz(float(np.sqrt(ssq(w_a))))
 
                 # 3: t_a = X w_a / (w_a'w_a)
-                t_a = quick_regress(Xd, w_a)
+                t_a = quick_regress(Xd, w_a, per="row")
 
                 # 4: c_a = Y't_a / (t_a't_a)
-                c_a = quick_regress(target, t_a)
+                c_a = quick_regress(target, t_a, per="column")
 
                 # 5: u_a = Y c_a / (c_a'c_a)
-                u_a = quick_regress(target, c_a)
+                u_a = quick_regress(target, c_a, per="row")
 
                 itern += 1
 
             if exhausted:  # the Y side of a component along X: a Y-loading of about zero, and no Y-score
-                c_a = quick_regress(Yd, t_a)
+                c_a = quick_regress(Yd, t_a, per="column")
                 u_a = np.zeros_like(t_a)
 
             timing_arr = typing.cast("np.ndarray", self.fitting_info_["timing"])
@@ -658,7 +658,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 )
 
             # 6: Compute loadings and deflate
-            p_a = quick_regress(Xd, t_a)
+            p_a = quick_regress(Xd, t_a, per="column")
             Xd = Xd - np.dot(t_a, p_a.T)
             Yd = Yd - np.dot(t_a, c_a.T)
 
@@ -1284,7 +1284,21 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Returns
         -------
         result : sklearn.utils.Bunch
-            With keys ``scores``, ``hotellings_t2``, ``spe``, ``y_hat``.
+            With keys:
+
+            - ``scores`` (pd.DataFrame, ``(n_samples, n_components)``).
+            - ``hotellings_t2`` (pd.Series, ``(n_samples,)``): T² of the full
+              model, the last column of the fitted ``hotellings_t2_``.
+            - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
+            - ``y_hat`` (pd.DataFrame, ``(n_samples, n_targets)``): the
+              predictions, on the original Y scale.
+
+        Notes
+        -----
+        :meth:`PCA.diagnose` returns ``hotellings_t2`` as a cumulative
+        ``pd.DataFrame`` with one column per component, of which the last is
+        this Series. The two shapes are kept as they are because each is public
+        API; compare them through that last column.
 
         See Also
         --------

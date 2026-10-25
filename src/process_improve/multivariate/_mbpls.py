@@ -32,6 +32,7 @@ from ._common import (
     _nz,
     _scale_block_contributions,
     _select_n_components,
+    cumulative_block_t2,
     epsqrt,
     informative_widths,
     resolve_loop_settings,
@@ -211,9 +212,9 @@ def _block_projections(
     if context.algo == "nipals":
         u_a_col = u_a.reshape(-1, 1)
         for b_idx, name in enumerate(context.block_names):
-            w_b = quick_regress(x_def[name], u_a_col).flatten()
+            w_b = quick_regress(x_def[name], u_a_col, per="column").flatten()
             w_b = w_b / _nz(float(np.sqrt(ssq(w_b.reshape(-1, 1)))))
-            t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / context.sqrt_kb[name]
+            t_b = quick_regress(x_def[name], w_b.reshape(-1, 1), per="row").flatten() / context.sqrt_kb[name]
             local_w[name] = w_b
             local_t[name] = t_b
             t_b_summary[:, b_idx] = np.where(context.block_has_data[name], t_b, np.nan)
@@ -236,7 +237,7 @@ def _block_loadings(
     loadings: dict[str, np.ndarray] = {}
     for name in context.block_names:
         if context.algo == "nipals":
-            loadings[name] = quick_regress(x_def[name], t_super_col).flatten()
+            loadings[name] = quick_regress(x_def[name], t_super_col, per="column").flatten()
         else:
             loadings[name] = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
     return loadings
@@ -277,7 +278,7 @@ def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
     component = _fit_one_component(x_def, target, target.shape[1], context)
     t_super = component.super_score
     if context.algo == "nipals":
-        c_a = quick_regress(y_def, t_super.reshape(-1, 1)).flatten()
+        c_a = quick_regress(y_def, t_super.reshape(-1, 1), per="column").flatten()
     else:
         c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
     return component._replace(super_y_loading=c_a, super_y_score=np.zeros_like(t_super))
@@ -312,7 +313,7 @@ def _fit_one_component(
 
         if context.algo == "nipals":
             # Masked, so a block this row has nothing in does not vote on the super weight.
-            w_s = quick_regress(t_b_summary, u_a.reshape(-1, 1)).flatten()
+            w_s = quick_regress(t_b_summary, u_a.reshape(-1, 1), per="column").flatten()
         else:
             w_s = t_b_summary.T @ u_a / _nz(float(u_a @ u_a))
         w_s = w_s / _nz(float(np.linalg.norm(w_s)))
@@ -331,8 +332,8 @@ def _fit_one_component(
         t_super = np.nan_to_num(t_super)
         if context.algo == "nipals":
             t_super_col = t_super.reshape(-1, 1)
-            c_a = quick_regress(y_def, t_super_col).flatten()
-            u_a = quick_regress(y_def, c_a.reshape(-1, 1)).flatten()
+            c_a = quick_regress(y_def, t_super_col, per="column").flatten()
+            u_a = quick_regress(y_def, c_a.reshape(-1, 1), per="row").flatten()
         else:
             c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
             u_a = y_def @ c_a / _nz(float(c_a @ c_a))
@@ -575,7 +576,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Cumulative Hotelling's T^2 on the super-scores per component.
     super_vip_ : pd.Series
         Variable-importance in projection for each X-block, indexed by
-        block name.
+        block name. Computed from ``super_weights_``, each component weighted
+        by its share of the **Y** variance (``r2_y_per_component_``), as a PLS
+        VIP is: it ranks the blocks by their part in predicting Y.
     block_scores_ : dict[str, pd.DataFrame]
         Per-block X-scores ``t_b``, each shape ``(n_samples, n_components)``. NaN for a row with
         nothing observed in that block: the block has no score of its own there, and reporting
@@ -590,10 +593,16 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Per-block squared prediction error per sample and component. NaN where the row has
         nothing observed in that block, for the same reason as ``block_scores_``.
     block_hotellings_t2_ : dict[str, pd.DataFrame]
-        Per-block cumulative Hotelling's T^2 per sample and component.
+        Per-block cumulative Hotelling's T^2 per sample and component. Each component is
+        scaled by its block scores' second moment about zero, as ``super_hotellings_t2_`` is
+        by ``explained_variance_``.
     block_vip_ : dict[str, pd.Series]
         Per-block variable-importance in projection, indexed by variable
-        name inside each block.
+        name inside each block. Computed from ``block_weights_``, each component
+        weighted by its share of **that block's X** variance
+        (``r2_x_per_block_per_component_``), not of Y as ``super_vip_`` is: it
+        ranks a block's variables by their part in the components that describe
+        the block.
     predictions_ : pd.DataFrame, shape (n_samples, n_targets)
         In-sample Y predictions on the *original* scale.
     explained_variance_ : np.ndarray, shape (n_components,)
@@ -914,15 +923,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             for name in self.block_names_
         }
 
-        # Cumulative T^2 from block scores and super scores (using per-component score variance)
-        block_t2: dict[str, np.ndarray] = {}
-        for name in self.block_names_:
-            scores_np = self.block_scores_[name].values  # (N, A)
-            score_var = np.var(scores_np, axis=0, ddof=1)
-            score_var = np.where(score_var > 0, score_var, 1.0)
-            block_t2[name] = np.cumsum((scores_np**2) / score_var, axis=1)
+        # Cumulative T^2 from block scores and super scores, each scaled by its second moment about zero
         self.block_hotellings_t2_ = {
-            name: pd.DataFrame(block_t2[name], index=self._sample_index, columns=component_names)
+            name: pd.DataFrame(
+                cumulative_block_t2(self.block_scores_[name].values), index=self._sample_index, columns=component_names
+            )
             for name in self.block_names_
         }
         super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
@@ -1527,7 +1532,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             for name in self.block_names_:
                 w_b = self.block_weights_[name].values[:, a]
                 weights[name] = w_b
-                t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
+                t_b = quick_regress(x_def[name], w_b.reshape(-1, 1), per="row").flatten() / sqrt_kb[name]
                 block_scores[name][:, a] = np.where(block_has_data[name], t_b, np.nan)
             w_s = self.super_weights_.values[:, a]
             # The same pooled regression the fit uses, so a projected score matches a fitted one.

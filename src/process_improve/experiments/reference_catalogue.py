@@ -67,6 +67,7 @@ from process_improve.experiments._desirability import composite_desirability, in
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.crossed_arrays import signal_to_noise
 from process_improve.experiments.design_measures import (
     design_structure,
     projectivity,
@@ -333,13 +334,10 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "sqrt": lambda readings: np.sqrt(readings.iloc[:, 0]),
     "arcsin_sqrt": lambda readings: np.arcsin(np.sqrt(readings.iloc[:, 0])),
     "freeman_tukey_sqrt": lambda readings: (np.sqrt(readings.iloc[:, 0]) + np.sqrt(readings.iloc[:, 0] + 1)) / 2,
-    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
-    # nominal is best in the form 10 log10(mean^2 / variance)
-    "sn_larger": lambda readings: -10 * np.log10((1 / readings**2).mean(axis=1)),
-    "sn_smaller": lambda readings: -10 * np.log10((readings**2).mean(axis=1)),
-    "sn_nominal": lambda readings: pd.Series(
-        10 * np.log10(readings.mean(axis=1) ** 2 / readings.var(axis=1, ddof=1)), index=readings.index
-    ),
+    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and nominal is best
+    "sn_larger": lambda readings: pd.Series(signal_to_noise(readings, "larger"), readings.index),
+    "sn_smaller": lambda readings: pd.Series(signal_to_noise(readings, "smaller"), readings.index),
+    "sn_nominal": lambda readings: pd.Series(signal_to_noise(readings, "nominal"), readings.index),
 }
 
 
@@ -354,8 +352,9 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     ``"sn_nominal"`` (10 log10 of the squared mean over the variance). Of one column, a count c or a
     proportion p, ``"sqrt"`` and ``"arcsin_sqrt"`` are the variance-stabilizing transforms and
     ``"freeman_tukey_sqrt"`` ([sqrt(c) + sqrt(c + 1)]/2) and ``"freeman_tukey_arcsin"`` (the two arcsines
-    of np/(n + 1) and (np + 1)/(n + 1), averaged, for ``summary["n"]`` trials) Freeman and Tukey's. A source
-    that rounds each
+    of np/(n + 1) and (np + 1)/(n + 1), averaged, for ``summary["n"]`` trials) Freeman and Tukey's;
+    ``"angular_degrees"`` is arcsin (m/n)^1/2 in degrees of a count m of ``summary["n"]``, with the source's
+    ``summary["ends"]`` at m = 0 and m = n (Bartlett's values, say). A source that rounds each
     run's value before averaging it gives ``summary["round"]``, the decimals it keeps. A source
     that prints its readings in one unit and works the statistic in another gives
     ``summary["scale"]``, the factor the readings are multiplied by first (1e17 for readings
@@ -365,6 +364,11 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     if summary["statistic"] == "freeman_tukey_arcsin":  # [arcsin sqrt(np/(n + 1)) + arcsin sqrt((np + 1)/(n + 1))]/2
         n, p = float(summary["n"]), readings.iloc[:, 0]
         values = (np.arcsin(np.sqrt(n * p / (n + 1))) + np.arcsin(np.sqrt((n * p + 1) / (n + 1)))) / 2
+    elif summary["statistic"] == "angular_degrees":  # arcsin (m/n)^1/2 in degrees, a source's own values at 0 and n
+        n, m = float(summary["n"]), readings.iloc[:, 0]
+        values = pd.Series(np.degrees(np.arcsin(np.sqrt(m / n))), index=readings.index)
+        at_zero, at_n = summary.get("ends", (0.0, 90.0))  # Bartlett's 1/(4n) correction, say, for m = 0 and m = n
+        values = values.where(m > 0, at_zero).where(m < n, at_n)
     else:
         values = _STATISTICS[summary["statistic"]](readings)
     if summary.get("round") is not None:
@@ -1300,6 +1304,14 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "residual_quantile": lambda out, c, _e: float(np.quantile(_residuals(out)[1], c["q"])),
     "f_statistic": lambda out, _c, _e: out["model_summary"]["f_statistic"],
     "f_p_value": lambda out, _c, _e: out["model_summary"]["f_p_value"],
+    # a source's analysis of variance about zero, uncorrected for the mean: Σy², nȳ², Σŷ² and its df, the model's rank
+    "ss_total_uncorrected": lambda out, _c, _e: out["model_summary"]["ss_total_uncorrected"],
+    "ss_mean": lambda out, _c, _e: out["model_summary"]["ss_mean"],
+    "ss_regression_uncorrected": lambda out, _c, _e: out["model_summary"]["ss_model_uncorrected"],
+    "df_model_uncorrected": lambda out, _c, _e: float(len(out["y"]) - out["model_summary"]["df_residual"]),
+    "ms_regression_uncorrected": lambda out, _c, _e: (
+        out["model_summary"]["ss_model_uncorrected"] / (len(out["y"]) - out["model_summary"]["df_residual"])
+    ),
     "f_uncorrected": lambda out, _c, _e: _f_uncorrected(out)[0],
     "f_uncorrected_p": lambda out, _c, _e: _f_uncorrected(out)[1],
     "log_likelihood": lambda out, _c, _e: out["model_summary"]["log_likelihood"],
@@ -2327,9 +2339,15 @@ def _library_value(check: dict) -> float:
     For a number the library computes directly, such as the run count of the OMARS estimability
     frontier, without building a design to read it from, or the canonical analysis of a fitted
     equation a source prints without its data. ``"squared": true`` returns the square of the number read,
-    and ``"root": true`` its square root, a standard deviation from a variance.
+    and ``"root": true`` its square root, a standard deviation from a variance. An eigenvector's sign is
+    arbitrary: ``"abs": true`` reads its size only, and ``check["sign_of"]`` names the element the source
+    prints positive, as for :func:`_optimum`.
     """
-    found = _read(_library_result(check), check.get("key"))
+    result = _library_result(check)
+    found = _read(result, check.get("key"))
+    if check.get("sign_of"):
+        found *= math.copysign(1.0, _read(result, check["sign_of"]))
+    found = abs(found) if check.get("abs") else found
     found = math.sqrt(found) if check.get("root") else found
     return found**2 if check.get("squared") else found
 
@@ -3485,6 +3503,7 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     found = found**2 if check.get("squared") else found  # a variance, from the standard error read
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     found = math.exp(found) if check.get("exp") else found  # a model of ln(s²) read back as a variance
+    found = 10.0**found if check.get("exp10") else found  # a fit to common logs read back, as antilogs print it
     found = found / math.log(10) if check.get("log10") else found  # a natural log printed as a common one
     if check.get("back_transform") == "freeman_tukey_sqrt":  # t = [√y + √(y + 1)]/2 read back as y
         found = (found - 1 / (4 * found)) ** 2

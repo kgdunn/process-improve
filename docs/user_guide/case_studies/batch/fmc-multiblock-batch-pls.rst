@@ -155,9 +155,8 @@ The trajectories alone
 The trajectories are unfolded batchwise with
 :func:`process_improve.batch.dict_to_wide`: one row per batch of 11 tags (the
 ten process measurements and ``ClockTime``) times 325 samples, 3575 columns.
-``MCUVScaler`` returns flat column labels, so the 2-level
-``(tag, sequence)`` index is re-attached after scaling; the batch plots read
-it.
+``MCUVScaler`` keeps the 2-level ``(tag, sequence)`` column index, which the
+batch plots read.
 
 .. literalinclude:: fmc_multiblock_batch_pls.py
    :language: python

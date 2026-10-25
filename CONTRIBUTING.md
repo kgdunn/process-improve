@@ -10,21 +10,23 @@ follow the [security policy](SECURITY.md) instead of opening a public issue.
 
 ## Development setup
 
-Clone the repository and install it in editable mode with the development
-extras:
+Clone the repository and install it in editable mode with
+[uv](https://docs.astral.sh/uv/), as CI does:
 
 ```bash
 git clone https://github.com/kgdunn/process-improve.git
 cd process-improve
-pip install -e ".[dev,all]"
+uv sync --dev --all-extras
 ```
 
-`dev` brings in the test runner, linter, formatter, type checker, and the
-documentation toolchain. `all` brings in the optional runtime dependencies
-(`plotly`, `numba`, `ruptures`, ...) that the gated public-API surfaces
-need. Install both: with `dev` alone a large part of the suite fails on
-`ImportError` rather than skipping, because those tests exercise the extras.
-CI installs the equivalent with `uv sync --dev --all-extras`.
+`--dev` installs the `dev` dependency group in `pyproject.toml`: the test
+runner, linter, formatter, type checker, and the documentation toolchain.
+`--all-extras` installs the optional runtime dependencies (`plotly`, `numba`,
+`ruptures`, ...) that the gated public-API surfaces need. Install both: without
+the extras a large part of the suite fails on `ImportError` rather than
+skipping, because those tests exercise the extras. Use uv rather than pip: the
+group holds `pyoptex`, which resolves beside the extras only through the
+`[tool.uv]` overrides, and pip does not apply them.
 
 ## Running tests
 
@@ -331,6 +333,14 @@ change; a divergence introduced quietly is expensive to find later.
   carrying the `pi_*` metadata above. The abbreviation predates the rest of
   the package's spell-out-everything convention; it is retained for backwards
   compatibility.
+- **Name arguments and result keys for what they are, not by a letter or a
+  source's label.** Sources label the same thing differently: Box and Draper's
+  "B canonical form" is the surface centred on the stationary point, while
+  earlier notes here used "B" for the ridge form, and the key `b_canonical`
+  held neither. So the forms are `canonical_axes` and `ridge_form`, and each
+  docstring gives the source's label with its citation. A retired name is not
+  reused for something else: a caller still reading it would get other
+  numbers with no error.
 
 ## Adding new methods to PCA / PLS
 

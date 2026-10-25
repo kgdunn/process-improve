@@ -135,7 +135,7 @@ FAMILIES: dict[str, Family] = {
 
 #: The free-text design types of the reference catalogue, read into a family: the first rule that matches wins.
 _FAMILY_RULES: tuple[tuple[str, str], ...] = (
-    (r"mixture|simplex", "mixture"),
+    (r"mixture|simplex|extreme vertices|component-amount", "mixture"),
     (r"omars", "omars"),
     (r"\bdsd\b|definitive screening|conference matrix", "dsd"),
     (r"split|strip|whole.plot|restricted randomi", "split_plot"),
@@ -146,17 +146,20 @@ _FAMILY_RULES: tuple[tuple[str, str], ...] = (
     (r"plackett", "plackett_burman"),
     (r"latin|youden", "latin_square"),
     (r"block design|complete block|incomplete block|randomi[sz]ed blocks", "block_design"),
-    (r"\b[adgi]-optimal|\boptimal designs?\b|candidate set|minimum-run resolution", "optimal"),
+    (r"\b[adgi]-optimal|\boptimal designs?\b|candidate set|minimum-run resolution|measure design", "optimal"),
     (
-        r"\d\^\(\d+-\d+\)|\^\(k-p\)|fraction|two-level design|mirror image|fold-?over|resolution (iii|iv|v) design",
+        (
+            r"\d\^\(\d+-\d+\)|\^\(k-p\)|fraction|two-level design|mirror image|fold-?over|resolution (iii|iv|v) design|"
+            r"factors in \d+ runs|main effects and two-factor interactions"
+        ),
         "fractional_factorial",
     ),
     (r"\d\^\d|\^k\b|factorial|\d+ x \d+|\d-by-\d|evop", "full_factorial"),
     (
         (
-            r"regression|comparison|single sample|single.factor|one categorical|one factor at a time|process record|"
-            r"illustration|confirmation|search along|path of steepest|selection|second-degree|nested|hierarchical|"
-            r"two-way|completely randomi|sampling plan|design types"
+            r"regression|comparison|single sample|single.factor|one categorical|one factor at|process record|"
+            r"illustration|confirmat|observational|search along|path of steepest|selection|second-degree|nested|"
+            r"hierarchical|two-way|completely randomi|sampling plan|design types|straight line"
         ),
         "comparison",
     ),
@@ -829,11 +832,11 @@ def _kind(entry: dict[str, Any], factors: list[dict[str, Any]]) -> str:
 
     ``experiment``: a design and its results. ``design``: a design's runs, or its factors, without results.
     ``sample``: results with no factor varied, one sample measured over and over. ``facts``: neither
-    factors nor runs, only what the source prints about designs, such as a table of run sizes.
+    factors nor results, only what the source prints about designs, such as a table of run sizes.
     """
     if factors:
         return "experiment" if entry.get("responses") else "design"
-    return "sample" if (entry.get("runs") or {}).get("rows") else "facts"
+    return "sample" if entry.get("responses") and (entry.get("runs") or {}).get("rows") else "facts"
 
 
 def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
@@ -850,6 +853,9 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         factors, coded, runs_from = fraction  # the source names the fraction by its generators alone
     kinds = [str(f.get("type", "numeric")) for f in factors]
     responses = _response_values(entry)
+    if runs_from and coded is not None:  # a table printed beside a fraction named by its generators, such as its
+        # effects, is no run's result
+        responses = {name: values for name, values in responses.items() if len(values) == len(coded)}
     blocked, blocks = _blocks(entry, text, columns)
     n_blocks = len({str(b) for b in blocks if b is not None}) if blocks else None
     record: dict[str, Any] = {
