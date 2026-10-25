@@ -1226,6 +1226,20 @@ def test_a_response_named_yield_is_analysed() -> None:
     assert coefficients["A"] == pytest.approx(3, abs=0.2)
 
 
+@pytest.mark.parametrize("name", ["I", "C", "Q"])
+def test_a_response_named_as_a_patsy_function_is_analysed(name) -> None:
+    """Box and Draper's Exercise 7.9 names its responses I, II and III; a column named I hides patsy's I()."""
+    from process_improve.experiments import analyze_experiment
+
+    x = np.array([[a, b] for a in (-1.0, 0.0, 1.0) for b in (-1.0, 0.0, 1.0)])
+    data = pd.DataFrame(x, columns=["A", "B"])
+    data[name] = 10 + 2 * x[:, 0] - x[:, 1] + 3 * x[:, 0] ** 2
+    out = analyze_experiment(data, response_column=name, model="quadratic", analysis_type=["coefficients"])
+    assert out["model_summary"]["formula"].startswith(f"{name} ~")
+    coefficients = {c["term"]: c["coefficient"] for c in out["coefficients"]}
+    assert coefficients["I(A ** 2)"] == pytest.approx(3)
+
+
 def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
     from process_improve.experiments import analyze_experiment
 
