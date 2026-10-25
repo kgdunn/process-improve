@@ -81,6 +81,11 @@ def records() -> list[dict]:
         ("regression on one variable", "comparison"),
         ("single-factor random effects design", "comparison"),
         ("steps along a path of steepest ascent", "comparison"),
+        ("one factor at five equally spaced levels", "comparison"),
+        ("extreme vertices design, four components", "mixture"),
+        ("component-amount design in two orthogonal blocks", "mixture"),
+        ("exact approximation to a measure design", "optimal"),
+        ("symmetric designs for a straight line (m3 = 0)", "comparison"),
         ("other", "other"),
     ],
 )
@@ -97,8 +102,10 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
     # pid-book's 19 "other", two projections, and three response surface designs no family holds:
-    # an equiradial hexagon, a hybrid design and a sphere-packing design
-    assert len(unknown) <= 24, f"a rule is needed for: {sorted(set(unknown))}"
+    # an equiradial hexagon, a hybrid design and a sphere-packing design. Box and Draper's 38: 21 entries
+    # that print no design (a fitted equation, an exercise in algebra, a table of values), five Koshal designs,
+    # and 12 response surface designs no family holds (a hexagon, an all-bias design, three-level designs)
+    assert len(unknown) <= 62, f"a rule is needed for: {sorted(set(unknown))}"
 
 
 def test_every_family_with_a_year_names_the_work_that_published_it():
