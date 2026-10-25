@@ -10,6 +10,7 @@ below are the ones that showed it.
 from __future__ import annotations
 
 import pathlib
+import re
 
 import numpy as np
 import pandas as pd
@@ -279,6 +280,25 @@ def test_asca_uses_any_other_model_string_as_a_verbatim_right_hand_side() -> Non
     # The design is balanced, so A's effect does not depend on whether B is in the model.
     pd.testing.assert_frame_equal(only_a.effect_matrices_["A"], main.effect_matrices_["A"], rtol=0, atol=1e-12)
     assert only_a.ssq_["residual"] == pytest.approx(main.ssq_["residual"] + main.ssq_["B"], rel=1e-9)
+
+
+def test_asca_refuses_a_factor_named_c_with_a_rename_that_fits() -> None:
+    """A factor named C hides patsy's C() in every C(name, Sum) term; the rename the error offers fits."""
+    from process_improve.experiments.models import UnsafeFormulaError
+
+    X, design, _ = _two_factor_design()
+    named_c = design.rename(columns={"B": "C"})
+    with pytest.raises(UnsafeFormulaError, match=re.escape(".rename(columns={'C': 'C_'})")):
+        ASCA(n_components=2).fit(X, named_c)
+    fitted = ASCA(n_components=2).fit(X, named_c.rename(columns={"C": "C_"}))
+    reference = ASCA(n_components=2).fit(X, design)
+    assert fitted.ssq_["C_"] == pytest.approx(reference.ssq_["B"], rel=1e-12)
+
+
+def test_asca_checks_a_verbatim_right_hand_side_as_any_formula() -> None:
+    X, design, _ = _two_factor_design()
+    with pytest.raises(ValueError, match="only I"):
+        ASCA(n_components=2, model="C(A, Sum) + eval(B)").fit(X, design)
 
 
 def test_asca_reads_a_design_given_as_a_dict_of_columns_as_that_frame() -> None:

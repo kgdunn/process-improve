@@ -218,6 +218,35 @@ class TestValidateIdentifiersAreSafe:
             validate_identifiers_are_safe(["Water %", "Water (%)", "Water_pct"])
 
 
+class TestColumnNamedLikeACall:
+    """Patsy finds a column before its own function of the same name, so the formula would call the column."""
+
+    @pytest.mark.parametrize(
+        ("formula", "columns", "renames"),
+        [
+            pytest.param("y ~ (I + P) ** 2 + I(I ** 2) + I(P ** 2)", ["y", "I", "P"], {"I": "I_"}, id="I-squares"),
+            pytest.param("y ~ A + I(P ** 2)", ["y", "A", "P", "I", "I_"], {"I": "I_2"}, id="I_-already-a-column"),
+            pytest.param("y ~ C(A, Sum)", ["y", "A", "C"], {"C": "C_"}, id="C-contrast"),
+            pytest.param("y ~ C(A, Sum)", ["y", "A", "Sum"], {"Sum": "Sum_"}, id="Sum-contrast"),
+            pytest.param("y ~ np.log(A)", ["y", "A", "np"], {"np": "np_"}, id="np-module"),
+        ],
+    )
+    def test_column_named_like_a_call_is_refused(self, formula: str, columns: list[str], renames: dict) -> None:
+        with pytest.raises(UnsafeFormulaError, match=re.escape(f".rename(columns={renames!r})")):
+            validate_formula_is_safe(formula, columns, allow_transforms=True, allow_numpy=True)
+
+    @pytest.mark.parametrize(
+        ("formula", "columns"),
+        [
+            pytest.param("y ~ I + P + I:P", ["y", "I", "P"], id="I-named-not-called"),
+            pytest.param("y ~ C(Sum)", ["y", "Sum"], id="Sum-is-the-data-C-codes"),
+            pytest.param("y ~ A + B + C", ["y", "A", "B", "C"], id="C-named-not-called"),
+        ],
+    )
+    def test_column_the_formula_only_names_is_accepted(self, formula: str, columns: list[str]) -> None:
+        validate_formula_is_safe(formula, columns, allow_transforms=True)
+
+
 class TestCategoricalContrasts:
     """Patsy categorical-contrast helpers (C, Treatment, Sum, ...) are allowed."""
 
