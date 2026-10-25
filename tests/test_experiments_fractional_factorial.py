@@ -396,6 +396,16 @@ class TestBudgetSizesTheFraction:
                 n_center_points=0,
             )
 
+    def test_more_factors_than_the_search_names_raises(self) -> None:
+        """The generator search names 25 factors; a fraction of 26 other than the half needs generators."""
+        with pytest.raises(ValueError, match="No minimum-aberration fraction of 26 factors"):
+            generate_design(
+                [Factor(name=f"X{i}", low=-1, high=1) for i in range(26)],
+                design_type="fractional_factorial",
+                budget=64,
+                n_center_points=0,
+            )
+
     def test_with_generators_the_budget_stays_a_ceiling(self) -> None:
         assert _fraction(4, generators=["D=ABC"], budget=32).n_runs == 8
 
