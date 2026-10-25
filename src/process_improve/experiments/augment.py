@@ -33,6 +33,7 @@ from patsy import dmatrix
 
 from process_improve._random import check_random_state
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
+from process_improve.experiments._lm import validate_identifiers_are_safe
 from process_improve.experiments.designs_response_surface import blocking_alpha, orthogonal_alpha
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
@@ -42,7 +43,7 @@ from process_improve.experiments.evaluate import (
     evaluate_design,
 )
 from process_improve.experiments.factor import FactorType
-from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+from process_improve.experiments.models import validate_formula_is_safe
 from process_improve.experiments.region import DesignRegion
 
 if TYPE_CHECKING:
@@ -692,8 +693,7 @@ def _build_model_rhs(factor_names: list[str], model: str) -> str:
     The returned RHS is validated before it can reach ``patsy.dmatrix`` so a
     custom ``model`` string cannot smuggle in arbitrary Python (SEC-14).
     """
-    for name in factor_names:
-        validate_identifier_is_safe(name)
+    validate_identifiers_are_safe(factor_names)
 
     joined = " + ".join(factor_names)
     if model == "main_effects":

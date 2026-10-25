@@ -7,10 +7,14 @@ Python expressions.
 
 from __future__ import annotations
 
+import keyword
 import re
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
+from process_improve.experiments._lm import suggest_identifier, validate_identifiers_are_safe
 from process_improve.experiments.models import (
     UnsafeFormulaError,
     validate_formula_is_safe,
@@ -158,6 +162,60 @@ class TestValidateIdentifierIsSafe:
     def test_non_string_rejected(self) -> None:
         with pytest.raises(UnsafeFormulaError, match="must be a string"):
             validate_identifier_is_safe(123)  # type: ignore[arg-type]
+
+    def test_refusal_suggests_a_name(self) -> None:
+        with pytest.raises(UnsafeFormulaError, match=r"Try 'Water_pct'\.$"):
+            validate_identifier_is_safe("Water %")
+
+
+class TestSuggestIdentifier:
+    """A refused name comes with a name close to it that the guard and Python both accept."""
+
+    @pytest.mark.parametrize(
+        ("name", "suggestion"),
+        [
+            ("Water %", "Water_pct"),
+            ("Yield (%)", "Yield_pct"),
+            ("Temp (°C)", "Temp_deg_C"),
+            ("Run #", "Run_num"),
+            ("Conc. [g/L]", "Conc_g_L"),
+            ("2nd stage", "x2nd_stage"),
+            ("  Yield  ", "Yield"),
+            ("a__b", "a_b"),
+            ("__import__", "import_"),
+            ("lambda", "lambda_"),
+            ("Été", "xÉté"),
+            ("x²", "x"),
+            ("", "x"),
+            (0, "x0"),
+        ],
+    )
+    def test_suggestion(self, name: object, suggestion: str) -> None:
+        assert suggest_identifier(name) == suggestion
+
+    @given(st.text())
+    def test_every_suggestion_is_accepted(self, name: str) -> None:
+        suggestion = suggest_identifier(name)
+        validate_identifier_is_safe(suggestion)
+        assert suggestion.isidentifier()
+        assert not keyword.iskeyword(suggestion)
+
+
+class TestValidateIdentifiersAreSafe:
+    """Every refused name is in one error, with a rename map whose names are all distinct."""
+
+    def test_safe_names_pass(self) -> None:
+        validate_identifiers_are_safe(["A", "Temp_2", "_x"])
+
+    def test_every_refused_name_in_one_error(self) -> None:
+        with pytest.raises(UnsafeFormulaError, match=re.escape("{'Water %': 'Water_pct', 'Temp (°C)': 'Temp_deg_C'}")):
+            validate_identifiers_are_safe(["Water %", "A", "Temp (°C)"])
+
+    def test_suggestions_do_not_take_a_name_already_used(self) -> None:
+        """'Water %' and 'Water (%)' both suggest 'Water_pct', which a third column already is."""
+        renames = "{'Water %': 'Water_pct_2', 'Water (%)': 'Water_pct_3'}"
+        with pytest.raises(UnsafeFormulaError, match=re.escape(renames)):
+            validate_identifiers_are_safe(["Water %", "Water (%)", "Water_pct"])
 
 
 class TestCategoricalContrasts:
