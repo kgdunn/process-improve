@@ -2005,29 +2005,6 @@ def refuse_budget_short_of_fixed_runs(f_fixed: np.ndarray, n_parameters: int, bu
         )
 
 
-def _budget_for_fixed_runs(f_fixed: np.ndarray, n_parameters: int, budget: int) -> int:
-    """Raise ``budget`` so the free runs can supply the rank the fixed runs lack, warning when it does.
-
-    Augmentation (``augment_design``) uses this: its explanation reports the runs added. A design that
-    ``generate_design`` makes refuses such a budget instead (:func:`refuse_budget_short_of_fixed_runs`).
-    """
-    n_fixed = len(f_fixed)
-    missing_rank = _missing_rank(f_fixed, n_parameters)
-    if budget - n_fixed >= missing_rank:
-        return budget
-    logger.warning(
-        "The %d fixed run(s) span only %d of the %d model coefficients, so at least %d more run(s) are "
-        "needed; raising the budget from %d to %d.",
-        n_fixed,
-        n_parameters - missing_rank,
-        n_parameters,
-        missing_rank,
-        budget,
-        n_fixed + missing_rank,
-    )
-    return n_fixed + missing_rank
-
-
 #: Uniform draws used to estimate the region's moment matrix for I-optimality.
 _N_MOMENT_SAMPLES = 20_000
 

@@ -797,7 +797,7 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     (see ``select_runs``). Unlike a one-run-at-a-time greedy search, the exchange can
     start from a design that cannot yet estimate the target model, as every screening
     design aimed at a quadratic model is. When the requested runs cannot supply the
-    rank the existing runs lack, more are added, and the explanation says so.
+    rank the existing runs lack, a ``ValueError`` says how many are needed.
     Candidates may repeat, which replicates a run where the criterion wants it.
     With a region, the candidates and the polish keep to its limits, as for a design
     ``generate_design`` makes inside them.
@@ -807,7 +807,7 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
         CandidatePool,
         Criterion,
         PolishLattice,
-        _budget_for_fixed_runs,
+        _missing_rank,
         build_candidates,
         polish_levels,
         select_runs,
@@ -830,8 +830,14 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
         where = "settings the region allows" if region.inequalities else "candidate grid"
         raise ValueError(f"The {where} cannot support the {model!r} model; use a simpler target_model.")
 
-    total = _budget_for_fixed_runs(f_fixed, n_parameters, len(df) + ctx.n_additional_runs)
-    n_new = total - len(df)
+    missing = _missing_rank(f_fixed, n_parameters)
+    if ctx.n_additional_runs < missing:
+        raise ValueError(
+            f"The {len(df)} existing run(s) span only {n_parameters - missing} of the {n_parameters} coefficients of "
+            f"the {model} model, so at least {missing} new run(s) are needed; n_additional_runs="
+            f"{ctx.n_additional_runs} is too few. Use n_additional_runs >= {missing} or a simpler target_model."
+        )
+    n_new = ctx.n_additional_runs
     levels = polish_levels(counts)
     lattice = None
     if levels is not None and (grid_model == "quadratic" or region.inequalities):  # the box's corners need no polish
@@ -851,12 +857,6 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     if ctx.region is not None and ctx.region.constraints:
         limits = "; ".join(c.expression for c in ctx.region.constraints)
         notes.append(f"The new runs keep to the region's limits: {limits}.")
-    if n_new > ctx.n_additional_runs:
-        notes.append(
-            f"The {len(df)} existing run(s) span only {int(np.linalg.matrix_rank(f_fixed))} of the "
-            f"{n_parameters} coefficients of the {model} model, so {n_new} runs were needed rather than "
-            f"the {ctx.n_additional_runs} requested."
-        )
     explanation, before_m, after_m = _explain_changes(
         ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
