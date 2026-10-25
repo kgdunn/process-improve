@@ -602,11 +602,6 @@ describe("a factor's name", () => {
     for (const name of ["match", "case", "type"]) assert.equal(nameProblem(name), "", `${name} is only a soft keyword`);
   });
 
-  test("is not I, which a model's square terms call", () => {
-    assert.equal(nameProblem("I"), "I: the model's square terms call I(), which a factor named I would hide; try I_.");
-    for (const name of ["i", "I_", "C"]) assert.equal(nameProblem(name), "", name);
-  });
-
   test("is given, and is no other factor's", () => {
     assert.equal(nameProblem("  ", [], 3), "Factor 3 needs a name.");
     assert.equal(nameProblem("T", ["T", "P"]), "T: two factors cannot share a name.");

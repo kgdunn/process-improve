@@ -682,7 +682,7 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: one at least, each a variable name a model can hold and not I, none twice."""
+    """Read and check the factors' names: one at least, each a variable name a model can hold, none twice."""
     if not raw:
         raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
@@ -692,10 +692,6 @@ def _factor_names(raw: list) -> list[str]:
         raise ValueError(
             "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
             f"try {tries}."
-        )
-    if "I" in names:  # patsy finds the column before its own I(), which every square term calls
-        raise ValueError(
-            "A factor cannot be named I: the model's square terms call I(), which it would hide. Try 'I_'."
         )
     if len(set(names)) != len(names):
         raise ValueError("Factor names must be unique.")
@@ -1362,6 +1358,12 @@ def make_design(spec: dict) -> dict:
         **described,
         **({"constraints": limits} if limits else {}),
     }
+    if stored["model"] in ("quadratic", MAIN_QUADRATIC) and any(f.name == "I" for f in factors):
+        # Patsy finds a column before its own I(), which every square term calls; refused before the runs, not after.
+        raise ValueError(
+            "A factor cannot be named I in this design: its model has squares, whose terms call I(), "
+            "which the factor would hide. Try 'I_'."
+        )
     coded = _coded(runs, stored["factors"])
     facts = _design_facts(result, coded.to_numpy(dtype=float), stored["factors"], kwargs)
     if array := (result.metadata or {}).get("orthogonal_array"):
