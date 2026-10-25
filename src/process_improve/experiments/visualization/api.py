@@ -54,7 +54,9 @@ def visualize_doe(  # noqa: PLR0913
         :mod:`~process_improve.experiments.visualization.plots`).
     analysis_results : dict or None
         Output dict from :func:`analyze_experiment`.  Required for most
-        plot types that need fitted model data.
+        plot types that need fitted model data. ``"reference_distribution"``
+        takes the output of :func:`~process_improve.experiments.least_squares_means`
+        instead.
     design_data : list[dict] or None
         Raw design matrix as a list of row-dicts.  Used when
         *analysis_results* is not provided (e.g. main-effects from raw

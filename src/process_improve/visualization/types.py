@@ -52,6 +52,7 @@ class DOEPlotType(str, Enum):
     pareto = "pareto"
     half_normal = "half_normal"
     daniel = "daniel"
+    reference_distribution = "reference_distribution"
 
     # Factor-effect plots
     main_effects = "main_effects"
