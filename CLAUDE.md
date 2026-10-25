@@ -25,6 +25,7 @@ rule is how they drift apart.
 | Logging conventions | `docs/development/logging.rst` |
 | Writing a new `@tool_spec` tool | `docs/development/tool_authoring.rst` |
 | sklearn interoperability details | `SKLEARN_COMPATIBILITY.md` |
+| Adding a case to the reference catalogue, and the `cause` each number records | [`CONTRIBUTING.md`](CONTRIBUTING.md#adding-a-case-to-the-reference-catalogue) |
 | The browser app in `web/`: its tests, and what a change to it adds to them | [`CONTRIBUTING.md`](CONTRIBUTING.md#the-browser-app-is-tested) |
 | factori.al: how the app is deployed and rolled back, and the server's one-time setup | [`deploy/factorial/README.md`](deploy/factorial/README.md) |
 
@@ -196,6 +197,9 @@ different number. That is the scope. Extra features are not.
   missing values, a constant column, a single sample, one component.
 - A shortcut with a known limit carries a comment of this form:
   `shortcut: <the limit>, <when to upgrade>`.
+- A new case in the reference catalogue records a `cause` for every number it does not
+  recompute and every number that does not agree with its source; the tests fail without it. The
+  causes and how to choose one: [`CONTRIBUTING.md`](CONTRIBUTING.md#adding-a-case-to-the-reference-catalogue).
 
 Never cut: validation at trust boundaries (`@tool_spec` inputs, `mcp_server.py`,
 `tool_safety.py`), error handling that prevents data loss, security, the browser
