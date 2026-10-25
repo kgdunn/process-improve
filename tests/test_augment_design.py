@@ -666,12 +666,14 @@ class TestAddRunsOptimal:
         x = np.column_stack([np.ones(16), aug, *pairs, aug**2])
         assert np.linalg.matrix_rank(x) == 15  # every quadratic coefficient is now estimable
 
-    def test_too_few_runs_are_topped_up_and_explained(self) -> None:
+    def test_too_few_runs_are_refused(self) -> None:
+        """8 existing runs of rank 8 leave 7 of the 15 quadratic coefficients: 4 new runs are refused, 7 suffice."""
+        with pytest.raises(ValueError, match=r"span only 8 of the 15 coefficients.*n_additional_runs=4 is too few"):
+            augment_design(self._half_fraction(), "add_runs_optimal", target_model="quadratic", n_additional_runs=4)
         result = augment_design(
-            self._half_fraction(), "add_runs_optimal", target_model="quadratic", n_additional_runs=4
+            self._half_fraction(), "add_runs_optimal", target_model="quadratic", n_additional_runs=7
         )
-        assert result["n_runs_after"] == 15  # 8 existing runs of rank 8, so 7 more for 15 coefficients
-        assert "span only 8 of the 15 coefficients" in str(result["explanation"])
+        assert result["n_runs_after"] == 15
 
     def test_random_state_makes_it_reproducible(self) -> None:
         def run(seed: int) -> list:
