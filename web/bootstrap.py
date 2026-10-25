@@ -26,6 +26,7 @@ import contextlib
 import io
 import itertools
 import json
+import keyword
 import logging
 import math
 import platform
@@ -55,6 +56,7 @@ from process_improve.experiments import (
     signal_to_noise,
 )
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._lm import suggest_identifier
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
@@ -680,12 +682,19 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: one at least, each a variable name, none twice."""
+    """Read and check the factors' names: one at least, each a variable name a model can hold, none twice."""
     if not raw:
         raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
-    if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
-        raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
+    unfit = [name for name in names if not name.isidentifier() or keyword.iskeyword(name)]
+    if unfit:
+        tries = ", ".join(f"{suggest_identifier(name)!r} for {name!r}" for name in unfit)
+        raise ValueError(
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            f"try {tries}."
+        )
+    if len(set(names)) != len(names):
+        raise ValueError("Factor names must be unique.")
     return names
 
 
@@ -1726,7 +1735,11 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
 
 def _response_name(response: str, factors: list[Factor]) -> str:
     """Check the response's name: a variable name, unlike every factor's and the run sheet's blocks column."""
-    if not response.isidentifier() or response in {f.name for f in factors}:
+    if not response.isidentifier():
+        raise ValueError(
+            f"The response name must be a variable name (letters, digits, _): try {suggest_identifier(response)!r}."
+        )
+    if response in {f.name for f in factors}:
         raise ValueError("The response name must be a variable name different from every factor.")
     if response == BLOCK:
         raise ValueError(f"The response cannot be named {BLOCK}: a blocked design's run sheet has a {BLOCK} column.")

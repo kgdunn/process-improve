@@ -30,7 +30,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
 from process_improve._random import check_random_state
-from process_improve.experiments._lm import validate_identifier_is_safe
+from process_improve.experiments._lm import validate_identifiers_are_safe
 from process_improve.univariate.metrics import benjamini_hochberg
 
 from ._common import DataMatrix, _model_method, epsqrt
@@ -65,8 +65,7 @@ def _sum_coded_rhs(factors: list[str], model: str) -> str:
     rhs : str
         A patsy right-hand side, without the leading ``~``.
     """
-    for name in factors:
-        validate_identifier_is_safe(name)
+    validate_identifiers_are_safe(factors)
     coded = [f"C({name}, Sum)" for name in factors]
     joined = " + ".join(coded)
     if model == "main_effects":

@@ -36,13 +36,14 @@ from scipy import stats
 
 from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
+from process_improve.experiments._lm import validate_identifiers_are_safe
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
 from process_improve.experiments.designs_mixture_process import ReducedRank, category_levels, mixture_process_model
 from process_improve.experiments.designs_three_level import MODULUS
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.factor import DesignResult, FactorType
-from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+from process_improve.experiments.models import validate_formula_is_safe
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.true_process import _canonical
 
@@ -243,8 +244,7 @@ def _build_model_matrix(
         model = "interactions"
 
     # Factor names are interpolated into the formula; reject non-identifiers.
-    for name in factor_names:
-        validate_identifier_is_safe(name)
+    validate_identifiers_are_safe(factor_names)
 
     # A categorical factor is carried as a non-numeric (label) column; patsy
     # contrast-codes it (see _patsy_data), so it must NOT be manually expanded into

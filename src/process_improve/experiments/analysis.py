@@ -75,6 +75,7 @@ from process_improve.experiments._analyses.split_plot import (
     sum_coding_env,
 )
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
+from process_improve.experiments._lm import suggest_identifier, validate_identifiers_are_safe
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.designs_mixture_process import ReducedRankFormula
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
@@ -1305,10 +1306,13 @@ def analyze_experiment(  # noqa: PLR0913
 
     _NON_FACTOR_COLS = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL, *whole_plot_cols, trials_col}
     factor_cols = [c for c in df.columns if c not in _NON_FACTOR_COLS]
+    validate_identifiers_are_safe(factor_cols)
     for col in factor_cols:
-        validate_identifier_is_safe(col)
         if keyword.iskeyword(col):
-            raise ValueError(f"Factor column {col!r} is a Python keyword, which a model formula cannot use; rename it.")
+            raise ValueError(
+                f"Factor column {col!r} is a Python keyword, which a model formula cannot use; "
+                f"rename it, for example to {suggest_identifier(col)!r}."
+            )
 
     requested_model = model
     model, factor_cols = _resolve_model(df, model, response_col, reported_response, factor_cols)

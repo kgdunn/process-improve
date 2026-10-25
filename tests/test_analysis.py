@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import itertools
+import re
 import warnings
 
 import numpy as np
@@ -1244,8 +1246,24 @@ def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
     from process_improve.experiments import analyze_experiment
 
     data = pd.DataFrame({"lambda": [-1.0, 1.0, -1.0, 1.0], "y": [1.0, 2.0, 1.5, 2.5]})
-    with pytest.raises(ValueError, match="keyword"):
+    with pytest.raises(ValueError, match=r"keyword.*for example to 'lambda_'"):
         analyze_experiment(data, response_column="y", model="main_effects")
+
+
+def test_refused_column_names_come_with_a_rename_that_fits() -> None:
+    """The rename map in the error, pasted into ``DataFrame.rename``, gives names the model takes."""
+    from process_improve.experiments import analyze_experiment
+
+    data = pd.DataFrame(
+        {"Water %": [-1.0, 1.0, -1.0, 1.0], "Temp (°C)": [-1.0, -1.0, 1.0, 1.0], "y": [1.0, 2.0, 1.5, 2.5]}
+    )
+    with pytest.raises(ValueError, match=r"Rename them") as refusal:
+        analyze_experiment(data, response_column="y", model="main_effects")
+    renames = ast.literal_eval(re.search(r"columns=(\{.*\})\)\.$", str(refusal.value)).group(1))
+    result = analyze_experiment(
+        data.rename(columns=renames), response_column="y", model="main_effects", analysis_type="coefficients"
+    )
+    assert [row["term"] for row in result["coefficients"]] == ["Intercept", "Water_pct", "Temp_deg_C"]
 
 
 # ---------------------------------------------------------------------------

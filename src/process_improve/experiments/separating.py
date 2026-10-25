@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog, minimize, nnls
 
+from process_improve.experiments._lm import suggest_identifier
 from process_improve.experiments._region_geometry import round_significant
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.factor import Constraint, Factor, FactorType
@@ -139,7 +140,10 @@ def _box(factors: Sequence[Factor]) -> _Box:
                 f"Factor {factor.name!r} is {factor.type.value}: a limit is proposed over continuous factors only."
             )
         if not factor.name.isidentifier() or keyword.iskeyword(factor.name):
-            raise ValueError(f"Factor {factor.name!r} cannot be named in a limit: its name is not a valid identifier.")
+            raise ValueError(
+                f"Factor {factor.name!r} cannot be named in a limit: its name is not a valid identifier. "
+                f"Try {suggest_identifier(factor.name)!r}."
+            )
         names.append(factor.name)
     if len(set(names)) < len(names):
         raise ValueError(f"The factors must have different names; got {names}.")

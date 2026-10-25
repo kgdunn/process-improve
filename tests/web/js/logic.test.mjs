@@ -591,6 +591,17 @@ describe("a factor's name", () => {
     assert.match(nameProblem("x-y"), /^x-y: /);
   });
 
+  test("comes with a name that keeps the rules, when it breaks them", () => {
+    assert.match(nameProblem("Water %"), /such as Water_pct\.$/);
+    assert.match(nameProblem("Temp (°C)"), /such as Temp_deg_C\.$/);
+    assert.match(nameProblem("2nd stage"), /such as x2nd_stage\.$/);
+  });
+
+  test("is not a Python keyword, which a model cannot name", () => {
+    assert.equal(nameProblem("lambda"), "lambda: Python keeps this word for itself, so a model cannot name it; try lambda_.");
+    for (const name of ["match", "case", "type"]) assert.equal(nameProblem(name), "", `${name} is only a soft keyword`);
+  });
+
   test("is given, and is no other factor's", () => {
     assert.equal(nameProblem("  ", [], 3), "Factor 3 needs a name.");
     assert.equal(nameProblem("T", ["T", "P"]), "T: two factors cannot share a name.");

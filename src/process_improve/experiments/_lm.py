@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import keyword
 import re
 import warnings
 from collections import defaultdict
@@ -102,14 +103,94 @@ def validate_identifier_is_safe(name: object) -> None:
         If *name* is not a string, contains ``__``, or is not a plain identifier.
     """
     if not isinstance(name, str):
-        raise UnsafeFormulaError(f"name must be a string, got {type(name).__name__}.")
+        raise UnsafeFormulaError(f"name must be a string, got {type(name).__name__}. Try {suggest_identifier(name)!r}.")
     if "__" in name:
-        raise UnsafeFormulaError(f"name {name!r} may not contain '__' (dunder access is forbidden).")
+        raise UnsafeFormulaError(
+            f"name {name!r} may not contain '__' (dunder access is forbidden). Try {suggest_identifier(name)!r}."
+        )
     if not _IDENTIFIER_RE.match(name):
         raise UnsafeFormulaError(
             f"name {name!r} is not a plain identifier; only letters, digits and '_' are allowed "
-            f"(and it may not start with a digit)."
+            f"(and it may not start with a digit). Try {suggest_identifier(name)!r}."
         )
+
+
+def validate_identifiers_are_safe(names: Iterable[object]) -> None:
+    """Apply :func:`validate_identifier_is_safe` to each name, and refuse all the unsafe ones in one error.
+
+    The error maps each refused name to a :func:`suggest_identifier` suggestion. A suggestion that another
+    name already has gains ``_2``, ``_3``, ..., so the map can go straight into ``DataFrame.rename``.
+
+    Parameters
+    ----------
+    names : Iterable[object]
+        The candidate column or factor names.
+
+    Raises
+    ------
+    UnsafeFormulaError
+        If any name is not a plain identifier.
+    """
+    names = list(names)
+    refused = []
+    for name in names:
+        try:
+            validate_identifier_is_safe(name)
+        except UnsafeFormulaError:
+            refused.append(name)
+    if not refused:
+        return
+    taken = {str(name) for name in names}
+    renames = {}
+    for name in refused:
+        stem = new = suggest_identifier(name)
+        count = 1
+        while new in taken:
+            count += 1
+            new = f"{stem}_{count}"
+        taken.add(new)
+        renames[name] = new
+    raise UnsafeFormulaError(
+        f"{refused!r} cannot go in a model formula: a name there is letters, digits and '_', does not start "
+        f"with a digit and does not hold '__'. Rename them, for example with .rename(columns={renames!r})."
+    )
+
+
+#: Symbols that column names often hold, as words, so that a suggested name keeps their meaning.
+_SYMBOL_WORDS = {"%": "pct", "°": "deg", "#": "num"}
+
+
+def suggest_identifier(name: object) -> str:
+    """Suggest a name close to *name* that :func:`validate_identifier_is_safe` and Python both accept.
+
+    ``%``, ``°`` and ``#`` become ``pct``, ``deg`` and ``num``. Each run of other characters that a name
+    cannot hold becomes one ``_``, and an ``_`` at either end is removed. A name that then does not start
+    with a letter gets an ``x`` in front, and a Python keyword gets an ``_`` after it.
+
+    Parameters
+    ----------
+    name : object
+        The refused name. A name that is not a string is read as its ``str``.
+
+    Returns
+    -------
+    str
+        The suggested name.
+
+    Examples
+    --------
+    >>> [suggest_identifier(name) for name in ["Water %", "Temp (°C)", "2nd stage", "lambda", 0]]
+    ['Water_pct', 'Temp_deg_C', 'x2nd_stage', 'lambda_', 'x0']
+    """
+    text = str(name)
+    for symbol, word in _SYMBOL_WORDS.items():
+        text = text.replace(symbol, f" {word} ")
+    # The guard's \w takes "²", which Python does not, and Python takes "·", which \w does not: keep neither.
+    kept = "".join(char if _IDENTIFIER_RE.match(f"x{char}") and f"x{char}".isidentifier() else " " for char in text)
+    text = re.sub(r"[ _]+", "_", kept).strip("_")
+    if not _IDENTIFIER_RE.match(text):  # empty, or it starts with a digit or a letter outside A-Z
+        text = f"x{text}"
+    return f"{text}_" if keyword.iskeyword(text) else text
 
 
 def validate_formula_is_safe(
@@ -663,7 +744,9 @@ __all__ = [
     "forg",
     "lm",
     "predict",
+    "suggest_identifier",
     "summary",
     "validate_formula_is_safe",
     "validate_identifier_is_safe",
+    "validate_identifiers_are_safe",
 ]

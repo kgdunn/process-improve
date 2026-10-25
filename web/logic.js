@@ -558,15 +558,42 @@ export function powerScale(info) {
 /** A variable name, as Python's str.isidentifier reads one: a letter or _, then letters, digits and _. */
 const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}]*$/u;
 
+/** Python's keywords (keyword.kwlist), which a model formula cannot name a factor with. */
+const KEYWORDS = new Set(
+  ("False None True and as assert async await break class continue def del elif else except finally for from global "
+    + "if import in is lambda nonlocal not or pass raise return try while with yield").split(" "),
+);
+
+/** Symbols that names often hold, as words, so that a suggested name keeps their meaning. */
+const SYMBOL_WORDS = { "%": "pct", "°": "deg", "#": "num" };
+
+/** A character a suggested name keeps: one the library's \w and Python's identifiers both take after a letter. */
+const KEPT = /^(?=[\p{L}\p{N}_])\p{ID_Continue}$/u;
+
+/**
+ * A name close to ``name`` that a model can hold, made as the library's suggest_identifier makes it:
+ * "Water %" gives Water_pct, "Temp (°C)" Temp_deg_C, "2nd stage" x2nd_stage and "lambda" lambda_.
+ */
+export function suggestName(name) {
+  let text = String(name ?? "");
+  for (const [symbol, word] of Object.entries(SYMBOL_WORDS)) text = text.replaceAll(symbol, ` ${word} `);
+  text = [...text].map((char) => (KEPT.test(char) ? char : " ")).join("");
+  text = text.replace(/[ _]+/g, "_").replace(/^_|_$/g, "");
+  if (!/^[A-Za-z]/.test(text)) text = `x${text}`;
+  return KEYWORDS.has(text) ? `${text}_` : text;
+}
+
 /**
  * What a factor's name needs, in a sentence the page shows as the reader types; "" when it is ready.
- * The rules are those bootstrap.py applies: a variable name, unlike every other factor's, and unlike
- * ``taken``, the run sheet's other columns a factor renamed on it cannot take (its results, its blocks).
+ * The rules are those bootstrap.py applies: a variable name and not a Python keyword, unlike every
+ * other factor's, and unlike ``taken``, the run sheet's other columns a factor renamed on it cannot take
+ * (its results, its blocks). A name that breaks the first rule comes with one that keeps it.
  */
 export function nameProblem(name, others = [], place = 1, taken = []) {
   const n = String(name ?? "").trim();
   if (!n) return `Factor ${place} needs a name.`;
-  if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as Temp_2.`;
+  if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as ${suggestName(n)}.`;
+  if (KEYWORDS.has(n)) return `${n}: Python keeps this word for itself, so a model cannot name it; try ${suggestName(n)}.`;
   if (others.includes(n)) return `${n}: two factors cannot share a name.`;
   if (taken.includes(n)) return `${n}: the run sheet has a ${n} column already.`;
   return "";
