@@ -670,6 +670,14 @@ def test_the_catalogue_tells_its_designs_from_single_samples_and_facts_about_des
     assert sum(bool(r["runs_from"]) for r in published.values()) == 49
 
 
+def test_a_table_of_effects_printed_beside_a_fraction_named_by_its_generators_is_no_run_s_results(records):
+    """Box and Draper's Exercise 5.14 prints the 15 effects of a 2^(5-1) it names by E = ABCD, not its 16 runs."""
+    exercise = next(r for r in records if r["id"] == "box-draper-5-exercise-5-14")
+    assert (exercise["runs_from"], len(exercise["coded_runs"])) == (["E=ABCD"], 16)
+    assert exercise["response_values"] == {}
+    assert not exercise["has_responses"]
+
+
 # --------------------------------------------------------------------------- generated designs
 def test_every_generated_design_has_a_name_of_its_own():
     assert len(GENERATED) > 100

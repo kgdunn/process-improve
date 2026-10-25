@@ -853,6 +853,9 @@ def _published_record(entry: dict[str, Any], source: dict[str, Any]) -> dict[str
         factors, coded, runs_from = fraction  # the source names the fraction by its generators alone
     kinds = [str(f.get("type", "numeric")) for f in factors]
     responses = _response_values(entry)
+    if runs_from and coded is not None:  # a table printed beside a fraction named by its generators, such as its
+        # effects, is no run's result
+        responses = {name: values for name, values in responses.items() if len(values) == len(coded)}
     blocked, blocks = _blocks(entry, text, columns)
     n_blocks = len({str(b) for b in blocks if b is not None}) if blocks else None
     record: dict[str, Any] = {
