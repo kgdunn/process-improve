@@ -5854,17 +5854,17 @@ def test_t2_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     assert len(fig.data) >= 2
 
 
-def test_t2_plot_rejects_zero_with_a(fixture_pca_for_plots: PCA) -> None:
-    """t2_plot should reject `with_a == 0`."""
-    with pytest.raises(ValueError, match="with_a"):
-        fixture_pca_for_plots.t2_plot(with_a=0)
+def test_t2_plot_rejects_zero_components(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `n_components == 0`."""
+    with pytest.raises(ValueError, match="n_components"):
+        fixture_pca_for_plots.t2_plot(n_components=0)
 
 
-def test_t2_plot_rejects_with_a_above_components(fixture_pca_for_plots: PCA) -> None:
-    """t2_plot should reject `with_a` larger than the number of fitted components."""
+def test_t2_plot_rejects_more_components_than_fitted(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `n_components` larger than the number of fitted components."""
     model = fixture_pca_for_plots
-    with pytest.raises(ValueError, match="with_a"):
-        model.t2_plot(with_a=model.n_components + 1)
+    with pytest.raises(ValueError, match="n_components"):
+        model.t2_plot(n_components=model.n_components + 1)
 
 
 def test_t2_plot_rejects_invalid_conf_level(fixture_pca_for_plots: PCA) -> None:
@@ -5894,8 +5894,12 @@ def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
         ("score_plot", {"pc_horiz": 1, "pc_vert": 1}, r"^Specify distinct components for each axis\.$"),
         ("score_plot", {"settings": {"ellipse_conf_level": 1.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
         ("score_plot", {"settings": {"ellipse_conf_level": 0.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
-        ("spe_plot", {"with_a": 0}, r"^`with_a` must be >= 1, or specified with negative indexing\.$"),
-        ("spe_plot", {"with_a": 4}, r"^`with_a` must be <= the number of components fitted \(3\); got 4\.$"),
+        ("spe_plot", {"n_components": 0}, r"^`n_components` must be >= 1, or specified with negative indexing\.$"),
+        (
+            "spe_plot",
+            {"n_components": 4},
+            r"^`n_components` must be <= the number of components fitted \(3\); got 4\.$",
+        ),
         ("spe_plot", {"settings": {"conf_level": 1.0}}, r"0\.0 < `conf_level` < 1\.0"),
         ("spe_plot", {"settings": {"conf_level": 0.0}}, r"0\.0 < `conf_level` < 1\.0"),
     ],

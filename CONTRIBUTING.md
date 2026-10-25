@@ -333,6 +333,14 @@ change; a divergence introduced quietly is expensive to find later.
   carrying the `pi_*` metadata above. The abbreviation predates the rest of
   the package's spell-out-everything convention; it is retained for backwards
   compatibility.
+- **Name arguments and result keys for what they are, not by a letter or a
+  source's label.** Sources label the same thing differently: Box and Draper's
+  "B canonical form" is the surface centred on the stationary point, while
+  earlier notes here used "B" for the ridge form, and the key `b_canonical`
+  held neither. So the forms are `canonical_axes` and `ridge_form`, and each
+  docstring gives the source's label with its citation. A retired name is not
+  reused for something else: a caller still reading it would get other
+  numbers with no error.
 
 ## Adding new methods to PCA / PLS
 

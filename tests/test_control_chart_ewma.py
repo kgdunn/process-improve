@@ -27,7 +27,7 @@ def shifted_series() -> np.ndarray:
 
 def test_statistic_and_limits_follow_the_textbook_formulas() -> None:
     """z_t = w y_t + (1 - w) z_(t-1) from z_0 = target; limits 3 s sqrt(w / (2 - w) (1 - (1 - w)^(2t)))."""
-    chart = fit_ewma(np.array([1.0, 2.0, 3.0, 4.0]), target=0.0, s=1.0, ld_1=0.5)
+    chart = fit_ewma(np.array([1.0, 2.0, 3.0, 4.0]), target=0.0, sigma=1.0, ld_1=0.5)
 
     assert chart.df["ewma"].tolist() == pytest.approx([0.5, 1.25, 2.125, 3.0625])
     t = np.arange(1, 5)
@@ -40,7 +40,7 @@ def test_statistic_and_limits_follow_the_textbook_formulas() -> None:
 
 def test_limits_widen_to_their_steady_state() -> None:
     """The limits start narrow and grow monotonically to target +/- 3 s sqrt(w / (2 - w))."""
-    chart = fit_ewma(shifted_series(), target=50.0, s=2.0, ld_1=0.2)
+    chart = fit_ewma(shifted_series(), target=50.0, sigma=2.0, ld_1=0.2)
 
     ucl = chart.df["ewma_ucl"].to_numpy()
     assert np.all(np.diff(ucl) >= 0)
@@ -66,8 +66,8 @@ def test_weight_of_one_is_the_shewhart_individuals_chart() -> None:
 def test_detects_a_one_sigma_shift_that_the_shewhart_chart_misses() -> None:
     """A sustained one-sigma shift at sample 60 alarms the EWMA chart, not the Shewhart chart."""
     y = shifted_series()
-    ewma = fit_ewma(y, target=50.0, s=2.0, ld_1=0.2)
-    shewhart = fit_ewma(y, target=50.0, s=2.0, ld_1=1.0)
+    ewma = fit_ewma(y, target=50.0, sigma=2.0, ld_1=0.2)
+    shewhart = fit_ewma(y, target=50.0, sigma=2.0, ld_1=1.0)
 
     assert ewma.idx_outside_3S[0] == 74  # 14 samples after the shift, and no false alarm before it
     assert len(ewma.idx_outside_3S) == 10
@@ -76,7 +76,7 @@ def test_detects_a_one_sigma_shift_that_the_shewhart_chart_misses() -> None:
 
 def test_missing_value_carries_the_statistic_forward_and_is_never_flagged() -> None:
     """A gap holds the statistic and its limits, and is not reported even when the statistic is outside."""
-    chart = fit_ewma(np.array([0.0, 0.0, 10.0, np.nan, 0.0]), target=0.0, s=1.0, ld_1=0.5)
+    chart = fit_ewma(np.array([0.0, 0.0, 10.0, np.nan, 0.0]), target=0.0, sigma=1.0, ld_1=0.5)
 
     assert chart.df["ewma"].tolist() == pytest.approx([0.0, 0.0, 5.0, 5.0, 2.5])
     # The gap does not count as an observation, so the limit at index 3 equals the one at index 2.
@@ -88,7 +88,7 @@ def test_missing_value_carries_the_statistic_forward_and_is_never_flagged() -> N
 
 def test_leading_missing_values_start_from_the_target() -> None:
     """Before the first observation the statistic sits on the target with zero-width limits, unflagged."""
-    chart = fit_ewma(np.array([np.nan, np.nan, 1.0, 1.0]), target=0.0, s=1.0, ld_1=0.5)
+    chart = fit_ewma(np.array([np.nan, np.nan, 1.0, 1.0]), target=0.0, sigma=1.0, ld_1=0.5)
 
     assert chart.df["ewma"].tolist() == pytest.approx([0.0, 0.0, 0.5, 0.75])
     assert chart.df["ewma_ucl"].iloc[:2].tolist() == [0.0, 0.0]
@@ -120,7 +120,7 @@ def test_a_given_target_or_s_is_kept_and_only_the_other_is_estimated() -> None:
     assert only_target.target == 50.0
     assert only_target.s == pytest.approx(1.4826 * np.median(np.abs(y - np.median(y))))
 
-    only_s = fit_ewma(y, s=2.0)
+    only_s = fit_ewma(y, sigma=2.0)
     assert only_s.target == pytest.approx(np.median(y))
     assert only_s.s == 2.0
 
@@ -155,7 +155,7 @@ def test_refitting_a_chart_matches_a_fresh_chart() -> None:
     """Nothing from a first fit (target, s, weight) leaks into a second fit on the same chart."""
     y = shifted_series()
     reused = ControlChart(variant="EWMA")  # the variant is case-insensitive
-    reused.calculate_limits(y, target=50.0, s=2.0, ld_1=0.5)
+    reused.calculate_limits(y, target=50.0, sigma=2.0, ld_1=0.5)
     reused.calculate_limits(y[:40])
 
     fresh = fit_ewma(y[:40])
@@ -171,14 +171,14 @@ def test_rubber_colour_data_matches_pandas_ewm() -> None:
     for the same data, used as known Phase I values.
     """
     y = pd.read_csv(RUBBER_COLOUR / "rubber-colour.csv")["Colour"]
-    chart = fit_ewma(y, target=238.78, s=10.43234, ld_1=0.2)
+    chart = fit_ewma(y, target=238.78, sigma=10.43234, ld_1=0.2)
 
     started_at_target = pd.concat([pd.Series([238.78]), y], ignore_index=True)
     reference = started_at_target.ewm(alpha=0.2, adjust=False).mean().iloc[1:].to_numpy()
     assert chart.df["ewma"].to_numpy() == pytest.approx(reference, abs=1e-9)
     assert chart.df["ewma_ucl"].iloc[-1] == pytest.approx(238.78 + 10.43234)
     assert chart.idx_outside_3S == [69]
-    assert fit_ewma(y, target=238.78, s=10.43234, ld_1=1.0).idx_outside_3S == []
+    assert fit_ewma(y, target=238.78, sigma=10.43234, ld_1=1.0).idx_outside_3S == []
 
 
 def test_control_chart_tool_reports_ewma_limits_and_statistic() -> None:

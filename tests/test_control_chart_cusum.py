@@ -42,7 +42,7 @@ def run_length(deviations: np.ndarray, k: float, h: float) -> int:
 
 def test_reproduces_the_published_example() -> None:
     """The upper sum matches Montgomery's table, alarms at period 29, and dates the shift and its size."""
-    chart = fit_cusum(MONTGOMERY, target=10.0, s=1.0)
+    chart = fit_cusum(MONTGOMERY, target=10.0, sigma=1.0)
 
     assert chart.df["cusum_upper"].iloc[:29].round(2).tolist() == MONTGOMERY_UPPER
     assert chart.idx_outside_3S == [28]  # period 29
@@ -57,7 +57,7 @@ def test_the_sum_restarts_after_an_alarm() -> None:
 
     Montgomery's table keeps accumulating instead (5.30 at period 30).
     """
-    chart = fit_cusum(MONTGOMERY, target=10.0, s=1.0)
+    chart = fit_cusum(MONTGOMERY, target=10.0, sigma=1.0)
     assert chart.df["cusum_upper"].iloc[29] == pytest.approx(10.52 - 10.5)
 
 
@@ -83,7 +83,7 @@ def test_in_control_run_length_matches_the_published_value() -> None:
 
 def test_dates_a_shift_and_estimates_the_new_mean() -> None:
     """A one-sigma shift at sample 60 is detected at 73, dated to sample 60, and sized close to the true 52."""
-    chart = fit_cusum(shifted_series(), target=50.0, s=2.0)
+    chart = fit_cusum(shifted_series(), target=50.0, sigma=2.0)
 
     first = chart.cusum_alarms.iloc[0]
     assert chart.cusum_alarms.index[0] == 73
@@ -94,7 +94,7 @@ def test_dates_a_shift_and_estimates_the_new_mean() -> None:
 
 def test_a_downward_shift_raises_a_downward_alarm() -> None:
     """The lower sum catches a shift down, and estimates a new mean below the target."""
-    chart = fit_cusum(shifted_series(shift=-2.0), target=50.0, s=2.0)
+    chart = fit_cusum(shifted_series(shift=-2.0), target=50.0, sigma=2.0)
 
     assert set(chart.cusum_alarms["direction"]) == {"down"}
     assert chart.cusum_alarms.index.min() >= 60
@@ -103,7 +103,7 @@ def test_a_downward_shift_raises_a_downward_alarm() -> None:
 
 def test_a_missing_value_holds_the_sums_and_is_not_counted() -> None:
     """A gap holds both sums, is never flagged, and does not count towards the run that dates a shift."""
-    chart = fit_cusum(np.array([0.0, 3.0, np.nan, 3.0, 3.0]), target=0.0, s=1.0)
+    chart = fit_cusum(np.array([0.0, 3.0, np.nan, 3.0, 3.0]), target=0.0, sigma=1.0)
 
     assert chart.df["cusum_upper"].tolist() == [0.0, 2.5, 2.5, 5.0, 7.5]
     alarm = chart.cusum_alarms.loc[4]
@@ -152,7 +152,7 @@ def test_refitting_a_chart_matches_a_fresh_chart() -> None:
     """Nothing from a first fit (target, s, k, h, alarms) leaks into a second fit on the same chart."""
     y = shifted_series()
     reused = ControlChart(variant="CUSUM")  # the variant is case-insensitive
-    reused.calculate_limits(y, target=50.0, s=2.0, k=1.0, h=4.0)
+    reused.calculate_limits(y, target=50.0, sigma=2.0, k=1.0, h=4.0)
     reused.calculate_limits(y[:50])
 
     fresh = fit_cusum(y[:50])

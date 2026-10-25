@@ -1279,9 +1279,10 @@ def analyze_experiment(  # noqa: PLR0913
     if response_col not in df.columns:
         raise ValueError(f"Response column '{response_col}' not found in data.")
     reported_response = response_col
-    if keyword.iskeyword(response_col):
+    if keyword.iskeyword(response_col) or response_col in {"C", "I", "Q"}:
         # "yield" is the commonest response in chemistry, and a Python keyword, which a
-        # formula cannot name. Fit under a stand-in name and report the real one.
+        # formula cannot name; a column named C, I or Q hides patsy's function of that
+        # name, so I(x1 ** 2) fails. Fit under a stand-in name and report the real one.
         alias = f"{response_col}_"
         while alias in df.columns:
             alias += "_"

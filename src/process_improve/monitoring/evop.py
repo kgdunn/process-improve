@@ -23,7 +23,7 @@ decimals as his Table 11.27 prints it:
 
 >>> from process_improve.monitoring import evop_worksheet
 >>> cycles = [[84.5, 84.2, 84.9, 84.5, 84.3], [84.9, 84.6, 85.9, 83.5, 84.0], [85.0, 84.0, 86.6, 84.9, 85.2]]
->>> board = evop_worksheet(cycles, factors=("T", "P"), f_decimals=2)[-1]
+>>> board = evop_worksheet(cycles, factors=("T", "P"), range_factor_decimals=2)[-1]
 >>> {name: round(effect, 2) for name, effect in board["effects"].items()}
 {'T': 0.67, 'P': 0.87, 'T:P': 0.63, 'change_in_mean': -0.07}
 >>> round(board["average_s"], 2), {name: round(limit, 2) for name, limit in board["limits"].items()}
@@ -127,7 +127,9 @@ def evop_f(k: int, n: int, decimals: int | None = None) -> float:
 
 
 def evop_worksheet(
-    cycles: Sequence[Sequence[float]], factors: tuple[str, str] = ("A", "B"), f_decimals: int | None = None
+    cycles: Sequence[Sequence[float]],
+    factors: tuple[str, str] = ("A", "B"),
+    range_factor_decimals: int | None = None,
 ) -> list[dict[str, Any]]:
     r"""Work the EVOP calculation sheet of a :math:`2^2` design with a centre point, one cycle after another.
 
@@ -139,8 +141,9 @@ def evop_worksheet(
         low and B high.
     factors : tuple[str, str]
         The names of the two factors, A and B, which name the effects.
-    f_decimals : int or None
-        Round :math:`f_{k,n}` to this many decimals, as a printed table does; None uses it unrounded.
+    range_factor_decimals : int or None
+        Round the factor that turns a range into a standard deviation, Box and Draper's
+        :math:`f_{k,n}`, to this many decimals, as a printed table does; None uses it unrounded.
 
     Returns
     -------
@@ -198,7 +201,7 @@ def evop_worksheet(
         if n > 1:
             differences = readings[: n - 1].mean(axis=0) - row
             spread = float(differences.max() - differences.min())
-            s = spread * evop_f(len(POINTS), n, f_decimals)
+            s = spread * evop_f(len(POINTS), n, range_factor_decimals)
             sum_s += s
             average_s = sum_s / (n - 1)
             sheet |= {
