@@ -149,6 +149,9 @@ below are the ones most often got wrong in an agent session.
   / `scale()` for preparing data before fitting.
 - `N` = samples, `K` = features, `M` = targets, `A` = components as local
   variables; stored as `n_samples_`, `n_features_in_`, `n_targets_`.
+- Name arguments and result keys for what they are, never by a letter or a source's
+  label, and never reuse a retired name for something else: see
+  [`CONTRIBUTING.md`](CONTRIBUTING.md#naming-conventions).
 - **No em-dashes** (U+2014) anywhere: docs, docstrings, comments, commit messages,
   PR descriptions, Markdown, reStructuredText or YAML prose. Use a hyphen, a
   semicolon, or split the sentence.
