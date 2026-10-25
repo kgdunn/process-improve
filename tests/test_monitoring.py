@@ -359,7 +359,9 @@ _SERIES_B = 80.0 + 5.0 * np.random.default_rng(2).standard_normal(60)
     ("variant", "first", "first_kwargs", "second_kwargs"),
     [
         pytest.param("hw", _SERIES_A, {}, {}, id="new-level-and-length"),
-        pytest.param("hw", _SERIES_A, {"target": 50.0, "sigma": 2.0, "ld_1": 0.4, "ld_2": 0.7}, {}, id="pinned-then-free"),
+        pytest.param(
+            "hw", _SERIES_A, {"target": 50.0, "sigma": 2.0, "ld_1": 0.4, "ld_2": 0.7}, {}, id="pinned-then-free"
+        ),
         pytest.param("hw", _SERIES_A, {}, {"target": 80.0, "sigma": 5.0}, id="free-then-pinned"),
         pytest.param("hw", np.full(30, 42.0), {}, {}, id="failed-fit-first"),
         pytest.param("hw", _SERIES_A[:5], {}, {}, id="short-series-first"),
