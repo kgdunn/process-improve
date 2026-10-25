@@ -971,6 +971,7 @@ def test_a_number_printed_as_arithmetic_is_worked_out():
     ("errors", "tier"),
     [
         ([], "reproduced"),
+        ([0.0], "within_1"),  # a difference below the six figures the library reports still differs
         ([0.01], "within_1"),
         ([0.002, 0.03], "within_5"),
         ([0.002, 0.06], "not_reproduced"),
@@ -978,7 +979,7 @@ def test_a_number_printed_as_arithmetic_is_worked_out():
     ],
 )
 def test_a_case_falls_in_the_best_tier_that_holds_its_worst_number(errors, tier):
-    assert design_catalog._tier(design_catalog._worst(errors)) == tier
+    assert design_catalog._tier(errors) == tier
 
 
 def test_each_case_says_how_closely_it_reproduces_and_why_a_number_differs():

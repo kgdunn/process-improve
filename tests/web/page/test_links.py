@@ -14,7 +14,7 @@ import pytest
 
 from tests.web._support import source
 
-PAGES = ("index.html", "about.html", "catalog/index.html")
+PAGES = ("index.html", "about.html", "catalog/index.html", "catalog/reproduced/index.html")
 LINK_OUT = re.compile(r'<a href="https?://[^"]*"[^>]*>')
 OWN_TAB = re.compile(r'target="(?!_self"|_top"|_parent")[^"]+"')
 

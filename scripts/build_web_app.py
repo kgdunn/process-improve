@@ -54,6 +54,9 @@ APP_FILES = (
     "catalog.js",
     "catalog-logic.js",
     "catalog-views.js",
+    "catalog/reproduced/index.html",
+    "reproduced.js",
+    "reproduced-logic.js",
     "app.js",
     "logic.js",
     "limits.js",
@@ -1180,6 +1183,36 @@ def write_catalog(out_dir: Path) -> None:
     (folder / "feed.xml").write_text(catalog_feed(records), encoding="utf-8")
 
 
+def write_reproduction(out_dir: Path) -> None:
+    """Write ``catalog/reproduction.json``: how closely the library reproduces each case of each source.
+
+    It holds each tier's largest relative difference (``null`` for the last, which has none), the sources
+    as the catalog names them, and every case (see
+    :func:`~process_improve.experiments.design_catalog.catalog_reproduction`), which
+    ``catalog/reproduced/`` draws. It is kept apart from :func:`write_catalog` because it recomputes the
+    numbers that differ, which takes a minute or two.
+    """
+    from process_improve.experiments.design_catalog import (  # noqa: PLC0415 - the docs environment has it
+        REPRODUCTION_TIERS,
+        catalog_reproduction,
+        catalog_sources,
+    )
+
+    data = {
+        "version": CATALOG_VERSION,
+        "library": version("process-improve"),
+        "tiers": {tier: None if math.isinf(limit) else limit for tier, limit in REPRODUCTION_TIERS.items()},
+        "sources": {
+            key: {k: source[k] for k in ("short", "title", "cite", "year", "url")}
+            for key, source in catalog_sources().items()
+        },
+        "cases": catalog_reproduction(),
+    }
+    (out_dir / "catalog").mkdir(parents=True, exist_ok=True)
+    text = json.dumps(data, separators=(",", ":"), allow_nan=False)
+    (out_dir / "catalog" / "reproduction.json").write_text(text + "\n", encoding="utf-8")
+
+
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     """Copy the app, a wheel freshly built in ``dist``, the book's examples and the worked example into ``out_dir``.
 
@@ -1205,6 +1238,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     write_book(out_dir)
     write_catalog(out_dir)
+    write_reproduction(out_dir)
     (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n")
     return wheel.name
 

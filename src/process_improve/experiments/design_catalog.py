@@ -1402,11 +1402,18 @@ def _worst(errors: list[float | None]) -> float | None:
     return max(sized, default=0.0) if len(sized) == len(errors) else None
 
 
-def _tier(worst: float | None) -> str:
-    """Return the best tier whose limit holds a case's worst difference: one of no relative size, none does."""
+def _tier(errors: list[float | None]) -> str:
+    """Return the best tier that holds every difference of a case: only a case where none differs is reproduced.
+
+    The value found is text of six significant figures, so a difference below about one part in a million
+    reads as 0; it still differs from the source by more than its rounding, so it is held within 1%.
+    """
+    if not errors:
+        return "reproduced"
+    worst = _worst(errors)
     if worst is None:
         return "not_reproduced"
-    return next(tier for tier, limit in REPRODUCTION_TIERS.items() if worst <= limit)
+    return next(tier for tier, limit in list(REPRODUCTION_TIERS.items())[1:] if worst <= limit)
 
 
 def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
@@ -1461,7 +1468,7 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
                     "reason": str(check["disagreement"]),
                 }
             )
-        worst = _worst([number["error"] for number in differs])
+        errors = [number["error"] for number in differs]
         cases.append(
             {
                 "id": entry["name"],
@@ -1469,8 +1476,8 @@ def catalog_reproduction(source: str | None = None) -> list[dict[str, Any]]:
                 "source": entry["source"],
                 "kind": entry.get("kind"),
                 "checked": len(checked),
-                "tier": _tier(worst) if checked else None,
-                "worst": worst,
+                "tier": _tier(errors) if checked else None,
+                "worst": _worst(errors),
                 "differs": differs,
             }
         )
