@@ -1,0 +1,5 @@
+method,1,2,3
+4. zero-shot (no measurement),2.147,2.146,2.15
+5. update the offset (BLUP),1.769,1.53,1.469
+refit 4. with the shots,2.852,1.999,1.831
+refit default TPLS with the shots,10.846,7.223,6.928

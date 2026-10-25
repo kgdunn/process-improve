@@ -1,0 +1,13 @@
+method,Group 1,Group 2,Group 3,Group 4,Group 5,all lots
+ignore the material,0.205,-0.0295,0.1442,0.0277,0.0411,0.1027
+nearest known material,0.2048,-0.0293,0.1443,0.0281,0.0406,0.1028
+zero-padded refit,0.2056,-0.03,0.1442,0.0277,0.0412,0.1029
+"1. projection, autoscaled F",0.2056,-0.0287,0.1445,0.0282,0.0408,0.1032
+"1. projection, centred F",0.2067,-0.0286,0.1417,0.0261,0.0386,0.1024
+"1. projection, autoscaled F, no D deflation",0.2056,-0.0295,0.1431,0.0276,0.0404,0.1027
+"1. projection, centred F, no D deflation",0.2067,-0.0287,0.1417,0.0259,0.0389,0.1025
+2. pseudo-recipe,0.1958,-0.0294,0.1444,0.0281,0.0407,0.0995
+"2. pseudo-recipe, no D deflation",0.1955,-0.0297,0.143,0.0275,0.0404,0.099
+3a. mixing-rule PLS,0.2071,-0.0428,0.1576,0.0764,0.0981,0.1207
+3b. mixing-rule PLS + moments,-0.0323,-0.2149,-0.7763,-0.0494,-0.0586,-0.1854
+4. hierarchical offsets,0.2426,-0.0511,0.1676,0.0284,0.0622,0.12

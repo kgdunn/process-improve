@@ -1,0 +1,7 @@
+material is,method,rmse,T2/limit,SPE/limit
+far from the others,"1. projection, centred F, no D deflation",3.141,1.801,1.51
+far from the others,3a. mixing-rule PLS,1.805,1.801,1.51
+far from the others,4. hierarchical offsets,2.889,1.801,1.51
+one of the other 13,"1. projection, centred F, no D deflation",1.921,0.171,0.622
+one of the other 13,3a. mixing-rule PLS,1.686,0.171,0.622
+one of the other 13,4. hierarchical offsets,1.48,0.171,0.622
