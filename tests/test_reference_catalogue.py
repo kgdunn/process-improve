@@ -1648,8 +1648,15 @@ def test_a_3k_component_groups_the_runs_by_its_defining_contrast_modulo_3():
     assert [_component_ss(entry, {"word": "AB", "key": f"total.{u}"}) for u in range(3)] == [18, -2, 8]
     assert [_component_ss(entry, {"word": "AB2", "key": f"total.{u}"}) for u in range(3)] == [0, 18, 6]
     assert _component_ss(entry, {"word": "A2B", "key": "count.0"}) == 6  # A²B is AB², squared
+    assert _component_ss(entry, {"word": "A2B"}) == pytest.approx(28)
+    assert _component_ss(entry, {"word": "B"}) == pytest.approx(25 + 1 / 3), "a main effect is a word too"
     interaction = _component_ss(entry, {"word": "AB"}) + _component_ss(entry, {"word": "AB2"})
     assert interaction == pytest.approx(61 + 1 / 3)
+    assert _component_ss(entry, {"parts": [{"word": "AB"}, {"word": "AB2"}]}) == pytest.approx(interaction)
+    first = _component_ss(entry, {"word": "AB2", "runs": list(range(1, 19, 2))})  # the first reading of each cell
+    second = _component_ss(entry, {"word": "AB2", "runs": list(range(2, 19, 2))})
+    both = {"parts": [{"word": "AB2", "runs": list(range(1, 19, 2))}, {"word": "AB2", "runs": list(range(2, 19, 2))}]}
+    assert _component_ss(entry, both) == pytest.approx(first + second), "each part keeps its own runs"
 
 
 def test_a_3k_component_of_runs_printed_in_coded_units_takes_their_settings_in_order():
@@ -1710,6 +1717,30 @@ def test_3k_blocks_and_fractions_are_the_runs_with_one_value_of_each_defining_co
     fraction = _three_level(list("ABCD"), [[int(c) for c in r] for r in runs])
     assert _component_fraction(fraction, {"words": ["AB2C", "BCD"], "u": [0, 0]}, "")[1]
     assert not _component_fraction(fraction, {"words": ["ABC"]}, "")[1]
+
+
+def test_yates_columns_and_their_checks_are_read_forwards_and_in_reverse():
+    """A 2^2 in standard order, y = 10, 14, 12, 20: column (2) is 56, 12, 8, 4, and A alone fits 11, 17, 11, 17."""
+    entry = {
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in "AB"],
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["A", "B", "y"],
+            "rows": [[-1, -1, 10], [1, -1, 14], [-1, 1, 12], [1, 1, 20]],
+            "coded": True,
+        },
+    }
+
+    def reproduced(printed, **check):
+        return reference_catalogue._reproduce(entry, {"value": printed}, {"kind": "yates", **check}, FITS)
+
+    assert reproduced(["56", "12", "8", "4"], key="(2)")[1]
+    assert reproduced(["14.0", "6.0", "4.0", "2.0"], key="estimate")[1]
+    assert reproduced("12", key="(2).1")[1]
+    assert reproduced("1,680", key="sum_of_squares.(1)")[1], "the crude sum of squares, 840, doubled"
+    assert not reproduced(["56", "12", "8", "5"], key="(2)")[1]
+    assert reproduced(["11", "17", "11", "17"], key="fitted", keep=["A"])[1]
+    assert reproduced("820", key="sum_of_squares.fitted", keep=["A"])[1]
 
 
 def test_a_design_printed_as_columns_of_another_is_a_projection_of_it(tmp_path, monkeypatch):
