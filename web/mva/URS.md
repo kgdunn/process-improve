@@ -155,7 +155,9 @@ In numbers: 91 Definitely lines, of which 12 are in process-improve and 58 partl
   - Already there: select_n_components applies its own rules (a minimum Q² increase, the one-standard-error rule). CrossValidation.recommended; the chart marks it.
 - **MOD-8** Q² and Q²(cum) per component, and Q²V per variable. *(partly in process-improve)*
   - Q² = 1 − PRESS/SS per component, Q²(cum), and Q²V per variable.
-  - Already there: CrossValidation gives Q² per component with its standard error; PLS.cross_validate gives RMSEP per Y. No Q²V per variable.
+  - Q² of component a is 1 − PRESS_a/SS_(a−1), its PRESS from cross-validating that component on the residuals of the ones before it. It is reported as computed, negative values included, and the selection rules (MOD-7) use it.
+  - Q²(cum) of A components is 1 − PRESS_A/SS₀, from cross-validating the whole A-component model. It is one ratio, so it needs no bound, and it falls when a component overfits. Source A instead multiplies the components' PRESS/SS and caps a large ratio; that form is kept only to reproduce source A's printed numbers.
+  - Already there: CrossValidation gives Q²(cum) by number of components, 1 − PRESS_A/SS₀, with its standard error; PLS.cross_validate gives RMSEP per Y. No Q² of a single component, and no Q²V per variable.
 - **MOD-9** Cross-validation by element for PCA and by rows for PLS. *(in process-improve)*
   - PCA cross-validation element by element (Eastment-Krzanowski), so a component does not rotate into later ones; PLS cross-validation by rows.
   - Already there: PCA.select_n_components (cv_scheme ekf, ckf, ek, sacv, gcv); PLS.select_n_components, row-wise k-fold, repeated.

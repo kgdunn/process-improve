@@ -494,7 +494,8 @@ The items both sources describe, by section: the first candidates for priority.
     eigenvalue is above 2.
 - A suggested number of components, stored with the model `[A B]`.
 - Q² = 1 − PRESS/SS per component. Q²(cum) = 1 − Π(PRESS/SS)ₐ, with PRESS/SS truncated
-  for an insignificant component. Q²V per variable, the same way. B reports the same
+  for an insignificant component; A's guide states the truncation as "to −0.1", which no
+  ratio of sums of squares can be (URS MOD-8). Q²V per variable, the same way. B reports the same
   quantity as the explained validation variance `[A B]`.
 - PCA cross-validation predicts element (i, k) as a score times a loading. The score comes
   from a round with column k held out, the loading from a round with row i held out
