@@ -630,7 +630,6 @@ def mixture_process_design(
             f"{model.name!r} model with {p} terms. Use a simpler model or loosen the constraints."
         )
 
-    requested = budget
     if budget is not None:
         refuse_budget_below_model(budget, p, repr(model.name))
     budget = p + _EXTRA_RUNS if budget is None else budget
@@ -657,6 +656,4 @@ def mixture_process_design(
         "constraints_enforced": True,
         **criterion_metadata(criterion, value),
     }
-    if requested is not None and requested != budget:
-        meta["budget_requested"] = requested
     return points[rows], meta
