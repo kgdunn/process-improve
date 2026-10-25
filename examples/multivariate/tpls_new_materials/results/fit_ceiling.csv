@@ -1,0 +1,5 @@
+data,TPLS (default),"TPLS, centred F","TPLS, centred F, no D deflation","PLS on [Z, F D]",truth
+group A only,0.943,0.948,0.948,0.948,0.949
+group A + Z,0.702,0.759,0.984,0.984,0.985
+groups A + B,0.782,0.599,0.966,0.963,0.969
+groups A + B + Z,0.771,0.722,0.968,0.977,0.988
