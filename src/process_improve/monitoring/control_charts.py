@@ -174,7 +174,7 @@ def _tau_from_training_errors(future_errors: pd.Series) -> float:
         raise ValueError(
             f"The control-chart scale estimate is undefined (tau^2 = {resids}), so the control "
             "limits would have zero width. Supply more representative data, or pass an "
-            "explicit positive 's'."
+            "explicit positive 'sigma'."
         )
 
     return float(np.sqrt(resids))
@@ -468,7 +468,7 @@ class ControlChart:
         self,
         y: np.ndarray | pd.Series,
         target: float | None = None,
-        s: float | None = None,
+        sigma: float | None = None,
         **kwargs,
     ) -> None:
         """
@@ -484,9 +484,10 @@ class ControlChart:
 
         measurements (where N is the length of the input vector), the target and
         standard deviation are estimated directly from the data and any provided
-        `target` / `s` are ignored for that small-sample case.
-        Otherwise, if `target` and `s` are numeric, those values are used;
-        if not, they are estimated.
+        `target` / `sigma` are ignored for that small-sample case.
+        Otherwise, if `target` and `sigma` (a known standard deviation) are numeric, those
+        values are used, and the fitted standard deviation ``s`` is `sigma`; if not, they are
+        estimated.
 
         Missing values (NaN) in `y` are bridged by imputing a one-step-ahead error equal
         to the median absolute error of the previous 10 rows. That error is never negative,
@@ -501,20 +502,21 @@ class ControlChart:
         """
         self._reset_fit_state()
         self._given_target = target
-        self._given_s = s
+        self._given_s = sigma
         logger.debug(
-            "ControlChart.calculate_limits: variant=%s, style=%s, given target=%s, s=%s",
+            "ControlChart.calculate_limits: variant=%s, style=%s, given target=%s, sigma=%s",
             self.variant,
             self.style,
             target,
-            s,
+            sigma,
         )
 
-        if s is not None:
-            self.s = float(s)
-            if not 0.0 < s < 1e300:
+        if sigma is not None:
+            self.s = float(sigma)
+            if not 0.0 < sigma < 1e300:
                 raise ValueError(
-                    f"The given standard deviation must be positive and not excessively large (0 < s < 1e300); got {s}."
+                    "The given standard deviation must be positive and not excessively large "
+                    f"(0 < sigma < 1e300); got {sigma}."
                 )
 
         if target is not None:
@@ -880,7 +882,7 @@ class ControlChart:
             raise ValueError(
                 "The Holt-Winters warm-up window has zero (or non-finite) variance "
                 "(sigma_0 = 0), so the control-chart limits would be undefined. "
-                "Supply more representative warm-up data, or pass a positive 's'."
+                "Supply more representative warm-up data, or pass a positive 'sigma'."
             )
 
     def _holt_winters_smooth(self, ld_1: float, ld_2: float, ld_s: float) -> None:
