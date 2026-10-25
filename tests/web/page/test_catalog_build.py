@@ -16,6 +16,7 @@ from process_improve.experiments import design_catalog
 from tests.web._support import (
     BOOK_DESIGN,
     CATALOG_SAMPLE,
+    REPRODUCTION_SAMPLE,
     catalog_sample,
     coded,
     javascript,
@@ -548,3 +549,14 @@ def test_a_factor_its_source_compares_as_levels_opens_with_the_source_s_comparis
     pairs = {(n["read"]["a"], n["read"]["b"]) for n in numbers if n["read"]["table"] == "comparison"}
     assert ("160", "180") in pairs, "the book's 160.0 less 180.0, in the page's labels"
     assert all(n["model"] == [["power"]] for n in numbers), "no line or curve in power: the page fits none here"
+
+
+def test_the_reproduction_holds_each_case_its_tier_and_the_sources_it_names(reproduction_file):
+    """``write_reproduction``: the tiers' limits, the last as null, each case, and every source a case names."""
+    data = json.loads(reproduction_file.read_text(encoding="utf-8"))
+    assert data["tiers"] == {"reproduced": 0.0, "within_1": 0.01, "within_5": 0.05, "not_reproduced": None}
+    assert {c["source"] for c in data["cases"]} == set(REPRODUCTION_SAMPLE)
+    assert {c["source"] for c in data["cases"]} <= set(data["sources"])
+    assert {c["tier"] for c in data["cases"]} == set(data["tiers"]), "the sample has a case in every tier"
+    for case in data["cases"]:
+        assert (case["tier"] == "reproduced") == (not case["differs"]), case["id"]

@@ -33,6 +33,8 @@ const GROUP_SHOWN = 25;
 let data = null;
 let view = structuredClone(DEFAULT_VIEW);
 let sourceOrder = "cases";
+/** Draws a tier's list into its box, once: the page calls it when it opens a tier itself, not waiting for the toggle. */
+const fillers = new Map();
 
 const count = (n) => n.toLocaleString("en");
 const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
@@ -325,6 +327,7 @@ function drawLists(cases) {
         const groups = groupByTier(cases, t.key, order);
         body.append(...(groups.length ? groups.map(sourceGroup) : [element("p", { class: "hint", text: "No case your filters keep is in this tier." })]));
       };
+      fillers.set(t.key, fill);
       box.addEventListener("toggle", () => {
         if (box.open) fill();
         const open = new Set(view.open);
@@ -345,6 +348,7 @@ function drawLists(cases) {
 function openTier(tier) {
   const box = $(`#tier-${tier}`);
   box.open = true;
+  fillers.get(tier)();
   box.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   box.querySelector("summary").focus({ preventScroll: true });
 }
@@ -355,6 +359,7 @@ function focusCase() {
   if (!c) return;
   const box = $(`#tier-${c.tier}`);
   box.open = true;
+  fillers.get(c.tier)();
   let item = $(`#case-${CSS.escape(c.id)}`);
   for (let i = 0; !item && i < 50; i += 1) {
     const more = [...box.querySelectorAll(".more")].find((button) => !button.hidden && button.closest(".group").querySelector("h3").textContent.startsWith(sourceName(c.source)));

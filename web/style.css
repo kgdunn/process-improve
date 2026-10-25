@@ -1194,8 +1194,9 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
   .source { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
   .source__track { grid-column: 1 / -1; grid-row: 2; }
 }
-.bands { margin: 0; }
-.bands svg { display: block; width: 100%; height: auto; overflow: visible; }
+/* Below 720px the chart keeps its labels legible and scrolls in its own box, never the page. */
+.bands { margin: 0; overflow-x: auto; }
+.bands svg { display: block; width: 100%; min-width: 720px; height: auto; overflow: visible; }
 .bands__axis { stroke: var(--line); }
 .bands__bar { fill: var(--tier); }
 .bands__hit { fill: transparent; }

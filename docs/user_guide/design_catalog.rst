@@ -173,6 +173,29 @@ the test suite requires. The catalog's page lists them by source and by words, a
 ``catalog/feed.xml`` (:func:`~process_improve.experiments.design_catalog.catalog_feed`) is an Atom
 feed with an entry for each source as it enters the catalogue.
 
+How closely each case reproduces
+--------------------------------
+
+:func:`~process_improve.experiments.design_catalog.catalog_reproduction` puts every case of the
+reference catalogue in one of four tiers, by the largest relative difference between a number its
+source prints and the library's value (:data:`~process_improve.experiments.design_catalog.REPRODUCTION_TIERS`):
+fully reproduced, when every recomputed number agrees to the source's last printed digit; within 1%;
+within 5%; and not reproduced, when a number differs by more than 5% or a result that is not a
+number, such as an alias chain, differs. A case is placed by its worst number, so one misprint puts
+a case in the last tier. Each number that differs comes with its printed value, the library's value
+and the reason the catalogue records:
+
+.. code-block:: python
+
+   from process_improve.experiments.design_catalog import catalog_reproduction
+
+   for case in catalog_reproduction("lenth-1989"):
+       print(case["tier"], case["title"][:40], [n["reason"][:30] for n in case["differs"]])
+
+The catalog's page `Reproduced from the books <https://factori.al/catalog/reproduced/>`_ draws the
+same classification for every source: a table of the tiers, by case and by number, a bar per source,
+the spread of the differences, and a list of the cases in each tier.
+
 Opening a design, and limits on its settings
 --------------------------------------------
 
