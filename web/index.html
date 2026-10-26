@@ -380,6 +380,33 @@
             <span id="plan-note" class="hint" hidden></span>
           </p>
         </div>
+
+        <!-- What others in the reader's field have run (catalog/fields.json, written by the build), with the plan
+             marked on the chart field-chart.js draws. Shown once the build's file is read. -->
+        <section id="like-yours" class="like-yours" aria-labelledby="h-like-yours" hidden>
+          <h3 id="h-like-yours">Experiments like yours</h3>
+          <label class="like-yours__field">Your field
+            <select id="field" autocomplete="off">
+              <option value="">Choose your field</option>
+            </select>
+          </label>
+          <p id="like-yours-empty" class="hint">Choose your field to see what others in it have run: their size, and
+            the kinds of design.</p>
+          <div id="like-yours-body" hidden>
+            <p id="like-yours-sentence"></p>
+            <svg id="like-yours-chart" class="field-chart__svg" role="img"
+              aria-label="The published experiments in your field, by their number of factors and of runs, with your plan"></svg>
+            <ul class="field-chart__legend">
+              <li><span class="field-key field-key--full" aria-hidden="true"></span>Full factorial</li>
+              <li><span class="field-key field-key--screening" aria-hidden="true"></span>Fractional factorial or screening</li>
+              <li><span class="field-key field-key--surface" aria-hidden="true"></span>Central composite or Box-Behnken</li>
+              <li><span class="field-key field-key--mixture" aria-hidden="true"></span>Mixture</li>
+              <li><span class="field-key field-key--other" aria-hidden="true"></span>Other designs</li>
+            </ul>
+            <p id="like-yours-verdict" class="like-yours__verdict"></p>
+            <p class="actions"><a id="like-yours-link" class="button" href="catalog/fields/">See them in the catalog</a></p>
+          </div>
+        </section>
         <details class="python" id="py-design" hidden>
           <summary>Show the Python code</summary>
           <p class="hint">The process-improve code for this design. Copy it and it runs as it is.</p>

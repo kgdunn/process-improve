@@ -1360,3 +1360,11 @@ main.field-page h1 { margin: 8px 0; font-size: 2rem; }
 @media (min-width: 900px) {
   .field-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Experiments like yours (index.html): the reader's field beside the plan, on the field chart. */
+.like-yours { margin: 20px 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.like-yours h3 { margin: 0 0 10px; }
+.like-yours__field { display: flex; flex-direction: column; gap: 4px; max-width: 420px; }
+.like-yours__field select { min-height: 44px; }
+.like-yours .field-chart__svg { margin-top: 12px; }
+.like-yours__verdict { font-weight: 700; margin: 10px 0 0; }

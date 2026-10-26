@@ -1635,3 +1635,33 @@ export function printedLike(value, printed) {
   if (exponent !== undefined) return value.toExponential(Math.min(8, (whole + decimals).replace(/^0+/, "").length));
   return value.toFixed(Math.min(8, decimals.length + 1));
 }
+
+/** A plan above this share of a field's experiments is larger than most, below its complement smaller than most. */
+const MOST = 0.75;
+
+/**
+ * How a plan, ``{factors, runs}``, compares with a field's published experiments (``points``, each
+ * ``[factors, runs, kind, how many]``), in a sentence: by its runs once it has a design, else by its factors. ""
+ * without a plan or a field.
+ */
+export function planVerdict(points, plan) {
+  if (!plan?.factors || !points?.length) return "";
+  const mine = plan.runs ?? plan.factors;
+  let below = 0;
+  let above = 0;
+  let total = 0;
+  for (const [factors, runs, , count] of points) {
+    const theirs = plan.runs ? runs : factors;
+    total += count;
+    if (theirs < mine) below += count;
+    else if (theirs > mine) above += count;
+  }
+  if (plan.runs) {
+    if (below >= MOST * total) return "Your plan is larger than most here.";
+    if (above >= MOST * total) return "Your plan is smaller than most here.";
+    return "Your plan is a typical size here.";
+  }
+  if (below >= MOST * total) return "You have more factors than most experiments here.";
+  if (above >= MOST * total) return "You have fewer factors than most experiments here.";
+  return "Experiments here often have as many factors as yours.";
+}

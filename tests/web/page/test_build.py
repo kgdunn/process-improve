@@ -72,6 +72,10 @@ def test_the_built_worked_example_includes_the_comparison(built_example):
 #: Files the build writes beside the page, rather than copying from web/.
 BUILT = {"demo.json", "wheels/manifest.json"}
 
+#: What ``write_catalog`` writes that the page loads: the fields of the planning panel and their list
+#: (``tests/web/page/test_field_pages.py`` checks it writes them).
+CATALOG_WRITES = {"catalog/fields.json", "catalog/fields/index.html"}
+
 
 def _local(references: list[str]) -> set[str]:
     """Keep the references to files of the app itself: not other sites, not data: URLs.
@@ -96,7 +100,7 @@ def test_every_file_the_page_loads_is_published(build_script):
     loaded |= _local(re.findall(r'import\("\./([^"]+)"\)', source("feedback.js")))
     assert {"style.css", "app.js", "worker.js", "bootstrap.py", "demo.json"} <= loaded, "the search found the loads"
     assert "vendor/modern-screenshot.mjs" in loaded
-    assert loaded - BUILT <= set(build_script.APP_FILES)
+    assert loaded - BUILT - CATALOG_WRITES <= set(build_script.APP_FILES)
     assert all((WEB / name).is_file() for name in build_script.APP_FILES)
 
 

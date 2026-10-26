@@ -161,6 +161,7 @@ import {
   mixtureProblem,
   nTerms,
   nameProblem,
+  planVerdict,
   modelKey,
   modelTermsWords,
   namedModelTerms,
@@ -241,6 +242,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
+import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
@@ -1435,6 +1437,65 @@ function refreshDesign() {
   showAim();
   markPicked();
   markStale();
+  showLikeYours();
+}
+
+// ---------------------------------------------------------------- experiments like yours
+// What others in the reader's field have run, from catalog/fields.json (written by the build), with the plan marked
+// on the chart: its factors, and its runs once it has a design. The field chosen is kept in this browser; a field's
+// page in the catalog chooses one through ?field=.
+const FIELD_KEY = "factorial-field";
+let fields = null; // the fields the build wrote, once read
+
+function keptField() {
+  try {
+    return localStorage.getItem(FIELD_KEY) ?? "";
+  } catch {
+    return ""; // storage refused
+  }
+}
+
+function keepField(slug) {
+  try {
+    if (slug) localStorage.setItem(FIELD_KEY, slug);
+    else localStorage.removeItem(FIELD_KEY);
+  } catch {
+    /* storage refused: the choice lasts as long as the page */
+  }
+}
+
+/** Read the fields the build wrote, list them, and choose the one the address or this browser names. */
+async function loadFields() {
+  try {
+    const response = await fetch("catalog/fields.json");
+    fields = response.ok ? (await response.json()).fields : null;
+  } catch {
+    fields = null; // a page served without its catalog shows no panel
+  }
+  if (!fields) return;
+  const named = Object.entries(fields).sort(([, a], [, b]) => a.label.localeCompare(b.label));
+  $("#field").append(...named.map(([slug, field]) => new Option(field.label, slug)));
+  const asked = new URLSearchParams(location.search).get("field") ?? "";
+  if (Object.hasOwn(fields, asked)) keepField(asked);
+  const chosen = keptField();
+  $("#field").value = Object.hasOwn(fields, chosen) ? chosen : "";
+  showLikeYours();
+}
+
+/** Show the chosen field's experiments beside the plan: a sentence, the chart with the plan, and how they compare. */
+function showLikeYours() {
+  $("#like-yours").hidden = !fields;
+  const slug = $("#field").value;
+  const field = fields?.[slug];
+  $("#like-yours-empty").hidden = Boolean(field);
+  $("#like-yours-body").hidden = !field;
+  if (!field) return;
+  const k = state.design ? state.design.spec.factors.length : factorCount();
+  const plan = k ? { factors: k, runs: state.design ? runCount() : null } : null;
+  $("#like-yours-sentence").textContent = field.sentence;
+  drawFieldChart($("#like-yours-chart"), field.points, plan);
+  $("#like-yours-verdict").textContent = planVerdict(field.points, plan);
+  $("#like-yours-link").href = `catalog/fields/${slug}/`;
 }
 
 // ---------------------------------------------------------------- the trade-off grid
@@ -1733,6 +1794,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
+  showLikeYours();
   if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
   renderPicker();
@@ -5617,6 +5679,11 @@ for (const radio of document.querySelectorAll('input[name="aim"]')) {
     saveDraft();
   };
 }
+$("#field").addEventListener("change", () => {
+  keepField($("#field").value);
+  showLikeYours();
+});
+
 $("#design-type").onchange = () => {
   designChosen = true;
   refreshDesign();
@@ -5789,6 +5856,7 @@ refreshDesign();
 renderStudyBar();
 readManifest();
 start();
+loadFields();
 
 call("api_catalogue").then((reply) => {
   if (!reply.ok) {
