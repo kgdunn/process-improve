@@ -37,6 +37,21 @@ FAKE_REPO = {
         subprocess.run([sys.executable, "-c", CODE], check=True)
     """,
     "tests/test_readme.py": "exec(open('README.md').read())",
+    # The app's code, which tests load by path through a helper that names the file.
+    "web/bootstrap.py": "from process_improve.user import uses_f",
+    "tests/_app.py": """
+        import importlib.util
+        def load(path): return importlib.util.spec_from_file_location("app", path)
+        APP = "bootstrap.py"
+    """,
+    "tests/test_app.py": "from tests._app import load",
+    # A helper that builds the path it loads names no file, so it stays opaque.
+    "tests/_scripts.py": """
+        import importlib.util
+        def load(name): return importlib.util.spec_from_file_location(name, f"docs/{name}.py")
+    """,
+    "tests/test_scripts.py": "from tests._scripts import load",
+    "tests/test_roles.py": "IS_PACKAGE = '__init__.py'",
     "tests/sub/__init__.py": "",
     "tests/sub/conftest.py": "from process_improve import plugin",
     "tests/sub/test_nothing_imported.py": "",
@@ -66,7 +81,9 @@ def test_a_direct_and_a_transitive_importer_are_both_affected(repo: Path) -> Non
         "tests/test_core.py",
         "tests/test_user.py",  # through user.py
         "tests/test_facade.py",  # facade.f is core.f
+        "tests/test_app.py",  # through the app's bootstrap.py, which its helper names
         "tests/test_readme.py",  # opaque: runs code the graph cannot see
+        "tests/test_scripts.py",  # imports an opaque helper
     }
 
 
@@ -93,12 +110,12 @@ def test_an_affected_conftest_affects_every_test_below_it(repo: Path) -> None:
 
 def test_a_relative_import_resolves_against_its_package(repo: Path) -> None:
     affected = _affected(repo, "src/process_improve/pkg/inner.py")
-    assert affected == {"tests/test_pkg.py", "tests/test_readme.py"}
+    assert affected == {"tests/test_pkg.py", "tests/test_readme.py", "tests/test_scripts.py"}
 
 
 def test_a_data_file_affects_the_code_that_names_it(repo: Path) -> None:
     affected = _affected(repo, "src/process_improve/tables/table.csv")
-    assert affected == {"tests/test_loader.py", "tests/test_readme.py"}
+    assert affected == {"tests/test_loader.py", "tests/test_readme.py", "tests/test_scripts.py"}
 
 
 def test_a_changed_test_file_selects_itself(repo: Path) -> None:
@@ -118,9 +135,19 @@ def test_a_build_file_or_a_deleted_file_selects_the_whole_suite(repo: Path, chan
     assert _affected(repo, changed) is None
 
 
-def test_only_test_modules_that_run_unseen_code_are_opaque(repo: Path) -> None:
+def test_a_python_file_named_in_a_string_literal_is_an_edge(repo: Path) -> None:
+    assert _affected(repo, "web/bootstrap.py") == {"tests/test_app.py"}
+
+
+def test_a_role_name_such_as_init_names_no_file(repo: Path) -> None:
+    affected = _affected(repo, "src/process_improve/__init__.py")
+    assert affected is not None
+    assert "tests/test_roles.py" not in affected
+
+
+def test_code_run_unseen_is_opaque_unless_a_helper_names_the_file(repo: Path) -> None:
     graph = build_import_graph(repo)
-    assert {p.relative_to(repo).as_posix() for p in graph.opaque} == {"tests/test_readme.py"}
+    assert {p.relative_to(repo).as_posix() for p in graph.opaque} == {"tests/test_readme.py", "tests/_scripts.py"}
 
 
 def test_the_real_repository_parses() -> None:
