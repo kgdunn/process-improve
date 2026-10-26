@@ -789,7 +789,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self, X: pd.DataFrame, Y: pd.DataFrame, sample_weight: np.ndarray | None
     ) -> tuple[np.ndarray, np.ndarray]:
         """Refit the scalers on complete blocks and return them scaled; identity when ``scale=False``."""
-        if self.scale:
+        if self._centres_and_scales():
             self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
         x_scaled, y_scaled = self._scaled_as_fitted(X, Y)
         return x_scaled.to_numpy(dtype=float), y_scaled.to_numpy(dtype=float)
@@ -799,6 +799,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if self._x_scaler is None or self._y_scaler is None:
             return X, Y
         return self._x_scaler.transform(X), self._y_scaler.transform(Y)
+
+    def _centres_and_scales(self) -> bool:
+        """Whether ``fit`` passes X and Y through :meth:`_make_scalers`: when ``scale``, and always for PRM."""
+        return bool(self.scale)
 
     def _make_scalers(
         self,
@@ -810,9 +814,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         Split out as its own method so a resistant subclass can substitute a
         different notion of "middle" and "spread" without reimplementing
-        ``fit``: :class:`~process_improve.multivariate.methods.PRM` centres and
-        scales by *weighted* statistics, because the ordinary mean and standard
-        deviation are exactly as fragile as the fit they are preparing (#191).
+        ``fit``: :class:`~process_improve.multivariate.methods.PRM` centres at
+        the L1 median, because the ordinary mean and standard deviation are
+        exactly as fragile as the fit they are preparing (#191).
 
         The scalers are fitted on the rows that actually enter the fit. With
         ``sample_weight``, zero-weight rows are excluded from NIPALS (via the
@@ -957,7 +961,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # An imputed fit (md_method "tsr" / "pmp") re-estimates the scaling from the
         # completed data every round, so it needs the blocks before this first scaling.
         unscaled_x, unscaled_y = X, Y
-        if self.scale:
+        if self._centres_and_scales():
             self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
             X = self._x_scaler.transform(X)
             Y = self._y_scaler.transform(Y)

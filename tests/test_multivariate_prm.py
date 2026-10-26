@@ -16,7 +16,6 @@ from sklearn.base import clone, is_regressor
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
-from process_improve.multivariate._preprocessing import _WeightedMCUVScaler
 from process_improve.multivariate._robust import fair_weights, l1_median
 from process_improve.multivariate.methods import PLS, PRM, MCUVScaler
 
@@ -243,65 +242,113 @@ class TestPRMResistsContamination:
         assert flagged["weight"].is_monotonic_increasing
 
 
-class TestPRMCostsNothingOnCleanData:
-    def test_matches_pls_when_there_is_nothing_to_resist(
+class TestPRMCostsLittleOnCleanData:
+    def test_about_as_accurate_as_pls_when_there_is_nothing_to_resist(
         self, clean_test_set: tuple[pd.DataFrame, pd.DataFrame]
     ) -> None:
-        """A robust estimator that gave up real accuracy on clean data would not be worth using."""
-        X_test, y_test = clean_test_set
-        X, y = _dataset(seed=0)
-        ordinary = _rmse_on(PLS(n_components=2).fit(X, y), X_test, y_test)
-        robust = _rmse_on(PRM(n_components=2).fit(X, y), X_test, y_test)
-        assert robust < ordinary * 1.05
+        """A robust estimator that gave up real accuracy on clean data would not be worth using.
 
-    def test_equal_weights_reproduce_the_base_class_scaling(self) -> None:
-        """PRM's one override has to be a no-op when the weights are uniform.
-
-        Otherwise the override would be changing the model for reasons unrelated
-        to robustness, and any difference measured against PLS would be
-        confounded.
+        The Fair weights fall below 1 for ordinary rows too, so on any one seed PRM
+        can land either side of PLS; over ten seeds it is as accurate.
         """
-        X, y = _dataset(seed=0)
-        model = PRM(n_components=2)
-        weighted, _ = model._make_scalers(X, y, np.ones(N_SAMPLES))
-        plain, _ = PLS(n_components=2)._make_scalers(X, y, np.ones(N_SAMPLES))
-        pd.testing.assert_series_equal(weighted.center_, plain.center_)
-        pd.testing.assert_series_equal(weighted.scale_, plain.scale_)
+        X_test, y_test = clean_test_set
+        ratios = []
+        for seed in range(10):
+            X, y = _dataset(seed)
+            ordinary = _rmse_on(PLS(n_components=2).fit(X, y), X_test, y_test)
+            ratios.append(_rmse_on(PRM(n_components=2).fit(X, y), X_test, y_test) / ordinary)
+        assert float(np.median(ratios)) < 1.05
+
+
+# chemometrics::prm (R package chemometrics 1.4.4) on the cheddar cheese data, with its one
+# departure from the paper undone: `dt <- T - mt` replaced by `dt <- sweep(T, 2, mt)`, since R
+# recycles the vector mt down the columns of T cell by cell. With one component the two agree,
+# but pcaPP's l1median stops with an error on a single column, so a = 2 and 3 are the cases.
+CHEMOMETRICS_CHEESE = {
+    2: {
+        "coefficients": [4.82091875346975, 3.88207238660843, 9.53461287401522],
+        "intercept": -39.6390573529007,
+        "weights": [0.269362106370723, 0.800427328850199, 0.345650545048036, 0.309268357969527, 0.490720999890499],
+    },
+    3: {
+        "coefficients": [-1.42316987147143, 4.11081084179467, 19.31562817829933],
+        "intercept": -21.6374492638998,
+        "weights": [0.269135922215876, 0.727340338820908, 0.294374481244887, 0.295731913301512, 0.581942924597089],
+    },
+}
+
+
+@pytest.fixture
+def cheese() -> tuple[pd.DataFrame, pd.Series]:
+    from importlib import resources
+
+    with resources.files("process_improve.datasets.multivariate").joinpath("cheddar-cheese.csv").open() as f:
+        data = pd.read_csv(f, index_col=0)
+    return data[["Acetic", "H2S", "Lactic"]], data["Taste"]
+
+
+class TestPRMIsThePublishedAlgorithm:
+    @pytest.mark.dataset
+    @pytest.mark.parametrize("n_components", [2, 3])
+    def test_scale_false_reproduces_the_authors_r_code(
+        self, cheese: tuple[pd.DataFrame, pd.Series], n_components: int
+    ) -> None:
+        """Coefficients, intercept and weights as chemometrics::prm gives them, to its 1% stopping rule's echo."""
+        X, y = cheese
+        model = PRM(n_components=n_components, scale=False).fit(X, y)
+        expected = CHEMOMETRICS_CHEESE[n_components]
+        np.testing.assert_allclose(model.beta_coefficients_.to_numpy().ravel(), expected["coefficients"], atol=1e-6)
+        intercept = float(model.predict(X.iloc[[0]] * 0.0).iloc[0, 0])
+        assert intercept == pytest.approx(expected["intercept"], abs=1e-6)
+        np.testing.assert_allclose(model.robust_weights_[:5], expected["weights"], atol=1e-7)
+        assert model.weights_converged_
+
+    def test_the_intercept_is_the_median_residual(self) -> None:
+        """The paper's intercept: half the fitted rows lie above the model and half below."""
+        X, y = _dataset(seed=0, n_bad=N_BAD)
+        model = PRM(n_components=2).fit(X, y)
+        residuals = y["y"].to_numpy() - np.asarray(model.predict(X), dtype=float).ravel()
+        assert float(np.median(residuals)) == pytest.approx(0.0, abs=1e-10)
+
+    def test_scale_makes_the_model_blind_to_each_columns_units(self) -> None:
+        """scale=True divides each column by its robust spread, so a change of units changes nothing.
+
+        With scale=False a column in larger units dominates the distances, as in the paper.
+        """
+        X, y = _dataset(seed=0, n_bad=N_BAD)
+        units = np.linspace(1.0, 1000.0, N_FEATURES)
+        for scale, same in ((True, True), (False, False)):
+            plain = np.asarray(PRM(n_components=2, scale=scale).fit(X, y).predict(X), dtype=float)
+            rescaled = PRM(n_components=2, scale=scale).fit(X * units, y * 50.0).predict(X * units)
+            assert np.allclose(np.asarray(rescaled, dtype=float) / 50.0, plain) == same
 
 
 class TestPRMConvergenceReporting:
     def test_converges_and_says_so(self) -> None:
         model = PRM(n_components=2).fit(*_dataset(seed=0, n_bad=N_BAD))
         assert model.weights_converged_
-        assert model.weight_shift_ <= model.weight_tol
-        assert 1 <= model.n_weight_iter_ <= model.max_weight_iter
+        assert 1 <= model.n_weight_iter_ < 10
+        assert model.weight_shift_ < 0.5
 
-    def test_a_limit_cycle_stops_early_rather_than_running_out_the_budget(self) -> None:
-        """Reweighting can settle into a cycle instead of a point; that is not a reason to spin.
-
-        The fixture is rows scattered far in X with an unrelated y, which is the
-        shape that makes the leverage weight chase its own tail: suppressing a
-        row contracts the score cloud, which raises everyone's standardised
-        distance, which changes the fit again. Each iteration is a full PLS fit,
-        so stopping matters.
-        """
-        rng = np.random.default_rng(0)
-        X, y = _dataset(seed=0)
-        X.iloc[:N_BAD] = rng.normal(scale=12, size=(N_BAD, N_FEATURES))
-        y.iloc[:N_BAD] = rng.normal(scale=1, size=N_BAD).reshape(-1, 1)
-
-        model = PRM(n_components=2, max_weight_iter=100).fit(X, y)
-        assert not model.weights_converged_
-        assert model.n_weight_iter_ < 40, "gave up far too late"
-        # The point of reporting the shift: 'not converged' here still means the
-        # weights are stable to a few percent, which a bare flag cannot say.
-        assert model.weight_shift_ < 0.2
-        assert model.robust_weights_[:N_BAD].mean() < model.robust_weights_[N_BAD:].mean()
+    def test_a_tighter_tolerance_iterates_longer_and_moves_the_fit_little(self) -> None:
+        """coefficient_tol is the paper's stopping rule; tightening it buys iterations, not a different model."""
+        data = _dataset(seed=0, n_bad=N_BAD)
+        default = PRM(n_components=2).fit(*data)
+        tight = PRM(n_components=2, coefficient_tol=1e-8).fit(*data)
+        assert tight.n_weight_iter_ > default.n_weight_iter_
+        beta = lambda model: np.asarray(model.beta_coefficients_, dtype=float).ravel()  # noqa: E731
+        assert np.linalg.norm(beta(tight) - beta(default)) < 0.05 * np.linalg.norm(beta(tight))
 
     def test_a_tiny_budget_is_honoured(self) -> None:
         model = PRM(n_components=2, max_weight_iter=1).fit(*_dataset(seed=0, n_bad=N_BAD))
         assert model.n_weight_iter_ == 1
         assert not model.weights_converged_
+
+    def test_weight_tol_is_deprecated_and_has_no_effect(self) -> None:
+        data = _dataset(seed=0, n_bad=N_BAD)
+        with pytest.warns(DeprecationWarning, match="weight_tol is deprecated since 2.2.0"):
+            old = PRM(n_components=2, weight_tol=1e-4).fit(*data)
+        np.testing.assert_array_equal(old.robust_weights_, PRM(n_components=2).fit(*data).robust_weights_)
 
 
 class TestPRMApi:
@@ -378,7 +425,7 @@ class TestPRMRejectsWhatItCannotHandle:
             ({"cutoff": 0.0}, "cutoff must be a positive finite number"),
             ({"cutoff": np.inf}, "cutoff must be a positive finite number"),
             ({"max_weight_iter": 0}, "max_weight_iter must be at least 1"),
-            ({"weight_tol": -1.0}, "weight_tol must be a positive finite number"),
+            ({"coefficient_tol": -1.0}, "coefficient_tol must be a positive finite number"),
         ],
     )
     def test_bad_settings(self, kwargs: dict, message: str) -> None:
@@ -399,67 +446,3 @@ class TestPRMRejectsWhatItCannotHandle:
     def test_outlier_summary_before_fit(self) -> None:
         with pytest.raises(AttributeError, match="not fitted yet"):
             PRM(n_components=2).outlier_summary()
-
-
-class TestWeightedScaler:
-    """PRM's centring override, tested where it is easier to see than through a fit."""
-
-    def test_uniform_weights_reproduce_mcuvscaler_exactly(self) -> None:
-        """Including ddof=1, which the naive weighted variance gets wrong by sqrt((n-1)/n)."""
-        rng = np.random.default_rng(0)
-        X = pd.DataFrame(rng.normal(size=(20, 3)), columns=list("abc"))
-        plain = MCUVScaler().fit(X)
-        for weight in (None, 1.0, 3.7):
-            weights = None if weight is None else np.full(20, weight)
-            weighted = _WeightedMCUVScaler().fit(X, sample_weight=weights)
-            pd.testing.assert_series_equal(weighted.center_, plain.center_)
-            pd.testing.assert_series_equal(weighted.scale_, plain.scale_)
-
-    def test_a_zero_weight_row_behaves_exactly_like_a_dropped_row(self) -> None:
-        rng = np.random.default_rng(0)
-        X = pd.DataFrame(rng.normal(size=(20, 3)), columns=list("abc"))
-        contaminated = X.copy()
-        contaminated.iloc[0] = 500.0
-        weights = np.ones(20)
-        weights[0] = 0.0
-
-        weighted = _WeightedMCUVScaler().fit(contaminated, sample_weight=weights)
-        dropped = MCUVScaler().fit(X.iloc[1:])
-        pd.testing.assert_series_equal(weighted.center_, dropped.center_)
-        pd.testing.assert_series_equal(weighted.scale_, dropped.scale_)
-
-    def test_a_wild_row_moves_it_only_as_far_as_its_weight_allows(self) -> None:
-        rng = np.random.default_rng(0)
-        X = pd.DataFrame(rng.normal(size=(20, 3)), columns=list("abc"))
-        contaminated = X.copy()
-        contaminated.iloc[0] = 500.0
-        weights = np.ones(20)
-        weights[0] = 1e-4
-
-        plain = MCUVScaler().fit(contaminated)
-        weighted = _WeightedMCUVScaler().fit(contaminated, sample_weight=weights)
-        clean = MCUVScaler().fit(X)
-        assert np.abs(weighted.center_ - clean.center_).max() < np.abs(plain.center_ - clean.center_).max()
-
-    def test_constant_and_missing_columns_survive(self) -> None:
-        rng = np.random.default_rng(0)
-        X = pd.DataFrame(rng.normal(size=(20, 2)), columns=list("ab"))
-        X["constant"] = 4.0
-        X.iloc[3, 1] = np.nan
-        scaler = _WeightedMCUVScaler().fit(X, sample_weight=rng.uniform(0.1, 1.0, 20))
-        assert scaler.scale_["constant"] == pytest.approx(1.0)
-        assert np.all(np.isfinite(scaler.scale_))
-
-    @pytest.mark.parametrize(
-        ("weights", "message"),
-        [
-            (np.ones(5), "expected 20 to match X"),
-            (np.full(20, np.nan), "must be finite"),
-            (-np.ones(20), "must be non-negative"),
-            (np.zeros(20), "must not sum to zero"),
-        ],
-    )
-    def test_bad_weights_rejected(self, weights: np.ndarray, message: str) -> None:
-        X = pd.DataFrame(np.random.default_rng(0).normal(size=(20, 3)), columns=list("abc"))
-        with pytest.raises(ValueError, match=message):
-            _WeightedMCUVScaler().fit(X, sample_weight=weights)

@@ -7,45 +7,35 @@ Filzmoser and Van Espen, 2005) replaces that with an iteratively reweighted fit,
 where each row's weight falls off with how badly the current model misses it and
 with how far it sits from the middle of the score space.
 
-The implementation is deliberately thin. PRM is *exactly* PLS on ``sqrt(w)``
-rescaled rows, and :meth:`PLS.fit <process_improve.multivariate.methods.PLS.fit>`
-already does that rescale for its ``sample_weight`` argument, so the loop below
-calls the ordinary fit repeatedly rather than forking the NIPALS kernel. The one
-thing it does override is the centring and scaling: see :meth:`PRM._make_scalers`.
+The loop is the paper's, step for step, as the R package chemometrics (by one of
+its authors) codes it, with one exception. chemometrics subtracts the scores' L1
+median as ``T - mt``, and R recycles that vector down the columns cell by cell, so
+with two or more components the median's entries land in the wrong cells; this
+module subtracts it from each row, as the paper does. Each iteration is an
+ordinary weighted fit: PRM is exactly PLS on ``sqrt(w)``-rescaled rows, which
+:meth:`PLS.fit <process_improve.multivariate.methods.PLS.fit>` does for its
+``sample_weight``.
 """
 
 from __future__ import annotations
+
+import warnings
 
 import numpy as np
 import pandas as pd
 
 from ._common import DataMatrix, epsqrt
 from ._pls import PLS
-from ._preprocessing import MCUVScaler, _WeightedMCUVScaler
+from ._preprocessing import MCUVScaler
 from ._robust import fair_weights, l1_median
 
 #: Scale factor making the median absolute deviation consistent for the
-#: standard deviation of a Gaussian.
+#: standard deviation of a Gaussian, so a column's robust spread reads in its units.
 _MAD_TO_SIGMA = 1.4826
 
-#: A step counts as progress only if it beats the best step so far by this
-#: factor; anything else is the loop marking time.
-_STALL_RATIO = 0.99
-
-#: How many non-improving steps to allow before giving up on convergence.
-_STALL_PATIENCE = 10
-
-
-def _robust_scale(values: np.ndarray) -> float:
-    """Median absolute deviation of ``values``, scaled to estimate a Gaussian sigma.
-
-    Floored away from zero: more than half the residuals being identical (a
-    saturated sensor, a heavily quantised response) would otherwise give a scale
-    of zero and turn every standardised residual into an infinity.
-    """
-    values = np.asarray(values, dtype=float).ravel()
-    mad = float(np.median(np.abs(values - np.median(values))))
-    return max(mad * _MAD_TO_SIGMA, epsqrt)
+#: The weight that stands in for an exact zero, as chemometrics does: a zero would
+#: drop the row from the weighted fit, where the method only ever downweights.
+_SMALLEST_WEIGHT = 1e-6
 
 
 def _as_frame(data: DataMatrix) -> pd.DataFrame:
@@ -84,10 +74,50 @@ def _checked_prior(sample_weight: np.ndarray | None, n_samples: int) -> np.ndarr
     return prior
 
 
+def _robust_scaler(block: pd.DataFrame, active: np.ndarray, *, scale: bool, l1: bool) -> MCUVScaler:
+    """Return a scaler centred robustly, once, on the rows the prior keeps.
+
+    The centre is the L1 median of the rows (``l1``, for X) or the median of each
+    column (for Y). With ``scale``, each column is also divided by 1.4826 times its
+    median absolute deviation, or by 1 where that is 0, and the L1 median is taken
+    in those units, the space the leverage distances are then measured in.
+    """
+    rows = block.to_numpy(dtype=float)[active]
+    spread = np.ones(rows.shape[1])
+    if scale:
+        mad = np.median(np.abs(rows - np.median(rows, axis=0)), axis=0) * _MAD_TO_SIGMA
+        spread = np.where(mad > epsqrt, mad, 1.0)
+    centre = (l1_median(rows / spread) if l1 else np.median(rows / spread, axis=0)) * spread
+    # Fitted for the sklearn metadata of the block (feature names, counts); centre and spread replaced.
+    scaler = MCUVScaler().fit(block)
+    scaler.center_ = pd.Series(centre, index=scaler.center_.index)
+    scaler.scale_ = pd.Series(spread, index=scaler.scale_.index)
+    return scaler
+
+
+def _residual_weights(residuals: np.ndarray, active: np.ndarray, cutoff: float) -> np.ndarray:
+    """Fair weight of each row's residual, centred at its median and divided by its median absolute value.
+
+    The paper's scale is the median absolute residual itself, not the 1.4826 times
+    it that estimates a Gaussian standard deviation: the cutoff is tuned to it. With
+    several targets each is standardised alone and a row's residual is the norm of
+    the result, which for one target is the paper's ``|r| / median |r|``.
+    """
+    centred = residuals - np.median(residuals[active], axis=0)
+    spread = np.maximum(np.median(np.abs(centred[active]), axis=0), epsqrt)
+    return fair_weights(np.linalg.norm(centred / spread, axis=1), cutoff)
+
+
+def _leverage_weights(points: np.ndarray, active: np.ndarray, cutoff: float) -> np.ndarray:
+    """Fair weight of each row's distance from the L1 median of the points, over the median distance."""
+    distances = np.linalg.norm(points - l1_median(points[active]), axis=1)
+    return fair_weights(distances / max(float(np.median(distances[active])), epsqrt), cutoff)
+
+
 class PRM(PLS):
     r"""Partial Robust M-regression: PLS with a bounded influence per observation.
 
-    Each row carries a weight :math:`w_i = w_i^r \cdot w_i^x`, the product of a
+    Each row carries a weight :math:`w_i = w_i^r \cdot w_i^t`, the product of a
     *residual* weight (how badly the current model predicts that row) and a
     *leverage* weight (how far its scores sit from the middle of the score
     cloud). Both come from the Fair function, so the two kinds of outlier that
@@ -96,19 +126,23 @@ class PRM(PLS):
     - a **vertical outlier** has an ordinary position in X but a y that does not
       follow the relationship, and gets a small :math:`w^r`;
     - a **bad leverage point** sits far out in X as well, where least squares
-      gives it the most influence of all, and gets a small :math:`w^x`.
+      gives it the most influence of all, and gets a small :math:`w^t`.
 
-    The weights are recomputed from the fit and the fit is recomputed from the
-    weights until they settle.
+    The steps are those of Serneels et al. (2005):
 
-    .. note::
-       Centring and scaling are **weighted too**, which is not a refinement but
-       the part that makes the method work. The column mean and standard
-       deviation have a breakdown point of zero, so leaving them unweighted
-       leaves the outliers setting the coordinate system that the weighted fit
-       then runs in: measured on a fixture with 15% vertical outliers, weighting
-       only the fit recovers none of the damage, and weighting the scaling as
-       well recovers essentially all of it. See :meth:`_make_scalers`.
+    1. X is centred at its L1 median and y at its median, once. Neither moves
+       when an outlier does, so the outliers do not choose the coordinate system.
+    2. The starting weights come from the data alone: each centred row's
+       distance from the centre, over the median distance, and each centred y,
+       over the median absolute y.
+    3. A PLS model is fitted with the weights, and new weights come from it: the
+       residual, centred at its median and over its median absolute value; and
+       the distance of the row's scores from their L1 median, over the median
+       distance, each component scaled to unit length in the weighted fit (as
+       SIMPLS's scores are), so the first components do not decide it alone.
+    4. Step 3 repeats until the norm of the regression of y on those unit-length
+       scores changes by less than ``coefficient_tol``, relative.
+    5. The intercept is the median of the residuals, :math:`y - Xb`.
 
     Parameters
     ----------
@@ -117,34 +151,40 @@ class PRM(PLS):
     cutoff : float, optional
         Tuning constant :math:`c` of the Fair weight function, default 4.0 as
         recommended by Serneels et al. Smaller is more aggressive: an
-        observation at :math:`c` standardised units gets weight 0.25. This
-        trades robustness against efficiency, and 4.0 keeps roughly 95% of the
-        efficiency of ordinary PLS on clean Gaussian data.
+        observation at :math:`c` standardised units gets weight 0.25.
     max_weight_iter : int, optional
         Maximum reweighting iterations, default 100. Each one is a full PLS fit.
-    weight_tol : float, optional
-        Convergence tolerance, default 1e-4, on the largest absolute change in
-        any row's weight between iterations.
-    scale, max_iter, tol, copy, missing_data_settings, warn_on_uncentred
+    coefficient_tol : float, optional
+        The relative change in the norm of the regression of y on the unit-length
+        scores below which the reweighting stops, default 0.01 as in the paper.
+    weight_tol : None
+        Deprecated since 2.2.0 and removed in 3.0; it has no effect. PRM stops on
+        ``coefficient_tol``, as the paper does, not on the change in the weights.
+    scale : bool, optional
+        True (the default) also divides each column of X and of Y, after the
+        robust centring, by 1.4826 times its median absolute deviation (by 1
+        where that is 0), computed once: columns in different units then count
+        equally, as PLS's ``scale`` makes them. False is the paper's algorithm,
+        which centres only.
+    max_iter, tol, copy, missing_data_settings
         As for :class:`~process_improve.multivariate.methods.PLS`.
+    warn_on_uncentred : bool, optional
+        Accepted for :class:`~process_improve.multivariate.methods.PLS`'s
+        signature; it has no effect, since PRM always centres.
 
     Attributes
     ----------
     robust_weights_ : np.ndarray of shape (n_samples,)
-        The converged row weights, in (0, 1]. Small entries are this model's
-        statement about which rows it declined to be led by; see
-        :meth:`outlier_summary`.
+        The weight the returned model gives each row, in (0, 1]: its residual
+        weight times its leverage weight, from the final fit, as the paper reports
+        them. Small entries are this model's statement about which rows it
+        declined to be led by; see :meth:`outlier_summary`.
     n_weight_iter_ : int
         Reweighting iterations actually run.
     weights_converged_ : bool
-        Whether the loop met ``weight_tol``. ``False`` is not necessarily a
-        failure: read ``weight_shift_`` before treating it as one.
+        Whether the loop met ``coefficient_tol`` within ``max_weight_iter``.
     weight_shift_ : float
-        The largest change in any row's weight on the final iteration. This is
-        what makes ``weights_converged_ = False`` actionable rather than a bare
-        flag, because the reweighting can settle into a small limit cycle rather
-        than a point; a shift of 0.03 says the weights are stable to 3%, which
-        for most purposes is settled.
+        The largest change in any row's weight on the final iteration.
 
     All the fitted attributes of :class:`~process_improve.multivariate.methods.PLS`
     are also present, and mean the same thing, computed on the final weighted fit.
@@ -162,13 +202,14 @@ class PRM(PLS):
     >>> model.predict(X_new)                                   # doctest: +SKIP
     """
 
-    def __init__(  # noqa: PLR0913 - mirrors PLS's constructor plus three loop controls
+    def __init__(  # noqa: PLR0913 - mirrors PLS's constructor plus four loop controls
         self,
         n_components: int,
         *,
         cutoff: float = 4.0,
         max_weight_iter: int = 100,
-        weight_tol: float = 1e-4,
+        coefficient_tol: float = 0.01,
+        weight_tol: float | None = None,
         scale: bool = True,
         max_iter: int = 1000,
         tol: float = epsqrt,
@@ -192,6 +233,7 @@ class PRM(PLS):
         # Stored verbatim and read only in fit(), per the sklearn __init__ convention.
         self.cutoff = cutoff
         self.max_weight_iter = max_weight_iter
+        self.coefficient_tol = coefficient_tol
         self.weight_tol = weight_tol
 
     def _check_settings(self) -> None:
@@ -200,85 +242,52 @@ class PRM(PLS):
         Raises
         ------
         ValueError
-            If ``cutoff``, ``max_weight_iter`` or ``weight_tol`` is out of range.
+            If ``cutoff``, ``max_weight_iter`` or ``coefficient_tol`` is out of range.
         """
         if not np.isfinite(self.cutoff) or self.cutoff <= 0:
             raise ValueError(f"cutoff must be a positive finite number; got {self.cutoff!r}.")
         if int(self.max_weight_iter) < 1:
             raise ValueError(f"max_weight_iter must be at least 1; got {self.max_weight_iter!r}.")
-        if not np.isfinite(self.weight_tol) or self.weight_tol <= 0:
-            raise ValueError(f"weight_tol must be a positive finite number; got {self.weight_tol!r}.")
+        if not np.isfinite(self.coefficient_tol) or self.coefficient_tol <= 0:
+            raise ValueError(f"coefficient_tol must be a positive finite number; got {self.coefficient_tol!r}.")
+        if self.weight_tol is not None:
+            warnings.warn(
+                "process_improve.multivariate.methods.PRM's weight_tol is deprecated since 2.2.0 and will be "
+                "removed in 3.0; it has no effect. PRM stops, as Serneels et al. (2005) do, when the norm of "
+                "its regression on the unit-length scores changes by less than coefficient_tol.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+
+    def _centres_and_scales(self) -> bool:
+        """Return True: PRM centres robustly even when it does not scale."""
+        return True
 
     def _make_scalers(
         self,
-        X: pd.DataFrame,
-        Y: pd.DataFrame,
-        sample_weight: np.ndarray | None,
+        X: pd.DataFrame,  # noqa: ARG002 - the scalers were fitted once, before the loop
+        Y: pd.DataFrame,  # noqa: ARG002
+        sample_weight: np.ndarray | None,  # noqa: ARG002
     ) -> tuple[MCUVScaler, MCUVScaler]:
-        """Centre and scale by *weighted* statistics rather than the plain mean and SD.
+        """Return the robust scalers ``fit`` built before reweighting, the same at every iteration.
 
-        This override is the reason PRM works at all. The base class fits its
-        scalers on every row with non-zero weight, and PRM's weights are never
-        exactly zero (the Fair function does not reach it), so without this the
-        centring and scaling would be the ordinary, breakdown-point-zero ones.
-        The weighted fit would then be running inside a coordinate system that
-        the outliers had already chosen.
-
-        With equal weights this returns exactly what the base class does, so the
-        override changes nothing for a caller who is not reweighting.
+        Recomputing the centre with the weights would let the fit move its own
+        origin; the paper centres once, at statistics no outlier controls.
         """
-        return (
-            _WeightedMCUVScaler().fit(X, sample_weight=sample_weight),
-            _WeightedMCUVScaler().fit(Y, sample_weight=sample_weight),
-        )
+        return self._robust_scalers
 
-    def _starting_weights(self, X: np.ndarray, Y: np.ndarray, prior: np.ndarray) -> np.ndarray:
-        """Weights for the first iteration, from the data alone.
-
-        The loop needs a starting point that is already resistant, because an
-        iteration started from the least-squares fit can be led straight to a
-        bad local solution and stay there: reweighting descends, it does not
-        search. So leverage is measured against the L1 median of X and the
-        residual against the median of Y, neither of which the outliers control.
-        """
-        active = prior > 0
-        leverage = np.linalg.norm(X - l1_median(X[active]), axis=1)
-        median_leverage = max(float(np.median(leverage[active])), epsqrt)
-        weights = fair_weights(leverage / median_leverage, self.cutoff)
-
-        for column in Y.T:
-            deviation = column - np.median(column[active])
-            weights = weights * fair_weights(deviation / _robust_scale(deviation[active]), self.cutoff)
-        return weights
-
-    def _updated_weights(self, X: pd.DataFrame, Y: pd.DataFrame, prior: np.ndarray) -> np.ndarray:
-        """Recompute the row weights from the fit that is currently in place.
-
-        ``prior`` is the caller's ``sample_weight``. Rows it zeroes are excluded
-        from the medians below, not merely from the fit: PLS documents a
-        zero weight as equivalent to dropping the row, and a row that still
-        moved the median residual scale or the median score distance would not
-        be dropped, only silenced.
-        """
-        # Residuals in the scaled space, so that targets measured in different
-        # units contribute comparably to a multi-target row's residual.
-        # ``scale=False`` says the caller has already put Y into modelling units,
-        # so there is nothing to divide by; the scaler is then absent, not broken.
-        y_scale = 1.0 if self._y_scaler is None else np.asarray(self._y_scaler.scale_, dtype=float)
-        residuals = (np.asarray(Y, dtype=float) - np.asarray(self.predict(X), dtype=float)) / y_scale
-        # A single number per row: the paper is written for a single y, and the
-        # row norm is the reading of it that keeps one bad target from being
-        # averaged away by several good ones.
-        per_row = np.linalg.norm(residuals, axis=1)
-        active = prior > 0
-        residual_weights = fair_weights(per_row / _robust_scale(per_row[active]), self.cutoff)
-
-        scores = np.asarray(self.scores_, dtype=float)
-        distances = np.linalg.norm(scores - l1_median(scores[active]), axis=1)
-        median_distance = max(float(np.median(distances[active])), epsqrt)
-        leverage_weights = fair_weights(distances / median_distance, self.cutoff)
-
-        return residual_weights * leverage_weights
+    def _reweighted(self, Y: pd.DataFrame, fit_weights: np.ndarray, active: np.ndarray) -> tuple[np.ndarray, float]:
+        """Return the weights the current fit gives each row, and the norm of its regression on unit-length scores."""
+        residuals = Y.to_numpy(dtype=float) - self.predictions_.to_numpy(dtype=float)
+        residual = _residual_weights(residuals, active, self.cutoff)
+        # Each component scaled to unit length in the weighted fit, as SIMPLS's scores
+        # are; NIPALS's first components are much the longest, and would decide alone.
+        lengths = np.maximum(np.linalg.norm(np.sqrt(fit_weights)[:, None] * self._scores, axis=0), epsqrt)
+        leverage = _leverage_weights(self._scores / lengths, active, self.cutoff)
+        weights = residual * leverage
+        weights[weights == 0] = _SMALLEST_WEIGHT
+        # The regression of y on the unit-length scores is each y-loading times its score's length.
+        return weights, float(np.linalg.norm(np.asarray(self.y_loadings_, dtype=float) * lengths))
 
     def fit(self, X: DataMatrix, Y: DataMatrix, sample_weight: np.ndarray | None = None) -> PRM:
         """Fit by alternating between a weighted PLS fit and a reweighting step.
@@ -288,12 +297,14 @@ class PRM(PLS):
         X : array-like of shape (n_samples, n_features)
             Training data.
         Y : array-like of shape (n_samples, n_targets)
-            Target values.
+            Target values. The paper is written for one; with several, a row's
+            residual is the norm of its residuals, each standardised alone.
         sample_weight : array-like of shape (n_samples,), optional
             Prior row weights, multiplied into the robust weights at every
             iteration. Use this to express knowledge the data cannot carry, such
             as a run you already know was compromised; it is not needed to
-            downweight outliers, which is what the model is for.
+            downweight outliers, which is what the model is for. A row with a
+            zero weight is left out of every median and centre, as if dropped.
 
         Returns
         -------
@@ -303,8 +314,8 @@ class PRM(PLS):
         Raises
         ------
         ValueError
-            If ``cutoff``, ``max_weight_iter`` or ``weight_tol`` is out of range,
-            or if the data contain missing values (see Notes).
+            If ``cutoff``, ``max_weight_iter`` or ``coefficient_tol`` is out of
+            range, or if the data contain missing values (see Notes).
 
         Notes
         -----
@@ -326,41 +337,38 @@ class PRM(PLS):
             )
 
         prior = _checked_prior(sample_weight, X_df.shape[0])
-        weights = self._starting_weights(X_df.to_numpy(dtype=float), Y_df.to_numpy(dtype=float), prior)
+        active = prior > 0
+        self._robust_scalers = (
+            _robust_scaler(X_df, active, scale=self.scale, l1=True),
+            _robust_scaler(Y_df, active, scale=self.scale, l1=False),
+        )
+        x_centred = self._robust_scalers[0].transform(X_df).to_numpy(dtype=float)
+        y_centred = self._robust_scalers[1].transform(Y_df).to_numpy(dtype=float)
+        weights = _leverage_weights(x_centred, active, self.cutoff) * _residual_weights(y_centred, active, self.cutoff)
 
         self.weights_converged_ = False
-        self.n_weight_iter_ = 0
-        self.weight_shift_ = np.inf
-        best_shift, stalled = np.inf, 0
+        regression_norm = np.inf
         for iteration in range(1, int(self.max_weight_iter) + 1):
             self.n_weight_iter_ = iteration
-            PLS.fit(self, X_df, Y_df, sample_weight=prior * weights)
-            updated = self._updated_weights(X_df, Y_df, prior)
-            shift = float(np.max(np.abs(updated - weights)))
-            weights = updated
-            self.weight_shift_ = shift
-            if shift <= self.weight_tol:
+            fit_weights = prior * weights
+            PLS.fit(self, X_df, Y_df, sample_weight=fit_weights)
+            updated, norm = self._reweighted(Y_df, fit_weights, active)
+            self.weight_shift_ = float(np.max(np.abs(updated - weights)))
+            change = abs(norm - regression_norm)  # infinite on the first iteration
+            weights, regression_norm = updated, norm
+            if change <= self.coefficient_tol * max(norm, epsqrt):
                 self.weights_converged_ = True
                 break
 
-            # The reweighting can settle into a small limit cycle instead of a
-            # point: the leverage weight normalises by the median score distance
-            # of the very scores it is changing, so suppressing an outlier
-            # contracts the cloud, which raises everyone's standardised distance,
-            # which changes the fit again. Once the step stops shrinking, every
-            # further iteration costs a full PLS fit and buys nothing, so stop
-            # and let ``weight_shift_`` say how stable it actually got.
-            if shift < best_shift * _STALL_RATIO:
-                best_shift, stalled = shift, 0
-            else:
-                stalled += 1
-                if stalled >= _STALL_PATIENCE:
-                    break
-
-        # One last fit, so the model that is returned is the one the final
-        # weights describe rather than the one they were computed from.
-        PLS.fit(self, X_df, Y_df, sample_weight=prior * weights)
+        # The returned model is the last fit, and the weights are the ones it gives each
+        # row, as the paper has it; no fit after them, which would be another model.
         self.robust_weights_ = weights
+        # The paper's intercept is the median residual of y - Xb, not the centre the
+        # weighted fit ran about (the median of y): move the centre by the difference.
+        shift = np.median(Y_df.to_numpy(dtype=float)[active] - self.predictions_.to_numpy(dtype=float)[active], axis=0)
+        y_scaler = self._robust_scalers[1]  # the scaler PLS.fit set as self._y_scaler
+        y_scaler.center_ = y_scaler.center_ + shift
+        self.predictions_ = self.predictions_ + shift
         return self
 
     def outlier_summary(self, threshold: float = 0.1) -> pd.DataFrame:
