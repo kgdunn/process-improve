@@ -43,7 +43,7 @@ pytest tests/test_multivariate.py -v -o "addopts="
 ```
 
 Only the tests your branch can affect, judged from a static import graph of
-`src/` and `tests/` (see `tests/_selection.py`):
+`src/`, `tests/`, `web/` and `scripts/` (see `tests/_selection.py`):
 
 ```bash
 pytest --no-cov --affected-since=origin/main
@@ -51,13 +51,15 @@ pytest --no-cov --affected-since=origin/main
 
 It counts committed, staged, unstaged and untracked changes since the merge
 base. A test reaches a changed file through `import` statements, module names
-in string literals, and Python snippets held in strings; a changed data file or
-document affects the code that names it. A change to `pyproject.toml`,
-`pytest.ini` or `.coveragerc`, or a deleted file, runs everything. It is a tool
-for fast local feedback: the analysis is static and cannot see every import-time
-side effect, so CI does not use it. CI runs the whole suite on every platform
-and Python it tests, split into duration-balanced shards: two for each `test`
-and `test-free-threaded` row, four for the `coverage` job. The 3.12 `test` row
+and Python file names in string literals, and Python snippets held in strings;
+a changed data file or document affects the code that names it. A change to
+`pyproject.toml`, `pytest.ini` or `.coveragerc`, or a deleted file, runs
+everything. The analysis is static and cannot see every import-time side
+effect, so CI uses it only where a full run backs it up: on a pull request, the
+`test` and `test-free-threaded` rows run the affected tests, and the `coverage`
+job runs the whole suite. A push to `main` and the nightly run test everything
+on every row. Each job is split into duration-balanced shards: two for each
+`test` and `test-free-threaded` row, four for the `coverage` job. The 3.12 `test` row
 runs under `python -O` (`PYTHONOPTIMIZE=1`), to catch validation that an
 `assert` would lose:
 

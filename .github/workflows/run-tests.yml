@@ -204,13 +204,18 @@ jobs:
     # This is where the actual unit and integration tests start. Coverage is
     # measured once, by the `coverage` job; tracing every line costs these cells
     # about twice the time for a number nothing reads.
+    # On a pull request these rows run only the tests the change can reach
+    # (`--affected-since`, tests/_selection.py). The `coverage` job still runs the
+    # whole suite on every pull request, so a test the static selection misses is
+    # caught there; pushes to main and the nightly run test everything here too.
     - name: Test with pytest, half ${{ matrix.shard }} of 2
       # PYTHONOPTIMIZE=1 is `python -O` for every interpreter the run starts, the xdist
       # workers included; the flag alone would reach only the controller. It is empty,
       # so asserts stay on, in every row but 3.12's.
       env:
         PYTHONOPTIMIZE: ${{ matrix.optimize }}
-      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/2
+        AFFECTED: ${{ github.event_name == 'pull_request' && format('--affected-since=origin/{0}', github.base_ref) || '' }}
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/2 $AFFECTED
 
   # The whole suite on the primary platform, with coverage, split into
   # duration-balanced shards (`--shard`, tests/_selection.py). Adding a shard is
@@ -311,6 +316,8 @@ jobs:
         shard: [1, 2]  # two halves, as the `test` rows run (#926)
     steps:
     - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0  # `--affected-since` needs the base branch
     - name: Set up the project environment
       uses: ./.github/actions/setup-env
       with:
@@ -323,15 +330,16 @@ jobs:
     - name: Test with pytest, without the GIL
       env:
         PYTHON_GIL: "0"
+        AFFECTED: ${{ github.event_name == 'pull_request' && format('--affected-since=origin/{0}', github.base_ref) || '' }}
       # Coverage is gated in the `coverage` job; here the question is only whether
-      # everything passes.
-      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+      # everything passes. A pull request runs only the affected tests, as the `test` rows do.
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/${{ strategy.job-total }} $AFFECTED
 
   # The one check to require in branch protection: green only when every job
   # above it succeeded, so a green pull request has passed the whole suite on
-  # every platform. It has to inspect the results itself: a job that merely
-  # `needs` the others is skipped when one fails, and GitHub counts a skipped
-  # required check as passed. `coverage-report` is left out on purpose, so a
+  # Python 3.13 (`coverage`) and the tests it can affect on the other rows. It
+  # has to inspect the results itself: a job that merely `needs` the others is
+  # skipped when one fails, and GitHub counts a skipped required check as passed. `coverage-report` is left out on purpose, so a
   # coverage dip shows red there without blocking a merge.
   ci-passed:
     name: CI passed
