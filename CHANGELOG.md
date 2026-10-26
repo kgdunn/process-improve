@@ -11,6 +11,382 @@ those changes.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-26
+
+### Added
+
+- **A form to share a case study of your own.** The issue form `case_study.yml` asks for the least an analysis
+  needs: the factors and responses, the runs in the order they were done, how the runs were grouped (in a random
+  order, in blocks, or as a split plot), and the licence the data are shared under (CC BY 4.0 or CC0 1.0). The
+  numbers the contributor's own analysis found are optional; each one given becomes a check. The design catalog
+  links to the form beside the one for proposing a published design, and an entry made from it cites the issue
+  as its source.
+- **The reference catalogue holds Anderson and Whitcomb (2007), *DOE Simplified*.** `anderson-whitcomb-2007`
+  holds the book's 30 experiments (16 worked examples and 14 practice problems) and 16 design layouts, with 668
+  printed numbers: simple comparisons and blocking, two-level factorials and fractions with their aliases, an
+  irregular 3/4 fraction, minimum-run resolution IV and V designs, fold-overs, general factorials, centre points
+  augmented to a central composite design, desirability, two mixture designs, and a table of power for five
+  factors. The library reproduces 578 of the 668. Another 23 differ for reasons the book's own data show: a
+  p-value copied from the row above, two effects swapped between rows, F ratios worked from a rounded mean square,
+  and the two fits behind the confetti example, Table 8-5 at axial distance √2 and the text at the 1.4 it prints.
+  The other 67 have no check, and their reasons name what the library lacks: the irregular and
+  minimum-run designs, an alias matrix against three-factor interactions, and plotting positions for raw data.
+- **Factorial: Learn's "What if" panel predicts every response at the settings the reader chooses (#899).** A
+  slider and a number box set each numeric factor inside its range, and a list sets each categorical factor's
+  level. Each response's prediction, its 95% confidence interval for the mean, its 95% prediction interval for one
+  new run and its leverage follow each move at once: Python sends each response's fitted model as numbers once per
+  analysis, and the page predicts from them in its own JavaScript. A flag says when the settings lie beyond the runs
+  a model was fitted to, and a sentence names each limit on the settings they break. The panel opens at the balanced
+  settings, else the best settings, and comes back to them with one button; its Python panel prints the same
+  predictions with `analyze_experiment`.
+- **Factorial: runs given as a regular two-level fraction say its resolution and defining relation (#923).**
+  Runs a reader hands over, or the catalog opens as its source prints them, are read for the fraction they make:
+  "Resolution III: the runs make the defining relation I = A·D·E = B·C·D = A·B·C·E", as a fraction the page makes
+  states its own. Runs that make no such fraction, as a Plackett-Burman design, say nothing of it.
+- **`analyze_experiment(transform="log10")` fits the common log of the response.** Its F tests and p-values are
+  those of `transform="log"`; its sums of squares, coefficients and predictions are on the log10 scale, as
+  Design-Expert prints them, so Table 4-4 of Anderson and Whitcomb's *DOE Simplified* reproduces as printed.
+  The `analyze_experiment` tool accepts it too.
+- **A prediction from a transformed response is also given in the response's own units.** With
+  `analyze_experiment(transform=...)`, each record of `predictions` holds `response_units`: the prediction put
+  back (the response's median, which a monotone transform keeps, not its mean) and the ends of both intervals
+  put back, low before high. An end the transform leaves unbounded, such as a 1/y interval through 0, is `None`.
+- **`signal_to_noise(readings, kind)` works Taguchi's signal-to-noise ratios.** Larger is better, smaller is
+  better and nominal is best, in decibels, of one setting's readings or of a table of them with a row for each
+  setting; a blank reading is left out. It is exported from `process_improve.experiments`, beside
+  `cross_arrays`, and the reference catalogue's `sn_*` statistics use it.
+- **The browser app analyses a response as measured, or as its log, square root or inverse.** A choice beside
+  the model fits the response on that scale (the inverse as -1/y, which keeps the results' order and tests as 1/y
+  does), and the study, its saved link and its workbook keep it. When Box-Cox's interval for lambda leaves out 1
+  and holds one of the three, the analysis says so and offers it in one click. On the log scale each main effect
+  is also shown as a ratio, from the factor's low to its high. Everything said in the response's units is put
+  back in them: the response surface, the best settings and their intervals (the prediction is the median), the
+  what-if panel, and the balance of several responses, whose desirability is worked on each model's scale
+  between the reader's own ends. A level comparison stays on the results as measured, the next step says its
+  numbers are on the model's scale, and the "Show the Python" code fits the same transform. A mixture's
+  responses are analysed as measured.
+- **The browser app reads the spread of the results repeated at each setting.** When two settings or more are
+  run twice or more, as a replicated Taguchi array is, Learn sums up each setting's readings: their mean,
+  standard deviation, ln s and the signal-to-noise ratio of the response's goal (larger is better to maximise,
+  smaller is better to minimise, nominal is best for a target). The response table averages each at every level
+  of each factor, with its delta and rank, and says at which level the spread is smallest and the ratio highest.
+  For a target it names the adjustment factor: the one that moves the mean most for its effect on the spread.
+  "Show the Python" gives the same table with pandas.
+- **`budget` sizes a fractional factorial (#956).** `generate_design(factors,
+  design_type="fractional_factorial", budget=32)` builds the minimum-aberration fraction with that many
+  runs, so sizes between two resolutions, such as 2^(7-2) and 2^(8-3) in 32 runs, no longer need
+  hand-written generators. The budget counts centre runs and replicates. A budget that leaves a number
+  of runs that is not a power of two warns (`UserWarning`) and rounds down to the largest power of two
+  that fits; a budget beyond the half fraction warns and gives the half fraction. With `resolution` as
+  well, the fraction must reach it, or a `ValueError` says so; before, a budget with a resolution gave
+  the fewest runs that reached the resolution, and it now gives the budget's size (`budget=32,
+  resolution=4` for 7 factors: 32 runs, not 16). With `generators`, or when the design type is chosen
+  automatically, the budget is a ceiling, as before.
+- **Choose the number of components on the multivariate page.** A "Cross-validate" button,
+  never run on its own, scores every number of components on values the model was not fitted
+  to and draws R² beside Q² with one standard error, the recommendation marked; clicking a bar
+  uses that number. In Python, `process_improve.workbench.Variant.cross_validate` does the same
+  over a recipe's table, leaving the excluded rows out, and returns a `CrossValidation` that
+  writes the code repeating it. For PLS, the targets weigh alike, as the fitted model weighs
+  them.
+- **A multivariate page in the browser app, at `mva/`.** PCA and PLS on the LDPE example or on your own CSV or
+  Excel file, with Python running in the page (Pyodide): a canvas data table whose column headers show each
+  variable's distribution, run order and missing values, with the selected rows drawn over them; linked score,
+  loading, SPE and T2 plots, where a lasso in one selects the rows everywhere; rows excluded from the model but
+  still drawn, hollow, where the refitted model projects them; "Why are these rows different?", which ranks the
+  variables behind a group's shift with their raw data beside the bars; recipe steps that write the Python that
+  repeats them; and project files that refit and check themselves when opened. The page shares the app's wheel
+  with the designed-experiments page.
+- **`process_improve.workbench`: a recipe that refines a table step by step and writes the Python that repeats
+  it.** A `Recipe` is a source file (`SourceFile`, with its SHA-256 digest) and a list of steps: drop, keep or
+  rename columns, drop rows with a reason, keep the rows where a condition holds, add a computed column,
+  transform a column (log, log10, sqrt, reciprocal, logit, signed log, signed power), read text as numbers, and
+  identify the rows by a column. `Recipe.apply` runs it, `Recipe.to_python` writes a pandas script that rebuilds
+  the same table bit for bit (and refuses a different file of the same name), and `Recipe.to_dict` /
+  `Recipe.from_dict` round-trip it through JSON. Computed columns and conditions use a small expression language
+  that is parsed and never evaluated as Python, so a recipe read from someone else's file stays data.
+- **`process_improve.workbench.Variant`: a PCA or PLS model over a recipe's table that excludes rows without
+  losing them.** An excluded row is left out of the fit and of its centring and scaling, then projected through
+  the fitted model, so `Fit.rows()` still reports its scores, Hotelling's T2 and SPE, flagged. `Variant.to_python`
+  writes the model code that follows the recipe's script. `Fit.explain_group` answers what a cluster on a score
+  plot asks: per component, each variable's share of the difference between the group's average score and the
+  rest's (they add up to that difference), the variables to look at first, their means in the table's own units,
+  and their raw values in run order to draw beside the bars.
+- **`process_improve.workbench.Project`: one zip file with a source file, its recipe, its model variants and the
+  reader's saved selections.** It stores the source file's own bytes, a `manifest.json`, the recipe as a script
+  to run next to the source, and each variant's fitted scores, loadings, T2 and SPE as `.npy` arrays. Opening
+  executes nothing from the file (JSON checked field by field, and `numpy.load(allow_pickle=False)`), and
+  `Project.open` refits every variant and compares it with the stored arrays, naming any that no longer
+  reproduce.
+- **The reference catalogue holds Box and Draper (2007), *Response Surfaces, Mixtures, and Ridge Analyses*
+  (2nd edition), the whole book.** `box-draper-2007` holds 177 experiments and 145 designs from chapters 1 to 20
+  and the answers to the exercises, with 12,499 printed numbers: least squares and its matrix algebra, two-level
+  factorials and fractions, steepest ascent, second-order fits and their canonical analysis, transformations of the
+  response, ridge analysis, composite, Box-Behnken and other response surface designs, variance and bias of designs,
+  and mixture experiments. 8,746 checks agree with the library. 1,049 do not, and each says why: an error in the
+  book, the book's own rounding, a convention the library does not follow, or a library bug. 3,192 numbers are not
+  recomputed, and each says why: what the library lacks, such as ridge analysis under linear restrictions,
+  iteratively reweighted least squares, the bias of a design and mixture lattices of degree 4 and more, or the
+  library function that gives the number where no check reads it yet.
+- **New check options in the reference catalogue:** `exp10` reads a fit to common logs back as an antilog;
+  `sign_of` and `abs` on `library_value` give an eigenvector the sign a source prints; `ss_total_uncorrected`,
+  `ss_mean`, `ss_regression_uncorrected`, `df_model_uncorrected` and `ms_regression_uncorrected` check an analysis
+  of variance about zero; the `angular_degrees` summary is arcsin (m/n)^1/2 in degrees, with a source's own values
+  at m = 0 and m = n.
+- **Multivariate session tools for agents.** `mva_open`, `mva_fit`, `mva_explain`, `mva_predict` and
+  `mva_script` let an agent work a multivariate analysis step by step, as the Multi- and Megavariate book does: fit,
+  find the rows beyond the T² or SPE limits and the variables that set them apart, leave rows out or transform a
+  column, and fit again. The tools keep no state: each takes the analysis so far as a JSON *session* (the source,
+  its recipe, and every model with the one it grew from and why) and returns it with the step added, so the session
+  works in safe mode and is the whole record. `mva_script` writes the Python that rebuilds each model.
+- **Reproduced from the books: a page of the design catalog at https://factori.al/catalog/reproduced/.** It shows,
+  for every case of every source in the reference catalogue, how closely process-improve reproduces the numbers
+  the source prints, in four tiers: fully reproduced (every recomputed number agrees to the source's last printed
+  digit), within 1%, within 5%, and unable to reproduce. A table counts the cases and the numbers in each tier. A
+  table by source groups the sources by their form (books, journal papers, and handbooks, encyclopedias and
+  courses), with each group's totals and the share of each source's printed numbers that agree. A chart shows how
+  far off the differing numbers are. Each tier opens as a list of its cases, grouped by source, and each case lists
+  the numbers that differ with the printed value, the library's value, the relative difference, where the source
+  prints it and the reason the catalogue records. The page can be searched (a title, a quantity, a word of the
+  reasons such as "misprint"), filtered by source, form of source and kind of case, and its address keeps the
+  view, down to one case. The causes of the differences, and of the printed numbers not recomputed, are counted
+  for all the sources together, and a list of what the library lacks orders the missing methods by how many
+  printed numbers each would recompute.
+- **Every difference and every number not recomputed in the reference catalogue now records its cause.** A
+  check with a `disagreement` names one of `reference_catalogue.DISAGREEMENT_CAUSES` (an error in the source, a
+  quiz option its key marks incorrect, the source's rounding, another method, the library, or not known yet) and a
+  check with a `manual` reason one of `UNCHECKED_CAUSES` (not in the library yet, not read by a check yet, data not
+  printed, nothing to recompute); `reproduce_reference_catalogue` reports it in a `cause` column. A number the source
+  prints in error, or a quiz option keyed incorrect, does not count against a case's tier
+  (`design_catalog.LIBRARY_RIGHT`).
+- **`design_catalog.catalog_reproduction`** returns that classification for every case, or for one source, and
+  `REPRODUCTION_TIERS` holds each tier's largest relative difference. **`design_catalog.source_form`** reads the
+  form of a source from what the catalogue records of it (`SOURCE_FORMS`). The browser app's build writes both to
+  `catalog/reproduction.json`.
+
+### Changed
+
+- **Factorial's design catalog counts its designs only (#923).** An entry of facts about designs, or of one sample
+  with nothing varied, is listed but counted apart from the designs, after them: "and 3 entries of facts about
+  designs or a single sample".
+- **A study of one factor that its source compares as levels opens with that factor categorical (#923).**
+  Montgomery's plasma etching compares four RF powers, `C(power)`: Factorial compares them with Tukey's intervals,
+  as the book does, and Learn shows 79 of the numbers the book prints for it, where it showed none.
+- **The `dev` extra is removed (#513).** `pip install 'process-improve[dev]'` installed the
+  contributors' test, lint and documentation tools, Sphinx among them, from the published wheel, and
+  its list had drifted from the `dev` dependency group that CI installs. Contributors install the
+  group with `uv sync --dev --all-extras`, as `CONTRIBUTING.md` now says. No runtime extra changes.
+- **`PCA.select_n_components` with the element-wise k-fold scheme (`cv_scheme="ekf"`, the default) runs about four
+  times faster on wide data.** Each EM step now projects onto the leading components from the smaller Gram matrix
+  instead of computing a full SVD. The PRESS values are unchanged to rounding (1e-13 relative): 7-fold cross-validation
+  of the tablet spectra up to 20 components takes 103 s, where it took 445 s.
+- **`find_elbow_point`, and `f_elbow` with it, scale both axes to span 0 to 1 before looking for the
+  elbow (#513).** The elbow was the point nearest the lines' intersection by a distance that added
+  x units to y units, so it moved when the units did: on one test curve it was at index 24 with time
+  in hours, 26 in seconds, and 38 with y multiplied by 1000. It is now 24 for all three. The elbow
+  you get can move by a few points wherever the two axes span very different ranges.
+- **`panel_scorecard` measures each panelist's `agreement` against the other panelists only (#513).**
+  The consensus was the mean of every panelist, the one being scored included, and a mean that holds
+  a panelist's own scores correlates with them by construction. This changes the numbers you get:
+  `agreement` falls, by most on a small panel. With two panelists both now get
+  the correlation between them (0.665 in the new test, where they got 0.928 and 0.896), and a panel
+  of one gets NaN instead of 1.0. Because the flags compare `agreement` with fixed levels (0.5, and
+  0 for anti-correlation), a panelist can now be flagged, and dropped by `drop_panelists="auto"` in
+  `analyze_descriptive`, where it was not before. The same applies to the `sensory_panel_check` and
+  `sensory_analyze_descriptive` tools.
+- **`mixed_assessor_model` gives NaN F-tests, with a `RuntimeWarning`, for an attribute where a
+  panelist did not score every product (#513).** Its sums of squares add up only on a complete
+  panelist-by-product table. With a missing cell the four F-test columns were sometimes NaN and
+  sometimes a finite number on the wrong degrees of freedom, with no warning; a finite value you got
+  before for such an attribute is now NaN. The warning names the attributes and points to
+  `mixed_assessor_model_reml`, which handles missing cells. The scaling coefficients are unchanged.
+- **`PLS.select_n_components` runs about twice as fast on wide data.** The per-row and per-column sums of squares
+  that PLS and PCA fits keep at every component were computed one row or column at a time in Python; they are now one
+  vectorised call. Fitted values are unchanged (under 1e-12 relative), and cross-validated PRESS to 1e-9: 7-fold
+  cross-validation of the 650-column tablet spectra, 10 repeats to 20 components, takes 17 s, where it took 31 s.
+- **The package is classified as production-ready on PyPI.** Its trove classifier moves from
+  `Development Status :: 4 - Beta` to `Development Status :: 5 - Production/Stable`.
+- **A `budget` too small for the design raises a `ValueError` (#957).** Optimal, mixture and
+  mixture-process designs used to raise such a budget and log a warning, so a caller who set the run
+  count as a limit got a larger design than asked for, with no Python warning to catch. They now refuse
+  it, and say how many runs are needed, when the budget is below the model's number of coefficients,
+  when it leaves too few runs for the block effects of `n_blocks`, or when it leaves too few new runs
+  for the coefficients that `fixed_runs` do not estimate. A budget left at its default is still sized
+  to the design, and now counts the block effects as well. `metadata["budget_requested"]`, which
+  recorded the raised budget, is no longer set by these designs. The browser app refuses such a run
+  count in the same way, where it used to build the larger design and add a note saying so.
+  `augment_design` still adds the runs an augmentation needs, and says so in its explanation.
+- **`augment_design(..., "add_runs_optimal")` raises a `ValueError` when `n_additional_runs` is too few
+  (#957).** When the existing runs left more model coefficients unestimated than the runs asked for, the
+  augmentation added more runs than requested and said so in its explanation. It now refuses, naming
+  how many new runs the target model needs, as `generate_design` refuses a budget that is too small.
+- **`optimize_responses(method="canonical_analysis")` returns the ridge form as `ridge_form`, in place of
+  `b_canonical`, with the same contents.** The old key named Box and Draper's B canonical form, but it held their
+  ridge form of Eq. 11.1.2, y = y0 + theta X_k + sum of lambda_i X_i^2. The form centred on the stationary point,
+  `canonical_axes`, is their B form; the docstring called it the A form, and now names both as Box and Draper
+  (2007) do. `b_canonical` is gone, with no alias.
+- **Five arguments and result keys are named for what they are, not by a letter** (no aliases, except as noted):
+  - `bibd_analysis` returns `n_treatments`, `n_blocks`, `block_size`, `replicates`, `concurrences` and
+    `n_runs` in place of `a`, `b`, `k`, `r`, `lambda` and `n`;
+  - `spe_plot` and `t2_plot` (and the PCA and PLS methods) take `n_components` in place of `with_a`;
+  - `evop_worksheet` takes `range_factor_decimals` in place of `f_decimals`;
+  - `variance_components` reports each fixed effect's `t_value` and `p_value`, and each fixed term's test
+    `f_value` and `p_value`, in place of `t`, `p` and `f`;
+  - `ControlChart.calculate_limits` takes a known standard deviation as `sigma` in place of `s`; the fitted
+    attribute is still `s`. This one keeps `s=` as a deprecated alias.
+- **A refused name now comes with a name that works.** A factor, response or column name that a model formula
+  cannot hold is refused with a suggestion close to it: `'Water %'` gives `Water_pct`, `'Temp (°C)'` gives
+  `Temp_deg_C`, `'2nd stage'` gives `x2nd_stage` and `'lambda'` gives `lambda_`. `analyze_experiment`,
+  `evaluate_design`, `augment_design` and `ASCA` refuse every unfit factor name in one error, with a map to paste
+  into `DataFrame.rename(columns=...)`; a suggestion that another column already has gets `_2`, `_3`, and so on.
+  On factori.al, the factor table offers the suggestion as you type the name.
+
+### Deprecated
+
+- **`ControlChart.calculate_limits(s=...)` is deprecated since 2.2.0 and will be removed in 3.0; use `sigma=`.**
+  The keyword `s` still works and issues a `DeprecationWarning`. Passing both `s` and `sigma` raises `ValueError`.
+
+### Fixed
+
+- **The `boxplot` tool leaves missing values out of each box (#513).** One missing value made every quartile
+  of its box NaN, so the box came back as five `null`s and drew as nothing, with no error. The quartiles,
+  whiskers and outliers are now computed from the values present. A column or group with no values at all
+  is refused by name, as `{"error": "'y' has no values to plot: every value is missing."}`.
+- **`ChartSpec.to_dict()` is JSON-safe, as documented (#513).** It converted enums only, so a layer's data
+  built from a DataFrame kept its numpy scalars and `json.dumps` raised on an `np.int64`. It now converts
+  them as every tool's output is converted (`tool_spec.clean`): numpy values become Python values, and
+  NaN and infinity become `None`.
+- **The batch feature functions no longer add columns to the caller's DataFrame (#513).** Without a
+  `batch_col` or `phase_col`, every `f_*` feature inserted `__batch_grouper__` and `__phase_grouper__`
+  into the frame it was given; they now go on a copy.
+- **`f_iqr` omits missing values, as `f_std` and `f_robust_mad` do (#513).** One missing value made
+  the whole batch's IQR NaN.
+- **`f_area` works on a datetime or timedelta time axis, and measures it in seconds (#513).** The
+  widths were timedeltas, so the area could not be stored as a number. A numeric axis is unchanged.
+- **`f_crossing` gives NaN for a batch that never crosses the threshold, as documented (#513).** It
+  gave an empty array.
+- **`batch_dtw` keeps each batch's own key (#513).** With keys of mixed types, such as `1` and
+  `"two"`, every key was cast to the type of the last one, so batch `1` came back as `"1"`.
+- **`batch_dtw` always runs its first iteration (#513).** A `tolerance` at or above the square root of
+  the number of aligned columns skipped the alignment and raised an `IndexError`.
+- **`resample_to_reference` refuses a batch of fewer than 2 rows, naming it (#513).** It divided by
+  zero and then failed inside scipy with "`x` array is all-nan".
+- **`OLS` gives a near-perfect fit its `pi_range_` grid (#513).** Below a residual standard error of
+  about 1e-7 the grid was NaN, and `multiple_linear_regression` left out its `pi_range` key; the band
+  now has the near-zero width that `prediction_interval()` already gave.
+- **`PCA.select_n_components(return_consensus=True)` scales the block for parallel analysis
+  whatever `scale_inside_folds` is (#513).** The flag was passed on as
+  `parallel_analysis(scale=...)`, so with `scale_inside_folds=False` a raw block was compared in its
+  own units against a unit-variance null, and parallel analysis retained every component of loud
+  noise. `parallel_analysis_n_components` and `consensus` can change for calls that passed
+  `scale_inside_folds=False` on a block that was not already autoscaled.
+- **`MBPLS` and `MBPCA` scale each block's Hotelling's T² as they scale the super T² (#513).** Each
+  component is divided by the block scores' second moment about zero over the rows that have a
+  score, the convention `explained_variance_` uses for the super scores. The block T² used the
+  variance about the scores' own mean, which differs once missing cells leave them off-centre, and
+  on an `MBPLS` fit with a row that has nothing observed in a block, that variance was NaN, so the
+  block's T² went unscaled for every row. `block_hotellings_t2_` changes for fits with missing data,
+  slightly for scattered missing cells and by a large factor in the second case; on complete data it
+  is unchanged to rounding.
+- **`TPLS` fits a blend with nothing observed in F or Z, and a material with nothing observed in D
+  (#513).** The row's regression had an empty denominator, which gave NaN, and the NaN spread to
+  every score of every later component, so since #709 the fit was refused. The row now gets a
+  zero score or loading in that block and no weight in its regressions, as PCA and PLS fit an
+  all-missing row, so through that block it has no effect on the other rows. A fit still refused,
+  because a block has no variation for the iteration to follow, now says that rather than naming
+  empty rows. `regress_a_space_on_b_row` returns 0 rather than NaN for a row with nothing present.
+- **`TPLS` super weights and block weights point the way of the super score (#513).** The inner
+  PLS step's sign convention negated `t`, `w` and `q` but not `u`, and TPLS regresses its blocks on
+  `u`, so on every component the convention flipped, `w_loadings_super`, `r_loadings_f`,
+  `s_loadings_d`, `v_loadings_d` and `w_loadings_z` came out with the opposite sign to the super
+  score: with no Z block the F super weight was -1. Those components change sign now; scores,
+  predictions, SPE, Hotelling's T² and VIP do not change.
+- **`TPLS` leaves a column with no variance out of every score (#513).** Such a column is scaled to
+  NaN and zeroed, as it was, but its cells were still counted as observed, so in F they entered
+  every row's denominator and shrank every score; the warning added earlier said the column was
+  excluded when it was only partly so. The presence maps (`not_na_d`, `not_na_f`, `not_na_z`,
+  `not_na_y`) are now taken after preprocessing, in `fit` and in `diagnose`. A fit whose F block has
+  a constant column now matches the same fit with that column unobserved; its scores, predictions
+  and loadings change.
+- **`TPLS.diagnose` corrects a Z score for the row's missing cells, as `fit` does (#513).** It
+  computed the correction and never applied it, so a row with a missing Z cell scored closer to 0 in
+  `diagnose` than in `fit`, which moved its T², SPE and predictions too. Rows with every Z cell
+  observed are unchanged.
+- **`AnalysisRecipe` and `RecipeStep` can be hashed, and their sequences cannot be changed in place
+  (#513).** Both were `frozen=True` dataclasses holding lists, so `hash(recipe)` raised `TypeError` and
+  `recipe.stages.append(...)` changed a registered recipe. `cue_phrases`, `inputs_needed`, `stages` and
+  `tools` are now stored as tuples, whatever sequence is passed in; `arg_hints` stays a `dict`, copied
+  from the one passed in. `to_payload()` still returns lists. `select_recipe` no longer re-canonicalises
+  every cue phrase on every query.
+- **Box-Behnken designs for 9, 10, 11, 12 and 16 factors are the published designs.** They were built
+  from a two-level factorial in every pair of factors, which gives more runs than Box and Behnken's
+  (1960) designs: 144 instead of 120 runs at 9 factors, 180 instead of 160 at 10, 220 instead of 176 at
+  11, 264 instead of 192 at 12 and 480 instead of 384 at 16, before centre points. They now use the
+  incomplete block designs of the paper's Table 4, the 11-factor design with the half fraction
+  `x1 x2 x3 x4 x5 = +1` in each block of five. `metadata["construction"]` reports
+  `"published_blocks_of_three"`, `"_four"` or `"_five"`; 8, 13 to 15 and more than 16 factors, for which
+  no design was published, still pair every two factors (`"all_pairs"`).
+- **`MCUVScaler` keeps integer column labels.** It took its labels from sklearn's `feature_names_in_`,
+  which sklearn sets only for string labels, so a frame with integer labels (a spectrum's wavelengths, or
+  a CSV read with `header=None`) came out labelled 0..K-1. The loadings of a model fitted to the scaled
+  frame were then labelled with the wrong wavelengths. `center_`, `scale_`, and the output of `transform`
+  and `inverse_transform` now carry the frame's own labels; ndarray input is still numbered from 0.
+- **NIPALS PCA, PLS, MBPCA and MBPLS are right when a block has as many rows as columns.**
+  `quick_regress` chose whether to regress on the columns or the rows of a block from the block's shape,
+  so a square block (N = K, or N = M for Y) was regressed on the wrong axis. NIPALS PLS then gave wrong
+  weights, and NIPALS PCA wrong loadings, even on complete data; a cross-validation fold that happened
+  to be square gave a wrong Q2. `quick_regress` takes a new keyword `per="column"` or `per="row"`, which
+  every NIPALS loop now passes. Called without it on a square block, it raises `ValueError` instead of
+  guessing; other shapes behave as before.
+- **A factor named `I` no longer breaks a quadratic model with "'Series' object is not callable", nor a factor
+  named `C` an ASCA.** Patsy finds a column before its own function of the same name, so a column `I` turned every
+  square term `I(P ** 2)` into a call of the column, and a column `C` did the same to ASCA's `C(A, Sum)`. The formula
+  check now refuses a column named like a function the formula calls, with a rename to paste:
+  `.rename(columns={'I': 'I_'})`. A factor `I` in a model without square terms still works. On factori.al, a design
+  whose model has squares (Box-Behnken, central composite, ...) refuses a factor named `I` when it is made, before
+  the runs, and offers `I_`.
+- **factori.al refuses a factor named with a Python keyword, such as `lambda`, when you type it.** The page
+  accepted the name, made the design and simulated the runs; only the analysis refused it, after the experiment.
+- **`analyze_experiment` fits a response named `I`, `C` or `Q`.** A column of that name hid patsy's function of
+  the same name, so a quadratic model failed with `PatsyError: 'Series' object is not callable` at `I(x1 ** 2)`.
+  The response is now fitted under a stand-in name and reported under its own, as a response named after a
+  Python keyword already was. Box and Draper's Exercise 7.9 names its responses I, II and III.
+- **Safe mode's memory cap no longer counts the imports against a tool call.** `max_memory_mb`
+  (`PROCESS_IMPROVE_MAX_MEMORY_MB`) is now the address space a worker may map beyond what it mapped on importing
+  the package, as the worker's own documentation said. It was an absolute cap on `RLIMIT_AS`, which counts address
+  space reserved rather than memory in use: on the free-threaded build the imports alone reserve about 1.5 GiB, so
+  every tool that allocated failed with "out of memory", even on a 7 kB CSV. On the build with the GIL the imports
+  reserve about 0.8 GiB, so the total a worker may reserve rises from 1 GiB to about 1.8 GiB at the default.
+- **The Holt-Winters `ControlChart` uses a given `sigma` when the data cannot estimate the scale.** On a
+  series with no usable spread, such as one where every value is the same, `calculate_limits(y, sigma=...)`
+  raised with pinned lambdas or in the lambda search, although the error told the caller to pass `sigma`,
+  and ignored `sigma` and `target` below the warm-up length (fewer than 10 values), giving limits of zero
+  width (`s = 0`) or `s = NaN` for one value. Now `sigma` is the scale of the limits, the lambdas that the
+  data cannot choose are 0.5 and 0.8, and a short series uses a given `target`. Data with usable spread give
+  the same results as before. Without `sigma`, a short series with no spread now raises `ValueError`, so
+  the `control_chart` tool reports it as an error instead of charting it with zero-width limits.
+
+### Documentation
+
+- Correct `f_sum` See also reference (removed invalid `f_cumsum`).
+- Correct `f_rupture` See also reference (`f_cross` -> `f_crossing`).
+- Add `cusum` to the list of variants in `ControlChart.calculate_limits`.
+- Document the `ok` flag and early-exit shape of `permutation_column_null`.
+- Fix typo "elbox" -> "elbow" in `f_elbow` docstring.
+- **`robust_regression` says which of its outputs are robust (#513).** Only the slope and the
+  intercept are. The standard errors, `t_value`, `R2`, the confidence intervals and `pi_range` use the
+  least-squares formulas on the residuals around the robust line, so one outlier widens the intervals
+  without moving the slope. `R2` is `RegSS / (RegSS + RSS)`, which is not the `1 - RSS / TSS` of
+  `multiple_linear_regression`. The `robust_regression` tool's description says the same.
+- **Each VIP says which variance weights its components (#513).** `vip()` weights by R2X on a PCA
+  and by R2Y on a PLS, with one formula for both; `MBPLS.block_vip_` weights by each block's R2X
+  while `MBPLS.super_vip_` weights by R2Y; `MBPCA.block_vip_` and `TPLS.vip()` weight by the block's
+  own variance. The docstrings now say so.
+- **`PCA.diagnose` and `PLS.diagnose` say what shape their `hotellings_t2` is (#513).** PCA returns
+  the cumulative T² as a DataFrame with one column per component; PLS, MBPLS and MBPCA return the
+  full model's T² as a Series. Both docstrings now give each field's type and shape, and name the
+  difference: the Series is the DataFrame's last column.
+
 ## [2.1.0] - 2026-10-23
 
 ### Added
@@ -10269,7 +10645,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/kgdunn/process-improve/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/kgdunn/process-improve/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/kgdunn/process-improve/compare/v1.99.0...v2.0.0
 [1.99.0]: https://github.com/kgdunn/process-improve/compare/v1.98.0...v1.99.0
