@@ -222,6 +222,22 @@ covers the server: its one-time setup, what it logs, and how to roll back.
   `tests/web/_support.py` (a mixture design in `ALL_MIXTURES`), so the tests that run over every one
   include it.
 
+### Writing for the browser app
+
+The page is read on a phone first, so each screen carries one idea that a reader takes in at a glance.
+
+- **One or two numbers per screen,** and only those that answer the reader's question. "Experiments
+  here usually have about 3 factors and a dozen runs" is a whole screen's worth.
+- **Counts become words:** most, usually, a few, about a dozen. Write "Most are full factorials",
+  not "81 of 126 are full factorials".
+- **Spread and share become a picture:** a dot chart, a bar, a sketch of a design's runs, with a
+  legend in words.
+- **Exact numbers go behind a "Show the numbers" link,** and on the page a reader opens to check
+  them, such as a case's printed values next to Factorial's.
+- **Use the names the reader knows:** a book, a field, an example. Do not use the catalogue's own
+  terms (tier, cause, check).
+- **Claim no more than the data hold.** Where a difference has no known cause, say so.
+
 ## Linting and formatting
 
 ```bash

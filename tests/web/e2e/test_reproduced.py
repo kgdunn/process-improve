@@ -22,10 +22,12 @@ def reproduction(reproduction_file) -> dict:
 
 
 def open_page(context, site: str, fragment: str = "") -> object:
-    """Open the page, and wait until it has drawn the cases."""
+    """Open the page, wait until it has drawn the cases, and show the numbers."""
     page = context.new_page()
     page.goto(f"{site}catalog/reproduced/{fragment}")
-    page.wait_for_selector("#tiers tbody tr")
+    page.wait_for_selector("#tiers tbody tr", state="attached")
+    if page.get_attribute("#numbers", "open") is None:
+        page.click("#numbers > summary")
     return page
 
 
@@ -61,9 +63,9 @@ def totals(reproduction: dict, key: str) -> dict[str, int]:
 def test_the_catalog_leads_to_the_page_and_its_table_counts_every_case(reproduced_context, site, reproduction):
     page = reproduced_context.new_page()
     page.goto(f"{site}catalog/")
-    page.click("text=Reproduced from the books")
+    page.click("text=Can I trust it?")
     page.wait_for_url("**/catalog/reproduced/")
-    page.wait_for_selector("#tiers tbody tr")
+    page.wait_for_selector("#tiers tbody tr", state="attached")
     recomputed = [c for c in reproduction["cases"] if c["tier"]]
     expected = {tier: sum(c["tier"] == tier for c in recomputed) for tier in reproduction["tiers"]}
     assert tier_counts(page) == expected
@@ -94,6 +96,18 @@ def test_a_tier_opens_its_list_and_a_case_shows_each_number_that_differs_and_why
     page.wait_for_function(f"location.hash.includes('case={TENSILE}')")
 
 
+def test_the_numbers_wait_behind_a_button_and_a_case_named_leaves_them_there(reproduced_context, site):
+    """The page opens on its words; the tables open on asking, or for an address that names a source or a tier."""
+    page = reproduced_context.new_page()
+    page.goto(f"{site}catalog/reproduced/#case={TENSILE}")
+    page.locator(f"#case-{TENSILE} .number").first.wait_for()
+    assert page.get_attribute("#numbers", "open") is None
+    assert page.is_hidden("#tiers"), "the table of tiers is behind Show the numbers"
+    assert page.is_hidden("#books-section"), "the sample holds papers, and the list names books only"
+    page.click("#numbers > summary")
+    assert page.is_visible("#tiers")
+
+
 def test_an_address_opens_the_case_it_names(reproduced_context, site):
     page = open_page(reproduced_context, site, f"#case={TENSILE}")
     case = page.locator(f"#case-{TENSILE}")
@@ -111,6 +125,7 @@ def test_a_source_chosen_narrows_the_page_and_the_address_keeps_it(reproduced_co
     assert page.input_value("#source") == "lenth-1989"
     page.reload()
     page.wait_for_selector("#tiers tbody tr")
+    assert page.get_attribute("#numbers", "open") is not None, "an address naming a source shows its numbers"
     assert tier_counts(page)["within_1"] == 1
     page.click("#scope .link")
     assert sum(tier_counts(page).values()) > 2, "Show every case clears the source"

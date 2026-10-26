@@ -9,6 +9,7 @@ import {
   DEFAULT_VIEW,
   TIER_KEYS,
   SOURCE_ORDERS,
+  bookTallies,
   byForm,
   bySource,
   causeTotals,
@@ -16,6 +17,7 @@ import {
   missingKey,
   errorBands,
   filterCases,
+  firstSentence,
   formatError,
   fromHash,
   groupByTier,
@@ -117,6 +119,20 @@ describe("the sources and the lists", () => {
     assert.deepEqual(rows.map((r) => [r.key, r.form, r.total, r.tiers.reproduced]), [["davies", "book", 3, 1], ["lenth", "paper", 2, 1]]);
     assert.deepEqual([rows[1].numbers, rows[1].agree], [70, 68]);
     assert.deepEqual(bySource(CASES, SOURCES, "name").map((r) => r.key), ["davies", "lenth"]);
+  });
+
+  test("the books are those with a recomputed case, by name, each with its cases by tier", () => {
+    const sources = { ...SOURCES, empty: { short: "Anyone", year: 2000, title: "No cases", form: "book" } };
+    const books = bookTallies(CASES, sources, LIMITS, RIGHT);
+    assert.deepEqual(books.map((b) => b.key), ["davies"], "a paper, and a book with no case, are left out");
+    assert.deepEqual(books[0].tally.cases, { reproduced: 1, within_1: 1, within_5: 1, not_reproduced: 0 });
+  });
+
+  test("a list of books shows the first sentence of each verdict", () => {
+    const verdict = "Factorial gives the book's answers. Where they differ, this page says why.";
+    assert.equal(firstSentence(verdict), "Factorial gives the book's answers.");
+    assert.equal(firstSentence("Factorial gives the paper's answers."), "Factorial gives the paper's answers.");
+    assert.equal(firstSentence(""), "");
   });
 
   test("no order ranks the sources by how much of them reproduces", () => {

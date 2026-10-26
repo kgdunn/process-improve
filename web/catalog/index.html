@@ -30,9 +30,24 @@
 <main class="catalog">
   <p class="about__back"><a href="../"><img src="../favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
   <h1>Design catalog</h1>
-  <p class="lede" id="lede">Designed experiments printed in textbooks, handbooks and papers, and the designs process-improve
-    makes. Search them, filter them, see where each one sits, and open it in Factorial.</p>
+  <p class="lede">Experiments from textbooks and papers. See what others ran, and run it yourself in Factorial.</p>
 
+  <form class="catalog__field" id="field-form" action="fields/">
+    <label for="field">What field are you in?</label>
+    <div class="catalog__field-row">
+      <select id="field" name="field"><option value="">Every field</option></select>
+      <button type="submit" class="button primary">Show</button>
+    </div>
+  </form>
+
+  <nav class="catalog__doors" aria-label="Other ways in">
+    <a class="door" href="books/"><span class="door__title">Browse by book</span>
+      <span class="door__note">Montgomery, Box, Hunter and Hunter, and more</span></a>
+    <a class="door" href="reproduced/"><span class="door__title">Can I trust it?</span>
+      <span class="door__note">Factorial gives the textbooks' answers</span></a>
+  </nav>
+
+  <h2 class="catalog__or">Or search</h2>
   <div class="catalog__search">
     <div class="segmented" role="radiogroup" aria-label="Which designs to show" id="collection">
       <button type="button" role="radio" data-value="published" aria-checked="false">Published</button>
@@ -46,18 +61,16 @@
     </label>
     <p class="catalog__count" id="count" role="status" aria-live="polite">Loading the catalog...</p>
   </div>
-  <p class="hint catalog__examples">Try:
-    <button type="button" class="link try">definitive screening</button>
-    <button type="button" class="link try">3 factors quadratic</button>
-    <button type="button" class="link try">box hunter 1978 with data</button>
-    <button type="button" class="link try">semiconductors</button>
-    <button type="button" class="link try">3-factor projection, survives a lost run</button>
-    <button type="button" class="link try">errata</button>
-    <button type="button" class="link try">gaps</button>
-  </p>
+  <div class="catalog__goals" role="group" aria-labelledby="goals-title">
+    <p class="hint" id="goals-title">What do you want to do?</p>
+    <button type="button" class="goal try" data-query="fractional, plackett, definitive screening, supersaturated">Screen many factors</button>
+    <button type="button" class="goal try" data-query="response surface">Find an optimum</button>
+    <button type="button" class="goal try" data-query="mixture">Blend ingredients</button>
+    <button type="button" class="goal try" data-query="blocks">Run in blocks</button>
+    <button type="button" class="goal try" data-query="survives a lost run">Survive a lost run</button>
+  </div>
   <p class="catalog__views">
     <button type="button" class="link" id="errata-open">Errata: every printed number that does not reproduce</button>
-    <a href="reproduced/">Reproduced from the books: how closely each case reproduces</a>
     <a href="https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml" target="_blank" rel="noopener">Propose a
       design for the catalog</a>
     <a href="https://github.com/kgdunn/process-improve/issues/new?template=case_study.yml" target="_blank" rel="noopener">Share a
