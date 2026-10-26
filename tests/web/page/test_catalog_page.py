@@ -13,6 +13,7 @@ import io
 import json
 import posixpath
 import re
+import statistics
 from collections import Counter
 
 import numpy as np
@@ -76,12 +77,32 @@ def test_every_file_the_reproduction_page_loads_is_published(build_script):
     loaded = {posixpath.normpath(posixpath.join("catalog/reproduced", _page_of(ref))) for ref in refs}
     imported = set(re.findall(r'from "\./([^"]+)"', source("reproduced.js")))
     fetched = set(re.findall(r'fetch\(app\(`?"?([\w./-]+)', source("reproduced.js")))
-    assert loaded == {"catalog/index.html", "favicon.svg", "style.css", "reproduced.js"}
+    # The list of books is written by the build (tests/web/page/test_book_pages.py), not copied from web/.
+    books = "catalog/books/index.html"
+    assert loaded == {"catalog/index.html", "favicon.svg", "style.css", "reproduced.js", books}
     assert imported == {"catalog-views.js", "reproduced-logic.js"}
     assert fetched == {"catalog/reproduction.json"}
     assert source("reproduced.js").count("fetch(") == len(fetched), "every fetch goes through app()"
-    assert loaded | imported <= set(build_script.APP_FILES)
+    assert (loaded - {books}) | imported <= set(build_script.APP_FILES)
     assert '<a href="reproduced/">' in source(PAGE), "the catalog links to it"
+
+
+def test_the_example_the_reproduction_page_opens_with_is_the_book_s():
+    """The pilot plant of Box, Hunter and Hunter: the effect the book prints on its page, and the one its runs give."""
+    page = source("catalog/reproduced/index.html")
+    example = re.search(r'<figure class="trust-example".*?</figure>', page, flags=re.DOTALL).group(0)
+    (entry,) = [e for e in reference_experiments("box-hunter-hunter-1978") if e["name"] == "bhh-pilot-plant-2-3"]
+    (printed,) = [x for x in entry["expected"] if (x["what"], x["term"], x["where"]["page"]) == ("effect", "T", 309)]
+    assert f"p. {printed['where']['page']}</figcaption>" in example
+    assert f"<span>The book <strong>{printed['value']}</strong></span>" in example
+    rows = [dict(zip(entry["runs"]["columns"], row, strict=True)) for row in entry["runs"]["rows"]]
+    effect = statistics.mean(r["y"] for r in rows if r["T"] == 1) - statistics.mean(
+        r["y"] for r in rows if r["T"] == -1
+    )
+    assert "check" in printed, "the library recomputes it"
+    assert "disagreement" not in printed["check"], "and agrees with the book"
+    assert f"<span>Factorial <strong>{effect:.1f}</strong></span>" in example
+    assert 'href="#src=box-hunter-hunter-1978&amp;case=bhh-pilot-plant-2-3"' in example
 
 
 def test_the_app_links_to_the_catalog_and_the_catalog_back():

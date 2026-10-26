@@ -1393,7 +1393,7 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .book-section { margin: 28px 0 0; scroll-margin-top: 12px; }
 .book-section h2 { margin: 0 0 4px; font-size: 1.2rem; }
 .book-section > .hint { margin: 0 0 10px; }
-.book-section .tierbar { margin: 8px 0 4px; }
+.field-list .tierbar { height: 10px; margin: 8px 0 4px; }
 .field-list a.book-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
 .book-example { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .book-status { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; font-weight: 600; }
@@ -1402,12 +1402,35 @@ main.field-page section { background: none; border: 0; border-radius: 0; padding
 .book-group summary { min-height: 44px; display: flex; align-items: center; padding: 0 14px; cursor: pointer; font-weight: 600; }
 .book-group .field-list { padding: 0 8px 8px; }
 .misprints { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.misprint, .book-missing li {
+.misprint, .card-list li {
   display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: var(--panel);
   border: 1px solid var(--line); border-radius: 10px;
 }
 .misprint p { margin: 0; }
 .misprint__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 600; }
 .misprint__head .field-list__note { flex: none; font-weight: 400; }
-.misprint__values { display: flex; flex-wrap: wrap; gap: 4px 18px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.book-values { display: flex; flex-wrap: wrap; gap: 4px 18px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .misprints + .field-list__rest .misprints { margin-top: 8px; }
+
+/* The top of the reproduction page: one example in words, why answers differ, the books; the tables behind "Show the numbers". */
+.trust-example {
+  display: flex; flex-direction: column; gap: 6px; max-width: 820px; margin: 16px 0 0; padding: 14px 16px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+}
+.trust-example p { margin: 0; }
+.trust-example__what { font-weight: 700; font-size: 1.1rem; }
+.trust-example .book-values { font-size: 1.3rem; }
+.trust-example a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+main.reproduced .trust-section { background: none; border: 0; border-radius: 0; padding: 0; margin: 28px 0 0; max-width: 820px; }
+.trust-section h2 { margin: 0 0 4px; font-size: 1.2rem; }
+.trust-section > .hint { margin: 0 0 10px; }
+.trust-section .field-chart__legend { margin: 0 0 10px; }
+.trust-numbers { margin: 28px 0 0; }
+.trust-numbers > summary {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; cursor: pointer; font-weight: 600;
+  color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.trust-numbers[open] > summary { margin-bottom: 8px; }
+@media (min-width: 900px) {
+  .trust-section .card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

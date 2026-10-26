@@ -1694,7 +1694,7 @@ def _misprint_values(number: dict[str, Any]) -> str:
         return ""
     printed, found = html.escape(number["printed"]), html.escape(as_printed(number["found"], number["printed"]))
     book, data = f"<span>Book <strong>{printed}</strong></span>", f"<span>Data <strong>{found}</strong></span>"
-    return f'<p class="misprint__values">{book}{data}</p>'
+    return f'<p class="book-values">{book}{data}</p>'
 
 
 def _lacking(cases: list[dict[str, Any]]) -> list[str]:
@@ -1731,7 +1731,7 @@ def book_page(source: dict[str, Any], cases: list[dict[str, Any]], where: dict[s
             "not-yet",
             "Not yet",
             f"Answers {noun} prints that Factorial cannot compute yet, by what it lacks.",
-            _rest(missing, "ul", "field-list book-missing") if missing else "",
+            _rest(missing, "ul", "field-list card-list") if missing else "",
         ),
     ]
     held = [section for section in sections if section[3]]

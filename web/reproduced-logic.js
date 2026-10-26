@@ -100,6 +100,18 @@ export function summarise(cases, limits, right = []) {
   return out;
 }
 
+/**
+ * The books with a recomputed case, by name, each with its cases summarised (see summarise): the list the page
+ * leads from to each book's page. Papers and handbooks are left to the list of every source.
+ */
+export function bookTallies(cases, sources, limits, right = []) {
+  return Object.entries(sources)
+    .filter(([, source]) => source.form === "book")
+    .map(([key, source]) => ({ key, source, tally: summarise(cases.filter((c) => c.source === key), limits, right) }))
+    .filter((book) => book.tally.recomputed)
+    .sort((a, b) => a.source.short.localeCompare(b.source.short));
+}
+
 /** The share ``part`` is of ``whole``, as a percentage with one decimal; "0%" of nothing. */
 export function percent(part, whole) {
   if (!whole) return "0%";
@@ -118,6 +130,9 @@ export function formatError(error) {
   if (value >= 100) return `${Math.round(value).toLocaleString("en")}%`;
   return `${Number(value.toPrecision(2))}%`;
 }
+
+/** The first sentence of a text, such as a book's verdict, which a list of books shows of it. */
+export const firstSentence = (text) => (text ? `${text.split(". ")[0].replace(/\.$/, "")}.` : "");
 
 /** The quantity a number is, in a few words: what it is and of which term. */
 export const quantity = (number) =>

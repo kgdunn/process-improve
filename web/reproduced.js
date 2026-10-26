@@ -1,12 +1,14 @@
 // The reproduction page (catalog/reproduced/index.html, at factori.al/catalog/reproduced/): it reads
-// catalog/reproduction.json once and draws how closely the library reproduces each published case, as a
-// table of tiers, a table by source, the spread of the differences and a list of the cases of each tier.
+// catalog/reproduction.json once and draws the books, each leading to its page, and behind "Show the numbers"
+// how closely the library reproduces each published case, as a table of tiers, a table by source and the
+// spread of the differences; then a list of the cases of each tier.
 // The rules are in reproduced-logic.js; this module draws them. No Python runs here.
 
 import { element } from "./catalog-views.js";
 import {
   DEFAULT_VIEW,
   TIERS,
+  bookTallies,
   byForm,
   bySource,
   CAUSES,
@@ -15,6 +17,7 @@ import {
   missingByReason,
   errorBands,
   filterCases,
+  firstSentence,
   formatError,
   fromHash,
   groupByTier,
@@ -54,6 +57,42 @@ const chip = (tier, text = TIERS.find((t) => t.key === tier).mark) =>
 
 /** The cases the reader's search, source and kind keep. */
 const shown = () => filterCases(data.cases, data.sources, view);
+
+// ---------------------------------------------------------------- the books
+/**
+ * Each book with a recomputed case, by name: its cases as a bar by tier and the first sentence of its verdict,
+ * leading to its page (catalog/books/<source>/, which the build writes).
+ */
+function drawBooks() {
+  const books = bookTallies(data.cases, data.sources, data.tiers, right());
+  $("#books").replaceChildren(
+    ...books.map(({ key, source, tally }) => {
+      const parts = TIERS.filter((t) => tally.cases[t.key]).map((t) => {
+        const part = element("span", { class: "tierbar__part", "data-tier": t.key });
+        part.style.flexGrow = String(tally.cases[t.key]);
+        return part;
+      });
+      return element(
+        "li",
+        {},
+        element(
+          "a",
+          { href: `../books/${key}/` },
+          element("span", { class: "field-list__note", text: `${source.short} · ${source.year}` }),
+          element("span", { class: "field-list__title", text: source.title }),
+          element("span", { class: "tierbar", "aria-hidden": "true" }, ...parts),
+          element("span", { class: "field-list__note", text: firstSentence(source.verdict ?? "") }),
+        ),
+      );
+    }),
+  );
+  $("#books-section").hidden = books.length === 0;
+}
+
+/** Open the numbers when the address names a source, a kind of source or a tier, not a case: a book's page leads here. */
+function openNumbers() {
+  if ((view.source || view.form || view.open.length) && !view.focus) $("#numbers").open = true;
+}
 
 // ---------------------------------------------------------------- the headline and the table of tiers
 /** The causes the library is right about, from the JSON (see libraryRight). */
@@ -587,6 +626,7 @@ function wire() {
   });
   window.addEventListener("hashchange", () => {
     view = fromHash(location.hash, data.sources, data.forms);
+    openNumbers();
     draw();
     focusCase();
   });
@@ -606,6 +646,8 @@ async function main() {
   $("#status").hidden = true;
   for (const id of ["#breakdown", "#causes-section", "#sources-section", "#bands-section", "#cases", "#missing-section"]) $(id).hidden = false;
   $("#built").textContent = `Recomputed with process-improve ${data.library}.`;
+  drawBooks();
+  openNumbers();
   drawStats();
   drawCauses();
   wire();
