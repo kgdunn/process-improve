@@ -1073,9 +1073,10 @@ function wire() {
       update();
     }, 200);
   });
+  // A goal writes the search that keeps its designs; the search box shows it, so the reader can change it.
   for (const button of $$(".try")) {
     button.addEventListener("click", () => {
-      state.query = button.textContent;
+      state.query = button.dataset.query ?? button.textContent;
       writeForm();
       update();
     });
@@ -1223,6 +1224,25 @@ async function downloadCsv(id) {
   }
 }
 
+// ---------------------------------------------------------------- the reader's field
+/** Offer the fields the build wrote (catalog/fields.json); without them, the form still leads to the list of fields. */
+async function loadFields() {
+  $("#field-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const slug = $("#field").value;
+    location.href = slug ? `fields/${encodeURIComponent(slug)}/` : "fields/";
+  });
+  try {
+    const res = await fetch(app("catalog/fields.json"));
+    if (!res.ok) return;
+    const { fields } = await res.json();
+    const ordered = Object.entries(fields).sort(([, a], [, b]) => a.label.localeCompare(b.label));
+    $("#field").append(...ordered.map(([slug, field]) => element("option", { value: slug, text: field.label })));
+  } catch {
+    /* the list of fields, one page on, names them all */
+  }
+}
+
 async function start() {
   try {
     const res = await fetch(app("catalog/index.json"), { cache: "no-cache" });
@@ -1232,14 +1252,7 @@ async function start() {
     $("#count").textContent = `The catalog could not be loaded: ${err.message}.`;
     return;
   }
-  const published = catalog.designs.filter((d) => d.collection === "published").length;
-  $("#lede").textContent =
-    `${published} designed experiments printed in ${Object.keys(catalog.sources).length} textbooks, handbooks and papers, ` +
-    `and ${catalog.designs.length - published} designs process-improve makes. Search them, filter them, see where each ` +
-    "one sits, and open it in Factorial.";
   if (window.matchMedia("(max-width: 900px)").matches) $("#facets-box").open = false;
-  const differ = catalog.designs.reduce((n, d) => n + (d.checks?.explained ?? 0), 0);
-  $("#errata-open").textContent = `Errata: the ${differ} printed numbers that do not reproduce, with the reasons`;
   buildFacets();
   // A link from the book names its design in the query (?d=), which the book's theme leaves alone; the page keeps
   // what it shows in the fragment, which no server sees, so the address is rewritten that way at once.
@@ -1252,4 +1265,5 @@ async function start() {
   openViews();
 }
 
+loadFields();
 start();

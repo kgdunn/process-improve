@@ -209,6 +209,14 @@ missing methods that would recompute the most printed numbers first. The tiers d
 library reproduces a source, not the quality of the source, and the errors found in the sources are
 counted for all of them together only.
 
+The page opens with these in words, and keeps the tables behind *Show the numbers*. Each source also
+has a page of its own, under `Books <https://factori.al/catalog/books/>`_: how closely the library
+gives its answers, its cases in page order, the misprints found in it with the printed value beside
+the value its own data give, and the printed numbers the library has no function for yet. Each
+application has a page too, under `Fields <https://factori.al/catalog/fields/>`_: the typical size
+of its published experiments and the kinds of design they use, drawn on a chart of factors and runs.
+Factorial's planning panel shows the same chart beside the plan, for the field the reader chooses.
+
 Opening a design, and limits on its settings
 --------------------------------------------
 

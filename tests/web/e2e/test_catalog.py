@@ -36,6 +36,20 @@ def counted(page, text: str) -> None:
     page.wait_for_function(f"document.querySelector('#count').textContent.startsWith({text!r})")
 
 
+def test_the_reader_s_field_opens_its_page_and_a_goal_writes_a_search(context, site):
+    """The question at the top lists the fields the build wrote; a goal fills the search box, for the reader to edit."""
+    page = open_catalog(context, site)
+    page.wait_for_selector("#field option[value='chemical-processes']", state="attached")
+    page.click("text=Blend ingredients")
+    assert page.input_value("#query") == "mixture"
+    counted(page, "0 of 5")
+    # The build writes the field's page (tests/web/page/test_field_pages.py): this site stands in for it.
+    page.route("**/catalog/fields/**", lambda route: route.fulfill(body="<h1>A field</h1>", content_type="text/html"))
+    page.select_option("#field", "chemical-processes")
+    page.click("#field-form button")
+    page.wait_for_url("**/catalog/fields/chemical-processes/")
+
+
 def test_the_app_s_header_opens_the_catalog(fresh_page):
     fresh_page.click("#catalog-link")
     fresh_page.wait_for_url("**/catalog/")
@@ -541,7 +555,7 @@ def test_the_errata_list_every_printed_number_that_does_not_reproduce(context, s
 
 def test_the_gaps_are_the_generated_designs_no_source_prints(context, site):
     page = open_catalog(context, site)
-    page.click(".try:text('gaps')")
+    page.fill("#query", "gaps")
     counted(page, "2 of 5")
     assert set(shown(page)) == {CCD, OMARS}, "the library's 2^3 is Box, Hunter and Hunter's pilot plant"
     page.fill("#query", "")

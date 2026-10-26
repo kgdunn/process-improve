@@ -58,10 +58,12 @@ def test_every_file_the_catalog_loads_is_published(build_script):
     assert {"style.css", "catalog.js", "index.html"} <= loaded, "the page's stylesheet, its script, and the app"
     assert {"campaign.js", "charts.js", "catalog-logic.js", "catalog-views.js"} <= imported
     assert set(re.findall(r'from "\./([^"]+)"', source("catalog-views.js"))) == {"catalog-logic.js"}
-    assert fetched == {"catalog/index.json", "wheels/manifest.json", "catalog/detail/", "catalog/errata.json"}
+    fields = "catalog/fields.json"  # the fields of the question at the top, which write_fields writes
+    assert fetched == {"catalog/index.json", "wheels/manifest.json", "catalog/detail/", "catalog/errata.json", fields}
     assert source("catalog.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert not any(ref.startswith("/") for ref in refs | fetched), "an absolute address breaks on GitHub Pages"
-    assert loaded | imported <= set(build_script.APP_FILES)
+    # The list of books is written by the build (tests/web/page/test_book_pages.py), not copied from web/.
+    assert (loaded - {"catalog/books/index.html"}) | imported <= set(build_script.APP_FILES)
     assert "app.js" not in imported, "importing app.js would start the app's Python worker"
 
 
@@ -84,7 +86,7 @@ def test_every_file_the_reproduction_page_loads_is_published(build_script):
     assert fetched == {"catalog/reproduction.json"}
     assert source("reproduced.js").count("fetch(") == len(fetched), "every fetch goes through app()"
     assert (loaded - {books}) | imported <= set(build_script.APP_FILES)
-    assert '<a href="reproduced/">' in source(PAGE), "the catalog links to it"
+    assert 'href="reproduced/"' in source(PAGE), "the catalog links to it"
 
 
 def test_the_example_the_reproduction_page_opens_with_is_the_book_s():
@@ -178,12 +180,12 @@ CHOSEN_TOPICS = (["food-beverages"], ["semiconductors", "chemical-processes"], [
 @pytest.mark.slow
 @pytest.mark.dataset
 def test_every_search_the_page_suggests_finds_designs_and_its_filters_agree_with_python(node, monkeypatch):
-    """The searches beside the box, run over the whole catalog as the page runs them, each find some designs.
+    """The searches the goals beside the box write, run over the whole catalog as the page runs them, each find some.
 
     The page's application filter keeps the designs ``search_catalog`` keeps, and a word of an
     application's name finds its designs on the page and in Python alike.
     """
-    tries = re.findall(r'<button type="button" class="link try">([^<]+)</button>', source(PAGE))
+    tries = re.findall(r'<button type="button" class="goal try" data-query="([^"]+)">', source(PAGE))
     placeholder = re.search(r'placeholder="([^"]+)"', source(PAGE)).group(1).replace("&lt;", "<")
     assert len(tries) >= 3
     records = design_catalog.catalog_records()

@@ -63,7 +63,7 @@ def totals(reproduction: dict, key: str) -> dict[str, int]:
 def test_the_catalog_leads_to_the_page_and_its_table_counts_every_case(reproduced_context, site, reproduction):
     page = reproduced_context.new_page()
     page.goto(f"{site}catalog/")
-    page.click("text=Reproduced from the books")
+    page.click("text=Can I trust it?")
     page.wait_for_url("**/catalog/reproduced/")
     page.wait_for_selector("#tiers tbody tr", state="attached")
     recomputed = [c for c in reproduction["cases"] if c["tier"]]
