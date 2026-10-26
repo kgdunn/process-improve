@@ -27,6 +27,7 @@ import argparse
 import dataclasses
 import functools
 import hashlib
+import html
 import http.server
 import importlib.util
 import itertools
@@ -35,11 +36,12 @@ import math
 import os
 import re
 import shutil
+import statistics
 import subprocess
 from collections import Counter
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -57,6 +59,7 @@ APP_FILES = (
     "catalog/reproduced/index.html",
     "reproduced.js",
     "reproduced-logic.js",
+    "field-chart.js",
     "app.js",
     "logic.js",
     "limits.js",
@@ -1181,6 +1184,7 @@ def write_catalog(out_dir: Path) -> None:
         write(folder / "printed" / f"{name}.json", {"version": CATALOG_VERSION, "printed": numbers})
     write(folder / "errata.json", {"version": CATALOG_VERSION, "errata": catalog_errata()})
     (folder / "feed.xml").write_text(catalog_feed(records), encoding="utf-8")
+    write_fields(folder, index)
 
 
 def write_reproduction(out_dir: Path) -> None:
@@ -1225,6 +1229,293 @@ def write_reproduction(out_dir: Path) -> None:
     (out_dir / "catalog").mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, separators=(",", ":"), allow_nan=False)
     (out_dir / "catalog" / "reproduction.json").write_text(text + "\n", encoding="utf-8")
+
+
+class FieldGroup(NamedTuple):
+    """A kind of design, as a field's page and the planning panel group published experiments."""
+
+    label: str
+    plural: str  # as a sentence names them: "Most are full factorials."
+    meaning: str
+    families: frozenset[str]
+
+
+#: The kinds of design, in the order a field's page lists them; a family no kind names is "other". The page draws
+#: each kind with a shape of its own (``web/field-chart.js``), so the kinds are told apart without their colours.
+FIELD_GROUPS = {
+    "full": FieldGroup(
+        "Full factorial", "full factorials", "Every combination of the factor levels.", frozenset({"full_factorial"})
+    ),
+    "screening": FieldGroup(
+        "Fractional factorial or screening",
+        "fractional factorials",
+        "A planned part of the combinations, to find the factors that matter.",
+        frozenset({"fractional_factorial", "plackett_burman", "supersaturated", "dsd", "orthogonal_array", "omars"}),
+    ),
+    "surface": FieldGroup(
+        "Central composite or Box-Behnken",
+        "response surface designs",
+        "Extra runs that fit curvature, to find an optimum.",
+        frozenset({"ccd", "box_behnken"}),
+    ),
+    "mixture": FieldGroup("Mixture", "mixture designs", "The ingredients add up to the whole.", frozenset({"mixture"})),
+    "other": FieldGroup(
+        "Other designs",
+        "other designs",
+        "Optimal, blocked, split-plot and other designs made for the problem.",
+        frozenset(),
+    ),
+}
+
+#: A field with fewer published experiments than this says that it holds only a few.
+FEW_EXPERIMENTS = 8
+
+#: Experiments a field's page lists of each kind before "Show the rest".
+LISTED = 5
+
+
+def field_group(family: str) -> str:
+    """Return the kind of design a family belongs to, as :data:`FIELD_GROUPS` names it."""
+    return next((key for key, group in FIELD_GROUPS.items() if family in group.families), "other")
+
+
+def _about(value: float, *, dozen: bool = False) -> str:
+    """Write a median as one number, a half rounded up, or ``a dozen`` for 11 to 13 when ``dozen``."""
+    whole = math.floor(value + 0.5)
+    return "a dozen" if dozen and 11 <= whole <= 13 else str(whole)
+
+
+def _sentence_case(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+def field_sentence(experiments: list[dict[str, Any]]) -> str:
+    """Describe a field's published experiments in a sentence or two, with at most two numbers.
+
+    The typical size is the median number of factors and of runs; the kinds named are the most common, leaving
+    out "other designs", which names no kind.
+    """
+    factors = statistics.median(e["n_factors"] for e in experiments)
+    runs = statistics.median(e["n_runs"] for e in experiments)
+    size = f"{_about(factors)} {'factor' if _about(factors) == '1' else 'factors'} and {_about(runs, dozen=True)} runs"
+    sentence = f"Experiments here usually have about {size}."
+    counts = Counter(field_group(e["family"]) for e in experiments)
+    ranked = [key for key in FIELD_GROUPS if key != "other" and counts[key]]
+    ranked.sort(key=lambda key: -counts[key])
+    if ranked and counts[ranked[0]] >= len(experiments) / 2:
+        sentence += f" Most are {FIELD_GROUPS[ranked[0]].plural}."
+    elif len(ranked) > 1:
+        both = f"{FIELD_GROUPS[ranked[0]].plural} and {FIELD_GROUPS[ranked[1]].plural}"
+        sentence += f" {_sentence_case(both)} are the most common."
+    elif ranked:
+        sentence += f" {_sentence_case(FIELD_GROUPS[ranked[0]].plural)} are the most common."
+    if len(experiments) < FEW_EXPERIMENTS:
+        sentence += " The catalog holds only a few from this field so far."
+    return sentence
+
+
+def field_summaries(designs: list[dict[str, Any]], topics: dict[str, dict[str, str]]) -> dict[str, dict[str, Any]]:
+    """Summarise each field's published experiments: its sentence, its chart's points and its experiments by kind.
+
+    An experiment counts when a source prints it, it has factors and runs, and it is a designed experiment, not a
+    comparison of samples. A field is an application the catalogue names, other than "general", with one at least.
+    A point is ``[factors, runs, kind, how many]``: experiments of one size and kind share a point.
+    """
+    summaries = {}
+    for slug, topic in topics.items():
+        experiments = [
+            d
+            for d in designs
+            if slug in d["topics"]
+            and d["collection"] == "published"
+            and d["kind"] in {"experiment", "design"}
+            and d["family"] != "comparison"
+            and d["n_factors"]
+            and d["n_runs"]
+        ]
+        if slug == "general" or not experiments:
+            continue
+        points = Counter((e["n_factors"], e["n_runs"], field_group(e["family"])) for e in experiments)
+        kinds = {key: [e for e in experiments if field_group(e["family"]) == key] for key in FIELD_GROUPS}
+        summaries[slug] = {
+            "label": topic["label"],
+            "sentence": field_sentence(experiments),
+            "points": [[k, n, kind, count] for (k, n, kind), count in sorted(points.items())],
+            "kinds": {
+                key: sorted(held, key=lambda e: (not e["has_responses"], -(e["year"] or 0), e["title"]))
+                for key, held in kinds.items()
+                if held
+            },
+        }
+    return summaries
+
+
+def page_head(*, title: str, description: str, path: str, up: str) -> str:
+    """Return a page's ``<head>`` as the catalog's pages write it: ``up`` leads from the page to the site's root."""
+    title, description = html.escape(title), html.escape(description)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <meta name="description" content="{description}">
+  <link rel="canonical" href="https://factori.al/{path}">
+  <link rel="icon" href="{up}favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    try {{
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    }} catch {{
+      /* storage refused: the system's mode */
+    }}
+  </script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="{title}">
+  <meta property="og:description" content="{description}">
+  <meta property="og:url" content="https://factori.al/{path}">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <link rel="stylesheet" href="{up}style.css">
+</head>
+"""
+
+
+def _experiment_item(design: dict[str, Any], sources: dict[str, dict[str, Any]], up: str) -> str:
+    """One experiment in a field's list: its title, its source and its size, opening it in the catalog."""
+    source = sources.get(design["source"], {})
+    cited = f"{source.get('short', '')} ({design['year']})" if design["year"] else source.get("short", "")
+    size = f"{design['n_factors']} {'factor' if design['n_factors'] == 1 else 'factors'}, {design['n_runs']} runs"
+    return (
+        f'<li><a href="{up}catalog/#d={html.escape(design["id"])}">'
+        f'<span class="field-list__title">{html.escape(design["title"])}</span>'
+        f'<span class="field-list__note">{html.escape(cited)} · {size}</span></a></li>'
+    )
+
+
+def field_page(slug: str, summary: dict[str, Any], summaries: dict[str, dict[str, Any]], sources: dict) -> str:
+    """Write a field's page: its sentence, the chart of its experiments, the numbers behind them, and the list."""
+    up = "../../../"
+    label = summary["label"]
+    kinds = summary["kinds"]
+    sections = []
+    for key, held in kinds.items():
+        group = FIELD_GROUPS[key]
+        items = [_experiment_item(d, sources, up) for d in held]
+        rest = (
+            f'<details class="field-list__rest"><summary>Show the rest</summary>'
+            f'<ul class="field-list">{"".join(items[LISTED:])}</ul></details>'
+            if len(items) > LISTED
+            else ""
+        )
+        sections.append(
+            f'<section class="field-kind" aria-labelledby="kind-{key}">'
+            f'<h2 id="kind-{key}"><span class="field-key field-key--{key}" aria-hidden="true"></span>{group.label}</h2>'
+            f'<p class="hint">{group.meaning}</p>'
+            f'<ul class="field-list">{"".join(items[:LISTED])}</ul>{rest}</section>'
+        )
+    rows = "".join(
+        f"<tr><th scope='row'>{FIELD_GROUPS[key].label}</th><td class='num'>{len(held)}</td>"
+        f"<td class='num'>{statistics.median(d['n_factors'] for d in held):g}</td>"
+        f"<td class='num'>{statistics.median(d['n_runs'] for d in held):g}</td></tr>"
+        for key, held in kinds.items()
+    )
+    legend = "".join(
+        f'<li><span class="field-key field-key--{key}" aria-hidden="true"></span>{FIELD_GROUPS[key].label}</li>'
+        for key in kinds
+    )
+    others = "".join(
+        f'<li><a href="../{other}/">{html.escape(s["label"])}</a></li>'
+        for other, s in summaries.items()
+        if other != slug
+    )
+    points = html.escape(json.dumps(summary["points"], separators=(",", ":")))
+    return (
+        page_head(
+            title=f"{label} experiments: Factorial",
+            description=summary["sentence"],
+            path=f"catalog/fields/{slug}/",
+            up=up,
+        )
+        + f"""<body>
+<main class="field-page">
+  <p class="about__back"><a href="../"><img src="{up}favicon.svg" alt="" width="28" height="28"> Fields</a></p>
+  <h1>{html.escape(label)}</h1>
+  <p class="lede">{html.escape(summary["sentence"])}</p>
+  <p><a class="button primary" href="{up}?field={slug}">Plan one like these</a></p>
+  <figure class="field-chart">
+    <svg class="field-chart__svg" data-field-points="{points}" role="img"
+      aria-label="The published experiments in {html.escape(label)}, by their number of factors and of runs"></svg>
+    <figcaption><ul class="field-chart__legend">{legend}</ul></figcaption>
+  </figure>
+  <details class="field-page__numbers">
+    <summary>Show the numbers</summary>
+    <div class="table-scroll"><table>
+      <caption class="visually-hidden">The experiments of each kind, with their median size</caption>
+      <thead><tr><th scope="col">Kind of design</th><th scope="col" class="num">Experiments</th>
+        <th scope="col" class="num">Factors</th><th scope="col" class="num">Runs</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table></div>
+    <p class="hint">Factors and runs are the medians of each kind.</p>
+  </details>
+  {"".join(sections)}
+  <nav class="field-page__fields" aria-labelledby="other-fields">
+    <h2 id="other-fields">Other fields</h2>
+    <ul>{others}</ul>
+  </nav>
+</main>
+<script src="{up}field-chart.js" type="module"></script>
+</body>
+</html>
+"""
+    )
+
+
+def fields_page(summaries: dict[str, dict[str, Any]]) -> str:
+    """Write the list of fields: each one's name and sentence, leading to its page."""
+    items = "".join(
+        f'<li><a href="{slug}/"><span class="field-list__title">{html.escape(s["label"])}</span>'
+        f'<span class="field-list__note">{html.escape(s["sentence"])}</span></a></li>'
+        for slug, s in sorted(summaries.items(), key=lambda kv: kv[1]["label"])
+    )
+    up = "../../"
+    return (
+        page_head(
+            title="Experiments by field: Factorial",
+            description="What others in your field have run: the published experiments of each application.",
+            path="catalog/fields/",
+            up=up,
+        )
+        + f"""<body>
+<main class="field-page">
+  <p class="about__back"><a href="../"><img src="{up}favicon.svg" alt="" width="28" height="28"> Design catalog</a></p>
+  <h1>Fields</h1>
+  <p class="lede">Choose your field to see what others in it have run: their size, and the kinds of design.</p>
+  <ul class="field-list">{items}</ul>
+</main>
+</body>
+</html>
+"""
+    )
+
+
+def write_fields(folder: Path, index: dict[str, Any]) -> None:
+    """Write ``fields/`` under the catalog: a page per field, the list of fields, and ``fields.json``.
+
+    ``fields.json`` holds each field's name, sentence and chart points, which the planning panel reads.
+    """
+    summaries = field_summaries(index["designs"], index["topics"])
+    (folder / "fields").mkdir()
+    (folder / "fields" / "index.html").write_text(fields_page(summaries), encoding="utf-8")
+    for slug, summary in summaries.items():
+        (folder / "fields" / slug).mkdir()
+        page = field_page(slug, summary, summaries, index["sources"])
+        (folder / "fields" / slug / "index.html").write_text(page, encoding="utf-8")
+    panel = {slug: {k: s[k] for k in ("label", "sentence", "points")} for slug, s in summaries.items()}
+    text = json.dumps({"version": CATALOG_VERSION, "fields": panel}, separators=(",", ":"), allow_nan=False)
+    (folder / "fields.json").write_text(text + "\n", encoding="utf-8")
 
 
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:

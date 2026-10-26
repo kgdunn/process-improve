@@ -48,6 +48,7 @@ APP_SOURCES = (
     "catalog/reproduced/index.html",
     "reproduced.js",
     "reproduced-logic.js",
+    "field-chart.js",
     "style.css",
     "app.js",
     "logic.js",

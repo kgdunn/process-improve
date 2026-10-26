@@ -31,6 +31,7 @@ SUITES = (
     "study-file.test.mjs",
     "picture.test.mjs",
     "catalog.test.mjs",
+    "field-chart.test.mjs",
     "reproduced.test.mjs",
     "feedback.test.mjs",
     "comparison.test.mjs",
