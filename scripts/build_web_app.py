@@ -1195,8 +1195,9 @@ def write_reproduction(out_dir: Path) -> None:
     library's value is the right one, the forms a source takes, the sources as the catalog names them with
     the form of each, and every case (see
     :func:`~process_improve.experiments.design_catalog.catalog_reproduction`), which
-    ``catalog/reproduced/`` draws. It is kept apart from :func:`write_catalog` because it recomputes the
-    numbers that differ, which takes a minute or two.
+    ``catalog/reproduced/`` draws. Each source also carries its verdict (see :func:`book_verdict`), and has
+    a page of its own under ``catalog/books/`` (see :func:`write_books`). It is kept apart from
+    :func:`write_catalog` because it recomputes the numbers that differ, which takes a minute or two.
     """
     from process_improve.experiments.design_catalog import (  # noqa: PLC0415 - the docs environment has it
         LIBRARY_RIGHT,
@@ -1213,6 +1214,7 @@ def write_reproduction(out_dir: Path) -> None:
     )
 
     full = reference_sources()
+    cases = catalog_reproduction()
     data = {
         "version": CATALOG_VERSION,
         "library": version("process-improve"),
@@ -1224,11 +1226,15 @@ def write_reproduction(out_dir: Path) -> None:
             key: {**{k: source[k] for k in ("short", "title", "cite", "year", "url")}, "form": source_form(full[key])}
             for key, source in catalog_sources().items()
         },
-        "cases": catalog_reproduction(),
+        "cases": cases,
     }
+    for key, source in data["sources"].items():
+        held = [case for case in cases if case["source"] == key]
+        source["verdict"] = book_verdict(held, SOURCE_NOUN.get(source["form"], "the source"))
     (out_dir / "catalog").mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, separators=(",", ":"), allow_nan=False)
     (out_dir / "catalog" / "reproduction.json").write_text(text + "\n", encoding="utf-8")
+    write_books(out_dir / "catalog", data)
 
 
 class FieldGroup(NamedTuple):
@@ -1516,6 +1522,307 @@ def write_fields(folder: Path, index: dict[str, Any]) -> None:
     panel = {slug: {k: s[k] for k in ("label", "sentence", "points")} for slug, s in summaries.items()}
     text = json.dumps({"version": CATALOG_VERSION, "fields": panel}, separators=(",", ":"), allow_nan=False)
     (folder / "fields.json").write_text(text + "\n", encoding="utf-8")
+
+
+#: How a book's page names an example by how closely Factorial gives its answers (the case's tier).
+EXAMPLE_STATUS = {"reproduced": "Matches", "within_1": "Very close", "within_5": "Close", "not_reproduced": "Differs"}
+
+#: What a book's page calls its source, by the source's form.
+SOURCE_NOUN = {"book": "the book", "paper": "the paper", "other": "the source"}
+
+#: A book's page groups its examples by a hundred pages when it has more than this many.
+GROUPED = 12
+
+#: The clause of a reason that names what the library lacks, as ``missingKey`` in web/reproduced-logic.js reads it.
+LACKS = re.compile(r"\bthe library (?:has no|does not|cannot|lacks|makes no|offers no|works)\b[^;:]*", re.IGNORECASE)
+
+
+def example_status(case: dict[str, Any]) -> tuple[str, str]:
+    """Name an example on its book's page, with the key its colour is drawn from: no known reason comes first."""
+    causes = {number["cause"] for number in case["differs"]}
+    if "unexplained" in causes:
+        return "Not yet explained", "unexplained"
+    if case["tier"] == "reproduced" and "source_error" in causes:
+        return "Misprint found", "misprint"
+    return EXAMPLE_STATUS[case["tier"]], case["tier"]
+
+
+def book_verdict(cases: list[dict[str, Any]], noun: str) -> str:
+    """Say in words how closely Factorial gives a source's answers, from the share of its examples in each tier.
+
+    Exact or within 1% counts as giving the answer; a difference of more than 5% in more than one example in
+    twenty keeps the verdict from the first level. Where any number differs, the verdict says why, as far as
+    the catalogue knows.
+    """
+    tiers = Counter(case["tier"] for case in cases if case["tier"])
+    total = sum(tiers.values())
+    if not total:
+        return f"Factorial does not check {noun}'s answers yet."
+    close = (tiers["reproduced"] + tiers["within_1"]) / total
+    if close >= 0.85 and tiers["not_reproduced"] <= 0.05 * total:
+        verdict = f"Factorial gives {noun}'s answers."
+    elif close >= 0.7:
+        verdict = f"Factorial gives {noun}'s answers, with a few differences."
+    elif close >= 0.5:
+        verdict = f"Factorial gives most of {noun}'s answers."
+    else:
+        verdict = f"Factorial gives some of {noun}'s answers."
+    causes = {number["cause"] for case in cases for number in case["differs"]}
+    if not causes:
+        return verdict
+    reasons = [f"some are misprints in {noun}"] if "source_error" in causes else []
+    if "unexplained" in causes:
+        reasons.append("for some the reason is not known yet")
+    return f"{verdict} Where they differ, this page says why{': ' + ', and '.join(reasons) if reasons else ''}."
+
+
+def first_page(where: str | None) -> int | None:
+    """Return the first page a place in a source names (``"pp. 25-47; Table 2.1"`` is 25), or ``None``."""
+    found = re.search(r"\bpp?\.\s*(\d+)", where or "")
+    return int(found.group(1)) if found else None
+
+
+def as_printed(found: str, printed: object) -> str:
+    """Write Factorial's value to the printed value's decimals, or to more where those would hide the difference."""
+    plain = printed.replace(",", "") if isinstance(printed, str) else ""
+    if not re.fullmatch(r"-?\d+(\.\d+)?", plain):
+        return found
+    try:
+        value = float(found)
+    except ValueError:
+        return found
+    decimals = len(plain.partition(".")[2])
+    return next((f"{value:.{p}f}" for p in range(decimals, decimals + 4) if f"{value:.{p}f}" != plain), found)
+
+
+def missing_key(reason: str) -> str:
+    """Return what a number not in Factorial yet waits on, as ``missingKey`` in web/reproduced-logic.js groups them."""
+    found = LACKS.search(reason)
+    clause = re.sub(r"[,.]$", "", found.group(0).strip()) if found else ""
+    return _sentence_case(clause) if len(clause.split()) >= 6 else reason
+
+
+def _quantity(number: dict[str, Any]) -> str:
+    """Name a number's quantity in a few words, as ``quantity`` in web/reproduced-logic.js does."""
+    return _sentence_case(": ".join(p for p in (str(number["what"] or "").replace("_", " "), number["term"]) if p))
+
+
+def _pages(pages: list[int]) -> str:
+    """Write the pages a group of numbers is on: ``p. 85``, ``pp. 47, 107 and 154``, or the first three and more."""
+    held = sorted(set(pages))
+    if not held:
+        return ""
+    if len(held) == 1:
+        return f"p. {held[0]}"
+    shown = ", ".join(map(str, held[:3])) if len(held) > 3 else f"{', '.join(map(str, held[:-1]))} and {held[-1]}"
+    return f"pp. {shown}{' and more' if len(held) > 3 else ''}"
+
+
+def _case_link(case: dict[str, Any], up: str) -> str:
+    return html.escape(f"{up}catalog/reproduced/#src={case['source']}&case={case['id']}")
+
+
+def _rest(items: list[str], tag: str = "ul", css: str = "field-list") -> str:
+    """List the first :data:`LISTED` items, and the rest behind "Show the rest"."""
+    rest = (
+        f'<details class="field-list__rest"><summary>Show the rest</summary>'
+        f'<{tag} class="{css}">{"".join(items[LISTED:])}</{tag}></details>'
+        if len(items) > LISTED
+        else ""
+    )
+    return f'<{tag} class="{css}">{"".join(items[:LISTED])}</{tag}>{rest}'
+
+
+def _example_item(case: dict[str, Any], where: str, up: str) -> str:
+    status, key = example_status(case)
+    note = " · ".join(
+        p for p in (_sentence_case(str(case["kind"] or "").replace("-", " ")), where.split("; ", maxsplit=1)[0]) if p
+    )
+    return (
+        f'<li><a class="book-row" href="{_case_link(case, up)}"><span class="book-example">'
+        f'<span class="field-list__title">{html.escape(case["title"])}</span>'
+        f'<span class="field-list__note">{html.escape(note)}</span></span>'
+        f'<span class="book-status" data-tier="{key}">{status}</span></a></li>'
+    )
+
+
+def _tier_legend(tiers: list[str]) -> str:
+    keys = "".join(f'<li><span class="tierbar__key" data-tier="{t}"></span>{EXAMPLE_STATUS[t]}</li>' for t in tiers)
+    return f'<ul class="field-chart__legend">{keys}</ul>'
+
+
+def _tier_bar(cases: list[dict[str, Any]], *, legend: bool = True) -> str:
+    """Draw a source's examples as a bar, by how closely Factorial gives their answers, with its legend in words."""
+    counts = Counter(case["tier"] for case in cases if case["tier"])
+    held = [tier for tier in EXAMPLE_STATUS if counts[tier]]
+    parts = "".join(f'<span class="tierbar__part" data-tier="{t}" style="flex-grow: {counts[t]}"></span>' for t in held)
+    return f'<div class="tierbar" aria-hidden="true">{parts}</div>{_tier_legend(held) if legend else ""}'
+
+
+def _examples(cases: list[dict[str, Any]], where: dict[str, str], up: str) -> str:
+    """List a source's examples in page order: by a hundred pages, each behind its heading, when there are many."""
+    held = sorted((c for c in cases if c["tier"]), key=lambda c: first_page(where.get(c["id"])) or math.inf)
+    items = [(first_page(where.get(c["id"])), _example_item(c, where.get(c["id"], ""), up)) for c in held]
+    if len(items) <= GROUPED:
+        return f'<ul class="field-list">{"".join(item for _, item in items)}</ul>'
+    groups = []
+    for hundred, group in itertools.groupby(items, key=lambda item: None if item[0] is None else item[0] // 100):
+        label = "Elsewhere" if hundred is None else f"Pages {max(1, hundred * 100)} to {hundred * 100 + 99}"
+        listed = "".join(item for _, item in group)
+        groups.append(
+            f'<details class="book-group"><summary>{label}</summary><ul class="field-list">{listed}</ul></details>'
+        )
+    return "".join(groups)
+
+
+def _misprints(cases: list[dict[str, Any]], up: str) -> list[str]:
+    """List the numbers a source misprints, by page: each with what it prints, what its own data give, and why."""
+    held = [(case, n) for case in cases for n in case["differs"] if n["cause"] == "source_error"]
+    held.sort(key=lambda pair: first_page(pair[1]["where"]) or math.inf)
+    return [
+        f'<li class="misprint"><p class="misprint__head"><a href="{_case_link(case, up)}">'
+        f'{html.escape(_quantity(n))}</a><span class="field-list__note">{html.escape(n["where"] or "")}</span></p>'
+        f"{_misprint_values(n)}"
+        f'<p class="field-list__note">{html.escape(_sentence_case(n["reason"]))}</p></li>'
+        for case, n in held
+    ]
+
+
+def _misprint_values(number: dict[str, Any]) -> str:
+    """Set what a book prints beside what its data give; a table is left to its reason, which names the cell."""
+    if not isinstance(number["printed"], str):
+        return ""
+    printed, found = html.escape(number["printed"]), html.escape(as_printed(number["found"], number["printed"]))
+    book, data = f"<span>Book <strong>{printed}</strong></span>", f"<span>Data <strong>{found}</strong></span>"
+    return f'<p class="misprint__values">{book}{data}</p>'
+
+
+def _lacking(cases: list[dict[str, Any]]) -> list[str]:
+    """List what a source prints that Factorial cannot compute yet, by what it lacks, the most numbers first."""
+    lacking: dict[str, list[int]] = {}
+    for case in cases:
+        for number in case["missing"]:
+            page = first_page(number["where"])
+            lacking.setdefault(missing_key(number["reason"]), []).extend([] if page is None else [page])
+    return [
+        f'<li><span class="field-list__title">{html.escape(_sentence_case(key))}</span>'
+        f'<span class="field-list__note">{_pages(pages)}</span></li>'
+        for key, pages in sorted(lacking.items(), key=lambda kv: -len(kv[1]))
+    ]
+
+
+def book_page(source: dict[str, Any], cases: list[dict[str, Any]], where: dict[str, str]) -> str:
+    """Write a source's page: its verdict, its examples in page order, its misprints, and what Factorial lacks.
+
+    ``source`` is as ``reproduction.json`` holds it, with its ``verdict`` (:func:`book_verdict`) and its ``key``.
+    """
+    up = "../../../"
+    noun = SOURCE_NOUN.get(source["form"], "the source")
+    examples, errata, missing = _examples(cases, where, up), _misprints(cases, up), _lacking(cases)
+    sections = [
+        ("examples", "Examples", "Each example, and how closely Factorial gives its answers.", examples),
+        (
+            "misprints",
+            "Misprints",
+            f"Misprints found in {noun}, by page. Each shows what {noun} prints and what its own data give.",
+            _rest(errata, "ol", "misprints") if errata else "",
+        ),
+        (
+            "not-yet",
+            "Not yet",
+            f"Answers {noun} prints that Factorial cannot compute yet, by what it lacks.",
+            _rest(missing, "ul", "field-list book-missing") if missing else "",
+        ),
+    ]
+    held = [section for section in sections if section[3]]
+    jump = "".join(f'<a href="#{key}">{title}</a>' for key, title, _, _ in held)
+    body = "".join(
+        f'<section class="book-section" id="{key}" aria-labelledby="{key}-title">'
+        f'<h2 id="{key}-title">{title}</h2><p class="hint">{hint}</p>{content}</section>'
+        for key, title, hint, content in held
+    )
+    verdict = source["verdict"]
+    numbers = html.escape(f"{up}catalog/reproduced/#src={source['key']}")
+    return (
+        page_head(
+            title=f"{source['short']} ({source['year']}): Factorial",
+            description=verdict,
+            path=f"catalog/books/{source['key']}/",
+            up=up,
+        )
+        + f"""<body>
+<main class="field-page book-page">
+  <p class="about__back"><a href="../"><img src="{up}favicon.svg" alt="" width="28" height="28"> Books</a></p>
+  <p class="book-page__by">{html.escape(source["short"])} · {source["year"]}</p>
+  <h1>{html.escape(source["title"])}</h1>
+  {_tier_bar(cases)}
+  <p class="lede">{html.escape(verdict)}</p>
+  <p><a class="button" href="{numbers}">Show the numbers</a></p>
+  <nav class="book-page__jump" aria-label="On this page">{jump}</nav>
+  {body}
+</main>
+</body>
+</html>
+"""
+    )
+
+
+def books_page(sources: dict[str, dict[str, Any]], by_source: dict[str, list[dict[str, Any]]], forms: dict) -> str:
+    """Write the list of sources, by form: each one's name, verdict and bar, leading to its page."""
+    up = "../../"
+    groups = []
+    for form, label in forms.items():
+        items = [
+            f'<li><a href="{key}/"><span class="field-list__note">{html.escape(s["short"])} · {s["year"]}</span>'
+            f'<span class="field-list__title">{html.escape(s["title"])}</span>{_tier_bar(by_source[key], legend=False)}'
+            f'<span class="field-list__note">{html.escape(s["verdict"].split(". ")[0].rstrip("."))}.</span></a></li>'
+            for key, s in sorted(sources.items(), key=lambda kv: kv[1]["short"])
+            if s["form"] == form and by_source.get(key)
+        ]
+        if items:
+            listed = f'<ul class="field-list">{"".join(items)}</ul>'
+            groups.append(f'<section class="book-section"><h2>{html.escape(label)}</h2>{listed}</section>')
+    return (
+        page_head(
+            title="Books: Factorial",
+            description="Each book and paper in the design catalog, and how closely Factorial gives its answers.",
+            path="catalog/books/",
+            up=up,
+        )
+        + f"""<body>
+<main class="field-page book-page">
+  <p class="about__back"><a href="../"><img src="{up}favicon.svg" alt="" width="28" height="28"> Design catalog</a></p>
+  <h1>Books</h1>
+  <p class="lede">Choose a book to see its examples, the misprints found in it, and how closely Factorial gives its
+    answers.</p>
+  {_tier_legend(list(EXAMPLE_STATUS))}
+  {"".join(groups)}
+</main>
+</body>
+</html>
+"""
+    )
+
+
+def write_books(folder: Path, data: dict[str, Any]) -> None:
+    """Write ``books/`` under the catalog: a page for each source with a case, and the list of them.
+
+    A case's place in its source is read from ``index.json`` beside it, which :func:`write_catalog` writes;
+    without it the examples are listed in the catalogue's order.
+    """
+    index = folder / "index.json"
+    where = {d["id"]: d["where"] for d in json.loads(index.read_text())["designs"]} if index.is_file() else {}
+    by_source: dict[str, list[dict[str, Any]]] = {}
+    for case in data["cases"]:
+        by_source.setdefault(case["source"], []).append(case)
+    (folder / "books").mkdir()
+    (folder / "books" / "index.html").write_text(
+        books_page(data["sources"], by_source, data["forms"]), encoding="utf-8"
+    )
+    for key, cases in by_source.items():
+        (folder / "books" / key).mkdir()
+        page = book_page({**data["sources"][key], "key": key}, cases, where)
+        (folder / "books" / key / "index.html").write_text(page, encoding="utf-8")
 
 
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:

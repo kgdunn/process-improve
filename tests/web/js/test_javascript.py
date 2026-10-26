@@ -89,3 +89,36 @@ def test_the_page_suggests_the_names_the_library_does(node):
         cwd=ROOT,
     )
     assert json.loads(done.stdout) == [suggest_identifier(name) for name in TYPED_NAMES]
+
+
+#: Reasons a number is not in the library yet: a long clause naming what it lacks, a short one, one ending in a
+#: stop, and none.
+MISSING_REASONS = [
+    "a step of Bartlett's test, which the library does not have",
+    "the library has no all-bias composite design: no construction for it",
+    "an estimate of the reweighted fit, which the library cannot make for a quadratic in two factors; it is checked",
+    "Lenth's multiplier, which the library makes no use of in this table.",
+    "a count from an enumeration of designs",
+]
+
+
+def test_the_book_pages_group_what_is_missing_as_the_reproduction_page_does(node, build_script):
+    """``missing_key`` in the build, for a book's page, gives each reason the key ``missingKey`` gives it."""
+    if node_version(node) < LEAST:
+        pytest.skip(f"Node.js {'.'.join(map(str, LEAST))} or later reads web/*.js as ES modules")
+    script = (
+        "import { missingKey } from './web/reproduced-logic.js';"
+        f"console.log(JSON.stringify({json.dumps(MISSING_REASONS)}.map(missingKey)));"
+    )
+    done = subprocess.run(  # noqa: S603 - Node.js running the page's own module
+        [node, "--input-type=module", "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+        cwd=ROOT,
+    )
+    keys = json.loads(done.stdout)
+    assert keys == [build_script.missing_key(reason) for reason in MISSING_REASONS]
+    assert len(set(keys)) == len(keys), "each reason here is a group of its own"
+    assert keys[1] == "The library has no all-bias composite design", "a long clause is the key"

@@ -26,6 +26,7 @@
   --tier-within_1: #1f6fb2;
   --tier-within_5: #b87700;
   --tier-not_reproduced: #b3261e;
+  --misprint: #7b4fa6; /* a book's example with a misprint, beside the tiers: its status names it too */
   /* The kinds of design on a field's chart (field-chart.js); each also has a shape of its own. */
   --kind-full: #2c5f7c;
   --kind-screening: #b45f0b;
@@ -59,6 +60,7 @@
     --tier-within_1: #5a8ee0;
     --tier-within_5: #ad8a1e;
     --tier-not_reproduced: #e0587e;
+    --misprint: #b48fe0;
     --kind-full: #8db8d6;
     --kind-screening: #e2a95a;
     --kind-surface: #5a9fe0;
@@ -91,6 +93,7 @@
   --tier-within_1: #5a8ee0;
   --tier-within_5: #ad8a1e;
   --tier-not_reproduced: #e0587e;
+  --misprint: #b48fe0;
   --kind-full: #8db8d6;
   --kind-screening: #e2a95a;
   --kind-surface: #5a9fe0;
@@ -1146,6 +1149,8 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 [data-tier="within_1"] { --tier: var(--tier-within_1); }
 [data-tier="within_5"] { --tier: var(--tier-within_5); }
 [data-tier="not_reproduced"] { --tier: var(--tier-not_reproduced); }
+[data-tier="misprint"] { --tier: var(--misprint); }
+[data-tier="unexplained"] { --tier: var(--tier-not_reproduced); }
 .reproduced__status.error { color: var(--error); }
 .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 16px 0 4px; }
 @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -1299,13 +1304,15 @@ main.reproduced h1 { margin: 8px 0; font-size: 2rem; }
 .number__reason { margin: 6px 0 0; color: var(--muted); font-size: 0.86rem; }
 .group .more { margin: 8px 0 0; }
 @media (forced-colors: active) {
-  .tierbar__part, .source__bar span, .meter span { background: CanvasText; }
+  .tierbar__part, .tierbar__key, .book-status::before, .source__bar span, .meter span { background: CanvasText; }
   .bands__bar { fill: CanvasText; }
 }
 
 /* A field's page (catalog/fields/<field>/, written by the build) and the chart it shares with the planning panel. */
 main.field-page { max-width: 820px; }
 main.field-page h1 { margin: 8px 0; font-size: 2rem; }
+/* Lists of cards: their sections are no cards themselves, so a card is never inside another on a phone. */
+main.field-page section { background: none; border: 0; border-radius: 0; padding: 0; }
 .field-chart { margin: 16px 0 8px; }
 .field-chart__svg {
   display: block; width: 100%; max-width: 560px; height: auto; background: var(--panel);
@@ -1368,3 +1375,39 @@ main.field-page h1 { margin: 8px 0; font-size: 2rem; }
 .like-yours__field select { min-height: 44px; }
 .like-yours .field-chart__svg { margin-top: 12px; }
 .like-yours__verdict { font-weight: 700; margin: 10px 0 0; }
+
+/* A book's page (catalog/books/<source>/, written by the build) and the list of books. */
+.book-page__by { margin: 16px 0 0; color: var(--muted); }
+.book-page .tierbar { height: 10px; margin: 12px 0 6px; }
+.book-page .field-chart__legend { margin: 0 0 12px; }
+.tierbar__key { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 3px; background: var(--tier); }
+.book-page__jump {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 16px 0 8px;
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+.book-page__jump a {
+  display: flex; align-items: center; justify-content: center; min-height: 44px; font-weight: 600;
+  text-decoration: none; background: var(--panel);
+}
+.book-page__jump a + a { border-left: 1px solid var(--line); }
+.book-section { margin: 28px 0 0; scroll-margin-top: 12px; }
+.book-section h2 { margin: 0 0 4px; font-size: 1.2rem; }
+.book-section > .hint { margin: 0 0 10px; }
+.book-section .tierbar { margin: 8px 0 4px; }
+.field-list a.book-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
+.book-example { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.book-status { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; font-weight: 600; }
+.book-status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--tier); }
+.book-group { margin: 0 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.book-group summary { min-height: 44px; display: flex; align-items: center; padding: 0 14px; cursor: pointer; font-weight: 600; }
+.book-group .field-list { padding: 0 8px 8px; }
+.misprints { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.misprint, .book-missing li {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px;
+}
+.misprint p { margin: 0; }
+.misprint__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 600; }
+.misprint__head .field-list__note { flex: none; font-weight: 400; }
+.misprint__values { display: flex; flex-wrap: wrap; gap: 4px 18px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.misprints + .field-list__rest .misprints { margin-top: 8px; }
