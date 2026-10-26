@@ -1,6 +1,7 @@
 """Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties."""
 
 import logging
+import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
@@ -133,7 +134,7 @@ def _training_error_radicand(future_errors: pd.Series) -> float:
     return float(np.power(s_t_median_error, 2) * np.nanmean(_rho_array(future_errors / s_t_median_error)))
 
 
-def _tau_from_training_errors(future_errors: pd.Series) -> float:
+def _tau_from_training_errors(future_errors: pd.Series, sigma: float | None = None) -> float:
     """
     Return the robust scale estimate (tau) for the training-sample errors.
 
@@ -148,6 +149,10 @@ def _tau_from_training_errors(future_errors: pd.Series) -> float:
     ----------
     future_errors : pd.Series
         One-step-ahead errors over the training samples (those after the warm-up).
+    sigma : float | None, optional
+        A known, positive standard deviation. It is returned when the errors are finite
+        but carry no usable spread, for example when more than half of them are exactly
+        zero on a constant series. It does not replace a usable estimate from the data.
 
     Returns
     -------
@@ -158,7 +163,7 @@ def _tau_from_training_errors(future_errors: pd.Series) -> float:
     ------
     ValueError
         If no training error is finite, or if the resulting radicand is non-finite
-        or not positive (the errors carry no usable spread).
+        or not positive (the errors carry no usable spread) and `sigma` is not given.
     """
     if not _finite(future_errors):
         # Every training error is NaN when the training period holds no finite observation
@@ -171,6 +176,8 @@ def _tau_from_training_errors(future_errors: pd.Series) -> float:
 
     resids = _training_error_radicand(future_errors)
     if not np.isfinite(resids) or resids <= 0:
+        if sigma is not None:
+            return float(sigma)
         raise ValueError(
             f"The control-chart scale estimate is undefined (tau^2 = {resids}), so the control "
             "limits would have zero width. Supply more representative data, or pass an "
@@ -178,6 +185,21 @@ def _tau_from_training_errors(future_errors: pd.Series) -> float:
         )
 
     return float(np.sqrt(resids))
+
+
+def _pop_deprecated_s(sigma: float | None, kwargs: dict[str, Any]) -> float | None:
+    """Return `sigma`, or the value of the deprecated keyword ``s`` popped from ``kwargs``."""
+    if "s" not in kwargs:
+        return sigma
+    if sigma is not None:
+        raise ValueError("calculate_limits() got both 'sigma' and its deprecated alias 's'; pass only 'sigma'.")
+    warnings.warn(
+        "process_improve.monitoring.control_charts.ControlChart.calculate_limits(s=...) is deprecated "
+        "since 2.2.0 and will be removed in 3.0; use ControlChart.calculate_limits(sigma=...) instead.",
+        category=DeprecationWarning,
+        stacklevel=3,  # the caller of calculate_limits
+    )
+    return kwargs.pop("s")
 
 
 def psi(x: float, k: float = 2.0) -> float:
@@ -482,12 +504,17 @@ class ControlChart:
 
             min(20, max(10, np.ceil(0.10 * N)))
 
-        measurements (where N is the length of the input vector), the target and
-        standard deviation are estimated directly from the data and any provided
-        `target` / `sigma` are ignored for that small-sample case.
-        Otherwise, if `target` and `sigma` (a known standard deviation) are numeric, those
+        measurements (where N is the length of the input vector), there is no Holt-Winters
+        fit: a target and standard deviation that are not given are the median and the
+        standard deviation of the data.
+        In every case, if `target` and `sigma` (a known standard deviation) are numeric, those
         values are used, and the fitted standard deviation ``s`` is `sigma`; if not, they are
-        estimated.
+        estimated. When the data carry no usable spread (a constant series, for example), a
+        given `sigma` is also the scale of the Holt-Winters limits, and the smoothing weights
+        that were not pinned are 0.5 and 0.8; without `sigma` such a series raises
+        ``ValueError``.
+
+        The keyword ``s`` is a deprecated alias for `sigma`.
 
         Missing values (NaN) in `y` are bridged by imputing a one-step-ahead error equal
         to the median absolute error of the previous 10 rows. That error is never negative,
@@ -500,6 +527,7 @@ class ControlChart:
         Every call starts afresh: nothing fitted by an earlier call on the same chart
         (target, ``s``, lambdas, warm-up statistics) is carried into this one.
         """
+        sigma = _pop_deprecated_s(sigma, kwargs)
         self._reset_fit_state()
         self._given_target = target
         self._given_s = sigma
@@ -531,15 +559,7 @@ class ControlChart:
         self.warm_up["M"] = self.warm_up_M = int(min(20, max(10, np.ceil(0.10 * self.N))))
 
         if (self.warm_up_M > self.N) and self.variant.strip().lower() == "hw":
-            # TO CHECK: Completely handle the case with very few samples. Is everything filled in?
-            # Also check case when some of these samples are NAN, you might have even fewer still.
-            self.target = self._target_calculated_best = self.df["y"].median()
-            self.s = self._tau = self.df["y"].std()
-            self.df["y_star"] = self.df["y"].values
-            self.df["alpha_hat"] = self.target
-            self.df["beta_hat"] = 0.0
-            self.df["sigma_hat"] = np.nan
-            self.df["error"] = np.nan
+            self._holt_winters_small_sample_fit()
             return
 
         # Check if there are enough training samples:
@@ -566,6 +586,38 @@ class ControlChart:
                 "constant or too short to fit the chosen variant."
             )
         self.idx_outside_3S = self._samples_outside_limits(self.target, self.s)
+
+    def _holt_winters_small_sample_fit(self) -> None:
+        """
+        Fit a series shorter than the warm-up: no smoothing, the target and scale from the data.
+
+        A given target and ``s`` are kept; the data median is recorded in
+        ``_target_calculated_best`` either way.
+
+        Raises
+        ------
+        ValueError
+            If ``s`` was not given and the data's standard deviation is not finite and positive.
+        """
+        # TO CHECK: Completely handle the case with very few samples. Is everything filled in?
+        # Also check case when some of these samples are NAN, you might have even fewer still.
+        self._target_calculated_best = self.df["y"].median()
+        if self.target is None:
+            self.target = self._target_calculated_best
+        if self.s is None:
+            self.s = self.df["y"].std()
+            if not np.isfinite(self.s) or self.s <= 0:
+                raise ValueError(
+                    f"The control-chart scale estimate is undefined (standard deviation = {self.s} "
+                    f"over {self.N} samples), so the control limits would have zero width. Supply "
+                    "more representative data, or pass an explicit positive 'sigma'."
+                )
+        self._tau = self.s
+        self.df["y_star"] = self.df["y"].values
+        self.df["alpha_hat"] = self.target
+        self.df["beta_hat"] = 0.0
+        self.df["sigma_hat"] = np.nan
+        self.df["error"] = np.nan
 
     def _samples_outside_limits(self, target: float, s: float) -> list[int]:
         """Return the positions of the samples outside the chart's limits (the CUSUM chart's alarms)."""
@@ -774,14 +826,7 @@ class ControlChart:
                     # where every cell is unusable. (#557)
                     residuals[i, j] = _training_error_radicand(future_errors)
 
-            if np.all(np.isnan(residuals)):
-                raise ValueError(
-                    "The Holt-Winters lambda grid search produced no usable residuals; "
-                    "the input is likely constant, too short, or entirely missing."
-                )
-            min_idx = np.nanargmin(residuals)
-            best_ld_1 = ld_1_index[np.unravel_index(min_idx, residuals.shape)[0]]
-            best_ld_2 = ld_2_index[np.unravel_index(min_idx, residuals.shape)[1]]
+            best_ld_1, best_ld_2 = self._best_grid_lambdas(residuals, ld_1_index, ld_2_index)
             # Store the parameters that were calculated, even if a `target` or `s` were provided.
             self.ld_1 = best_ld_1
             self.ld_2 = best_ld_2
@@ -790,7 +835,7 @@ class ControlChart:
 
         # Common code for both branches of if-else above
         future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
-        self._tau = _tau_from_training_errors(future_errors)
+        self._tau = _tau_from_training_errors(future_errors, sigma=self._given_s)
         if self.target is None:
             # Estimate the target as the median of the y-star (cleaned) y-values
             self.target = self.df["y_star"].median()
@@ -803,6 +848,24 @@ class ControlChart:
         # The "delta" emphasizes that it is the deviation from the target.
         self._delta_UCL_3sigma = +3.0 * self._tau
         self._delta_LCL_3sigma = -3.0 * self._tau
+
+    def _best_grid_lambdas(
+        self, residuals: np.ndarray, ld_1_index: np.ndarray, ld_2_index: np.ndarray
+    ) -> tuple[float, float]:
+        """Return the lambda pair of the smallest usable grid cell (rows follow ``ld_1``)."""
+        if not np.all(np.isnan(residuals)):
+            row, column = np.unravel_index(np.nanargmin(residuals), residuals.shape)
+            return ld_1_index[row], ld_2_index[column]
+        if self._given_s is not None:
+            # No cell is usable (a constant series has no error spread for any lambda), so the
+            # data cannot choose the lambdas. The caller knows the scale, so fit with the
+            # defaults of `_holt_winters_warmup_fit`; `sigma` then becomes tau.
+            return 0.5, 0.8
+        raise ValueError(
+            "The Holt-Winters lambda grid search produced no usable residuals; "
+            "the input is likely constant, too short, or entirely missing. Supply more "
+            "representative data, or pass an explicit positive 'sigma'."
+        )
 
     def _holt_winters_warmup_fit(self, ld_1: float = 0.5, ld_2: float = 0.8, ld_s: float = 0.2) -> None:
         """

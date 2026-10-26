@@ -767,3 +767,91 @@ def test_hw_grid_search_with_no_usable_cell_raises(monkeypatch) -> None:
     y = 50.0 + np.random.default_rng(5).standard_normal(40)
     with pytest.raises(ValueError, match="lambda grid search produced no usable residuals"):
         ControlChart(style="robust", variant="HW").calculate_limits(y)
+
+
+#: Series the Holt-Winters chart cannot take a scale from: constant, with pinned lambdas (the
+#: training errors have a zero median), with a lambda grid search (no usable cell), shorter than
+#: the warm-up (zero standard deviation), and a single sample (undefined standard deviation).
+NO_SPREAD_CASES = [
+    pytest.param([100.0] * 30, {"ld_1": 0.2, "ld_2": 0.7}, id="pinned-lambdas"),
+    pytest.param([100.0] * 30, {}, id="grid-search"),
+    pytest.param([100.0] * 8, {}, id="small-sample"),
+    pytest.param([100.0], {}, id="one-sample"),
+]
+
+
+@pytest.mark.parametrize(("y", "kwargs"), NO_SPREAD_CASES)
+def test_hw_uses_a_given_sigma_when_the_data_have_no_spread(y: list[float], kwargs: dict) -> None:
+    """A known scale gives finite limits of width 3 sigma where the data alone cannot estimate one."""
+    cc = ControlChart(style="robust", variant="HW")
+    cc.calculate_limits(pd.Series(y, dtype=float), sigma=1.0, **kwargs)
+    assert cc.s == 1.0
+    assert cc._tau == 1.0
+    assert cc.target == 100.0
+
+
+@pytest.mark.parametrize(("y", "kwargs"), NO_SPREAD_CASES)
+def test_hw_without_sigma_rejects_data_with_no_spread(y: list[float], kwargs: dict) -> None:
+    """Without a known scale, a series with no spread raises rather than giving zero-width or NaN limits."""
+    with pytest.raises(ValueError, match="sigma"):
+        ControlChart(style="robust", variant="HW").calculate_limits(pd.Series(y, dtype=float), **kwargs)
+
+
+def test_hw_grid_search_with_no_usable_cell_fits_the_default_lambdas_with_sigma() -> None:
+    """The data cannot choose the lambdas, so the chart stores the defaults it fitted with."""
+    cc = ControlChart(style="robust", variant="HW")
+    cc.calculate_limits(pd.Series([100.0] * 30), sigma=2.0)
+    assert (cc.ld_1, cc.ld_2) == (0.5, 0.8)
+    assert (cc._delta_UCL_3sigma, cc._delta_LCL_3sigma) == (6.0, -6.0)
+
+
+def test_hw_small_sample_keeps_a_given_target_and_the_data_median() -> None:
+    """Below the warm-up length a given target and sigma are used; the data median is still recorded."""
+    cc = ControlChart(style="robust", variant="HW")
+    cc.calculate_limits(pd.Series([1.0, 2.0, 4.0]), target=3.0, sigma=0.5)
+    assert (cc.target, cc.s, cc._tau, cc._target_calculated_best) == (3.0, 0.5, 0.5, 2.0)
+
+
+def test_hw_given_sigma_keeps_the_scale_estimated_from_usable_data() -> None:
+    """A given sigma is the fallback scale, not a replacement: data with spread keep their own tau."""
+    y = pd.Series(50.0 + np.random.default_rng(7).standard_normal(40))
+    cc = ControlChart()
+    cc.calculate_limits(y, ld_1=0.4, ld_2=0.7, sigma=10.0)
+    training_errors = cc.df["error"].iloc[cc.train_samples]
+    assert cc.s == 10.0
+    assert cc._tau == _tau_from_training_errors(training_errors)
+    assert cc._tau < 2.0
+
+
+def test_scale_estimate_returns_a_given_sigma_only_for_errors_without_usable_spread() -> None:
+    """The fallback applies to finite errors with no spread; errors that are all missing still raise."""
+    assert _tau_from_training_errors(pd.Series([0.0, 0.0, 0.0, 1.5]), sigma=2.0) == 2.0
+    usable = pd.Series([0.5, -1.0, 0.3, 1.2])
+    assert _tau_from_training_errors(usable, sigma=2.0) == _tau_from_training_errors(usable)
+    with pytest.raises(ValueError, match="none of the 3 training-sample errors is finite"):
+        _tau_from_training_errors(pd.Series([np.nan] * 3), sigma=2.0)
+
+
+def test_calculate_limits_accepts_s_as_a_deprecated_alias_for_sigma() -> None:
+    """``s=`` warns and gives the same fit as ``sigma=``; giving both is rejected."""
+    y = pd.Series(50.0 + np.random.default_rng(8).standard_normal(40))
+    with_sigma, with_s = ControlChart(), ControlChart()
+    with_sigma.calculate_limits(y, target=50.0, sigma=2.0)
+    with pytest.warns(DeprecationWarning, match=r"calculate_limits\(s=\.\.\.\) is deprecated since 2\.2\.0"):
+        with_s.calculate_limits(y, target=50.0, s=2.0)
+    _assert_same(with_s.df, with_sigma.df, "df")
+    assert (with_s.s, with_s._tau, with_s.ld_1, with_s.ld_2) == (
+        with_sigma.s,
+        with_sigma._tau,
+        with_sigma.ld_1,
+        with_sigma.ld_2,
+    )
+    with pytest.raises(ValueError, match="both 'sigma' and its deprecated alias 's'"):
+        ControlChart().calculate_limits(y, sigma=2.0, s=2.0)
+
+
+def test_control_chart_tool_reports_a_short_constant_series_as_an_error() -> None:
+    """Below the warm-up length a constant series is reported, as a long one is, not charted with zero width."""
+    result = execute_tool_call("control_chart", {"values": [5.0] * 6})
+    assert set(result) == {"error"}
+    assert "scale estimate is undefined" in result["error"]
