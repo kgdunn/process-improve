@@ -1495,7 +1495,7 @@ function showLikeYours() {
   $("#like-yours-sentence").textContent = field.sentence;
   drawFieldChart($("#like-yours-chart"), field.points, plan);
   $("#like-yours-verdict").textContent = planVerdict(field.points, plan);
-  $("#like-yours-link").href = `catalog/fields/${slug}/`;
+  $("#like-yours-link").href = `catalog/fields/${encodeURIComponent(slug)}/`;
 }
 
 // ---------------------------------------------------------------- the trade-off grid
