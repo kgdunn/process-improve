@@ -18,7 +18,7 @@ def test_a_field_chosen_shows_its_experiments_beside_the_plan(fresh_page):
     page = fresh_page
     set_factors(page, factors_named("A", "B", "C"))
     reveal(page, "#like-yours")
-    assert page.is_visible("#like-yours-empty")
+    assert page.input_value("#field") == "", "no field until the reader chooses one"
     assert page.is_hidden("#like-yours-body")
 
     page.select_option("#field", CHEMICAL)

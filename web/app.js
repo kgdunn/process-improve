@@ -1487,7 +1487,6 @@ function showLikeYours() {
   $("#like-yours").hidden = !fields;
   const slug = $("#field").value;
   const field = fields?.[slug];
-  $("#like-yours-empty").hidden = Boolean(field);
   $("#like-yours-body").hidden = !field;
   if (!field) return;
   const k = state.design ? state.design.spec.factors.length : factorCount();
