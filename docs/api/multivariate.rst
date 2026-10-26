@@ -37,11 +37,14 @@ loadings, VIP, Hotelling's T2 and SPE.
 PRM
 ~~~
 
-Partial Robust M-regression: PLS with a bounded influence per observation, so that
-a handful of outlying rows move the fit a little instead of a lot. Each row carries
-the product of a residual weight and a leverage weight, and the fit and the weights
-are recomputed from each other until they settle. Everything :class:`PLS` offers is
-inherited, so a fitted ``PRM`` also has scores, loadings, VIP, Hotelling's T2 and SPE.
+Partial Robust M-regression (Serneels et al., 2005): PLS with a bounded influence per
+observation, so that a handful of outlying rows move the fit a little instead of a lot.
+X is centred at its L1 median and y at its median, each row carries the product of a
+residual weight and a leverage weight, and the fit and the weights are recomputed from
+each other until the regression on the scores changes by less than 1%. With
+``scale=False`` it is the paper's algorithm, and reproduces the R package chemometrics.
+Everything :class:`PLS` offers is inherited, so a fitted ``PRM`` also has scores,
+loadings, VIP, Hotelling's T2 and SPE.
 
 .. autoclass:: PRM
    :members: fit, outlier_summary
