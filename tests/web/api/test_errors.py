@@ -197,6 +197,14 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             "try 'Water_pct' for 'Water %', 'lambda_' for 'lambda'."
         ),
     ),
+    "a factor named I, in a design with squares": (
+        "api_make_design",
+        _make(factors=[FACTORS[0], {**FACTORS[1], "name": "I"}, FACTORS[2]]),
+        (
+            "A factor cannot be named I in this design: its model has squares, whose terms call I(), "
+            "which the factor would hide. Try 'I_'."
+        ),
+    ),
     "low above high": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "low": 5}]),

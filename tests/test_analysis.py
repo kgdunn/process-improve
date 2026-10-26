@@ -1250,6 +1250,26 @@ def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
         analyze_experiment(data, response_column="y", model="main_effects")
 
 
+def test_a_factor_named_i_in_a_quadratic_model_comes_with_a_rename_that_fits() -> None:
+    """A factor named I hides patsy's I() in every square term; a main-effects model, which calls no I(), fits."""
+    from process_improve.experiments import analyze_experiment
+
+    axial = 2**0.5
+    x = np.array([-1, 1, -1, 1, 0, 0, 0, -axial, axial, 0, 0])
+    z = np.array([-1, -1, 1, 1, 0, 0, 0, 0, 0, -axial, axial])
+    noise = np.random.default_rng(0).normal(0, 0.1, len(x))
+    data = pd.DataFrame({"I": x, "P": z, "y": 5 + x - x**2 + z + noise})
+    main = analyze_experiment(data, response_column="y", model="main_effects", analysis_type="coefficients")
+    assert [row["term"] for row in main["coefficients"]] == ["Intercept", "I", "P"]
+    with pytest.raises(ValueError, match=r"calls I\(\)") as refusal:
+        analyze_experiment(data, response_column="y", model="quadratic")
+    renames = ast.literal_eval(re.search(r"columns=(\{.*\})\)\.$", str(refusal.value)).group(1))
+    fitted = analyze_experiment(
+        data.rename(columns=renames), response_column="y", model="quadratic", analysis_type="coefficients"
+    )
+    assert "I(I_ ** 2)" in [row["term"] for row in fitted["coefficients"]]
+
+
 def test_refused_column_names_come_with_a_rename_that_fits() -> None:
     """The rename map in the error, pasted into ``DataFrame.rename``, gives names the model takes."""
     from process_improve.experiments import analyze_experiment
