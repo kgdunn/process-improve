@@ -449,3 +449,19 @@ docstring-quotes = "double"
 
 [tool.ruff.lint.isort]
 known-third-party=["pytest", "pandas"]
+
+# Mutation testing: see "Mutation testing" in CONTRIBUTING.md. Modules join `only_mutate` one at a
+# time, each with no survivor, starting with those whose numbers users act on; the tests listed
+# are those that reach them.
+[tool.mutmut]
+source_paths = ["src"]
+only_mutate = ["src/process_improve/multivariate/_limits.py"]
+# The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
+pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
+pytest_add_cli_args_test_selection = [
+    "tests/test_multivariate_limits.py",
+    "tests/test_multivariate.py",
+    "tests/test_audit_regressions_multivariate.py",
+    "tests/test_multiblock_validation.py",
+    "tests/test_multivariate_introspection.py",
+]
