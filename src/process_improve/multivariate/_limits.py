@@ -100,7 +100,7 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
         chi-square approximation underlying it). Compare an observation's
         ``spe_`` value directly against the returned limit.
     """
-    check_is_fitted(model, "spe_")
+    check_is_fitted(model, "spe_")  # pragma: no mutate - None checks the same fitted state
 
     return spe_calculation(
         spe_values=model.spe_.iloc[:, model.n_components_ - 1],
@@ -171,7 +171,7 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
         # Every SPE is exactly zero: a perfect fit.
         return 0.0
     relative_spread = float(np.sqrt(variance_spe)) / center_spe
-    if relative_spread <= epsqrt:
+    if relative_spread <= epsqrt:  # pragma: no mutate - differs from < only at exact equality
         return float(np.sqrt(center_spe))
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
@@ -220,9 +220,9 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
-    check_is_fitted(model, "scores_")
+    check_is_fitted(model, "scores_")  # pragma: no mutate - None checks the same fitted state
 
-    scores = np.asarray(model.scores_, dtype=float)
+    scores = np.asarray(model.scores_, dtype=float)  # pragma: no mutate - the scores are already float
     std_per_component = scores.std(axis=0, ddof=1)
     critical_value = t_dist.ppf(1 - (1 - conf_level) / 2, scores.shape[0] - 1)
     return critical_value * std_per_component
@@ -297,9 +297,9 @@ def ellipse_coordinates(  # noqa: PLR0913
         raise ValueError(f"score_horiz must lie in [1, {n_components}]; got {score_horiz}.")
     if not 1 <= score_vert <= n_components:
         raise ValueError(f"score_vert must lie in [1, {n_components}]; got {score_vert}.")
-    if not 0 < conf_level < 1:
+    if not 0 < conf_level < 1:  # pragma: no mutate - hotellings_t2_limit repeats this check
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
-    if n_rows <= 0:
+    if n_rows <= 0:  # pragma: no mutate - hotellings_t2_limit refuses n_rows below 2 too
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
     if n_points < 2:
         raise ValueError(f"n_points must be >= 2 to draw an ellipse; got {n_points}.")

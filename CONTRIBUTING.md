@@ -120,6 +120,27 @@ import pytest
 def test_loads_real_data(): ...
 ```
 
+### Mutation testing
+
+Coverage says a line ran; mutation testing says a test would notice if that line were wrong.
+[mutmut](https://github.com/boxed/mutmut) changes one operator, constant or argument at a time in
+the modules listed under `[tool.mutmut]` in `pyproject.toml`, reruns the tests that reach the
+change, and reports each change no test fails as "survived". The nightly
+`.github/workflows/mutation.yml` fails on any survivor and shows its diff in the run summary.
+
+```bash
+rm -rf mutants                                        # start fresh after editing the source
+uv run --with mutmut==3.8.0 mutmut run --max-children 4
+uv run --with mutmut==3.8.0 mutmut results            # the survivors
+uv run --with mutmut==3.8.0 mutmut show <mutant>      # one survivor's diff
+```
+
+A survivor is either an assertion to add, checked against a value derived independently of the
+code, or an equivalent change that no test can see (`float("INF")` for `float("inf")`). Mark an
+equivalent change on its line with `# pragma: no mutate - <why>`, so a reviewer can judge the
+reason. Start each new module from a fresh `mutants/` directory: a rerun after editing the source
+can report a mutant as killed when it was not.
+
 ### The README is tested
 
 The README is the first code a new user runs, so CI checks it like code:
