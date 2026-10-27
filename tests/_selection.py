@@ -3,13 +3,16 @@
 Two independent tools, wired into pytest by ``tests/conftest.py``.
 
 ``affected_test_files``: test impact analysis from a static import graph
-    Every ``.py`` file under ``src/`` and ``tests/`` is parsed, never imported.
-    Each one gets an edge to every first-party module it imports, found in three
-    places: ``import`` statements; string literals naming a ``process_improve``
-    module (the lazy registries in ``tool_spec.py`` and ``recipes.py`` import
-    their members that way); and Python source held in a string literal (the
-    snippets tests run with ``subprocess.run([sys.executable, "-c", code])``).
-    A test file is affected when it can reach a changed file along those edges.
+    Every ``.py`` file under ``src/``, ``tests/``, ``web/`` and ``scripts/`` is
+    parsed, never imported. Each one gets an edge to every first-party module it
+    imports, found in four places: ``import`` statements; string literals naming
+    a ``process_improve`` module (the lazy registries in ``tool_spec.py`` and
+    ``recipes.py`` import their members that way); string literals naming a
+    Python file of the graph
+    (``WEB / "bootstrap.py"``, the app's code that tests load by path); and
+    Python source held in a string literal (the snippets tests run with
+    ``subprocess.run([sys.executable, "-c", code])``). A test file is affected
+    when it can reach a changed file along those edges.
 
     ``from package import name`` follows ``name`` to the module that defines it,
     through any ``__init__.py`` that only re-exports it. Without that step,
@@ -24,7 +27,10 @@ Two independent tools, wired into pytest by ``tests/conftest.py``.
     Three things widen the selection rather than narrow it:
 
     - a test that executes code the graph cannot follow (``exec``, a module
-      loaded from a file path) is "opaque" and runs on every ``src/`` change;
+      loaded from a file path) is "opaque" and runs on every ``src/`` change.
+      A helper module that loads by path is opaque only when it names no Python
+      file of the graph: its callers name the file they load, and reach it
+      through that edge;
     - an affected ``conftest.py`` affects every test file below it;
     - a deleted file, or a build file in ``FULL_SUITE``, selects the whole suite.
 
@@ -52,7 +58,14 @@ from pathlib import Path
 # A change to any of these can alter every test, so it selects the whole suite.
 FULL_SUITE = frozenset({"pyproject.toml", "pytest.ini", ".coveragerc", "uv.lock"})
 
+# Folders whose Python files are nodes of the graph: the package, its tests, and the
+# browser app's code and build script, which tests load by path.
+FOLDERS = ("src", "tests", "web", "scripts")
+
 _MODULE_NAME = re.compile(r"^process_improve(\.\w+)+$")
+_PYTHON_FILE = re.compile(r"^[\w./\\-]+\.py$")
+# File names that name a role every package or test folder has, not one particular file.
+_ROLE_NAMES = frozenset({"__init__.py", "conftest.py"})
 
 # Calls that run code from a file the graph cannot see: README examples, docs
 # pages, a script loaded by path.
@@ -155,6 +168,7 @@ class _Parsed:
     imports: set[Import]
     reexports: dict[str, Import]
     components: set[str]  # path components found in string literals
+    python_files: set[str]  # string literals naming a Python file, as a posix path
     opaque: bool
 
 
@@ -162,7 +176,7 @@ def _parse(path: Path, module: str) -> _Parsed:
     """Read one file's imports, re-exports, string-literal path components and opacity."""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     package = module if path.name == "__init__.py" else module.rpartition(".")[0]
-    parsed = _Parsed(_imports(tree, package), _reexports(tree, package), set(), opaque=False)
+    parsed = _Parsed(_imports(tree, package), _reexports(tree, package), set(), set(), opaque=False)
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             literal = node.value
@@ -170,6 +184,8 @@ def _parse(path: Path, module: str) -> _Parsed:
                 parsed.imports.add((literal, ""))
             parsed.imports |= _embedded_imports(literal)
             parsed.components.update(re.split(r"[/\\]", literal))
+            if _PYTHON_FILE.match(literal) and Path(literal).name not in _ROLE_NAMES:
+                parsed.python_files.add(literal.replace("\\", "/").lstrip("/"))
         elif isinstance(node, ast.Call):
             func = node.func
             called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
@@ -178,8 +194,9 @@ def _parse(path: Path, module: str) -> _Parsed:
 
 
 def build_import_graph(root: Path) -> ImportGraph:
-    """Parse every Python file under ``src/`` and ``tests/`` into an :class:`ImportGraph`."""
-    files = sorted(p for folder in ("src", "tests") for p in (root / folder).rglob("*.py"))
+    """Parse every Python file under ``FOLDERS`` into an :class:`ImportGraph`."""
+    files = sorted(p for folder in FOLDERS for p in (root / folder).rglob("*.py"))
+    by_posix = {p.relative_to(root).as_posix(): p for p in files}
     by_module = {_module_name(p, root): p for p in files}
     parsed = {path: _parse(path, _module_name(path, root)) for path in files}
     reexports = {_module_name(path, root): info.reexports for path, info in parsed.items()}
@@ -199,10 +216,14 @@ def build_import_graph(root: Path) -> ImportGraph:
     graph = ImportGraph()
     for path, info in parsed.items():
         targets = {resolve(module, name) for module, name in info.imports}
-        graph.edges[path] = {t for t in targets if t is not None} - {path}
+        named = {f for name in info.python_files for posix, f in by_posix.items() if f"/{posix}".endswith(f"/{name}")}
+        graph.edges[path] = ({t for t in targets if t is not None} | named) - {path}
         for component in info.components:
             graph.mentions[component].add(path)
-        if info.opaque and path.is_relative_to(root / "tests"):
+        # shortcut: a helper that names a file is trusted to load only files its callers name;
+        # a caller that builds the path from parts that name no file would be missed.
+        helper_with_named_files = bool(named) and not path.name.startswith("test_")
+        if info.opaque and path.is_relative_to(root / "tests") and not helper_with_named_files:
             graph.opaque.add(path)
     return graph
 

@@ -218,8 +218,9 @@ uv run pytest -k "pls" --no-cov                      # by keyword
 uv run pytest --no-cov --affected-since=origin/main  # only tests your branch can affect
 ```
 
-`--affected-since` is for fast local iteration before pushing; CI always runs
-the whole suite. How it selects tests is in `CONTRIBUTING.md`.
+`--affected-since` is for fast local iteration before pushing. On a pull request
+CI uses it for the `test` and `test-free-threaded` rows, while the `coverage` job
+runs the whole suite. How it selects tests is in `CONTRIBUTING.md`.
 
 Install with `uv sync --dev --all-extras`. Without the extras a large part of
 the suite fails on `ImportError` rather than skipping.
@@ -280,8 +281,10 @@ Workflows in `.github/workflows/`:
   `--shard`), `coverage-report` (combines the shards for the 96% gate and the
   diff-cover patch gate), `test-under-dash-O` (the suite with
   `PYTHONOPTIMIZE=1`, to catch load-bearing asserts; plain `python -O` would not
-  reach the xdist workers), and `test-free-threaded`. Every job runs the whole
-  suite; `--affected-since` is for local iteration only. `CI passed` is the one
+  reach the xdist workers), and `test-free-threaded`. On a pull request the
+  `test` and `test-free-threaded` rows run only the affected tests
+  (`--affected-since`); every other run, and the `coverage` job always, runs the
+  whole suite. `CI passed` is the one
   check to require in branch protection: it fails unless every other job except
   `coverage-report` succeeded. All jobs install with `uv sync --dev --all-extras`.
 - **main-status.yml**: the README badge; passes or fails as the latest run of
