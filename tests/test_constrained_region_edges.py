@@ -214,8 +214,11 @@ def test_a_region_of_categorical_factors_only_has_an_empty_centroid() -> None:
 
 def test_a_region_of_one_point_is_sampled_at_that_point() -> None:
     """A >= 1 and B >= 1 leave the corner (1, 1) alone: the chains have no spread to shape their directions by."""
-    x = DesignRegion(UNIT_SQUARE, ["A >= 1", "B >= 1"]).sample(5, np.random.default_rng(0))
-    np.testing.assert_array_equal(x, np.ones((5, 2)))
+    region = DesignRegion(UNIT_SQUARE, ["A >= 1", "B >= 1"])
+    x = region.sample(5, np.random.default_rng(0))
+    # To rounding, not exactly: on macOS some coordinates land one unit in the last place below 1.
+    np.testing.assert_allclose(x, np.ones((5, 2)), rtol=0, atol=1e-12)
+    assert region.feasible(x).all()
 
 
 def test_a_curved_limit_met_on_a_line_only_keeps_the_chains_on_it() -> None:
