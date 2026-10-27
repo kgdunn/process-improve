@@ -88,7 +88,8 @@ def written(build_script, tmp_path_factory) -> Path:
     """Write the books of the cases above as the build does, into a catalog folder of their own."""
     folder = tmp_path_factory.mktemp("catalog")
     (folder / "index.json").write_text(
-        '{"designs": [' + ",".join(f'{{"id": "{k}", "where": "{v}"}}' for k, v in WHERE.items()) + "]}"
+        '{"designs": [' + ",".join(f'{{"id": "{k}", "where": "{v}"}}' for k, v in WHERE.items()) + "]}",
+        encoding="utf-8",
     )
     cases = [*MONTGOMERY, case("lenth-pse", "reproduced", source="lenth-1989")]
     sources = {key: {**s, "verdict": f"{s['short']} verdict. More."} for key, s in SOURCES.items()}
@@ -172,7 +173,7 @@ def test_the_build_writes_a_page_for_each_book_with_a_case_and_the_list_of_them(
         "books/lenth-1989/index.html",
         "books/montgomery-2013/index.html",
     ]
-    listed = (written / "books" / "index.html").read_text()
+    listed = (written / "books" / "index.html").read_text(encoding="utf-8")
     assert '<a href="montgomery-2013/">' in listed
     assert "no-cases-2020" not in listed, "a source with no case has no page"
     assert listed.index("<h2>Books</h2>") < listed.index("<h2>Journal papers</h2>")
@@ -181,7 +182,7 @@ def test_the_build_writes_a_page_for_each_book_with_a_case_and_the_list_of_them(
 
 
 def test_a_book_s_page_lists_its_examples_in_page_order_each_opening_its_numbers(written):
-    page = (written / "books" / "montgomery-2013" / "index.html").read_text()
+    page = (written / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     assert "<h1>Design and Analysis of Experiments</h1>" in page
     assert "Montgomery verdict. More." in page
     assert page.index(">Golf<") < page.index(">Power<") < page.index(">Etching<"), "pp. 4, 47, 66"
@@ -194,7 +195,7 @@ def test_a_book_s_page_lists_its_examples_in_page_order_each_opening_its_numbers
 
 
 def test_a_book_s_misprints_set_what_it_prints_beside_what_its_data_give(written):
-    page = (written / "books" / "montgomery-2013" / "index.html").read_text()
+    page = (written / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     misprints = page.split('id="misprints"')[1].split("</section>")[0]
     assert misprints.count('class="misprint"') == 1, "only the misprints, not the other differences"
     assert "Std error: treatment mean" in misprints
@@ -203,7 +204,7 @@ def test_a_book_s_misprints_set_what_it_prints_beside_what_its_data_give(written
 
 
 def test_what_factorial_lacks_is_grouped_by_what_it_lacks_the_most_numbers_first(written):
-    page = (written / "books" / "montgomery-2013" / "index.html").read_text()
+    page = (written / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     lacking = page.split('id="not-yet"')[1]
     lacks = "The library does not make for the smallest sample size of a power"
     assert lacking.count(lacks) == 1, "the numbers of one missing method fall together"
@@ -213,7 +214,7 @@ def test_what_factorial_lacks_is_grouped_by_what_it_lacks_the_most_numbers_first
 
 
 def test_a_book_without_misprints_or_gaps_has_no_such_sections(written):
-    page = (written / "books" / "lenth-1989" / "index.html").read_text()
+    page = (written / "books" / "lenth-1989" / "index.html").read_text(encoding="utf-8")
     assert 'id="examples"' in page
     assert 'id="misprints"' not in page
     assert 'id="not-yet"' not in page
@@ -221,7 +222,7 @@ def test_a_book_without_misprints_or_gaps_has_no_such_sections(written):
 
 
 def test_a_book_s_page_loads_only_what_the_app_publishes(build_script, written):
-    page = (written / "books" / "montgomery-2013" / "index.html").read_text()
+    page = (written / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     loaded = set(re.findall(r'(?:href|src)="\.\./\.\./\.\./([^"#?]+)"', page)) - {"catalog/reproduced/"}
     assert loaded == {"style.css", "favicon.svg"}
     assert loaded <= set(build_script.APP_FILES)
@@ -232,7 +233,7 @@ def test_a_title_is_written_as_text_not_markup(build_script, tmp_path):
     cases = [case("x", "reproduced", title="<b>bold</b> & co")]
     sources = {"montgomery-2013": {**SOURCES["montgomery-2013"], "verdict": "Fine."}}
     build_script.write_books(tmp_path, {"cases": cases, "sources": sources, "forms": FORMS})
-    page = (tmp_path / "books" / "montgomery-2013" / "index.html").read_text()
+    page = (tmp_path / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     assert "&lt;b&gt;bold&lt;/b&gt; &amp; co" in page
     assert "<b>bold</b>" not in page
 
@@ -240,11 +241,12 @@ def test_a_title_is_written_as_text_not_markup(build_script, tmp_path):
 def test_many_examples_are_grouped_by_a_hundred_pages(build_script, tmp_path):
     many = [case(f"e{i}", "reproduced") for i in range(build_script.GROUPED + 1)]
     (tmp_path / "index.json").write_text(
-        '{"designs": [' + ",".join(f'{{"id": "e{i}", "where": "p. {40 * i + 1}"}}' for i in range(len(many))) + "]}"
+        '{"designs": [' + ",".join(f'{{"id": "e{i}", "where": "p. {40 * i + 1}"}}' for i in range(len(many))) + "]}",
+        encoding="utf-8",
     )
     sources = {"montgomery-2013": {**SOURCES["montgomery-2013"], "verdict": "Fine."}}
     build_script.write_books(tmp_path, {"cases": many, "sources": sources, "forms": FORMS})
-    page = (tmp_path / "books" / "montgomery-2013" / "index.html").read_text()
+    page = (tmp_path / "books" / "montgomery-2013" / "index.html").read_text(encoding="utf-8")
     assert re.findall(r"<summary>(Pages [^<]+)</summary>", page) == [
         "Pages 1 to 99",
         "Pages 100 to 199",

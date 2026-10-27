@@ -147,12 +147,12 @@ def test_the_build_writes_a_page_per_field_the_list_of_fields_and_the_panel_s_fi
         "fields/index.html",
         "fields/paper/index.html",
     ]
-    panel = json.loads((written / "fields.json").read_text())
+    panel = json.loads((written / "fields.json").read_text(encoding="utf-8"))
     assert panel["fields"]["paper"] == {k: summaries["paper"][k] for k in ("label", "sentence", "points")}
 
 
 def test_a_field_s_page_says_its_sentence_draws_its_points_and_opens_each_experiment(written, summaries):
-    page = (written / "fields" / "food-beverages" / "index.html").read_text()
+    page = (written / "fields" / "food-beverages" / "index.html").read_text(encoding="utf-8")
     assert "<h1>Food and beverages</h1>" in page
     assert html.escape(summaries["food-beverages"]["sentence"]) in page
     points = re.search(r'data-field-points="([^"]+)"', page).group(1)
@@ -165,7 +165,7 @@ def test_a_field_s_page_says_its_sentence_draws_its_points_and_opens_each_experi
 
 def test_a_field_s_page_loads_only_what_the_app_publishes(build_script, written):
     """Its stylesheet, icon and chart are files of the app, three folders up from the page."""
-    page = (written / "fields" / "food-beverages" / "index.html").read_text()
+    page = (written / "fields" / "food-beverages" / "index.html").read_text(encoding="utf-8")
     loaded = set(re.findall(r'(?:href|src)="\.\./\.\./\.\./([^"#?]+)"', page)) - {"catalog/", ""}
     assert loaded == {"style.css", "favicon.svg", "field-chart.js"}
     assert loaded <= set(build_script.APP_FILES)
@@ -179,7 +179,7 @@ def test_a_title_is_written_as_text_not_markup(build_script, tmp_path):
         "sources": {},
     }
     build_script.write_fields(tmp_path, index)
-    page = (tmp_path / "fields" / "food-beverages" / "index.html").read_text()
+    page = (tmp_path / "fields" / "food-beverages" / "index.html").read_text(encoding="utf-8")
     assert "&lt;b&gt;bold&lt;/b&gt; &amp; co" in page
     assert "<b>bold</b>" not in page
 
@@ -187,7 +187,7 @@ def test_a_title_is_written_as_text_not_markup(build_script, tmp_path):
 def test_a_long_kind_shows_the_first_few_and_the_rest_on_asking(build_script, tmp_path):
     many = [design(f"run-{i}", "full_factorial", 3, 8 + i) for i in range(build_script.LISTED + 2)]
     build_script.write_fields(tmp_path, {"designs": many, "topics": TOPICS, "sources": {}})
-    page = (tmp_path / "fields" / "food-beverages" / "index.html").read_text()
+    page = (tmp_path / "fields" / "food-beverages" / "index.html").read_text(encoding="utf-8")
     shown, rest = page.split("<summary>Show the rest</summary>")
     assert shown.count("catalog/#d=run-") == build_script.LISTED
     assert rest.count("catalog/#d=run-") == 2
@@ -195,5 +195,7 @@ def test_a_long_kind_shows_the_first_few_and_the_rest_on_asking(build_script, tm
 
 def test_the_chart_draws_every_kind_the_build_groups_by(build_script):
     """``web/field-chart.js`` gives each kind of FIELD_GROUPS a shape; an unknown kind would be drawn as other."""
-    kinds = re.search(r"export const KINDS = \[([^\]]+)\]", (WEB / "field-chart.js").read_text()).group(1)
+    kinds = re.search(r"export const KINDS = \[([^\]]+)\]", (WEB / "field-chart.js").read_text(encoding="utf-8")).group(
+        1
+    )
     assert re.findall(r'"([a-z]+)"', kinds) == list(build_script.FIELD_GROUPS)
