@@ -36,7 +36,7 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     -------
     float
         The Hotelling's T2 limit at the given level of confidence. Returns
-        ``inf`` when ``n_components == n_rows``.
+        ``0.0`` when ``n_components == 0`` and ``inf`` when ``n_components == n_rows``.
 
     Raises
     ------
@@ -61,8 +61,13 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
             f"n_components ({n_components}) cannot exceed n_rows ({n_rows}); "
             "a model cannot have more components than observations."
         )
+    if n_components == 0:
+        # With no components T2 is zero for every observation, and so is its limit: the
+        # formula below tends to 0 as A -> 0, but scipy cannot evaluate an F distribution
+        # with 0 numerator degrees of freedom and returned NaN.
+        return 0.0
     if n_components == n_rows:
-        return float("inf")
+        return float("inf")  # pragma: no mutate - float('INF') is the same value
     return (
         n_components
         * (n_rows - 1)
