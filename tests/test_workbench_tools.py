@@ -159,7 +159,8 @@ def test_a_script_rebuilds_its_model(table: pd.DataFrame, tmp_path, monkeypatch:
     )
     script = call("mva_script", session=result["session"], models=["M2"])["scripts"][0]["script"]
     assert script.startswith("# Model M2, grown from M1.\n# d is skewed\n")
-    (tmp_path / "plant.csv").write_text(result["session"]["source"]["csv"])
+    # newline="": the script checks the file's SHA-256, so Windows must not write CRLF line endings.
+    (tmp_path / "plant.csv").write_text(result["session"]["source"]["csv"], encoding="utf-8", newline="")
     monkeypatch.chdir(tmp_path)
     namespace: dict = {}
     exec(compile(script, "M2.py", "exec"), namespace)  # noqa: S102 - the tool's own script, run to check it
