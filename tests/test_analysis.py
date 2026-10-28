@@ -937,7 +937,8 @@ class TestConfidenceIntervals:
         def bounds(rows: list[dict]) -> dict[str, tuple[float, float]]:
             return {row["term"]: (row["ci_low"], row["ci_high"]) for row in rows}
 
-        assert bounds(result["confidence_intervals"]) == pytest.approx(bounds(result["coefficients"]))
+        expected = {term: pytest.approx(interval) for term, interval in bounds(result["coefficients"]).items()}
+        assert bounds(result["confidence_intervals"]) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -1619,7 +1620,7 @@ class TestMixtureAnalysis:
             self._yarn(), response_column="y", model="scheffe_quadratic", analysis_type="effects"
         )
         assert result["effects"] == pytest.approx({"x1": 1.2, "x2": -7.5, "x3": 1.1}, abs=1e-9)
-        assert result["effect_range"] == pytest.approx({c: [0.0, 1.0] for c in ("x1", "x2", "x3")})
+        assert result["effect_range"] == {c: pytest.approx([0.0, 1.0]) for c in ("x1", "x2", "x3")}
 
     def test_the_default_model_for_mixture_data_is_scheffe(self) -> None:
         result = analyze_experiment(self._yarn(), response_column="y", analysis_type="anova")

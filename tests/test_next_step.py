@@ -242,8 +242,9 @@ class TestLackOfFit:
     def _context(significant: bool, judged: dict[str, float]) -> SimpleNamespace:
         return SimpleNamespace(
             lack_of_fit={"tested": True, "significant": significant, "p_value": 0.004},
-            model=SimpleNamespace(judged=judged),
+            model=SimpleNamespace(judged=judged, misses={}),
             study=SimpleNamespace(names=["x0", "x1", "x2"], numeric=[True, True, True]),
+            active=["x0"],
             active_factors=[0],
             name="ABC".__getitem__,
         )
@@ -261,6 +262,84 @@ class TestLackOfFit:
         assert asked == [[0, 1]]  # B (p = 0.15) joins A; C and B:C show nothing
         assert step.action == "add_runs_for_model"
         assert "B shows some evidence of an effect" in step.reasons[0]
+
+    @staticmethod
+    def _interacting() -> tuple[_Study, dict]:
+        """Return a 2^4 factorial with centre runs, A large and A:D, judged in the main effects model, which misses."""
+        factors = _factors("ABCD")
+        runs = generate_design(factors, design_type="full_factorial", n_center_points=5).design_actual
+        x = runs[list("ABCD")].astype(float).to_numpy()
+        y = 50 + 5 * x[:, 0] + 3 * x[:, 0] * x[:, 3] + np.random.default_rng(1).normal(0, 0.3, len(x))
+        study = _Study(factors, _with_blocks(_code(factors, runs[list("ABCD")].assign(y=y), "y")), "y")
+        judged = _t_tests(study.data, study.names, [], "t-tests of the main effects", 0.05)
+        judged["considered"] = set(study.names)
+        return study, judged
+
+    def test_a_model_that_misses_tests_the_interactions_of_its_active_factors_with_the_others(self) -> None:
+        """A:D averages out of D's main effect; the second look finds it once the model is seen to miss."""
+        study, judged = self._interacting()
+        judged = _against_pure_error(study, judged, 0.05)
+        assert judged["misses"]["significant"]
+        active = ["x0"]
+        next_step._second_look(study, judged, active, [], 0.05)
+        assert active == ["x0", "x0:x3"]
+        assert judged["judged"]["x0:x1"] > 0.05  # Holm's method across A:B, A:C and A:D
+        assert "Holm" in judged["method"]
+        assert "misses" not in judged  # the model now holds a term the judging model lacked
+
+    def test_a_model_that_fits_keeps_strong_heredity(self) -> None:
+        """Without a lack of fit, only interactions of two active factors are looked at: none here."""
+        study, judged = self._interacting()
+        active = ["x0"]
+        next_step._second_look(study, judged, active, [], 0.05)
+        assert active == ["x0"]
+        assert "x0:x3" not in judged["judged"]
+
+    @staticmethod
+    def _fraction_context(misses: dict) -> SimpleNamespace:
+        """Return a 2^(4-1) fraction with centre runs, A and B active: A:C shares its column with B:D, A:D with B:C."""
+        factors = _factors("ABCD")
+        runs = generate_design(factors, design_type="fractional_factorial", resolution=4, n_center_points=3)
+        runs = runs.design_actual[list("ABCD")].astype(float)
+        study = _Study(factors, _with_blocks(_code(factors, runs.assign(y=0.0), "y")), "y")
+        return SimpleNamespace(
+            study=study,
+            active=["x0", "x1"],
+            active_factors=[0, 1],
+            model=SimpleNamespace(
+                judged={"x0": 0.0, "x1": 0.0, "x2": 0.5, "x3": 0.5}, misses=misses, terms=["x0", "x1"]
+            ),
+            lack_of_fit={"tested": True, "significant": True, "p_value": 0.01},
+            seed=0,
+            name="ABCD".__getitem__,
+        )
+
+    def test_runs_are_added_for_the_interactions_the_runs_cannot_test(self) -> None:
+        """The runs chosen let every interaction of A or B with another factor be estimated beside the main effects."""
+        ctx = self._fraction_context(misses={"tested": True, "significant": True, "p_value": 0.01})
+        rhs = "x0 + x1 + x2 + x3 + x0:x1 + x0:x2 + x0:x3 + x1:x2 + x1:x3"
+        before = ctx.study.data[ctx.study.names]
+        assert np.linalg.matrix_rank(np.asarray(next_step.dmatrix(rhs, before))) < 10
+        step = next_step._interaction_runs(ctx)
+        assert step.action == "add_runs_for_model"
+        assert "interactions of A, B with the other factors" in step.headline
+        assert np.abs(step.runs).max() <= 1
+        after = pd.concat([before, pd.DataFrame(step.runs, columns=ctx.study.names)], ignore_index=True)
+        assert np.linalg.matrix_rank(np.asarray(next_step.dmatrix(rhs, after))) == 10
+
+    def test_no_interaction_runs_when_the_judging_model_fits(self) -> None:
+        assert next_step._interaction_runs(self._fraction_context(misses={})) is None
+
+    def test_the_judging_models_lack_of_fit_holds_for_the_smaller_model(self) -> None:
+        """A model of some of the judged terms misses the repeats when the judging model does, whatever its own test."""
+        study = self._study(three_factor=0)
+        fit = next_step._ols(study.data, ["x0", "x1"])
+        model = SimpleNamespace(fit=fit, error_df=4, misses={})
+        own = next_step._lack_of_fit(study, model, 0.05)
+        assert own["tested"]
+        assert not own["significant"]
+        model.misses = {"tested": True, "significant": True, "p_value": 0.03}
+        assert next_step._lack_of_fit(study, model, 0.05) == model.misses
 
     @pytest.mark.parametrize(
         ("significant", "judged"),
