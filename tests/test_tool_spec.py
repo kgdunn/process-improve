@@ -214,6 +214,8 @@ def _warns(spec: _WarnInput) -> dict | int:
 @tool_spec(name="test_dummy_warns_numpy", description="Warn from inside numpy.", input_model=_EmptyInput)
 def _warns_numpy(spec: _EmptyInput) -> dict:
     warnings.warn_explicit("divide by zero encountered", RuntimeWarning, "/site-packages/numpy/linalg/_x.py", 1)
+    # loky counts a Mac's cores with text=True and no encoding, which PYTHONWARNDEFAULTENCODING reports
+    warnings.warn_explicit("'encoding' argument not specified", EncodingWarning, "/site-packages/joblib/x.py", 1)
     warnings.warn("the library's own advice", UserWarning, stacklevel=2)
     return {"ok": True}
 
@@ -221,7 +223,7 @@ def _warns_numpy(spec: _EmptyInput) -> dict:
 class TestToolWarningsReachTheCaller:
     """A warning a tool raises is returned in its result, where a model calling the tool reads it."""
 
-    def test_the_numerical_packages_own_warnings_are_left_out(self) -> None:
+    def test_the_numerical_packages_own_warnings_and_encoding_warnings_are_left_out(self) -> None:
         result = execute_tool_call("test_dummy_warns_numpy", {})
         assert result["library_warnings"] == [{"category": "UserWarning", "message": "the library's own advice"}]
 

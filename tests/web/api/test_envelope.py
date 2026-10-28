@@ -132,6 +132,14 @@ def test_what_is_heard_goes_to_the_reply_and_nowhere_else(bootstrap, caplog):
     assert "after" in caplog.text, "an enclosing log capture still works"
 
 
+def test_an_encoding_warning_is_not_heard(bootstrap):
+    """PYTHONWARNDEFAULTENCODING, as the tests run, warns of code reading text with no encoding: no news to a reader."""
+    with bootstrap._listening() as heard:
+        warnings.warn_explicit("'encoding' argument not specified", EncodingWarning, "/site-packages/joblib/x.py", 1)
+        warnings.warn("warned", UserWarning, stacklevel=1)
+    assert heard == ["warned"]
+
+
 def test_warnings_heard_in_an_inner_block_are_passed_on_to_the_outer_one(bootstrap):
     """A fit heard on its own, to decide whether to refit, still reports what it heard to the call around it."""
     with bootstrap._listening() as outer:
