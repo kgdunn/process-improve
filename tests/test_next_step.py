@@ -732,7 +732,7 @@ class TestInputs:
             recommend_next_step(factors, runs.drop(columns="B"), "y")
         with pytest.raises(ValueError, match="no response column"):
             recommend_next_step(factors, runs, "z")
-        with pytest.raises(TypeError, match="response must name the runs' response column, not None"):
+        with pytest.raises(ValueError, match="no response column None"):
             recommend_next_step(factors, runs, None)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="At least two runs"):
             recommend_next_step(factors, runs.head(1), "y")

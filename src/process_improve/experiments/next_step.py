@@ -190,7 +190,7 @@ def _check_factors(factors: list[Factor]) -> None:
             )
 
 
-def _code(factors: list[Factor], frame: pd.DataFrame, response: str | None, block: str | None = None) -> pd.DataFrame:
+def _code(factors: list[Factor], frame: pd.DataFrame, response: str, block: str | None = None) -> pd.DataFrame:
     """Return the runs coded to -1/+1 under the internal names, the response as ``y`` and the block as ``block``.
 
     A run with no block (a confirmation run, say) has None as its block.
@@ -211,10 +211,9 @@ def _code(factors: list[Factor], frame: pd.DataFrame, response: str | None, bloc
             mid, half = (f.high + f.low) / 2, (f.high - f.low) / 2  # type: ignore[operator]
             coded[f"x{i}"] = (pd.to_numeric(column, errors="raise") - mid) / half
     out = pd.DataFrame(coded, index=frame.index)
-    if response is not None:
-        if response not in frame.columns:
-            raise ValueError(f"The runs have no response column {response!r}.")
-        out["y"] = pd.to_numeric(frame[response], errors="raise").astype(float)
+    if response not in frame.columns:
+        raise ValueError(f"The runs have no response column {response!r}.")
+    out["y"] = pd.to_numeric(frame[response], errors="raise").astype(float)
     if block is not None:
         labels = frame[block] if block in frame.columns else pd.Series(None, index=frame.index, dtype=object)
         out[_BLOCK_LABEL] = labels.map(lambda v: None if pd.isna(v) else str(v))
@@ -2058,8 +2057,6 @@ def recommend_next_step(  # noqa: PLR0913 - each setting is a separate input to 
     """
     choices = _Choices(goal, target, alpha, n_confirmation_runs, ranges_can_move, random_state, tuple(history or ()))
     _check_choices(factors, runs, choices, block)
-    if response is None:  # _code reads None as runs without a response, as confirmation runs are
-        raise TypeError("response must name the runs' response column, not None.")
     data = _with_blocks(_code(factors, runs, response, block).dropna(subset=["y"]).reset_index(drop=True))
     if len(data) < 2:
         raise ValueError("At least two runs with a response are needed to recommend the next step.")
