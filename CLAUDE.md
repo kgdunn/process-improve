@@ -274,8 +274,8 @@ Workflows in `.github/workflows/`:
   (builds the browser app and runs its Chromium, Pyodide and Node.js tests), `test`
   (the full suite without coverage, over Python 3.11-3.13; the 3.11 rows install
   the lowest release of each dependency that `pyproject.toml` allows; a pull request runs
-  ubuntu only, and pushes to main, the nightly schedule and manual runs add
-  windows and macos at 3.11 and 3.13; ubuntu/3.13 is the `coverage` job
+  ubuntu at 3.11 and 3.12 and windows and macos at 3.13, and pushes to main, the nightly
+  schedule and manual runs add windows and macos at 3.11; ubuntu/3.13 is the `coverage` job
   instead), `coverage`
   (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
   `--shard`), `coverage-report` (combines the shards for the 96% gate and the
@@ -287,6 +287,8 @@ Workflows in `.github/workflows/`:
   whole suite. `CI passed` is the one
   check to require in branch protection: it fails unless every other job except
   `coverage-report` succeeded. All jobs install with `uv sync --dev --all-extras`.
+- **mutation.yml**: nightly; mutmut on the modules in `[tool.mutmut]`; fails on any surviving
+  mutant and opens an issue. See CONTRIBUTING.md "Mutation testing".
 - **main-status.yml**: the README badge; passes or fails as the latest run of
   the tests on main that was not cancelled. Merges to main share one
   concurrency group, so a merge that lands while one run goes and another waits
