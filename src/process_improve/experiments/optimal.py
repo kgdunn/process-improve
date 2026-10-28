@@ -160,13 +160,8 @@ def point_exchange(
     # A seedable Generator (rather than the global numpy RNG) makes the
     # point-exchange result reproducible; see docs/development/reproducibility.rst.
     rng = np.random.default_rng(random_state)
-    best: tuple[pd.DataFrame, float] | None = None
-    for _start in range(_N_STARTS):
-        design, value = _exchange_passes(x, *_random_start(x, number_points, rng))
-        if best is None or value < best[1]:
-            best = (design, value)
-    if best is None:  # unreachable: _N_STARTS >= 1
-        raise RuntimeError("point_exchange made no start.")
+    starts = (_exchange_passes(x, *_random_start(x, number_points, rng)) for _ in range(_N_STARTS))
+    best = min(starts, key=lambda start: start[1])  # the first of equal values, as each start draws in turn
     # Every exchange swaps one row for another, onto a unique index and only ever
     # onto a design scoring better than the (finite, full-rank) current one, so the
     # returned design keeps both the size and the estimability it was seeded with.
