@@ -67,6 +67,7 @@ import statsmodels.formula.api as smf
 from patsy import dmatrix
 from scipy import optimize, stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
+from statsmodels.stats.multitest import multipletests
 
 from process_improve._random import check_random_state
 from process_improve.experiments._analyses.aliasing import alias_chains_of
@@ -302,6 +303,8 @@ class _Model:
     judged is allowed for. ``terms`` is the model for prediction: the active terms and the
     main effects their interactions and squares are built on. ``fit`` is that model's fit,
     with the curvature column when the design has centre runs among two-level runs.
+    ``misses`` is the lack-of-fit test of the model the terms were judged in, when that model
+    did not fit the repeated runs; empty otherwise.
     """
 
     terms: list[str]
@@ -311,6 +314,7 @@ class _Model:
     signal: bool
     noise_sd: float
     noise_df: int
+    misses: dict[str, Any] = field(default_factory=dict)
     b0: float = 0.0
     b: np.ndarray = field(default_factory=lambda: np.zeros(0))
     B: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
@@ -464,6 +468,7 @@ def _against_pure_error(study: _Study, judged: dict[str, Any], alpha: float) -> 
         "judged": {term: float(p[term]) for term in judged["judged"]},
         "noise_sd": float(np.sqrt(test["ms_pure_error"])),
         "noise_df": int(test["df_pure_error"]),
+        "misses": {"tested": True, "significant": True, "p_value": float(test["p_value"])},
     }
 
 
@@ -795,14 +800,17 @@ def _less_blocks(data: pd.DataFrame) -> pd.DataFrame:
     return data.assign(y=y - blocks[:, 1:] @ np.linalg.lstsq(blocks, y, rcond=None)[0][1:])
 
 
-def _interaction_candidates(study: _Study, active: list[str]) -> list[str]:
-    """Return the two-factor interactions heredity makes plausible: both factors in active terms, not yet active."""
+def _interaction_candidates(study: _Study, active: list[str], *, weak: bool = False) -> list[str]:
+    """Return the two-factor interactions heredity makes plausible, not yet active.
+
+    Strong heredity needs both factors in active terms; ``weak`` heredity needs one.
+    """
     factors = set().union(*(_term_factors(t) for t in active)) if active else set()
     present = {frozenset(_term_factors(t)) for t in active if ":" in t}
     return [
         f"{a}:{b}"
         for a, b in itertools.combinations(study.names, 2)
-        if {a, b} <= factors and frozenset((a, b)) not in present
+        if ({a, b} & factors if weak else {a, b} <= factors) and frozenset((a, b)) not in present
     ]
 
 
@@ -844,22 +852,38 @@ def _second_look(study: _Study, judged: dict[str, Any], active: list[str], extra
     A Plackett-Burman design judged on its main effects never tests A:C, though A and C are
     active and A:C is nearly orthogonal to every main effect. In the model of the active terms
     it has the degrees of freedom to be tested, and strong heredity keeps the family small.
+
+    When the model the terms were judged in misses the repeated runs (``judged["misses"]``), the
+    effects it leaves out are likeliest to be interactions of an active factor with one judged
+    inactive: such an effect changes sign across the active factor's range and averages out of
+    the other factor's main effect. Those are tested too (weak heredity), even when a stepwise
+    search weighed them, since it weighed them against a residual that holds what the model
+    misses; Holm's method keeps the larger family's false alarms at ``alpha``. Once one is found,
+    the model holds a term the judging model lacked, and its own lack-of-fit test decides.
     """
+    misses = bool(judged.get("misses"))
     terms = _with_parents(active, study.names)
-    untested = [c for c in _interaction_candidates(study, active) if c not in judged["considered"]]
+    tested = judged["judged"] if misses else judged["considered"]
+    untested = [c for c in _interaction_candidates(study, active, weak=misses) if c not in tested]
     untested = _separable(study, [*terms, *extra], untested)
     spare = len(study.data) - len(_nuisance(study.data)) - len(terms) - len(untested) - 1 - len(extra)
     if not untested or spare < _MIN_ERROR_DF:
         return
     fit = _ols(study.data, [*terms, *untested, *extra])
-    found = {c: float(fit.pvalues[c]) for c in untested}
+    p_values = [float(fit.pvalues[c]) for c in untested]
+    if misses:
+        p_values = [float(p) for p in multipletests(p_values, method="holm")[1]]
+    found = dict(zip(untested, p_values, strict=True))
     judged["judged"].update(found)
     judged["considered"] |= set(untested)
     judged["method"] += (
         f"; then the {len(untested)} interaction(s) of active factors it could not test, by t-tests in the model "
-        "of the active terms"
+        "of the active terms" + (" (every factor with an active one, Holm's method)" if misses else "")
     )
-    active.extend(c for c, p in found.items() if p < alpha)
+    new = [c for c, p in found.items() if p < alpha]
+    active.extend(new)
+    if new:
+        judged.pop("misses", None)
 
 
 def _fit(study: _Study, terms: list[str], judged: dict[str, Any], design: _Design) -> _Model:
@@ -885,6 +909,7 @@ def _fit(study: _Study, terms: list[str], judged: dict[str, Any], design: _Desig
         signal=judged["signal"],
         noise_sd=judged["noise_sd"],
         noise_df=judged["noise_df"],
+        misses=judged.get("misses", {}),
         b0=b0,
         b=b,
         B=B,
@@ -1045,12 +1070,18 @@ def _repeats(study: _Study) -> list[str]:
 
 
 def _lack_of_fit(study: _Study, model: _Model, alpha: float) -> dict[str, Any]:
-    if model.error_df <= 0:
-        return {"tested": False}
-    result = _run_lack_of_fit(model.fit, study.data, "y", _repeats(study), alpha)["lack_of_fit"]
-    if "error" in result:
-        return {"tested": False}
-    return {"tested": True, "significant": bool(result["significant"]), "p_value": result["p_value"]}
+    """Test the model against the repeated runs, or carry over the judging model's lack of fit.
+
+    The model the terms were judged in holds every term of this one; when it misses the repeats
+    (``model.misses``), so does this one, whatever its own test says. That test pools the effects
+    of the terms the model drops into its lack of fit, and so has less power.
+    """
+    own: dict[str, Any] = {"tested": False}
+    if model.error_df > 0:
+        result = _run_lack_of_fit(model.fit, study.data, "y", _repeats(study), alpha)["lack_of_fit"]
+        if "error" not in result:
+            own = {"tested": True, "significant": bool(result["significant"]), "p_value": result["p_value"]}
+    return model.misses if model.misses and not own.get("significant") else own
 
 
 def _aliasing(study: _Study, model: _Model, active: list[str]) -> list[dict[str, Any]]:
@@ -1781,9 +1812,10 @@ def _lack_of_fit_step(ctx: _Context) -> _Step | None:
     """Return runs for the full quadratic model in every factor with some evidence of an effect, when the model misses.
 
     The curvature step has found the active factors' full quadratic model fitted. A lack of fit then
-    points at factors judged inactive: the effects they have went into the residual. None when the
-    model fits, or no factor beyond the active ones shows some evidence (p below
-    :data:`_SOME_EVIDENCE`), or the runs already fit that larger model.
+    points at factors judged inactive: the effects they have went into the residual. When no factor
+    beyond the active ones shows some evidence (p below :data:`_SOME_EVIDENCE`), or the runs already
+    fit that larger model, the runs for the interactions the second look could not test follow
+    (:func:`_interaction_runs`). None when the model fits.
     """
     if not ctx.lack_of_fit.get("significant"):
         return None
@@ -1797,7 +1829,7 @@ def _lack_of_fit_step(ctx: _Context) -> _Step | None:
     ]
     step = _quadratic_runs(ctx, sorted([*ctx.active_factors, *joining]), []) if joining else None
     if step is None:
-        return None
+        return _interaction_runs(ctx)
     step.action = "add_runs_for_model"
     step.reasons = [
         (
@@ -1808,6 +1840,53 @@ def _lack_of_fit_step(ctx: _Context) -> _Step | None:
         *step.reasons,
     ]
     return step
+
+
+def _interaction_runs(ctx: _Context) -> _Step | None:
+    """Return runs that let the interactions of the active factors with the others be tested, when the model misses.
+
+    No factor beyond the active ones shows some evidence of an effect, or the runs already fit their
+    full quadratic model, so the effects the model misses are likeliest to be interactions of an
+    active factor with one judged inactive (see :func:`_second_look`). Some of those the runs could
+    not test: aliased with each other, as in a definitive screening design, or short of degrees of
+    freedom. None when the model the terms were judged in fits the repeats, since the second look
+    then did not look for them, or when every one was tested.
+    """
+    if not ctx.model.misses:
+        return None
+    names, numeric = ctx.study.names, ctx.study.numeric
+    numeric_names = {n for n, is_numeric in zip(names, numeric, strict=True) if is_numeric}
+    untested = [
+        c
+        for c in _interaction_candidates(ctx.study, ctx.active, weak=True)
+        if set(c.split(":")) <= numeric_names and c not in ctx.model.judged
+    ]
+    if not untested:
+        return None
+    rhs = " + ".join(dict.fromkeys([*names, *ctx.model.terms, *untested]))
+    frame = ctx.study.data[names]
+    columns = np.asarray(dmatrix(rhs, frame), dtype=float)
+    rank = int(np.linalg.matrix_rank(columns))
+    blocks = len(_nuisance(ctx.study.data)) + 1  # the new runs are a block of their own
+    n_new = max(columns.shape[1] - rank, columns.shape[1] + blocks + _MIN_ERROR_DF - len(frame), 0) + _SPARE_RUNS
+    new = augment_design(
+        frame, "add_runs_optimal", target_model=rhs, n_additional_runs=n_new, factor_names=names, random_state=ctx.seed
+    )["new_runs"]
+    active = _names(ctx, [j for j in ctx.active_factors if numeric[j]])
+    return _Step(
+        "add_runs_for_model",
+        f"Add {len(new)} runs chosen (D-optimal) to test the interactions of {active} with the other factors.",
+        [
+            (
+                f"The model does not fit the repeats (lack of fit p = {_g(ctx.lack_of_fit['p_value'])}): it misses "
+                f"effects, and no other factor shows them through its main effect. The likeliest are interactions "
+                f"of {active} with the others, and the runs so far cannot test {len(untested)} of them."
+            ),
+        ],
+        pd.DataFrame(new)[names].to_numpy(dtype=float),
+        "Analyse every run together: the interactions of the active factors are then tested, and the next step "
+        "follows from them.",
+    )
 
 
 def _nothing_stands_out(ctx: _Context) -> _Step:
