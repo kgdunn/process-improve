@@ -136,13 +136,14 @@ jobs:
         # oldest interpreter the package claims to support is validated off Linux
         # (#449). The intermediate version runs on ubuntu only: the OS extremes at min
         # and max Python catch platform problems without the full product's bill.
-        # A pull request runs the ubuntu jobs only. The 4 Windows and macOS jobs run on
-        # each push to main and nightly: they rarely fail where ubuntu passes, and on
-        # every pull request commit they held the runner queue for hours when many
-        # pull requests were open at once.
+        # A pull request runs Windows and macOS at Python 3.13 only, on the tests it can
+        # affect (`--affected-since`, below), so they cost a few minutes, not the whole
+        # suite. Two changes reached main red on a platform the pull request never ran:
+        # a default text encoding on Windows (#994) and a floating-point last digit on
+        # macOS (#1007). Pushes to main and the nightly run add Windows and macOS at 3.11.
         # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
         python-version: ["3.11", "3.12", "3.13"]
-        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
         experimental: [false]
         # Each row runs the suite in two duration-balanced halves (`--shard`, as the
         # `coverage` job does). The same job took 16 min on one runner and 31 min on
@@ -155,6 +156,11 @@ jobs:
           - python-version: "3.12"
             os: windows-latest
           - python-version: "3.12"
+            os: macos-latest
+          # On a pull request only: 'none' matches no row, so pushes and nightly keep 3.11.
+          - python-version: ${{ github.event_name == 'pull_request' && '3.11' || 'none' }}
+            os: windows-latest
+          - python-version: ${{ github.event_name == 'pull_request' && '3.11' || 'none' }}
             os: macos-latest
         include:
           # The minimum Python installs the lowest release of each dependency that
