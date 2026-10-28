@@ -101,7 +101,7 @@ def test_plot_to_html_writes_a_standalone_file(tmp_path: pathlib.Path) -> None:
     """The figure is written where asked, loading plotly from the CDN and without the plotly logo."""
     target = tmp_path / "batches.html"
     returned = plot_to_HTML(str(target), plot_all_batches_per_tag(_two_batches(), tag="temp"))
-    html = target.read_text()
+    html = target.read_text(encoding="utf-8")
     assert pathlib.Path(returned) == target
     assert "cdn.plot.ly" in html
     assert '"displaylogo": false' in html

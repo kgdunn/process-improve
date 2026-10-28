@@ -202,7 +202,7 @@ def test_an_application_narrows_the_list_and_the_address_keeps_it(book_context, 
 
 def test_the_applications_of_the_fewest_designs_are_a_click_away(context, site, catalog_files):
     """With ten applications, the filter lists eight; the rest open on a click, or when the address chose one."""
-    index = json.loads((catalog_files / "index.json").read_text())
+    index = json.loads((catalog_files / "index.json").read_text(encoding="utf-8"))
     ten = [topic for topic in index["topics"] if topic != "general"][:10]
     for design in index["designs"]:
         design["topics"] = {PILOT: ten, COMPARISON: ten[:3]}.get(design["id"], [])
@@ -280,9 +280,9 @@ def test_the_robustness_filters_keep_the_designs_that_withstand_more(context, si
 
 def test_a_design_the_page_cannot_take_says_why_it_does_not_open(context, site, catalog_files):
     """The comparison's detail, as the build writes a design it cannot open: no campaign, and the reason."""
-    index = json.loads((catalog_files / "index.json").read_text())
+    index = json.loads((catalog_files / "index.json").read_text(encoding="utf-8"))
     name = next(d["detail"] for d in index["designs"] if d["id"] == COMPARISON)
-    shard = json.loads((catalog_files / "detail" / f"{name}.json").read_text())
+    shard = json.loads((catalog_files / "detail" / f"{name}.json").read_text(encoding="utf-8"))
     closed = {"campaign": None, "opens_as": None, "closed": "the source prints no complete table of runs"}
     shard["designs"][COMPARISON] |= closed
     context.route(f"{site}catalog/detail/{name}.json", lambda route: route.fulfill(json=shard))

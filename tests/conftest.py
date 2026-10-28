@@ -17,6 +17,12 @@
 
 Both work under xdist (``-n auto``): each worker computes the same selection, so
 the workers agree on what was collected.
+
+``PYTHONWARNDEFAULTENCODING=1 pytest``
+    Fail the run when this repository's own code reads or writes text in the
+    platform's default encoding: UTF-8 on Linux and macOS, but cp1252 on Windows,
+    where such a call misreads any character outside ASCII (#994). CI sets the
+    variable; Python warns only when it is set.
 """
 
 from __future__ import annotations
@@ -24,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import warnings
 from collections import Counter, defaultdict
 from functools import cache
 from pathlib import Path
@@ -74,7 +81,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def _git(*args: str) -> list[str]:
-    result = subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True, text=True)  # noqa: S603, S607
+    result = subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True, text=True, encoding="utf-8")  # noqa: S603, S607
     if result.returncode:
         raise pytest.UsageError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout.splitlines()
@@ -130,10 +137,33 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     _seconds[report.nodeid.split("::")[0]] += report.duration
 
 
+#: Where this repository's code used the default text encoding: "path:line", in the order seen.
+_default_encoding: dict[str, None] = {}
+
+
+def pytest_warning_recorded(warning_message: warnings.WarningMessage) -> None:
+    """Note an ``EncodingWarning`` raised by a file of this repository; xdist relays the workers' to the controller."""
+    path = Path(warning_message.filename).resolve()
+    ours = path.is_file() and path.is_relative_to(ROOT) and not {".venv", "site-packages"} & set(path.parts)
+    if ours and issubclass(warning_message.category, EncodingWarning):
+        _default_encoding[f"{path.relative_to(ROOT).as_posix()}:{warning_message.lineno}"] = None
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
+    """List each place that used the default encoding, so the failure names what to fix."""
+    if _default_encoding:
+        terminalreporter.section("text read or written in the default encoding", red=True)
+        terminalreporter.line('Pass encoding="utf-8" (and newline="" where the exact bytes matter):')
+        for place in _default_encoding:
+            terminalreporter.line(f"  {place}")
+
+
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
-    """Treat "nothing affected" as success, and write per-file durations when asked."""
+    """Treat "nothing affected" as success, fail on the default encoding, and write durations when asked."""
     if exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and session.config.getoption("affected_since"):
         session.exitstatus = pytest.ExitCode.OK  # a change no test can reach, such as CHANGELOG.md
+    if _default_encoding and not hasattr(session.config, "workerinput"):
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     # Only the xdist controller writes. Files this run did not touch keep their old entry.
     if session.config.getoption("store_durations") and not hasattr(session.config, "workerinput"):

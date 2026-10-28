@@ -119,6 +119,7 @@ def main() -> None:
         text=True,
         check=True,
         cwd=HERE,
+        encoding="utf-8",
     ).stdout.strip()
     recorded = [{**case, "result": compared(case)} for case in cases()]
     payload = {
@@ -134,7 +135,7 @@ def main() -> None:
     lines = [json.dumps(case) for case in payload["cases"]]
     text = '{"generated_from": ' + json.dumps(payload["generated_from"]) + ', "cases": [\n'
     text += ",\n".join(lines) + "\n]}\n"
-    (HERE / "golden.json").write_text(text)
+    (HERE / "golden.json").write_text(text, encoding="utf-8")
 
 
 if __name__ == "__main__":

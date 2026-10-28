@@ -339,7 +339,7 @@ def _address_space_in_child(body: str) -> dict:
     # IndentationError.
     source = "import json, resource\n" + textwrap.dedent(body).strip() + "\nprint(json.dumps(result))\n"
     completed = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", source], capture_output=True, text=True, check=True
+        [sys.executable, "-c", source], capture_output=True, text=True, check=True, encoding="locale"
     )
     return json.loads(completed.stdout)
 

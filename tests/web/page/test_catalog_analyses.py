@@ -167,6 +167,7 @@ def _not_opened(node: str, campaigns: list[dict]) -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        encoding="utf-8",
     )
     return [
         f"a study does not open: {v}" for v, c in zip(json.loads(done.stdout), campaigns, strict=True) if v != c["v"]

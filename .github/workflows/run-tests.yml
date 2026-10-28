@@ -184,6 +184,10 @@ jobs:
           # Re-add them once the free-threaded wheel ecosystem has caught up
           # (tracked in issue #43).
     runs-on: ${{ matrix.os }}
+    # Python warns when code reads or writes text in the platform's default encoding,
+    # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
+    env:
+      PYTHONWARNDEFAULTENCODING: "1"
     continue-on-error: ${{ matrix.experimental }}
     defaults:
       run:
@@ -228,6 +232,10 @@ jobs:
   # one more number in the list: `strategy.job-total` follows it.
   coverage:
     runs-on: ubuntu-latest
+    # Python warns when code reads or writes text in the platform's default encoding,
+    # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
+    env:
+      PYTHONWARNDEFAULTENCODING: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -317,6 +325,10 @@ jobs:
     # which this job resolves, declares it. PYTHON_GIL=0 keeps the GIL off either
     # way, so this job exercises the package the way a free-threaded user runs it.
     runs-on: ubuntu-latest
+    # Python warns when code reads or writes text in the platform's default encoding,
+    # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
+    env:
+      PYTHONWARNDEFAULTENCODING: "1"
     strategy:
       fail-fast: false
       matrix:

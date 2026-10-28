@@ -300,6 +300,12 @@ the pin in `pyproject.toml` too.
   data before fitting models.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
+- **Text encoding:** pass `encoding="utf-8"` to every `open`, `read_text`,
+  `write_text` and text-mode `subprocess.run`; for a Python child process, which
+  writes in the locale's encoding, pass `encoding="locale"`. Windows defaults to
+  cp1252 otherwise (#994). CI runs the tests with `PYTHONWARNDEFAULTENCODING=1`,
+  and `tests/conftest.py` fails the run on such a call in the repository's own
+  code; run `PYTHONWARNDEFAULTENCODING=1 pytest` to see them locally.
 
 ### Complexity budget
 

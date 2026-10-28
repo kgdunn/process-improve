@@ -177,7 +177,7 @@ def measure(package: Path = PACKAGE) -> list[Offender]:
         "--no-cache",
     ]
     try:
-        completed = subprocess.run(argv, capture_output=True, text=True, check=False)  # noqa: S603 - fixed argv
+        completed = subprocess.run(argv, capture_output=True, text=True, check=False, encoding="utf-8")  # noqa: S603 - fixed argv
     except OSError as exc:  # pragma: no cover - only when the interpreter itself is broken
         msg = f"could not run ruff: {exc}"
         raise RuntimeError(msg) from exc

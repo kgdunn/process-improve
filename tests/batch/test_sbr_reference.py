@@ -45,7 +45,7 @@ def _sign_aligned(candidate: np.ndarray, reference: np.ndarray) -> np.ndarray:
 
 def test_r2_matches_legacy_matlab(fitted: PCA) -> None:
     """The per-component R2 the legacy unit test asserts to five decimals."""
-    metadata = json.loads((FIXTURE_DIR / "reference_metadata.json").read_text())
+    metadata = json.loads((FIXTURE_DIR / "reference_metadata.json").read_text(encoding="utf-8"))
     np.testing.assert_allclose(fitted.r2_per_component_.to_numpy(), metadata["legacy_r2_per_component"], atol=1e-5)
 
 

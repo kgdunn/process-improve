@@ -112,7 +112,7 @@ class TestReading:
         sheet.to_excel(tmp_path / "runs.xlsx", index=False)
         for name in ("runs.csv", "runs.xlsx"):
             assert len(read_run_sheet(tmp_path / name, FACTORS, labels="X")) == len(sheet)
-        (tmp_path / "runs.txt").write_text("x")
+        (tmp_path / "runs.txt").write_text("x", encoding="utf-8")
         with pytest.raises(ValueError, match="none of them"):
             read_run_sheet(tmp_path / "runs.txt", FACTORS)
 
