@@ -653,6 +653,21 @@ class TestBudget:
         assert step["headline"] == "Stop: 2 run(s) are left, fewer than the next step needs."
 
 
+class TestAlternatives:
+    @pytest.mark.slow  # the D-optimal search it compares against
+    def test_the_alternatives_count_runs_as_the_search_would_choose_them(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The alternatives skip the D-optimal search, most of a screening study's time, and count the same runs."""
+        truth = TrueProcess({"Intercept": 50, "A": 5, "C": -4, "F": 3}, sigma=1)
+        factors = _factors("ABCDEFG")
+        runs = _runs(factors, truth, 3, design_type="plackett_burman", n_center_points=3)
+        counted = recommend_next_step(factors, runs, "y")["alternatives"]
+        search = next_step._d_optimal_runs
+        monkeypatch.setattr(next_step, "_d_optimal_runs", lambda *args: search(*args[:-1], True))
+        searched = recommend_next_step(factors, runs, "y")["alternatives"]
+        assert counted == searched
+        assert ("augment_to_rsm", 15) in [(a["action"], a["n_runs"]) for a in counted]
+
+
 class TestBlocks:
     """A process that drifts between rounds: each round a block, its shift fitted and kept out of the effects."""
 
@@ -717,6 +732,8 @@ class TestInputs:
             recommend_next_step(factors, runs.drop(columns="B"), "y")
         with pytest.raises(ValueError, match="no response column"):
             recommend_next_step(factors, runs, "z")
+        with pytest.raises(TypeError, match="response must name the runs' response column, not None"):
+            recommend_next_step(factors, runs, None)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="At least two runs"):
             recommend_next_step(factors, runs.head(1), "y")
         with pytest.raises(ValueError, match="mixture component"):
