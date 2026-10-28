@@ -752,7 +752,7 @@ class TestImpliedBounds:
         expected = DesignRegion(TPF, ["T + 25*P <= 215", "F >= T/10"]).implied_bounds()
         monkeypatch.setattr(geometry, "MAX_VERTICES", 2)  # too few for any box: the linear programs take over
         region = DesignRegion(TPF, ["T + 25*P <= 215", "F >= T/10"])
-        assert region.implied_bounds() == pytest.approx(expected)
+        assert region.implied_bounds() == {name: pytest.approx(bounds) for name, bounds in expected.items()}
         assert DesignRegion(TPF, ["T <= 160", "T >= 170"]).implied_bounds() is None
         assert DesignRegion(TPF, ["T <= 160", "T >= 170"]).is_empty()
         assert not region.is_empty()
