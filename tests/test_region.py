@@ -1714,6 +1714,9 @@ def test_box_diagnostics_refuse_a_mixture(method, args):
         pytest.param(MIXTURE, ["x0 + x1 <= 0.6"], 0.6**2, id="a-smaller-simplex"),
         pytest.param([Factor(name=f"x{i}", type="mixture") for i in range(4)], ["x0 <= 0.5"], 1 - 0.5**3, id="four"),
         pytest.param(MIXTURE[:2], ["x0 <= 0.3"], 0.3, id="two-components"),
+        # One component: the only blend is x0 = 1, which a limit keeps whole or removes (#999).
+        pytest.param(MIXTURE[:1], ["x0 <= 1"], 1.0, id="one-component"),
+        pytest.param(MIXTURE[:1], ["x0 <= 0.5"], 0.0, id="one-component-cut-off"),
         pytest.param(MIXTURE, [], 1.0, id="no-limits"),
         pytest.param(MIXTURE, ["x0 >= 0.7", "x1 >= 0.7"], 0.0, id="empty"),
         pytest.param(MIXTURE, ["x0 >= 0.5", "x0 <= 0.5"], 0.0, id="flat"),

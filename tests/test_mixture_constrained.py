@@ -52,6 +52,14 @@ class TestExtremeVertices:
         vertices = extreme_vertices(*mixture_inequalities(FULL, None))
         assert {tuple(v) for v in vertices} == {(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)}
 
+    def test_one_component_has_its_single_blend_as_the_vertex_when_the_limits_allow_it(self) -> None:
+        """#999: with one component the only blend is x1 = 1; a limit keeps it or leaves no vertex."""
+        one = [Factor(name="x1", type="mixture")]
+        np.testing.assert_array_equal(extreme_vertices(*mixture_inequalities(one, None)), [[1.0]])
+        kept = extreme_vertices(*mixture_inequalities(one, [Constraint(expression="x1 <= 1")]))
+        np.testing.assert_array_equal(kept, [[1.0]])
+        assert extreme_vertices(*mixture_inequalities(one, [Constraint(expression="x1 <= 0.5")])).shape == (0, 1)
+
     @pytest.mark.parametrize("constraints", [None, [CAP], [CAP, Constraint(expression="x1 >= 2*x3")]])
     def test_every_linear_optimum_is_attained_at_a_vertex(self, constraints: list[Constraint] | None) -> None:
         """A linear objective over a polytope is optimised at a vertex, so the LP optimum must be one of ours."""
