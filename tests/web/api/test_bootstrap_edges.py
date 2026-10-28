@@ -48,6 +48,14 @@ def test_a_label_a_spreadsheet_read_as_true_is_no_level(api):
     assert error == "Factor S: each run must be at A or B, not True."
 
 
+@pytest.mark.parametrize("blank", [None, "", "  "])
+def test_a_blank_label_is_named_by_its_run_not_as_nan(api, blank):
+    """A categorical cell left blank is named by the run the reader sees, its run order, not by its row (#1006)."""
+    rows = [[1, 3, 150, "A", None], [2, 1, 200, "A", None], [3, 4, 150, "B", None], [4, 2, 200, blank, None]]
+    error = api.error("api_analyze_runs", {**SUPPLIED, "rows": rows})
+    assert error == "Factor S: run 2 has no setting; each run must be at A or B."
+
+
 def test_a_mixture_workbook_without_a_component_is_refused(api):
     """A component's column deleted from the Runs sheet in Excel is named in the refusal."""
     design = lattice(api)
