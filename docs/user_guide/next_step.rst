@@ -127,7 +127,12 @@ The rules, in order
    model misses effects, and they went into its residual. Every factor with some evidence of an
    effect (a term with a p-value below 0.2) joins the active ones, and runs are chosen for the
    full quadratic model in all of them. Confirmation runs at an optimum the model cannot be
-   trusted to find would test little.
+   trusted to find would test little. When no factor shows such evidence, or the runs already
+   fit that model, the effects missed are likeliest to be interactions of an active factor with
+   another (see below), and runs are chosen (D-optimal) to test those the runs so far cannot.
+   The lack of fit counts when the model the terms were judged in shows it, even when the final
+   model's own test does not: the final model holds only some of those terms, so it misses the
+   repeats too, and its own test has less power.
 7. The best settings sit at an **edge**, and the goal improves past it by more than twice the
    noise per coded unit: when the ranges may move, four runs along the path of steepest ascent.
 8. Otherwise, **confirm** at the predicted optimum.
@@ -184,7 +189,10 @@ themselves repeats, far from the model; the rules for a miss handle them, and th
 judged against them.
 
 Interactions of the active factors that this could not test are then tested in the model of the
-active terms. Lenth's own margins, a t quantile on a third as many degrees of freedom as
+active terms. When the model judged does not fit the repeats, the interactions of an active
+factor with every other factor are tested too (weak heredity), with Holm's method across them.
+An effect that changes sign across an active factor's range averages out of the other factor's
+main effect, so the main effects give no pointer to it. Lenth's own margins, a t quantile on a third as many degrees of freedom as
 contrasts, are approximate: with seven contrasts the individual one is 3.76 pseudo standard
 errors where the exact value is 2.31 (Ye and Hamada, 2000), and the simultaneous one is so wide
 that two clear effects in an eight-run design rarely pass it. ``recommend_next_step`` uses
