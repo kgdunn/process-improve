@@ -681,6 +681,37 @@ class TestBlocks:
         done = recommend_next_step(factors, runs, "y", ranges_can_move=False, block="Round", confirmation_runs=made)
         assert done["action"] == "stop"
 
+    @pytest.mark.parametrize(
+        "design",
+        [
+            {"design_type": "full_factorial"},  # judged by t-tests in the interactions model
+            {"design_type": "fractional_factorial", "resolution": 5},  # by Lenth's method on the two-level runs
+        ],
+    )
+    def test_centre_runs_in_a_block_of_their_own_do_not_show_the_shift_as_curvature(self, design: dict) -> None:
+        """Corners in round 1, centre runs in round 2: the shift between the rounds is not curvature (#998)."""
+        factors = _factors("ABC" if design["design_type"] == "full_factorial" else "ABCDE")
+        truth = TrueProcess({"Intercept": 50, "A": 5, "B": 3}, sigma=0.5)  # linear: no curvature at all
+        corners = _runs(factors, truth, 1, n_center_points=0, **design).assign(Round=1)
+        centre = pd.DataFrame(0.0, index=range(3), columns=[f.name for f in factors])
+        centre = centre.assign(y=truth.simulate(centre, random_state=2).to_numpy(), Round=2)
+        runs = pd.concat([corners, centre], ignore_index=True)
+
+        # The centre runs' column is a combination of the intercept and the blocks: no fit can tell the two apart
+        blocks = np.column_stack([np.ones(len(runs)), runs["Round"].eq(2)])
+        at_centre = (runs[[f.name for f in factors]] == 0).all(axis=1).to_numpy(dtype=float)
+        assert np.linalg.matrix_rank(np.column_stack([blocks, at_centre])) == np.linalg.matrix_rank(blocks)
+
+        shifted = [runs.assign(y=runs["y"] + shift * runs["Round"].eq(2)) for shift in (0.0, 8.0)]  # a new batch, say
+        steps = [recommend_next_step(factors, r, "y", ranges_can_move=False, block="Round") for r in shifted]
+        for step in steps:
+            assert step["evidence"]["curvature"] == {"source": None, "significant": False, "terms": []}
+            assert step["action"] == "confirm"
+            assert any("share no block with a corner run" in reason for reason in step["reasons"])
+        # A block's shift is a constant within the block, which its contrast absorbs: nothing the decision reads moves
+        pd.testing.assert_frame_equal(pd.DataFrame(steps[1]["runs"]), pd.DataFrame(steps[0]["runs"]))
+        assert steps[1]["model"]["judged"] == pytest.approx(steps[0]["model"]["judged"], nan_ok=True)
+
     def test_a_missing_block_column_is_refused(self, drifted: tuple) -> None:
         factors, runs = drifted
         with pytest.raises(ValueError, match="no block column"):

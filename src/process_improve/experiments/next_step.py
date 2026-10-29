@@ -617,14 +617,15 @@ def _lenth_on_the_cube(
     judged = _lenth(study.data.loc[~design.center], terms, alpha / 2)
     if judged is None or judged["noise_df"] <= t_df:
         return None
-    test = _run_curvature_test(study.data, "y", study.names, alpha, _repeats(study))["curvature_test"]
+    test = _centre_runs_test(study, design, alpha)
     p = math.nan if "error" in test else float(test["p_value"])
     judged["judged"][_CURVATURE] = p
     judged["signal"] = judged["signal"] or bool(p < alpha / 2)
     judged["method"] = (
-        f"Lenth's method on the {judged['contrasts']} contrasts of the two-level runs, with simulated p-values, "
-        "and a curvature test of the centre runs against their repeats"
+        f"Lenth's method on the {judged['contrasts']} contrasts of the two-level runs, with simulated p-values"
     )
+    if "error" not in test:
+        judged["method"] += ", and a curvature test of the centre runs against their repeats"
     return judged
 
 
@@ -1058,10 +1059,30 @@ def _curvature(study: _Study, design: _Design, model: _Model, alpha: float) -> d
         if np.isfinite(p):  # the curvature column's test in the judging fit, against its residual error
             return {"source": "center_runs", "significant": bool(p < alpha), "p_value": p}
         if design.pure_error_df > 0:  # judged by Lenth's method: the centre runs' own repeats instead
-            test = _run_curvature_test(study.data, "y", study.names, alpha, _repeats(study))["curvature_test"]
+            test = _centre_runs_test(study, design, alpha)
             if "error" not in test:
                 return {"source": "center_runs", "significant": bool(test["significant"]), "p_value": test["p_value"]}
     return {"source": None, "significant": False}
+
+
+def _centre_runs_test(study: _Study, design: _Design, alpha: float) -> dict[str, Any]:
+    """Test the centre runs' mean against the two-level runs' mean, against the repeats (:func:`_run_curvature_test`).
+
+    The test ignores the blocks, so it is not made when the blocks hold the centre runs
+    (:func:`_blocks_hold_the_centre_runs`): the result then holds an ``error``, as when there are no repeats.
+    """
+    if _blocks_hold_the_centre_runs(study, design):
+        return {"error": "The centre runs share no block with a two-level run: the blocks hide any curvature."}
+    return _run_curvature_test(study.data, "y", study.names, alpha, _repeats(study))["curvature_test"]
+
+
+def _blocks_hold_the_centre_runs(study: _Study, design: _Design) -> bool:
+    """Say whether the centre runs of a two-level design share no block with a two-level run: a round of their own.
+
+    They then differ from the two-level runs by the shift between the blocks too, and their column is a
+    combination of the block contrasts (see :func:`_extra`): no test can tell that shift from curvature.
+    """
+    return design.two_level and bool(design.center.any()) and not _extra(study.data, design, study.numeric)
 
 
 def _repeats(study: _Study) -> list[str]:
@@ -1799,6 +1820,11 @@ def _decide(ctx: _Context) -> _Step:
             "quadratic model in every factor with some evidence of an effect: the model is off somewhere in the "
             "region, or the repeats agree more closely than the noise usually allows. Runs at the optimum test it "
             "where it matters; look for an outlying run if they miss."
+        )
+    if _blocks_hold_the_centre_runs(ctx.study, ctx.design):
+        step.reasons.append(
+            "The centre runs share no block with a corner run, so they differ from the corners by the shift between "
+            "the blocks as well: the runs cannot show curvature. Centre runs made in a block with corner runs test it."
         )
     return step
 

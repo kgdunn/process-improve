@@ -77,7 +77,9 @@ round, so the drift neither biases the effects nor swells the noise. In a simula
 second round ran 8 units (11 noise standard deviations) high, the blocks recovered the true
 optimum; without them the noise estimate grew more than fourfold and the effects of A and B were
 lost. The next runs are predicted as the process was in the latest round, since that is when
-they are made.
+they are made. Centre runs made in a round with no corner runs cannot show curvature: they differ
+from the corners by that round's shift as well, so curvature is not judged and the step's reasons
+say so. Make centre runs in the same round as corner runs to test it.
 
 .. _next-step-hard-limits:
 
