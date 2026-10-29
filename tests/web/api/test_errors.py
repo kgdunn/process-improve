@@ -294,6 +294,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, "C", None]]),
         "Factor S: each run must be at A or B, not 'C'.",
     ),
+    "a run with no label": (
+        "api_analyze_runs",
+        _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, None, None]]),
+        "Factor S: run 4 has no setting; each run must be at A or B.",
+    ),
     "the square of a categorical factor": (
         "api_analyze_runs",
         _supplied(model={"terms": [["T"], ["S", "S"]]}),

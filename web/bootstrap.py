@@ -1403,7 +1403,7 @@ def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dic
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
     if BLOCK in result.design_actual.columns:  # the runs are listed block by block
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     if design_type in SPACE_FILLING:
@@ -1508,7 +1508,7 @@ def _given_settings(rows: list[list], factors: list[Factor]) -> pd.DataFrame:
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
             continue
         values = [_number(v) for v in runs[f.name]]
         if None in values:
@@ -3779,27 +3779,38 @@ def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
     """Code each factor's settings to -1 at its low value and +1 at its high value, a category's labels too."""
-    return pd.DataFrame({f["name"]: _coded_column(runs[f["name"]], f) for f in factors})
+    return pd.DataFrame({f["name"]: _coded_column(runs, f) for f in factors})
 
 
-def _coded_column(column: pd.Series, factor: dict) -> pd.Series:
+def _coded_column(runs: pd.DataFrame, factor: dict) -> pd.Series:
     """Code one factor's settings; a categorical factor's runs must each be at one of its levels.
 
     A categorical factor of k levels is coded as the library codes it, its levels spread evenly from
     -1 to +1 in their order (``categorical_codes``): -1 and +1 for two, -1, 0 and +1 for three.
     """
+    column = runs[factor["name"]]
     if not _categorical(factor):
         return (column - (factor["high"] + factor["low"]) / 2) / ((factor["high"] - factor["low"]) / 2)
     codes = np.linspace(-1.0, 1.0, len(_levels_of(factor)))
-    return pd.Series(codes[_level_indices(column, factor)], index=column.index)
+    return pd.Series(codes[_level_indices(runs, factor)], index=column.index)
 
 
-def _level_indices(column: pd.Series, factor: dict) -> np.ndarray:
-    """Return which level each run of a categorical factor is at, refusing a run at none of them."""
+def _level_indices(runs: pd.DataFrame, factor: dict) -> np.ndarray:
+    """Return which level each run of a categorical factor is at, refusing a run at none of them.
+
+    A blank setting is named by its run, never by the ``nan`` that pandas reads it as (#1006).
+    """
     levels = _levels_of(factor)
+    column = runs[factor["name"]]
     found = [_level_index(v, levels) for v in column]
     if None in found:
-        other = column.iloc[found.index(None)]
+        at = found.index(None)
+        other = column.iloc[at]
+        if pd.isna(other) or (isinstance(other, str) and not other.strip()):
+            run = runs["Run order"].iloc[at] if "Run order" in runs.columns else at + 1
+            raise ValueError(
+                f"Factor {factor['name']}: run {int(run)} has no setting; each run must be at {_listed(levels, 'or')}."
+            )
         raise ValueError(f"Factor {factor['name']}: each run must be at {_listed(levels, 'or')}, not {other!r}.")
     return np.array(found, dtype=int)
 
@@ -3814,13 +3825,13 @@ def _design_frame(runs: pd.DataFrame, spec: dict, columns: list[str] | tuple[str
     frame = _coded(runs, spec["factors"])
     for f in spec["factors"]:
         if _several(f):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             at = frame.columns.get_loc(f["name"])
             frame = frame.drop(columns=f["name"])
             for j, name in enumerate(_contrast_names(f)):
                 frame.insert(at + j, name, _contrasts(index, len(_levels_of(f)))[:, j])
         if _categorical(f) and set(_indicator_names(f)) & set(columns):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             for j, name in enumerate(_indicator_names(f)):
                 frame[name] = _indicators(index, len(_levels_of(f)))[:, j]
     if _blocked(spec):
