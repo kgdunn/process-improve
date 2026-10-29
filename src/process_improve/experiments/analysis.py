@@ -1496,21 +1496,54 @@ def _design_rank(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str)
     design's in floating point when the units are very unequal (pascals beside kelvin)
     or a span is tiny next to its distance from zero. Coding each numeric factor to
     -1/+1 removes both without changing which terms the runs can separate, as long as
-    the coding re-expresses the model. A model that is not hierarchical can span other
-    columns once coded: ``A:B`` without ``B``, or a factor nested in another through the
-    other's 0/1 indicators, ``I1:B + I2:B``, which coded are ``(2*I1 - 1)*B`` and its
-    negative. Its rank is then its own, of its columns as given scaled to unit length,
-    which no choice of units changes. A mixture model's components are proportions and
-    are not coded.
+    the coding re-expresses the model (see :func:`_coding_re_expresses`). A model that is
+    not hierarchical can span other columns once coded: ``A:B`` without ``A`` and ``B``,
+    which coded varies where ``A * B`` is the same in every run, or a factor nested in
+    another through the other's 0/1 indicators, ``I1:B + I2:B``, which coded are
+    ``(2*I1 - 1)*B`` and its negative. Its rank is then its own, of its columns as given
+    scaled to unit length, which no choice of units changes. A mixture model's components
+    are proportions and are not coded.
     """
     coded = np.asarray(_coded_model_matrix(df, rhs, factor_cols, model), dtype=float)
     rank = int(np.linalg.matrix_rank(coded))
-    if model in SCHEFFE_MODELS:
+    if model in SCHEFFE_MODELS or _coding_re_expresses(df, rhs, factor_cols, coded):
         return rank
-    given = _unit_columns(np.asarray(dmatrix(rhs, df, return_type="dataframe"), dtype=float))
-    if int(np.linalg.matrix_rank(np.hstack([_unit_columns(coded), given]))) == rank:
-        return rank  # the columns as given lie in the coded ones' span: coding re-expressed the model
-    return int(np.linalg.matrix_rank(given))
+    return int(np.linalg.matrix_rank(_unit_columns(np.asarray(dmatrix(rhs, df, return_type="dataframe"), dtype=float))))
+
+
+#: The golden ratio, whose multiples give each factor a different second coding (see :func:`_coding_re_expresses`).
+_GOLDEN_RATIO = (1 + 5**0.5) / 2
+
+
+def _coding_re_expresses(df: pd.DataFrame, rhs: str, factor_cols: list[str], coded: np.ndarray) -> bool:
+    """Whether coding the numeric factors re-expresses the model, rather than changing it.
+
+    A hierarchical model spans the same columns whatever each factor's origin and scale:
+    ``(A - a)*(B - b)`` lies in the span of 1, ``A``, ``B`` and ``A:B``. Another model's span
+    moves with them, and the factors' own units are one more origin and scale. Comparing the
+    coded columns with those as given cannot tell the two apart, since it is the columns as
+    given that may have lost rank in floating point. So the model matrix ``coded`` is compared
+    with a second coding instead, as well conditioned as the first: the i-th numeric factor's
+    -1/+1 coding ``x`` becomes ``(1 + g) * (x + g)``, with ``g`` the fractional part of ``i``
+    times the golden ratio. A span that moves keeps to this coding only if the runs line up
+    with it by chance. When the coded columns already span every run, no coding can add to
+    them, the comparison cannot tell, and the model is taken as changed.
+    """
+    rank = int(np.linalg.matrix_rank(coded))
+    if rank == len(coded):
+        # shortcut: a saturated design is then ranked as given, which a span tiny next to its distance from zero can
+        # lower; compare the codings on more points than the runs if such a design is met.
+        return False
+    second = df.copy()
+    numeric = [col for col in factor_cols if _is_numeric(df[col])]
+    for i, col in enumerate(numeric, start=1):
+        g = i * _GOLDEN_RATIO % 1
+        second[col] = (1 + g) * (_code_factor(df[col])[0] + g)
+    moved = _unit_columns(
+        np.asarray(dmatrix(_coded_formula(rhs, second, factor_cols), second, return_type="dataframe"), dtype=float)
+    )
+    both = np.hstack([_unit_columns(coded), moved])
+    return int(np.linalg.matrix_rank(moved)) == rank == int(np.linalg.matrix_rank(both))
 
 
 def _unit_columns(matrix: np.ndarray) -> np.ndarray:
