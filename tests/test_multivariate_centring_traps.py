@@ -25,7 +25,7 @@ from sklearn.model_selection import KFold
 
 from process_improve.multivariate import PCA, PLS, vip
 from process_improve.multivariate._common import SpecificationWarning, UncentredDataWarning
-from process_improve.multivariate._preprocessing import _looks_prescaled
+from process_improve.multivariate._preprocessing import _looks_prescaled, _uncentred_columns, _warn_scaling_traps
 
 
 @contextlib.contextmanager
@@ -379,3 +379,88 @@ class TestPreScaledDetection:
         block = _standardised_x()
         block["constant"] = 7.0
         assert _looks_prescaled(block)
+
+    def test_the_mean_tolerance_includes_its_edge(self) -> None:
+        """A column whose mean is exactly 0.05 still counts as centred.
+
+        The four values sum to exactly 0.2 in floating point, so their mean is exactly 0.05, and
+        their deviations 1.5, -0.5, -0.5, -0.5 give a sample standard deviation of exactly 1.
+        """
+        column = [1.55, -0.45, -0.45, -0.4500000000000001]
+        assert np.mean(column) == 0.05
+        assert np.std(column, ddof=1) == 1.0
+        assert _looks_prescaled(pd.DataFrame({"edge": column}))
+
+    def test_each_criterion_is_needed_on_its_own(self) -> None:
+        """Centred but with sd 1.2, or unit variance but with mean 0.1: neither is standardised."""
+        block = _standardised_x()
+        assert not _looks_prescaled(block * 1.2)
+        assert not _looks_prescaled(block + 0.1)
+
+    def test_numbers_held_as_objects_and_an_empty_column(self) -> None:
+        """Object-dtype numbers are read as numbers; an all-missing column is skipped without a RuntimeWarning."""
+        block = _standardised_x().astype(object)
+        block["empty"] = np.nan
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert _looks_prescaled(block)
+
+
+class TestUncentredColumns:
+    """Direct tests of the helper the A1 warning is built on: ``|mean| / sd`` against 0.5."""
+
+    def test_the_ratio_is_strict_and_set_at_one_half(self) -> None:
+        """4, 0, 0, 0 has mean 1 and sd exactly 2: on the line, not over it. 4.4, 0.4, 0.4, 0.4 is at 0.7."""
+        block = pd.DataFrame({"on_the_line": [4.0, 0.0, 0.0, 0.0], "over": [4.4, 0.4, 0.4, 0.4]})
+        assert _uncentred_columns(block) == ["over"]
+
+    def test_no_spread_is_judged_on_the_mean_alone(self) -> None:
+        """At or below sqrt(tiny) = 2**-511 a spread counts as none, and so does a mean.
+
+        The column 2**-510, 0, 2**-511 has mean and sample sd both exactly 2**-511: no spread, and a
+        mean too small to report. Read as a spread, its mean would be twice the 0.5 ratio.
+        """
+        tiny = 2.0**-511
+        block = pd.DataFrame(
+            {
+                "spread_at_the_edge": [2.0 * tiny, 0.0, tiny],
+                "constant_at_the_edge": [tiny, tiny, tiny],
+                "constant_above_it": [2.0 * tiny] * 3,
+                "holds_inf": [np.inf, 1.0, 2.0],
+                "empty": [np.nan] * 3,
+            }
+        )
+        assert _uncentred_columns(block) == ["constant_above_it"]
+
+
+class TestScalingTrapMessages:
+    """The full text of both warnings, and that they are not attributed to the helper that raises them."""
+
+    def test_the_leak_warning(self) -> None:
+        with pytest.warns(SpecificationWarning) as record:
+            _warn_scaling_traps(_standardised_x(), scale_inside_folds=False, fold="CV fold", metric="RMSECV")
+        assert len(record) == 1
+        assert str(record[0].message) == (
+            "scale_inside_folds=False leaks centring/scaling estimated on the full dataset into every CV fold, "
+            "making the reported RMSECV optimistic. The default scale_inside_folds=True is preferred."
+        )
+        assert not record[0].filename.endswith("_preprocessing.py")
+
+    def test_the_prescaled_warning(self) -> None:
+        with pytest.warns(SpecificationWarning) as record:
+            _warn_scaling_traps(_standardised_x(), scale_inside_folds=True, fold="element-fold", metric="PRESS")
+        assert len(record) == 1
+        assert str(record[0].message) == (
+            "X is already centred and unit-variance scaled, so scale_inside_folds=True is not protecting you "
+            "from leakage: it re-standardises inside every element-fold and overwrites the scaling you chose. "
+            "Two deliberately different scalings (say autoscale versus Pareto) collapse onto the same "
+            "standardised model this way, so a comparison of their PRESS reflects only the units the blocks "
+            "arrived in, never which scaling suits the data. Pass the raw, unscaled X and let the folds scale "
+            "it, or keep your own scaling and set scale_inside_folds=False (accepting the optimism that flag "
+            "warns about)."
+        )
+        assert not record[0].filename.endswith("_preprocessing.py")
+
+    def test_a_raw_block_scaled_inside_the_folds_is_quiet(self) -> None:
+        with _no_specification_warning():
+            _warn_scaling_traps(_standardised_x() * 3 + 1, scale_inside_folds=True, fold="CV fold", metric="RMSECV")

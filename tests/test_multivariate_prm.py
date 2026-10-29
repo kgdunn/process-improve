@@ -56,8 +56,16 @@ class TestFairWeights:
             fair_weights(np.array([1.0]), cutoff=cutoff)
 
     def test_non_finite_distances_rejected(self) -> None:
-        with pytest.raises(ValueError, match="distances must be finite"):
+        with pytest.raises(ValueError, match=r"^distances must be finite \(no NaN / inf\)\.$"):
             fair_weights(np.array([1.0, np.nan]), cutoff=4.0)
+
+    def test_a_cutoff_below_one_is_a_cutoff_like_any_other(self) -> None:
+        """At |z| = 1 and c = 0.5 the weight is (1 + 2) ** -2 = 1/9."""
+        assert fair_weights(np.array([1.0]), cutoff=0.5)[0] == pytest.approx(1.0 / 9.0, rel=1e-15)
+
+    def test_distances_held_as_objects_are_read_as_numbers(self) -> None:
+        weights = fair_weights(np.array([0, 4], dtype=object), cutoff=4.0)
+        np.testing.assert_array_equal(weights, [1.0, 0.25])
 
 
 class TestL1Median:
@@ -128,12 +136,54 @@ class TestL1Median:
         np.testing.assert_allclose(l1_median(X @ rotation.T), rotation @ l1_median(X), atol=1e-6)
 
     def test_bad_input_rejected(self) -> None:
-        with pytest.raises(ValueError, match="must be 2-dimensional"):
+        with pytest.raises(ValueError, match=r"^X must be 2-dimensional \(n_samples, n_features\); got 1 dimension"):
             l1_median(np.zeros(5))
-        with pytest.raises(ValueError, match="at least one row"):
+        with pytest.raises(ValueError, match=r"^X must be 2-dimensional .*; got 3 dimension"):
+            l1_median(np.zeros((2, 2, 2)))
+        with pytest.raises(ValueError, match=r"^X must have at least one row\.$"):
             l1_median(np.zeros((0, 3)))
-        with pytest.raises(ValueError, match="must be finite"):
+        with pytest.raises(ValueError, match=r"^X must be finite \(no NaN / inf\)\.$"):
             l1_median(np.array([[1.0, np.nan]]))
+
+
+class TestL1MedianByHand:
+    """One Vardi-Zhang step worked by hand, and the edges of the tolerance.
+
+    The five rows (0, 0), (1, 0), (2, 0), (0, 1) and (0, -1) have coordinate-wise median (0, 0),
+    the first row, so the iteration starts on a row. The other four are at distances 1, 2, 1, 1:
+    the Weiszfeld point is ((1, 0) + (2, 0) / 2 + (0, 1) + (0, -1)) / (1 + 1/2 + 1 + 1) = (4/7, 0).
+    Their unit vectors sum to (2, 0), a pull of 2 against the one row on the estimate, so the step
+    is damped by 1/2 to (2/7, 0).
+    """
+
+    ROWS = np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [0.0, 1.0], [0.0, -1.0]])
+
+    def test_one_step(self) -> None:
+        np.testing.assert_allclose(l1_median(self.ROWS, max_iter=1), [2.0 / 7.0, 0.0], rtol=1e-15)
+        # Numbers held as objects are read as numbers.
+        np.testing.assert_allclose(l1_median(self.ROWS.astype(object), max_iter=1), [2.0 / 7.0, 0.0], rtol=1e-15)
+
+    def test_no_step_leaves_the_coordinatewise_median(self) -> None:
+        np.testing.assert_array_equal(l1_median(self.ROWS + np.array([10.0, 20.0]), max_iter=0), [10.0, 20.0])
+
+    def test_the_last_step_is_kept_when_it_is_short_enough(self) -> None:
+        """Away from the origin, a first step of 2/7 is below a tolerance of 0.5: it is taken, then the loop stops."""
+        np.testing.assert_allclose(l1_median(self.ROWS + 10.0, tol=0.5), [10.0 + 2.0 / 7.0, 10.0], rtol=1e-15)
+
+    def test_each_use_of_the_tolerance_includes_its_edge(self) -> None:
+        """A step, a pull and a distance equal to ``tol`` each count as within it."""
+        step = 0.5 * (2.0 / 3.5)  # the first step, 2/7, exactly as the iteration computes it
+        np.testing.assert_array_equal(l1_median(self.ROWS, tol=step), [step, 0.0])
+        # Scaled by 10 the pull is still 2: with tol = 2 the rows on the estimate hold it there.
+        np.testing.assert_array_equal(l1_median(10.0 * self.ROWS, tol=2.0), [0.0, 0.0])
+        # With tol = 1, the three rows at distance 1 sit on the estimate, and the one left pulls by 1.
+        np.testing.assert_array_equal(l1_median(self.ROWS, tol=1.0), [0.0, 0.0])
+
+    def test_the_default_budget_is_200_iterations(self) -> None:
+        """Six rows whose median the iteration is still approaching after 200 steps, 1e-6 at a time."""
+        rows = np.array([[0.8, 0.9], [-0.7, 0.2], [-0.8, 2.3], [-0.7, -0.5], [-1.1, -0.3], [-0.0, 0.8]])
+        np.testing.assert_array_equal(l1_median(rows), l1_median(rows, max_iter=200))
+        assert not np.array_equal(l1_median(rows, max_iter=200), l1_median(rows, max_iter=201))
 
 
 # ---------------------------------------------------------------------------

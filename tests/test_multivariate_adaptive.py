@@ -29,6 +29,7 @@ from process_improve.multivariate._adaptive import (
     _kernel_pls,
     _subspace_distance,
 )
+from process_improve.multivariate._nipals import _sign_align
 
 DATASETS = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
 
@@ -100,6 +101,29 @@ def test_kernel_pls_reconstructs_beta(synthetic_pls_data: tuple[pd.DataFrame, pd
     beta_raw = beta_scaled * (ys.scale_.to_numpy()[np.newaxis, :] / xs.scale_.to_numpy()[:, np.newaxis])
     batch = PLS(n_components=3, scale=True).fit(X, Y)
     np.testing.assert_allclose(beta_raw, batch.beta_coefficients_.to_numpy(), atol=1e-9)
+
+
+def test_kernel_pls_first_weight_with_two_responses_is_the_leading_singular_vector_of_xty() -> None:
+    """With several responses, the first weight is the direction ``w`` that maximises ``|Y'X w|``.
+
+    That is the leading left singular vector of ``X'Y``, taken here from numpy's SVD rather than
+    from the eigenproblem of ``(X'Y)'X'Y`` that ``_kernel_pls`` solves.
+    """
+    rng = np.random.default_rng(5)
+    x = rng.standard_normal((30, 4))
+    y = x @ rng.standard_normal((4, 2)) + 0.1 * rng.standard_normal((30, 2))
+    x, y = x - x.mean(axis=0), y - y.mean(axis=0)
+    weights, *_ = _kernel_pls(x.T @ x, x.T @ y, n_components=1)
+    leading = np.linalg.svd(x.T @ y)[0][:, 0]
+    np.testing.assert_allclose(weights[:, 0] * np.sign(weights[:, 0] @ leading), leading, rtol=0, atol=1e-12)
+
+
+def test_sign_align_flips_only_the_columns_that_point_against_the_previous_ones() -> None:
+    """A column flips when its inner product with the previous one is negative, and only then."""
+    previous = np.array([[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]])
+    # Inner products with ``previous``: -2 (flip), 0.5 (positive, though below 1), 0 (orthogonal), 3.
+    current = np.array([[-2.0, 0.5, 0.0, 3.0], [1.0, 1.0, 7.0, -1.0]])
+    np.testing.assert_array_equal(_sign_align(current, previous), [-1.0, 1.0, 1.0, 1.0])
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,7 @@ and the convergence defect that forced it to be rebuilt.
 
 from __future__ import annotations
 
+import re
 import warnings
 
 import numpy as np
@@ -16,7 +17,7 @@ import pandas as pd
 import pytest
 
 from process_improve.multivariate._common import SpecificationWarning
-from process_improve.multivariate._impute import impute_low_rank
+from process_improve.multivariate._impute import _estimate_missing, impute_low_rank
 from process_improve.multivariate._pls import _held_out_scores
 from process_improve.multivariate.methods import PLS
 
@@ -403,3 +404,136 @@ class TestImputeLowRank:
         settings = {"n_components": 2, **kwargs}
         with pytest.raises(ValueError, match=message):
             impute_low_rank(data, **settings)
+
+
+def _two_columns_one_gap() -> tuple[np.ndarray, np.ndarray]:
+    """Return twelve rows of (x1, x2), with x2 = 3 + 2 x1 + noise, and the same block with x2 missing in row 4."""
+    rng = np.random.default_rng(1)
+    x1 = rng.normal(size=12)
+    complete = np.column_stack([x1, 3.0 + 2.0 * x1 + 0.5 * rng.normal(size=12)])
+    gapped = complete.copy()
+    gapped[4, 1] = np.nan
+    return complete, gapped
+
+
+class TestImputeLowRankByHand:
+    """Cases small enough that the imputation can be worked by hand or with a numpy one-liner."""
+
+    @pytest.mark.parametrize(("tol", "atol"), [({}, 1e-6), ({"tol": 1e-13}, 1e-12)])
+    def test_tsr_with_one_component_fills_the_gap_from_the_regression_on_the_complete_rows(
+        self, tol: dict, atol: float
+    ) -> None:
+        """Two columns, one gap, one component: TSR regresses the missing column on the observed one.
+
+        At the fixed point the filled row lies on the least-squares line through every row, and a
+        point with no residual does not move that line, so it is the line through the complete rows
+        alone, which ``np.polyfit`` gives. The default tolerance of 1e-8 standard deviations lands
+        within 1e-6 of it.
+        """
+        complete, gapped = _two_columns_one_gap()
+        keep = np.arange(12) != 4
+        slope, intercept = np.polyfit(complete[keep, 0], complete[keep, 1], 1)
+        result = impute_low_rank(gapped, 1, **tol)
+        assert result.converged
+        assert result.completed[4, 1] == pytest.approx(intercept + slope * complete[4, 0], abs=atol)
+        # A gap given as None is read as missing.
+        as_lists = [[float(a), None if np.isnan(b) else float(b)] for a, b in gapped]
+        np.testing.assert_allclose(impute_low_rank(as_lists, 1, **tol).completed, result.completed, rtol=0, atol=0)
+
+    @pytest.mark.parametrize("method", ["tsr", "pmp"])
+    def test_one_round_from_the_column_means(self, method: str) -> None:
+        """After one round the gap holds one estimate from the mean-filled data, and the shift is that move in sds.
+
+        The gap starts at the mean of column 2, so the filled column keeps that mean and the gap is
+        at z = 0. TSR with one observed column is the regression of column 2 on column 1 over the
+        filled data. PMP with one component projects on the leading direction of two unit-variance
+        columns, (1, 1) / sqrt(2) for a positive correlation, so it moves z2 to z1. The shift is the
+        move divided by the sample (n - 1) standard deviation of the filled column 2.
+        """
+        complete, gapped = _two_columns_one_gap()
+        filled = gapped.copy()
+        filled[4, 1] = np.nanmean(gapped[:, 1])
+        centre, spread = filled.mean(axis=0), filled.std(axis=0, ddof=1)
+        z1 = (complete[4, 0] - centre[0]) / spread[0]
+        if method == "tsr":
+            expected = filled[4, 1] + np.cov(filled.T)[0, 1] / filled[:, 0].var(ddof=1) * (complete[4, 0] - centre[0])
+        else:
+            expected = centre[1] + spread[1] * z1
+        result = impute_low_rank(gapped, 1, method=method, max_iter=1)
+        assert (result.rounds, result.converged) == (1, False)
+        assert result.completed[4, 1] == pytest.approx(expected, rel=1e-12)
+        assert result.shift == pytest.approx(abs(expected - filled[4, 1]) / spread[1], rel=1e-12)
+        # A tolerance equal to the shift is met: no cell moved by more than it.
+        assert impute_low_rank(gapped, 1, method=method, max_iter=1, tol=result.shift).converged
+
+    def test_no_round_leaves_the_starting_fill(self) -> None:
+        """With max_iter=0 the gaps keep their start: the column mean, or a constant column's own value.
+
+        Three times 0.1 averages to 0.10000000000000002, so the constant's gap must be filled from its value.
+        """
+        data = np.array([[1.0, 0.1], [2.0, 0.1], [np.nan, np.nan], [5.0, 0.1]])
+        result = impute_low_rank(data, 1, max_iter=0)
+        assert (result.rounds, result.converged, result.shift) == (0, False, 0.0)
+        np.testing.assert_array_equal(result.completed[2], [8.0 / 3.0, 0.1])
+
+    def test_complete_data_moves_nothing(self) -> None:
+        result = impute_low_rank(np.arange(12.0).reshape(4, 3) ** 2, 2)
+        assert (result.rounds, result.converged, result.shift) == (0, True, 0.0)
+
+    def test_a_tolerance_no_shift_meets_stops_at_the_default_of_1000_rounds(self) -> None:
+        _, gapped = _two_columns_one_gap()
+        result = impute_low_rank(gapped, 1, tol=-1.0)
+        assert (result.rounds, result.converged) == (1000, False)
+
+    def test_more_components_than_rows_add_nothing(self) -> None:
+        """Four rows span at most four directions, so asking for six gives the model of four."""
+        rng = np.random.default_rng(2)
+        data = rng.normal(size=(4, 7))
+        data[1, 3] = np.nan
+        data[2, 5] = np.nan
+        many = impute_low_rank(data, 6, max_iter=5)
+        as_many_as_rows = impute_low_rank(data, 4, max_iter=5)
+        np.testing.assert_array_equal(many.completed, as_many_as_rows.completed)
+
+    def test_a_column_with_nothing_observed_is_refused_in_full(self) -> None:
+        data = np.random.default_rng(0).normal(size=(10, 4))
+        data[:, 2] = np.nan
+        message = (
+            "Columns at positions [2] have no observed values, so there is nothing to estimate them from. "
+            "Drop them before fitting."
+        )
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            impute_low_rank(data, 2)
+
+    def test_the_two_estimators_on_given_components(self) -> None:
+        """The estimators of one pattern, from a given covariance and orthonormal components.
+
+        With two columns observed and two components, TSR is the regression of the missing column on
+        the observed ones, ``z S11^-1 S12``, and PMP solves the observed loadings for the scores. With
+        one column observed, each uses one component: TSR is ``S21 / S11`` again, PMP the ratio of the
+        first component's loadings. With none observed the estimate is the mean, 0.
+        """
+        components = np.linalg.qr(np.array([[2.0, 1.0], [1.0, 3.0], [1.0, -1.0]]))[0]
+        covariance = np.array([[2.0, 0.6, 0.3], [0.6, 1.5, 0.4], [0.3, 0.4, 1.0]])
+        z = np.array([[0.5, -1.0], [2.0, 0.25]])
+        two = np.array([True, True, False])
+        np.testing.assert_allclose(
+            _estimate_missing(z, two, components, covariance, "tsr"),
+            z @ np.linalg.solve(covariance[:2, :2], covariance[:2, 2:]),
+            rtol=1e-12,
+        )
+        np.testing.assert_allclose(
+            _estimate_missing(z, two, components, covariance, "pmp"),
+            z @ np.linalg.solve(components[:2].T, components[2:].T),
+            rtol=1e-12,
+        )
+        one = np.array([True, False, False])
+        z1 = z[:, :1]
+        np.testing.assert_allclose(
+            _estimate_missing(z1, one, components, covariance, "tsr"), z1 * covariance[0, 1:] / covariance[0, 0]
+        )
+        np.testing.assert_allclose(
+            _estimate_missing(z1, one, components, covariance, "pmp"), z1 * components[1:, 0] / components[0, 0]
+        )
+        none = np.zeros(3, dtype=bool)
+        np.testing.assert_array_equal(_estimate_missing(np.empty((2, 0)), none, components, covariance, "tsr"), 0.0)

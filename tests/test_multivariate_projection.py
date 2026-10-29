@@ -1,5 +1,8 @@
 """Tests for missing-data score estimation: PCA.project / PLS.project and the operators."""
 
+import pathlib
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -10,6 +13,7 @@ from process_improve.multivariate._projection import (
     PROJECTION_METHODS,
     coerce_observed_mask,
     operator_for_pattern,
+    project_rows,
 )
 
 
@@ -171,7 +175,8 @@ def test_coerce_observed_mask_errors() -> None:
 def test_operator_for_pattern_empty_mask_rejected() -> None:
     """An all-False observed mask is rejected at the operator level."""
     P = np.ones((4, 2))
-    with pytest.raises(ValueError, match="observed mask is all-False"):
+    message = "At least one feature must be observed to estimate scores; the observed mask is all-False."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         operator_for_pattern(P, P, np.ones(2), np.zeros(4, dtype=bool))
 
 
@@ -323,3 +328,155 @@ def test_pls_tsr_is_the_regression_of_scores_on_trimmed_scores(fitted_pls: PLS, 
     trimmed = scaled[:, mask] @ guide[mask, :]
     coefficients = np.linalg.lstsq(trimmed, fitted_pls.scores_.to_numpy(), rcond=None)[0]
     np.testing.assert_allclose(operator, (guide[mask, :] @ coefficients).T, rtol=1e-7, atol=1e-9)
+
+
+def test_coerce_observed_mask_names_at_most_five_unknown_labels() -> None:
+    """The message quotes the first five unknown labels, not all of them."""
+    with pytest.raises(
+        ValueError, match=r"^observed contains labels that are not model features: \['p', 'q', 'r', 's', 't'\]\.$"
+    ):
+        coerce_observed_mask(["a", "p", "q", "r", "s", "t", "u"], pd.Index(["a", "b"]))
+    np.testing.assert_array_equal(coerce_observed_mask(np.array([False, True]), pd.Index(["a", "b"])), [False, True])
+
+
+# A two-component model over three features, small enough to work every operator by hand.
+_LOADINGS = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]) / np.array([np.sqrt(2.0), np.sqrt(2.0)])
+_VARIANCES = np.array([4.0, 1.0])
+
+
+def test_pmp_and_tsr_operators_with_a_ridge_by_hand() -> None:
+    """PMP is ``(P*'P* + rI)^-1 P*'``; TSR is ``Theta P*'G* (G*'S**G* + rI)^-1 G*'``, worked with ``np.linalg.solve``.
+
+    With the first two features observed, ``P*`` is the identity over sqrt(2), so the PMP Gram is
+    ``I/2 + rI``. One training row of residuals ``e`` gives ``S**`` the term ``G*'e'eG* / max(1, 1 - 1)``.
+    """
+    observed = np.array([True, True, False])
+    p_obs = _LOADINGS[observed]
+    ridge = 0.25
+    pmp = operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, observed, method="pmp", ridge=ridge)
+    np.testing.assert_allclose(pmp.matrix, np.linalg.solve(np.eye(2) / 2 + ridge * np.eye(2), p_obs.T), rtol=1e-14)
+    assert pmp.condition_number == pytest.approx(1.0)
+    assert pmp.method == "pmp"
+
+    residuals = np.array([[0.3, -0.1, 0.2]])
+    tsr = operator_for_pattern(
+        _LOADINGS, _LOADINGS, _VARIANCES, observed, method="tsr", ridge=ridge, x_residuals=residuals
+    )
+    theta = np.diag(_VARIANCES)
+    projected = residuals[:, observed] @ p_obs
+    inner = p_obs.T @ p_obs @ theta @ p_obs.T @ p_obs + ridge * np.eye(2) + projected.T @ projected
+    np.testing.assert_allclose(tsr.matrix, theta @ p_obs.T @ p_obs @ np.linalg.solve(inner, p_obs.T), rtol=1e-12)
+    assert tsr.condition_number == pytest.approx(np.linalg.cond(inner), rel=1e-12)
+    assert tsr.method == "tsr"
+
+
+def test_tsr_divides_the_residual_spread_by_n_minus_1() -> None:
+    """Three training rows: the residual half of the inner matrix is ``G*'E*'E*G* / 2``."""
+    observed = np.array([True, True, False])
+    p_obs = _LOADINGS[observed]
+    residuals = np.array([[0.3, -0.1, 0.2], [0.0, 0.4, -0.2], [-0.2, 0.1, 0.5]])
+    tsr = operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, observed, x_residuals=residuals)
+    theta = np.diag(_VARIANCES)
+    projected = residuals[:, observed] @ p_obs
+    inner = p_obs.T @ p_obs @ theta @ p_obs.T @ p_obs + projected.T @ projected / 2
+    np.testing.assert_allclose(tsr.matrix, theta @ p_obs.T @ p_obs @ np.linalg.solve(inner, p_obs.T), rtol=1e-12)
+
+
+def test_a_pattern_too_sparse_to_invert_names_the_matrix() -> None:
+    """One observed feature cannot pin two scores: both inverting estimators refuse, naming the matrix."""
+    observed = np.array([False, False, True])
+    with pytest.raises(np.linalg.LinAlgError, match=r"^\(P_observed' @ P_observed\) is singular"):
+        operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, observed, method="pmp")
+    with pytest.raises(np.linalg.LinAlgError, match=r"^\(TSR inner matrix\) is singular"):
+        operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, observed, x_residuals=np.zeros((4, 3)))
+
+
+def test_scp_by_hand_with_its_condition_number() -> None:
+    """With features 1 and 3 observed, the second weight keeps half its squared length, so the inflation is 2.
+
+    Component 1: ``w* = (1, 1)/sqrt(2)``, so its row is ``w*' / (w*'w*) = (1, 1)/sqrt(2)``. Deflating
+    by ``p* w*'/(w*'w*)`` leaves ``D = I - p* r1``, and component 2's row is ``w2*' D / (w2*'w2*)``.
+    """
+    observed = np.array([True, False, True])
+    op = operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, observed, method="scp")
+    w = _LOADINGS[observed]
+    row_1 = w[:, 0] / (w[:, 0] @ w[:, 0])
+    deflate = np.eye(2) - np.outer(w[:, 0], row_1)
+    row_2 = w[:, 1] @ deflate / (w[:, 1] @ w[:, 1])
+    np.testing.assert_allclose(op.matrix, np.vstack([row_1, row_2]), rtol=1e-14)
+    assert op.condition_number == pytest.approx(2.0, rel=1e-14)
+    assert op.method == "scp"
+    # Every feature observed: no weight loses any length, and the inflation is exactly 1.
+    everything = operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, np.ones(3, dtype=bool), method="scp")
+    assert everything.condition_number == 1.0
+
+
+def test_a_mask_of_zeros_and_ones_and_a_single_observed_feature() -> None:
+    """An integer 0/1 mask is read as a boolean mask, and one observed feature is enough for SCP."""
+    as_integers = operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, np.array([1, 0, 1]), method="scp")
+    as_booleans = operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, np.array([True, False, True]), method="scp")
+    np.testing.assert_array_equal(as_integers.matrix, as_booleans.matrix)
+    single = operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, np.array([False, False, True]), method="scp")
+    assert single.matrix.shape == (2, 1)
+
+
+def test_tsr_without_residuals_warns_in_full_and_from_the_caller() -> None:
+    observed = np.array([True, True, False])
+    with pytest.warns(SpecificationWarning) as record:
+        operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, observed)
+    assert str(record[0].message) == (
+        "method='tsr' was asked for without the training residuals (x_residuals), so its inner matrix keeps only "
+        "the model-plane term. That is the projection-to-the-model-plane estimator, not trimmed score regression. "
+        "Pass the fitted model's residual block, or ask for method='pmp' explicitly."
+    )
+    assert pathlib.Path(record[0].filename).name != "_projection.py"
+
+
+def test_residuals_must_be_a_matrix() -> None:
+    with pytest.raises(
+        ValueError, match=r"^x_residuals must be \(n_train, 3\) over the model's features; got shape \(3,\)\.$"
+    ):
+        operator_for_pattern(_LOADINGS, _LOADINGS, _VARIANCES, np.ones(3, dtype=bool), x_residuals=np.zeros(3))
+
+
+def test_project_rows_by_hand() -> None:
+    """A complete row, two rows sharing one pattern and a row with another, scored, with SPE over what is observed."""
+    x = np.array([[0.5, -1.0, 2.0], [1.0, np.nan, 0.5], [-2.0, np.nan, 1.0], [np.nan, 3.0, -1.0]])
+    weights = np.array([[1.0, 0.2], [0.0, 1.0], [0.5, -1.0]])
+    # A ridge of None leaves the argument out, to check the default of 0.
+    for method, x_weights, ridge in (
+        ("scp", None, None),
+        ("scp", weights, None),
+        ("pmp", None, None),
+        ("pmp", None, 0.5),
+    ):
+        given = {} if ridge is None else {"ridge": ridge}
+        result = project_rows(_LOADINGS, _LOADINGS, _VARIANCES, x, method=method, x_weights=x_weights, **given)
+        assert result.n_observed.dtype.kind == "i"
+        for row in (1, 2, 3):
+            observed = ~np.isnan(x[row])
+            op = operator_for_pattern(
+                _LOADINGS, _LOADINGS, _VARIANCES, observed, method=method, ridge=ridge or 0.0, x_weights=x_weights
+            )
+            z = x[row, observed]
+            scores = op.matrix @ z
+            np.testing.assert_allclose(result.scores[row], scores, rtol=1e-14)
+            residual = z - _LOADINGS[observed] @ scores
+            assert result.spe[row] == pytest.approx(np.sqrt(residual @ residual), rel=1e-14)
+            assert result.condition_number[row] == op.condition_number
+            assert result.n_observed[row] == observed.sum()
+    # The complete row takes the plain path: scores z P, all of z in its SPE, and condition 1.
+    scores = x[0] @ _LOADINGS
+    np.testing.assert_allclose(result.scores[0], scores, rtol=1e-14)
+    residual = x[0] - _LOADINGS @ scores
+    assert result.spe[0] == pytest.approx(np.sqrt(residual @ residual), rel=1e-14)
+    assert result.condition_number[0] == 1.0
+    assert result.n_observed[0] == 3
+
+
+def test_project_rows_names_the_first_row_with_nothing_observed() -> None:
+    x = np.array([[0.5, -1.0, 2.0], [np.nan] * 3, [1.0, 2.0, np.nan], [np.nan] * 3])
+    with pytest.raises(
+        ValueError, match=r"^Row 1 has no observed features \(all-NaN\); scores cannot be estimated for it\.$"
+    ):
+        project_rows(_LOADINGS, _LOADINGS, _VARIANCES, x)

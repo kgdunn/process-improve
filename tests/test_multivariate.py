@@ -5,7 +5,6 @@ import inspect
 import io
 import logging
 import pathlib
-import re
 import urllib.request
 import warnings
 from collections.abc import Callable
@@ -132,6 +131,16 @@ def test_terminate_check_is_scale_relative() -> None:
     assert terminate_check(zeros, zeros, iterations=1, settings=settings) is True
 
 
+def test_terminate_check_needs_the_change_strictly_below_md_tol() -> None:
+    """Convergence is a relative change *below* ``md_tol``; a change equal to it is not enough.
+
+    ``||(1.5, 0) - (1, 0)|| / ||(1, 0)||`` is exactly 0.5 in binary floating point.
+    """
+    settings = {"md_tol": 0.5, "md_max_iter": 10}
+    assert terminate_check(np.array([1.5, 0.0]), np.array([1.0, 0.0]), iterations=1, settings=settings) is False
+    assert terminate_check(np.array([1.25, 0.0]), np.array([1.0, 0.0]), iterations=1, settings=settings) is True
+
+
 def test_nipals_fit_is_scale_invariant() -> None:
     """#504: fitting on ``X`` and on ``1000 * X`` takes the same number of
     NIPALS iterations, and gives identical loadings and scores up to the
@@ -200,6 +209,19 @@ def test_regress_y_space_on_x() -> None:
     # Present cells that all meet a zero in the row vector are a degenerate direction, and stay NaN.
     degenerate = regress_a_space_on_b_row(np.array([[0.0, 5.0]]), np.array([[1.0, 0.0]]), np.array([[False, True]]))
     assert np.isnan(degenerate).all()
+
+
+def test_regress_a_space_on_b_row_tells_an_empty_row_from_a_degenerate_one_in_one_call() -> None:
+    """An all-missing row gives 0 and a degenerate row NaN, side by side, and neither raises a RuntimeWarning."""
+    a_space = np.array([[0.0, 0.0], [0.0, 5.0], [2.0, 4.0]])
+    present = np.array([[False, False], [False, True], [True, True]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        coefficients = regress_a_space_on_b_row(a_space, np.array([[1.0, 0.0]]), present)
+    assert coefficients.shape == (3, 1)
+    assert coefficients[0, 0] == 0.0
+    assert np.isnan(coefficients[1, 0])
+    assert coefficients[2, 0] == 2.0  # (2 * 1 + 4 * 0) / (1^2 + 0^2)
 
 
 @pytest.mark.slow
@@ -420,27 +442,90 @@ def test_quick_regress_refuses_arrays_that_share_no_dimension() -> None:
         quick_regress(np.ones((3, 2)), np.ones((4, 1)))
 
 
+def _rotation(angle: float) -> np.ndarray:
+    return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+
+
+def _inner_loop_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.name == "process_improve.multivariate._nipals"]
+
+
 def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFixture) -> None:
-    """Two nearly tied directions in X'Y make the iteration creep; the loop stops at its cap.
+    """Two nearly tied directions in X'Y make the iteration creep; the loop stops after exactly 500 steps.
 
-    With X the identity and singular values 1 and 0.99, each step shrinks the change by
-    only about 2%, so it is still far above the tolerance after 500 steps. By then the
-    weights already point along the dominant direction.
+    With X the identity, each step of the inner loop is a step of the power method on YY':
+    ``w`` is ``u`` normalised, ``t = w``, ``q = Y't`` and the next ``u`` is ``YY'w / |Y'w|^2``.
+    So the ``w`` of step ``n`` is ``(YY')^(n - 1) u_0`` normalised. With singular values 1 and
+    0.99 each step shrinks the change by only about 2%, so it is still far above the tolerance
+    after 500 steps; one step more or fewer moves ``w`` by 3e-7. The loop ran 502 steps
+    under its cap of 500 until the cap was counted right.
     """
-
-    def rotation(angle: float) -> np.ndarray:
-        return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
-
     x_space = np.eye(2)
-    y_space = rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ rotation(np.pi / 7)
+    y_space = _rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ _rotation(np.pi / 7)
     everything = np.ones((2, 2), dtype=bool)
     with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
         fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, everything)
 
-    reported = re.search(r"inner loop converged in (\d+) iterations \(max_iter=500\)", caplog.text)
-    assert reported is not None
-    assert int(reported.group(1)) > 500
-    np.testing.assert_allclose(np.abs(fitted["w_i"].ravel()), np.abs(rotation(np.pi / 5)[:, 0]), atol=1e-3)
+    assert _inner_loop_messages(caplog) == ["PLS NIPALS inner loop stopped after 500 iterations (max_iter=500)"]
+    # YY' = R diag(1, 0.99^2) R', with R the left rotation.
+    power = _rotation(np.pi / 5) @ np.diag([1.0, 0.99 ** (2 * 499)]) @ _rotation(np.pi / 5).T
+    expected = power @ y_space[:, 0]
+    np.testing.assert_allclose(fitted["w_i"].ravel(), expected / np.linalg.norm(expected), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("scale", [1e-3, 1.0, 1e3])
+def test_inner_pls_nipals_stops_once_u_moves_less_than_epsqrt_relative(
+    scale: float, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The inner loop stops at the first step whose change in ``u``, relative to ``|u|``, is below epsqrt.
+
+    With X the identity the steps are the power method on YY' (see the test above), worked here
+    in closed form to find that step. Singular values 1 and 0.5 shrink the change fourfold per
+    step, so it comes after about a dozen steps. Scaling X and Y by ``c`` scales ``u`` by ``c``
+    and leaves every relative change as it was, so the step is the same in any units (#504).
+    """
+    y_space = _rotation(np.pi / 5) @ np.diag([1.0, 0.5]) @ _rotation(np.pi / 7)
+    u = y_space[:, 0]
+    for step in range(1, 100):  # noqa: B007 - read after the loop
+        unit = u / np.linalg.norm(u)
+        u_next = y_space @ y_space.T @ unit / float(np.sum((y_space.T @ unit) ** 2))
+        if np.linalg.norm(u - u_next) / np.linalg.norm(u) < epsqrt:
+            break
+        u = u_next
+    assert 10 <= step <= 15
+
+    everything = np.ones((2, 2), dtype=bool)
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
+        internal_pls_nipals_fit_one_pc(scale * np.eye(2), scale * y_space, everything, everything)
+    assert _inner_loop_messages(caplog) == [f"PLS NIPALS inner loop stopped after {step} iterations (max_iter=500)"]
+
+
+@pytest.mark.parametrize(
+    ("scores", "flipped"),
+    [
+        ([-1.0, -5.0, 1.0, 2.0], True),  # the negative side spreads 4.0, the other 0.25
+        ([0.0, 10.0, 10.5, -1.0, -2.0], False),  # 0.25 against 23.4: a zero score sits on the non-negative side
+        ([0.0, 1.0, 2.0, -10.0, -10.5], False),  # 0.0625 against 0.667: and not on the negative side
+        ([-1.0, -2.0, 1.0, 2.0], False),  # a tie, 0.25 each, does not flip
+        ([1.0, 2.0, 3.0], False),  # no negative score: nothing to compare
+        ([-1.0, -2.0, -4.0], False),  # no non-negative score: likewise
+    ],
+)
+def test_inner_pls_nipals_sign_convention(scores: list[float], flipped: bool) -> None:
+    """The component flips when its negative scores spread more (``np.var``) than its non-negative ones.
+
+    With one X column and Y equal to it, the loop converges at once to ``w = q = 1`` and ``t = u = x``,
+    so the scores are the data and the two variances can be worked by hand. A side with no score
+    is not compared, and asks ``np.var`` for nothing, so no RuntimeWarning is raised (SEC-33, #282).
+    """
+    x = np.array(scores)[:, np.newaxis]
+    present = np.ones_like(x, dtype=bool)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fitted = internal_pls_nipals_fit_one_pc(x, x.copy(), present, present)
+    sign = -1.0 if flipped else 1.0
+    for name, expected in (("t_i", x), ("u_i", x), ("w_i", np.ones((1, 1))), ("q_i", np.ones((1, 1)))):
+        np.testing.assert_array_equal(fitted[name], sign * expected, err_msg=name)
 
 
 @pytest.mark.parametrize("seed", range(6))
@@ -652,6 +737,123 @@ def test_scale_zero_variance_column_is_finite() -> None:
     assert divisor[1] == pytest.approx(1.0)
     # ... and is therefore unchanged from its (already centred) input: all zeros.
     assert np.allclose(np.asarray(scaled, dtype=float)[:, 1], 0.0)
+
+
+def test_mcuv_by_hand_keeps_the_labels_and_round_trips() -> None:
+    """Column a: mean 3, sd sqrt((4 + 1 + 9) / 2) = sqrt(7). Column b: mean 4, sd 1."""
+    X = pd.DataFrame({"a": [1.0, 2.0, 6.0], "b": [3.0, 5.0, 4.0]}, index=["r1", "r2", "r3"])
+    scaler = MCUVScaler().fit(X)
+    pd.testing.assert_series_equal(scaler.center_, pd.Series([3.0, 4.0], index=["a", "b"]))
+    pd.testing.assert_series_equal(scaler.scale_, pd.Series([np.sqrt(7.0), 1.0], index=["a", "b"]))
+
+    expected = pd.DataFrame({"a": np.array([-2.0, -1.0, 3.0]) / np.sqrt(7.0), "b": [-1.0, 1.0, 0.0]}, index=X.index)
+    scaled = scaler.transform(X)
+    pd.testing.assert_frame_equal(scaled, expected)
+    pd.testing.assert_frame_equal(scaler.inverse_transform(scaled), X)
+
+    # An array has no row labels, so the rows are numbered; numbers held as objects come back as floats.
+    from_array = scaler.inverse_transform(expected.to_numpy().astype(object))
+    pd.testing.assert_frame_equal(from_array, X.reset_index(drop=True))
+
+    # Fitted on an array, the output names are the ones the caller supplies, else sklearn's x0, x1.
+    unnamed = MCUVScaler().fit(X.to_numpy())
+    assert unnamed.get_feature_names_out(["a", "b"]).tolist() == ["a", "b"]
+    assert unnamed.get_feature_names_out().tolist() == ["x0", "x1"]
+
+
+def test_mcuv_declares_that_nan_passes_through() -> None:
+    """A Pipeline reads the ``allow_nan`` tag of sklearn to decide whether NaN may reach this step."""
+    assert MCUVScaler().__sklearn_tags__().input_tags.allow_nan is True
+
+
+def test_mcuv_input_contract() -> None:
+    """Dense, at least two rows, NaN allowed but not inf, and transform only on the columns it was fitted on."""
+    with pytest.raises(TypeError, match=r"^MCUVScaler does not accept sparse input: "):
+        MCUVScaler().fit(csr_matrix(np.eye(3)))
+    with pytest.raises(ValueError, match=r"1 sample\(s\) \(shape=\(1, 2\)\) while a minimum of 2 is required"):
+        MCUVScaler().fit(np.array([[1.0, 2.0]]))
+    with pytest.raises(ValueError, match="Input X contains infinity"):
+        MCUVScaler().fit(np.array([[1.0], [np.inf]]))
+    # Two rows are enough for a sample standard deviation: mean 2, sd sqrt(2). A NaN is a missing value.
+    for rows in ([[1.0], [3.0]], [[1.0], [3.0], [np.nan]]):
+        fitted = MCUVScaler().fit(np.array(rows))
+        assert fitted.center_.tolist() == [2.0]
+        assert fitted.scale_.tolist() == [np.sqrt(2.0)]
+
+    from_array = MCUVScaler().fit(np.array([[1.0, 3.0], [2.0, 5.0]]))
+    with pytest.raises(TypeError, match="Sparse data was passed for X, but dense data is required"):
+        from_array.transform(csr_matrix(np.eye(2)))
+    with pytest.raises(ValueError, match="X has 3 features, but MCUVScaler is expecting 2 features as input"):
+        from_array.transform(np.ones((2, 3)))
+    from_frame = MCUVScaler().fit(pd.DataFrame({"a": [1.0, 2.0, 4.0], "b": [3.0, 5.0, 4.0]}))
+    with pytest.raises(ValueError, match="The feature names should match those that were passed during fit"):
+        from_frame.transform(pd.DataFrame({"a": [1.0], "c": [2.0]}))
+    with pytest.raises(NotFittedError):
+        MCUVScaler().transform(np.ones((2, 2)))
+    with pytest.raises(NotFittedError):
+        MCUVScaler().inverse_transform(np.ones((2, 2)))
+
+
+def test_mcuv_constant_single_value_and_empty_columns() -> None:
+    """A constant column is centred on its value and not scaled; one observed value or none gives no spread either.
+
+    Three times 0.1 averages to 0.10000000000000002 in floating point, so centring a constant on its
+    mean would leave a residue of 2e-17 where the column should be exactly 0.
+    """
+    X = np.array([[0.1, 7.0, np.nan], [0.1, np.nan, np.nan], [0.1, np.nan, np.nan]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        scaler = MCUVScaler().fit(X)
+        out = scaler.transform(X).to_numpy()
+    assert scaler.center_.tolist() == [0.1, 7.0, 0.0]
+    assert scaler.scale_.tolist() == [1.0, 1.0, 1.0]
+    np.testing.assert_array_equal(out, [[0.0, 0.0, np.nan], [0.0, np.nan, np.nan], [0.0, np.nan, np.nan]])
+
+
+def test_mcuv_does_not_divide_by_a_spread_at_or_below_sqrt_tiny() -> None:
+    """The square root of the smallest normal float is 2**-511; a standard deviation that small scales by 1.
+
+    The first column, 2**-510, 0 and 2**-511, has mean 2**-511 and deviations of +-2**-511 and 0, so its
+    sample standard deviation is exactly 2**-511. The second, a thousand times larger, keeps its own.
+    """
+    X = np.array([[2.0**-510, 2.0**-500], [0.0, 0.0], [2.0**-511, 2.0**-501]])
+    scaler = MCUVScaler().fit(X)
+    assert scaler.scale_.iloc[0] == 1.0
+    assert scaler.scale_.iloc[1] == pytest.approx(np.std(X[:, 1], ddof=1), rel=1e-15)
+
+
+def test_center_and_scale_by_hand_along_either_axis() -> None:
+    """Down the columns: means 2, 3.5, 5 and population sds 1, 1.5, 1. Across the rows: means 3, 4."""
+    X = pd.DataFrame([[1.0, 2.0, 6.0], [3.0, 5.0, 4.0]])
+    centred, means = center(X, extra_output=True)
+    np.testing.assert_array_equal(means, [2.0, 3.5, 5.0])
+    np.testing.assert_array_equal(np.asarray(centred), [[-1.0, -1.5, 1.0], [1.0, 1.5, -1.0]])
+    np.testing.assert_array_equal(np.asarray(center(X)), np.asarray(centred))
+    by_row, row_means = center(X, axis=1, extra_output=True)
+    np.testing.assert_array_equal(row_means, [[3.0], [4.0]])
+    np.testing.assert_array_equal(np.asarray(by_row), [[-2.0, -1.0, 3.0], [-1.0, 1.0, 0.0]])
+
+    scaled, multipliers = scale(X, extra_output=True)
+    np.testing.assert_array_equal(multipliers, [1.0, 1.0 / 1.5, 1.0])
+    np.testing.assert_allclose(np.asarray(scaled), X.to_numpy() * [1.0, 1.0 / 1.5, 1.0], rtol=1e-15)
+    np.testing.assert_array_equal(np.asarray(scale(X)), np.asarray(scaled))
+    # Row 1 is 1, 2, 6: mean 3, population sd sqrt(14 / 3). Row 2 is 3, 5, 4: mean 4, sd sqrt(2 / 3).
+    by_row, row_multipliers = scale(X, axis=1, extra_output=True)
+    np.testing.assert_allclose(row_multipliers, [[np.sqrt(3.0 / 14.0)], [np.sqrt(1.5)]], rtol=1e-15)
+    np.testing.assert_allclose(np.asarray(by_row), X.to_numpy() * row_multipliers, rtol=1e-15)
+
+
+def test_scale_leaves_a_column_unchanged_when_the_measure_gives_no_spread() -> None:
+    """A custom measure can give 0 for a column that is not constant: its multiplier is 1, as for a constant.
+
+    The median absolute deviation of 0, 0, 0, 0, 1 is 0; of 2, 4, 6, 8, 10 it is median(4, 2, 0, 2, 4) = 2.
+    """
+    from scipy.stats import median_abs_deviation
+
+    X = pd.DataFrame({"mostly_zero": [0.0, 0.0, 0.0, 0.0, 1.0], "even": [2.0, 4.0, 6.0, 8.0, 10.0]})
+    scaled, multipliers = scale(X, func=median_abs_deviation, extra_output=True)
+    np.testing.assert_array_equal(multipliers, [1.0, 0.5])
+    np.testing.assert_array_equal(np.asarray(scaled), X.to_numpy() * [1.0, 0.5])
 
 
 @pytest.mark.slow
