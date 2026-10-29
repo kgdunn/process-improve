@@ -158,7 +158,7 @@ class PRM(PLS):
         The relative change in the norm of the regression of y on the unit-length
         scores below which the reweighting stops, default 0.01 as in the paper.
     weight_tol : None
-        Deprecated since 2.2.0 and removed in 3.0; it has no effect. PRM stops on
+        Deprecated since 2.2.2 and removed in 3.0; it has no effect. PRM stops on
         ``coefficient_tol``, as the paper does, not on the change in the weights.
     scale : bool, optional
         True (the default) also divides each column of X and of Y, after the
@@ -252,7 +252,7 @@ class PRM(PLS):
             raise ValueError(f"coefficient_tol must be a positive finite number; got {self.coefficient_tol!r}.")
         if self.weight_tol is not None:
             warnings.warn(
-                "process_improve.multivariate.methods.PRM.weight_tol is deprecated since 2.2.0 and will be "
+                "process_improve.multivariate.methods.PRM.weight_tol is deprecated since 2.2.2 and will be "
                 "removed in 3.0; use coefficient_tol instead. weight_tol has no effect: PRM stops, as Serneels "
                 "et al. (2005) do, when the norm of its regression on the unit-length scores changes by less "
                 "than coefficient_tol.",
