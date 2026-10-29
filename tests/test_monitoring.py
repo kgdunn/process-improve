@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from process_improve.monitoring import control_charts
 from process_improve.monitoring.control_charts import (
@@ -477,6 +478,9 @@ def test_calculate_cpk_constant_column_emits_warning_and_returns_nan() -> None:
     with pytest.warns(RuntimeWarning, match="spread is zero"):
         result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
     assert np.isnan(result.cpk)
+    # With neither side defined there is no defect rate either, rather than a confident 0 ppm.
+    assert np.isnan(result.defects_per_million)
+    assert np.isnan(result.defects_per_million_nearer)
 
 
 def test_calculate_cpk_normal_data_still_returns_finite_value() -> None:
@@ -498,6 +502,88 @@ def test_calculate_cpk_rejects_trim_percentile_out_of_range(trim: float, message
     data = pd.DataFrame({"value": [1.0, 2.0, 3.0]})
     with pytest.raises(ValueError, match=message):
         calculate_cpk(data, "value", specifications=(0.0, 4.0), trim_percentile=trim)
+
+
+def test_cpk_near_the_lower_specification_reports_the_lower_side() -> None:
+    """41, 42, 43 within 40 to 60: mean 42, standard deviation 1, so 2 sd above the lower limit.
+
+    Cpk is 2 / 3 on the lower side (18 / 3 = 6 on the upper). A normal process 2 sd inside a
+    limit puts Phi(-2) = 0.02275 beyond it, 22,750 per million (any normal table).
+    """
+    result = calculate_cpk(pd.DataFrame({"x": [41.0, 42.0, 43.0]}), "x", specifications=(40, 60), trim_percentile=0)
+    assert (result.cpk, result.center, result.spread) == pytest.approx((2 / 3, 2.0, 1.0))
+    assert result.rsd == pytest.approx(100 / 42)
+    assert result.defects_per_million_nearer == pytest.approx(22_750, abs=1)
+    # Tighter than the table, so that a factor of 1.000001 in place of 10^6 shows.
+    assert result.defects_per_million_nearer == pytest.approx(stats.norm.cdf(-2.0) * 1e6, rel=1e-9)
+    assert result.defects_per_million == pytest.approx((stats.norm.cdf(-2.0) + stats.norm.cdf(-18.0)) * 1e6, rel=1e-9)
+
+
+def test_cpk_with_no_upper_specification_reports_the_lower_side_and_names_the_caller() -> None:
+    """An upper limit of NaN leaves only the lower side: Cpk 2 / 3 and Phi(-2) x 10^6 defects per million.
+
+    The warning about the missing side is attributed to the line that called ``calculate_cpk``,
+    not to a line inside it.
+    """
+    data = pd.DataFrame({"x": [41.0, 42.0, 43.0]})
+    message = (
+        r"^Cpk_upper: spread is zero or non-finite; returning NaN\. "
+        r"Likely cause: constant column or only one non-NaN value\.$"
+    )
+    with pytest.warns(RuntimeWarning, match=message) as record:
+        result = calculate_cpk(data, "x", specifications=(40, np.nan), trim_percentile=0)
+    assert len(record) == 1, "the lower side is defined"
+    assert record[0].filename != importlib.import_module("process_improve.monitoring.metrics").__file__
+    assert result.cpk == pytest.approx(2 / 3)
+    assert result.defects_per_million == pytest.approx(stats.norm.cdf(-2.0) * 1e6, rel=1e-9)
+
+
+def test_cpk_on_a_tie_reports_the_lower_side() -> None:
+    """Specifications given per row: the distances to the lower limit 9 are 1, 2, 3 (mean 2, sd 1).
+
+    Those to the upper limits 12, 15, 18 are 2, 4, 6 (mean 4, sd 2). Both sides have Cpk 2 / 3,
+    and the lower side's centre and spread are the ones reported.
+    """
+    data = pd.DataFrame({"x": [10.0, 11.0, 12.0], "lower": 9.0, "upper": [12.0, 15.0, 18.0]})
+    result = calculate_cpk(data, "x", specifications=("lower", "upper"), trim_percentile=0)
+    assert (result.cpk, result.center, result.spread) == pytest.approx((2 / 3, 2.0, 1.0))
+
+
+@pytest.mark.parametrize("trim", [0.5, 2.5])
+@pytest.mark.parametrize(
+    ("specifications", "center"),
+    [((-3.0, 30.0), 6.0), ((-30.0, 6.0), 3.0)],
+    ids=["lower-side-limits", "upper-side-limits"],
+)
+def test_cpk_with_trimming_uses_the_median_and_sn(trim: float, specifications: tuple, center: float) -> None:
+    """Any trim above zero, even below 1, switches to the median and Sn of each side.
+
+    0, 1, 2, 3, 4, 50, 6 has median 3 and ``robustbase::Sn`` 2.85747; its mean, 9.43, and standard
+    deviation, 18.0, would give another answer. The limits 3 below and 30 above leave 6 to the
+    lower one; -30 and 6 leave 3 to the upper one.
+    """
+    data = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0, 4.0, 50.0, 6.0]})
+    result = calculate_cpk(data, "x", specifications=specifications, trim_percentile=trim)
+    assert result.center == pytest.approx(center)
+    assert result.spread == pytest.approx(2.85747, rel=1e-5)
+    assert result.cpk == pytest.approx(center / (3 * 2.85747), rel=1e-5)
+    assert result.rsd == pytest.approx(2.85747 / 3 * 100, rel=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("specifications", "side"), [((None, 1000.0), "lower"), ((-1000.0, None), "upper")], ids=["lower", "upper"]
+)
+def test_cpk_estimates_a_missing_specification_from_the_default_percentiles(specifications: tuple, side: str) -> None:
+    """The 2.5th and 97.5th percentiles of 0, 1, ..., 100 are 2.5 and 97.5: each 47.5 from the median 50."""
+    result = calculate_cpk(pd.DataFrame({"x": np.arange(101.0)}), "x", specifications=specifications)
+    assert result.center == pytest.approx(47.5), side
+
+
+@pytest.mark.parametrize(("values", "rsd"), [([-1.0, 0.0, 1.0], np.nan), ([0.4, 0.5, 0.6], 20.0)])
+def test_cpk_rsd_is_undefined_only_for_data_centred_on_zero(values: list[float], rsd: float) -> None:
+    """Standard deviation over mean: 1 / 0 has no value, and 0.1 / 0.5 is 20 percent."""
+    result = calculate_cpk(pd.DataFrame({"x": values}), "x", specifications=(-10, 10), trim_percentile=0)
+    assert result.rsd == pytest.approx(rsd, nan_ok=True)
 
 
 class TestHoltWintersControlChartBatchYield:
