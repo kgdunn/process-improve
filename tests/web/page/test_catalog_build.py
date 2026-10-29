@@ -47,7 +47,7 @@ def catalog(build_script, few, tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="module")
 def index(catalog) -> dict:
-    return json.loads((catalog / "index.json").read_text())
+    return json.loads((catalog / "index.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +55,7 @@ def details(catalog) -> dict:
     """Every design's detail, read from the detail file the index names for it."""
     held = {}
     for path in (catalog / "detail").glob("*.json"):
-        held |= json.loads(path.read_text())["designs"]
+        held |= json.loads(path.read_text(encoding="utf-8"))["designs"]
     return held
 
 
@@ -92,8 +92,8 @@ def book_catalog(build_script, tmp_path_factory) -> Path:
 
 
 def test_a_book_design_s_place_is_its_section_and_named_figures_with_the_section_s_address(book_catalog):
-    index = json.loads((book_catalog / "index.json").read_text())
-    detail = json.loads((book_catalog / "detail" / "pid-book.json").read_text())["designs"][BOOK_DESIGN]
+    index = json.loads((book_catalog / "index.json").read_text(encoding="utf-8"))
+    detail = json.loads((book_catalog / "detail" / "pid-book.json").read_text(encoding="utf-8"))["designs"][BOOK_DESIGN]
     assert detail["where_url"] == (
         "https://learnche.org/pid/design-analysis-experiments/omars-worked-study#doe-omars-worked-study"
     )
@@ -115,7 +115,7 @@ def test_a_design_printed_in_a_book_has_no_address_for_its_place(details):
 
 def test_each_design_s_detail_is_in_the_file_the_index_names(catalog, index):
     for design in index["designs"]:
-        held = json.loads((catalog / "detail" / f"{design['detail']}.json").read_text())["designs"]
+        held = json.loads((catalog / "detail" / f"{design['detail']}.json").read_text(encoding="utf-8"))["designs"]
         assert design["id"] in held
 
 
@@ -377,14 +377,14 @@ def test_a_blocked_design_is_not_made_by_the_page(build_script, few):
 def test_the_whole_catalog_opens_every_generated_design_the_page_makes(build_script, tmp_path):
     with no_bytecode():
         build_script.write_catalog(tmp_path)
-    designs = json.loads((tmp_path / "catalog" / "index.json").read_text())["designs"]
+    designs = json.loads((tmp_path / "catalog" / "index.json").read_text(encoding="utf-8"))["designs"]
     bootstrap = build_script.load_bootstrap()
     makes = set(bootstrap.DESIGNS)
     generated = [d for d in designs if d["collection"] == "generated"]
     # An orthogonal array is made whole, a factor to each column: the page takes the arrays of up to 12 columns.
     most = bootstrap.GIVEN_INFO["max_factors"]
     assert all(d["open"] for d in generated if d["design_type"] in makes and d["n_factors"] <= most)
-    detail = json.loads((tmp_path / "catalog" / "detail" / "generated.json").read_text())["designs"]
+    detail = json.loads((tmp_path / "catalog" / "detail" / "generated.json").read_text(encoding="utf-8"))["designs"]
     made = {name for name, d in detail.items() if name.startswith("lib-taguchi-") and d["opens_as"] == "made"}
     assert made == {"lib-taguchi-l4-2-3", "lib-taguchi-l8-2-7", "lib-taguchi-l9-3-4", "lib-taguchi-l12-2-11"}
     published = [d for d in designs if d["collection"] == "published"]
@@ -463,7 +463,7 @@ def test_a_design_of_numeric_factors_carries_its_measures_for_each_model(index, 
 def test_the_errata_and_the_feed_are_written_beside_the_index(catalog):
     import xml.etree.ElementTree as ET
 
-    errata = json.loads((catalog / "errata.json").read_text())
+    errata = json.loads((catalog / "errata.json").read_text(encoding="utf-8"))
     assert errata["version"] == 1
     assert any(e["id"] == "bhh-plant-trial-two-methods" for e in errata["errata"])
     feed = ET.fromstring((catalog / "feed.xml").read_bytes())  # noqa: S314 - the feed the build just wrote

@@ -120,7 +120,9 @@ def commit() -> str | None:
     git = shutil.which("git")
     if git is None:
         return None
-    head = subprocess.run([git, "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False)  # noqa: S603
+    head = subprocess.run(  # noqa: S603
+        [git, "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False, encoding="utf-8"
+    )
     return head.stdout.strip() or None
 
 
@@ -359,8 +361,10 @@ def write_book(out_dir: Path) -> None:
         raise SystemExit(f"An example is named {WORKED!r}, which ?example= keeps for the worked example.")
     (out_dir / "book").mkdir()
     for example in examples:
-        (out_dir / "book" / f"{example['name']}.json").write_text(json.dumps(example, separators=(",", ":")) + "\n")
-    (out_dir / "book" / "index.json").write_text(json.dumps(book_index(examples), indent=1) + "\n")
+        (out_dir / "book" / f"{example['name']}.json").write_text(
+            json.dumps(example, separators=(",", ":")) + "\n", encoding="utf-8"
+        )
+    (out_dir / "book" / "index.json").write_text(json.dumps(book_index(examples), indent=1) + "\n", encoding="utf-8")
 
 
 def book_index(examples: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1175,7 +1179,7 @@ def write_catalog(out_dir: Path) -> None:
 
     def write(path: Path, data: dict[str, Any]) -> None:
         # The page reads these with JSON.parse, which refuses NaN: a value that is no number stops the build here.
-        path.write_text(json.dumps(data, separators=(",", ":"), allow_nan=False) + "\n")
+        path.write_text(json.dumps(data, separators=(",", ":"), allow_nan=False) + "\n", encoding="utf-8")
 
     write(folder / "index.json", index)
     for shard, held in details.items():
@@ -1811,7 +1815,11 @@ def write_books(folder: Path, data: dict[str, Any]) -> None:
     without it the examples are listed in the catalogue's order.
     """
     index = folder / "index.json"
-    where = {d["id"]: d["where"] for d in json.loads(index.read_text())["designs"]} if index.is_file() else {}
+    where = (
+        {d["id"]: d["where"] for d in json.loads(index.read_text(encoding="utf-8"))["designs"]}
+        if index.is_file()
+        else {}
+    )
     by_source: dict[str, list[dict[str, Any]]] = {}
     for case in data["cases"]:
         by_source.setdefault(case["source"], []).append(case)
@@ -1847,11 +1855,11 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
     }
-    (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     write_book(out_dir)
     write_catalog(out_dir)
     write_reproduction(out_dir)
-    (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n")
+    (out_dir / "demo.json").write_text(json.dumps(worked_example(), separators=(",", ":")) + "\n", encoding="utf-8")
     return wheel.name
 
 

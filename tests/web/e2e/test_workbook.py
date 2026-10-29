@@ -95,7 +95,7 @@ def test_a_workbook_dropped_on_the_page_is_read_as_an_uploaded_one(page, api):
 
 def test_a_file_that_is_not_a_workbook_is_refused(page, tmp_path):
     path = tmp_path / "notes.xlsx"
-    path.write_text("not a workbook")
+    path.write_text("not a workbook", encoding="utf-8")
     upload(page, path)
     # The page reads the file before it calls Python, so wait for the call: idle at once is the moment before it.
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1")

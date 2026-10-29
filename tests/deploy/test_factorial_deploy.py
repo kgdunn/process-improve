@@ -88,7 +88,7 @@ def test_an_uploaded_build_is_served_once_switched_to(site):
     assert ask(site, f"upload {A}", build(A)) == f"uploaded {A}"
     assert deploy.live(site) is None, "uploading alone changes nothing a reader sees"
     assert ask(site, f"activate {A}") == f"serving {A}"
-    assert (site / "current" / "index.html").read_text() == "<!doctype html>"
+    assert (site / "current" / "index.html").read_text(encoding="utf-8") == "<!doctype html>"
     assert (site / "current").readlink() == Path("releases") / A, "a relative link, so the folder can move"
     assert ask(site, "status") == f"live: {A} since {deploy.history(site)[-1][0]}\nkept: {A}"
 
@@ -182,7 +182,7 @@ def test_uploading_a_commit_again_keeps_the_build_uploaded_first(site):
     again = io.BytesIO(build(A, **{"index.html": "changed"}))
     assert deploy.handle(site, f"upload {A}", again) == f"{A} is already uploaded"
     assert again.read() == b"", "the stream is read to its end, so the sender's pipe closes cleanly"
-    assert (site / "current" / "index.html").read_text() == "<!doctype html>"
+    assert (site / "current" / "index.html").read_text(encoding="utf-8") == "<!doctype html>"
 
 
 @pytest.mark.parametrize(

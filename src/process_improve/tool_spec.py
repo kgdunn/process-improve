@@ -167,7 +167,9 @@ def _foreign(filename: str) -> bool:
 def _call_recording_warnings(func: Callable[..., Any], parsed: BaseModel) -> tuple[Any, list[warnings.WarningMessage]]:
     """Run ``func(parsed)``; return its result and each warning it raised, once, in the order raised.
 
-    Warnings raised inside numpy, scipy, statsmodels, pandas, patsy or scikit-learn are left out.
+    Warnings raised inside numpy, scipy, statsmodels, pandas, patsy or scikit-learn are left out, and so is an
+    ``EncodingWarning``: Python raises one only when a developer asks (``PYTHONWARNDEFAULTENCODING``, as the
+    tests run), about code that reads text, never about the caller's data.
     """
     context_aware = getattr(sys.flags, "context_aware_warnings", False)
     guard = contextlib.nullcontext() if context_aware else _WARNINGS_LOCK
@@ -176,7 +178,7 @@ def _call_recording_warnings(func: Callable[..., Any], parsed: BaseModel) -> tup
         result = func(parsed)
     unique: dict[tuple[type[Warning], str], warnings.WarningMessage] = {}
     for record in caught:
-        if not _foreign(record.filename):
+        if not _foreign(record.filename) and not issubclass(record.category, EncodingWarning):
             unique.setdefault((record.category, str(record.message)), record)
     return result, list(unique.values())
 

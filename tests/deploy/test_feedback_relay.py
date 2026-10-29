@@ -653,7 +653,13 @@ def test_the_relay_runs_as_systemd_runs_it_and_stops_at_a_missing_setting(tmp_pa
     environment = {name: os.environ[name] for name in ("PATH", "SYSTEMROOT") if name in os.environ}
     environment["HOME"] = str(tmp_path)
     stopped = subprocess.run(  # noqa: S603 - the script under test, with a fixed argument list
-        [sys.executable, "-I", str(SCRIPT)], env=environment, capture_output=True, text=True, check=False, timeout=30
+        [sys.executable, "-I", str(SCRIPT)],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+        encoding="locale",
     )
     assert stopped.returncode == 1
     assert stopped.stderr == (

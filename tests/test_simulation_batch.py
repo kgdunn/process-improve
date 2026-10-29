@@ -193,7 +193,7 @@ def test_cross_process_determinism(sim: BioreactorSimulator) -> None:
         "print(repr(BioreactorSimulator().simulate_batch(random_state=42).titer))"
     )
     result = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=300
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=300, encoding="locale"
     )
     assert float(result.stdout.strip()) == sim.simulate_batch(random_state=42).titer
 

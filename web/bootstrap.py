@@ -645,7 +645,8 @@ def _listening() -> Iterator[list[str]]:
     records would otherwise reach the browser console as errors. The logger's handlers are
     swapped for the duration and restored after, so an enclosing block (or a test's log
     capture) is not affected. Warnings raised inside numpy, scipy, statsmodels or pandas
-    are left out.
+    are left out, and so is an ``EncodingWarning``, which Python raises only when a developer
+    asks (``PYTHONWARNDEFAULTENCODING``, as the tests run): it is about code, not the reader's runs.
     """
     heard: list[str] = []
     logger = logging.getLogger("process_improve")
@@ -657,7 +658,9 @@ def _listening() -> Iterator[list[str]]:
             yield heard
     finally:
         logger.handlers, logger.propagate = saved
-    heard.extend(str(w.message) for w in caught if not _foreign(w.filename))
+    heard.extend(
+        str(w.message) for w in caught if not _foreign(w.filename) and not issubclass(w.category, EncodingWarning)
+    )
 
 
 def _foreign(filename: str) -> bool:

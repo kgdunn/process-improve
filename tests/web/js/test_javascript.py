@@ -47,7 +47,7 @@ LEAST = (22, 7)
 
 def node_version(node: str) -> tuple[int, ...]:
     """Return the version of Node.js, as numbers."""
-    printed = subprocess.run([node, "--version"], capture_output=True, text=True, check=True).stdout  # noqa: S603
+    printed = subprocess.run([node, "--version"], capture_output=True, text=True, check=True, encoding="utf-8").stdout  # noqa: S603
     return tuple(int(part) for part in re.findall(r"\d+", printed)[:3])
 
 

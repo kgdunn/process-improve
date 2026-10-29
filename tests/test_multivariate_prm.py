@@ -282,7 +282,11 @@ CHEMOMETRICS_CHEESE = {
 def cheese() -> tuple[pd.DataFrame, pd.Series]:
     from importlib import resources
 
-    with resources.files("process_improve.datasets.multivariate").joinpath("cheddar-cheese.csv").open() as f:
+    with (
+        resources.files("process_improve.datasets.multivariate")
+        .joinpath("cheddar-cheese.csv")
+        .open(encoding="utf-8") as f
+    ):
         data = pd.read_csv(f, index_col=0)
     return data[["Acetic", "H2S", "Lactic"]], data["Taste"]
 

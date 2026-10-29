@@ -78,5 +78,6 @@ def test_the_page_runs_without_the_packages_the_browser_lacks():
         text=True,
         check=False,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},  # nothing written into web/
+        encoding="locale",
     )
     assert result.returncode == 0, result.stderr
