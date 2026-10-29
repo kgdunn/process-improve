@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import pathlib
+import re
 import warnings
 
 import numpy as np
@@ -17,6 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytest
 
+from process_improve.multivariate._diagnostics import _seriation_order
 from process_improve.multivariate.methods import PCA, PLS, MCUVScaler, meda, omeda
 
 BLOCK_A, BLOCK_B = ["a1", "a2", "a3"], ["b1", "b2"]
@@ -135,6 +137,28 @@ class TestMeda:
         assert m.loc["a1", "a2"] > 0.8  # the block that predicts y
         assert abs(m.loc["b1", "b2"]) < 0.1
 
+    def test_does_not_depend_on_the_units(self) -> None:
+        """S and S_A scale by c^2, so numerator and denominator both by c^4; c = 0.01 puts S_jj S_kk below 1."""
+        X = _blocks()
+        pca = _fit_pca(X, 2)
+        np.testing.assert_allclose(meda(pca, 0.01 * X), meda(pca, X), rtol=1e-10, atol=1e-14)
+
+    def test_a_variable_with_no_sum_of_squares_reads_as_0_without_a_warning(self) -> None:
+        X = _blocks().assign(n1=0.0)
+        pca = _fit_pca(_blocks(), 2)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            m = meda(pca, X)
+        assert (m["n1"] == 0.0).all()
+        assert (m.loc["n1"] == 0.0).all()
+
+    def test_reads_object_data_as_numbers(self) -> None:
+        X = _blocks()
+        pca = _fit_pca(X, 2)
+        pd.testing.assert_frame_equal(meda(pca, X.astype(object)), meda(pca, X))
+        group = X.index[:10]
+        pd.testing.assert_series_equal(omeda(pca, X.astype(object), group), omeda(pca, X, group))
+
     def test_missing_cells_are_filled_through_the_model(self) -> None:
         X = _blocks()
         pca = _fit_pca(X, 2)
@@ -186,6 +210,15 @@ class TestOmeda:
         X, pca, group, rest = self._shifted()
         weights = np.where(X.index.isin(group), 7.0, -0.5)
         np.testing.assert_allclose(omeda(pca, X, weights=weights), omeda(pca, X, group, rest))
+        np.testing.assert_allclose(omeda(pca, X, weights=weights / 14.0), omeda(pca, X, group, rest))  # 0.5, -1/28
+        integers = np.where(X.index.isin(group), 7, -2)
+        pd.testing.assert_series_equal(omeda(pca, X, weights=integers), omeda(pca, X, group, rest))
+        assert omeda(pca, X, group, rest).name == "omeda"
+
+    def test_positive_weights_with_zeros_mirror_the_group_alone(self) -> None:
+        X, pca, group, _ = self._shifted()
+        weights = np.where(X.index.isin(group), 3.0, 0.0)
+        pd.testing.assert_series_equal(omeda(pca, X, weights=weights), omeda(pca, X, group=group))
 
     def test_one_sided_weights_mirror_the_group_alone(self) -> None:
         """Weights of -1 on the group, and nothing positive, give the group-vs-centre result negated."""
@@ -216,17 +249,72 @@ class TestOmeda:
     @pytest.mark.parametrize(
         ("kwargs", "message"),
         [
-            ({"group": [0], "weights": np.ones(60)}, "not both"),
-            ({}, "Pass group"),
-            ({"group": [0, 1], "reference": [1, 2]}, "share observations"),
-            ({"weights": np.zeros(60)}, "every weight is zero"),
-            ({"weights": np.ones(3)}, "one entry per row"),
+            ({"group": [0], "weights": np.ones(60)}, "Pass either weights, or group/reference, not both."),
+            ({}, "Pass group (optionally with reference), or weights."),
+            (
+                {"group": [0, 1], "reference": [1, 2]},
+                "group and reference share observations; each observation belongs to one side.",
+            ),
+            ({"weights": np.zeros(60)}, "The comparison selects no observations: every weight is zero."),
+            ({"weights": np.ones(3)}, "weights must have one entry per row of X (60), got shape (3,)."),
+            ({"group": [True, False]}, "group is a boolean mask of length 2, but X has 60 rows."),
+            (
+                {"group": [0], "reference": [999]},
+                (
+                    "reference contains entries that are not index labels of X: [999]. Selection is by index "
+                    "label or boolean mask; to select by position, pass X.index[...] instead."
+                ),
+            ),
         ],
     )
     def test_rejects_a_malformed_comparison(self, kwargs: dict, message: str) -> None:
         X, pca, _, _ = self._shifted()
-        with pytest.raises(ValueError, match=message):
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
             omeda(pca, X, **kwargs)
+
+
+class TestSeriation:
+    """The order of a seriated map: average-linkage clusters of the distance ``1 - |m|``, kept together."""
+
+    @staticmethod
+    def _symmetric(n: int, entries: dict[tuple[int, int], float]) -> np.ndarray:
+        m = np.eye(n)
+        for (i, j), value in entries.items():
+            m[i, j] = m[j, i] = value
+        return m
+
+    @staticmethod
+    def _adjacent(order: np.ndarray, i: int, j: int) -> bool:
+        positions = list(order)
+        return abs(positions.index(i) - positions.index(j)) == 1
+
+    def test_three_variables_put_the_related_pair_together(self) -> None:
+        order = _seriation_order(self._symmetric(3, {(0, 1): 0.0, (0, 2): 0.9, (1, 2): 0.1}))
+        assert self._adjacent(order, 0, 2)
+
+    def test_clusters_by_the_mean_similarity_not_the_nearest_neighbour(self) -> None:
+        """Average linkage joins b-d (0.9), then a-c (0.5): c's mean similarity to {b, d} is (0.7 + 0.2) / 2 = 0.45.
+
+        Single linkage would join c to {b, d} through b (0.7) instead. Every leaf order of the
+        tree keeps its clusters together, so a sits next to c, and b next to d.
+        """
+        entries = {(0, 1): 0.1, (0, 2): 0.5, (0, 3): 0.6, (1, 2): 0.7, (1, 3): 0.9, (2, 3): 0.2}
+        order = _seriation_order(self._symmetric(4, entries))
+        assert self._adjacent(order, 0, 2)
+        assert self._adjacent(order, 1, 3)
+
+    def test_moderate_links_between_two_blocks_keep_the_blocks_apart(self) -> None:
+        """Pairs a-c (0.9) and b-d (0.8), with links of 0.3 to 0.45 between them, come out as two blocks."""
+        entries = {(0, 1): 0.3, (0, 2): 0.9, (0, 3): 0.35, (1, 2): 0.4, (1, 3): 0.8, (2, 3): 0.45}
+        order = _seriation_order(self._symmetric(4, entries))
+        assert self._adjacent(order, 0, 2)
+        assert self._adjacent(order, 1, 3)
+
+    def test_an_entry_above_1_counts_as_1(self) -> None:
+        """A PLS map, or one of new data, can exceed 1 in size; the distance stops at 0, as for an exact copy."""
+        entries = {(0, 1): 0.1, (0, 2): 0.3, (0, 3): 0.6, (1, 2): 0.8, (1, 3): 1.5, (2, 3): 3.0}
+        strong = self._symmetric(4, entries)
+        np.testing.assert_array_equal(_seriation_order(strong), _seriation_order(np.clip(strong, None, 1.0)))
 
 
 class TestModelMethodsAndPlots:

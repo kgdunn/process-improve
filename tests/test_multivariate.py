@@ -5,9 +5,11 @@ import inspect
 import io
 import logging
 import pathlib
+import re
 import urllib.request
 import warnings
 from collections.abc import Callable
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -47,6 +49,7 @@ from process_improve.multivariate.methods import (
     ellipse_coordinates,
     epsqrt,
     explained_variance_plot,
+    group_contributions,
     hotellings_t2_limit,
     internal_pls_nipals_fit_one_pc,
     make_tpls_scorer,
@@ -59,6 +62,7 @@ from process_improve.multivariate.methods import (
     rv2_coefficient,
     rv_coefficient,
     scale,
+    score_contributions,
     score_limit,
     selectivity_ratio,
     spe_calculation,
@@ -2080,6 +2084,54 @@ def test_pls_t2_spe_contributions(
     assert (pls_ldpe.spe_contributions(X_ldpe) ** 2).sum(axis=1).to_numpy() == pytest.approx(
         pls_ldpe.spe_.iloc[:, -1].to_numpy() ** 2, abs=1e-6
     )
+
+
+def test_t2_contributions_count_the_components_that_fit_counts_in_t2() -> None:
+    """A small score sd still counts, as in ``hotellings_t2_``; a ~0 one adds nothing, even off the plane.
+
+    Two latent factors drive four columns. With noise of 1e-6 on one column a third
+    component has a score sd near 5e-7: small, but fit() counts it in hotellings_t2_, so
+    the row sums are ``sum_a t_a^2 / s_a^2`` over all three. Without the noise the data
+    span a plane, the third sd is ~1e-16 and fit() leaves that component out; a new row
+    off the plane scores on it all the same, and must not gain ``t_3^2`` from it.
+    """
+    rng = np.random.default_rng(0)
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
+
+    noisy = plane.copy()
+    noisy[:, 3] += 1e-6 * rng.standard_normal(30)
+    noisy = pd.DataFrame(noisy - noisy.mean(axis=0), columns=list("abcd"))
+    pca = PCA(n_components=3).fit(noisy)
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert 1e-8 < s[2] < 1e-5
+    by_hand = ((pca.scores_.to_numpy() / s) ** 2).sum(axis=1)
+    np.testing.assert_allclose(pca.t2_contributions(noisy).sum(axis=1), by_hand, rtol=1e-6)
+
+    flat = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
+    pca = PCA(n_components=3).fit(flat)
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert s[2] < 1e-12
+    new = pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd"))
+    t = new.to_numpy() @ pca.loadings_.to_numpy()
+    assert abs(t[0, 2]) > 1.0  # the new row is well off the plane
+    np.testing.assert_allclose(pca.t2_contributions(new).sum(axis=1), [np.sum(t[0, :2] ** 2 / s[:2] ** 2)], rtol=1e-12)
+
+
+def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
+    """A score sd counts when it exceeds ``epsqrt * max(1, largest sd)``; at the bound it does not.
+
+    A stand-in model whose loadings are the identity, so each score is its own variable
+    and each contribution is ``x_k^2 / s_k^2``, or 0 for a component left out. The largest
+    sd is 1.5, so the bound is ``1.5 * 2**-26`` (epsqrt is exactly ``2**-26``): an sd of
+    exactly the bound is left out, ``1.75 * 2**-26`` is kept, and ``2**-26`` is left out.
+    """
+    assert epsqrt == 2.0**-26
+    s = np.array([1.5, 1.5 * 2.0**-26, 1.75 * 2.0**-26, 2.0**-26])
+    model = SimpleNamespace(
+        scores_=None, loadings_=pd.DataFrame(np.eye(4), index=list("abcd")), scaling_factor_for_scores_=pd.Series(s)
+    )
+    contributions = t2_contributions(model, pd.DataFrame([[3.0, 1.0, 1.0, 1.0]], columns=list("abcd")))
+    np.testing.assert_allclose(contributions.to_numpy(), [[4.0, 0.0, 2.0**52 / 3.0625, 0.0]], rtol=1e-15)
 
 
 def test_pca_detect_outliers() -> None:
@@ -6814,8 +6866,367 @@ def test_vip_raises_without_weights_or_loadings() -> None:
     class _FakeFitted:
         r2_per_component_ = pd.DataFrame([[0.5, 0.3]])
 
-    with pytest.raises(ValueError, match="x_weights_"):
+    message = "Model must have 'x_weights_' (PLS) or 'loadings_' (PCA) to compute VIP."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         vip(_FakeFitted())
+
+
+# ---- The diagnostics worked by hand on stand-in models: each reads a fitted model's attributes only ----
+
+
+@pytest.mark.parametrize(
+    ("call", "message"),
+    [
+        (vip, "Model is not fitted. Call fit() before computing VIP."),
+        (squared_cosine, "Model is not fitted. Call fit() before computing the squared cosine."),
+        (observation_contributions, "Model is not fitted. Call fit() before computing observation contributions."),
+        (eigenvalue_summary, "Model is not fitted. Call fit() before computing the eigenvalue summary."),
+        (
+            lambda model: t2_contributions(model, np.zeros((2, 2))),
+            "Model is not fitted. Call fit() before computing contributions.",
+        ),
+        (
+            lambda model: project_variables(model, np.zeros((2, 2))),
+            "Model is not fitted. Call fit() before projecting variables.",
+        ),
+        (
+            lambda model: target_projection(model, np.zeros((2, 2))),
+            "Model is not fitted, or is not a PLS model with 'beta_coefficients_'.",
+        ),
+    ],
+)
+def test_diagnostics_refuse_an_unfitted_model_in_full(call: Callable, message: str) -> None:
+    """Each diagnostic names what it could not compute, word for word."""
+    for unfitted in (PCA(n_components=2), PLS(n_components=2)):
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            call(unfitted)
+
+
+def test_squared_cosine_needs_the_spe_as_well_as_the_scores() -> None:
+    """A model with scores but no SPE has no residual to put in the denominator."""
+    message = "Model is not fitted. Call fit() before computing the squared cosine."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        squared_cosine(SimpleNamespace(scores_=pd.DataFrame([[1.0]])))
+
+
+def test_vip_by_hand_on_a_stand_in_model() -> None:
+    """``VIP_j^2 = K sum_a r2_a w_ja^2 / sum_a r2_a``, for three features and two components.
+
+    With r2 = (0.5, 0.25) and K = 3 this is ``2 w_j1^2 + w_j2^2``: 0.72, 1.64 and 0.64 for the
+    weights below, which sum to K. On the first component alone it is ``3 w_j1^2``: 1.08, 1.92
+    and 0. A PLS model's weights are read before its loadings, set to zero here to show it.
+    """
+    weights = pd.DataFrame([[0.6, 0.0], [0.8, 0.6], [0.0, 0.8]], index=["a", "b", "c"], columns=[1, 2])
+    r2 = pd.Series([0.5, 0.25], index=[1, 2])
+    expected = pd.Series(np.sqrt([0.72, 1.64, 0.64]), index=["a", "b", "c"], name="VIP")
+    pca_like = SimpleNamespace(r2_per_component_=r2, loadings_=weights)
+    pls_like = SimpleNamespace(r2_per_component_=r2, x_weights_=weights, loadings_=0.0 * weights)
+    for model in (pca_like, pls_like):
+        pd.testing.assert_series_equal(vip(model), expected, rtol=1e-14)
+        pd.testing.assert_series_equal(vip(model, n_components=2), expected, rtol=1e-14)
+        np.testing.assert_allclose(vip(model, n_components=1), np.sqrt([1.08, 1.92, 0.0]), rtol=1e-14)
+        with pytest.raises(ValueError, match=r"^n_components must be between 1 and 2, got 3\.$"):
+            vip(model, n_components=3)
+
+
+def test_response_selector_counts_positions_from_0_and_refuses_in_full() -> None:
+    """An integer picks a response by position, 0 to M - 1; anything else is refused with the reason."""
+    rng = np.random.default_rng(7)
+    X = pd.DataFrame(rng.standard_normal((20, 3)), columns=["x0", "x1", "x2"])
+    Y = pd.DataFrame({"y0": X["x0"] + 0.1 * rng.standard_normal(20), "y1": X["x1"] - X["x2"]})
+    pls = PLS(n_components=2).fit(X, Y)
+    assert target_projection(pls, X, response=0).response == "y0"
+    assert target_projection(pls, X, response=np.int64(1)).response == "y1"
+    for position in (2, -1):
+        with pytest.raises(ValueError, match=rf"^response index {position} is out of range for 2 responses\.$"):
+            target_projection(pls, X, response=position)
+    with pytest.raises(ValueError, match=r"^response 'y9' is not one of the model responses \['y0', 'y1'\]\.$"):
+        target_projection(pls, X, response="y9")
+
+
+def _two_feature_tp_model(direct_weights: list[float]) -> SimpleNamespace:
+    """Return a one-response PLS stand-in whose regression vector is ``direct_weights``; it has no X scaler."""
+    return SimpleNamespace(
+        beta_coefficients_=pd.DataFrame({"y": [0.0, 0.0]}, index=["a", "b"]),
+        direct_weights_=pd.DataFrame([[weight] for weight in direct_weights], index=["a", "b"]),
+        y_loadings_=pd.DataFrame([[1.0]], index=["y"]),
+    )
+
+
+_TP_X = pd.DataFrame(
+    [[1.0, 0.0], [0.0, 1.0], [-1.0, -1.0], [2.0, -1.0]], index=["r1", "r2", "r3", "r4"], columns=["a", "b"]
+)
+
+
+def test_target_projection_and_selectivity_ratio_by_hand() -> None:
+    """``w = b / |b|``, ``t = X w``, ``p = X't / t't`` and ``SR_j = p_j^2 t't / |x_j - t p_j|^2``.
+
+    The regression vector ``W* q'`` is (3, 4), so ``w = (0.6, 0.8)``. The four rows give
+    ``t = (0.6, 0.8, -1.4, 0.4)``, ``t't = 3.12`` and ``p = (2.8, 1.8) / 3.12``. The columns'
+    sums of squares are 6 and 3, so the residual ones are ``6 - 2.8^2 / 3.12`` and
+    ``3 - 1.8^2 / 3.12``, and the ratios 49/68 and 9/17. With N = 4 the F critical value has 2
+    and 1 degrees of freedom, where ``1 - (1 + 2F)^(-1/2) = 0.9`` gives F = 49.5.
+    """
+    model = _two_feature_tp_model([3.0, 4.0])
+    tp = target_projection(model, _TP_X)
+    pd.testing.assert_series_equal(tp.weights, pd.Series([0.6, 0.8], index=["a", "b"], name="TP weight"), rtol=1e-15)
+    expected_scores = pd.Series([0.6, 0.8, -1.4, 0.4], index=_TP_X.index, name="TP score")
+    pd.testing.assert_series_equal(tp.scores, expected_scores, rtol=1e-14)
+    expected_loadings = pd.Series([2.8 / 3.12, 1.8 / 3.12], index=["a", "b"], name="TP loading")
+    pd.testing.assert_series_equal(tp.loadings, expected_loadings, rtol=1e-14)
+    assert tp.response == "y"
+
+    ratio = selectivity_ratio(model, _TP_X, conf_level=0.9)
+    pd.testing.assert_series_equal(
+        ratio, pd.Series([49 / 68, 9 / 17], index=["a", "b"], name="selectivity_ratio"), rtol=1e-13
+    )
+    assert ratio.attrs["f_critical"] == pytest.approx(49.5, rel=1e-12)
+    assert ratio.attrs["conf_level"] == 0.9
+    assert ratio.attrs["response"] == "y"
+
+
+def test_target_projection_reads_object_data_as_numbers() -> None:
+    """X held as Python objects gives the float results, with no scaler to convert it first."""
+    model = _two_feature_tp_model([3.0, 4.0])
+    as_objects = _TP_X.astype(object)
+    pd.testing.assert_series_equal(
+        target_projection(model, as_objects).loadings, target_projection(model, _TP_X).loadings
+    )
+    pd.testing.assert_series_equal(selectivity_ratio(model, as_objects), selectivity_ratio(model, _TP_X))
+
+
+def test_target_projection_counts_a_norm_of_exactly_epsqrt_as_0() -> None:
+    """A regression vector, or TP scores, of norm exactly epsqrt (``2**-26``) count as ~0."""
+    assert epsqrt == 2.0**-26
+    message = "The regression vector for response 'y' is ~0; it is not predicted by X."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        target_projection(_two_feature_tp_model([2.0**-26, 0.0]), _TP_X)
+    flat = pd.DataFrame([[2.0**-13, 5.0], [0.0, 3.0]], columns=["a", "b"])  # scores (2**-13, 0)
+    message = "The target-projected scores have ~0 variance; cannot form the TP loading."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        target_projection(_two_feature_tp_model([1.0, 0.0]), flat)
+
+
+def test_selectivity_ratio_is_0_without_a_warning_where_it_cannot_be_formed() -> None:
+    """A feature the TP component reproduces exactly (x / 0) and an all-zero one (0 / 0) both get 0, quietly.
+
+    With ``w = (1, 0)`` the scores are column a itself, so its loading is 1 and its residual 0.
+    Three rows leave the F distribution 0 denominator degrees of freedom: its critical value is NaN.
+    """
+    X = pd.DataFrame({"a": [1.0, -1.0, 2.0], "b": [0.0, 0.0, 0.0]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        ratio = selectivity_ratio(_two_feature_tp_model([1.0, 0.0]), X)
+    np.testing.assert_array_equal(ratio.to_numpy(), [0.0, 0.0])
+    assert np.isnan(ratio.attrs["f_critical"])
+
+
+def test_squared_cosine_and_observation_contributions_by_hand() -> None:
+    """Squared scores over each row's total (scores and SPE squared), and over each column's total.
+
+    Row p has scores (3, 4, 0) and an SPE of 5, a total of 50; row q sits at the origin with no
+    residual (0 / 0, read as 0); row r has scores (1, 0, 0) and no residual. Only the last SPE
+    column, the full model's, counts. The columns' sums of squares are 10, 16 and 0 (0 / 0 again).
+    """
+    index, columns = ["p", "q", "r"], [1, 2, 3]
+    scores = pd.DataFrame([[3.0, 4.0, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], index=index, columns=columns)
+    spe = pd.DataFrame([[9.0, 9.0, 5.0], [9.0, 9.0, 0.0], [9.0, 9.0, 0.0]], index=index, columns=columns)
+    model = SimpleNamespace(scores_=scores, spe_=spe)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        cos2, shares = squared_cosine(model), observation_contributions(model)
+    expected_cos2 = pd.DataFrame([[0.18, 0.32, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], index=index, columns=columns)
+    expected_shares = pd.DataFrame([[0.9, 1.0, 0.0], [0.0, 0.0, 0.0], [0.1, 0.0, 0.0]], index=index, columns=columns)
+    for function, result, expected in (
+        (squared_cosine, cos2, expected_cos2),
+        (observation_contributions, shares, expected_shares),
+    ):
+        pd.testing.assert_frame_equal(result, expected)
+        pd.testing.assert_frame_equal(function(model, n_components=1), expected[[1]])
+        pd.testing.assert_frame_equal(function(model, n_components=3), expected)
+        for wrong in (0, 4):
+            with pytest.raises(ValueError, match=rf"^n_components must be between 1 and 3, got {wrong}\.$"):
+                function(model, n_components=wrong)
+
+
+def test_eigenvalue_summary_by_hand() -> None:
+    """The score variances, and r2 per component and cumulated, in percent, indexed by component."""
+    model = SimpleNamespace(
+        explained_variance_=np.array([4.0, 1.0]),
+        r2_per_component_=pd.Series([0.5, 0.25], index=[1, 2]),
+        r2_cumulative_=pd.Series([0.5, 0.75], index=[1, 2]),
+    )
+    expected = pd.DataFrame(
+        {"eigenvalue": [4.0, 1.0], "percent_variance": [50.0, 25.0], "cumulative_percent": [50.0, 75.0]},
+        index=pd.Index([1, 2], name="component"),
+    )
+    pd.testing.assert_frame_equal(eigenvalue_summary(model), expected)
+
+
+def test_project_variables_are_the_correlations_np_corrcoef_gives() -> None:
+    """Each entry is the Pearson correlation of a supplementary column with a score column.
+
+    Neither block is centred (the stand-in's scores have means 3 and 1, the columns 12 and
+    1.25), so the centring counts. A constant column (0 / 0) and one too small to square (its
+    sum of squares underflows to 0, so x / 0) both read as uncorrelated, without a warning.
+    """
+    scores = pd.DataFrame([[1.0, 2.0], [2.0, 0.0], [3.0, 1.0], [6.0, 1.0]], columns=[1, 2])
+    model = SimpleNamespace(scores_=scores)
+    supplementary = pd.DataFrame(
+        {"u": [10.0, 12.0, 11.0, 15.0], "v": [-1.0, 0.0, 4.0, 2.0], "flat": 7.0, "tiny": [1e-170, -1e-170] * 2}
+    )
+    expected = pd.DataFrame(0.0, index=supplementary.columns, columns=scores.columns)
+    for name in ("u", "v"):
+        for component in (1, 2):
+            expected.loc[name, component] = np.corrcoef(supplementary[name], scores[component])[0, 1]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pd.testing.assert_frame_equal(project_variables(model, supplementary), expected, rtol=1e-13)
+    pd.testing.assert_frame_equal(project_variables(model, supplementary.astype(object)), expected, rtol=1e-13)
+    message = "Supplementary data must have 4 rows (the number of observations used to fit the model), got 3."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        project_variables(model, supplementary.iloc[:3])
+
+
+def test_rv_and_rv2_by_hand() -> None:
+    """Cross-product matrices worked by hand.
+
+    For x = (1, 0, -1) and y = (1, -1, 0), XX' and YY' share only their (1, 1) entry, 1, and
+    each has a sum of squares of 4: RV = 1/4. Off their diagonals they share nothing: RV2 = 0.
+    For x = (0.5, -0.5) and y = (1, -1) the denominator is exactly 1, and RV is 1.
+    """
+    assert rv_coefficient([[1.0], [0.0], [-1.0]], [[1.0], [-1.0], [0.0]]) == 0.25
+    assert rv2_coefficient([[1.0], [0.0], [-1.0]], [[1.0], [-1.0], [0.0]]) == 0.0
+    assert rv_coefficient([[0.5], [-0.5]], [[1.0], [-1.0]]) == 1.0
+
+
+def test_rv_computes_float32_data_in_double_precision() -> None:
+    """Single-precision blocks give the double-precision coefficient, not one rounded at 1e-7."""
+    rng = np.random.default_rng(4)
+    X = rng.standard_normal((30, 5)).astype(np.float32)
+    Y = rng.standard_normal((30, 3)).astype(np.float32)
+    for coefficient in (rv_coefficient, rv2_coefficient):
+        assert coefficient(X, Y) == pytest.approx(coefficient(X.astype(float), Y.astype(float)), rel=1e-14)
+
+
+def test_rv_refuses_its_inputs_in_full() -> None:
+    """The messages name the block and both row counts."""
+    with pytest.raises(ValueError, match=r"^X must be 1- or 2-dimensional, got 3 dimensions\.$"):
+        rv_coefficient(np.zeros((2, 2, 2)), np.zeros((2, 1)))
+    with pytest.raises(ValueError, match=r"^Y must be 1- or 2-dimensional, got 3 dimensions\.$"):
+        rv2_coefficient(np.zeros((2, 1)), np.zeros((2, 2, 2)))
+    with pytest.raises(ValueError, match=r"^X and Y must have the same number of rows; got 4 and 3\.$"):
+        rv_coefficient(np.ones((4, 2)), np.ones((3, 5)))
+
+
+def _identity_model(n_features: int, **attributes: object) -> SimpleNamespace:
+    """Return a PCA stand-in whose loadings are the identity, so each score is its own variable."""
+    names = list("abcdefgh"[:n_features])
+    return SimpleNamespace(scores_=None, loadings_=pd.DataFrame(np.eye(n_features), index=names), **attributes)
+
+
+def test_score_and_group_contributions_by_hand() -> None:
+    """With the identity as loadings, a contribution to score a is the datum on variable a, and 0 elsewhere.
+
+    The default component is 1, and a 2-D array is data, not a score vector. Rows r1 and r3
+    average (2, 3), and against r2 = (0, 1) shift by (2, 2), which component 2 reads as (0, 2).
+    Data and weights held as Python objects give the float results.
+    """
+    model = _identity_model(2)
+    X = pd.DataFrame([[1.0, 2.0], [0.0, 1.0], [3.0, 4.0]], index=["r1", "r2", "r3"], columns=["a", "b"])
+    expected = pd.DataFrame([[1.0, 0.0], [0.0, 0.0], [3.0, 0.0]], index=X.index, columns=X.columns)
+    pd.testing.assert_frame_equal(score_contributions(model, X), expected)
+    pd.testing.assert_frame_equal(score_contributions(model, X.to_numpy()), expected.reset_index(drop=True))
+    pd.testing.assert_frame_equal(score_contributions(model, X.astype(object)), expected)
+
+    shift = group_contributions(model, X, group=["r1", "r3"], reference=["r2"], component=2)
+    pd.testing.assert_series_equal(shift, pd.Series([0.0, 2.0], index=["a", "b"], name="group_contributions"))
+    weights = pd.Series([0.5, -1.0, 0.5], dtype=object)
+    pd.testing.assert_series_equal(group_contributions(model, X.astype(object), weights=weights, component=2), shift)
+
+
+@pytest.mark.parametrize(
+    ("call", "error", "message"),
+    [
+        (
+            lambda model, X: group_contributions(model, X, group=["r1"], weights=[1.0, 0.0, 0.0]),
+            ValueError,
+            "Pass either weights, or group/reference, not both.",
+        ),
+        (group_contributions, ValueError, "Pass group (optionally with reference), or weights."),
+        (
+            lambda model, X: group_contributions(model, X, group=[]),
+            ValueError,
+            "group selected no observations from X.",
+        ),
+        (
+            lambda model, X: group_contributions(model, X, group=["r1"], reference=[]),
+            ValueError,
+            "reference selected no observations from X.",
+        ),
+        (
+            lambda model, X: group_contributions(model, X, group=[True, False]),
+            ValueError,
+            "group is a boolean mask of length 2, but X has 3 rows.",
+        ),
+        (
+            lambda model, X: group_contributions(model, X, group=["r1"], reference=["r9", "r8"]),
+            ValueError,
+            (
+                "reference contains entries that are not index labels of X: ['r9', 'r8']. Selection is by index "
+                "label or boolean mask; to select by position, pass X.index[...] instead."
+            ),
+        ),
+        (
+            lambda model, X: score_contributions(model, X, colour="red", size=3),
+            TypeError,
+            "score_contributions() got an unexpected keyword argument: colour, size.",
+        ),
+    ],
+)
+def test_contribution_arguments_are_refused_in_full(call: Callable, error: type, message: str) -> None:
+    """Each refusal says exactly what was wrong."""
+    X = pd.DataFrame([[1.0, 2.0], [0.0, 1.0], [3.0, 4.0]], index=["r1", "r2", "r3"], columns=["a", "b"])
+    with pytest.raises(error, match=f"^{re.escape(message)}$"):
+        call(_identity_model(2), X)
+
+
+def test_t2_contributions_by_hand_over_the_components_selected() -> None:
+    """With the identity as loadings, the contribution of variable k is ``x_k^2 / s_k^2`` on a selected component.
+
+    For x = (1, 2, 3) and score sds (1, 2, 0.5) that is (1, 1, 36); components are numbered from
+    1, and whole floats count as their integers. Data held as Python objects give the same numbers.
+    """
+    model = _identity_model(3, scaling_factor_for_scores_=pd.Series([1.0, 2.0, 0.5]))
+    X = pd.DataFrame([[1.0, 2.0, 3.0]], columns=["a", "b", "c"])
+    every = pd.DataFrame([[1.0, 1.0, 36.0]], columns=X.columns)
+    pd.testing.assert_frame_equal(t2_contributions(model, X), every)
+    pd.testing.assert_frame_equal(t2_contributions(model, X.astype(object)), every)
+    pd.testing.assert_frame_equal(
+        t2_contributions(model, X, components=[2]), pd.DataFrame([[0.0, 1.0, 0.0]], columns=X.columns)
+    )
+    pd.testing.assert_frame_equal(
+        t2_contributions(model, X, components=np.array([1.0, 3.0])), pd.DataFrame([[1.0, 0.0, 36.0]], columns=X.columns)
+    )
+    pd.testing.assert_frame_equal(spe_contributions(model, X.astype(object)), 0.0 * X)
+    for wrong in ([], [0, 1], [4]):
+        message = f"components must be 1-based indices within 1..3, got {wrong}."
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            t2_contributions(model, X, components=wrong)
+
+
+def test_contribution_scalings_leave_a_largest_or_total_of_at_most_epsqrt_alone() -> None:
+    """``"maximum"`` and ``"within"`` divide by 1 when the largest contribution, or a row's total, is at most epsqrt.
+
+    epsqrt is exactly ``2**-26``. Such contributions keep their size, rather than being blown up to 1.
+    """
+    model, tiny = _identity_model(2), 2.0**-26
+    X = pd.DataFrame([[tiny, 5.0], [-tiny / 2, 7.0]], columns=["a", "b"])
+    expected = pd.DataFrame([[tiny, 0.0], [-tiny / 2, 0.0]], columns=["a", "b"])
+    pd.testing.assert_frame_equal(score_contributions(model, X, scaling="maximum"), expected, check_exact=True)
+    rows = pd.DataFrame([[tiny, 5.0], [tiny / 2, 7.0], [0.0, 3.0], [3.0, 1.0]], columns=["a", "b"])
+    expected = pd.DataFrame([[tiny, 0.0], [tiny / 2, 0.0], [0.0, 0.0], [1.0, 0.0]], columns=["a", "b"])
+    pd.testing.assert_frame_equal(score_contributions(model, rows, scaling="within"), expected, check_exact=True)
 
 
 # --------------------------------------------------------------------------
