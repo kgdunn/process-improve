@@ -288,6 +288,26 @@ class TestRankDeficiency:
         assert summary["rank_deficient"] is False
         assert summary["model_rank"] == summary["n_terms"] == 4
 
+    def test_an_interaction_constant_in_the_runs_is_not_estimable_beside_the_intercept(self) -> None:
+        """A * B = 1 in every run, so A:B is the intercept's column again: rank 1 of 2 (#997).
+
+        Coded to -1/+1, A:B varies, and the model was said to estimate both of its terms: the
+        warning blamed the units, and the intercept and A:B were each reported as half the mean.
+        """
+        df = pd.DataFrame({"A": [0.5, 1.0, 2.0, 0.25, 4.0], "B": [2.0, 1.0, 0.5, 4.0, 0.25]})
+        df["y"] = [10.0, 12.0, 11.0, 15.0, 10.5]
+        columns = np.column_stack([np.ones(len(df)), df["A"] * df["B"]])
+        with pytest.warns(RuntimeWarning, match="not estimable") as caught:
+            result = analyze_experiment(
+                df, response_column="y", model="y ~ A:B", analysis_type="coefficients", coding="actual"
+            )
+        summary = result["model_summary"]
+        assert summary["model_rank"] == np.linalg.matrix_rank(columns) == 1
+        assert summary["n_terms"] == 2
+        assert summary["rank_deficient"] is True
+        assert summary["ill_conditioned"] is False
+        assert not any("lost rank in floating point" in str(w.message) for w in caught)
+
     def test_rank_deficient_model_warns_and_reports(self) -> None:
         df = self._foldover_design()
         model = "A + B + I(A**2) + I(B**2) + A:B"
@@ -327,6 +347,20 @@ class TestRankDeficiency:
         assert not any("not estimable from this design" in m for m in messages)
         assert summary["model_rank"] == summary["n_terms"] == 10
         assert summary["rank_deficient"] is False
+        assert summary["ill_conditioned"] is True
+
+    def test_a_tiny_span_far_from_zero_is_not_blamed_on_the_design(self) -> None:
+        """Spans about 1e-5 of their distance from zero: the columns as given lose rank even scaled to unit length.
+
+        The cube of the design is a 2^3 factorial, which estimates all eight terms of T * P * M.
+        """
+        df = self._three_factor_ccd(((450.15, 0.005), (2e5, 10.0), (3600.0, 0.01)))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = analyze_experiment(df, response_column="y", model="T * P * M", analysis_type="coefficients")
+        assert not any("not estimable from this design" in str(w.message) for w in caught)
+        summary = result["model_summary"]
+        assert summary["model_rank"] == summary["n_terms"] == 8
         assert summary["ill_conditioned"] is True
 
     def test_reasonable_units_are_silent(self) -> None:

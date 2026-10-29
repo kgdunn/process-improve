@@ -355,6 +355,18 @@ def test_an_interaction_zero_in_every_run_is_left_out_with_a_note(api, worked_ex
     assert analysis["notes"][0].startswith("T·P·F cannot be estimated: it is zero in every run")
 
 
+def test_an_interaction_constant_in_every_run_is_refused_as_the_intercept_again(api):
+    """A * B = 1 in every run, so A·B cannot be told from the intercept: each was reported as half the mean (#997)."""
+    runs = [[0.5, 2.0], [1.0, 1.0], [2.0, 0.5], [0.25, 4.0], [4.0, 0.25]]
+    spec = {"design_type": "given", "factors": factors_named("A", "B"), "runs": runs}
+    held = held_of(api.ok("api_make_design", spec))
+    request = {**held, "responses": [10.0, 12.0, 11.0, 15.0, 10.5], "model": {"terms": [["A", "B"]]}}
+    assert api.error("api_analyze_runs", request) == (
+        "This design cannot fit the chosen model: only 1 of its 2 coefficients can be estimated from these 5 runs. "
+        "Choose a smaller model."
+    )
+
+
 # --------------------------------------------------------------------------- categorical factors
 def test_the_quadratic_model_has_no_square_of_a_categorical_factor(api):
     factors = [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
