@@ -458,6 +458,7 @@ source_paths = ["src"]
 only_mutate = [
     "src/process_improve/multivariate/_limits.py",
     "src/process_improve/monitoring/metrics.py",
+    "src/process_improve/monitoring/evop.py",
 ]
 # The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
 pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
@@ -470,4 +471,5 @@ pytest_add_cli_args_test_selection = [
     "tests/test_monitoring.py",
     "tests/test_monitoring_helpers.py",
     "tests/test_audit_regressions_univariate_monitoring.py",
+    "tests/test_evop.py",
 ]
