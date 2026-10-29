@@ -285,17 +285,30 @@ def gauge() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def test_with_no_residual_df_the_error_variance_has_a_wald_interval(gauge):
-    """part:operator takes every reading, so the residual is the part-by-operator mean square, with a Wald interval."""
-    out = _quiet(variance_components, gauge, "y ~ operator", ["part", "part:operator"])
-    table = gauge["y"].to_numpy().reshape(4, 3)  # a row per part, a column per operator
-    interaction = table - table.mean(axis=1, keepdims=True) - table.mean(axis=0) + table.mean()
-    mean_square = float(np.sum(interaction**2)) / ((4 - 1) * (3 - 1))
-    std_error = mean_square * np.sqrt(2 / 6)  # an ANOVA mean square on 6 df
+def test_with_no_residual_df_the_error_variance_has_a_wald_interval():
+    """Fixed a and random b take every reading, yet b's variance is told apart from the residual's.
+
+    a0 and a3 hold one reading each, so the fixed effects leave two contrasts, r1 = (y1 - y2)/sqrt(2)
+    and r2 = (y3 - y4)/sqrt(2), linked by b1, which holds y2 and y3. Their sum and difference over
+    sqrt(2) are independent, with variances s2 + s2_b/2 and s2 + 3 s2_b/2, each estimated by its own
+    square on one degree of freedom (variance twice its square).
+    """
+    df = pd.DataFrame(
+        {
+            "a": ["a0", "a1", "a1", "a2", "a2", "a3"],
+            "b": ["b0", "b0", "b1", "b1", "b2", "b2"],
+            "y": [5.0, 6.0, 4.0, 7.0, 7.4, 6.0],
+        }
+    )
+    out = variance_components(df, "y ~ a", ["b"])
+    r1, r2 = (6.0 - 4.0) / np.sqrt(2), (7.0 - 7.4) / np.sqrt(2)
+    low, high = (r1 + r2) ** 2 / 2, (r1 - r2) ** 2 / 2
+    residual, std_error = 1.5 * low - 0.5 * high, np.sqrt(4.5 * low**2 + 0.5 * high**2)
     z = stats.norm.ppf(0.975)
-    assert out["components"]["residual"] == pytest.approx(mean_square, rel=1e-8)
+    assert out["components"]["b"] == pytest.approx(high - low, rel=1e-8)
+    assert out["components"]["residual"] == pytest.approx(residual, rel=1e-8)
     assert out["std_errors"]["residual"] == pytest.approx(std_error, rel=1e-6)
-    assert out["intervals"]["residual"] == pytest.approx([mean_square - z * std_error, mean_square + z * std_error])
+    assert out["intervals"]["residual"] == pytest.approx([residual - z * std_error, residual + z * std_error])
 
 
 def test_a_formula_without_a_response_is_refused(gauge):
