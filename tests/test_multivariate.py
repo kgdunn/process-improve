@@ -739,6 +739,123 @@ def test_scale_zero_variance_column_is_finite() -> None:
     assert np.allclose(np.asarray(scaled, dtype=float)[:, 1], 0.0)
 
 
+def test_mcuv_by_hand_keeps_the_labels_and_round_trips() -> None:
+    """Column a: mean 3, sd sqrt((4 + 1 + 9) / 2) = sqrt(7). Column b: mean 4, sd 1."""
+    X = pd.DataFrame({"a": [1.0, 2.0, 6.0], "b": [3.0, 5.0, 4.0]}, index=["r1", "r2", "r3"])
+    scaler = MCUVScaler().fit(X)
+    pd.testing.assert_series_equal(scaler.center_, pd.Series([3.0, 4.0], index=["a", "b"]))
+    pd.testing.assert_series_equal(scaler.scale_, pd.Series([np.sqrt(7.0), 1.0], index=["a", "b"]))
+
+    expected = pd.DataFrame({"a": np.array([-2.0, -1.0, 3.0]) / np.sqrt(7.0), "b": [-1.0, 1.0, 0.0]}, index=X.index)
+    scaled = scaler.transform(X)
+    pd.testing.assert_frame_equal(scaled, expected)
+    pd.testing.assert_frame_equal(scaler.inverse_transform(scaled), X)
+
+    # An array has no row labels, so the rows are numbered; numbers held as objects come back as floats.
+    from_array = scaler.inverse_transform(expected.to_numpy().astype(object))
+    pd.testing.assert_frame_equal(from_array, X.reset_index(drop=True))
+
+    # Fitted on an array, the output names are the ones the caller supplies, else sklearn's x0, x1.
+    unnamed = MCUVScaler().fit(X.to_numpy())
+    assert unnamed.get_feature_names_out(["a", "b"]).tolist() == ["a", "b"]
+    assert unnamed.get_feature_names_out().tolist() == ["x0", "x1"]
+
+
+def test_mcuv_declares_that_nan_passes_through() -> None:
+    """A Pipeline reads the ``allow_nan`` tag of sklearn to decide whether NaN may reach this step."""
+    assert MCUVScaler().__sklearn_tags__().input_tags.allow_nan is True
+
+
+def test_mcuv_input_contract() -> None:
+    """Dense, at least two rows, NaN allowed but not inf, and transform only on the columns it was fitted on."""
+    with pytest.raises(TypeError, match=r"^MCUVScaler does not accept sparse input: "):
+        MCUVScaler().fit(csr_matrix(np.eye(3)))
+    with pytest.raises(ValueError, match=r"1 sample\(s\) \(shape=\(1, 2\)\) while a minimum of 2 is required"):
+        MCUVScaler().fit(np.array([[1.0, 2.0]]))
+    with pytest.raises(ValueError, match="Input X contains infinity"):
+        MCUVScaler().fit(np.array([[1.0], [np.inf]]))
+    # Two rows are enough for a sample standard deviation: mean 2, sd sqrt(2). A NaN is a missing value.
+    for rows in ([[1.0], [3.0]], [[1.0], [3.0], [np.nan]]):
+        fitted = MCUVScaler().fit(np.array(rows))
+        assert fitted.center_.tolist() == [2.0]
+        assert fitted.scale_.tolist() == [np.sqrt(2.0)]
+
+    from_array = MCUVScaler().fit(np.array([[1.0, 3.0], [2.0, 5.0]]))
+    with pytest.raises(TypeError, match="Sparse data was passed for X, but dense data is required"):
+        from_array.transform(csr_matrix(np.eye(2)))
+    with pytest.raises(ValueError, match="X has 3 features, but MCUVScaler is expecting 2 features as input"):
+        from_array.transform(np.ones((2, 3)))
+    from_frame = MCUVScaler().fit(pd.DataFrame({"a": [1.0, 2.0, 4.0], "b": [3.0, 5.0, 4.0]}))
+    with pytest.raises(ValueError, match="The feature names should match those that were passed during fit"):
+        from_frame.transform(pd.DataFrame({"a": [1.0], "c": [2.0]}))
+    with pytest.raises(NotFittedError):
+        MCUVScaler().transform(np.ones((2, 2)))
+    with pytest.raises(NotFittedError):
+        MCUVScaler().inverse_transform(np.ones((2, 2)))
+
+
+def test_mcuv_constant_single_value_and_empty_columns() -> None:
+    """A constant column is centred on its value and not scaled; one observed value or none gives no spread either.
+
+    Three times 0.1 averages to 0.10000000000000002 in floating point, so centring a constant on its
+    mean would leave a residue of 2e-17 where the column should be exactly 0.
+    """
+    X = np.array([[0.1, 7.0, np.nan], [0.1, np.nan, np.nan], [0.1, np.nan, np.nan]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        scaler = MCUVScaler().fit(X)
+        out = scaler.transform(X).to_numpy()
+    assert scaler.center_.tolist() == [0.1, 7.0, 0.0]
+    assert scaler.scale_.tolist() == [1.0, 1.0, 1.0]
+    np.testing.assert_array_equal(out, [[0.0, 0.0, np.nan], [0.0, np.nan, np.nan], [0.0, np.nan, np.nan]])
+
+
+def test_mcuv_does_not_divide_by_a_spread_at_or_below_sqrt_tiny() -> None:
+    """The square root of the smallest normal float is 2**-511; a standard deviation that small scales by 1.
+
+    The first column, 2**-510, 0 and 2**-511, has mean 2**-511 and deviations of +-2**-511 and 0, so its
+    sample standard deviation is exactly 2**-511. The second, a thousand times larger, keeps its own.
+    """
+    X = np.array([[2.0**-510, 2.0**-500], [0.0, 0.0], [2.0**-511, 2.0**-501]])
+    scaler = MCUVScaler().fit(X)
+    assert scaler.scale_.iloc[0] == 1.0
+    assert scaler.scale_.iloc[1] == pytest.approx(np.std(X[:, 1], ddof=1), rel=1e-15)
+
+
+def test_center_and_scale_by_hand_along_either_axis() -> None:
+    """Down the columns: means 2, 3.5, 5 and population sds 1, 1.5, 1. Across the rows: means 3, 4."""
+    X = pd.DataFrame([[1.0, 2.0, 6.0], [3.0, 5.0, 4.0]])
+    centred, means = center(X, extra_output=True)
+    np.testing.assert_array_equal(means, [2.0, 3.5, 5.0])
+    np.testing.assert_array_equal(np.asarray(centred), [[-1.0, -1.5, 1.0], [1.0, 1.5, -1.0]])
+    np.testing.assert_array_equal(np.asarray(center(X)), np.asarray(centred))
+    by_row, row_means = center(X, axis=1, extra_output=True)
+    np.testing.assert_array_equal(row_means, [[3.0], [4.0]])
+    np.testing.assert_array_equal(np.asarray(by_row), [[-2.0, -1.0, 3.0], [-1.0, 1.0, 0.0]])
+
+    scaled, multipliers = scale(X, extra_output=True)
+    np.testing.assert_array_equal(multipliers, [1.0, 1.0 / 1.5, 1.0])
+    np.testing.assert_allclose(np.asarray(scaled), X.to_numpy() * [1.0, 1.0 / 1.5, 1.0], rtol=1e-15)
+    np.testing.assert_array_equal(np.asarray(scale(X)), np.asarray(scaled))
+    # Row 1 is 1, 2, 6: mean 3, population sd sqrt(14 / 3). Row 2 is 3, 5, 4: mean 4, sd sqrt(2 / 3).
+    by_row, row_multipliers = scale(X, axis=1, extra_output=True)
+    np.testing.assert_allclose(row_multipliers, [[np.sqrt(3.0 / 14.0)], [np.sqrt(1.5)]], rtol=1e-15)
+    np.testing.assert_allclose(np.asarray(by_row), X.to_numpy() * row_multipliers, rtol=1e-15)
+
+
+def test_scale_leaves_a_column_unchanged_when_the_measure_gives_no_spread() -> None:
+    """A custom measure can give 0 for a column that is not constant: its multiplier is 1, as for a constant.
+
+    The median absolute deviation of 0, 0, 0, 0, 1 is 0; of 2, 4, 6, 8, 10 it is median(4, 2, 0, 2, 4) = 2.
+    """
+    from scipy.stats import median_abs_deviation
+
+    X = pd.DataFrame({"mostly_zero": [0.0, 0.0, 0.0, 0.0, 1.0], "even": [2.0, 4.0, 6.0, 8.0, 10.0]})
+    scaled, multipliers = scale(X, func=median_abs_deviation, extra_output=True)
+    np.testing.assert_array_equal(multipliers, [1.0, 0.5])
+    np.testing.assert_array_equal(np.asarray(scaled), X.to_numpy() * [1.0, 0.5])
+
+
 @pytest.mark.slow
 def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     r"""

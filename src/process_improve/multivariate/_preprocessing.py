@@ -88,20 +88,11 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
             X = X.to_frame()
         # Label from the frame itself, as PCA and PLS do: sklearn sets
         # feature_names_in_ only for string labels, so integer labels (a
-        # spectrum's wavelengths) would otherwise come out as 0..K-1.
+        # spectrum's wavelengths) would otherwise come out as 0..K-1. An array
+        # has no labels, and pd.Series numbers its columns 0..K-1 from None.
         index: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
-            self,
-            X,
-            reset=True,
-            accept_sparse=False,
-            ensure_min_samples=2,
-            ensure_min_features=1,
-            dtype="numeric",
-            ensure_all_finite="allow-nan",
-        )
-        if index is None:
-            index = pd.RangeIndex(X_arr.shape[1])
+        # Dense (sparse was refused above), numeric, at least one column: validate_data's defaults.
+        X_arr = validate_data(self, X, ensure_min_samples=2, ensure_all_finite="allow-nan")
 
         # nanmean / nanstd so NaN cells pass through with the right
         # column-level statistics (the chemometric pipeline's missing-data
@@ -110,8 +101,8 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         with warnings.catch_warnings():
             # An all-NaN or single-observation column raises numpy
             # RuntimeWarnings here; both cases are handled explicitly below,
-            # so the warnings are noise for the caller.
-            warnings.simplefilter("ignore", RuntimeWarning)
+            # so the warnings are noise for the caller. Nothing else here warns.
+            warnings.simplefilter("ignore")
             center = np.nanmean(X_arr, axis=0)
             scale = np.nanstd(X_arr, axis=0, ddof=1)
             highest = np.nanmax(X_arr, axis=0)
@@ -144,19 +135,17 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
 
         ``y`` is accepted (and ignored) for :class:`Pipeline` compatibility.
         """
-        check_is_fitted(self, ("center_", "scale_"))
+        check_is_fitted(self)
         # Mirror fit()'s Series convenience for symmetric round-tripping.
         if isinstance(X, pd.Series):
             X = X.to_frame()
         # Preserve the row index for DataFrame input; ndarray input falls
         # back to a RangeIndex.
         index = X.index if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
+        X_arr = validate_data(  # pragma: no mutate - validate_data reads reset=None as reset=False
             self,
             X,
             reset=False,
-            accept_sparse=False,
-            dtype="numeric",
             ensure_all_finite="allow-nan",
         )
         out = (X_arr - self.center_.to_numpy()) / self.scale_.to_numpy()
@@ -164,7 +153,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
 
     def inverse_transform(self, X: DataMatrix) -> pd.DataFrame:
         """Inverse the mean-centring and unit-variance scaling."""
-        check_is_fitted(self, ("center_", "scale_"))
+        check_is_fitted(self)
         index = X.index if isinstance(X, pd.DataFrame) else None
         # inverse_transform is intentionally NOT routed through validate_data:
         # callers (TransformedTargetRegressor included) pass ndarray output
@@ -173,7 +162,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # We coerce to 2-D, scale back, and return a DataFrame.
         X_arr = np.asarray(X, dtype=float)
         if X_arr.ndim == 1:
-            X_arr = X_arr.reshape(-1, 1)
+            X_arr = X_arr[:, np.newaxis]
         out = X_arr * self.scale_.to_numpy() + self.center_.to_numpy()
         return pd.DataFrame(out, index=index, columns=self.center_.index)
 
@@ -240,7 +229,7 @@ def center(
         # broadcast down the column axis. Without the reshape numpy broadcasts
         # the length-N vector across the columns instead: a ValueError for
         # N != K and a silently wrong answer for square matrices.
-        vector = vector.reshape(-1, 1)
+        vector = vector[:, np.newaxis]
     if extra_output:
         return np.subtract(X, vector), vector
     else:
@@ -331,7 +320,7 @@ def scale(
     center : The centring counterpart, whose extra output is a subtrahend.
 
     """
-    if func is np.std and "ddof" not in kwargs:
+    if func is np.std:  # ``ddof`` is a parameter of its own, so it can never be in ``kwargs``
         kwargs["ddof"] = ddof
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
@@ -346,7 +335,7 @@ def scale(
     vector = 1.0 / vector
     if axis == 1:
         # Row-wise scaling: one value per ROW; see the reshape note in center().
-        vector = vector.reshape(-1, 1)
+        vector = vector[:, np.newaxis]
 
     if extra_output:
         return np.multiply(X, vector), vector
@@ -373,8 +362,8 @@ def _column_moments(X: DataMatrix) -> tuple[np.ndarray, np.ndarray]:
     values = np.asarray(pd.DataFrame(X), dtype=float)
     with warnings.catch_warnings():
         # All-NaN and single-observation columns raise numpy RuntimeWarnings;
-        # both are filtered out by the callers below.
-        warnings.simplefilter("ignore", RuntimeWarning)
+        # both are filtered out by the callers below. Nothing else here warns.
+        warnings.simplefilter("ignore")
         means = np.nanmean(values, axis=0)
         sds = np.nanstd(values, axis=0, ddof=1)
     return means, sds
@@ -405,13 +394,8 @@ def _uncentred_columns(X: DataMatrix, ratio: float = _UNCENTRED_MEAN_RATIO) -> l
     # guard, so the division below cannot overflow.
     tiny = float(np.finfo(float).tiny) ** 0.5
     degenerate = ~np.isfinite(sds) | (sds <= tiny)
-    with np.errstate(invalid="ignore"):
-        flagged = np.where(
-            degenerate,
-            np.isfinite(means) & (np.abs(means) > tiny),
-            np.abs(means) > ratio * np.where(degenerate, 1.0, sds),
-        )
-    return [label for label, flag in zip(frame.columns, flagged, strict=True) if bool(flag)]
+    flagged = np.where(degenerate, np.isfinite(means) & (np.abs(means) > tiny), np.abs(means) > ratio * sds)
+    return list(frame.columns[flagged])
 
 
 def _looks_prescaled(X: DataMatrix) -> bool:
@@ -427,10 +411,10 @@ def _looks_prescaled(X: DataMatrix) -> bool:
     usable = np.isfinite(means) & np.isfinite(sds) & (sds > 0)
     if not np.any(usable):
         return False
-    return bool(
-        np.all(np.abs(means[usable]) <= _PRESCALED_MEAN_ATOL)
-        and np.all(np.abs(sds[usable] - 1.0) <= _PRESCALED_SD_ATOL)
-    )
+    spread_error = np.abs(sds[usable] - 1.0)
+    # Near 1, |sd - 1| is a whole number of steps of 2**-53, and 0.05 is not, so the two never meet.
+    unit_variance = (spread_error <= _PRESCALED_SD_ATOL).all()  # pragma: no mutate - so < is the same as <=
+    return bool(np.all(np.abs(means[usable]) <= _PRESCALED_MEAN_ATOL) and unit_variance)
 
 
 def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, metric: str) -> None:
@@ -466,7 +450,7 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
             f"dataset into every {fold}, making the reported {metric} optimistic. "
             "The default scale_inside_folds=True is preferred.",
             SpecificationWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
         )
     elif _looks_prescaled(X):
         warnings.warn(
@@ -479,5 +463,5 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
             "unscaled X and let the folds scale it, or keep your own scaling and set "
             "scale_inside_folds=False (accepting the optimism that flag warns about).",
             SpecificationWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
         )

@@ -461,6 +461,7 @@ only_mutate = [
     "src/process_improve/monitoring/evop.py",
     "src/process_improve/monitoring/control_charts.py",
     "src/process_improve/multivariate/_nipals.py",
+    "src/process_improve/multivariate/_preprocessing.py",
 ]
 # The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
 pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
@@ -479,4 +480,5 @@ pytest_add_cli_args_test_selection = [
     "tests/test_control_chart_hw_golden.py",
     "tests/test_nipals_quick_regress.py",
     "tests/test_multivariate_adaptive.py",
+    "tests/test_multivariate_centring_traps.py",
 ]
