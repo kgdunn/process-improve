@@ -190,7 +190,7 @@ def _check_factors(factors: list[Factor]) -> None:
             )
 
 
-def _code(factors: list[Factor], frame: pd.DataFrame, response: str | None, block: str | None = None) -> pd.DataFrame:
+def _code(factors: list[Factor], frame: pd.DataFrame, response: str, block: str | None = None) -> pd.DataFrame:
     """Return the runs coded to -1/+1 under the internal names, the response as ``y`` and the block as ``block``.
 
     A run with no block (a confirmation run, say) has None as its block.
@@ -211,10 +211,9 @@ def _code(factors: list[Factor], frame: pd.DataFrame, response: str | None, bloc
             mid, half = (f.high + f.low) / 2, (f.high - f.low) / 2  # type: ignore[operator]
             coded[f"x{i}"] = (pd.to_numeric(column, errors="raise") - mid) / half
     out = pd.DataFrame(coded, index=frame.index)
-    if response is not None:
-        if response not in frame.columns:
-            raise ValueError(f"The runs have no response column {response!r}.")
-        out["y"] = pd.to_numeric(frame[response], errors="raise").astype(float)
+    if response not in frame.columns:
+        raise ValueError(f"The runs have no response column {response!r}.")
+    out["y"] = pd.to_numeric(frame[response], errors="raise").astype(float)
     if block is not None:
         labels = frame[block] if block in frame.columns else pd.Series(None, index=frame.index, dtype=object)
         out[_BLOCK_LABEL] = labels.map(lambda v: None if pd.isna(v) else str(v))
@@ -1466,7 +1465,7 @@ def _de_alias(ctx: _Context) -> _Step | None:
     )
 
 
-def _quadratic_runs(ctx: _Context, factors: list[int], suspects: list[int]) -> _Step | None:
+def _quadratic_runs(ctx: _Context, factors: list[int], suspects: list[int], *, search: bool = True) -> _Step | None:
     """Return runs that let the full quadratic model in ``factors`` be fitted: axial runs, or runs chosen for it.
 
     None when there is no numeric factor among them, or the runs already fit that model (see
@@ -1474,12 +1473,15 @@ def _quadratic_runs(ctx: _Context, factors: list[int], suspects: list[int]) -> _
     as in a central composite design, so the runs added tell the squares of ``factors`` from
     theirs; categorical factors are held at the level the optimum takes. The ``suspects``,
     factors whose squares the runs so far cannot tell from the curvature (see
-    :func:`_square_suspects`), vary too, in runs chosen to separate their squares.
+    :func:`_square_suspects`), vary too, in runs chosen to separate their squares. Without
+    ``search``, runs chosen D-optimally are left blank (see :func:`_d_optimal_runs`).
     """
     numeric = [j for j in factors if ctx.study.numeric[j]]
     if not numeric or (not suspects and _quadratic_fits(ctx, numeric)):
         return None
-    added, how = _separating_runs(ctx, numeric, suspects) if suspects else _quadratic_design(ctx, numeric)
+    added, how = (
+        _separating_runs(ctx, numeric, suspects, search) if suspects else _quadratic_design(ctx, numeric, search)
+    )
     varied = [*numeric, *suspects]
     held = [j for j in range(ctx.k) if ctx.study.numeric[j] and j not in varied]
     if held:
@@ -1495,7 +1497,7 @@ def _quadratic_runs(ctx: _Context, factors: list[int], suspects: list[int]) -> _
     )
 
 
-def _separating_runs(ctx: _Context, numeric: list[int], suspects: list[int]) -> tuple[pd.DataFrame, str]:
+def _separating_runs(ctx: _Context, numeric: list[int], suspects: list[int], search: bool) -> tuple[pd.DataFrame, str]:
     """Return runs chosen to fit the full quadratic model in ``numeric`` and each suspect's own square, and why."""
     chosen = [ctx.study.names[j] for j in numeric]
     others = [ctx.study.names[j] for j in suspects]
@@ -1511,15 +1513,7 @@ def _separating_runs(ctx: _Context, numeric: list[int], suspects: list[int]) -> 
     frame = ctx.study.data[[*chosen, *others]]
     columns = np.asarray(dmatrix(rhs, frame), dtype=float)
     n_new = columns.shape[1] - int(np.linalg.matrix_rank(columns)) + _SPARE_RUNS
-    result = augment_design(
-        frame,
-        "add_runs_optimal",
-        target_model=rhs,
-        n_additional_runs=n_new,
-        factor_names=[*chosen, *others],
-        random_state=ctx.seed,
-    )
-    added = pd.DataFrame(result["new_runs"])
+    added = _d_optimal_runs(ctx, frame, rhs, n_new, search)
     how = (
         f"Add {len(added)} runs chosen (D-optimal) to fit the full quadratic model in {_names(ctx, numeric)} and to "
         f"tell the squares of {_names(ctx, suspects)} apart: so far the runs give "
@@ -1529,7 +1523,7 @@ def _separating_runs(ctx: _Context, numeric: list[int], suspects: list[int]) -> 
     return added, how
 
 
-def _quadratic_design(ctx: _Context, numeric: list[int]) -> tuple[pd.DataFrame, str]:
+def _quadratic_design(ctx: _Context, numeric: list[int], search: bool) -> tuple[pd.DataFrame, str]:
     """Return the runs that complete a face-centred central composite design in ``numeric``, or D-optimal runs."""
     names = [ctx.study.names[j] for j in numeric]
     frame = ctx.study.data[names]
@@ -1547,17 +1541,29 @@ def _quadratic_design(ctx: _Context, numeric: list[int]) -> tuple[pd.DataFrame, 
         )
     else:
         n_new = quadratic.shape[1] - int(np.linalg.matrix_rank(quadratic)) + _SPARE_RUNS
-        result = augment_design(
-            frame,
-            "add_runs_optimal",
-            target_model="quadratic",
-            n_additional_runs=n_new,
-            factor_names=names,
-            random_state=ctx.seed,
-        )
-        added = pd.DataFrame(result["new_runs"])
+        added = _d_optimal_runs(ctx, frame, "quadratic", n_new, search)
         how = f"Add {len(added)} runs chosen (D-optimal) to fit the full quadratic model in {_names(ctx, numeric)}."
     return added, how
+
+
+def _d_optimal_runs(ctx: _Context, frame: pd.DataFrame, model: str, n_new: int, search: bool) -> pd.DataFrame:
+    """Return ``n_new`` runs chosen (D-optimal) to fit ``model`` with the runs in ``frame``, in its columns.
+
+    Without ``search`` the runs are blank, for :func:`_alternatives`, which reads only how many
+    there are: the search always adds ``n_new`` (or refuses before it starts), and it is most of
+    the time a large study's step takes, 15 s of 16 for 11 factors in a Plackett-Burman design.
+    """
+    if not search:
+        return pd.DataFrame(np.nan, index=range(n_new), columns=frame.columns)
+    result = augment_design(
+        frame,
+        "add_runs_optimal",
+        target_model=model,
+        n_additional_runs=n_new,
+        factor_names=list(frame.columns),
+        random_state=ctx.seed,
+    )
+    return pd.DataFrame(result["new_runs"])
 
 
 def _quadratic_fits(ctx: _Context, numeric: list[int]) -> bool:
@@ -2232,7 +2238,7 @@ def _alternatives(ctx: _Context, chosen: str) -> list[dict[str, Any]]:
         _confirm,
         _add_center_points,
         _de_alias,
-        lambda c: _quadratic_runs(c, c.active_factors, _square_suspects(c, c.active_factors)),
+        lambda c: _quadratic_runs(c, c.active_factors, _square_suspects(c, c.active_factors), search=False),
         _move_region,
     ):
         try:
