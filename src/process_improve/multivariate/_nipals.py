@@ -68,17 +68,17 @@ def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_pre
     # operation, about ten times slower, on a function called tens of thousands of times.
     a_space, b_row, a_space_present_map = np.asarray(a_space), np.asarray(b_row), np.asarray(a_space_present_map)
     denom = np.tile(b_row, (a_space.shape[0], 1))  # tiles, row-by-row the `b_row` row vector, to create `n_rows`
-    denominator = np.sum((denom * a_space_present_map) ** 2, axis=1).astype("float")
+    denominator = np.sum((denom * a_space_present_map) ** 2, axis=1)
     numerator = np.sum(a_space * denom, axis=1)
     zero = denominator == 0
-    if zero.any():  # rare, so the common call pays for one comparison only
-        # A row with cells present, but none where ``b_row`` is non-zero, is a degenerate
-        # direction rather than missing data, and stays NaN so the caller can refuse it.
-        empty = ~np.any(a_space_present_map, axis=1)
-        denominator[zero] = np.nan
-        denominator[empty] = 1.0
-        numerator[empty] = 0.0
-    return (numerator / denominator).reshape(-1, 1)
+    if not zero.any():  # a zero is rare, so the common call pays for this one comparison only
+        return (numerator / denominator)[:, np.newaxis]
+    # A row with cells present, but none where ``b_row`` is non-zero, is a degenerate
+    # direction rather than missing data, and stays NaN so the caller can refuse it.
+    coefficients = np.full(denominator.shape, np.nan)
+    np.divide(numerator, denominator, out=coefficients, where=~zero)
+    coefficients[~np.any(a_space_present_map, axis=1)] = 0.0
+    return coefficients[:, np.newaxis]
 
 
 def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
@@ -110,7 +110,7 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
     all-zero score vector cannot divide by zero (that case reports convergence, matching
     ``_tpls._has_converged``).
     """
-    score_tol = float(np.linalg.norm(t_a_guess - t_a, ord=None) / _nz(float(np.linalg.norm(t_a, ord=None))))
+    score_tol = float(np.linalg.norm(t_a_guess - t_a) / _nz(float(np.linalg.norm(t_a))))
     converged = score_tol < settings["md_tol"]
     # SEC-33 (#282): use ``>=`` so the loop runs exactly ``md_max_iter``
     # iterations rather than ``md_max_iter + 1``.
@@ -242,15 +242,23 @@ def _quick_regress_complete(Y: np.ndarray, x: np.ndarray, denom_floor: float, pe
     ``tests/test_nipals_quick_regress.py`` checks the equality on random blocks.
     """
     if _case(Y, x, per) == "column":  # Case A: one coefficient per column of Y
-        numer = np.multiply(Y.T, x.T, order="C").sum(axis=1)
+        numer = np.multiply(
+            Y.T,
+            x.T,
+            order="C",  # pragma: no mutate - numpy reads order="c" as "C"; a test drops the argument
+        ).sum(axis=1)
         temp = ~np.isnan(Y[:, 0]) * x.T
         denom = np.dot(temp, temp.T)[0][0]
     else:  # Case B: one coefficient per row of Y
-        numer = np.multiply(Y, x[:, 0], order="C").sum(axis=1)
+        numer = np.multiply(
+            Y,
+            x[:, 0],
+            order="C",  # pragma: no mutate - numpy reads order="c" as "C"; a test drops the argument
+        ).sum(axis=1)
         denom = ssq(~np.isnan(Y[0, :]) * x.T)
     if not denom > denom_floor:
         return np.zeros((numer.shape[0], 1))
-    return (numer / denom).reshape(-1, 1)
+    return (numer / denom)[:, np.newaxis]
 
 
 def internal_pls_nipals_fit_one_pc(
@@ -262,10 +270,8 @@ def internal_pls_nipals_fit_one_pc(
     """Fit a PLS model using the NIPALS algorithm."""
     max_iter: int = 500
 
-    is_converged = False
-    n_iter = 0
     u_i = y_space[:, [0]]
-    while not is_converged:
+    for n_iter in range(1, max_iter + 1):  # noqa: B007 - the log line after the loop reads it
         # Step 1. w_i = X'u / u'u. Regress the columns of X on u_i, and store the slope coeff in vectors w_i.
         w_i = regress_a_space_on_b_row(x_space.T, u_i.T, x_present_map.T)
 
@@ -286,24 +292,22 @@ def internal_pls_nipals_fit_one_pc(
 
         # Floor ``||u_i||`` so an all-zero starting vector (degenerate
         # Y column) doesn't produce NaN here. SEC-21 (#270) sub-item 1.
-        if (abs(np.linalg.norm(u_i - u_new)) / _nz(float(np.linalg.norm(u_i)))) < epsqrt:
-            is_converged = True
-        if n_iter > max_iter:
-            is_converged = True
-
-        n_iter += 1
+        change = np.linalg.norm(u_i - u_new) / _nz(float(np.linalg.norm(u_i)))
         u_i = u_new
+        if change < epsqrt:  # pragma: no mutate - differs from <= only at exact equality
+            break
 
-    logger.debug("PLS NIPALS inner loop converged in %d iterations (max_iter=%d)", n_iter, max_iter)
+    logger.debug("PLS NIPALS inner loop stopped after %d iterations (max_iter=%d)", n_iter, max_iter)
 
-    # We have converged. Keep sign consistency. Fairly arbitrary rule, but ensures we report results consistently.
+    # Converged, or stopped at max_iter. Keep sign consistency. Fairly arbitrary rule, but ensures we report results
+    # consistently.
     # SEC-33 (#282): ``np.var`` on an empty slice returns NaN and emits
     # a RuntimeWarning; ``NaN > NaN`` is False so the comparison
     # silently skipped a sign-flip that may have been required. Guard
     # against the empty-slice case explicitly.
     neg = t_i[t_i < 0]
     nonneg = t_i[t_i >= 0]
-    if neg.size > 0 and nonneg.size > 0 and np.var(neg) > np.var(nonneg):
+    if neg.size and nonneg.size and np.var(neg) > np.var(nonneg):
         # The whole component flips, ``u_i`` with it, as PLS and MBPLS flip theirs: it stays
         # ``Yq / q'q`` for the returned ``q_i``. TPLS regresses its blocks on ``u_i``, so an
         # un-flipped one turned the sign of its block weights and super weights against the
@@ -350,8 +354,7 @@ def _kernel_pls(
         The score sums-of-squares ``r' (X'X) r`` per component; divide by
         ``N - 1`` to recover the score variances used for Hotelling's T2 scaling.
     """
-    K = kernel_xx.shape[0]
-    M = kernel_xy.shape[1]
+    K, M = kernel_xy.shape
     A = n_components
     weights = np.zeros((K, A))
     loadings = np.zeros((K, A))
@@ -369,7 +372,7 @@ def _kernel_pls(
             q_dom = eigvecs[:, int(np.argmax(eigvals))]
             w = xy @ q_dom
         norm_w = float(np.linalg.norm(w))
-        if norm_w < epsqrt:
+        if norm_w < epsqrt:  # pragma: no mutate - differs from <= only at exact equality
             # No further usable covariance; leave the remaining columns at zero.
             break
         w = w / norm_w
@@ -377,7 +380,7 @@ def _kernel_pls(
         for j in range(a):
             r = r - float(loadings[:, j] @ w) * direct[:, j]
         tt = float(r @ kernel_xx @ r)
-        if tt < epsqrt:
+        if tt < epsqrt:  # pragma: no mutate - differs from <= only at exact equality
             break
         p = (kernel_xx @ r) / tt
         c = (xy.T @ r) / tt  # (M,)
@@ -403,7 +406,8 @@ def _sign_align(current: np.ndarray, previous: np.ndarray) -> np.ndarray:
     Parameters
     ----------
     current : np.ndarray of shape (K, A)
-        The freshly recomputed loadings / weights (modified in place).
+        The freshly recomputed loadings / weights. Not modified: the caller applies the
+        returned signs.
     previous : np.ndarray of shape (K, A)
         The loadings / weights from the previous update.
 

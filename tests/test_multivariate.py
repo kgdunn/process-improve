@@ -5,7 +5,6 @@ import inspect
 import io
 import logging
 import pathlib
-import re
 import urllib.request
 import warnings
 from collections.abc import Callable
@@ -132,6 +131,16 @@ def test_terminate_check_is_scale_relative() -> None:
     assert terminate_check(zeros, zeros, iterations=1, settings=settings) is True
 
 
+def test_terminate_check_needs_the_change_strictly_below_md_tol() -> None:
+    """Convergence is a relative change *below* ``md_tol``; a change equal to it is not enough.
+
+    ``||(1.5, 0) - (1, 0)|| / ||(1, 0)||`` is exactly 0.5 in binary floating point.
+    """
+    settings = {"md_tol": 0.5, "md_max_iter": 10}
+    assert terminate_check(np.array([1.5, 0.0]), np.array([1.0, 0.0]), iterations=1, settings=settings) is False
+    assert terminate_check(np.array([1.25, 0.0]), np.array([1.0, 0.0]), iterations=1, settings=settings) is True
+
+
 def test_nipals_fit_is_scale_invariant() -> None:
     """#504: fitting on ``X`` and on ``1000 * X`` takes the same number of
     NIPALS iterations, and gives identical loadings and scores up to the
@@ -200,6 +209,19 @@ def test_regress_y_space_on_x() -> None:
     # Present cells that all meet a zero in the row vector are a degenerate direction, and stay NaN.
     degenerate = regress_a_space_on_b_row(np.array([[0.0, 5.0]]), np.array([[1.0, 0.0]]), np.array([[False, True]]))
     assert np.isnan(degenerate).all()
+
+
+def test_regress_a_space_on_b_row_tells_an_empty_row_from_a_degenerate_one_in_one_call() -> None:
+    """An all-missing row gives 0 and a degenerate row NaN, side by side, and neither raises a RuntimeWarning."""
+    a_space = np.array([[0.0, 0.0], [0.0, 5.0], [2.0, 4.0]])
+    present = np.array([[False, False], [False, True], [True, True]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        coefficients = regress_a_space_on_b_row(a_space, np.array([[1.0, 0.0]]), present)
+    assert coefficients.shape == (3, 1)
+    assert coefficients[0, 0] == 0.0
+    assert np.isnan(coefficients[1, 0])
+    assert coefficients[2, 0] == 2.0  # (2 * 1 + 4 * 0) / (1^2 + 0^2)
 
 
 @pytest.mark.slow
@@ -420,27 +442,90 @@ def test_quick_regress_refuses_arrays_that_share_no_dimension() -> None:
         quick_regress(np.ones((3, 2)), np.ones((4, 1)))
 
 
+def _rotation(angle: float) -> np.ndarray:
+    return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+
+
+def _inner_loop_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.name == "process_improve.multivariate._nipals"]
+
+
 def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFixture) -> None:
-    """Two nearly tied directions in X'Y make the iteration creep; the loop stops at its cap.
+    """Two nearly tied directions in X'Y make the iteration creep; the loop stops after exactly 500 steps.
 
-    With X the identity and singular values 1 and 0.99, each step shrinks the change by
-    only about 2%, so it is still far above the tolerance after 500 steps. By then the
-    weights already point along the dominant direction.
+    With X the identity, each step of the inner loop is a step of the power method on YY':
+    ``w`` is ``u`` normalised, ``t = w``, ``q = Y't`` and the next ``u`` is ``YY'w / |Y'w|^2``.
+    So the ``w`` of step ``n`` is ``(YY')^(n - 1) u_0`` normalised. With singular values 1 and
+    0.99 each step shrinks the change by only about 2%, so it is still far above the tolerance
+    after 500 steps; one step more or fewer moves ``w`` by 3e-7. The loop ran 502 steps
+    under its cap of 500 until the cap was counted right.
     """
-
-    def rotation(angle: float) -> np.ndarray:
-        return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
-
     x_space = np.eye(2)
-    y_space = rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ rotation(np.pi / 7)
+    y_space = _rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ _rotation(np.pi / 7)
     everything = np.ones((2, 2), dtype=bool)
     with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
         fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, everything)
 
-    reported = re.search(r"inner loop converged in (\d+) iterations \(max_iter=500\)", caplog.text)
-    assert reported is not None
-    assert int(reported.group(1)) > 500
-    np.testing.assert_allclose(np.abs(fitted["w_i"].ravel()), np.abs(rotation(np.pi / 5)[:, 0]), atol=1e-3)
+    assert _inner_loop_messages(caplog) == ["PLS NIPALS inner loop stopped after 500 iterations (max_iter=500)"]
+    # YY' = R diag(1, 0.99^2) R', with R the left rotation.
+    power = _rotation(np.pi / 5) @ np.diag([1.0, 0.99 ** (2 * 499)]) @ _rotation(np.pi / 5).T
+    expected = power @ y_space[:, 0]
+    np.testing.assert_allclose(fitted["w_i"].ravel(), expected / np.linalg.norm(expected), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("scale", [1e-3, 1.0, 1e3])
+def test_inner_pls_nipals_stops_once_u_moves_less_than_epsqrt_relative(
+    scale: float, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The inner loop stops at the first step whose change in ``u``, relative to ``|u|``, is below epsqrt.
+
+    With X the identity the steps are the power method on YY' (see the test above), worked here
+    in closed form to find that step. Singular values 1 and 0.5 shrink the change fourfold per
+    step, so it comes after about a dozen steps. Scaling X and Y by ``c`` scales ``u`` by ``c``
+    and leaves every relative change as it was, so the step is the same in any units (#504).
+    """
+    y_space = _rotation(np.pi / 5) @ np.diag([1.0, 0.5]) @ _rotation(np.pi / 7)
+    u = y_space[:, 0]
+    for step in range(1, 100):  # noqa: B007 - read after the loop
+        unit = u / np.linalg.norm(u)
+        u_next = y_space @ y_space.T @ unit / float(np.sum((y_space.T @ unit) ** 2))
+        if np.linalg.norm(u - u_next) / np.linalg.norm(u) < epsqrt:
+            break
+        u = u_next
+    assert 10 <= step <= 15
+
+    everything = np.ones((2, 2), dtype=bool)
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
+        internal_pls_nipals_fit_one_pc(scale * np.eye(2), scale * y_space, everything, everything)
+    assert _inner_loop_messages(caplog) == [f"PLS NIPALS inner loop stopped after {step} iterations (max_iter=500)"]
+
+
+@pytest.mark.parametrize(
+    ("scores", "flipped"),
+    [
+        ([-1.0, -5.0, 1.0, 2.0], True),  # the negative side spreads 4.0, the other 0.25
+        ([0.0, 10.0, 10.5, -1.0, -2.0], False),  # 0.25 against 23.4: a zero score sits on the non-negative side
+        ([0.0, 1.0, 2.0, -10.0, -10.5], False),  # 0.0625 against 0.667: and not on the negative side
+        ([-1.0, -2.0, 1.0, 2.0], False),  # a tie, 0.25 each, does not flip
+        ([1.0, 2.0, 3.0], False),  # no negative score: nothing to compare
+        ([-1.0, -2.0, -4.0], False),  # no non-negative score: likewise
+    ],
+)
+def test_inner_pls_nipals_sign_convention(scores: list[float], flipped: bool) -> None:
+    """The component flips when its negative scores spread more (``np.var``) than its non-negative ones.
+
+    With one X column and Y equal to it, the loop converges at once to ``w = q = 1`` and ``t = u = x``,
+    so the scores are the data and the two variances can be worked by hand. A side with no score
+    is not compared, and asks ``np.var`` for nothing, so no RuntimeWarning is raised (SEC-33, #282).
+    """
+    x = np.array(scores)[:, np.newaxis]
+    present = np.ones_like(x, dtype=bool)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fitted = internal_pls_nipals_fit_one_pc(x, x.copy(), present, present)
+    sign = -1.0 if flipped else 1.0
+    for name, expected in (("t_i", x), ("u_i", x), ("w_i", np.ones((1, 1))), ("q_i", np.ones((1, 1)))):
+        np.testing.assert_array_equal(fitted[name], sign * expected, err_msg=name)
 
 
 @pytest.mark.parametrize("seed", range(6))
