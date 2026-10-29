@@ -64,7 +64,9 @@ def rho(x: float, k: float = 2.52) -> float:
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
     """
     c_k = BIWEIGHT_RHO_CONSISTENCY
-    return c_k if np.abs(x) > k else c_k * (1 - np.power(1 - np.power(x / k, 2), 3))
+    if np.abs(x) > k:  # pragma: no mutate - at |x| = k the polynomial below is c_k too, so >= is the same
+        return c_k
+    return c_k * (1 - np.power(1 - np.power(x / k, 2), 3))
 
 
 def _rho_array(x: np.ndarray | pd.Series, k: float = 2.52) -> np.ndarray:
@@ -72,10 +74,9 @@ def _rho_array(x: np.ndarray | pd.Series, k: float = 2.52) -> np.ndarray:
     Evaluate the bi-weight :func:`rho` element-wise over an array.
 
     Replaces ``np.vectorize(rho)``, which calls the scalar function once per element. The
-    polynomial branch is evaluated on ``x`` clipped to ``[-k, k]``: ``np.where`` evaluates both
-    branches, and an unclipped huge ``|x|`` would overflow in ``np.power`` and raise a
-    ``RuntimeWarning`` from values that are then discarded. Saturated entries take ``c_k``
-    directly and NaN propagates, exactly as in :func:`rho`.
+    polynomial is evaluated on ``x`` clipped to ``[-k, k]``: it equals ``c_k`` at ``|x| = k``, so
+    the clipped entries take the saturated value, and a huge ``|x|`` cannot overflow in
+    ``np.power`` and raise a ``RuntimeWarning``. NaN propagates, exactly as in :func:`rho`.
 
     Parameters
     ----------
@@ -90,9 +91,7 @@ def _rho_array(x: np.ndarray | pd.Series, k: float = 2.52) -> np.ndarray:
         ``rho(x)`` for every element of ``x``, as float64.
     """
     x = np.asarray(x, dtype=float)
-    c_k = BIWEIGHT_RHO_CONSISTENCY
-    inside = c_k * (1 - np.power(1 - np.power(np.clip(x, -k, k) / k, 2), 3))
-    return np.where(np.abs(x) > k, c_k, inside)
+    return BIWEIGHT_RHO_CONSISTENCY * (1 - np.power(1 - np.power(np.clip(x, -k, k) / k, 2), 3))
 
 
 def _finite(values: pd.Series | np.ndarray) -> bool:
@@ -122,14 +121,14 @@ def _training_error_radicand(future_errors: pd.Series) -> float:
         usable spread.
     """
     if not _finite(future_errors):
-        return float("nan")
+        return np.nan
 
     # s_T = 1.48 Med|r_t|, as printed below equation (16) of the paper: 1.48 is the Gaussian
     # consistency factor of the median absolute error, 1 / Phi^-1(3/4) = 1.4826, rounded. The
     # robust Shewhart chart below uses the unrounded value.
     s_t_median_error = 1.48 * future_errors.abs().median()
     if not np.isfinite(s_t_median_error) or s_t_median_error <= 0:
-        return float("nan")
+        return np.nan
 
     return float(np.power(s_t_median_error, 2) * np.nanmean(_rho_array(future_errors / s_t_median_error)))
 
@@ -226,7 +225,9 @@ def psi(x: float, k: float = 2.0) -> float:
     ----------
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
     """
-    return x if abs(x) < k else k * np.sign(x)
+    if abs(x) < k:  # pragma: no mutate - at |x| = k, k * sign(x) is x itself, so <= is the same
+        return x
+    return k * np.sign(x)
 
 
 def _holt_winters_recursion(
@@ -285,8 +286,9 @@ def _holt_winters_recursion(
         error_i = y[i] - (alpha_prev + beta_prev)
         if np.isnan(error_i):
             # If there is an error, replace it with the median of the last 10 error estimates
-            # or as many points as available, filtered to the finite ones so an all-NaN slice
-            # never reaches a median (which returns NaN but emits "Mean of empty slice"). (#557)
+            # or as many points as available (row 0 has none), filtered to the finite ones so an
+            # all-NaN slice never reaches a median (which returns NaN but emits "Mean of empty
+            # slice"). (#557)
             #
             # Known limitation, kept for now: the imputed error is a median of ABSOLUTE errors,
             # so it is never negative. Each missing row is treated as an observation above its
@@ -295,7 +297,7 @@ def _holt_winters_recursion(
             # took the level from about 49 to 550). Carrying the forecast forward for every
             # missing row, as below, would remove the bias; later gaps keep the imputation so
             # that their results do not change.
-            recent_errors = np.abs(error[max(i - 10, 0) : i])
+            recent_errors = np.abs(error[max(i - 10, 1) : i])
             recent_errors = recent_errors[np.isfinite(recent_errors)]
             if not recent_errors.size:
                 # No finite error to impute from: a gap that starts at index 1, the first row
@@ -341,7 +343,8 @@ def _one_sided_cusum(
     """
     sums = np.empty_like(deviations)
     alarms = []
-    total, start, n_run = 0.0, 0, 0
+    total, n_run = 0.0, 0
+    start = 0  # pragma: no mutate - an alarm needs a run, whose first observation sets it before it is read
     for t, deviation in enumerate(deviations):
         if not np.isnan(deviation):
             total = max(0.0, total + deviation - reference)
@@ -382,7 +385,7 @@ def cusum_about_target(values: Sequence[float] | pd.Series, target: float) -> pd
     """
     y = pd.Series(values, dtype=float)
     deviation = y - float(target)
-    return pd.DataFrame({"y": y, "deviation": deviation, "cusum": np.nancumsum(deviation.to_numpy())}, index=y.index)
+    return pd.DataFrame({"y": y, "deviation": deviation, "cusum": np.nancumsum(deviation.to_numpy())})
 
 
 class ControlChart:
@@ -396,7 +399,14 @@ class ControlChart:
     k: float
     h: float
 
-    def __init__(self, style: str = "robust", variant: str = "HW") -> None:
+    #: A given standard deviation must be positive and less than this.
+    _LARGEST_SIGMA: ClassVar[float] = 1e300
+
+    def __init__(
+        self,
+        style: str = "robust",
+        variant: str = "HW",  # pragma: no mutate - stored lowercased, so "hw" is the same default
+    ) -> None:
         """
         Create/initialize a control chart.
 
@@ -466,13 +476,12 @@ class ControlChart:
 
         # Will be calculated by the self.calculate_limits() function
         self.target: float | None = None
-        self._given_target: float | None = None
-        self._given_s: float | None = None
+        self._given_s: float | None = None  # pragma: no mutate - calculate_limits sets it before it is read
         self.s: float | None = None
         # index of elements which are found to be outside +/- 3S
         self.idx_outside_3S: list[int] = []
         self.warm_up: dict[str, float | np.ndarray | pd.Series] = {}
-        self.warm_up_M: int = 0
+        self.warm_up_M: int = 0  # pragma: no mutate - calculate_limits sets it before it is read
 
         columns = [
             "y",
@@ -529,8 +538,8 @@ class ControlChart:
         """
         sigma = _pop_deprecated_s(sigma, kwargs)
         self._reset_fit_state()
-        self._given_target = target
         self._given_s = sigma
+        # pragma: no mutate start - a debug message only
         logger.debug(
             "ControlChart.calculate_limits: variant=%s, style=%s, given target=%s, sigma=%s",
             self.variant,
@@ -538,10 +547,11 @@ class ControlChart:
             target,
             sigma,
         )
+        # pragma: no mutate end
 
         if sigma is not None:
             self.s = float(sigma)
-            if not 0.0 < sigma < 1e300:
+            if not 0.0 < sigma < self._LARGEST_SIGMA:
                 raise ValueError(
                     "The given standard deviation must be positive and not excessively large "
                     f"(0 < sigma < 1e300); got {sigma}."
@@ -564,9 +574,9 @@ class ControlChart:
 
         # Check if there are enough training samples:
         if 2 * self.warm_up_M > self.N:
-            self.train_samples: list[int] = [int(i) for i in np.arange(0, self.N)]
+            self.train_samples: list[int] = list(range(self.N))
         else:
-            self.train_samples = [int(i) for i in np.arange(self.warm_up_M, self.N)]
+            self.train_samples = list(range(self.warm_up_M, self.N))
 
         self._apply_tuning_kwargs(kwargs)
         fits = {
@@ -743,10 +753,7 @@ class ControlChart:
         standard deviation for the regular style; a given value is kept as it is.
         """
         if self.target is None or self.s is None:
-            given_target, given_s = self.target, self.s
             self._xbar_no_subgroup_fit()
-            self.target = given_target if given_target is not None else self.target
-            self.s = given_s if given_s is not None else self.s
 
     def _holt_winters_fit(self) -> None:
         """Fit the Holt-Winters chart, searching for whichever smoothing weight was not pinned."""
@@ -783,28 +790,33 @@ class ControlChart:
     def _holt_winters_parameter_fit(self) -> None:
         """
         Recommended in the paper: not to fit the lambda_s value, but to use a grid search for the
-        lambda_1 and lambda_2 values. This is done in a 5x5 grid in the code below.
+        lambda_1 and lambda_2 values. This is done in a 5x5 grid in the code below; a value the
+        caller pinned is kept, and only the other one is searched.
         """
         self.ld_s = ld_s = 0.2
+
+        for _name, _val in (("Lambda_1", self.ld_1), ("Lambda_2", self.ld_2)):
+            if _val is None:
+                continue
+            if _val < 0.0:
+                raise ValueError(f"{_name} must be greater than or equal to zero.")
+            if _val > 1.0:
+                raise ValueError(f"{_name} must be less than or equal to 1.0.")
 
         # ``is not None``: an explicit ld_1=0.0 (or ld_2=0.0) is a legitimate
         # user choice, but 0.0 is falsy and a plain truthiness test silently
         # discarded it and ran the grid search instead.
         if self.ld_1 is not None and self.ld_2 is not None:
             # User has provided their own lambda_1 and lambda_2 values.
-            for _name, _val in (("Lambda_1", self.ld_1), ("Lambda_2", self.ld_2), ("Lambda_s", self.ld_s)):
-                if _val < 0.0:
-                    raise ValueError(f"{_name} must be greater than or equal to zero.")
-                if _val > 1.0:
-                    raise ValueError(f"{_name} must be less than or equal to 1.0.")
             self._holt_winters_warmup_fit(ld_1=self.ld_1, ld_2=self.ld_2, ld_s=self.ld_s)
 
         else:
-            # User wants to find an value for ld_1 and ld_2 that best fits the data
-
-            ld_1_index = np.linspace(0.1, 0.9, num=5, endpoint=True)
-            ld_2_index = np.linspace(0.1, 0.9, num=5, endpoint=True)
-            residuals, _ = np.meshgrid(ld_1_index, ld_2_index)
+            # Find the values of ld_1 and ld_2 that best fit the data. A value the caller pinned
+            # is a grid of one: it used to be searched over, and replaced, like the other.
+            grid = np.linspace(0.1, 0.9, num=5)
+            ld_1_index = grid if self.ld_1 is None else np.array([self.ld_1])
+            ld_2_index = grid if self.ld_2 is None else np.array([self.ld_2])
+            residuals, _ = np.meshgrid(ld_1_index, ld_2_index, indexing="ij")
 
             # The warm-up statistics do not depend on the lambdas: estimate them once, not per cell.
             self._holt_winters_warm_up_statistics()
@@ -819,7 +831,7 @@ class ControlChart:
                     # training window includes row 0. With plain
                     # np.median/np.average every grid cell became NaN and the
                     # search silently "chose" (0.1, 0.1) via argmin-of-NaN.
-                    future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
+                    future_errors = self.df["error"].iloc[np.asarray(self.train_samples)]
 
                     # An unusable cell records NaN and cannot win the search; the
                     # `np.all(np.isnan(residuals))` check below still catches the case
@@ -834,7 +846,7 @@ class ControlChart:
             self._holt_winters_smooth(ld_1=best_ld_1, ld_2=best_ld_2, ld_s=ld_s)
 
         # Common code for both branches of if-else above
-        future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
+        future_errors = self.df["error"].iloc[np.asarray(self.train_samples)]
         self._tau = _tau_from_training_errors(future_errors, sigma=self._given_s)
         if self.target is None:
             # Estimate the target as the median of the y-star (cleaned) y-values
@@ -858,16 +870,16 @@ class ControlChart:
             return ld_1_index[row], ld_2_index[column]
         if self._given_s is not None:
             # No cell is usable (a constant series has no error spread for any lambda), so the
-            # data cannot choose the lambdas. The caller knows the scale, so fit with the
-            # defaults of `_holt_winters_warmup_fit`; `sigma` then becomes tau.
-            return 0.5, 0.8
+            # data cannot choose the lambdas. The caller knows the scale, so fit with lambda_1 =
+            # 0.5 and lambda_2 = 0.8, or the value pinned; `sigma` then becomes tau.
+            return (0.5 if self.ld_1 is None else self.ld_1), (0.8 if self.ld_2 is None else self.ld_2)
         raise ValueError(
             "The Holt-Winters lambda grid search produced no usable residuals; "
             "the input is likely constant, too short, or entirely missing. Supply more "
             "representative data, or pass an explicit positive 'sigma'."
         )
 
-    def _holt_winters_warmup_fit(self, ld_1: float = 0.5, ld_2: float = 0.8, ld_s: float = 0.2) -> None:
+    def _holt_winters_warmup_fit(self, ld_1: float, ld_2: float, ld_s: float) -> None:
         """
         See paper: https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125.
 
@@ -877,10 +889,10 @@ class ControlChart:
         that is used, with lambda_2 approaching 1.0 implying that historical data is less
         interesting), and lambda_s, a similar parameter for the moving variance of the sequence.
 
-        lambda_1 = ld_1 = 0.5 (default): value must be between 0 <= ld_1 <= 1.0
-        lambda_2 = ld_2 = 0.8 (default): value must be between 0 <= ld_2 <= 1.0
-        lambda_s = ld_s = 0.2 (default): value must be between 0 <= ld_s <= 1.0, based on values
-                                         used in the paper, recommended on page 291.
+        lambda_1 = ld_1: value must be between 0 <= ld_1 <= 1.0
+        lambda_2 = ld_2: value must be between 0 <= ld_2 <= 1.0
+        lambda_s = ld_s: value must be between 0 <= ld_s <= 1.0; the chart uses 0.2, based on
+                         values used in the paper, recommended on page 291.
 
         The ideal lambda values (ld_1, ld_2, ld_s) can be found from a grid search.
         """
@@ -923,7 +935,7 @@ class ControlChart:
             warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"] * np.arange(self.warm_up_M)
 
             # Some other method that does not rely on SciPy for 1 function.
-            self.warm_up["sigma_0"] = median_absolute_deviation(np.asarray(warm_up_residuals), nan_policy="omit")
+            self.warm_up["sigma_0"] = median_absolute_deviation(np.asarray(warm_up_residuals))
             self.warm_up["residuals"] = warm_up_residuals
 
             # A constant (zero-variance) warm-up window gives sigma_0 = MAD = 0, which

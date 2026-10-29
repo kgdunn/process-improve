@@ -32,6 +32,14 @@ def test_the_cumulative_sum_about_a_target_of_bhh_table_17_1():
     assert found["cusum"].round(1).tolist() == sums
 
 
+def test_whole_numbers_give_columns_of_floats():
+    found = cusum_about_target([61, 59, 62], target=60)
+    assert list(found.columns) == ["y", "deviation", "cusum"]
+    assert (found.dtypes == np.float64).all()
+    assert found["y"].tolist() == [61.0, 59.0, 62.0]
+    assert found["cusum"].tolist() == [1.0, 0.0, 2.0]
+
+
 def test_a_missing_observation_holds_the_sum():
     values = pd.Series([61.0, np.nan, 62.0], index=["a", "b", "c"])
     found = cusum_about_target(values, target=60.0)
