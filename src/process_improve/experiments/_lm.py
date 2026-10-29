@@ -526,8 +526,8 @@ class Model(OLS):
 
         return smry
 
-    def get_parameters(self, drop_intercept: bool = True) -> pd.DataFrame:
-        """Get the parameter values; return them in a Pandas dataframe."""
+    def get_parameters(self, drop_intercept: bool = True) -> pd.Series:
+        """Get the parameter values; return them in a pandas Series indexed by term."""
 
         params = self._OLS.params.copy()
         try:

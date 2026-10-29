@@ -109,18 +109,16 @@ def _drop_worst_columns(columns: np.ndarray, k: int) -> np.ndarray:
 def _lin_half_fraction(h: np.ndarray, k: int) -> np.ndarray:
     """Best Lin half-fraction of ``h`` with ``k`` columns, over every choice of branching column."""
     order = h.shape[0]
-    best, best_key = None, (np.inf, np.inf, np.inf)
-    for branch in range(1, order):
-        rows = h[:, branch] > 0
+
+    def branched(branch: int) -> np.ndarray:
         others = [c for c in range(1, order) if c != branch]
-        design = _drop_worst_columns(h[rows][:, others], k)
+        return _drop_worst_columns(h[h[:, branch] > 0][:, others], k)
+
+    def key(design: np.ndarray) -> tuple[int, float, float]:
         s = design.T @ design
-        key = (n_fully_aliased(design), e_s2(design), float(np.abs(s[np.triu_indices_from(s, k=1)]).max()))
-        if key < best_key:
-            best, best_key = design, key
-    if best is None:  # unreachable for order >= 4, which always offers a branching column
-        raise RuntimeError("No branching column was available.")
-    return best
+        return n_fully_aliased(design), e_s2(design), float(np.abs(s[np.triu_indices_from(s, k=1)]).max())
+
+    return min((branched(b) for b in range(1, order)), key=key)  # the first branch of the best key, as before
 
 
 def _smallest_unaliased(k: int) -> np.ndarray | None:
