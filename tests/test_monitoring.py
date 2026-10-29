@@ -1,10 +1,12 @@
 import importlib
 import pathlib
+import re
 import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from process_improve.monitoring import control_charts
 from process_improve.monitoring.control_charts import (
@@ -35,20 +37,22 @@ class TestValidateAgainstRQccXbarOne:
     cc_values = pd.read_csv(folder / "rubber-colour.csv")
     y = cc_values["Colour"]
 
-    # Do we get similar results to the "chart <- qcc(data=data$Colour, type="xbar.one")" from R?
-    cc_regular = ControlChart(variant="xbar.no.subgroup", style="regular")
-    cc_regular.calculate_limits(y)
-    assert cc_regular.target == pytest.approx(238.78, abs=1e-2)
-    # cannot get this more precise, since the R code used in QCC follows a different approach:
-    # calculates the std dev from a sequence of differences from point to point.
-    assert round(cc_regular.s) == 11
+    # A test method, not the class body, so that the tests that reach the chart are known to mutmut.
+    def test_xbar_no_subgroup_matches_qcc(self) -> None:
+        # Do we get similar results to the "chart <- qcc(data=data$Colour, type="xbar.one")" from R?
+        cc_regular = ControlChart(variant="xbar.no.subgroup", style="regular")
+        cc_regular.calculate_limits(self.y)
+        assert cc_regular.target == pytest.approx(238.78, abs=1e-2)
+        # cannot get this more precise, since the R code used in QCC follows a different approach:
+        # calculates the std dev from a sequence of differences from point to point.
+        assert round(cc_regular.s) == 11
 
-    cc_robust = ControlChart(variant="xbar.no.subgroup", style="robust")
-    cc_robust.calculate_limits(y)
-    assert cc_robust.target == pytest.approx(239.5, abs=1e-1)
-    # cannot get this more precise, since the R code used in QCC follows a different approach:
-    # calculates the std dev from a sequence of differences from point to point.
-    assert cc_robust.s == pytest.approx(14.0847, abs=1e-3)
+        cc_robust = ControlChart(variant="xbar.no.subgroup", style="robust")
+        cc_robust.calculate_limits(self.y)
+        assert cc_robust.target == pytest.approx(239.5, abs=1e-1)
+        # cannot get this more precise, since the R code used in QCC follows a different approach:
+        # calculates the std dev from a sequence of differences from point to point.
+        assert cc_robust.s == pytest.approx(14.0847, abs=1e-3)
 
 
 class TestControlChart:
@@ -58,19 +62,20 @@ class TestControlChart:
     # Simulated in R: loc=50, sd=4
     known_s = np.array([41.5, 43.0, 51.8, 50.4, 45.6, 49.5, 45.3, 49.0, 41.4, 51.8, 58.4])
 
-    cc_robust = ControlChart(
-        variant="xbar.no.subgroup",
-        style="robust",
-    )
-    cc_robust.calculate_limits(y)
-    assert cc_robust.target == np.median(y[0:-1])
-    assert np.all(y[cc_robust.idx_outside_3S] == [17])
+    def test_robust_xbar_flags_the_outlier(self) -> None:
+        cc_robust = ControlChart(
+            variant="xbar.no.subgroup",
+            style="robust",
+        )
+        cc_robust.calculate_limits(self.y)
+        assert cc_robust.target == np.median(self.y[0:-1])
+        assert np.all(self.y[cc_robust.idx_outside_3S] == [17])
 
-    # test_with_known_s(self):
-    cc_hw = ControlChart(variant="hw")
-    cc_hw.calculate_limits(known_s, target=50, sigma=4)
-    assert cc_hw.target == 50
-    assert cc_hw.s == 4
+    def test_with_known_s(self) -> None:
+        cc_hw = ControlChart(variant="hw")
+        cc_hw.calculate_limits(self.known_s, target=50, sigma=4)
+        assert cc_hw.target == 50
+        assert cc_hw.s == 4
 
 
 class TestHoltWintersControlChart:
@@ -125,44 +130,51 @@ class TestHoltWintersControlChart:
         ]
     )
 
-    # def test_asserts:
-    # Checks that the required asserts are raised
+    @pytest.mark.parametrize(
+        ("pinned", "message"),
+        [
+            ({"ld_1": 1.2, "ld_2": 0.5}, r"^Lambda_1 must be less than or equal to 1\.0\.$"),
+            ({"ld_1": -1, "ld_2": 0.5}, r"^Lambda_1 must be greater than or equal to zero\.$"),
+            ({"ld_1": 0.5, "ld_2": 1.2}, r"^Lambda_2 must be less than or equal to 1\.0\.$"),
+            ({"ld_1": 0.5, "ld_2": -1}, r"^Lambda_2 must be greater than or equal to zero\.$"),
+            # A weight pinned on its own is checked as well.
+            ({"ld_2": 5.0}, r"^Lambda_2 must be less than or equal to 1\.0\.$"),
+            ({"ld_1": -0.5}, r"^Lambda_1 must be greater than or equal to zero\.$"),
+        ],
+    )
+    def test_asserts(self, pinned: dict, message: str) -> None:
+        """Checks that the required asserts are raised."""
+        cc_assert = ControlChart()
+        with pytest.raises(ValueError, match=message):
+            cc_assert.calculate_limits(self.y, **pinned)
 
-    cc_assert = ControlChart()
-    with pytest.raises(ValueError, match=r"Lambda_1 must be less than or equal to 1\.0\."):
-        cc_assert.calculate_limits(y, ld_1=1.2, ld_2=0.5)
+    def test_hw_chart_missing_values(self) -> None:
+        cc_missing = ControlChart()
+        cc_missing.calculate_limits(self.with_missing, ld_1=0.4, ld_2=0.7)
+        assert cc_missing.target == pytest.approx(100.3, abs=1e-1)
+        # `s` is the robust scale of the one-step-ahead prediction errors. The
+        # earlier pin of ~6.5 was measured with a biweight rho whose consistency
+        # constant was conflated with the cutoff k = 2.52, shrinking every scale
+        # estimate by sqrt(2.52 * 0.30612) = 0.878; the corrected value is the
+        # same estimate divided by that factor.
+        assert cc_missing.s == pytest.approx(7.45, abs=1)
 
-    with pytest.raises(ValueError, match=r"Lambda_1 must be greater than or equal to zero\."):
-        cc_assert.calculate_limits(y, ld_1=-1, ld_2=0.5)
+    def test_hw_short_length(self) -> None:
+        """Ensures that short length sequences are also handled well."""
+        cc_short = ControlChart()
+        cc_short.calculate_limits(self.short_length, ld_1=0.2, ld_2=0.5)
+        assert cc_short.target == pytest.approx((86.115 + 91.615) / 2.0, abs=1e-3)
+        assert cc_short.s == pytest.approx(np.std([86.115, 91.615], ddof=1))
 
-    # test_hw_chart_missing_values(self):
-    cc_missing = ControlChart()
-    cc_missing.calculate_limits(with_missing, ld_1=0.4, ld_2=0.7)
-    assert cc_missing.target == pytest.approx(100.3, abs=1e-1)
-    # `s` is the robust scale of the one-step-ahead prediction errors. The
-    # earlier pin of ~6.5 was measured with a biweight rho whose consistency
-    # constant was conflated with the cutoff k = 2.52, shrinking every scale
-    # estimate by sqrt(2.52 * 0.30612) = 0.878; the corrected value is the
-    # same estimate divided by that factor.
-    assert cc_missing.s == pytest.approx(7.45, abs=1)
-
-    # test_hw_short_length:
-    # Ensures that short length sequences are also handled well.
-
-    cc_short = ControlChart()
-    cc_short.calculate_limits(short_length, ld_1=0.2, ld_2=0.5)
-    assert cc_short.target == pytest.approx((86.115 + 91.615) / 2.0, abs=1e-3)
-    assert cc_short.s == pytest.approx(np.std([86.115, 91.615], ddof=1))
-
-    # test_hw_medium_length
-    # Ensures that short length sequences are also handled well.
-    cc_medium = ControlChart()
-    cc_medium.calculate_limits(medium_length, ld_1=0.2, ld_2=0.5)
-    assert cc_medium.target == pytest.approx(93.945, abs=1e-3)
-    # 5.116 = the pre-fix pin of 4.493 divided by the removed 0.878 biweight
-    # consistency bias (see the note on cc_missing.s above).
-    assert cc_medium.s == pytest.approx(5.116, abs=1e-3)
-    assert len(cc_medium.idx_outside_3S) == 0
+    def test_hw_medium_length(self) -> None:
+        """Ensures that medium length sequences are also handled well."""
+        cc_medium = ControlChart()
+        cc_medium.calculate_limits(self.medium_length, ld_1=0.2, ld_2=0.5)
+        assert cc_medium.target == pytest.approx(93.945, abs=1e-3)
+        # 5.116 = the pre-fix pin of 4.493 divided by the removed 0.878 biweight
+        # consistency bias (see the note on cc_missing.s above).
+        assert cc_medium.s == pytest.approx(5.116, abs=1e-3)
+        assert len(cc_medium.idx_outside_3S) == 0
 
 
 def test_hw_constant_warmup_raises_value_error() -> None:
@@ -203,13 +215,17 @@ def test_calculate_limits_rejects_unknown_kwargs() -> None:
     assert cc3.ld_2 == pytest.approx(0.7)
 
 
-def test_calculate_limits_rejects_a_non_positive_sigma() -> None:
-    """A zero or negative standard deviation is rejected up front."""
+@pytest.mark.parametrize("sigma", [-1.0, 0.0, 1e300])
+def test_calculate_limits_rejects_a_non_positive_sigma(sigma: float) -> None:
+    """A zero or negative standard deviation is rejected up front, and so is one of 1e300 or more."""
     rng = np.random.default_rng(1)
     y = 50.0 + rng.standard_normal(40)
     cc = ControlChart()
-    with pytest.raises(ValueError, match="must be positive"):
-        cc.calculate_limits(y, sigma=-1.0)
+    message = re.escape(
+        f"The given standard deviation must be positive and not excessively large (0 < sigma < 1e300); got {sigma}."
+    )
+    with pytest.raises(ValueError, match=message):
+        cc.calculate_limits(y, sigma=sigma)
 
 
 def test_unsupported_variant_cannot_estimate_limits() -> None:
@@ -227,8 +243,21 @@ def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
     rng = np.random.default_rng(3)
     y = 50.0 + rng.standard_normal(40)
     cc = ControlChart(style="banana", variant="xbar.no.subgroup")
-    with pytest.raises(ValueError, match="could not be estimated"):
+    message = (
+        r"^Control chart limits could not be estimated; the input is likely "
+        r"constant or too short to fit the chosen variant\.$"
+    )
+    with pytest.raises(ValueError, match=message):
         cc.calculate_limits(y)
+
+
+@pytest.mark.parametrize("variant", ["xbar.no.subgroup", "ewma", "cusum"])
+@pytest.mark.parametrize("given", [{"target": 50.0}, {"sigma": 1.0}])
+def test_unknown_style_with_one_of_target_and_sigma_given_raises(variant: str, given: dict) -> None:
+    """Either one given is not enough: the style estimates neither, so the other stays missing."""
+    y = 50.0 + np.random.default_rng(3).standard_normal(40)
+    with pytest.raises(ValueError, match="could not be estimated"):
+        ControlChart(style="banana", variant=variant).calculate_limits(y, **given)
 
 
 @pytest.mark.parametrize("style", ["robust", "regular"])
@@ -303,6 +332,27 @@ def test_psi_boundary_values() -> None:
     assert psi(2.0) == pytest.approx(2.0)
 
 
+def test_psi_with_a_zero_threshold_is_zero() -> None:
+    """With k = 0 every value is clipped to k * sign(x) = 0, the value 0 itself included."""
+    from process_improve.monitoring.control_charts import psi
+
+    assert [psi(x, k=0.0) for x in (-1.5, 0.0, 2.0)] == [0.0, 0.0, 0.0]
+
+
+def test_rho_array_reads_none_as_missing() -> None:
+    """An object array is read as floats: None is NaN, and the result is float64.
+
+    rho(1) = c_k (1 - (1 - (1 / 2.52)^2)^3) = 3.266736 x 0.401925 = 1.312983, by hand.
+    """
+    from process_improve.monitoring.control_charts import BIWEIGHT_RHO_CONSISTENCY, _rho_array
+
+    actual = _rho_array(np.array([0.0, None, 1.0, 3.0], dtype=object))
+    assert actual.dtype == np.float64
+    expected = [0.0, np.nan, BIWEIGHT_RHO_CONSISTENCY * (1 - (1 - (1 / 2.52) ** 2) ** 3), BIWEIGHT_RHO_CONSISTENCY]
+    np.testing.assert_allclose(actual, expected, equal_nan=True)
+    assert actual[2] == pytest.approx(1.312983, abs=1e-6)
+
+
 def test_rho_array_matches_scalar_rho() -> None:
     """``_rho_array`` is the scalar ``rho`` applied element-wise, as ``np.vectorize(rho)`` was.
 
@@ -332,6 +382,39 @@ def test_hw_series_shorter_than_warm_up_has_float_columns() -> None:
     assert cc.warm_up_M > cc.N
     assert (cc.df.dtypes == np.float64).all(), cc.df.dtypes.to_dict()
     assert (cc.df["beta_hat"] == 0.0).all()
+
+
+def test_hw_series_shorter_than_warm_up_takes_its_median_and_standard_deviation() -> None:
+    """1, 1.5 and 2 have median 1.5 and standard deviation 0.5: a spread below 1 is a spread."""
+    cc = ControlChart()
+    cc.calculate_limits([1.0, 1.5, 2.0])
+    assert (cc.target, cc.s) == pytest.approx((1.5, 0.5))
+
+
+@pytest.mark.parametrize(("n", "warm_up"), [(30, 10), (150, 15), (250, 20)])
+def test_the_warm_up_is_a_tenth_of_the_series_between_10_and_20_samples(n: int, warm_up: int) -> None:
+    """min(20, max(10, ceil(N / 10))), as calculate_limits documents; the rest is the training period."""
+    cc = ControlChart(variant="xbar.no.subgroup")
+    cc.calculate_limits(np.random.default_rng(n).standard_normal(n))
+    assert cc.warm_up_M == cc.warm_up["M"] == warm_up
+    assert cc.train_samples == list(range(warm_up, n))
+
+
+def test_a_column_vector_is_charted_as_its_values() -> None:
+    """An (N, 1) array is flattened: the regular chart's target and s are its mean and standard deviation."""
+    y = np.array([[1.0], [2.0], [4.0], [7.0]])
+    cc = ControlChart(variant="xbar.no.subgroup", style="regular")
+    cc.calculate_limits(y)
+    assert (cc.target, cc.s) == pytest.approx((3.5, np.sqrt(7.0)))  # deviations -2.5, -1.5, 0.5, 3.5
+
+
+@pytest.mark.parametrize("variant", ["xbar.no.subgroup", "ewma"])
+def test_a_point_on_a_limit_is_not_outside_it(variant: str) -> None:
+    """With target 0 and s 1 the limits are exactly -3 and 3 (an EWMA weight of 1 charts each value)."""
+    cc = ControlChart(variant=variant)
+    weight = {"ld_1": 1.0} if variant == "ewma" else {}
+    cc.calculate_limits(np.array([3.0, -3.0, 3.5, 0.0, -3.5]), target=0.0, sigma=1.0, **weight)
+    assert cc.idx_outside_3S == [2, 4]
 
 
 def _assert_same(actual, expected, name: str) -> None:
@@ -477,6 +560,9 @@ def test_calculate_cpk_constant_column_emits_warning_and_returns_nan() -> None:
     with pytest.warns(RuntimeWarning, match="spread is zero"):
         result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
     assert np.isnan(result.cpk)
+    # With neither side defined there is no defect rate either, rather than a confident 0 ppm.
+    assert np.isnan(result.defects_per_million)
+    assert np.isnan(result.defects_per_million_nearer)
 
 
 def test_calculate_cpk_normal_data_still_returns_finite_value() -> None:
@@ -500,6 +586,88 @@ def test_calculate_cpk_rejects_trim_percentile_out_of_range(trim: float, message
         calculate_cpk(data, "value", specifications=(0.0, 4.0), trim_percentile=trim)
 
 
+def test_cpk_near_the_lower_specification_reports_the_lower_side() -> None:
+    """41, 42, 43 within 40 to 60: mean 42, standard deviation 1, so 2 sd above the lower limit.
+
+    Cpk is 2 / 3 on the lower side (18 / 3 = 6 on the upper). A normal process 2 sd inside a
+    limit puts Phi(-2) = 0.02275 beyond it, 22,750 per million (any normal table).
+    """
+    result = calculate_cpk(pd.DataFrame({"x": [41.0, 42.0, 43.0]}), "x", specifications=(40, 60), trim_percentile=0)
+    assert (result.cpk, result.center, result.spread) == pytest.approx((2 / 3, 2.0, 1.0))
+    assert result.rsd == pytest.approx(100 / 42)
+    assert result.defects_per_million_nearer == pytest.approx(22_750, abs=1)
+    # Tighter than the table, so that a factor of 1.000001 in place of 10^6 shows.
+    assert result.defects_per_million_nearer == pytest.approx(stats.norm.cdf(-2.0) * 1e6, rel=1e-9)
+    assert result.defects_per_million == pytest.approx((stats.norm.cdf(-2.0) + stats.norm.cdf(-18.0)) * 1e6, rel=1e-9)
+
+
+def test_cpk_with_no_upper_specification_reports_the_lower_side_and_names_the_caller() -> None:
+    """An upper limit of NaN leaves only the lower side: Cpk 2 / 3 and Phi(-2) x 10^6 defects per million.
+
+    The warning about the missing side is attributed to the line that called ``calculate_cpk``,
+    not to a line inside it.
+    """
+    data = pd.DataFrame({"x": [41.0, 42.0, 43.0]})
+    message = (
+        r"^Cpk_upper: spread is zero or non-finite; returning NaN\. "
+        r"Likely cause: constant column or only one non-NaN value\.$"
+    )
+    with pytest.warns(RuntimeWarning, match=message) as record:
+        result = calculate_cpk(data, "x", specifications=(40, np.nan), trim_percentile=0)
+    assert len(record) == 1, "the lower side is defined"
+    assert record[0].filename != importlib.import_module("process_improve.monitoring.metrics").__file__
+    assert result.cpk == pytest.approx(2 / 3)
+    assert result.defects_per_million == pytest.approx(stats.norm.cdf(-2.0) * 1e6, rel=1e-9)
+
+
+def test_cpk_on_a_tie_reports_the_lower_side() -> None:
+    """Specifications given per row: the distances to the lower limit 9 are 1, 2, 3 (mean 2, sd 1).
+
+    Those to the upper limits 12, 15, 18 are 2, 4, 6 (mean 4, sd 2). Both sides have Cpk 2 / 3,
+    and the lower side's centre and spread are the ones reported.
+    """
+    data = pd.DataFrame({"x": [10.0, 11.0, 12.0], "lower": 9.0, "upper": [12.0, 15.0, 18.0]})
+    result = calculate_cpk(data, "x", specifications=("lower", "upper"), trim_percentile=0)
+    assert (result.cpk, result.center, result.spread) == pytest.approx((2 / 3, 2.0, 1.0))
+
+
+@pytest.mark.parametrize("trim", [0.5, 2.5])
+@pytest.mark.parametrize(
+    ("specifications", "center"),
+    [((-3.0, 30.0), 6.0), ((-30.0, 6.0), 3.0)],
+    ids=["lower-side-limits", "upper-side-limits"],
+)
+def test_cpk_with_trimming_uses_the_median_and_sn(trim: float, specifications: tuple, center: float) -> None:
+    """Any trim above zero, even below 1, switches to the median and Sn of each side.
+
+    0, 1, 2, 3, 4, 50, 6 has median 3 and ``robustbase::Sn`` 2.85747; its mean, 9.43, and standard
+    deviation, 18.0, would give another answer. The limits 3 below and 30 above leave 6 to the
+    lower one; -30 and 6 leave 3 to the upper one.
+    """
+    data = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0, 4.0, 50.0, 6.0]})
+    result = calculate_cpk(data, "x", specifications=specifications, trim_percentile=trim)
+    assert result.center == pytest.approx(center)
+    assert result.spread == pytest.approx(2.85747, rel=1e-5)
+    assert result.cpk == pytest.approx(center / (3 * 2.85747), rel=1e-5)
+    assert result.rsd == pytest.approx(2.85747 / 3 * 100, rel=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("specifications", "side"), [((None, 1000.0), "lower"), ((-1000.0, None), "upper")], ids=["lower", "upper"]
+)
+def test_cpk_estimates_a_missing_specification_from_the_default_percentiles(specifications: tuple, side: str) -> None:
+    """The 2.5th and 97.5th percentiles of 0, 1, ..., 100 are 2.5 and 97.5: each 47.5 from the median 50."""
+    result = calculate_cpk(pd.DataFrame({"x": np.arange(101.0)}), "x", specifications=specifications)
+    assert result.center == pytest.approx(47.5), side
+
+
+@pytest.mark.parametrize(("values", "rsd"), [([-1.0, 0.0, 1.0], np.nan), ([0.4, 0.5, 0.6], 20.0)])
+def test_cpk_rsd_is_undefined_only_for_data_centred_on_zero(values: list[float], rsd: float) -> None:
+    """Standard deviation over mean: 1 / 0 has no value, and 0.1 / 0.5 is 20 percent."""
+    result = calculate_cpk(pd.DataFrame({"x": values}), "x", specifications=(-10, 10), trim_percentile=0)
+    assert result.rsd == pytest.approx(rsd, nan_ok=True)
+
+
 class TestHoltWintersControlChartBatchYield:
     """Validate Holt-Winters control chart on batch yield data.
 
@@ -513,15 +681,16 @@ class TestHoltWintersControlChartBatchYield:
     subgroups = cc_values["yield"].values[0 : (rounder * subgroups_n)].reshape(rounder, 3)
     y = subgroups.mean(axis=1)
 
-    cc = ControlChart()
-    cc.calculate_limits(y)
-    assert cc.target == pytest.approx(75.1, abs=1e-1)
-    # `s` is the robust one-step-ahead prediction-error scale. The pre-fix pin
-    # of 4.16 sat BELOW the process's own robust spread (MAD*1.4826 = 4.20)
-    # because the biweight rho conflated the consistency constant with the
-    # cutoff k = 2.52; the corrected estimate (with the NaN-aware lambda grid
-    # search) lands just above the process spread, as a forecast error should.
-    assert cc.s == pytest.approx(4.825, abs=1e-3)
+    def test_target_and_s(self) -> None:
+        cc = ControlChart()
+        cc.calculate_limits(self.y)
+        assert cc.target == pytest.approx(75.1, abs=1e-1)
+        # `s` is the robust one-step-ahead prediction-error scale. The pre-fix pin
+        # of 4.16 sat BELOW the process's own robust spread (MAD*1.4826 = 4.20)
+        # because the biweight rho conflated the consistency constant with the
+        # cutoff k = 2.52; the corrected estimate (with the NaN-aware lambda grid
+        # search) lands just above the process spread, as a forecast error should.
+        assert cc.s == pytest.approx(4.825, abs=1e-3)
 
 
 # ---------------------------------------------------------------------------
@@ -667,6 +836,22 @@ def test_get_monitoring_tool_specs_lists_both_tools() -> None:
     assert {"control_chart", "process_capability"}.issubset(names)
 
 
+@pytest.mark.parametrize(
+    "warm_up",
+    [np.full(10, np.nan), np.r_[np.full(9, np.nan), 1.2], np.full(10, 1.2)],
+    ids=["all-missing", "one-value", "constant"],
+)
+def test_hw_warm_up_with_no_spread_raises_even_with_a_given_target(warm_up: np.ndarray) -> None:
+    """A warm-up of no values, one value, or one value repeated has no spread to start the scale from.
+
+    For ten readings of 1.2 against the target 0 the residuals are all 1.2: their standard deviation
+    is 0, though summing them rounds, and pandas reports 2.3e-16. It must not be taken as a spread.
+    """
+    y = np.r_[warm_up, 1.2 + np.random.default_rng(3).standard_normal(30)]
+    with pytest.raises(ValueError, match=r"^The Holt-Winters warm-up window has zero \(or non-finite\) variance"):
+        ControlChart().calculate_limits(y, target=0.0)
+
+
 class TestControlChartMissingValues:
     """NaN handling at the start of a Holt-Winters series. Regression tests for #557.
 
@@ -735,6 +920,19 @@ class TestControlChartMissingValues:
         assert cc.s == pytest.approx(2.237908, abs=1e-6)
         assert cc._delta_UCL_3sigma > cc._delta_LCL_3sigma
 
+    def test_a_gap_imputes_the_absolute_error_of_the_rows_before(self) -> None:
+        """With the target 100 given, the forecast of row 1 is 100, so its error is y[1] - 100.
+
+        Row 2 is missing: its error is imputed as the median absolute error of the rows before it
+        that have one, which is row 1 alone (row 0 has no forecast to differ from).
+        """
+        y = self._series()
+        y[2] = np.nan
+        cc = ControlChart(style="robust", variant="HW")
+        cc.calculate_limits(y, target=100.0, sigma=2.0, ld_1=0.4, ld_2=0.7)
+        assert cc.df["error"][1] == y[1] - 100.0
+        assert cc.df["error"][2] == abs(y[1] - 100.0)
+
     def test_no_finite_observation_to_forecast_still_raises(self) -> None:
         """Only y[0] is finite: the scale is undefined, reported as an error, not a warning."""
         y = np.r_[100.0, np.full(39, np.nan)]
@@ -747,8 +945,8 @@ class TestControlChartMissingValues:
 
 @pytest.mark.parametrize(
     "errors",
-    [[np.nan, np.nan, np.nan], [0.0, 0.0, 0.0, 1.5]],
-    ids=["no-finite-error", "zero-median-absolute-error"],
+    [[np.nan, np.nan, np.nan], [None, None, None], [0.0, 0.0, 0.0, 1.5]],
+    ids=["no-finite-error", "missing-as-none", "zero-median-absolute-error"],
 )
 def test_training_error_radicand_is_nan_when_undefined(errors: list[float]) -> None:
     """An undefined tau^2 is NaN, so a lambda-grid cell without one cannot win the search (#557)."""
@@ -757,15 +955,29 @@ def test_training_error_radicand_is_nan_when_undefined(errors: list[float]) -> N
 
 def test_scale_estimate_rejects_errors_without_usable_spread() -> None:
     """Mostly-zero training errors have a zero median: the scale is reported as undefined, not zero (#557)."""
-    with pytest.raises(ValueError, match=r"scale estimate is undefined \(tau\^2 = nan\)"):
+    message = (
+        r"^The control-chart scale estimate is undefined \(tau\^2 = nan\), so the control limits would have "
+        r"zero width\. Supply more representative data, or pass an explicit positive 'sigma'\.$"
+    )
+    with pytest.raises(ValueError, match=message):
         _tau_from_training_errors(pd.Series([0.0, 0.0, 0.0, 1.5]))
+
+
+def test_scale_estimate_rejects_a_spread_that_underflows_to_zero() -> None:
+    """Errors near 1e-200: (1.48 x 2e-200)^2 is below the smallest double, 5e-324, so tau^2 is 0.0."""
+    with pytest.raises(ValueError, match=r"tau\^2 = 0\.0\)"):
+        _tau_from_training_errors(pd.Series([1e-200, -2e-200, 3e-200]))
 
 
 def test_hw_grid_search_with_no_usable_cell_raises(monkeypatch) -> None:
     """When every lambda pair leaves tau^2 undefined, the search reports it instead of picking a NaN cell."""
     monkeypatch.setattr(control_charts, "_training_error_radicand", lambda _errors: float("nan"))
     y = 50.0 + np.random.default_rng(5).standard_normal(40)
-    with pytest.raises(ValueError, match="lambda grid search produced no usable residuals"):
+    message = (
+        r"^The Holt-Winters lambda grid search produced no usable residuals; the input is likely constant, "
+        r"too short, or entirely missing\. Supply more representative data, or pass an explicit positive 'sigma'\.$"
+    )
+    with pytest.raises(ValueError, match=message):
         ControlChart(style="robust", variant="HW").calculate_limits(y)
 
 
@@ -805,6 +1017,34 @@ def test_hw_grid_search_with_no_usable_cell_fits_the_default_lambdas_with_sigma(
     assert (cc._delta_UCL_3sigma, cc._delta_LCL_3sigma) == (6.0, -6.0)
 
 
+@pytest.mark.parametrize(("pinned", "fitted"), [({"ld_1": 0.3}, (0.3, 0.8)), ({"ld_2": 0.3}, (0.5, 0.3))])
+def test_hw_grid_search_with_no_usable_cell_keeps_a_pinned_lambda(pinned: dict, fitted: tuple) -> None:
+    """Only the lambda that was not pinned takes its default, 0.5 for lambda_1 or 0.8 for lambda_2."""
+    cc = ControlChart(style="robust", variant="HW")
+    cc.calculate_limits(pd.Series([100.0] * 30), sigma=2.0, **pinned)
+    assert (cc.ld_1, cc.ld_2) == fitted
+
+
+@pytest.mark.parametrize("pinned", ["ld_1", "ld_2"])
+def test_hw_keeps_a_lambda_pinned_on_its_own_and_searches_the_other(pinned: str) -> None:
+    """A pinned lambda is kept; the other is the grid value, 0.1 to 0.9, whose fit has the smallest tau.
+
+    Pinning one lambda used to be ignored: both were searched, and the pinned value replaced.
+    """
+    y = 50.0 + np.random.default_rng(1).standard_normal(60)
+    searched = "ld_2" if pinned == "ld_1" else "ld_1"
+    cc = ControlChart()
+    cc.calculate_limits(y, **{pinned: 0.65})
+    assert getattr(cc, pinned) == 0.65
+    taus = {}
+    for value in (0.1, 0.3, 0.5, 0.7, 0.9):
+        both = ControlChart()
+        both.calculate_limits(y, **{pinned: 0.65, searched: value})
+        taus[value] = both._tau
+    assert getattr(cc, searched) == pytest.approx(min(taus, key=taus.get))
+    assert cc._tau == pytest.approx(min(taus.values()))
+
+
 def test_hw_small_sample_keeps_a_given_target_and_the_data_median() -> None:
     """Below the warm-up length a given target and sigma are used; the data median is still recorded."""
     cc = ControlChart(style="robust", variant="HW")
@@ -828,7 +1068,12 @@ def test_scale_estimate_returns_a_given_sigma_only_for_errors_without_usable_spr
     assert _tau_from_training_errors(pd.Series([0.0, 0.0, 0.0, 1.5]), sigma=2.0) == 2.0
     usable = pd.Series([0.5, -1.0, 0.3, 1.2])
     assert _tau_from_training_errors(usable, sigma=2.0) == _tau_from_training_errors(usable)
-    with pytest.raises(ValueError, match="none of the 3 training-sample errors is finite"):
+    message = (
+        r"^The control-chart scale estimate is undefined: none of the 3 training-sample errors is finite, so the "
+        r"series has no finite observation in its training period to forecast against\. Supply a series with more "
+        r"finite values\.$"
+    )
+    with pytest.raises(ValueError, match=message):
         _tau_from_training_errors(pd.Series([np.nan] * 3), sigma=2.0)
 
 
@@ -837,8 +1082,14 @@ def test_calculate_limits_accepts_s_as_a_deprecated_alias_for_sigma() -> None:
     y = pd.Series(50.0 + np.random.default_rng(8).standard_normal(40))
     with_sigma, with_s = ControlChart(), ControlChart()
     with_sigma.calculate_limits(y, target=50.0, sigma=2.0)
-    with pytest.warns(DeprecationWarning, match=r"calculate_limits\(s=\.\.\.\) is deprecated since 2\.2\.0"):
+    message = (
+        r"^process_improve\.monitoring\.control_charts\.ControlChart\.calculate_limits\(s=\.\.\.\) is deprecated "
+        r"since 2\.2\.0 and will be removed in 3\.0; use ControlChart\.calculate_limits\(sigma=\.\.\.\) instead\.$"
+    )
+    with pytest.warns(DeprecationWarning, match=message) as record:
         with_s.calculate_limits(y, target=50.0, s=2.0)
+    # Attributed to the caller of calculate_limits, not to a line of the module itself.
+    assert record[0].filename != control_charts.__file__
     _assert_same(with_s.df, with_sigma.df, "df")
     assert (with_s.s, with_s._tau, with_s.ld_1, with_s.ld_2) == (
         with_sigma.s,
@@ -846,12 +1097,15 @@ def test_calculate_limits_accepts_s_as_a_deprecated_alias_for_sigma() -> None:
         with_sigma.ld_1,
         with_sigma.ld_2,
     )
-    with pytest.raises(ValueError, match="both 'sigma' and its deprecated alias 's'"):
+    message = r"^calculate_limits\(\) got both 'sigma' and its deprecated alias 's'; pass only 'sigma'\.$"
+    with pytest.raises(ValueError, match=message):
         ControlChart().calculate_limits(y, sigma=2.0, s=2.0)
 
 
 def test_control_chart_tool_reports_a_short_constant_series_as_an_error() -> None:
     """Below the warm-up length a constant series is reported, as a long one is, not charted with zero width."""
     result = execute_tool_call("control_chart", {"values": [5.0] * 6})
-    assert set(result) == {"error"}
-    assert "scale estimate is undefined" in result["error"]
+    assert result == {
+        "error": "The control-chart scale estimate is undefined (standard deviation = 0.0 over 6 samples), so the "
+        "control limits would have zero width. Supply more representative data, or pass an explicit positive 'sigma'."
+    }
