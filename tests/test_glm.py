@@ -137,6 +137,15 @@ def test_a_glm_that_cannot_be_fitted_as_asked_is_refused(coupons, options, messa
         analyze_experiment(coupons, response_column="redeemed", analysis_type="glm", **options)
 
 
+def test_a_trials_column_with_a_zero_is_refused_as_a_list_with_one_is(coupons):
+    """#1001: a zero count in the column reached statsmodels, which divided by it and asked to be reported."""
+    coupons = coupons.assign(n=[0.0, *coupons["n"].iloc[1:]])
+    options = {"response_column": "redeemed", "model": "main_effects", "analysis_type": "glm", "family": "binomial"}
+    for trials in ("n", coupons["n"].tolist()):
+        with pytest.raises(ValueError, match="Every run's number of trials must be positive"):
+            analyze_experiment(coupons, trials=trials, **options)
+
+
 def test_the_trials_column_is_not_a_factor(coupons):
     out = analyze_experiment(
         coupons, response_column="redeemed", model="main_effects", analysis_type="glm", family="binomial", trials="n"

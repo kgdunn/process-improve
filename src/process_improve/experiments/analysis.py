@@ -428,8 +428,13 @@ def _missing_cells_text(df: pd.DataFrame, lost: list[str]) -> str:
 
 
 def _drop_incomplete_runs(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Drop runs with a missing response or factor setting, warning how many went."""
+    """Drop runs with a missing response or factor setting, warning how many went; refuse when none is left."""
     complete = df[columns].notna().all(axis=1)
+    if not complete.any():
+        raise ValueError(
+            f"No run has a value in every one of {', '.join(map(str, columns))}, so there is nothing to analyse: "
+            "each run is missing its response or a factor setting."
+        )
     n_dropped = int((~complete).sum())
     if n_dropped:
         warnings.warn(
@@ -439,6 +444,33 @@ def _drop_incomplete_runs(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
         )
         return df.loc[complete].copy()
     return df
+
+
+def _stand_in(name: str, taken: pd.Index) -> str:
+    """Return a name a formula can hold for the response: ``name_``, else ``name_1``, ``name_2``, ...
+
+    The stand-in never gains a second underscore, which the formula check refuses as dunder access (#1002).
+    """
+    alias, k = f"{name}_", 0
+    while alias in taken:
+        k += 1
+        alias = f"{name}_{k}"
+    return alias
+
+
+def _check_response_scale(response: pd.Series, name: str) -> None:
+    """Refuse a response whose sums of squares cannot be held in double precision (#1005).
+
+    Every test, R-squared and p-value is unchanged when the response is divided by a constant,
+    so the remedy is a change of units; past this size ``n * max(y)**2`` overflows.
+    """
+    largest = float(np.max(np.abs(response.to_numpy(dtype=float))))
+    if largest > np.sqrt(np.finfo(float).max / len(response)):
+        raise ValueError(
+            f"The response {name!r} is too large in its units to analyse: its sums of squares overflow, as its "
+            f"largest value is {largest:.3g}. Divide it by a power of 10 and analyse it again; the tests, "
+            "R-squared and p-values do not change."
+        )
 
 
 def _top_level_terms(rhs: str) -> list[str]:
@@ -1284,11 +1316,8 @@ def analyze_experiment(  # noqa: PLR0913
         # "yield" is the commonest response in chemistry, and a Python keyword, which a
         # formula cannot name; a column named C, I or Q hides patsy's function of that
         # name, so I(x1 ** 2) fails. Fit under a stand-in name and report the real one.
-        alias = f"{response_col}_"
-        while alias in df.columns:
-            alias += "_"
-        df = df.rename(columns={response_col: alias})
-        response_col = alias
+        response_col = _stand_in(response_col, df.columns)
+        df = df.rename(columns={reported_response: response_col})
 
     # Factor columns = everything except the response and the design-bookkeeping
     # columns. A DesignResult carries "RunOrder" (and optionally "Block"); if a
@@ -1324,6 +1353,7 @@ def analyze_experiment(  # noqa: PLR0913
         *([trials_col] if trials_col else []),
     ]
     df = _drop_incomplete_runs(df, used)
+    _check_response_scale(df[response_col], reported_response)
     coding = _resolve_coding(coding, df, factor_cols, model)
 
     categorical = [c for c in factor_cols if not _is_numeric(df[c])]

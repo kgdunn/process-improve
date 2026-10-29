@@ -2292,3 +2292,45 @@ class TestSumsOfSquaresConventions:
             summary = analyze_experiment(data, response_column="y", model="y ~ x + Block + x:Block")["model_summary"]
         assert summary["r_squared_without_blocks"] is None
         assert summary["coefficient_of_variation"] is None
+
+
+# ---------------------------------------------------------------------------
+# Data the analysis cannot use, refused by name (#1000, #1002, #1005)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "gap",
+    [{"y": [np.nan] * 4}, {"B": [np.nan, -1.0, np.nan, 1.0], "y": [10.0, np.nan, 11.0, np.nan]}],
+    ids=["no-response", "each-run-missing-something"],
+)
+def test_data_with_no_complete_run_is_refused(gap):
+    """#1000: with every run dropped, the fit failed inside numpy on an empty table."""
+    df = pd.DataFrame({"A": [-1.0, 1.0, -1.0, 1.0], "B": [-1.0, -1.0, 1.0, 1.0], "y": [10.0, 12.0, 11.0, 15.0]})
+    with pytest.raises(ValueError, match="No run has a value in every one of y, A, B"):
+        analyze_experiment(df.assign(**gap), response_column="y")
+
+
+def test_a_keyword_response_beside_a_column_named_like_its_stand_in_is_analysed():
+    """#1002: "yield" is fitted as "yield_", which was taken, so the stand-in became "yield__", refused as dunder."""
+    df = pd.DataFrame(
+        {"A": [-1, 1, -1, 1, 0, 0.0], "yield": [10, 14, 11, 16, 12.5, 13.0], "yield_": [1, 2, 3, 4, 5, 6.0]}
+    )
+    out = analyze_experiment(df, response_column="yield", model="yield ~ A")
+    x = np.column_stack([np.ones(6), df["A"]])
+    _, residual, *_ = np.linalg.lstsq(x, df["yield"].to_numpy(), rcond=None)
+    assert out["response_name"] == "yield"
+    assert out["model_summary"]["ss_residual"] == pytest.approx(float(residual[0]))
+
+
+def test_a_response_too_large_for_its_squares_is_refused_and_a_rescaled_one_fits_alike():
+    """#1005: squares near 1e600 overflow; any change of units leaves R-squared and the F test alone."""
+    df = pd.DataFrame(
+        {"A": [-1.0, 1.0, -1.0, 1.0, 0.0], "B": [-1.0, -1.0, 1.0, 1.0, 0.0], "y": [1.0, 2.0, 1.5, 3.0, 1.8]}
+    )
+    base = analyze_experiment(df, response_column="y", model="y ~ A + B")["model_summary"]
+    big = analyze_experiment(df.assign(y=df["y"] * 1e150), response_column="y", model="y ~ A + B")["model_summary"]
+    assert big["r_squared"] == pytest.approx(base["r_squared"])
+    assert big["f_p_value"] == pytest.approx(base["f_p_value"])
+    with pytest.raises(ValueError, match=r"too large in its units to analyse.*largest value is 3e\+300"):
+        analyze_experiment(df.assign(y=df["y"] * 1e300), response_column="y", model="y ~ A + B")
