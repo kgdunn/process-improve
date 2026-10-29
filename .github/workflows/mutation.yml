@@ -32,16 +32,16 @@ jobs:
           python-version: "3.13"
       # `--with` adds mutmut for this run only: no dev dependency, uv.lock untouched.
       - name: Mutate the modules in [tool.mutmut] and rerun their tests
-        run: uv run --with mutmut==3.8.0 mutmut run --max-children 4
+        run: uv run --with mutmut==3.8.1 mutmut run --max-children 4
       - name: Fail on any mutant the tests do not catch
         run: |
-          uv run --with mutmut==3.8.0 mutmut export-cicd-stats
+          uv run --with mutmut==3.8.1 mutmut export-cicd-stats
           stats=mutants/mutmut-cicd-stats.json
           jq -r '"\(.killed) of \(.total) mutants killed; \(.survived) survived, \(.no_tests) reached by no test, \(.timeout) timed out."' "$stats" | tee -a "$GITHUB_STEP_SUMMARY"
           missed=$(jq '.survived + .no_tests + .suspicious + .timeout' "$stats")
           if [ "$missed" != "0" ]; then
-            { echo '```diff'; uv run --with mutmut==3.8.0 mutmut results | awk -F: '{print $1}' |
-              while read -r name; do uv run --with mutmut==3.8.0 mutmut show "$name"; done; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo '```diff'; uv run --with mutmut==3.8.1 mutmut results | awk -F: '{print $1}' |
+              while read -r name; do uv run --with mutmut==3.8.1 mutmut show "$name"; done; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 

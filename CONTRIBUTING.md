@@ -130,9 +130,9 @@ change, and reports each change no test fails as "survived". The nightly
 
 ```bash
 rm -rf mutants                                        # start fresh after editing the source
-uv run --with mutmut==3.8.0 mutmut run --max-children 4
-uv run --with mutmut==3.8.0 mutmut results            # the survivors
-uv run --with mutmut==3.8.0 mutmut show <mutant>      # one survivor's diff
+uv run --with mutmut==3.8.1 mutmut run --max-children 4
+uv run --with mutmut==3.8.1 mutmut results            # the survivors
+uv run --with mutmut==3.8.1 mutmut show <mutant>      # one survivor's diff
 ```
 
 A survivor is either an assertion to add, checked against a value derived independently of the
