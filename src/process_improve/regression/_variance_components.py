@@ -58,6 +58,9 @@ _RESOLVABLE = 1e-10
 _MAX_ITERATIONS = 200
 _MIN_STEP = 1e-10
 
+#: Relative spread below which the eigenvalues of :func:`require_apart_from_residual` count as equal.
+_EQUAL_SPREAD = 1e-10
+
 
 @dataclass(frozen=True)
 class VarianceComponentFit:
@@ -157,6 +160,57 @@ def type1_hypotheses(X: np.ndarray, assign: np.ndarray) -> dict[int, np.ndarray]
     triangular = np.linalg.qr(X, mode="r")
     normalised = triangular / np.diag(triangular)[:, None]
     return {int(term): normalised[assign == term] for term in np.unique(assign) if term >= 0}
+
+
+def require_apart_from_residual(X: np.ndarray, groups: Sequence[np.ndarray], names: Sequence[str]) -> None:
+    r"""Raise if a random intercept's variance cannot be told apart from the residual's.
+
+    REML sees the data only through the residuals of the fixed effects, :math:`W y` with
+    :math:`W = I - X (X^\top X)^{-1} X^\top`, whose covariance is
+    :math:`\sigma^2 W + \sum_k \sigma^2_k W Z_k Z_k^\top W`. Where :math:`W Z_k Z_k^\top W = c W`
+    with :math:`c > 0`, term :math:`k` and the residual enter it only through
+    :math:`\sigma^2 + c\,\sigma^2_k`, so every split of that sum fits equally well. One reading at
+    each level (:math:`Z_k Z_k^\top = I`) is the usual case, but the fixed terms can leave a term
+    with more readings than levels in the same state. The condition holds exactly when the
+    :math:`n - p` eigenvalues of :math:`W Z_k Z_k^\top W` on the range of :math:`W` are equal, that
+    is when :math:`(n - p) \sum \lambda^2 = (\sum \lambda)^2`; both sums come from the small
+    :math:`Z_k^\top W Z_k`, which has the same nonzero eigenvalues. A term that only uses up the
+    residual degrees of freedom, :math:`\operatorname{rank}[X\ Z_k] = n`, is still told apart when
+    those eigenvalues differ.
+
+    Parameters
+    ----------
+    X : np.ndarray of shape (n, p)
+        The fixed-effect model matrix, of full column rank.
+    groups : sequence of np.ndarray of shape (n,)
+        One array of integer codes ``0 .. q_k - 1`` per random intercept.
+    names : sequence of str
+        The random intercepts' names, in the order of ``groups``, for the message.
+
+    Raises
+    ------
+    ValueError
+        Naming the first random intercept whose variance cannot be told apart from the residual's.
+    """
+    n, p = X.shape
+    basis = np.linalg.qr(X)[0]
+    for name, codes in zip(names, groups, strict=True):
+        indicator = np.eye(int(np.max(codes)) + 1)[codes]
+        projected = basis.T @ indicator
+        inner = indicator.T @ indicator - projected.T @ projected  # Z_k' W Z_k
+        total, squares = float(np.trace(inner)), float(np.sum(inner**2))
+        # c = 0, a term the fixed effects take up whole, is a different fault: its variance is not estimable at all.
+        if total > _EQUAL_SPREAD * n and (n - p) * squares - total**2 <= _EQUAL_SPREAD * (n - p) * squares:
+            levels = indicator.shape[1]
+            how = (
+                f"has one reading at each of its {levels} levels"
+                if levels == n
+                else "changes the readings in the same way as the residual once the fixed terms are fitted"
+            )
+            raise ValueError(
+                f"{name} {how}, so its variance cannot be told apart from the residual. "
+                "Add repeat readings, or leave the term out."
+            )
 
 
 @dataclass(frozen=True)
