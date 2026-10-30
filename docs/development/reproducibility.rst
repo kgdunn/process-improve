@@ -109,13 +109,15 @@ The contract
    ``seed_param`` or ``default_seed`` on a tool that declares
    ``{"uses_rng": False}``, or with a ``default_seed`` but no
    ``seed_param``. ``tests/test_tool_reproducibility.py`` runs
-   every registered tool twice through ``execute_tool_call`` and
-   compares the JSON of the two outputs byte for byte: a tool that
-   declares ``{"uses_rng": True}`` gets its ``default_seed`` through
-   its ``seed_param``, and must also give another output for another
-   seed; any other tool gets no seed. The test holds one sample
-   input per tool, and fails when a tool is registered without one,
-   or without a reason it cannot give the same output twice.
+   each registered tool twice on a sample input, through
+   ``execute_tool_call``, and compares the JSON of the two outputs
+   byte for byte: a tool that declares ``{"uses_rng": True}`` gets
+   its ``default_seed`` through its ``seed_param``, and must also
+   give another output for another seed; any other tool gets no
+   seed. A tool that gives a new output on each call by design
+   (``create_simulator``, ``simulate_process``) is listed there with
+   the reason instead. A tool registered with neither a sample input
+   nor a reason fails the test.
 
 How to migrate an existing function
 -----------------------------------
