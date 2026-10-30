@@ -289,13 +289,16 @@ def _as_mixture(
         holds = float(np.abs(gap).max()) <= _BLEND_SUM_TOLERANCE
     if holds and not ols_result.k_constant:
         sums = df[components].to_numpy(dtype=float).sum(axis=1)
-        warnings.warn(
-            f"The blends sum to between {sums.min():.6g} and {sums.max():.6g}, not to 1 exactly, as proportions "
-            "rounded for printing do. The fit is taken to hold a constant, as a mixture model does: r_squared, "
-            "df_model and the overall F are about the mean, and df_model is one less than the number of terms.",
-            category=UserWarning,
-            stacklevel=3,
-        )
+        # statsmodels' rank test can miss the constant on blends that sum to 1 in floating point too.
+        if not np.allclose(sums, 1.0, rtol=0.0, atol=1e-9):
+            warnings.warn(
+                f"The blends sum to between {sums.min():.6g} and {sums.max():.6g}, not to 1 exactly, as "
+                "proportions rounded for printing do. The fit is taken to hold a constant, as a mixture model does: "
+                "r_squared, df_model and the overall F are about the mean, and df_model is one less than the number "
+                "of terms.",
+                category=UserWarning,
+                stacklevel=3,
+            )
         ols_result = smf.ols(ols_result.model.formula, data=df, hasconst=True).fit()
     elif model in SCHEFFE_MODELS and not ols_result.k_constant:
         warnings.warn(
