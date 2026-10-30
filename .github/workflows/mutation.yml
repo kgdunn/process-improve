@@ -18,21 +18,56 @@ permissions:
   contents: read
 
 jobs:
+  # One job per group of modules, in parallel: the whole config in one job outgrew its
+  # 60 minutes. Each names its modules' mutants by pattern (a mutant is called
+  # `<module>.x_<function>__mutmut_<n>`), so a module in [tool.mutmut] needs a pattern
+  # here too; tests/test_tooling_versions.py fails until every module has exactly one.
   mutmut:
+    name: mutmut (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    permissions:
-      contents: read
-      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: monitoring
+            patterns: process_improve.monitoring.*
+          - name: limits and kernels
+            patterns: >-
+              process_improve.multivariate._limits.*
+              process_improve.multivariate._nipals.*
+              process_improve.multivariate._preprocessing.*
+              process_improve.multivariate._projection.*
+              process_improve.multivariate._impute.*
+              process_improve.multivariate._robust.*
+          - name: diagnostics
+            patterns: process_improve.multivariate._diagnostics.*
+          - name: resampling, null, procrustes, prm, opls
+            patterns: >-
+              process_improve.multivariate._resampling.*
+              process_improve.multivariate._null.*
+              process_improve.multivariate._procrustes.*
+              process_improve.multivariate._prm.*
+              process_improve.multivariate._opls.*
+          - name: pca
+            patterns: process_improve.multivariate._pca.*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
         uses: ./.github/actions/setup-env
         with:
           python-version: "3.13"
-      # `--with` adds mutmut for this run only: no dev dependency, uv.lock untouched.
+      # `--with` adds mutmut for this run only: no dev dependency, uv.lock untouched. Every
+      # job mutates the whole config and collects which tests reach which function, then
+      # runs only the mutants its patterns name; the rest stay "not checked". `set -f` keeps
+      # the shell from expanding the patterns' `*` as file names.
       - name: Mutate the modules in [tool.mutmut] and rerun their tests
-        run: uv run --with mutmut==3.8.1 mutmut run --max-children 4
+        env:
+          PATTERNS: ${{ matrix.shard.patterns }}
+        run: |
+          set -f
+          # shellcheck disable=SC2086 # one argument per pattern
+          uv run --with mutmut==3.8.1 mutmut run --max-children 4 $PATTERNS
       # A mutant whose tests overrun mutmut's CPU limit (about 30 times their usual time) made the
       # code loop or slow down, which the tests noticed: mutmut's own score counts it as killed, and
       # so does this gate. Whether one times out depends on the runner's speed, not on the tests.
@@ -40,17 +75,29 @@ jobs:
         run: |
           uv run --with mutmut==3.8.1 mutmut export-cicd-stats
           stats=mutants/mutmut-cicd-stats.json
-          jq -r '"\(.killed + .timeout) of \(.total) mutants caught (\(.timeout) of them by timing out); \(.survived) survived, \(.no_tests) reached by no test."' "$stats" | tee -a "$GITHUB_STEP_SUMMARY"
+          # The totals count this job's mutants only: the others were not run here.
+          jq -r '(.killed + .timeout + .survived + .no_tests + .suspicious + .skipped + .segfault) as $run |
+            "\(.killed + .timeout) of \($run) mutants caught (\(.timeout) of them by timing out); \(.survived) survived, \(.no_tests) reached by no test."' \
+            "$stats" | tee -a "$GITHUB_STEP_SUMMARY"
           missed=$(jq '.survived + .no_tests + .suspicious' "$stats")
           if [ "$missed" != "0" ]; then
-            { echo '```diff'; uv run --with mutmut==3.8.1 mutmut results | awk -F: '{print $1}' |
-              while read -r name; do uv run --with mutmut==3.8.1 mutmut show "$name"; done; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo '```diff'; uv run --with mutmut==3.8.1 mutmut results | grep -E ': (survived|no tests|suspicious)$' |
+              awk -F: '{print $1}' | while read -r name; do uv run --with mutmut==3.8.1 mutmut show "$name"; done
+              echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
-      # A failed scheduled run is easy to miss, so it opens an issue (one at a time).
-      - name: Open an issue when the nightly run fails
-        if: failure() && github.event_name == 'schedule'
+  # A failed scheduled run is easy to miss, so it opens an issue (one at a time) when any
+  # group fails.
+  open-issue:
+    name: Open an issue when the nightly run fails
+    needs: mutmut
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -59,5 +106,5 @@ jobs:
           title="Mutation testing found a change no test catches"
           open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
           if [ "$open" = "0" ]; then
-            gh issue create --title "$title" --body "The nightly mutation run failed; its summary shows each mutant: $RUN_URL"
+            gh issue create --title "$title" --body "The nightly mutation run failed; the summary of each failed job shows its mutants: $RUN_URL"
           fi

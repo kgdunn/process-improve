@@ -1,4 +1,4 @@
-"""The pre-commit hooks run the tool versions that CI pins (#39).
+"""The pre-commit hooks run the tool versions that CI pins (#39), and CI mutates every module mutmut lists.
 
 CI's lint and typecheck jobs run ruff and mypy at the versions ``pyproject.toml``
 allows; pre-commit (locally, and on pre-commit.ci) runs whatever revision
@@ -11,6 +11,8 @@ in ``pyproject.toml`` moves with it.
 from __future__ import annotations
 
 import re
+import tomllib
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
@@ -58,3 +60,18 @@ def test_pre_commit_ci_skips_only_hooks_that_exist() -> None:
     config = _config()
     hook_ids = {hook["id"] for entry in config["repos"] for hook in entry["hooks"]}
     assert set(config["ci"]["skip"]) <= hook_ids
+
+
+def test_every_mutated_module_is_in_exactly_one_mutation_job() -> None:
+    """Each module in ``[tool.mutmut]`` is mutated by one job of ``mutation.yml``, so none goes untested.
+
+    The workflow runs the modules in parallel jobs, each naming its modules' mutants by
+    pattern; a mutant's name is the module's dotted path, then the function's.
+    """
+    modules = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["mutmut"]["only_mutate"]
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "mutation.yml").read_text(encoding="utf-8"))
+    groups = workflow["jobs"]["mutmut"]["strategy"]["matrix"]["shard"]
+    for module in modules:
+        mutant = module.removeprefix("src/").removesuffix(".py").replace("/", ".") + ".x_function__mutmut_1"
+        jobs = [group["name"] for group in groups if any(fnmatch(mutant, glob) for glob in group["patterns"].split())]
+        assert len(jobs) == 1, f"{module} is mutated by {jobs or 'no job'} of mutation.yml; it needs exactly one."
