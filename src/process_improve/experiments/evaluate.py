@@ -302,7 +302,7 @@ def _stand_in_factors(
     results are read back (#986). ``words`` are the design's generators and defining relation.
     """
     squares = [f"I({name} ** 2)" for name in factor_names]
-    stand_ins = stand_ins_for(" + ".join([_model_rhs(design_df, model, factor_names), *squares]), factor_names)
+    stand_ins = stand_ins_for(" + ".join([_model_rhs(design_df, model, factor_names), *squares]), design_df.columns)
     if not stand_ins or words or isinstance(region, DesignRegion):
         # shortcut: the generators' words and a region's limits name the factors too, so such a design keeps
         # the refusal of a factor named I or C; rename those as well if one with such a factor is met.

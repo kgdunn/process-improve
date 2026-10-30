@@ -1411,6 +1411,20 @@ def test_a_factor_named_i_beside_one_named_i_underscore_keeps_each_name() -> Non
     assert {"I", "I_", "I:I_", "I(I ** 2)", "I(I_ ** 2)"} <= {row["term"] for row in named_i["coefficients"]}
 
 
+def test_the_stand_in_for_a_factor_is_not_the_name_of_the_response() -> None:
+    """With the response named I_, the factor I is fitted as I_2, not as a second column I_."""
+    from process_improve.experiments import analyze_experiment
+
+    axial = 2**0.5
+    x = np.array([-1, 1, -1, 1, 0, 0, 0, -axial, axial, 0, 0])
+    z = np.array([-1, -1, 1, 1, 0, 0, 0, 0, 0, -axial, axial])
+    data = pd.DataFrame({"I": x, "P": z, "I_": 5 + x - x**2 + z + np.random.default_rng(0).normal(0, 0.1, len(x))})
+    out = analyze_experiment(data, response_column="I_", model="quadratic", analysis_type="coefficients")
+    assert out["model_summary"]["formula"] == "I_ ~ (I + P) ** 2 + I(I ** 2) + I(P ** 2)"
+    assert out["coefficients"][4]["term"] == "I(I ** 2)"
+    assert out["coefficients"][4]["coefficient"] == pytest.approx(-1, abs=0.1)
+
+
 def test_refused_column_names_come_with_a_rename_that_fits() -> None:
     """The rename map in the error, pasted into ``DataFrame.rename``, gives names the model takes."""
     from process_improve.experiments import analyze_experiment
