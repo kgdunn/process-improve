@@ -128,8 +128,10 @@ the modules listed under `[tool.mutmut]` in `pyproject.toml`, reruns the tests t
 change, and reports each change no test fails as "survived". The nightly
 `.github/workflows/mutation.yml` fails on any survivor and shows its diff in the run summary.
 It runs the modules in parallel jobs, one per group of modules, each naming its mutants by
-pattern (a mutant is called `<module>.x_<function>__mutmut_<n>`). A module added to
-`[tool.mutmut]` needs a pattern in one group, which `tests/test_tooling_versions.py` checks.
+pattern (a mutant is called `<module>.x_<function>__mutmut_<n>`, or
+`<module>.xǁ<class>ǁ<method>__mutmut_<n>` for a method). A module added to `[tool.mutmut]`
+needs every function matched by exactly one group, which `tests/test_tooling_versions.py`
+checks; a large module can be split between groups by function, as `_pls.py` is.
 
 ```bash
 rm -rf mutants                                        # start fresh after editing the source

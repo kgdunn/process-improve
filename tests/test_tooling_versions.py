@@ -10,6 +10,7 @@ in ``pyproject.toml`` moves with it.
 
 from __future__ import annotations
 
+import ast
 import re
 import tomllib
 from fnmatch import fnmatch
@@ -62,16 +63,40 @@ def test_pre_commit_ci_skips_only_hooks_that_exist() -> None:
     assert set(config["ci"]["skip"]) <= hook_ids
 
 
-def test_every_mutated_module_is_in_exactly_one_mutation_job() -> None:
-    """Each module in ``[tool.mutmut]`` is mutated by one job of ``mutation.yml``, so none goes untested.
+def _mutant_stems(module: str) -> list[str]:
+    """Return the name mutmut gives the first mutant of each function and method of ``module``.
 
-    The workflow runs the modules in parallel jobs, each naming its modules' mutants by
-    pattern; a mutant's name is the module's dotted path, then the function's.
+    A function's mutants are named ``<module>.x_<function>__mutmut_<n>``, a method's
+    ``<module>.xǁ<class>ǁ<method>__mutmut_<n>``; a nested function is mutated with its parent.
+    """
+    dotted = module.removeprefix("src/").removesuffix(".py").replace("/", ".")
+    stems = []
+    for node in ast.parse((ROOT / module).read_text(encoding="utf-8")).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            stems.append(f"{dotted}.x_{node.name}__mutmut_1")
+        elif isinstance(node, ast.ClassDef):
+            stems.extend(
+                f"{dotted}.x\u01c1{node.name}\u01c1{item.name}__mutmut_1"
+                for item in node.body
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+            )
+    return stems
+
+
+def test_every_mutated_function_is_in_exactly_one_mutation_job() -> None:
+    """Each function of every module in ``[tool.mutmut]`` is mutated by exactly one job of ``mutation.yml``.
+
+    The workflow runs the modules in parallel jobs, each naming its mutants by pattern; a
+    large module may be split between jobs by function, so every function is checked.
     """
     modules = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["mutmut"]["only_mutate"]
     workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "mutation.yml").read_text(encoding="utf-8"))
     groups = workflow["jobs"]["mutmut"]["strategy"]["matrix"]["shard"]
     for module in modules:
-        mutant = module.removeprefix("src/").removesuffix(".py").replace("/", ".") + ".x_function__mutmut_1"
-        jobs = [group["name"] for group in groups if any(fnmatch(mutant, glob) for glob in group["patterns"].split())]
-        assert len(jobs) == 1, f"{module} is mutated by {jobs or 'no job'} of mutation.yml; it needs exactly one."
+        stems = _mutant_stems(module)
+        assert stems, f"{module} has no function for mutmut to mutate."
+        for mutant in stems:
+            jobs = [
+                group["name"] for group in groups if any(fnmatch(mutant, glob) for glob in group["patterns"].split())
+            ]
+            assert len(jobs) == 1, f"{mutant} is mutated by {jobs or 'no job'} of mutation.yml; it needs exactly one."
