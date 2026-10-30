@@ -71,6 +71,8 @@ jobs:
             patterns: process_improve.multivariate._mbpca.*
           - name: mbpls
             patterns: process_improve.multivariate._mbpls.*
+          - name: tpls
+            patterns: process_improve.multivariate._tpls.*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
