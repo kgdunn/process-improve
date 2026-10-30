@@ -340,9 +340,12 @@ def simple_robust_regression_data() -> tuple[np.ndarray, np.ndarray]:
 
 
 def test_regression_simple_robust(simple_robust_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
-    """Tests the simple robust regression model."""
+    """Tests the simple robust regression model.
+
+    The intervals checked by hand are the least-squares ones, which the option keeps (#953).
+    """
     X, y = simple_robust_regression_data
-    out = robust_regression(X, y)
+    out = robust_regression(X, y, intervals="least_squares")
 
     assert isinstance(out["intercept"], float)
     assert len(out["coefficients"]) == 1
@@ -368,7 +371,7 @@ def test_robust_regression_t_value_is_populated(
     interval widths, and never assigned back. This fails on the pre-fix code.
     """
     X, y = simple_robust_regression_data
-    out = robust_regression(X, y)
+    out = robust_regression(X, y, intervals="least_squares")
 
     assert np.all(np.isfinite(out["t_value"])), "t_value must be populated, not left as NaN"
     assert len(out["t_value"]) == len(out["coefficients"])
@@ -678,19 +681,24 @@ def test_ols_prediction_band_of_a_near_perfect_fit_has_zero_width() -> None:
 
 
 def test_robust_regression_intervals_widen_with_an_outlier_the_slope_resists() -> None:
-    """The documented limit: least-squares intervals around the robust line, so one outlier widens them."""
+    """One outlier widens the least-squares intervals around the robust line, and not the bootstrap ones (#953)."""
     x = np.arange(1.0, 11.0)
     y = 2.0 * x + 1.0 + np.array([0.1, -0.1, 0.05, -0.05, 0.1, -0.1, 0.05, -0.05, 0.1, -0.1])
     with_outlier = y.copy()
     with_outlier[4] += 100.0
 
-    clean, dirty = robust_regression(x, y), robust_regression(x, with_outlier)
-    assert dirty["coefficients"][0] == pytest.approx(clean["coefficients"][0], abs=0.02)
-
     def width(out: dict) -> float:
         return float(np.diff(out["conf_intervals"][0])[0])
 
-    assert width(dirty) > 100 * width(clean)
+    clean, dirty = robust_regression(x, y), robust_regression(x, with_outlier)
+    assert dirty["coefficients"][0] == pytest.approx(clean["coefficients"][0], abs=0.02)
+    # Resamples that draw the outlier twice or more out of ten points move the slope a little.
+    assert width(dirty) < 3 * width(clean)
+
+    clean_ls = robust_regression(x, y, intervals="least_squares")
+    dirty_ls = robust_regression(x, with_outlier, intervals="least_squares")
+    assert width(dirty_ls) > 100 * width(clean_ls)
+    assert width(dirty_ls) > 50 * width(dirty)
 
 
 def test_ols_prediction_interval_at_arbitrary_x(
@@ -1219,7 +1227,7 @@ class TestRepeatedMedianSlopeMissingValues:
 
 
 def _repeated_median_by_loop(x: np.ndarray, y: np.ndarray) -> float:
-    """The repeated median as it was computed before #953, one pair at a time, kept as the reference."""
+    """Compute the repeated median as it was before #953, one pair at a time, kept as the reference."""
     x, y = np.asarray(x).ravel(), np.asarray(y).ravel()
     finite = np.isfinite(x) & np.isfinite(y)
     x, y = x[finite], y[finite]
@@ -1320,15 +1328,16 @@ def test_robust_regression_bootstrap_interval_covers_the_slope_with_outliers() -
     rng = np.random.default_rng(953)
     covered, ratio = [], []
     for _ in range(200):
-        x, y = _line_with_outliers(rng)
+        x, y = _line_with_outliers(rng, n=60)
         boot = robust_regression(x, y, n_boot=199, random_state=rng)
         ls = robust_regression(x, y, intervals="least_squares")
         lower, upper = boot["conf_intervals"][0]
         covered.append(lower <= 2.0 <= upper)
         ratio.append(np.diff(ls["conf_intervals"][0])[0] / (upper - lower))
 
-    assert 0.90 <= np.mean(covered) <= 0.99
-    assert np.median(ratio) > 3
+    # 200 data sets put the binomial standard error of a 95% coverage at 1.5 percentage points.
+    assert 0.92 <= np.mean(covered) <= 0.99
+    assert np.median(ratio) > 5
 
 
 @pytest.mark.slow
@@ -1351,31 +1360,6 @@ def test_robust_regression_bootstrap_and_least_squares_agree_without_outliers() 
     assert 0.8 < np.median(band_ratio) < 1.25
 
 
-def test_robust_regression_least_squares_intervals_are_kept_behind_the_option(
-    simple_robust_regression_data: tuple[np.ndarray, np.ndarray],
-) -> None:
-    """intervals="least_squares" gives the numbers of earlier releases, checked by hand above."""
-    X, y = simple_robust_regression_data
-    out = robust_regression(X, y, intervals="least_squares")
-    assert out["conf_intervals"][0] == pytest.approx([4.61316875, 4.76759488], rel=1e-8)
-    assert out["conf_interval_intercept"] == pytest.approx([-0.0145235437, 0.0101581595], rel=1e-8)
-
-
-def test_robust_regression_bootstrap_interval_is_not_widened_by_one_outlier() -> None:
-    """The case the least-squares interval fails: one gross outlier leaves the bootstrap interval narrow."""
-    x = np.arange(1.0, 21.0)
-    y = 2.0 * x + 1.0 + np.random.default_rng(0).normal(scale=0.1, size=20)
-    with_outlier = y.copy()
-    with_outlier[4] += 100.0
-
-    def width(out: dict) -> float:
-        return float(np.diff(out["conf_intervals"][0])[0])
-
-    clean, dirty = robust_regression(x, y), robust_regression(x, with_outlier)
-    assert width(dirty) < 2 * width(clean)
-    assert width(robust_regression(x, with_outlier, intervals="least_squares")) > 50 * width(dirty)
-
-
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
@@ -1385,8 +1369,9 @@ def test_robust_regression_bootstrap_interval_is_not_widened_by_one_outlier() ->
 )
 def test_robust_regression_rejects_unknown_interval_options(kwargs: dict, message: str) -> None:
     """A misspelt method or an empty bootstrap is refused rather than silently falling back."""
+    x, y = _line_with_outliers(np.random.default_rng(8))
     with pytest.raises(ValueError, match=message):
-        robust_regression(np.arange(10.0), np.arange(10.0) * 2.0, **kwargs)
+        robust_regression(x, y, **kwargs)
 
 
 def test_robust_regression_tool_declares_and_honours_its_seed() -> None:
