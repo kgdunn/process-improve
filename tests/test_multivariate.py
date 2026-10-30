@@ -11044,6 +11044,8 @@ def test_pls_select_n_components_leaves_out_a_count_that_cannot_score_a_held_out
     """A held-out row observed in one X column has no score from two components: that count gets no PRESS (#676).
 
     Its curves are NaN, Van der Voet is handed the first count alone, and its p-value is NaN.
+    The folds are fixed, with that row in the first of four: a count stays unscored once any
+    fold cannot score it, though the later folds score every row.
     """
     calls: list[tuple] = []
 
@@ -11054,7 +11056,7 @@ def test_pls_select_n_components_leaves_out_a_count_that_cannot_score_a_held_out
     monkeypatch.setattr("process_improve.multivariate._pls._vandervoet_randomization", test)
     X, Y = _pls_block(n=12)
     X.iloc[0, 1:] = np.nan
-    result = PLS.select_n_components(X, Y, cv=4, n_repeats=1, max_components=2, selection_rule="randomization")
+    result = PLS.select_n_components(X, Y, cv=KFold(4), max_components=2, selection_rule="randomization")
     ((sse, kwargs),) = calls
     assert sse.shape == (1, 12)
     np.testing.assert_allclose(kwargs["total_rmsecv"], result.rmsecv["total"].to_numpy()[:1])
