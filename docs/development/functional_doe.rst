@@ -84,9 +84,14 @@ Two identities make FPCA useful for the questions the book's case study asks:
   prototype checks this to five decimals). Finding settings that reproduce a target curve, which
   the book does by PLS inversion, becomes a least-squares problem in two or three score
   dimensions, which ``experiments.optimization`` and the desirability code can already solve.
-* **A pointwise band comes for free.** The scores are uncorrelated, so
-  :math:`\mathrm{Var}\,\hat{y}(t) = \sum_k \phi_k(t)^2\,\mathrm{Var}\,\hat{s}_k`. The band is a
-  sum of the per-score prediction variances the DOE model already reports.
+* **A pointwise band needs the full score covariance.** The scores are uncorrelated across runs,
+  but their residuals after the factor fit are not: in the prototype the two score residuals
+  correlate at -0.66, and a band built from the per-score variances alone is off by up to 71%.
+  The variance of the predicted mean curve at a new point is
+  :math:`h_0\,\phi(t)^T \Sigma_\eta\,\phi(t)`, with :math:`h_0` the leverage of the point and
+  :math:`\Sigma_\eta` the residual covariance of the scores. A band for a new run adds
+  :math:`\phi(t)^T \Sigma_\eta\,\phi(t)` and the variance of the truncation residual. Neither
+  includes the uncertainty in the estimated eigenfunctions, which a bootstrap adds.
 
 One detail matters for correctness. PCA of the basis coefficients must use the L2 metric of the
 basis, the Gram matrix :math:`W = \int \phi(t)\phi(t)^T\,dt`, not the identity. Otherwise the
@@ -131,8 +136,8 @@ Browser app
   ``colour[t9]``) in the run sheet and the workbook. ``MAX_RESPONSES`` stays at 5 by counting a
   curve as one response.
 * **Analysis.** One worker call, ``api_functional``, returns the mean function and eigenfunctions
-  on a plotting grid, the score coefficients, :math:`(X^TX)^{-1}` and the residual variance of each
-  score. These are a few kilobytes.
+  on a plotting grid, the score coefficients, :math:`(X^TX)^{-1}` and the residual covariance of
+  the scores. These are a few kilobytes.
 * **Profiler.** Prediction is linear in the coefficients, so the page draws the predicted curve and
   its band in JavaScript as the factor sliders move, with no round trip to Pyodide. The same
   numbers drive a second view: drag one FPC score and watch the curve shape change, which is how
