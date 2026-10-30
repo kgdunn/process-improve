@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
@@ -56,6 +57,10 @@ def _run_lack_of_fit(
     per row) must be excluded: grouping on them previously made every group a
     singleton, so no generated design ever had detectable replicates and the test
     always reported "No replicated points". ``alpha`` sets the ``significant`` flag.
+
+    When the model leaves no lack-of-fit degrees of freedom, or the repeats agree
+    exactly (zero pure error), the sums of squares are still reported, with
+    ``f_statistic``, ``p_value`` and ``significant`` set to ``None`` and a ``note``.
     """
     residuals = ols_result.resid
 
@@ -76,25 +81,35 @@ def _run_lack_of_fit(
     ss_lof = ss_residual - ss_pure_error
     df_lof = df_residual - df_pure_error
 
-    if df_lof <= 0 or ss_pure_error <= 0:
+    if df_lof < 0:
         return {"lack_of_fit": {"error": "Insufficient degrees of freedom for lack-of-fit test."}}
 
-    ms_lof = ss_lof / df_lof
     ms_pe = ss_pure_error / df_pure_error
-    f_stat = ms_lof / ms_pe
-    p_value = float(stats.f.sf(f_stat, df_lof, df_pure_error))
-
-    return {
-        "lack_of_fit": {
-            "ss_lack_of_fit": ss_lof,
-            "df_lack_of_fit": df_lof,
-            "ms_lack_of_fit": ms_lof,
-            "ss_pure_error": ss_pure_error,
-            "df_pure_error": df_pure_error,
-            "ms_pure_error": ms_pe,
-            "f_statistic": float(f_stat),
-            "p_value": p_value,
-            "significant": p_value < alpha,
-            "significance_level": alpha,
-        }
+    result: dict[str, Any] = {
+        "ss_lack_of_fit": ss_lof,
+        "df_lack_of_fit": df_lof,
+        "ms_lack_of_fit": ss_lof / df_lof if df_lof else None,
+        "ss_pure_error": ss_pure_error,
+        "df_pure_error": df_pure_error,
+        "ms_pure_error": ms_pe,
+        "f_statistic": None,
+        "p_value": None,
+        "significant": None,
+        "significance_level": alpha,
     }
+    # Identical repeats are a result, not a failure: the rows are reported and only the F ratio is
+    # left out. Round-off in the group means can leave ~1e-30 where the repeats agree exactly, which
+    # would otherwise give an enormous F, so pure error that small against the response is zero.
+    if df_lof == 0:
+        result["ss_lack_of_fit"] = 0.0  # the residual is all pure error; the difference is round-off
+        result["note"] = "The model leaves no degrees of freedom for lack of fit, so no lack of fit can be tested."
+    elif ss_pure_error <= np.finfo(float).eps * float(ols_result.uncentered_tss):
+        result["note"] = (
+            "The pure error is zero: the repeated runs agree exactly, so the ratio of lack of fit to pure "
+            "error cannot be formed."
+        )
+    else:
+        f_stat = (ss_lof / df_lof) / ms_pe
+        p_value = float(stats.f.sf(f_stat, df_lof, df_pure_error))
+        result.update(f_statistic=float(f_stat), p_value=p_value, significant=p_value < alpha)
+    return {"lack_of_fit": result}
