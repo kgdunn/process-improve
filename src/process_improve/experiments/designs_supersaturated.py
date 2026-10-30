@@ -20,9 +20,9 @@ columns that contribute most to ``E(s^2)`` are dropped one at a time.
 
 Hadamard matrices come from Paley's construction ``H = I + C`` (``C`` the skew
 conference matrix, for ``N - 1`` a prime power congruent to 3 mod 4), the classical
-Plackett-Burman construction, and the other finite-field constructions in
-:mod:`process_improve.experiments._finite_fields`; every order up to 200 except 92,
-116, 156, 172, 184 and 188 is covered.
+Plackett-Burman construction, and the other constructions in
+:mod:`process_improve.experiments._finite_fields`; every multiple of 4 up to 232 is
+covered.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def hadamard(order: int) -> np.ndarray | None:
     Paley's type I matrix comes first where it exists: its cyclic structure gives
     half-fractions without identical columns, where the Sylvester-type matrices for 16,
     24 and 32 always have some. The classical Plackett-Burman matrices come next, then the
-    other finite-field constructions (Paley II and doubling) for the remaining orders.
+    other constructions (Paley II, doubling and Goethals-Seidel) for the remaining orders.
     """
     candidates = []
     q = order - 1
@@ -183,9 +183,9 @@ def dispatch_supersaturated(factors: list[Factor], budget: int | None = None) ->
         Continuous factors, run at their low and high levels (coded -1 / +1).
     budget : int or None
         Number of runs. It must be even, below ``k + 1``, and ``2 * budget`` must be a
-        Hadamard order built here (every multiple of 4 up to 200 except 92, 116, 156,
-        172, 184 and 188). ``None`` picks the smallest order ``N`` with ``N - 2 >= k``
-        and ``N / 2 <= k`` whose half-fraction has no fully aliased pair of factors,
+        Hadamard order built here (every multiple of 4 up to 232). ``None`` picks the
+        smallest order ``N`` with ``N - 2 >= k`` and ``N / 2 <= k`` whose half-fraction
+        has no fully aliased pair of factors,
         giving ``N / 2`` runs. A budget that forces fully aliased pairs is honoured,
         with a ``UserWarning`` naming the run count that avoids them.
 

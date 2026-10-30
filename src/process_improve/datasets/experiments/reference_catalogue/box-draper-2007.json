@@ -9726,9 +9726,7 @@
        "options": {
         "n_center_points": 0
        }
-      },
-      "disagreement": "library shortcoming: the library has no 92-run Hadamard matrix (the Williamson-type construction of Baumert, Golomb and Hall that the book cites for n = 92) and returns a 96-run Plackett-Burman design for 91 factors without saying so",
-      "cause": "library"
+      }
      }
     },
     {
