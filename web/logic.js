@@ -30,15 +30,30 @@ export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 /** The resolutions the page offers a fraction, lowest first; mirrors bootstrap.RESOLUTIONS. */
 export const RESOLUTIONS = [3, 4, 5];
 
+/**
+ * The highest resolution of a fraction in k factors the page makes, as bootstrap._resolution reads it: k, up to V,
+ * and IV past MAX_INTERACTION_FACTORS factors, since V is made to estimate the interactions the page does not model.
+ */
+export const highestResolution = (k) => Math.min(k, screensOnly(k) ? 4 : Math.max(...RESOLUTIONS));
+
 /** A resolution in roman numerals, as a fraction's is written. */
 export const ROMAN = { 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII" };
 
 /** A cell of the trade-off grid whose runs are the full factorial's 2^k. */
 export const FULL = "full";
 
-/** The trade-off grid's rows, run counts, and its columns, numbers of factors: a fraction takes 3 to 11 on the page. */
+/**
+ * The trade-off grid's rows, run counts, and its columns, numbers of factors: 3 to 11, the fractions the library
+ * holds a table of. The page makes fractions in up to 24 factors, and the grid says so past its last column.
+ */
 export const TRADE_OFF_RUNS = [4, 8, 16, 32, 64, 128];
 export const TRADE_OFF_FACTORS = [3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+/** What the grid says to a brief of more factors than its last column: "" for one it has a column for. */
+export const tradeOffBeyond = (k) =>
+  k > TRADE_OFF_FACTORS.at(-1)
+    ? `The grid shows fractions in ${TRADE_OFF_FACTORS[0]} to ${TRADE_OFF_FACTORS.at(-1)} factors; the page finds the fraction in your ${k} when it makes the design.`
+    : "";
 
 const F = FULL;
 const _ = null;
@@ -122,6 +137,29 @@ export const needsCentre = (designType, alpha, k) =>
 /** The analysis model's select value for a model of the terms the reader ticks. */
 export const CHOSEN_TERMS = "terms";
 
+/** The most factors a study has; mirrors bootstrap.MAX_FACTORS. */
+export const MAX_FACTORS = 40;
+
+/** The most factors the page models the interactions of; mirrors bootstrap.MAX_INTERACTION_FACTORS. */
+export const MAX_INTERACTION_FACTORS = 12;
+
+/** The named models with every two-factor interaction, which a study of more factors than that is not fitted with. */
+export const INTERACTION_MODELS = ["interactions", "quadratic"];
+
+/** Whether a study of k factors is fitted for its main effects, or the terms the reader names, and nothing more. */
+export const screensOnly = (k) => k > MAX_INTERACTION_FACTORS;
+
+/**
+ * What the page says of a study of k factors, more than it models the interactions of: the aims and the models
+ * it keeps to, and why. "" for fewer factors. ``where`` is "brief" for the aim, or "learn" for the model.
+ */
+export function screeningSentence(k, where) {
+  if (!screensOnly(k)) return "";
+  const why = `${k} factors have ${(k * (k - 1)) / 2} two-factor interactions, more than a screening design has runs.`;
+  if (where === "learn") return `Past ${MAX_INTERACTION_FACTORS} factors, Learn fits the main effects, or the terms you choose: ${why}`;
+  return `Past ${MAX_INTERACTION_FACTORS} factors, a study finds which factors matter, and a fraction is made at resolution III or IV: ${why}`;
+}
+
 /** Every way of picking `size` of the items, in order: the pairs or triples of factors for interactions. */
 export function combinations(items, size) {
   if (size === 0) return [[]];
@@ -131,18 +169,21 @@ export function combinations(items, size) {
 /**
  * Every term a model of these factors may hold, as the page lists them to tick: {term, label, group},
  * where a term is a list of factor names: one for a main effect, two or three for an interaction,
- * and one name twice for a square, as bootstrap.py reads them.
+ * and one name twice for a square, as bootstrap.py reads them. Past MAX_INTERACTION_FACTORS factors,
+ * whose interactions are too many to list (40 factors have 9880 of three), the interactions listed are
+ * those the reader named: the ones in ``named``.
  */
-export function candidateTerms(factors) {
+export function candidateTerms(factors, named = []) {
   const names = factors.map((f) => f.name);
   const group = (label, terms) => terms.map((term) => ({ term, label: termLabel(term), group: label }));
-  return [
-    ...group("Main effects", names.map((n) => [n])),
-    ...group("Two-factor interactions", combinations(names, 2)),
-    ...group("Three-factor interactions", combinations(names, 3)),
-    ...group("Squares", squared(factors)),
-  ];
+  const interactions = screensOnly(names.length)
+    ? group("Interactions you name", named.filter((term) => term.length > 1 && term[0] !== term[1] && term.every((n) => names.includes(n))))
+    : [...group("Two-factor interactions", combinations(names, 2)), ...group("Three-factor interactions", combinations(names, 3))];
+  return [...group("Main effects", names.map((n) => [n])), ...interactions, ...group("Squares", squared(factors))];
 }
+
+/** The interaction of two factors as a term, its factors in the design's order; null for a factor and itself. */
+export const interactionOf = (a, b, names) => (a === b ? null : [a, b].sort((x, y) => names.indexOf(x) - names.indexOf(y)));
 
 /** The squares a model may hold: one per numeric factor, since a categorical one is +1 at both its levels. */
 const squared = (factors) => factors.filter((f) => !isCategorical(f)).map((f) => [f.name, f.name]);
@@ -1462,6 +1503,15 @@ export const FILTER_CORNERS_FROM = 5;
 
 /** The most rows of corners shown at once; more come on request. */
 export const CORNERS_SHOWN = 32;
+
+/** The most numeric factors whose corners the table lists for marking; mirrors bootstrap.PROBE_FACTORS. */
+export const PROBE_FACTORS = 8;
+
+/** What the panel says in place of the table of corners for more numeric factors than it lists; "" for fewer. */
+export const cornersBeyond = (k) =>
+  k > PROBE_FACTORS
+    ? `The table of corners to mark lists up to ${PROBE_FACTORS} numeric factors: your ${k} have ${(2 ** k).toLocaleString("en")} corners, too many to mark one by one.`
+    : "";
 
 /**
  * The rows of the table of corners a reader's filters leave: each factor ``"low"``, ``"high"`` or

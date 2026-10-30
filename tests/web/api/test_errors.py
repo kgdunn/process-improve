@@ -78,6 +78,19 @@ def _foreign_file(_: Example) -> dict:
     return {"xlsx_base64": base64.b64encode(b"not a workbook").decode()}
 
 
+def _many(k: int) -> list[dict]:
+    """Return ``k`` factors, X1 to Xk, each from 0 to 1."""
+    return [{"name": f"X{i + 1}", "low": 0, "high": 1, "units": ""} for i in range(k)]
+
+
+def _screening(k: int, **request: object) -> dict:
+    """Return 16 two-level runs in ``k`` factors as the page holds a screening design, a result each, and more."""
+    spec = {"version": 1, "design_type": "plackett_burman", "factors": _many(k), "response": "y"}
+    rows = [[run, run, *((run >> j % 4) & 1 for j in range(k)), None] for run in range(16)]
+    columns = ["Std order", "Run order", *(f["name"] for f in _many(k)), "y"]
+    return {"spec": spec, "columns": columns, "rows": rows, "responses": [float(r % 5) for r in range(16)], **request}
+
+
 #: A 2^2 factorial in a temperature and a supplier, A or B, as the page holds its runs.
 SUPPLIED = {
     "spec": {
@@ -439,12 +452,12 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "too few factors for the design": (
         "api_make_design",
         lambda _: {"design_type": "dsd", "factors": factors_named("A", "B")},
-        "The Definitive screening (DSD) design takes 3 to 12 factors on this page; you have 2.",
+        "The Definitive screening (DSD) design takes 3 to 40 factors on this page; you have 2.",
     ),
     "more factors than a Taguchi array on this page takes": (
         "api_make_design",
-        lambda _: {"design_type": "taguchi", "factors": factors_named(*(f"X{i}" for i in range(13)))},
-        "The Taguchi orthogonal array design takes 2 to 12 factors on this page; you have 13.",
+        lambda _: {"design_type": "taguchi", "factors": factors_named(*(f"X{i}" for i in range(41)))},
+        "The Taguchi orthogonal array design takes 2 to 40 factors on this page; you have 41.",
     ),
     "a Taguchi array at levels the page does not offer": (
         "api_make_design",
@@ -564,6 +577,37 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         lambda _: {"design_type": "fractional_factorial", "factors": factors_named(*"ABCDEF"), "resolution": 6},
         "A fractional factorial in 6 factors can have resolution III to V on this page, not VI.",
+    ),
+    "resolution V past the factors whose interactions the page models": (
+        "api_make_design",
+        lambda _: {"design_type": "fractional_factorial", "factors": _many(13), "resolution": 5},
+        "A fractional factorial in 13 factors can have resolution III to IV on this page, not V.",
+    ),
+    "a fraction past 24 factors": (
+        "api_make_design",
+        lambda _: {"design_type": "fractional_factorial", "factors": _many(25)},
+        "The Fractional factorial (2-level) design takes 3 to 24 factors on this page; you have 25.",
+    ),
+    "a screening design past 40 factors": (
+        "api_make_design",
+        lambda _: {"design_type": "plackett_burman", "factors": _many(41)},
+        "The Plackett-Burman screening design takes 2 to 40 factors on this page; you have 41.",
+    ),
+    "the interactions of more than 12 factors": (
+        "api_analyze_runs",
+        lambda _: _screening(13, model="interactions"),
+        (
+            "Past 12 factors, the page fits the main effects, or the terms you choose: 13 factors have 78 two-factor "
+            "interactions."
+        ),
+    ),
+    "a comparison past 12 factors aimed at more than main effects": (
+        "api_candidates",
+        lambda _: {"factors": _many(13), "model": "main_quadratic"},
+        (
+            "Past 12 factors, a study aims to find which factors matter, and the designs are compared for their main "
+            "effects: 13 factors have 78 two-factor interactions."
+        ),
     ),
     # The runs the page sends back.
     "a design the page did not make": (
@@ -715,13 +759,14 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "The page sent best settings this page did not write.",
     ),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
-    "no design for these factors": (  # 13 factors, one more than any design on the page takes
+    "no design for these factors": (  # 41 factors, one more than any design on the page takes
         "api_candidates",
         lambda _: {
             "factors": [
-                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(12)),
+                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(40)),
                 {"name": "S", "low": "A", "high": "B"},
             ],
+            "model": "main_effects",
         },
         "None of the designs this page offers can be made for these factors.",
     ),
@@ -976,10 +1021,10 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         _make(
             design_type="given",
-            factors=[{"name": f"X{i}", "low": 0, "high": 1} for i in range(13)],
-            runs=[[0] * 13],
+            factors=[{"name": f"X{i}", "low": 0, "high": 1} for i in range(41)],
+            runs=[[0] * 41],
         ),
-        "Runs as given take 1 to 12 factors on this page; you have 13.",
+        "Runs as given take 1 to 40 factors on this page; you have 41.",
     ),
     "given: a block short": (
         "api_make_design",
