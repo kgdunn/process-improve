@@ -493,7 +493,9 @@ class Model(OLS):
 
         The returned object is the statsmodels summary instance, with the
         underlying ``self._OLS.summary()`` adjusted to label the residual
-        standard error row. The method does NOT print anything by itself;
+        standard error row and to leave out the date and time of the call,
+        so that the same fit gives the same summary. The method does NOT
+        print anything by itself;
         the top-level :func:`summary` wrapper handles screen output via its
         own ``show`` flag. The ``alpha`` and ``print_to_screen`` arguments
         are unused and kept for backwards compatibility.
@@ -523,6 +525,16 @@ class Model(OLS):
             smry.tables[0][7][1].data = se
             # smry.tables[0][7][0].data = se
             # smry.tables[0][7][1].data = se
+
+            # The time of the call is no fact about the model, and it made two summaries of one fit differ
+            # (#952): leave out the Date and Time cells, move the left-hand cells below them up, and drop
+            # the row that leaves empty.
+            top = smry.tables[0]
+            left = [(row[0].data, row[1].data) for row in top if row[0].data not in ("Date:", "Time:")]
+            for row, (label, value) in zip(top, left + [("", "")] * (len(top) - len(left)), strict=True):
+                row[0].data, row[1].data = label, value
+            while not "".join(str(cell.data) for cell in top[-1]).strip():
+                top.pop()
 
         return smry
 
