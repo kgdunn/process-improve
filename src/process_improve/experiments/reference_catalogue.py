@@ -705,18 +705,22 @@ def _extra_sums(out: dict, check: dict) -> dict[str, float]:
     model, as RS/Discover splits a quadratic's regression into its linear and non-linear parts.
     """
 
-    def explained(model: str | None) -> tuple[float, int]:
+    def explained(model: str | None) -> tuple[float, int, int | None]:
         if not model:
-            return 0.0, 0
+            return 0.0, 0, None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fitted = analyze_experiment(out["settings"], out["y"], model=model, analysis_type="anova")
         ss, _, df = _anova_sums({**fitted, "y": out["y"]})
-        return ss, df
+        return ss, df, fitted["model_summary"]["df_residual"]
 
-    ss_part, df_part = explained(check.get("part", check["model"]))
-    ss_after, df_after = explained(check.get("after"))
-    ss, df = ss_part - ss_after, df_part - df_after
+    ss_part, df_part, resid_part = explained(check.get("part", check["model"]))
+    ss_after, df_after, resid_after = explained(check.get("after"))
+    # The extra df is the residual df the part takes up beyond the after model. Counting ANOVA rows
+    # fails when only one of the two is read as a mixture: z1 + z2 + z3 - 1 holds the constant and
+    # has one 2-df blend row, z1 + z2 - 1 does not and keeps a row per term.
+    df_extra = df_part - df_after if resid_after is None or resid_part is None else resid_after - resid_part
+    ss, df = ss_part - ss_after, df_extra
     f_ratio = ss / df / out["model_summary"]["mse_residual"]
     p_value = float(f_distribution.sf(f_ratio, df, out["model_summary"]["df_residual"]))
     return {"sum_sq": ss, "mean_sq": ss / df, "F": f_ratio, "p_value": p_value}

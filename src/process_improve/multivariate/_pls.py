@@ -8,6 +8,7 @@ plotting bound as convenience methods after ``fit()``.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import time
 import typing
@@ -51,6 +52,7 @@ from ._cv_criteria import (
     _pseudo_validation_set,
     _PseudoValidationSettings,
 )
+from ._diagnostics import _t2_score_sd
 from ._diagnostics import (
     selectivity_ratio as _selectivity_ratio,
 )
@@ -84,7 +86,7 @@ def _check_md_method(settings: dict) -> None:
     An unrecognised value used to fall through to NIPALS silently, so a typo, or the
     projection-time name ``"scp"``, ran a different algorithm than the caller asked for.
     """
-    md_method = settings.get("md_method", "nipals").lower()
+    md_method = settings["md_method"].lower()
     if md_method not in _FIT_TIME_MD_METHODS:
         raise ValueError(
             f"md_method must be one of {sorted(_FIT_TIME_MD_METHODS)}; got '{md_method}'. "
@@ -142,7 +144,7 @@ def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
             f"un-centred on purpose? Pass warn_on_uncentred=False to silence this for "
             f"this model alone.",
             UncentredDataWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
         )
 
 
@@ -160,32 +162,85 @@ def _held_out_scores(model: PLS, x_train: np.ndarray, x_test: np.ndarray, n_comp
     components has no such score and stays NaN, as does one whose regression is singular.
     """
     a = n_components
-    loadings = model.x_loadings_.to_numpy(dtype=float)[:, :a]
-    weights = model.x_weights_.to_numpy(dtype=float)[:, :a]
+    loadings = model.x_loadings_.to_numpy()[:, :a]
+    weights = model.x_weights_.to_numpy()[:, :a]
     if np.isnan(x_train).any():
         guide = weights @ safe_inverse(loadings.T @ weights, what="(P'W of the smaller model)")
         scores = x_test @ guide
     else:  # the product with every column, then cut, as before #676, so complete data scores the same
-        guide = model.direct_weights_.to_numpy(dtype=float)
+        guide = model.direct_weights_.to_numpy()
         scores = (x_test @ guide)[:, :a]
         guide = guide[:, :a]
     gaps = np.isnan(x_test).any(axis=1)
     if not gaps.any():
         return scores
-    residuals = np.nan_to_num(x_train - model.scores_.to_numpy(dtype=float)[:, :a] @ loadings.T)
-    variances = np.asarray(model.explained_variance_, dtype=float)[:a]
+    residuals = np.nan_to_num(x_train - model.scores_.to_numpy()[:, :a] @ loadings.T)
+    variances = model.explained_variance_[:a]
     patterns, which = np.unique(~np.isnan(x_test[gaps]), axis=0, return_inverse=True)
     rows = np.flatnonzero(gaps)
     for k, observed in enumerate(patterns):
         if observed.sum() < a:
             continue
         try:
-            op = operator_for_pattern(loadings, guide, variances, observed, x_weights=weights, x_residuals=residuals)
+            # TSR, the default estimator, reads no weights (only SCP does).
+            op = operator_for_pattern(loadings, guide, variances, observed, x_residuals=residuals)
         except np.linalg.LinAlgError:
             continue
         mine = rows[which.ravel() == k]
         scores[mine] = x_test[np.ix_(mine, np.flatnonzero(observed))] @ op.matrix.T
     return scores
+
+
+def _direct_weights(x_weights: np.ndarray, x_loadings: np.ndarray) -> np.ndarray:
+    """Return the direct weights ``R = W (P'W)^-1`` [K x A], which score X directly: ``T = X R``."""
+    return x_weights @ safe_inverse(x_loadings.T @ x_weights, what="(x_loadings' @ x_weights)")
+
+
+def _standard_error(per_fold: np.ndarray) -> np.ndarray:
+    """Return the standard error of each row's mean over its folds (columns), ``ddof=1``.
+
+    A row is NaN in every fold or in none (a count that left a held-out row unpredicted
+    is NaN throughout), so its standard error is NaN or ``std / sqrt(folds)``; with a
+    single fold there is no spread to measure.
+    """
+    folds = per_fold.shape[1]
+    if folds < 2:
+        return np.full(per_fold.shape[0], np.nan)
+    return np.std(per_fold, axis=1, ddof=1) / np.sqrt(folds)
+
+
+def _back_to_units(*scalers: MCUVScaler | None) -> tuple[np.ndarray | float, np.ndarray | float]:
+    """Return ``(centre, scale)`` with ``units = scaled * scale + centre``, undoing ``scalers`` in the order given.
+
+    Each scaler maps ``u`` to ``(u - center_) / scale_``, so the one applied last is undone
+    first; a missing scaler is the identity.
+    """
+    centre: np.ndarray | float = 0.0
+    scale: np.ndarray | float = 1.0
+    for scaler in scalers:
+        if scaler is not None:
+            centre = centre * scaler.scale_.to_numpy() + scaler.center_.to_numpy()
+            scale = scale * scaler.scale_.to_numpy()
+    return centre, scale
+
+
+def _fit_fold(
+    model: PLS, X_train: pd.DataFrame, Y_train: pd.DataFrame, *, scale_inside_folds: bool
+) -> tuple[tuple[np.ndarray | float, np.ndarray | float], tuple[np.ndarray | float, np.ndarray | float]]:
+    """Fit a cross-validation fold's ``model``; return the centre and scale of X and of Y in its space.
+
+    With ``scale_inside_folds`` the training rows are autoscaled first. The model may centre
+    and scale them again (``scale=True``, or PRM's robust centre), so a block in the data's
+    units is ``scaled * scale + centre`` of the same block in the model's space through both
+    (#1027): the held-out rows are scored, and their predictions read, in the model's space.
+    """
+    fold_x = MCUVScaler().fit(X_train) if scale_inside_folds else None
+    fold_y = MCUVScaler().fit(Y_train) if scale_inside_folds else None
+    model.fit(
+        X_train if fold_x is None else fold_x.transform(X_train),
+        Y_train if fold_y is None else fold_y.transform(Y_train),
+    )
+    return _back_to_units(model._x_scaler, fold_x), _back_to_units(model._y_scaler, fold_y)
 
 
 class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
@@ -517,7 +572,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         A : int
             Number of components to extract.
         settings : dict
-            Algorithm settings with keys ``md_method``, ``md_tol``, ``md_max_iter``.
+            Loop settings with keys ``md_tol`` and ``md_max_iter``.
         sample_weight : np.ndarray of shape (N,), optional
             Row weights, non-negative finite floats. When provided, X and Y
             are ``sqrt(w)``-rescaled at NIPALS entry so the cross-products
@@ -531,26 +586,22 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         K = self.n_features_in_
         M = self.n_targets_
 
-        _check_md_method(settings)
-
-        Xd = np.asarray(X, dtype=float).copy()
-        Yd = np.asarray(Y, dtype=float).copy()
+        # The blocks as given, copied in C order whatever the layout pandas kept them in, so
+        # that every route to the same numbers sums them in the same order. Y is floats
+        # already; an integer X, unscaled when scale=False, gives the products floats would.
+        X_given, Y_given = np.asarray(X).copy(), np.asarray(Y).copy()
+        Xd, Yd = X_given, Y_given
 
         # Weighted fit (#394): sqrt(w)-rescale X and Y up front. The NIPALS
         # cross-products X' u, Y' t, X' X etc. all become weighted sums; the
-        # inner loop is otherwise unchanged. We keep X_orig / Y_orig around
-        # so we can rebuild original-scale scores after the loop (the
-        # alternative -- dividing the NIPALS-recovered scores by sqrt(w) --
-        # NaNs out at zero-weight rows, which the test plan explicitly
-        # requires to behave like "fit on the remaining half").
-        X_orig: np.ndarray | None = None
-        Y_orig: np.ndarray | None = None
+        # inner loop is otherwise unchanged. The blocks as given are kept to
+        # rebuild original-scale scores after the loop (the alternative --
+        # dividing the NIPALS-recovered scores by sqrt(w) -- NaNs out at
+        # zero-weight rows, which the test plan explicitly requires to behave
+        # like "fit on the remaining half").
         if sample_weight is not None:
-            sqrt_w = np.sqrt(sample_weight).reshape(-1, 1)
-            X_orig = Xd.copy()
-            Y_orig = Yd.copy()
-            Xd = Xd * sqrt_w
-            Yd = Yd * sqrt_w
+            root = np.sqrt(sample_weight)[:, np.newaxis]
+            Xd, Yd = X_given * root, Y_given * root
 
         self._scores = np.zeros((N, A))
         self.y_scores_ = np.zeros((N, A))
@@ -559,27 +610,22 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self._x_loadings = np.zeros((K, A))
         self.y_loadings_ = np.zeros((M, A))
 
-        self.fitting_info_ = {
-            "timing": np.zeros(A) * np.nan,
-            "iterations": np.zeros(A) * np.nan,
-        }
+        # Every component fills its entry; a fit that stops early raises.
+        timing, iterations = np.zeros(A), np.zeros(A)
+        self.fitting_info_ = {"timing": timing, "iterations": iterations}
 
         reach = y_reach([Xd], Yd)
-        exhausted = False
+        exhausted = False  # pragma: no mutate - None reads as False in the or below
         for a in range(A):
             start_time = time.time()
-            itern = 0
 
-            start_SSX_col = ssq(Xd, axis=0)
-            start_SSY_col = ssq(Yd, axis=0)
-
-            if np.sum(start_SSX_col) < epsqrt:
+            if ssq(Xd) < epsqrt:
                 emsg = (
                     "There is no variance left in the data array for X: cannot "
                     f"compute any more components beyond component {a}."
                 )
                 raise NotEnoughVarianceError(emsg)
-            if np.sum(start_SSY_col) < epsqrt:
+            if ssq(Yd) < epsqrt:
                 emsg = (
                     "There is no variance left in the data array for Y: cannot "
                     f"compute any more components beyond component {a}."
@@ -596,20 +642,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # non-degenerate seed, but the highest-variance column needs fewer
             # iterations and is more robust. The deterministic sign convention
             # applied below makes the fitted sign independent of this seed.
-            # (Replace NaN with 0 for the missing-data path.)
-            start_col = int(np.argmax(ssq(target, axis=0)))
-            u_a_guess = target[:, [start_col]].copy()
-            u_a_guess[np.isnan(u_a_guess)] = 0
-            u_a = u_a_guess + 1.0
+            # A missing cell of the seed starts at 0.
+            u_a = np.nan_to_num(target[:, [int(np.argmax(ssq(target, axis=0)))]]) + 1.0
 
-            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
-            # offset that primes the loop can be negligible relative to a
-            # large-magnitude seed column (e.g. entries ~1e154), and the relative
-            # criterion (#504) would then report convergence before ``t_a`` /
-            # ``w_a`` / ``c_a`` were ever assigned, raising UnboundLocalError
-            # below instead of fitting.
-            while itern == 0 or not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
-                u_a_guess = u_a.copy()
+            # The first pass always runs: the ``+ 1.0`` offset that primes the loop
+            # can be negligible relative to a large-magnitude seed column (e.g.
+            # entries ~1e154), and the relative criterion (#504) would then report
+            # convergence before ``t_a`` / ``w_a`` / ``c_a`` were ever assigned.
+            # terminate_check ends the loop by md_max_iter at the latest.
+            for itern in itertools.count(1):
+                u_a_guess = u_a
 
                 # 1: w_a = X'u_a / (u_a'u_a)
                 w_a = quick_regress(Xd, u_a, per="column")
@@ -628,16 +670,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 # 5: u_a = Y c_a / (c_a'c_a)
                 u_a = quick_regress(target, c_a, per="row")
 
-                itern += 1
+                if terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
+                    break
 
             if exhausted:  # the Y side of a component along X: a Y-loading of about zero, and no Y-score
                 c_a = quick_regress(Yd, t_a, per="column")
                 u_a = np.zeros_like(t_a)
 
-            timing_arr = typing.cast("np.ndarray", self.fitting_info_["timing"])
-            iterations_arr = typing.cast("np.ndarray", self.fitting_info_["iterations"])
-            timing_arr[a] = time.time() - start_time
-            iterations_arr[a] = itern
+            timing[a] = time.time() - start_time
+            iterations[a] = itern
             logger.debug(
                 "PLS NIPALS: component %d converged in %d iterations (tol=%g)",
                 a + 1,
@@ -654,7 +695,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     f"PLS NIPALS: component {a + 1} reached the maximum number of "
                     f"iterations ({settings['md_max_iter']}) without converging.",
                     SpecificationWarning,
-                    stacklevel=2,
+                    stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
                 )
 
             # 6: Compute loadings and deflate
@@ -663,13 +704,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Yd = Yd - np.dot(t_a, c_a.T)
 
             # Flip signs so largest-magnitude loading element is positive
-            max_el_idx = np.argmax(np.abs(p_a))
-            if np.sign(p_a[max_el_idx]) < 1:
-                t_a *= -1.0
-                u_a *= -1.0
-                w_a *= -1.0
-                p_a *= -1.0
-                c_a *= -1.0
+            sign = -1.0 if np.sign(p_a[np.argmax(np.abs(p_a))]) < 1 else 1.0
+            t_a, u_a, w_a, p_a, c_a = sign * t_a, sign * u_a, sign * w_a, sign * p_a, sign * c_a
 
             self._scores[:, a] = t_a.flatten()
             self.y_scores_[:, a] = u_a.flatten()
@@ -687,20 +723,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # zero-weight rows (which NIPALS leaves as identically zero, but
         # whose natural projected score is X[i] @ direct_weights).
         if sample_weight is not None:
-            assert X_orig is not None
-            assert Y_orig is not None
-            direct_weights = self._x_weights @ safe_inverse(
-                self._x_loadings.T @ self._x_weights, what="(x_loadings' @ x_weights)"
-            )
-            self._scores = X_orig @ direct_weights
+            self._scores = X_given @ _direct_weights(self._x_weights, self._x_loadings)
             # y_scores are diagnostic only; the deflation identity
             # u_a = Y_a c_a / (c_a' c_a) gives the natural y-side scores
             # using the unweighted (deflated) Y.
-            Y_deflated = Y_orig.copy()
+            Y_deflated = Y_given
             for a in range(A):
                 c_a = self.y_loadings_[:, [a]]
                 denom = float((c_a.T @ c_a).item())
-                if denom > epsqrt:  # a component along X alone (#913) has a Y-loading of about zero
+                # A component along X alone (#913) has a Y-loading of about zero.
+                if denom > epsqrt:  # pragma: no mutate - >= differs only at a squared length of exactly epsqrt
                     self.y_scores_[:, a] = (Y_deflated @ c_a / denom).flatten()
                 Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
 
@@ -766,15 +798,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 f"standard deviations after {imputation.rounds} rounds (tol={settings['md_tol']:g}). "
                 "Raise max_iter, or loosen tol if that change is already negligible for your data.",
                 SpecificationWarning,
-                stacklevel=3,
+                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
 
+        # The scalers read only the values, and the rows of a weight above 0, so the completed
+        # blocks need their column labels (the scalers' feature names) and not their row labels.
         n_x = X.shape[1]
-        completed_x = pd.DataFrame(completed[:, :n_x], index=X.index, columns=X.columns)
-        completed_y = pd.DataFrame(completed[:, n_x:], index=Y.index, columns=Y.columns)
+        completed_x = pd.DataFrame(completed[:, :n_x], columns=X.columns)
+        completed_y = pd.DataFrame(completed[:, n_x:], columns=Y.columns)
         x_scaled, y_scaled = self._rescaled(completed_x, completed_y, sample_weight)
-        complete_data = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
-        self._fit_nipals(x_scaled, y_scaled, A, complete_data, sample_weight=sample_weight)
+        self._fit_nipals(x_scaled, y_scaled, A, settings, sample_weight=sample_weight)
         self.fitting_info_.update(
             {
                 "md_method": method,
@@ -792,11 +825,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if self._centres_and_scales():
             self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
         x_scaled, y_scaled = self._scaled_as_fitted(X, Y)
-        return x_scaled.to_numpy(dtype=float), y_scaled.to_numpy(dtype=float)
+        return x_scaled.to_numpy(), y_scaled.to_numpy()
 
     def _scaled_as_fitted(self, X: pd.DataFrame, Y: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Put X and Y into the current scaled space, with the scalers as they stand."""
-        if self._x_scaler is None or self._y_scaler is None:
+        # The two scalers are set and cleared together; the second test narrows the type for mypy.
+        if self._x_scaler is None or self._y_scaler is None:  # pragma: no mutate - "and" is the same
             return X, Y
         return self._x_scaler.transform(X), self._y_scaler.transform(Y)
 
@@ -877,11 +911,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
-        # Accept 1-D Y (the shape sklearn Pipelines pass for single-target
-        # regression) by promoting to (N, 1) so the rest of fit can rely on
-        # the 2-D shape.
-        if hasattr(Y, "ndim") and Y.ndim == 1:
-            Y = Y.to_frame() if isinstance(Y, pd.Series) else pd.DataFrame(np.asarray(Y).reshape(-1, 1))
+        # Accept a Series for Y by promoting it to one column with its own labels; a 1-D array
+        # becomes one column below, labelled like X's rows as a 2-D array is (#1027).
+        if isinstance(Y, pd.Series):
+            Y = Y.to_frame()
 
         # Validate sample_weight up front so the error path is the same
         # regardless of whether the caller passes ndarray or list / scalar.
@@ -898,34 +931,23 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # ColumnTransformer knob rather than `.toarray()` (#399).
         _reject_sparse(X, "PLS")
         # Capture DataFrame metadata before validate_data converts X to ndarray
-        # so the downstream DataFrame view keeps its row/column labels.
+        # so the downstream DataFrame view keeps its row/column labels; pandas
+        # numbers an array's rows and columns from 0.
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
         feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
-            self,
-            X,
-            reset=True,
-            accept_sparse=False,
-            ensure_min_samples=2,
-            ensure_min_features=1,
-            dtype="numeric",
-            ensure_all_finite="allow-nan",
-        )
-        if feature_columns is None:
-            feature_columns = pd.RangeIndex(X_arr.shape[1])  # type: ignore[assignment]
-        if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
+        X_arr = validate_data(self, X, ensure_min_samples=2, ensure_all_finite="allow-nan")
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
         if not isinstance(Y, pd.DataFrame):
             Y = pd.DataFrame(Y, index=sample_index)
+        # The responses as floats, a pandas missing value (pd.NA) as NaN, as validate_data reads X:
+        # without scaling nothing else converts them, and pd.NA raised TypeError (#1027). Columns
+        # of floats are left as they are: a copy can change the memory layout, and with it the
+        # order the scaler sums them in, so the fit would differ in its last digits from one
+        # scaled outside the model.
+        if not (Y.dtypes == np.float64).all():
+            Y = Y.astype(float)  # pragma: no mutate - pandas reads astype(None) as float64 too
 
         self.n_samples_: int = X.shape[0]
-        # n_features_in_ is set by validate_data; reassert for clarity.
-        self.n_features_in_: int = X.shape[1]
-        # Fitted flag, defaulted here (not in __init__) so __init__ sets only the
-        # constructor parameters, per sklearn convention (ENG-07). _fit_nipals
-        # flips it to True if missing data is detected.
-        self.has_missing_data_ = False
         Ny: int = Y.shape[0]
         self.n_targets_: int = Y.shape[1]
         if Ny != self.n_samples_:
@@ -939,7 +961,6 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         N = self.n_samples_
         K = self.n_features_in_
-        M = self.n_targets_
 
         # The remainder of fit() uses the pandas DataFrame API (.isna / .index /
         # .columns); the NIPALS core in _fit_nipals already np.asarray-copies the
@@ -980,15 +1001,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 f"the minimum of either the number of rows ({N}) or "
                 f"the number of columns ({K})."
             )
-            warnings.warn(warn, SpecificationWarning, stacklevel=2)
+            warnings.warn(
+                warn,
+                SpecificationWarning,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+            )
             A = min_dim
         # The resolved (possibly clamped) component count is a fitted attribute;
         # the constructor parameter n_components is left exactly as the user set
         # it, per the sklearn clone/get_params contract (#505).
         self.n_components_ = A
 
-        if np.any(Y.isna()) or np.any(X.isna()):
-            self.has_missing_data_ = True
+        self.has_missing_data_ = bool(Y.isna().to_numpy().any() or X.isna().to_numpy().any())
 
         # One resolution, whether or not the data has gaps, through the resolver every
         # iterative estimator shares (#588). ``tol`` and ``max_iter`` supply the values.
@@ -1003,7 +1027,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # NIPALS, the cheapest path: it handles per-cell NaN directly via skipna sums
         # inside its iterations, with no imputation. The resolved settings stay local:
         # mutating the constructor parameter would leak into clone() (#505).
-        settings: dict[str, typing.Any] = {"md_method": "nipals"}
+        settings: dict[str, typing.Any] = {"md_method": "nipals"}  # pragma: no mutate - read lowercased below
         settings.update(
             resolve_loop_settings(
                 tol=self.tol,
@@ -1020,20 +1044,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
-        # R = W(P'W)^{-1} [KxA]; useful since T = XR
-        direct_weights = self._x_weights @ safe_inverse(
-            self._x_loadings.T @ self._x_weights, what="(x_loadings' @ x_weights)"
-        )
+        direct_weights = _direct_weights(self._x_weights, self._x_loadings)
         # beta = RC' [KxM]: direct link from k-th X variable to m-th Y variable.
         # NIPALS ran in the (optionally) scaled space, so this beta maps scaled X
         # to scaled Y. Rescale to the original data units so it stays the
         # documented raw-X -> raw-Y relationship (and matches sklearn's coef_):
         # beta_orig[k, m] = beta_scaled[k, m] * y_scale[m] / x_scale[k].
-        beta_coefficients = direct_weights @ self.y_loadings_.T
-        if self._x_scaler is not None and self._y_scaler is not None:
-            x_scale = self._x_scaler.scale_.to_numpy()[:, np.newaxis]
-            y_scale = self._y_scaler.scale_.to_numpy()[np.newaxis, :]
-            beta_coefficients = beta_coefficients * (y_scale / x_scale)
+        _, x_scale = _back_to_units(self._x_scaler)
+        y_centre, y_scale = _back_to_units(self._y_scaler)
+        T, P, C = self._scores, self._x_loadings, self.y_loadings_
+        beta_coefficients = direct_weights / np.atleast_1d(x_scale)[:, np.newaxis] @ C.T * y_scale
 
         component_names = list(range(1, A + 1))
         # ENG-18: scores_ / x_weights_ / x_loadings_ / spe_ are stored as private
@@ -1044,116 +1064,64 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self._component_names = component_names
         self.y_scores_ = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
         self.y_weights_ = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
-        self.y_loadings_ = pd.DataFrame(self.y_loadings_, index=Y.columns, columns=component_names)
-        predictions = pd.DataFrame(self._scores @ self.y_loadings_.values.T, index=Y.index, columns=Y.columns)
-        if self._y_scaler is not None:
-            # NIPALS predictions are in scaled-Y space; report on the original scale.
-            predictions = self._y_scaler.inverse_transform(predictions)
-        self.predictions_ = predictions
+        self.y_loadings_ = pd.DataFrame(C, index=Y.columns, columns=component_names)
+        # NIPALS predictions are in scaled-Y space; report on the original scale.
+        self.predictions_ = pd.DataFrame(T @ C.T * y_scale + y_centre, index=Y.index, columns=Y.columns)
         self.direct_weights_ = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
-        # ``max(1, N-1)`` -- see SEC-21 (#270) sub-item 6.
-        self.explained_variance_ = np.diag(self._scores.T @ self._scores) / max(1, N - 1)
+        # fit refuses fewer than two rows (ensure_min_samples=2), so N - 1 is at least 1.
+        self.explained_variance_ = np.diag(T.T @ T) / (N - 1)
         # The training residual block, kept for the trimmed-score-regression
         # estimator in ``project`` / ``projection_matrix``: TSR regresses on
         # the covariance of the observed columns, which is the model plane
         # plus this spread around it. Kept as E (N x K) rather than its K x K
         # Gram, because the estimator contracts it to A columns straight away.
         # A missing training cell has no residual, so it enters as zero.
-        self._x_residuals = np.nan_to_num(X.to_numpy(dtype=float) - self._scores @ self._x_loadings.T)
+        # Y is floats; an integer X, unscaled, subtracts and sums as floats would.
+        X_values, Y_values = X.to_numpy(), Y.to_numpy()
+        self._x_residuals = np.nan_to_num(X_values - T @ P.T)
         self.scaling_factor_for_scores_ = pd.Series(
             np.sqrt(self.explained_variance_),
             index=component_names,
             name="Standard deviation per score",
         )
-        self.hotellings_t2_ = pd.DataFrame(
-            np.zeros(shape=(N, A)),
-            columns=component_names,
-            index=X.index.copy(),
-        )
-        self._spe = np.zeros((N, A))
-        self.r2_per_component_ = pd.Series(
-            np.zeros(shape=(A)),
-            index=component_names,
-            name="Output R² per component",
-        )
-        self.r2_cumulative_ = pd.Series(
-            np.zeros(shape=(A)),
-            index=component_names,
-            name="Output cumulative R²",
-        )
-        self.r2_per_variable_ = pd.DataFrame(
-            np.zeros(shape=(K, A)),
-            index=X.columns.copy(),
-            columns=component_names,
-        )
-        self.r2y_per_variable_ = pd.DataFrame(
-            np.zeros(shape=(M, A)),
-            index=Y.columns.copy(),
-            columns=component_names,
-        )
-        self.rmse_ = pd.DataFrame(
-            np.zeros(shape=(M, A)),
-            index=Y.columns.copy(),
-            columns=component_names,
-        )
-
-        Xd = X.copy()
-        Yd = Y.copy()
-        prior_SSX_col = ssq(Xd.values, axis=0)
-        prior_SSY_col = ssq(Yd.values, axis=0)
-        base_variance_Y = np.sum(prior_SSY_col)
         # A component with ~0 score standard deviation (rank-deficient fit)
-        # contributes 0/0 to T²; skip it rather than dividing by ~zero and
-        # poisoning T² with inf/NaN (mirrors the PCA fit path).
-        scaling_factors = self.scaling_factor_for_scores_.to_numpy()
-        t2_tol = epsqrt * max(1.0, float(np.max(scaling_factors, initial=0.0)))
-        for a in range(A):
-            t2_contribution = (
-                (self.scores_.iloc[:, a] / scaling_factors[a]) ** 2 if scaling_factors[a] > t2_tol else 0.0
-            )
-            self.hotellings_t2_.iloc[:, a] = self.hotellings_t2_.iloc[:, max(0, a - 1)] + t2_contribution
-            Xd = Xd - self.scores_.iloc[:, [a]] @ self.x_loadings_.iloc[:, [a]].T
-            y_hat = self.scores_.iloc[:, 0 : (a + 1)] @ self.y_loadings_.iloc[:, 0 : (a + 1)].T
-            row_SSX = ssq(Xd.values, axis=1)
-            col_SSX = ssq(Xd.values, axis=0)
-            # R2Y as 1 - SSE/SST, matching the convention already used on the
-            # X side below. The previous SS(Yhat)/SS(Y) form is identical when
-            # the scores are orthogonal, but with missing data they are not,
-            # and SS(Yhat) can DECREASE as a component is added. That made
-            # r2_per_component_ negative, which drives the radicand inside
-            # vip() negative and returns NaN importance scores.
-            residual_Y = Yd.values - y_hat.values
-            col_SSE_Y = ssq(residual_Y, axis=0)
-            self.r2_cumulative_.iloc[a] = 1.0 - ssq(residual_Y) / base_variance_Y
-            if a > 0:
-                self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a] - self.r2_cumulative_.iloc[a - 1]
-            else:
-                self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a]
+        # contributes 0/0 to T²; _t2_score_sd leaves it out, as PCA does, rather
+        # than dividing by ~zero and poisoning T² with inf/NaN.
+        score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
+        self.hotellings_t2_ = pd.DataFrame(
+            np.cumsum((T / score_sd) ** 2, axis=1), index=X.index, columns=component_names
+        )
 
-            self._spe[:, a] = np.sqrt(row_SSX)
-
-            # Per-variable R^2 is undefined for a column with no variance to
-            # explain; emit NaN there. SEC-21 (#270) sub-item 4.
-            self.r2_per_variable_.iloc[:, a] = np.where(
-                prior_SSX_col > 0, 1 - col_SSX / np.where(prior_SSX_col > 0, prior_SSX_col, 1.0), np.nan
-            )
-            # Same residual convention as the cumulative R2Y above and as the
-            # X side: identical for complete data, but well behaved when
-            # missing data makes the scores non-orthogonal.
-            self.r2y_per_variable_.iloc[:, a] = np.where(
-                prior_SSY_col > 0, 1 - col_SSE_Y / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
-            )
-            # rmse_ is reported on the ORIGINAL Y scale. NIPALS runs in the
-            # (optionally) scaled space, so rescale each target's RMSE by its Y
-            # standard deviation when scale=True. This keeps rmse_ consistent
-            # with predictions_ / diagnose().y_hat (also original-scale) and with
-            # prediction_interval(), which uses rmse_ as the residual error term.
-            residuals_y = Yd.to_numpy() - y_hat.to_numpy()
-            rmse_a = np.sqrt(np.mean(residuals_y**2, axis=0))
-            if self._y_scaler is not None:
-                rmse_a = rmse_a * self._y_scaler.scale_.to_numpy()
-            self.rmse_.iloc[:, a] = rmse_a
+        # What is left of X and of Y after the first a components, for a = 1..A. Every
+        # sum skips a missing cell. R2Y is 1 - SSE/SST, the convention of the X side:
+        # the SS(Yhat)/SS(Y) form is identical when the scores are orthogonal, but with
+        # missing data they are not, and SS(Yhat) can DECREASE as a component is added,
+        # which made r2_per_component_ negative and vip() NaN. Per-variable R^2 is
+        # undefined for a column with no variance to explain: NaN there, SEC-21 (#270).
+        x_total, y_total = ssq(X_values, axis=0), ssq(Y_values, axis=0)
+        spe, r2x, r2y, r2_cumulative, rmse = [], [], [], [], []
+        for a in range(1, A + 1):
+            x_left = X_values - T[:, :a] @ P[:, :a].T
+            y_left = Y_values - T[:, :a] @ C[:, :a].T
+            spe.append(np.sqrt(ssq(x_left, axis=1)))
+            r2x.append(1 - ssq(x_left, axis=0) / np.where(x_total > 0, x_total, np.nan))
+            r2y.append(1 - ssq(y_left, axis=0) / np.where(y_total > 0, y_total, np.nan))
+            r2_cumulative.append(1 - ssq(y_left) / np.sum(y_total))
+            # Over the observed cells, as the R2 is: one missing Y cell made its column NaN (#1027).
+            rmse.append(np.sqrt(np.nanmean(y_left**2, axis=0)))
+        self._spe = np.column_stack(spe)
+        self.r2_cumulative_ = pd.Series(r2_cumulative, index=component_names, name="Output cumulative R²")
+        self.r2_per_component_ = pd.Series(
+            np.diff(r2_cumulative, prepend=0.0), index=component_names, name="Output R² per component"
+        )
+        self.r2_per_variable_ = pd.DataFrame(np.column_stack(r2x), index=X.columns, columns=component_names)
+        self.r2y_per_variable_ = pd.DataFrame(np.column_stack(r2y), index=Y.columns, columns=component_names)
+        # rmse_ is reported on the ORIGINAL Y scale, consistent with predictions_,
+        # diagnose().y_hat and prediction_interval(), which uses it as the residual error.
+        self.rmse_ = pd.DataFrame(
+            np.column_stack(rmse) * np.atleast_1d(y_scale)[:, np.newaxis], index=Y.columns, columns=component_names
+        )
 
         return self
 
@@ -1172,30 +1140,40 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         X_scores : pd.DataFrame of shape (n_samples, n_components)
             Projected X data (scores).
         """
+        return self._scaled_rows(X) @ self.direct_weights_
+
+    def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
+        """Return new rows checked against the fit, in the space the model was fitted in.
+
+        Every method that takes new rows reads them through here. A DataFrame's string column
+        labels are matched by name, as in :func:`_align_to_fit_features`; any other columns are
+        read by position, as ``validate_data`` and the scaler read them, so the rows are the same
+        values to every method whatever their labels and whether or not the model scales. A
+        DataFrame keeps its row labels; pandas numbers an array's rows from 0.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            New rows; NaN marks a missing cell.
+
+        Returns
+        -------
+        pd.DataFrame of shape (n_samples, n_features)
+            The rows, scaled as the fit scaled its own, columns labelled as fitted.
+        """
         check_is_fitted(self, "direct_weights_")
-        # Realign reordered columns before validate_data (sklearn checks
-        # feature-name *order*, _align_to_fit_features only needs set equality).
+        # sklearn's validate_data(reset=False) checks feature-name *order*; _align_to_fit_features
+        # only needs set equality, so a reordered DataFrame is put in the fitted order first.
         if isinstance(X, pd.DataFrame):
             X = _align_to_fit_features(X, self._feature_names)
-        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,
-            reset=False,
-            accept_sparse=False,
-            dtype="numeric",
+            reset=False,  # pragma: no mutate - validate_data reads reset=None as False
             ensure_all_finite="allow-nan",
         )
-        if feature_columns is None:
-            feature_columns = self._feature_names
-        if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
-        X_df = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
-        if self._x_scaler is not None:
-            # Project in the same (scaled) space the model was fit in.
-            X_df = self._x_scaler.transform(X_df)
-        return X_df @ self.direct_weights_
+        rows = pd.DataFrame(X_arr, index=X.index if isinstance(X, pd.DataFrame) else None, columns=self._feature_names)
+        return rows if self._x_scaler is None else self._x_scaler.transform(rows)
 
     def fit_transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:
         """Fit the model and return X scores.
@@ -1315,35 +1293,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result.spe             # SPE for each new observation
         >>> result.hotellings_t2   # T² for each new observation
         """
-        check_is_fitted(self, "scores_")
-        # Realign reordered DataFrame columns before validate_data.
-        if isinstance(X, pd.DataFrame):
-            X = _align_to_fit_features(X, self._feature_names)
-        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
-            self,
-            X,
-            reset=False,
-            accept_sparse=False,
-            dtype="numeric",
-            ensure_all_finite="allow-nan",
-        )
-        if feature_columns is None:
-            feature_columns = self._feature_names
-        if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
-        X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
-        if self._x_scaler is not None:
-            # Move X into the scaled space so scores, T², SPE and y_hat are all
-            # computed consistently with how the model was fit.
-            X = self._x_scaler.transform(X)
-
+        # Scores, T², SPE and y_hat are all computed in the space the model was fitted in.
+        X = self._scaled_rows(X)
         scores = X @ self.direct_weights_
 
-        # Hotelling's T² (cumulative over all components)
-        t2_values = np.sum(np.power((scores / self.scaling_factor_for_scores_.to_numpy()), 2), axis=1)
-        t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
+        # Hotelling's T² (cumulative over all components), leaving out a component fit leaves out (#1026)
+        # A Series of the scores' row labels: the DataFrame's row sums carry them.
+        t2 = pd.Series(((scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2).sum(axis=1))
+        t2.name = "Hotelling's T²"
 
         # SPE: residual after reconstructing X from its scores. Reconstruct in NumPy so the
         # feature columns stay aligned with X: a DataFrame ``scores @ self._x_loadings.T`` product
@@ -1360,7 +1317,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
 
-    def project(self, X: DataMatrix, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
+    def project(
+        self,
+        X: DataMatrix,
+        *,
+        method: str = "tsr",  # pragma: no mutate - _validate_method lowercases it, so "TSR" is the same default
+        ridge: float = 0.0,
+    ) -> Bunch:
         """Estimate scores, prediction and diagnostics for rows with missing values.
 
         Whereas :meth:`transform` and :meth:`diagnose` propagate NaN into the
@@ -1412,37 +1375,22 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             against limits built from the same missingness pattern, not the
             full-observation limits.
         """
-        check_is_fitted(self, "direct_weights_")
-        if isinstance(X, pd.DataFrame):
-            X = _align_to_fit_features(X, self._feature_names)
-        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
-            self,
-            X,
-            reset=False,
-            accept_sparse=False,
-            dtype="numeric",
-            ensure_all_finite="allow-nan",
-        )
-        if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
-        X_df = pd.DataFrame(X_arr, index=sample_index, columns=self._feature_names)
-        if self._x_scaler is not None:
-            # Missing entries survive the scaling as NaN, so the pattern of
-            # observed columns is unchanged by this step.
-            X_df = self._x_scaler.transform(X_df)
+        # Missing entries survive the scaling as NaN, so the pattern of observed columns is unchanged.
+        X_df = self._scaled_rows(X)
+        sample_index = X_df.index
         raw = project_rows(
             self._x_loadings,
-            self.direct_weights_.to_numpy(dtype=float),
-            np.asarray(self.explained_variance_, dtype=float),
-            X_df.to_numpy(dtype=float),
+            self.direct_weights_.to_numpy(),
+            self.explained_variance_,
+            X_df.to_numpy(),
             method=method,
             ridge=ridge,
             x_weights=self._x_weights,
             x_residuals=getattr(self, "_x_residuals", None),
         )
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
+        # A component fit leaves out of T² is left out here too (#1026).
+        s = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
         t2 = pd.Series(np.sum((raw.scores / s) ** 2, axis=1), index=sample_index, name="Hotelling's T2")
         y_hat = scores @ self.y_loadings_.T
         if self._y_scaler is not None:
@@ -1456,7 +1404,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             n_observed=pd.Series(raw.n_observed, index=sample_index, name="n_observed"),
         )
 
-    def projection_matrix(self, observed: object, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
+    def projection_matrix(
+        self,
+        observed: object,
+        *,
+        method: str = "tsr",  # pragma: no mutate - _validate_method lowercases it, so "TSR" is the same default
+        ridge: float = 0.0,
+    ) -> Bunch:
         """Build the fixed linear operator mapping observed columns to score estimates.
 
         For a fixed missingness pattern, every estimator in :meth:`project`
@@ -1487,8 +1441,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         mask = coerce_observed_mask(observed, self._feature_names)
         op = operator_for_pattern(
             self._x_loadings,
-            self.direct_weights_.to_numpy(dtype=float),
-            np.asarray(self.explained_variance_, dtype=float),
+            self.direct_weights_.to_numpy(),
+            self.explained_variance_,
             mask,
             method=method,
             ridge=ridge,
@@ -1606,14 +1560,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         elif isinstance(y_desired, (pd.Series, dict)):
             y_des_df = pd.Series(y_desired).reindex(target_names).to_frame().T
         else:
-            y_arr = np.atleast_1d(np.asarray(y_desired, dtype=float)).reshape(1, -1)
+            y_arr = np.atleast_2d(np.asarray(y_desired, dtype=float).ravel())
             if y_arr.shape[1] != n_targets:
                 raise ValueError(
                     f"y_desired has {y_arr.shape[1]} value(s); expected {n_targets} to match the fitted "
                     f"target(s): {list(target_names)}."
                 )
             y_des_df = pd.DataFrame(y_arr, columns=target_names)
-        y_des_df.index = [0]
         if y_des_df.isna().any(axis=None):
             raise ValueError(f"y_desired is missing value(s) for target(s): {list(target_names)}.")
 
@@ -1629,9 +1582,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         # Null-space basis: score directions g with g @ q_map = 0 (paper Eq. 14).
         # The left singular vectors of q_map for its zero singular values span it.
+        # numpy's matrix_rank tolerance; q_map has at least one singular value, as A and M are at least 1.
         u_mat, sing, _ = np.linalg.svd(q_map)
-        tol = max(q_map.shape) * np.finfo(float).eps * (sing[0] if sing.size else 0.0)
-        rank = int((sing > tol).sum())
+        tol = max(q_map.shape) * np.finfo(float).eps * sing[0]
+        rank = int((sing > tol).sum())  # pragma: no mutate - > and >= differ only at a value of exactly tol
         null_space_basis = u_mat[:, rank:]  # [A x (A - rank)]
         null_space_dimension = null_space_basis.shape[1]
 
@@ -1643,27 +1597,26 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     f"null_space_coordinates has {coords.shape[0]} value(s); expected "
                     f"{null_space_dimension} to match the null-space dimension (A - r)."
                 )
-            tau = tau + (null_space_basis @ coords).reshape(1, -1)
+            tau = tau + null_space_basis @ coords
 
         # Reconstruct the input vector from its scores, then un-scale to raw units.
-        x_new_scaled = tau @ self._x_loadings.T  # [1 x K]
-        x_new_df = pd.DataFrame(x_new_scaled, columns=feature_names, index=[0])
+        x_new = tau @ self._x_loadings.T  # [1 x K]
         if self._x_scaler is not None:
-            x_new_df = self._x_scaler.inverse_transform(x_new_df)
+            x_new = self._x_scaler.inverse_transform(x_new).to_numpy()
 
         # Prediction at the solution (should equal y_desired up to rounding).
-        y_hat_scaled = tau @ q_map  # [1 x M]
-        y_hat_df = pd.DataFrame(y_hat_scaled, columns=target_names, index=[0])
+        y_hat = tau @ q_map  # [1 x M]
         if self._y_scaler is not None:
-            y_hat_df = self._y_scaler.inverse_transform(y_hat_df)
+            y_hat = self._y_scaler.inverse_transform(y_hat).to_numpy()
 
-        t2 = float(np.sum((tau.ravel() / self.scaling_factor_for_scores_.to_numpy()) ** 2))
+        # The T² diagnose would give x_new, by fit's rule for a component with no spread (#1026).
+        t2 = float(np.sum((tau.ravel() / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2))
         ns_columns = [f"NS{i}" for i in range(1, null_space_dimension + 1)]
 
         return Bunch(
-            x_new=pd.Series(x_new_df.to_numpy().ravel(), index=feature_names, name="x_new"),
+            x_new=pd.Series(x_new.ravel(), index=feature_names, name="x_new"),
             scores=pd.Series(tau.ravel(), index=component_names, name="scores"),
-            y_hat=pd.Series(y_hat_df.to_numpy().ravel(), index=target_names, name="y_hat"),
+            y_hat=pd.Series(y_hat.ravel(), index=target_names, name="y_hat"),
             null_space_basis=pd.DataFrame(null_space_basis, index=component_names, columns=ns_columns),
             null_space_dimension=null_space_dimension,
             hotellings_t2=t2,
@@ -1754,7 +1707,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             reported on the original Y scale. This removes the centring /
             scaling leakage of the prior default. Set to False to keep the
             pre-1.28 behaviour, in which case ``X`` and ``Y`` should already
-            be scaled; a :class:`SpecificationWarning` is emitted.
+            be scaled; a :class:`SpecificationWarning` is emitted. A fold
+            model that scales (``scale=True``, the default) still autoscales
+            its own rows, so pass ``scale=False`` as well to keep a scaling
+            of your own. Each held-out row is predicted as its fold model
+            predicts it, whichever scalings apply.
 
             Pass the **raw, unscaled** blocks under the default. In-fold
             re-standardisation overwrites whatever scaling the caller applied,
@@ -1866,12 +1823,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> # Caller-supplied splitter (n_repeats is ignored here):
         >>> PLS.select_n_components(X, Y, cv=KFold(10, shuffle=True, random_state=0))
         """
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        if isinstance(Y, pd.Series):
-            Y = Y.to_frame()
-        elif not isinstance(Y, pd.DataFrame):
-            Y = pd.DataFrame(Y)
+        # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
+        X, Y = pd.DataFrame(X), pd.DataFrame(Y)
 
         _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="CV fold", metric="RMSECV")
 
@@ -1889,7 +1842,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 splitter = KFold(n_splits=cv, shuffle=True, random_state=random_state)
             else:
                 splitter = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
-            splits = list(splitter.split(X, Y))
+            splits = list(splitter.split(X))  # (Repeated)KFold reads only the number of rows
             first_repeat_fold_count = cv
         else:
             splits = list(check_cv(cv).split(X, Y))
@@ -1899,10 +1852,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         n_folds_total = len(splits)
         min_train_size = min(len(train_idx) for train_idx, _ in splits)
 
-        # Centring inside a fold removes one DoF, so a globally-centred matrix
-        # restricted to (min_train_size) rows and re-centred has rank at most
-        # min_train_size - 1. Cap A accordingly when in-fold scaling is on.
-        upper = min(min_train_size - (1 if scale_inside_folds else 0), K)
+        # Centring inside a fold removes one DoF, so a training fold of n rows, re-centred,
+        # has rank at most n - 1. Cap A there when the fold is scaled, or when its model
+        # centres the fold itself (PLS(scale=True) does, and PRM always): without in-fold
+        # scaling the cap was n, and a fold model on as few rows as columns ran out of X (#1027).
+        probe: dict[str, typing.Any] = {"n_components": 1}  # pragma: no mutate - only whether it centres is read
+        centred = scale_inside_folds or cls(**probe, **pls_kwargs)._centres_and_scales()
+        upper = min(min_train_size - centred, K)
         if max_components is None:
             max_components = upper
         A = min(int(max_components), upper)
@@ -1935,45 +1891,24 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         x_values = X.to_numpy()
         y_values = Y.to_numpy()
         for fold_idx, (train_idx, test_idx) in enumerate(splits):
-            X_train_raw = X.iloc[train_idx]
-            Y_train_raw = Y.iloc[train_idx]
-            X_test_raw = X.iloc[test_idx]
-            if scale_inside_folds:
-                scaler_x = MCUVScaler().fit(X_train_raw)
-                scaler_y = MCUVScaler().fit(Y_train_raw)
-                X_train = scaler_x.transform(X_train_raw)
-                Y_train = scaler_y.transform(Y_train_raw)
-                X_test_scaled = scaler_x.transform(X_test_raw).to_numpy()
-                y_centre = scaler_y.center_.to_numpy()
-                y_scale = scaler_y.scale_.to_numpy()
-                x_centre = scaler_x.center_.to_numpy()
-                x_scale = scaler_x.scale_.to_numpy()
-            else:
-                X_train = X_train_raw
-                Y_train = Y_train_raw
-                X_test_scaled = X_test_raw.to_numpy()
-                y_centre = np.zeros(M)
-                y_scale = np.ones(M)
-                x_centre = np.zeros(K)
-                x_scale = np.ones(K)
-
-            model = cls(n_components=A, **pls_kwargs).fit(X_train, Y_train)
-            x_train = np.asarray(X_train, dtype=float)
-            # ``y_values`` and ``x_values`` are on the ORIGINAL (un-scaled)
-            # input data: RMSECV / r2y_validated / r2x_validated are all
-            # reported on the input scale.
-            y_test = y_values[test_idx]
+            model = cls(n_components=A, **pls_kwargs)
+            (x_centre, x_scale), (y_centre, y_scale) = _fit_fold(
+                model, X.iloc[train_idx], Y.iloc[train_idx], scale_inside_folds=scale_inside_folds
+            )
+            # ``y_values`` and ``x_values`` are on the ORIGINAL (un-scaled) input data: RMSECV /
+            # r2y_validated / r2x_validated are all reported on the input scale. The model scores
+            # rows in its own space.
+            x_train = (x_values[train_idx] - x_centre) / x_scale
             x_test = x_values[test_idx]
+            x_test_model = (x_test - x_centre) / x_scale
+            y_test = y_values[test_idx]
             n_test = len(test_idx)
-            y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()  # shape (M, A)
+            y_loadings = np.asarray(model.y_loadings_)  # shape (M, A)
             x_loadings = model.x_loadings_.to_numpy()  # shape (K, A)
             for a in range(1, A + 1):
-                scores_test = _held_out_scores(model, x_train, X_test_scaled, a)
-                y_hat_scaled = scores_test @ y_loadings[:, :a].T
-                x_hat_scaled = scores_test @ x_loadings[:, :a].T
-                # inverse-transform: x_scale[None, :] broadcasts (n_test, K).
-                y_hat = y_hat_scaled * y_scale + y_centre
-                x_hat = x_hat_scaled * x_scale + x_centre
+                scores_test = _held_out_scores(model, x_train, x_test_model, a)
+                y_hat = scores_test @ y_loadings[:, :a].T * y_scale + y_centre
+                x_hat = scores_test @ x_loadings[:, :a].T * x_scale + x_centre
                 unscored[a - 1] |= bool(np.isnan(y_hat[~np.isnan(y_test)]).any())
                 residuals_y = y_test - y_hat
                 fold_press = float(np.nansum(residuals_y**2))
@@ -1984,8 +1919,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 if fold_idx < first_repeat_fold_count:
                     oof[a - 1, test_idx, :] = y_hat
 
-        press_y[unscored] = press_x[unscored] = np.nan
-        per_fold_rmse[unscored] = per_fold_press_total[unscored] = np.nan
+        press_y, press_x, per_fold_rmse, per_fold_press_total = (
+            np.where(unscored[:, np.newaxis], np.nan, values)
+            for values in (press_y, press_x, per_fold_rmse, per_fold_press_total)
+        )
 
         # PRESS accumulates one residual per test-row evaluation, so the
         # divisor is the actual number of those evaluations. Counting them
@@ -1996,7 +1933,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # the old formula still divided by N, inflating RMSECV by sqrt(5).
         # For KFold and RepeatedKFold the counts are 1 and n_repeats per row,
         # so this reproduces the previous N and N * n_repeats exactly.
-        test_counts = np.zeros(N, dtype=float)
+        test_counts = np.zeros(N)
         for _, test_idx in splits:
             test_counts[test_idx] += 1.0
         n_eff = float(test_counts.sum())
@@ -2018,10 +1955,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         )
 
         def _validated_r2(press: np.ndarray, tss: np.ndarray) -> np.ndarray:
-            # `tss` already carries the per-row coverage weighting, so no
-            # repeat multiplier is needed here any more.
-            per_var = np.where(tss > 0, 1.0 - press / np.where(tss > 0, tss, 1.0), np.nan)
-            total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
+            # `tss` already carries the per-row coverage weighting, so no repeat multiplier
+            # is needed. A column, or a block, with no spread over the rows tested has no R2:
+            # dividing by NaN gives NaN without a warning.
+            per_var = 1.0 - press / np.where(tss > 0, tss, np.nan)
+            total = 1.0 - press.sum(axis=1) / np.where(tss.sum() > 0, tss.sum(), np.nan)
             return np.column_stack([per_var, total])
 
         r2y_columns = _validated_r2(press_y, tss_y)
@@ -2042,40 +1980,30 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             index=component_index,
             columns=[f"fold_{i + 1}" for i in range(n_folds_total)],
         )
-        # Standard error across folds (and repeats). ``ddof=1`` for the
-        # sample SE; with a single fold (n_folds_total == 1) the SE is NaN
-        # and the 1-SE rule degenerates to argmin gracefully.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            se_values = np.nanstd(per_fold_rmse, axis=1, ddof=1) / np.sqrt(
-                np.maximum(1, np.sum(~np.isnan(per_fold_rmse), axis=1))
-            )
+        # Standard error across folds (and repeats), ``ddof=1``; with a single fold the SE
+        # is NaN and the 1-SE rule degenerates to argmin gracefully.
+        se_values = _standard_error(per_fold_rmse)
         se_rmsecv = pd.Series(se_values, index=component_index, name="SE(RMSECV)")
 
-        # Q2 standard error: the standard error of the per-fold total PRESS,
-        # rescaled by the Y sum-of-squares that normalises the validated Q2
-        # (Q2_Y_total = 1 - PRESS / tss_y.sum()). This is the half-width of a
-        # +/-1 SE band around the ``r2y_validated["total"]`` curve, computed
-        # the same way as PCA's ``q2_se``.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            se_press_total = np.nanstd(per_fold_press_total, axis=1, ddof=1) / np.sqrt(
-                np.maximum(1, np.sum(~np.isnan(per_fold_press_total), axis=1))
-            )
-        # Both sides of the ratio have to be on the scale of one pass over the
-        # data. The numerator is put there by multiplying the mean per-fold
-        # PRESS by the folds in a pass. ``tss_y`` is not: its per-row coverage
-        # weighting counts every row once per repeat that tested it, so it
-        # carries ``repeats`` passes and has to be divided down to match.
-        # Without that the band came out a factor of ``n_repeats`` too narrow,
-        # which quietly turned selection_rule="1se" into "min" whenever a
-        # repeated splitter was used.
-        folds_per_pass = max(1, first_repeat_fold_count)
-        repeats = max(1, n_folds_total // folds_per_pass)
-        se_press_total = se_press_total * folds_per_pass
-        ss_y_pass = float(tss_y.sum()) / repeats
-        q2_se_values = se_press_total / ss_y_pass if ss_y_pass > 0 else se_press_total * np.nan
-        q2_se = pd.Series(q2_se_values, index=component_index, name="SE(Q2)")
+        # Q2 standard error: the standard error of the per-fold total PRESS, rescaled by the
+        # Y sum-of-squares that normalises the validated Q2 (Q2_Y_total = 1 - PRESS /
+        # tss_y.sum()). This is the half-width of a +/-1 SE band around the
+        # ``r2y_validated["total"]`` curve, computed the same way as PCA's ``q2_se``.
+        #
+        # Both sides of the ratio have to be on the scale of one pass over the data. The
+        # numerator is put there by multiplying the mean per-fold PRESS by the folds in a
+        # pass. ``tss_y`` is not: its per-row coverage weighting counts every row once per
+        # repeat that tested it, so it carries ``repeats`` passes and has to be divided down
+        # to match. Without that the band came out a factor of ``n_repeats`` too narrow,
+        # which quietly turned selection_rule="1se" into "min" whenever a repeated splitter
+        # was used. Every repeat has ``first_repeat_fold_count`` folds, at least one.
+        repeats = n_folds_total // first_repeat_fold_count
+        ss_y_pass = np.where(tss_y.sum() > 0, tss_y.sum(), np.nan) / repeats
+        q2_se = pd.Series(
+            _standard_error(per_fold_press_total) * first_repeat_fold_count / ss_y_pass,
+            index=component_index,
+            name="SE(Q2)",
+        )
 
         # If every CV fold produced NaN (e.g. zero-variance Y per fold) the
         # cross-validation never converged to anything we can judge. Raise so
@@ -2128,43 +2056,26 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # curve (1se/min) and we ran more than one repeat; q2_increment
         # and randomization don't decompose per repeat without more
         # bookkeeping than they're worth at this stage.
-        n_repeats_effective = max(1, n_folds_total // max(1, first_repeat_fold_count))
         selection_distribution: pd.Series | None = None
         selection_mode: int | None = None
         selection_is_stable: bool | None = None
         # The fold loop gives every (component count, fold) cell of per_fold_rmse a finite
         # value, the root of a nansum, so every repeat has folds to judge and casts a vote. A
         # count that left a held-out row unpredicted is NaN in every fold, and the rules pass
-        # over it (#676).
-        if selection_rule in ("1se", "min") and n_repeats_effective > 1:
+        # over it (#676). The 1se and min rules read no Q2 curve.
+        if selection_rule in ("1se", "min") and repeats > 1:
             votes: list[int] = []
-            for r in range(n_repeats_effective):
-                cols = slice(r * first_repeat_fold_count, (r + 1) * first_repeat_fold_count)
-                fold_subset = per_fold_rmse[:, cols]
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", RuntimeWarning)
-                    mean_r = np.nanmean(fold_subset, axis=1)
-                    se_r = np.nanstd(fold_subset, axis=1, ddof=1) / np.sqrt(
-                        np.maximum(1, np.sum(~np.isnan(fold_subset), axis=1))
-                    )
-                # The dispatcher needs q2_cumulative even for non-q2 rules;
-                # pass a dummy zeros array since 1se/min don't read it.
+            for r in range(repeats):
+                fold_subset = per_fold_rmse[:, r * first_repeat_fold_count : (r + 1) * first_repeat_fold_count]
                 pick = _select_n_components(
-                    selection_rule,
-                    mean_error=mean_r,
-                    se_error=se_r,
-                    q2_cumulative=np.zeros_like(mean_r),
-                    min_q2_increase=min_q2_increase,
+                    selection_rule, mean_error=fold_subset.mean(axis=1), se_error=_standard_error(fold_subset)
                 )
                 votes.append(int(pick))
-            counts = pd.Series(votes).value_counts().sort_index()
-            dist = (counts / counts.sum()).reindex(component_index, fill_value=0.0)
+            counts = pd.Series(votes).value_counts()
+            dist = (counts / len(votes)).reindex(component_index, fill_value=0.0)
             dist.name = "vote_share"
-            dist.index.name = "n_components"
             selection_distribution = dist
-            # `idxmax` is typed as returning `Hashable`; this index is `component_index`,
-            # which holds component counts, so the cast asserts what the construction guarantees.
-            selection_mode = int(typing.cast("int", dist.idxmax()))
+            selection_mode = int(np.argmax(dist.to_numpy())) + 1
             selection_is_stable = bool(dist.max() >= stability_threshold)
 
         return Bunch(
@@ -2445,7 +2356,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         return _pseudo_validation_set(cls, X, Y, settings, pls_kwargs)
 
     @classmethod
-    def nested_cv(  # noqa: PLR0913, PLR0915
+    def nested_cv(  # noqa: PLR0913
         cls,
         X: DataMatrix,
         Y: DataMatrix,
@@ -2536,12 +2447,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result = PLS.nested_cv(X, Y, max_components=8, random_state=0)
         >>> result.rmsep["total"]
         """
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        if isinstance(Y, pd.Series):
-            Y = Y.to_frame()
-        elif not isinstance(Y, pd.DataFrame):
-            Y = pd.DataFrame(Y)
+        # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
+        X, Y = pd.DataFrame(X), pd.DataFrame(Y)
 
         N = X.shape[0]
         M = Y.shape[1]
@@ -2585,74 +2492,46 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             selected_components_per_fold.append(n_comp_inner)
 
             # Final outer-train fit at the inner-selected component count.
-            if scale_inside_folds:
-                scaler_x = MCUVScaler().fit(X_outer_train)
-                scaler_y = MCUVScaler().fit(Y_outer_train)
-                X_train_s = scaler_x.transform(X_outer_train)
-                Y_train_s = scaler_y.transform(Y_outer_train)
-                X_test_s = scaler_x.transform(X_outer_test).to_numpy()
-                y_centre = scaler_y.center_.to_numpy()
-                y_scale = scaler_y.scale_.to_numpy()
-            else:
-                X_train_s = X_outer_train
-                Y_train_s = Y_outer_train
-                X_test_s = X_outer_test.to_numpy()
-                y_centre = np.zeros(M)
-                y_scale = np.ones(M)
-
-            model = cls(n_components=n_comp_inner, **pls_kwargs).fit(X_train_s, Y_train_s)
-            scores_test = _held_out_scores(model, np.asarray(X_train_s, dtype=float), X_test_s, n_comp_inner)
-            y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()
-            y_hat_scaled = scores_test @ y_loadings.T
-            oof_predictions[test_idx, :] = y_hat_scaled * y_scale + y_centre
+            model = cls(n_components=n_comp_inner, **pls_kwargs)
+            (x_centre, x_scale), (y_centre, y_scale) = _fit_fold(
+                model, X_outer_train, Y_outer_train, scale_inside_folds=scale_inside_folds
+            )
+            x_train = (X_outer_train.to_numpy() - x_centre) / x_scale
+            x_test = (X_outer_test.to_numpy() - x_centre) / x_scale
+            scores_test = _held_out_scores(model, x_train, x_test, n_comp_inner)
+            oof_predictions[test_idx, :] = scores_test @ np.asarray(model.y_loadings_).T * y_scale + y_centre
 
         # RMSEP from the out-of-fold predictions (each row is predicted by
         # exactly one outer fold).
-        residuals = y_values - oof_predictions
-        mask = ~np.isnan(oof_predictions).any(axis=1)
-        n_valid = int(mask.sum())
-        if n_valid == 0:
+        covered = ~np.isnan(oof_predictions).any(axis=1)
+        if not covered.any():
             raise RuntimeError("Nested CV produced no covered observations; check the outer splitter.")
         # Restrict every sum below to the rows the outer splitter actually held
         # out, and skip cells whose observed Y is missing. Mixing the two (a
         # PRESS over covered rows against a TSS over all rows) inflates Q2
         # whenever the splitter does not cover everything: an outer
         # ShuffleSplit touching 21 of 60 rows reported Q2 = 0.81 on pure noise,
-        # where the honest value on the covered rows is 0.10.
-        covered_residuals = residuals[mask]
-        covered_y = y_values[mask]
-        observed = ~np.isnan(covered_residuals)
-        per_y_valid = observed.sum(axis=0)
-        total_valid = int(observed.sum())
-
-        per_y_press = np.nansum(covered_residuals**2, axis=0)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            rmsep_per_y = np.sqrt(
-                np.divide(
-                    per_y_press,
-                    per_y_valid,
-                    out=np.full(M, np.nan, dtype=float),
-                    where=per_y_valid > 0,
-                )
-            )
-        rmsep_total = np.sqrt(np.nansum(covered_residuals**2) / total_valid) if total_valid > 0 else np.nan
+        # where the honest value on the covered rows is 0.10. A covered row is
+        # predicted in every column, so a residual is missing exactly where Y is.
+        covered_y = y_values[covered]
+        per_y_valid = (~np.isnan(covered_y)).sum(axis=0)
+        total_valid = per_y_valid.sum()
+        per_y_press = np.nansum((covered_y - oof_predictions[covered]) ** 2, axis=0)
+        # A column with no observed cell among those rows has no RMSEP, and one with no spread there no Q2.
+        rmsep_per_y = np.sqrt(np.divide(per_y_press, per_y_valid, out=np.full(M, np.nan), where=per_y_valid > 0))
+        rmsep_total = np.sqrt(per_y_press.sum() / total_valid) if total_valid > 0 else np.nan
         rmsep = pd.Series(
             np.concatenate([rmsep_per_y, [rmsep_total]]),
             index=[*y_columns, "total"],
             name="RMSEP",
         )
 
-        # Validated Q^2_Y per column and total, against the column mean.
-        col_means = np.nanmean(y_values, axis=0)
-        # The TSS denominator spans exactly the cells the PRESS numerator does.
-        tss_per_y = np.nansum(np.where(observed, (covered_y - col_means) ** 2, np.nan), axis=0)
-        tss_total = float(np.nansum(tss_per_y))
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            q2y_per_y = np.where(tss_per_y > 0, 1.0 - per_y_press / tss_per_y, np.nan)
-            # nansum here too: a single missing Y cell used to make the headline
-            # total NaN while every per-column value came back finite.
-            q2y_total = 1.0 - np.nansum(covered_residuals**2) / tss_total if tss_total > 0 else np.nan
+        # Validated Q^2_Y per column and total, against the column mean; the TSS
+        # spans exactly the cells the PRESS does.
+        tss_per_y = np.nansum((covered_y - np.nanmean(y_values, axis=0)) ** 2, axis=0)
+        q2y_per_y = 1.0 - np.divide(per_y_press, tss_per_y, out=np.full(M, np.nan), where=tss_per_y > 0)
+        tss_total = tss_per_y.sum()
+        q2y_total = 1.0 - per_y_press.sum() / tss_total if tss_total > 0 else np.nan
         q2y = pd.Series(
             np.concatenate([q2y_per_y, [q2y_total]]),
             index=[*y_columns, "total"],
@@ -2713,21 +2592,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         max_outliers = max(1, N // 5)
         alpha = 1 - conf_level
 
-        spe_outlier_idx, _ = detect_outliers_esd(
-            spe_values.to_numpy(), algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
-        )
-        t2_outlier_idx, _ = detect_outliers_esd(
-            t2_values.to_numpy(), algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
-        )
+        spe_outlier_idx, _ = detect_outliers_esd(spe_values.to_numpy(), max_outliers_detected=max_outliers, alpha=alpha)
+        t2_outlier_idx, _ = detect_outliers_esd(t2_values.to_numpy(), max_outliers_detected=max_outliers, alpha=alpha)
 
-        spe_flagged = set(spe_outlier_idx)
-        t2_flagged = set(t2_outlier_idx)
-
-        for i in range(N):
-            if spe_values.iloc[i] > spe_lim:
-                spe_flagged.add(i)
-            if t2_values.iloc[i] > t2_lim:
-                t2_flagged.add(i)
+        spe_flagged = set(spe_outlier_idx) | {int(i) for i in np.flatnonzero(spe_values.to_numpy() > spe_lim)}
+        above_t2_limit = t2_values.to_numpy() > t2_lim  # pragma: no mutate - > and >= tie only at the limit itself
+        t2_flagged = set(t2_outlier_idx) | {int(i) for i in np.flatnonzero(above_t2_limit)}
 
         all_flagged = spe_flagged | t2_flagged
         results = []
@@ -2745,18 +2615,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # perfect fit gives spe_lim == 0, which used to raise
             # ZeroDivisionError outright, and a limit at machine-epsilon scale
             # produced impressive-looking severities that were ratios of
-            # floating-point noise. An infinite T2 limit (A == N) contributes
-            # 0 already, but is made explicit here.
-            # The ratio itself is scale-invariant (value and limit share units),
-            # so the guard is only against a limit that carries no information:
-            # zero (a perfect fit, which used to raise ZeroDivisionError) or
-            # infinite (A == N). Deliberately NOT an absolute epsilon, which
-            # would make severity depend on the units of the data.
-            ratios = [
-                spe_val / spe_lim if spe_lim > 0.0 else 0.0,
-                t2_val / t2_lim if np.isfinite(t2_lim) and t2_lim > 0.0 else 0.0,
-            ]
-            severity = max(ratios)
+            # floating-point noise. The ratio itself is scale-invariant (value
+            # and limit share units), so the guard is only against a limit of
+            # zero. Deliberately NOT an absolute epsilon, which would make
+            # severity depend on the units of the data. The T2 limit is
+            # positive, and infinite when A == N, where its ratio is 0 by itself.
+            severity = max(spe_val / spe_lim if spe_lim > 0.0 else 0.0, t2_val / t2_lim)
 
             results.append(
                 {
@@ -2773,7 +2637,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         results.sort(key=lambda d: d["severity"], reverse=True)
         return results
 
-    def cross_validate(  # noqa: PLR0912, PLR0913, PLR0915, C901
+    def cross_validate(  # noqa: PLR0913, PLR0915, C901
         self,
         X: DataMatrix,
         Y: DataMatrix,
@@ -2876,10 +2740,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         """
         check_is_fitted(self, "beta_coefficients_")
 
-        X = pd.DataFrame(X) if not isinstance(X, pd.DataFrame) else X
-        Y = pd.DataFrame(Y) if not isinstance(Y, pd.DataFrame) else Y
-
-        N, _K = X.shape
+        X, Y = pd.DataFrame(X), pd.DataFrame(Y)
+        N = X.shape[0]
         M = Y.shape[1]
 
         if X.shape[0] != Y.shape[0]:
@@ -2887,105 +2749,65 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if not (0.5 < conf_level < 1.0):
             raise ValueError(f"conf_level must be between 0.5 and 1.0, got {conf_level}.")
 
-        # --- Determine resampling strategy ---
-        use_bootstrap = n_bootstrap > 0
-        if use_bootstrap:
-            method = "bootstrap"
-        elif cv == "loo":
-            method = "jackknife"
-        else:
-            method = "kfold"
-
         # Validate sample_weight up front (#394). The per-fold fits below
         # subset it by training index, so the user's weights stay
         # row-aligned to X / Y throughout.
         if sample_weight is not None:
-            sample_weight = np.asarray(sample_weight, dtype=float).ravel()
+            sample_weight = np.ravel(sample_weight)
             if sample_weight.shape[0] != N:
                 raise ValueError(f"sample_weight has {sample_weight.shape[0]} entries; expected {N} to match X / Y.")
 
-        def _fold_weights(idx: np.ndarray) -> np.ndarray | None:
-            return None if sample_weight is None else sample_weight[idx]
+        # --- The resamples: (training rows, held-out rows); a bootstrap holds out none ---
+        resamples: list[tuple[np.ndarray, np.ndarray | None]]
+        if n_bootstrap > 0:
+            method = "bootstrap"
+            rng = np.random.default_rng(random_state)
+            resamples = [(rng.choice(N, size=N), None) for _ in range(n_bootstrap)]  # with replacement
+            desc = "Bootstrap"
+        elif cv == "loo":
+            method = "jackknife"
+            resamples = [(np.delete(np.arange(N), i), np.array([i])) for i in range(N)]
+            desc = "Jackknife (LOO)"
+        else:
+            method = "kfold"
+            resamples = list(KFold(n_splits=int(cv), shuffle=True, random_state=random_state).split(X))
+            desc = f"{int(cv)}-Fold CV"
 
         # --- Collect beta coefficients (and out-of-fold predictions for CV) ---
         beta_collection: list[np.ndarray] = []
-        y_hat_cv = np.full((N, M), np.nan) if not use_bootstrap else None
-        rng = np.random.default_rng(random_state)
-
-        if use_bootstrap:
-            iterator = tqdm(range(n_bootstrap), desc="Bootstrap", disable=not show_progress)
-            for _ in iterator:
-                train_idx = rng.choice(N, size=N, replace=True)
-                sub_model = clone(self).fit(
-                    X.iloc[train_idx],
-                    Y.iloc[train_idx],
-                    sample_weight=_fold_weights(train_idx),
-                )
-                beta_collection.append(sub_model.beta_coefficients_.values)
-
-        elif method == "jackknife":
-            assert y_hat_cv is not None  # only None when use_bootstrap is True
-            iterator = tqdm(range(N), desc="Jackknife (LOO)", disable=not show_progress)
-            for i in iterator:
-                train_idx = np.concatenate([np.arange(i), np.arange(i + 1, N)])
-                sub_model = clone(self).fit(
-                    X.iloc[train_idx],
-                    Y.iloc[train_idx],
-                    sample_weight=_fold_weights(train_idx),
-                )
-                beta_collection.append(sub_model.beta_coefficients_.values)
-                pred = sub_model.predict(X.iloc[[i]])
-                y_hat_cv[i, :] = pred.values.ravel()
-
-        else:  # K-fold
-            assert y_hat_cv is not None  # only None when use_bootstrap is True
-            n_resamples = int(cv)
-            kf = KFold(n_splits=n_resamples, shuffle=True, random_state=random_state)
-            desc = f"{n_resamples}-Fold CV"
-            for train_idx, test_idx in tqdm(kf.split(X), total=n_resamples, desc=desc, disable=not show_progress):
-                sub_model = clone(self).fit(
-                    X.iloc[train_idx],
-                    Y.iloc[train_idx],
-                    sample_weight=_fold_weights(train_idx),
-                )
-                beta_collection.append(sub_model.beta_coefficients_.values)
-                pred = sub_model.predict(X.iloc[test_idx])
-                y_hat_cv[test_idx, :] = pred.values
+        y_hat_cv = np.full((N, M), np.nan)
+        for train_idx, test_idx in tqdm(resamples, desc=desc, disable=not show_progress):
+            sub_model = clone(self).fit(
+                X.iloc[train_idx],
+                Y.iloc[train_idx],
+                sample_weight=None if sample_weight is None else sample_weight[train_idx],
+            )
+            beta_collection.append(sub_model.beta_coefficients_.to_numpy())
+            if test_idx is not None:
+                y_hat_cv[test_idx, :] = sub_model.predict(X.iloc[test_idx]).to_numpy()
 
         beta_samples = np.array(beta_collection)  # (n_resamples, K, M)
         actual_n_resamples = beta_samples.shape[0]
 
         # --- Beta-coefficient statistics ---
         beta_mean_arr = beta_samples.mean(axis=0)
-
-        if method == "jackknife":
-            # Jackknife variance: var = (N-1)/N * sum_i (beta_i - beta_mean)^2
-            jackknife_var = (N - 1) / N * np.sum((beta_samples - beta_mean_arr) ** 2, axis=0)
-            beta_std_arr = np.sqrt(jackknife_var)
-            # CI via t-distribution
-            alpha = 1 - conf_level
-            t_crit = t_dist.ppf(1 - alpha / 2, df=N - 1)
-            beta_ci_lower_arr = beta_mean_arr - t_crit * beta_std_arr
-            beta_ci_upper_arr = beta_mean_arr + t_crit * beta_std_arr
-        elif method == "kfold":
-            # The K sub-models are delete-a-block (delete-d) jackknife
-            # estimates, not independent replicates: their training sets
-            # overlap pairwise in (K-2)/K of the rows. The delete-a-block
-            # jackknife standard error is sqrt((K-1)/K * sum(dev^2))
-            # (Westad & Martens, 2000, modified jackknife for PLS); the
-            # plain sample SD used previously is (K-1)/sqrt(K) times too
-            # small (1.79x for K=5), over-declaring significance.
+        alpha = 1 - conf_level
+        if method == "bootstrap":  # percentile CI
+            beta_std_arr = beta_samples.std(axis=0, ddof=1)
+            beta_ci_lower_arr = np.percentile(beta_samples, 100 * alpha / 2, axis=0)
+            beta_ci_upper_arr = np.percentile(beta_samples, 100 * (1 - alpha / 2), axis=0)
+        else:
+            # The G sub-models are delete-one (jackknife, G = N) or delete-a-block (K-fold,
+            # G = K) jackknife estimates, not independent replicates: their training sets
+            # overlap. The jackknife standard error is sqrt((G-1)/G * sum(dev^2)) (Westad &
+            # Martens, 2000, modified jackknife for PLS); the plain sample SD used for K-fold
+            # before was (G-1)/sqrt(G) times too small (1.79x for K=5), over-declaring
+            # significance. The CI is on the t-distribution with G - 1 degrees of freedom.
             deviations_sq = np.sum((beta_samples - beta_mean_arr) ** 2, axis=0)
             beta_std_arr = np.sqrt((actual_n_resamples - 1) / actual_n_resamples * deviations_sq)
-            alpha = 1 - conf_level
             t_crit = t_dist.ppf(1 - alpha / 2, df=actual_n_resamples - 1)
             beta_ci_lower_arr = beta_mean_arr - t_crit * beta_std_arr
             beta_ci_upper_arr = beta_mean_arr + t_crit * beta_std_arr
-        else:  # bootstrap percentile CI
-            beta_std_arr = beta_samples.std(axis=0, ddof=1)
-            alpha = 1 - conf_level
-            beta_ci_lower_arr = np.percentile(beta_samples, 100 * alpha / 2, axis=0)
-            beta_ci_upper_arr = np.percentile(beta_samples, 100 * (1 - alpha / 2), axis=0)
 
         # Significance: CI does not contain zero
         significant_arr = (beta_ci_lower_arr > 0) | (beta_ci_upper_arr < 0)
@@ -3005,7 +2827,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         q_squared_series = None
         y_hat_cv_df = None
 
-        if y_hat_cv is not None:
+        if method != "bootstrap":
             y_hat_cv_df = pd.DataFrame(y_hat_cv, index=Y.index, columns=Y.columns)
             residuals = Y.values - y_hat_cv
             press_val = float(np.nansum(residuals**2))
@@ -3080,7 +2902,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         diagnostics = self.diagnose(X)
         y_hat = diagnostics.y_hat
-        t2_new = np.asarray(diagnostics.hotellings_t2, dtype=float)
+        t2_new = diagnostics.hotellings_t2.to_numpy()
 
         n_samples = self.n_samples_
         n_components = int(self.n_components_)
@@ -3091,7 +2913,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         df = max(n_samples - n_components - 1, 1)
         if cv_result is not None:
             # Already an out-of-sample error: it needs no dof correction.
-            error_std = np.asarray(cv_result.rmse_cv, dtype=float)
+            error_std = np.asarray(cv_result.rmse_cv)
         else:
             # `rmse_` divides the residual sum of squares by N, but a
             # prediction interval needs the residual variance on the same
@@ -3099,7 +2921,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # this rescaling the interval is too narrow by sqrt(N/(N-A-1)),
             # which is 1.12 at N=20 with A=3, and a nominal 95% interval
             # delivered roughly 73 percent coverage at N=15.
-            error_std = np.asarray(self.rmse_.iloc[:, -1], dtype=float) * np.sqrt(n_samples / df)
+            error_std = self.rmse_.iloc[:, -1].to_numpy() * np.sqrt(n_samples / df)
 
         # Leverage of a new observation in the latent space.
         leverage = 1.0 / n_samples + t2_new / (n_samples - 1)

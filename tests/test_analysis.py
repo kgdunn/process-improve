@@ -664,11 +664,58 @@ class TestLackOfFit:
         assert lof["df_lack_of_fit"] == 1
 
     def test_a_model_using_every_distinct_setting_leaves_nothing_to_test(self) -> None:
-        """Four distinct settings and four model terms: the residual is all pure error."""
+        """Four distinct settings and four model terms: the residual is all pure error, and is reported (#969)."""
         result = analyze_experiment(
             _two_factor_replicated(), response_column="y", model="interactions", analysis_type="lack_of_fit"
         )
-        assert result["lack_of_fit"] == {"error": "Insufficient degrees of freedom for lack-of-fit test."}
+        lof = result["lack_of_fit"]
+        assert "error" not in lof
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(3.5)  # four pairs differing by 1, 2, 1 and 1
+        assert lof["ms_pure_error"] == pytest.approx(0.875)
+        assert lof["df_lack_of_fit"] == 0
+        assert lof["ss_lack_of_fit"] == pytest.approx(0.0, abs=1e-9)
+        assert lof["ms_lack_of_fit"] is None
+        assert lof["f_statistic"] is None
+        assert lof["p_value"] is None
+        assert lof["significant"] is None
+        assert "no degrees of freedom" in lof["note"]
+
+    def test_identical_repeats_report_a_pure_error_of_zero(self) -> None:
+        """Box and Draper (2007) Exercise 11.25, y2: the five centre runs all read 0.66 (#969).
+
+        The book prints "Untested, s^2 = 0": pure error 0 on 4 df, lack of fit on 3 df, and no F.
+        """
+        x1 = [-1, 1, -1, 1, -1.414, 1.414, 0, 0, 0, 0, 0, 0, 0]
+        x2 = [-1, -1, 1, 1, 0, 0, -1.414, 1.414, 0, 0, 0, 0, 0]
+        y2 = [0.55, 0.52, 0.67, 0.36, 0.59, 0.31, 0.54, 0.51, 0.66, 0.66, 0.66, 0.66, 0.66]
+        result = analyze_experiment(
+            pd.DataFrame({"x1": x1, "x2": x2}),
+            pd.Series(y2, name="y2"),
+            model="(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+            analysis_type=["anova", "lack_of_fit"],
+        )
+        lof = result["lack_of_fit"]
+        assert "error" not in lof
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(0.0, abs=1e-12)
+        assert lof["ms_pure_error"] == pytest.approx(0.0, abs=1e-12)
+        assert lof["df_lack_of_fit"] == 3
+        assert lof["ss_lack_of_fit"] == pytest.approx(0.00321, abs=5e-6)
+        assert lof["ms_lack_of_fit"] == pytest.approx(lof["ss_lack_of_fit"] / 3)
+        assert lof["f_statistic"] is None
+        assert lof["p_value"] is None
+        assert lof["significant"] is None
+        assert "pure error is zero" in lof["note"]
+
+    def test_round_off_in_identical_repeats_is_no_pure_error(self) -> None:
+        """Repeats of 3.3333333 leave ~1e-30 of round-off in their sum of squares, which must not give an F."""
+        df = pd.DataFrame({"A": [-1, -0.5, 0.5, 1] + [0] * 5, "y": [1.0, 2.5, 1.5, 2.0] + [3.3333333] * 5})
+        lof = analyze_experiment(df, response_column="y", model="A", analysis_type="lack_of_fit")["lack_of_fit"]
+        assert lof["df_pure_error"] == 4
+        assert 0 < lof["ss_pure_error"] < 1e-25  # round-off, not a spread
+        assert lof["f_statistic"] is None
+        assert "pure error is zero" in lof["note"]
 
     def test_no_factor_columns(self) -> None:
         df = _two_factor_replicated()
@@ -1681,6 +1728,122 @@ class TestMixtureAnalysis:
         assert result["not_estimable_terms"] == ["x1:x2:x3"]
 
 
+class TestMixtureConstant:
+    """A mixture model holds a constant on blends rounded for printing, and from a formula too (#964)."""
+
+    SCHEFFE_QUADRATIC = "y ~ x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 - 1"
+
+    @staticmethod
+    def _lattice(decimals: int | None = None) -> pd.DataFrame:
+        """Return a {3, 2} lattice, its centroid and three axial blends; y = 10x1 + 12x2 + 8x3 + 6x1x2 - 4x1x3 + e."""
+        third, sixth = 1 / 3, 1 / 6
+        blends = np.array(
+            [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+                [0.5, 0.5, 0],
+                [0.5, 0, 0.5],
+                [0, 0.5, 0.5],
+                [third, third, third],
+                [2 * third, sixth, sixth],
+                [sixth, 2 * third, sixth],
+                [sixth, sixth, 2 * third],
+            ]
+        )
+        x1, x2, x3 = blends.T
+        y = 10 * x1 + 12 * x2 + 8 * x3 + 6 * x1 * x2 - 4 * x1 * x3 + np.random.default_rng(1).normal(0, 0.5, 10)
+        shown = blends if decimals is None else blends.round(decimals)
+        return pd.DataFrame(shown, columns=["x1", "x2", "x3"]).assign(y=y)
+
+    @staticmethod
+    def _fit(df: pd.DataFrame, model: str | None, **kwargs: object) -> dict:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return analyze_experiment(df, response_column="y", model=model, **kwargs)
+
+    def test_rounded_blends_give_the_centred_summary_of_the_exact_blends(self) -> None:
+        exact = self._fit(self._lattice(), "scheffe_quadratic")["model_summary"]
+        with pytest.warns(UserWarning, match="not to 1 exactly"):
+            rounded = analyze_experiment(self._lattice(3), response_column="y", model="scheffe_quadratic")
+        summary = rounded["model_summary"]
+        assert exact["df_model"] == summary["df_model"] == 5
+        # The blends differ in the third decimal, and the residual sum of squares is small, so the
+        # two agree to the rounding of the data and not further.
+        assert summary["r_squared"] == pytest.approx(exact["r_squared"], abs=1e-3)
+        assert summary["f_statistic"] == pytest.approx(exact["f_statistic"], rel=0.1)
+        assert summary["ss_total"] == pytest.approx(exact["ss_total"])  # about the mean, not about zero
+
+    def test_rounded_blends_are_mixture_data_by_default(self) -> None:
+        assert self._fit(self._lattice(3), None)["model_summary"]["model"] == "scheffe_quadratic"
+
+    def test_box_draper_table_16_1_with_the_centroid_printed_as_0_333(self) -> None:
+        # Box and Draper (2007), Table 16.1: the centroid printed 0.333 sums to 0.999.
+        df = pd.DataFrame(
+            [
+                [1, 0, 0, 10.9],
+                [0, 1, 0, 14.4],
+                [0, 0, 1, 2.0],
+                [0.5, 0.5, 0, 11.6],
+                [0.5, 0, 0.5, 6.9],
+                [0, 0.5, 0.5, 8.7],
+                [0.333, 0.333, 0.333, 8.9],
+            ],
+            columns=["x1", "x2", "x3", "y"],
+        )
+        printed = self._fit(df, "scheffe_linear")["model_summary"]
+        exact = self._fit(df.where(df != 0.333, 1 / 3), "scheffe_linear")["model_summary"]
+        assert round(printed["r_squared"], 3) == round(exact["r_squared"], 3) == 0.986
+        assert printed["df_model"] == exact["df_model"] == 2
+        assert round(exact["f_statistic"], 1) == 144.3
+        assert printed["f_statistic"] == pytest.approx(exact["f_statistic"], rel=0.01)
+
+    @pytest.mark.parametrize("decimals", [None, 3])
+    def test_an_explicit_scheffe_formula_is_analysed_as_the_scheffe_model(self, decimals: int | None) -> None:
+        df = self._lattice(decimals)
+        analyses = ["anova", "significance", "effects", "lenth_method"]
+        keyword = self._fit(df, "scheffe_quadratic", analysis_type=analyses)
+        formula = self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analyses)
+        assert formula["anova_table"][0]["source"] == "Linear mixture"
+        assert formula["anova_table"] == keyword["anova_table"]
+        assert formula["effects"] == pytest.approx(keyword["effects"])
+        assert formula["linear_blending_p_value"] == pytest.approx(keyword["linear_blending_p_value"])
+        assert formula["lenth_method"] is None
+        drop = {"formula", "model"}
+        assert {k: v for k, v in formula["model_summary"].items() if k not in drop} == pytest.approx(
+            {k: v for k, v in keyword["model_summary"].items() if k not in drop}
+        )
+
+    def test_a_formula_of_pseudo_components_tests_its_linear_blending_as_one_block(self) -> None:
+        # Box and Draper (2007), Section 16.2, Snee's gasoline blends: x1 + x2 + x3 enter as one component.
+        df = pd.DataFrame(
+            {
+                "x1": [0.25, 0.25, 0.25, 0.15, 0.25, 0.15, 0.15, 0.15, 0.20],
+                "x2": [0.4, 0.4, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.3],
+                "x3": [0.10, 0.03, 0.10, 0.03, 0.03, 0.10, 0.10, 0.03, 0.065],
+                "x4": [0.25, 0.32, 0.45, 0.42, 0.52, 0.55, 0.35, 0.62, 0.435],
+                "y": [2.6, 2.0, 1.2, 1.7, 0.7, 0.7, 1.8, 0.2, 1.2],
+            }
+        )
+        result = self._fit(df, "y ~ I(x1 + x2 + x3) + x4 - 1", analysis_type=["anova", "effects"])
+        model_rows = [row for row in result["anova_table"] if row["source"] != "Residual"]
+        assert [(row["source"], row["df"]) for row in model_rows] == [("Linear mixture", 1)]
+        assert result["model_summary"]["df_model"] == 1
+        assert set(result["effects"]) == {"x1", "x2", "x3", "x4"}
+
+    def test_one_linear_blending_term_has_no_linear_mixture_row(self) -> None:
+        # I(x1 + x2 + x3) is the constant itself: with one linear term there are no coefficients to compare.
+        result = self._fit(self._lattice(), "y ~ I(x1 + x2 + x3) + x1:x2 + x1:x3 + x2:x3 - 1")
+        sources = [row["source"] for row in result["anova_table"] if row["source"] != "Residual"]
+        assert sources == ["x1:x2", "x1:x3", "x2:x3"]
+
+    def test_a_scheffe_model_of_settings_that_do_not_sum_to_1_warns(self) -> None:
+        df = self._lattice()
+        df.loc[7, "x1"] = 0.75  # this blend sums to 1.083
+        with pytest.warns(UserWarning, match="holds no constant"):
+            analyze_experiment(df, response_column="y", model="scheffe_linear")
+
+
 class TestAliasChainsInTests:
     """Exactly aliased terms are tested once, so the ANOVA degrees of freedom add up to N - 1."""
 
@@ -2339,7 +2502,8 @@ class TestSumsOfSquaresConventions:
     def test_a_model_without_an_intercept_gives_its_sums_about_zero_and_says_its_rows_do_not_add_up(self) -> None:
         """NIST 5.5.4.2 prints the uncorrected model and total sums, 2878.27 and 2884.83.
 
-        The Type II rows of the library's ANOVA add to 1952.33, neither of the model's sums.
+        The formula is the Scheffe quadratic model, and its ANOVA is that model's (#964): the linear
+        blending as one block, then each blending term, none of which add up to the model's sums.
         """
         data = pd.DataFrame(_ELONGATION, columns=["X1", "X2", "X3", "y"])
         model = "y ~ X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1"
@@ -2350,8 +2514,9 @@ class TestSumsOfSquaresConventions:
         assert summary["ss_model"] == pytest.approx(128.30, abs=0.005)  # about the mean: the blends span a constant
         assert summary["ss_residual"] == pytest.approx(6.56, abs=0.005)
         assert "do not add up to a model sum of squares" in result["anova_note"]
-        rows = sum(row["sum_sq"] for row in result["anova_table"] if row["source"] != "Residual")
-        assert rows == pytest.approx(1952.33, abs=0.005)
+        scheffe = analyze_experiment(data, response_column="y", model="scheffe_quadratic")
+        assert result["anova_table"] == scheffe["anova_table"]
+        assert result["anova_table"][0]["source"] == "Linear mixture"
 
     def test_a_model_with_an_intercept_has_no_such_note(self) -> None:
         rows = [(diet, y) for diet, values in _BLOOD.items() for y in values]
