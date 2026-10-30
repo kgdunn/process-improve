@@ -663,7 +663,7 @@ class TestPRMSettingsInFull:
         with pytest.warns(DeprecationWarning, match="^process_improve") as record:
             PRM(n_components=2, weight_tol=1e-4).fit(*_dataset(seed=0))
         assert str(record[0].message) == (
-            "process_improve.multivariate.methods.PRM.weight_tol is deprecated since 2.2.0 and will be removed in "
+            "process_improve.multivariate.methods.PRM.weight_tol is deprecated since 2.2.2 and will be removed in "
             "3.0; use coefficient_tol instead. weight_tol has no effect: PRM stops, as Serneels et al. (2005) do, "
             "when the norm of its regression on the unit-length scores changes by less than coefficient_tol."
         )
