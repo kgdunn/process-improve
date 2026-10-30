@@ -1784,6 +1784,12 @@ class TestMixtureConstant:
         assert result["model_summary"]["df_model"] == 1
         assert set(result["effects"]) == {"x1", "x2", "x3", "x4"}
 
+    def test_one_linear_blending_term_has_no_linear_mixture_row(self) -> None:
+        # I(x1 + x2 + x3) is the constant itself: with one linear term there are no coefficients to compare.
+        result = self._fit(self._lattice(), "y ~ I(x1 + x2 + x3) + x1:x2 + x1:x3 + x2:x3 - 1")
+        sources = [row["source"] for row in result["anova_table"] if row["source"] != "Residual"]
+        assert sources == ["x1:x2", "x1:x3", "x2:x3"]
+
     def test_a_scheffe_model_of_settings_that_do_not_sum_to_1_warns(self) -> None:
         df = self._lattice()
         df.loc[7, "x1"] = 0.75  # this blend sums to 1.083
