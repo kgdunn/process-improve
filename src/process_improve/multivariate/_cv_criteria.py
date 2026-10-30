@@ -81,9 +81,10 @@ from sklearn.utils import Bunch
 
 from .._random import check_random_state
 from ._common import _equal_weight_r2_total, _select_n_components, _vandervoet_randomization
+from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit, spe_calculation
 from ._nipals import _kernel_pls, _sign_align
-from ._preprocessing import MCUVScaler, _warn_scaling_traps
+from ._preprocessing import MCUVScaler, _back_to_units, _warn_scaling_traps
 
 if typing.TYPE_CHECKING:
     from ._common import DataMatrix
@@ -111,8 +112,8 @@ class _Fold:
     test: np.ndarray
     x_test: np.ndarray  # held-out X in the fold model's scaled space, NaN where missing, (n_test, K)
     scores: np.ndarray  # held-out scores, scored as NIPALS scores its training rows, (n_test, A)
-    y_centre: np.ndarray  # maps the fold's scaled Y back to original units, (M,)
-    y_scale: np.ndarray  # (M,)
+    y_centre: np.ndarray | float  # maps the fold's scaled Y back to original units, (M,)
+    y_scale: np.ndarray | float  # (M,)
     weights: np.ndarray  # W, (K, A)
     direct_weights: np.ndarray  # W* = W (P'W)^-1, (K, A)
     x_loadings: np.ndarray  # P, (K, A)
@@ -245,65 +246,53 @@ def _nipals_scores(x: np.ndarray, weights: np.ndarray, x_loadings: np.ndarray) -
     return scores
 
 
-def _fold_from_model(
-    model: Any,  # noqa: ANN401 - any fitted PLS-family estimator
-    split: tuple[np.ndarray, np.ndarray],
-    x_test: pd.DataFrame,
-    y_map: tuple[np.ndarray, np.ndarray],
-) -> _Fold:
-    """Collect the fitted matrices a fold contributes; ``y_map`` is the (centre, scale) of Y."""
-    return _Fold(
-        train=split[0],
-        test=split[1],
-        x_test=x_test.to_numpy(dtype=float),
-        scores=_nipals_scores(x_test.to_numpy(dtype=float), model.x_weights_.to_numpy(), model.x_loadings_.to_numpy()),
-        y_centre=np.asarray(y_map[0], dtype=float),
-        y_scale=np.asarray(y_map[1], dtype=float),
-        weights=model.x_weights_.to_numpy(),
-        direct_weights=model.direct_weights_.to_numpy(),
-        x_loadings=model.x_loadings_.to_numpy(),
-        y_loadings=model.y_loadings_.to_numpy(),
-    )
-
-
-def _global_scaling(X: pd.DataFrame, Y: pd.DataFrame) -> tuple[MCUVScaler, MCUVScaler]:
-    """Scalers mapping raw data into the space of the model fitted to all rows."""
-    return MCUVScaler().fit(X), MCUVScaler().fit(Y)
-
-
 def _fit_folds(
     make_model: ModelFactory,
     X: pd.DataFrame,
     Y: pd.DataFrame,
     splits: list[tuple[np.ndarray, np.ndarray]],
     *,
-    scope: Literal["local", "global"],
+    global_model: Any = None,  # noqa: ANN401 - any fitted PLS-family estimator
 ) -> list[_Fold]:
     """Fit one model per fold, each made by ``make_model()``.
 
-    ``"local"`` scope autoscales each training fold with its own :class:`MCUVScaler`,
-    exactly as :meth:`PLS.select_n_components` does. ``"global"`` scope fits the fold
-    models on rows of the fully autoscaled data without re-centring them, which is the
-    default of the published Procrustes cross-validation; ``make_model`` must then build
-    an estimator with ``scale=False``.
+    Without ``global_model`` (``"local"`` scope) each training fold is autoscaled with its
+    own :class:`MCUVScaler`, exactly as :meth:`PLS.select_n_components` does. With it
+    (``"global"`` scope) the fold models are fitted on the training rows in the space of
+    ``global_model``, the model fitted to all rows, without re-centring them, which is the
+    default of the published Procrustes cross-validation; ``make_model`` must then build an
+    estimator with ``scale=False``.
+
+    Either way a fold model may centre and scale its rows again (``PLS(scale=True)``, or
+    :class:`PRM`, which always centres at its robust centre), so the held-out rows are
+    taken into its space, and Y back out of it, through both scalings (#1029).
     """
     _check_fold_coverage(X, Y, splits)
     folds: list[_Fold] = []
-    if scope == "global":
-        x_scaler, y_scaler = _global_scaling(X, Y)
-        Xs, Ys = x_scaler.transform(X), y_scaler.transform(Y)
-        y_map = (y_scaler.center_.to_numpy(), y_scaler.scale_.to_numpy())
-        for train, test in splits:
-            model = make_model().fit(Xs.iloc[train], Ys.iloc[train])
-            folds.append(_fold_from_model(model, (train, test), Xs.iloc[test], y_map))
-        return folds
-
     for train, test in splits:
-        scaler_x = MCUVScaler().fit(X.iloc[train])
-        scaler_y = MCUVScaler().fit(Y.iloc[train])
-        model = make_model().fit(scaler_x.transform(X.iloc[train]), scaler_y.transform(Y.iloc[train]))
-        y_map = (scaler_y.center_.to_numpy(), scaler_y.scale_.to_numpy())
-        folds.append(_fold_from_model(model, (train, test), scaler_x.transform(X.iloc[test]), y_map))
+        if global_model is not None:
+            x_scaler, y_scaler = global_model._x_scaler, global_model._y_scaler
+        else:
+            x_scaler, y_scaler = MCUVScaler().fit(X.iloc[train]), MCUVScaler().fit(Y.iloc[train])
+        fold_model = make_model().fit(x_scaler.transform(X.iloc[train]), y_scaler.transform(Y.iloc[train]))
+        x_centre, x_scale = _back_to_units(fold_model._x_scaler, x_scaler)
+        y_centre, y_scale = _back_to_units(fold_model._y_scaler, y_scaler)
+        x_test = (X.iloc[test].to_numpy() - x_centre) / x_scale
+        weights, x_loadings = fold_model.x_weights_.to_numpy(), fold_model.x_loadings_.to_numpy()
+        folds.append(
+            _Fold(
+                train=train,
+                test=test,
+                x_test=x_test,
+                scores=_nipals_scores(x_test, weights, x_loadings),
+                y_centre=y_centre,
+                y_scale=y_scale,
+                weights=weights,
+                direct_weights=fold_model.direct_weights_.to_numpy(),
+                x_loadings=x_loadings,
+                y_loadings=fold_model.y_loadings_.to_numpy(),
+            )
+        )
     return folds
 
 
@@ -675,12 +664,12 @@ def _cv_anova_pvalues(q2: np.ndarray, N: int, M: int) -> np.ndarray:
 
 
 def _check_scale(pls_kwargs: dict) -> None:
-    """Reject ``scale=False``: every fold is autoscaled, so the full-data model must be too."""
-    if pls_kwargs.get("scale", True) is False:
+    """Reject a false ``scale`` (``False``, ``0``, ``None``): the folds are autoscaled, so the full model must be."""
+    if not pls_kwargs.get("scale", True):
         raise ValueError(
-            "scale=False is not supported: each training fold is autoscaled, and the model fitted to all "
-            "rows must live in the same space for the angles and the Procrustes step to compare them. "
-            "Pass X and Y on their raw scale."
+            f"scale={pls_kwargs['scale']!r} is not supported: each training fold is autoscaled, and the model "
+            "fitted to all rows must live in the same space for the angles and the Procrustes step to compare "
+            "them. Pass X and Y on their raw scale."
         )
 
 
@@ -780,9 +769,8 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     for fold in folds:
         observed = (~np.isnan(fold.x_test)).sum(axis=1)
         to_complete[fold.test] = fold.x_test.shape[1] / np.maximum(observed, 1)
-    score_sd = model.scaling_factor_for_scores_.to_numpy()
-    with np.errstate(divide="ignore", invalid="ignore"):
-        pv_t2 = np.cumsum((pv_scores / np.where(score_sd > 0, score_sd, np.nan)) ** 2, axis=1)
+    # A component with no spread adds nothing, as to every other T2 (#1029).
+    pv_t2 = np.cumsum((pv_scores / _t2_score_sd(model.scaling_factor_for_scores_.to_numpy())) ** 2, axis=1)
     pv_spe = np.sqrt(squared_spe)
     A = pv_scores.shape[1]
     spe_alarm = np.full(A, np.nan)
@@ -872,7 +860,7 @@ def _compare_cv_criteria(
     splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
     rng_vdv, rng_perm, rng_null = rng.spawn(3)
     A = _component_cap(splits, X_df.shape[1], settings.max_components)
-    folds = _fit_folds(lambda: estimator(n_components=A, **pls_kwargs), X_df, Y_df, splits, scope="local")
+    folds = _fit_folds(lambda: estimator(n_components=A, **pls_kwargs), X_df, Y_df, splits)
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
     y_values = Y_df.to_numpy()
     held = _heldout_pass(folds, y_values, A)
@@ -887,10 +875,10 @@ def _compare_cv_criteria(
         n_with_y = int((~np.isnan(y_values).all(axis=1)).sum())
         r_cv_p = norm.sf(held.r_cv * np.sqrt(n_with_y))
         r_cv_threshold = np.full(A, norm.ppf(1.0 - settings.alpha) / np.sqrt(n_with_y))
-    x_scaler, y_scaler = _global_scaling(X_df, Y_df)
+    x_scaled, y_scaled = model._scaled_as_fitted(X_df, Y_df)  # the blocks in the space the model was fitted in
     cov_perm_p = _covariance_permutation_pvalues(
-        x_scaler.transform(X_df).to_numpy(),
-        y_scaler.transform(Y_df).to_numpy(),
+        x_scaled.to_numpy(),
+        y_scaled.to_numpy(),
         model,
         int(settings.n_permutations),
         rng_perm,
@@ -972,8 +960,9 @@ def _pseudo_validation_set(
     fold_kwargs = (
         {**pls_kwargs, "scale": False, "warn_on_uncentred": False} if settings.scope == "global" else pls_kwargs
     )
-    folds = _fit_folds(lambda: estimator(n_components=A, **fold_kwargs), X_df, Y_df, splits, scope=settings.scope)
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
+    global_model = model if settings.scope == "global" else None
+    folds = _fit_folds(lambda: estimator(n_components=A, **fold_kwargs), X_df, Y_df, splits, global_model=global_model)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
 
     # X_pv = T_pv P' + E, with E orthogonal to the model (E W* = 0) and each row of E
@@ -994,10 +983,9 @@ def _pseudo_validation_set(
         x_pv[fold.test] = pv_scores[fold.test] @ x_loadings.T + residual * factor[:, None]
 
     x_pv[X_df.isna().to_numpy()] = np.nan
-    x_scaler, _ = _global_scaling(X_df, Y_df)
     component_index = pd.Index(range(1, A + 1), name="n_components")
     return Bunch(
-        X_pv=x_scaler.inverse_transform(pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns)),
+        X_pv=model._x_scaler.inverse_transform(pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns)),
         Y_pv=Y_df.copy(),
         scores=pd.DataFrame(pv_scores, index=X_df.index, columns=component_index),
         local_spe=pd.Series(np.sqrt(squared_spe[:, A - 1]), index=X_df.index, name="SPE"),

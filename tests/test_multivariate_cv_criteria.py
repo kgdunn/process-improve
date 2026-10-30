@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import pathlib
+import re
 
 import numpy as np
 import pandas as pd
@@ -12,15 +13,23 @@ from scipy.stats import f as f_dist
 from sklearn.model_selection import GroupKFold, KFold, LeaveOneOut, RepeatedKFold
 
 from process_improve._random import check_random_state
-from process_improve.multivariate import PLS, MCUVScaler, compare_cv_criteria, pseudo_validation_set
+from process_improve.multivariate import (
+    PLS,
+    MCUVScaler,
+    SpecificationWarning,
+    compare_cv_criteria,
+    pseudo_validation_set,
+)
 from process_improve.multivariate._common import _vandervoet_randomization
 from process_improve.multivariate._cv_criteria import (
     CV_ANOVA_DF_PER_COMPONENT,
     _cv_anova_pvalues,
     _fit_folds,
+    _Fold,
     _heldout_pass,
     _jackknife_angle,
     _leading_count,
+    _monitoring_criteria,
     _nipals_scores,
     _partition_splits,
     _permutation_summary,
@@ -28,7 +37,8 @@ from process_improve.multivariate._cv_criteria import (
     _score_correlation_null,
     _swapped_pairs,
 )
-from process_improve.multivariate._limits import spe_calculation
+from process_improve.multivariate._limits import hotellings_t2_limit, spe_calculation
+from process_improve.multivariate.methods import PRM
 from process_improve.simulation import LatentStructure
 
 LDPE = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
@@ -54,9 +64,9 @@ def _sample(process: LatentStructure, n: int, seed: int) -> tuple[pd.DataFrame, 
     return drawn.X, drawn.Y
 
 
-def _folds(X: pd.DataFrame, Y: pd.DataFrame, n_components: int, cv: object = 7, scope: str = "local") -> list:
+def _folds(X: pd.DataFrame, Y: pd.DataFrame, n_components: int, cv: object = 7) -> list:
     splits = _partition_splits(cv, X, Y, rng=np.random.default_rng(0), random_state=0)
-    return _fit_folds(lambda: PLS(n_components=n_components), X, Y, splits, scope=scope)
+    return _fit_folds(lambda: PLS(n_components=n_components), X, Y, splits)
 
 
 @pytest.fixture(scope="module")
@@ -89,7 +99,7 @@ def test_slope_ratio_is_one_in_sample() -> None:
     """Scoring the training rows themselves gives s_a = 1: the fitted slope is the in-sample slope."""
     X, Y = _two_component_data()
     splits = [(np.arange(len(X)), np.arange(len(X)))]
-    folds = _fit_folds(lambda: PLS(n_components=4), X, Y, splits, scope="local")
+    folds = _fit_folds(lambda: PLS(n_components=4), X, Y, splits)
     held = _heldout_pass(folds, Y.to_numpy(), 4)
     np.testing.assert_allclose(held.slope_ratio, 1.0, rtol=1e-8)
 
@@ -439,6 +449,129 @@ def test_data_that_cannot_be_cross_validated_is_refused(rows_x: int, rows_y: int
         compare_cv_criteria(X.iloc[:rows_x], Y.iloc[:rows_y], cv=2)
 
 
+# --- The fold models' own space, and the T2 rule (#1029) -----------------------------------
+
+
+def _robust_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Two latent variables, with a few rows that pull the means away from PRM's robust centre."""
+    X, Y = _two_component_data(n=40, k=6)
+    X.iloc[:5] += 4.0
+    Y.iloc[:3] += 3.0
+    return X, Y
+
+
+def test_prm_held_out_rows_are_predicted_as_each_fold_model_predicts_them() -> None:
+    """A PRM fold model centres and scales its autoscaled rows again, at its robust centre (#1029).
+
+    The reference is each fold's PRM predicting its held-out rows, after the fold's own
+    autoscaling, back in Y's units. The held-out rows were read in the fold's autoscaled
+    space instead of the PRM's, for a PRESS of 72.67 against the fold models' 73.11.
+    """
+    X, Y = _robust_data()
+    cv = KFold(5, shuffle=True, random_state=0)
+    result = PRM.compare_cv_criteria(X, Y, max_components=2, cv=cv, n_permutations=9, n_cv_permutations=0)
+    press = 0.0
+    for train, test in cv.split(X):
+        sx, sy = MCUVScaler().fit(X.iloc[train]), MCUVScaler().fit(Y.iloc[train])
+        fold = PRM(n_components=2).fit(sx.transform(X.iloc[train]), sy.transform(Y.iloc[train]))
+        predicted = sy.inverse_transform(fold.predict(sx.transform(X.iloc[test])))
+        press += float(((Y.iloc[test].to_numpy() - predicted.to_numpy()) ** 2).sum())
+    assert result.press.iloc[-1] == pytest.approx(press, rel=1e-10)
+
+
+@pytest.mark.parametrize("scope", ["global", "local"])
+def test_prm_pseudo_validation_set_reproduces_scores_and_spe(scope: str) -> None:
+    """The full-data PRM gives X_pv the D-scaled fold scores and the fold SPE, exactly, in its own space (#1029).
+
+    X_pv was mapped back to the data's units by an autoscaler fitted to X, not by the PRM's
+    robust scaler, and the fold models' held-out rows were not centred at their robust
+    centres: the scores the full-data model gave X_pv were off by up to 5.6.
+    """
+    X, Y = _robust_data()
+    pv = PRM.pseudo_validation_set(X, Y, n_components=2, scope=scope, random_state=0)
+    diagnostics = pv.global_model.diagnose(pv.X_pv)
+    np.testing.assert_allclose(diagnostics.scores.to_numpy(), pv.scores.to_numpy(), atol=1e-10)
+    np.testing.assert_allclose(diagnostics.spe.to_numpy(), pv.local_spe.to_numpy(), atol=1e-10)
+    if scope == "local":  # each fold PRM's own SPE of its held-out rows, after the fold's autoscaling
+        for train, test in pv.cv_splits:
+            sx = MCUVScaler().fit(X.iloc[train])
+            fold = PRM(n_components=2).fit(sx.transform(X.iloc[train]), MCUVScaler().fit_transform(Y.iloc[train]))
+            spe = fold.diagnose(sx.transform(X.iloc[test])).spe.to_numpy()
+            np.testing.assert_allclose(pv.local_spe.iloc[test].to_numpy(), spe, atol=1e-10)
+
+
+def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
+    """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
+
+    Thirty rows on a plane in units of 1e12, one of them nudged 1e3 off it, fitted unscaled:
+    the third component's score sd, 181, is below 1.5e-8 of the first's, 2.8e12, so the
+    model's own T2 leaves it out. The held-out T2 divided by it all the same, and the nudged
+    row, which its fold model never saw, got a T2 of 1057 at three components, an alarm.
+    Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2`` of the pseudo-validation scores, by hand.
+    """
+    rng = np.random.default_rng(0)
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
+    plane = (plane - plane.mean(axis=0)) * 1e12
+    plane[0] += 1e3 * np.linalg.svd(plane)[2][2]  # a direction off the plane
+    X = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
+    noise = 0.1 * np.random.default_rng(1).standard_normal(30)
+    y = pd.DataFrame({"y": X.to_numpy() @ [1e-12, 2e-12, 0.0, 0.0] + noise})
+    y -= y.mean()
+
+    def fit(rows: np.ndarray) -> PLS:
+        with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+            return PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(X.iloc[rows], y.iloc[rows])
+
+    model = fit(np.arange(30))
+    sd = model.scaling_factor_for_scores_.to_numpy()
+    assert sd[2] < 1.5e-8 * sd[0]
+    folds = []
+    for train, test in KFold(5).split(X):
+        fold = fit(train)
+        x_test = X.iloc[test].to_numpy()
+        weights, x_loadings = fold.x_weights_.to_numpy(), fold.x_loadings_.to_numpy()
+        folds.append(
+            _Fold(
+                train=train,
+                test=test,
+                x_test=x_test,
+                scores=_nipals_scores(x_test, weights, x_loadings),
+                y_centre=np.zeros(1),
+                y_scale=np.ones(1),
+                weights=weights,
+                direct_weights=fold.direct_weights_.to_numpy(),
+                x_loadings=x_loadings,
+                y_loadings=fold.y_loadings_.to_numpy(),
+            )
+        )
+    pv_scores = _procrustes_scores(model, folds)[0]
+    assert (pv_scores[0, 2] / sd[2]) ** 2 > 1000.0  # what the third component added
+    t2 = np.cumsum((pv_scores[:, :2] / sd[:2]) ** 2, axis=1)
+    t2 = np.c_[t2, t2[:, 1]]
+    limits = [hotellings_t2_limit(conf_level=0.95, n_components=a, n_rows=30) for a in (1, 2, 3)]
+    alarms = _monitoring_criteria(model, folds, conf_level=0.95, alpha=0.05).t2_alarm
+    np.testing.assert_allclose(alarms, [np.mean(t2[:, a] > limits[a]) for a in range(3)])
+    assert alarms[2] == 0.0
+
+
+@pytest.mark.parametrize("scale", [False, 0, None, np.False_])
+def test_a_false_scale_is_refused(scale: object) -> None:
+    """Any false ``scale`` fits the full-data model unscaled, against autoscaled folds: each is refused (#1029).
+
+    The check was ``scale is False``, which ``0``, ``None`` and ``np.False_`` passed.
+    """
+    X, Y = _two_component_data(n=30)
+    message = (
+        f"^scale={re.escape(repr(scale))} is not supported: each training fold is autoscaled, and the model "
+        r"fitted to all rows must live in the same space for the angles and the Procrustes step to compare "
+        r"them\. Pass X and Y on their raw scale\.$"
+    )
+    with pytest.raises(ValueError, match=message):
+        compare_cv_criteria(X, Y, scale=scale)
+    with pytest.raises(ValueError, match=message):
+        pseudo_validation_set(X, Y, n_components=2, scale=scale)
+
+
 # --- Missing values ------------------------------------------------------------------------
 
 
@@ -492,7 +625,7 @@ def test_identity_and_in_sample_slope_hold_with_gaps(m: int) -> None:
     np.testing.assert_allclose(-np.diff(press), (2 * held.slope_ratio - 1) * held.slope_weight, rtol=1e-10)
 
     everything = [(np.arange(len(X)), np.arange(len(X)))]
-    in_sample = _heldout_pass(_fit_folds(lambda: PLS(n_components=4), X, Y, everything, scope="local"), Y.to_numpy(), 4)
+    in_sample = _heldout_pass(_fit_folds(lambda: PLS(n_components=4), X, Y, everything), Y.to_numpy(), 4)
     np.testing.assert_allclose(in_sample.slope_ratio, 1.0, rtol=1e-8)
 
 
