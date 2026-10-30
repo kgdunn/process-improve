@@ -99,6 +99,16 @@ jobs:
       run: >-
         npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock
         pyodide@${{ steps.runtime.outputs.pyodide }}
+    # Pyodide keeps each wheel it downloads in node_modules, as it came. One cut short in
+    # transit was cached that way, and every run that restored the cache then failed to load
+    # it ("annotated_types-0.7.0-py3-none-any.whl is not a zip file"). Drop any wheel that is
+    # not a whole zip file, so Pyodide downloads it again.
+    - name: Drop cached Pyodide wheels that are not whole
+      shell: bash
+      run: |
+        find ~/.cache/process-improve/node -name '*.whl' -print0 | while IFS= read -r -d '' wheel; do
+          unzip -tqq "$wheel" >/dev/null 2>&1 || { echo "::warning::Dropped $wheel, which is not a whole zip file"; rm -f "$wheel"; }
+        done
     - name: Cache the downloads of the page in the browser
       uses: actions/cache@v6
       with:
