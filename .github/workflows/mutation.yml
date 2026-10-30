@@ -99,7 +99,7 @@ jobs:
           if [ "$missed" != "0" ]; then
             { echo '```diff'; uv run --with mutmut==3.8.1 mutmut results | grep -E ': (survived|no tests|suspicious)$' |
               awk -F: '{print $1}' | while read -r name; do uv run --with mutmut==3.8.1 mutmut show "$name"; done
-              echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+              echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
