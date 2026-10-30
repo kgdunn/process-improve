@@ -29,7 +29,6 @@ __all__ = [
     "SelectionRule",
     "SpecificationWarning",
     "UncentredDataWarning",
-    "cumulative_block_t2",
     "epsqrt",
     "informative_widths",
     "y_is_exhausted",
@@ -741,36 +740,6 @@ def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
             spread = np.nanstd(values, axis=0)
         out[name] = max(1, int(np.count_nonzero(spread > epsqrt)))
     return out
-
-
-def cumulative_block_t2(scores: np.ndarray) -> np.ndarray:
-    """Return the cumulative Hotelling's T² of each row of a multiblock model's block scores (#513).
-
-    Each component is scaled by the scores' second moment about zero,
-    ``sum(t**2) / (n - 1)`` over the ``n`` rows that have a score, which is how
-    ``explained_variance_`` scales the super scores, so a block's T² and the super T²
-    follow one convention. T² measures the distance from the model's centre, the
-    origin of the score space, so the spread it is scaled by is the spread about that
-    origin too. The block scores used to be scaled by their variance about their own
-    mean instead, which differs as soon as missing data leaves them off-centre, and
-    which a single row without a score turned into NaN, so that every row's T² in the
-    block went unscaled.
-
-    Parameters
-    ----------
-    scores : np.ndarray of shape (n_samples, n_components)
-        One block's scores, NaN for a row with nothing observed in the block.
-
-    Returns
-    -------
-    np.ndarray of shape (n_samples, n_components)
-        Column ``a`` holds the T² over the first ``a`` components; NaN for a row with
-        no score. A component whose scores are all zero adds nothing.
-    """
-    present = np.isfinite(scores)
-    second_moment = np.nansum(scores**2, axis=0) / np.maximum(1, present.sum(axis=0) - 1)
-    second_moment = np.where(second_moment > 0, second_moment, 1.0)
-    return np.cumsum((scores**2) / second_moment, axis=1)
 
 
 class BlockSet(dict):

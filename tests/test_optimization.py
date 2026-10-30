@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -1694,3 +1695,22 @@ class TestCanonicalForms:
         result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
         assert "canonical_axes" not in result
         assert result["ridge_form"]["linear"] == pytest.approx(1.0)  # the ridge keeps rising, at slope 1
+
+    @staticmethod
+    def _two_flat_axes(slope_x3: float) -> list[dict]:
+        """Box and Draper's Table 11.1 (F), and (G) with a slope along X3: eigenvalues -2, 0 and 0."""
+        terms = [("Intercept", 0.0), ("X1", 0.0), ("X2", 0.0), ("X3", slope_x3)]
+        terms += [("I(X1 ** 2)", -2.0), ("I(X2 ** 2)", 0.0), ("I(X3 ** 2)", 0.0)]
+        return [{"term": term, "coefficient": coefficient} for term, coefficient in terms]
+
+    @pytest.mark.parametrize(("slope_x3", "classification"), [(0.0, "stationary_ridge"), (1.0, "rising_ridge")])
+    def test_two_zero_eigenvalues_give_a_finite_origin(self, slope_x3: float, classification: str) -> None:
+        """#965: the origin leaves out every flat axis, so two zero eigenvalues no longer divide by zero."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = _canonical_analysis(self._two_flat_axes(slope_x3), ["X1", "X2", "X3"])
+        form = result["ridge_form"]
+        assert result["classification"] == classification
+        assert form["origin"] == pytest.approx({"X1": 0.0, "X2": 0.0, "X3": 0.0})
+        assert form["origin_response"] == pytest.approx(0.0)
+        assert form["offsets"] == pytest.approx([0.0, 0.0, 0.0])

@@ -514,12 +514,14 @@ def _canonical_analysis(
         with X_i = v_i'(x - x0). Its axis ``k`` is that of the smallest
         eigenvalue in size, the ridge's direction, and its ``origin`` x0 is the
         point nearest the design centre where the response stops changing
-        along every other axis. It holds the ``origin`` (coded), the
+        along every other axis that is not flat. It holds the ``origin`` (coded), the
         ``origin_response`` y0 there, the ``linear`` coefficient theta along
         the ridge, v_k'b, and each axis's ``offset``, the constant c_i of the
         plane X_i = v_i'x + c_i = 0. The form is exact for any surface: a
         maximum, minimum or saddle is a ridge whose theta is zero and whose
-        smallest eigenvalue is not. It is not Box and Draper's B canonical
+        smallest eigenvalue is not. The one exception is a slope along a flat
+        axis other than ``k``, which only a surface with several flat axes
+        can have, and which the form leaves out (#971 K2). It is not Box and Draper's B canonical
         form, which is centred on the stationary point (below).
 
         When the surface has a stationary point x_s, ``canonical_axes`` gives
@@ -550,7 +552,7 @@ def _canonical_analysis(
         "classification": shape.classification,
         "canonical_form_description": desc_parts,
         "factor_names": factor_names,
-        "ridge_form": _ridge_form((b0, b, B), eigenvalues, eigenvectors, factor_names),
+        "ridge_form": _ridge_form((b0, b, B), eigenvalues, eigenvectors, factor_names, shape.flat),
     }
     if not shape.drifts:  # a stationary point exists: the B canonical form's axes are centred on it
         curved = ~shape.flat
@@ -574,16 +576,19 @@ def _ridge_form(
     eigenvalues: np.ndarray,
     eigenvectors: np.ndarray,
     factor_names: list[str],
+    flat: np.ndarray,
 ) -> dict[str, Any]:
     """Return Box and Draper's ridge form (Eq. 11.1.2), taking the last axis (the smallest eigenvalue) as the ridge.
 
-    The origin x0 = -1/2 sum over the other axes of (v_i'b / lambda_i) v_i is the point nearest the
-    centre where the gradient has no component along them, so the form keeps one linear term, along
-    the ridge. *surface* is the fitted quadratic's intercept, linear vector b and matrix B.
+    The origin x0 = -1/2 sum over the other curved axes of (v_i'b / lambda_i) v_i is the point nearest
+    the centre where the gradient has no component along them, so the form keeps one linear term, along
+    the ridge. An axis whose eigenvalue is *flat* has no such point and is left out, as the last axis
+    is (#965). *surface* is the fitted quadratic's intercept, linear vector b and matrix B.
     """
     b0, b, B = surface
-    others = eigenvectors[:, :-1]
-    origin = others @ (-0.5 * (others.T @ b) / eigenvalues[:-1])
+    others = ~flat
+    others[-1] = False
+    origin = eigenvectors[:, others] @ (-0.5 * (eigenvectors[:, others].T @ b) / eigenvalues[others])
     return {
         "ridge_axis": len(eigenvalues) - 1,
         "origin": dict(zip(factor_names, map(float, origin), strict=True)),

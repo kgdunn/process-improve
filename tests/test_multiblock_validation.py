@@ -7,6 +7,7 @@ run once per class. Everything fits a 10-row, two-block set in milliseconds.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 import numpy as np
@@ -15,7 +16,7 @@ import plotly.graph_objects as go
 import pytest
 
 from process_improve.multivariate._limits import spe_calculation
-from process_improve.multivariate.methods import MBPCA, MBPLS
+from process_improve.multivariate.methods import MBPCA, MBPLS, SpecificationWarning
 
 MultiblockModel = MBPCA | MBPLS
 
@@ -79,11 +80,24 @@ def test_fit_refuses_malformed_blocks(
         ({"max_iter": 0}, r"^max_iter must be positive; got 0\.$"),
         ({"algorithm": "nipals", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
         ({"algorithm": "nipals", "tol": 1e-30}, r"^Tolerance must exceed machine precision; got 1e-30\.$"),
+        ({"algorithm": "dense", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
+        ({"algorithm": "dense", "tol": 1e-30}, r"^Tolerance must exceed machine precision; got 1e-30\.$"),
     ],
-    ids=["no-components", "no-iterations", "tol-too-large", "tol-below-precision"],
+    ids=[
+        "no-components",
+        "no-iterations",
+        "tol-too-large",
+        "tol-below-precision",
+        "dense-tol-too-large",
+        "dense-tol-below-precision",
+    ],
 )
 def test_invalid_settings_are_refused(cls: type[MultiblockModel], arguments: dict, message: str) -> None:
-    """Counts must be positive, and the NIPALS tolerance must sit between machine precision and 10."""
+    """Counts must be positive, and the tolerance must sit between machine precision and 10.
+
+    The dense path iterates too, so it checks its tolerance as the masked path does: it used to
+    take any, and one above about 1 stopped the loop before its first pass (#1028).
+    """
     blocks, y = _blocks()
     with pytest.raises(ValueError, match=message):
         _fit(cls, blocks, y, **arguments)
@@ -224,6 +238,33 @@ def test_block_t2_is_scaled_as_the_super_t2_is(cls: type[MultiblockModel]) -> No
             t2 = model.block_hotellings_t2_[name].iloc[:, -1]
             assert t2.sum() == pytest.approx(n_components * (t2.notna().sum() - 1)), name
         assert model.super_hotellings_t2_.iloc[:, -1].sum() == pytest.approx(n_components * (len(y) - 1))
+
+
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+def test_a_tolerance_above_1_still_runs_one_pass(cls: type[MultiblockModel]) -> None:
+    """The first pass always runs (#1028).
+
+    A centred seed moves by about its own size in the first pass, so a tolerance of 2 is met
+    at once: each component is that one pass, as with ``max_iter=1``. The loop used to test the
+    tolerance before the first pass, so it never began, and fit raised KeyError for want of a
+    block loading.
+    """
+    blocks, y = _blocks()
+    loose = _fit(cls, blocks, y, tol=2.0)
+    np.testing.assert_array_equal(loose.fitting_info_["iterations"], [1, 1])
+    with pytest.warns(SpecificationWarning, match="did not converge within max_iter=1"):
+        one_pass = _fit(cls, blocks, y, max_iter=1)
+    np.testing.assert_array_equal(loose.super_scores_, one_pass.super_scores_)
+    for name in blocks:
+        np.testing.assert_array_equal(loose.block_scores_[name], one_pass.block_scores_[name])
+
+
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+def test_display_results_prints_the_iterations_as_integers(cls: type[MultiblockModel]) -> None:
+    """Under numpy 2 the list of iteration counts printed as ``[np.int64(3), ...]``."""
+    blocks, y = _blocks()
+    lines = _fit(cls, blocks, y).display_results().splitlines()
+    assert re.fullmatch(r"  Iterations per PC: \[\d+, \d+\]", lines[-2]), lines[-2]
 
 
 def test_mbpca_with_one_component_reports_its_r2_as_both_increment_and_total() -> None:
