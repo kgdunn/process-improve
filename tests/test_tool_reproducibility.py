@@ -23,7 +23,7 @@ import pytest
 
 from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.simulation.context import simulator_host_context
-from process_improve.tool_spec import _TOOL_REGISTRY, clean, discover_tools, execute_tool_call
+from process_improve.tool_spec import _TOOL_REGISTRY, clean, discover_tools, execute_tool_call, get_tool_specs
 
 _RNG = np.random.default_rng(0)
 _VALUES = np.round(_RNG.normal(10.0, 1.0, 20), 3).tolist()
@@ -266,7 +266,7 @@ def test_the_tool_gives_the_same_output_twice(tool: str, simulator_state: dict[s
     """Twice with the declared ``default_seed`` for a tool that uses an RNG, twice with no seed for any other."""
     entry = SAMPLE_INPUTS[tool]
     tool_input = entry() if callable(entry) else dict(entry)
-    rng = _TOOL_REGISTRY[tool]._tool_spec.get("rng") or {"uses_rng": False}  # type: ignore[attr-defined]
+    rng = get_tool_specs([tool])[0].get("rng") or {"uses_rng": False}
     if rng["uses_rng"]:
         tool_input[rng["seed_param"]] = rng["default_seed"]
     first = _output(tool, tool_input, simulator_state)
