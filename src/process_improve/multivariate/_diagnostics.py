@@ -614,6 +614,30 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
     return scores, guides
 
 
+def _t2_score_sd(score_sd: np.ndarray) -> np.ndarray:
+    """Return the score standard deviations Hotelling's T² divides by, ``inf`` for a component it leaves out.
+
+    A component whose training score sd is at most ``epsqrt`` times the largest (or
+    ``epsqrt`` itself while every sd is below 1) holds none of the data's spread: the last
+    component of a rank-deficient fit has an sd near 1e-16, for instance. Its standardised
+    score is noise over noise for a training row and enormous for a new row off the model
+    plane, so it carries no T². A divisor of ``inf`` makes it add 0 for any finite score.
+    Every T² of PCA, PLS, MBPCA and MBPLS goes through this one rule, so a row gets the
+    same T² from ``fit`` as from ``diagnose`` or ``project``.
+
+    Parameters
+    ----------
+    score_sd : np.ndarray of shape (n_components,)
+        The training score standard deviations (``scaling_factor_for_scores_``).
+
+    Returns
+    -------
+    np.ndarray of shape (n_components,)
+        ``score_sd``, with ``inf`` for each component left out.
+    """
+    return np.where(score_sd > epsqrt * max(1.0, float(np.max(score_sd))), score_sd, np.inf)
+
+
 def t2_contributions(
     model: BaseEstimator,
     X: DataMatrix,
@@ -702,11 +726,10 @@ def t2_contributions(
             msg = f"components must be 1-based indices within 1..{A}, got {components}."
             raise ValueError(msg)
 
-    s = np.asarray(model.scaling_factor_for_scores_)
     # A component whose score sd is ~0 carries no T2: fit() leaves it out of
-    # hotellings_t2_ by this same rule. A divisor of inf makes it contribute 0
-    # here too, whatever X scores on it, rather than inf or NaN.
-    s2 = np.where(s > epsqrt * max(1.0, float(s.max())), s**2, np.inf)[idx]
+    # hotellings_t2_ by this same rule, and it contributes 0 here too, whatever X
+    # scores on it, rather than inf or NaN.
+    s2 = _t2_score_sd(np.asarray(model.scaling_factor_for_scores_))[idx] ** 2
 
     scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     weights = scores[:, idx] / s2  # (n, len(idx))

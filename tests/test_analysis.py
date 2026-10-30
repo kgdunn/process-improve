@@ -666,11 +666,58 @@ class TestLackOfFit:
         assert lof["df_lack_of_fit"] == 1
 
     def test_a_model_using_every_distinct_setting_leaves_nothing_to_test(self) -> None:
-        """Four distinct settings and four model terms: the residual is all pure error."""
+        """Four distinct settings and four model terms: the residual is all pure error, and is reported (#969)."""
         result = analyze_experiment(
             _two_factor_replicated(), response_column="y", model="interactions", analysis_type="lack_of_fit"
         )
-        assert result["lack_of_fit"] == {"error": "Insufficient degrees of freedom for lack-of-fit test."}
+        lof = result["lack_of_fit"]
+        assert "error" not in lof
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(3.5)  # four pairs differing by 1, 2, 1 and 1
+        assert lof["ms_pure_error"] == pytest.approx(0.875)
+        assert lof["df_lack_of_fit"] == 0
+        assert lof["ss_lack_of_fit"] == pytest.approx(0.0, abs=1e-9)
+        assert lof["ms_lack_of_fit"] is None
+        assert lof["f_statistic"] is None
+        assert lof["p_value"] is None
+        assert lof["significant"] is None
+        assert "no degrees of freedom" in lof["note"]
+
+    def test_identical_repeats_report_a_pure_error_of_zero(self) -> None:
+        """Box and Draper (2007) Exercise 11.25, y2: the five centre runs all read 0.66 (#969).
+
+        The book prints "Untested, s^2 = 0": pure error 0 on 4 df, lack of fit on 3 df, and no F.
+        """
+        x1 = [-1, 1, -1, 1, -1.414, 1.414, 0, 0, 0, 0, 0, 0, 0]
+        x2 = [-1, -1, 1, 1, 0, 0, -1.414, 1.414, 0, 0, 0, 0, 0]
+        y2 = [0.55, 0.52, 0.67, 0.36, 0.59, 0.31, 0.54, 0.51, 0.66, 0.66, 0.66, 0.66, 0.66]
+        result = analyze_experiment(
+            pd.DataFrame({"x1": x1, "x2": x2}),
+            pd.Series(y2, name="y2"),
+            model="(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+            analysis_type=["anova", "lack_of_fit"],
+        )
+        lof = result["lack_of_fit"]
+        assert "error" not in lof
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(0.0, abs=1e-12)
+        assert lof["ms_pure_error"] == pytest.approx(0.0, abs=1e-12)
+        assert lof["df_lack_of_fit"] == 3
+        assert lof["ss_lack_of_fit"] == pytest.approx(0.00321, abs=5e-6)
+        assert lof["ms_lack_of_fit"] == pytest.approx(lof["ss_lack_of_fit"] / 3)
+        assert lof["f_statistic"] is None
+        assert lof["p_value"] is None
+        assert lof["significant"] is None
+        assert "pure error is zero" in lof["note"]
+
+    def test_round_off_in_identical_repeats_is_no_pure_error(self) -> None:
+        """Repeats of 3.3333333 leave ~1e-30 of round-off in their sum of squares, which must not give an F."""
+        df = pd.DataFrame({"A": [-1, -0.5, 0.5, 1] + [0] * 5, "y": [1.0, 2.5, 1.5, 2.0] + [3.3333333] * 5})
+        lof = analyze_experiment(df, response_column="y", model="A", analysis_type="lack_of_fit")["lack_of_fit"]
+        assert lof["df_pure_error"] == 4
+        assert 0 < lof["ss_pure_error"] < 1e-25  # round-off, not a spread
+        assert lof["f_statistic"] is None
+        assert "pure error is zero" in lof["note"]
 
     def test_no_factor_columns(self) -> None:
         df = _two_factor_replicated()

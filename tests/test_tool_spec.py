@@ -729,6 +729,33 @@ class TestPcaPredict:
         assert "error" not in pred_result
         assert len(pred_result["scores"]) == 5
 
+    def test_t2_leaves_out_a_component_with_no_spread(self) -> None:
+        """Three rows give three components, the third with no spread: it adds nothing to T² (#1026).
+
+        Three centred rows span two dimensions, so the third score sd is ~1e-16, and a new row
+        off that plane got a T² near 1e30. It is now ``sum (t_a / s_a)^2`` over the first two.
+        """
+        data = [[1.0, 2.0, 0.5], [2.0, 1.0, 3.0], [4.0, 3.5, 1.0]]
+        model_params = execute_tool_call("fit_pca", {"data": data, "n_components": 3})["model_params"]
+        s = np.array(model_params["scaling_factor_for_scores"])
+        assert s[2] < 1e-12
+        pred_result = execute_tool_call("pca_predict", {"new_data": [[0.0, 5.0, 2.0]], "model_params": model_params})
+        t = np.array(pred_result["scores"])
+        assert abs(t[0, 2]) > 0.1  # the new row is well off the plane
+        assert pred_result["hotellings_t2"] == pytest.approx([np.sum(t[0, :2] ** 2 / s[:2] ** 2)], rel=1e-12)
+
+    @pytest.mark.parametrize("score_sd", [[float("nan"), 1.0], [-1.0, 1.0], []])
+    def test_refuses_a_score_sd_no_fit_gives(self, score_sd: list[float]) -> None:
+        """A NaN, negative or missing score sd is refused, not read as a component with no spread.
+
+        Read that way it would drop out of T², and the corrupt model would give a T² that looks right.
+        """
+        data = np.random.default_rng(7).standard_normal((20, 3)).tolist()
+        model_params = execute_tool_call("fit_pca", {"data": data, "n_components": 2})["model_params"]
+        model_params["scaling_factor_for_scores"] = score_sd
+        pred_result = execute_tool_call("pca_predict", {"new_data": data[:2], "model_params": model_params})
+        assert "finite, non-negative" in pred_result["error"]
+
 
 class TestPlsPredict:
     """Tests for the pls_predict tool wrapper."""
@@ -751,6 +778,36 @@ class TestPlsPredict:
         )
         assert "error" not in pred_result
         assert len(pred_result["y_hat"]) == 5
+
+    def test_t2_leaves_out_a_component_with_no_spread(self) -> None:
+        """A component whose score sd is ~0 adds nothing to T², as in ``PLS.diagnose`` (#1026).
+
+        The model's second score sd is set to 1e-17, as a rank-deficient fit leaves it, so the
+        T² of a new row is ``(t_1 / s_1)^2`` alone.
+        """
+        rng = np.random.default_rng(42)
+        x_data = rng.standard_normal((30, 3)).tolist()
+        y_data = [sum(row) for row in x_data]
+        fit_result = execute_tool_call("fit_pls", {"x_data": x_data, "y_data": y_data, "n_components": 2})
+        model_params = fit_result["model_params"]
+        model_params["scaling_factor_for_scores"][1] = 1e-17
+        s = model_params["scaling_factor_for_scores"][0]
+        pred_result = execute_tool_call("pls_predict", {"new_data": [[1.0, -2.0, 0.5]], "model_params": model_params})
+        t = np.array(pred_result["scores"])
+        assert abs(t[0, 1]) > 0.1
+        assert pred_result["hotellings_t2"] == pytest.approx([(t[0, 0] / s) ** 2], rel=1e-12)
+
+    @pytest.mark.parametrize("score_sd", [[float("nan"), 1.0], [-1.0, 1.0], []])
+    def test_refuses_a_score_sd_no_fit_gives(self, score_sd: list[float]) -> None:
+        """A NaN, negative or missing score sd is refused, as ``pca_predict`` refuses it."""
+        rng = np.random.default_rng(7)
+        x_data = rng.standard_normal((20, 3)).tolist()
+        y_data = [sum(row) for row in x_data]
+        fit_result = execute_tool_call("fit_pls", {"x_data": x_data, "y_data": y_data, "n_components": 2})
+        model_params = fit_result["model_params"]
+        model_params["scaling_factor_for_scores"] = score_sd
+        pred_result = execute_tool_call("pls_predict", {"new_data": x_data[:2], "model_params": model_params})
+        assert "finite, non-negative" in pred_result["error"]
 
 
 # ---------------------------------------------------------------------------

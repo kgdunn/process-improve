@@ -127,12 +127,18 @@ Coverage says a line ran; mutation testing says a test would notice if that line
 the modules listed under `[tool.mutmut]` in `pyproject.toml`, reruns the tests that reach the
 change, and reports each change no test fails as "survived". The nightly
 `.github/workflows/mutation.yml` fails on any survivor and shows its diff in the run summary.
+It runs the modules in parallel jobs, one per group of modules, each naming its mutants by
+pattern (a mutant is called `<module>.x_<function>__mutmut_<n>`, or
+`<module>.xǁ<class>ǁ<method>__mutmut_<n>` for a method). A module added to `[tool.mutmut]`
+needs every function matched by exactly one group, which `tests/test_tooling_versions.py`
+checks; a large module can be split between groups by function, as `_pls.py` is.
 
 ```bash
 rm -rf mutants                                        # start fresh after editing the source
 uv run --with mutmut==3.8.1 mutmut run --max-children 4
 uv run --with mutmut==3.8.1 mutmut results            # the survivors
 uv run --with mutmut==3.8.1 mutmut show <mutant>      # one survivor's diff
+uv run --with mutmut==3.8.1 mutmut run --max-children 4 "process_improve.multivariate._pca.*"  # one module's mutants
 ```
 
 A survivor is either an assertion to add, checked against a value derived independently of the
