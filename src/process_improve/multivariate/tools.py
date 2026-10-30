@@ -497,12 +497,14 @@ def pca_predict(spec: PcaPredictInput) -> dict[str, Any]:
             keys_2d=("loadings",),
             keys_1d=("means", "stds", "scaling_factor_for_scores", "spe_values"),
         )
+        from process_improve.multivariate._diagnostics import _t2_score_sd  # noqa: PLC0415
         from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         means = np.array(spec.model_params["means"])
         stds = np.array(spec.model_params["stds"])
         loadings = np.array(spec.model_params["loadings"])
-        scaling_factors = np.array(spec.model_params["scaling_factor_for_scores"])
+        # A component with no spread carries no T², by the rule PCA.diagnose uses (#1026)
+        scaling_factors = _t2_score_sd(np.array(spec.model_params["scaling_factor_for_scores"]))
         n_components = spec.model_params["n_components"]
         n_samples = spec.model_params["n_samples"]
         train_spe_values = np.array(spec.model_params["spe_values"])
@@ -600,6 +602,7 @@ def pls_predict(spec: PlsPredictInput) -> dict[str, Any]:
                 "spe_values",
             ),
         )
+        from process_improve.multivariate._diagnostics import _t2_score_sd  # noqa: PLC0415
         from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         x_means = np.array(spec.model_params["x_means"])
@@ -609,7 +612,8 @@ def pls_predict(spec: PlsPredictInput) -> dict[str, Any]:
         direct_weights = np.array(spec.model_params["direct_weights"])
         x_loadings = np.array(spec.model_params["x_loadings"])
         y_loadings = np.array(spec.model_params["y_loadings"])
-        scaling_factors = np.array(spec.model_params["scaling_factor_for_scores"])
+        # A component with no spread carries no T², by the rule PCA.diagnose uses (#1026)
+        scaling_factors = _t2_score_sd(np.array(spec.model_params["scaling_factor_for_scores"]))
         n_components = spec.model_params["n_components"]
         n_samples = spec.model_params["n_samples"]
         train_spe_values = np.array(spec.model_params["spe_values"])

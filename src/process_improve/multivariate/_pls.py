@@ -51,6 +51,7 @@ from ._cv_criteria import (
     _pseudo_validation_set,
     _PseudoValidationSettings,
 )
+from ._diagnostics import _t2_score_sd
 from ._diagnostics import (
     selectivity_ratio as _selectivity_ratio,
 )
@@ -1104,14 +1105,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         prior_SSY_col = ssq(Yd.values, axis=0)
         base_variance_Y = np.sum(prior_SSY_col)
         # A component with ~0 score standard deviation (rank-deficient fit)
-        # contributes 0/0 to T²; skip it rather than dividing by ~zero and
-        # poisoning T² with inf/NaN (mirrors the PCA fit path).
-        scaling_factors = self.scaling_factor_for_scores_.to_numpy()
-        t2_tol = epsqrt * max(1.0, float(np.max(scaling_factors, initial=0.0)))
+        # contributes 0/0 to T²; _t2_score_sd leaves it out, as PCA does, rather
+        # than dividing by ~zero and poisoning T² with inf/NaN.
+        score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
         for a in range(A):
-            t2_contribution = (
-                (self.scores_.iloc[:, a] / scaling_factors[a]) ** 2 if scaling_factors[a] > t2_tol else 0.0
-            )
+            t2_contribution = (self.scores_.iloc[:, a] / score_sd[a]) ** 2
             self.hotellings_t2_.iloc[:, a] = self.hotellings_t2_.iloc[:, max(0, a - 1)] + t2_contribution
             Xd = Xd - self.scores_.iloc[:, [a]] @ self.x_loadings_.iloc[:, [a]].T
             y_hat = self.scores_.iloc[:, 0 : (a + 1)] @ self.y_loadings_.iloc[:, 0 : (a + 1)].T
@@ -1341,8 +1339,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         scores = X @ self.direct_weights_
 
-        # Hotelling's T² (cumulative over all components)
-        t2_values = np.sum(np.power((scores / self.scaling_factor_for_scores_.to_numpy()), 2), axis=1)
+        # Hotelling's T² (cumulative over all components), leaving out a component fit leaves out (#1026)
+        t2_values = np.sum(np.power((scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())), 2), axis=1)
         t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
 
         # SPE: residual after reconstructing X from its scores. Reconstruct in NumPy so the
@@ -1442,7 +1440,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             x_residuals=getattr(self, "_x_residuals", None),
         )
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
+        # A component fit leaves out of T² is left out here too (#1026).
+        s = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
         t2 = pd.Series(np.sum((raw.scores / s) ** 2, axis=1), index=sample_index, name="Hotelling's T2")
         y_hat = scores @ self.y_loadings_.T
         if self._y_scaler is not None:
@@ -1657,7 +1656,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if self._y_scaler is not None:
             y_hat_df = self._y_scaler.inverse_transform(y_hat_df)
 
-        t2 = float(np.sum((tau.ravel() / self.scaling_factor_for_scores_.to_numpy()) ** 2))
+        # The T² diagnose would give x_new, by fit's rule for a component with no spread (#1026).
+        t2 = float(np.sum((tau.ravel() / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2))
         ns_columns = [f"NS{i}" for i in range(1, null_space_dimension + 1)]
 
         return Bunch(

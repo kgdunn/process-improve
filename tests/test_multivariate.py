@@ -2134,6 +2134,124 @@ def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
     np.testing.assert_allclose(contributions.to_numpy(), [[4.0, 0.0, 2.0**52 / 3.0625, 0.0]], rtol=1e-15)
 
 
+def _rows_on_a_plane(units: float = 1.0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return 30 centred rows that span a plane in four columns, and one row well off that plane."""
+    rng = np.random.default_rng(0)
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
+    flat = pd.DataFrame((plane - plane.mean(axis=0)) * units, columns=list("abcd"))
+    return flat, pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd")) * units
+
+
+def test_pca_diagnose_and_project_leave_out_of_t2_the_component_fit_leaves_out() -> None:
+    """A new row's T² counts only the components with spread, as ``hotellings_t2_`` does (#1026).
+
+    Thirty rows on a plane: a third component has a score sd near 1e-16, which fit() leaves
+    out of T². A row off the plane scores well away from 0 on it, and diagnose and project
+    gave it a T² of about 3.5e32. Its T² is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, from its scores
+    by hand, and a training row's is the same sum over its fitted scores, not that sum plus
+    noise over noise from the third component.
+    """
+    flat, new = _rows_on_a_plane()
+    pca = PCA(n_components=3).fit(flat)
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert s[2] < 1e-12
+    t = new.to_numpy() @ pca.loadings_.to_numpy()
+    assert abs(t[0, 2]) > 1.0  # the new row is well off the plane
+    by_hand = np.cumsum(t[0, :2] ** 2 / s[:2] ** 2)
+    np.testing.assert_allclose(pca.diagnose(new).hotellings_t2.to_numpy(), [[*by_hand, by_hand[1]]], rtol=1e-12)
+    np.testing.assert_allclose(pca.project(new).hotellings_t2.to_numpy(), [by_hand[1]], rtol=1e-12)
+
+    training = np.sum((pca.scores_.to_numpy()[:, :2] / s[:2]) ** 2, axis=1)
+    np.testing.assert_allclose(pca.hotellings_t2_.iloc[:, -1], training, rtol=1e-12)
+    np.testing.assert_allclose(pca.diagnose(flat).hotellings_t2.iloc[:, -1], training, rtol=1e-10)
+    np.testing.assert_allclose(pca.project(flat).hotellings_t2, training, rtol=1e-10)
+
+
+@pytest.mark.dataset
+def test_pca_t2_of_a_held_out_ldpe_row_with_as_many_components_as_rows() -> None:
+    """``n_components=None`` on ten LDPE rows fits ten components, the last one with no spread (#1026).
+
+    Ten centred rows span nine dimensions, so the tenth component's score sd is ~1e-16. The
+    eleventh row, held out, gets the T² of the first nine components, worked from its scores.
+    """
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
+    ldpe = pd.read_csv(folder / "LDPE" / "LDPE.csv", index_col=0)
+    scaler = MCUVScaler().fit(ldpe.iloc[:10])
+    pca = PCA(n_components=None).fit(scaler.transform(ldpe.iloc[:10]))
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert pca.n_components_ == 10
+    assert s[9] < 1e-12 < s[8]
+    held_out = scaler.transform(ldpe.iloc[[10]])
+    t = held_out.to_numpy() @ pca.loadings_.to_numpy()
+    by_hand = np.sum(t[0, :9] ** 2 / s[:9] ** 2)
+    np.testing.assert_allclose(pca.diagnose(held_out).hotellings_t2.iloc[0, -1], by_hand, rtol=1e-10)
+    np.testing.assert_allclose(pca.project(held_out).hotellings_t2.iloc[0], by_hand, rtol=1e-10)
+
+
+def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leaves_out() -> None:
+    """PLS's T² of a new row, and of an inverted target, counts only the components with spread (#1026).
+
+    In units of 1e12, unscaled, the noise left after two components still has a sum of squares
+    above PLS's absolute floor, so a third component is fitted to it, with a score sd below 1e-3
+    against about 3e12: fit() leaves it out of T². A row off the plane scores on it all the same.
+    Its T² is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution
+    from its scores, which diagnose gives ``x_new`` too.
+    """
+    flat, new = _rows_on_a_plane(units=1e12)
+    y = pd.DataFrame({"y": flat.to_numpy() @ [1e-12, 2e-12, 0.0, 0.0]})
+    y += 0.1 * np.random.default_rng(1).standard_normal((30, 1))
+    with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+        pls = PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(flat, y - y.mean())
+    s = pls.scaling_factor_for_scores_.to_numpy()
+    assert s[2] < 1e-6 * s[0]
+    t = new.to_numpy() @ pls.direct_weights_.to_numpy()
+    assert abs(t[0, 2]) > 1e6 * s[2]  # the new row is well off the plane
+    by_hand = np.sum(t[0, :2] ** 2 / s[:2] ** 2)
+    np.testing.assert_allclose(pls.diagnose(new).hotellings_t2, [by_hand], rtol=1e-10)
+    np.testing.assert_allclose(pls.project(new).hotellings_t2, [by_hand], rtol=1e-10)
+
+    training = np.sum((pls.scores_.to_numpy()[:, :2] / s[:2]) ** 2, axis=1)
+    np.testing.assert_allclose(pls.hotellings_t2_.iloc[:, -1], training, rtol=1e-12)
+    np.testing.assert_allclose(pls.diagnose(flat).hotellings_t2, training, rtol=1e-8)
+    np.testing.assert_allclose(pls.project(flat).hotellings_t2, training, rtol=1e-8)
+
+    inverted = pls.invert(y_desired=1.0)
+    tau = inverted.scores.to_numpy()
+    assert (tau[2] / s[2]) ** 2 > 100.0  # what the third component added
+    assert inverted.hotellings_t2 == pytest.approx(np.sum(tau[:2] ** 2 / s[:2] ** 2), rel=1e-12, abs=1e-30)
+    np.testing.assert_allclose(
+        pls.diagnose(inverted.x_new.to_frame().T).hotellings_t2, [inverted.hotellings_t2], rtol=1e-6, atol=1e-20
+    )
+
+
+@pytest.mark.parametrize("estimator", [MBPCA, MBPLS])
+def test_multiblock_super_t2_leaves_out_a_super_score_with_no_spread(estimator: type) -> None:
+    """MBPCA's and MBPLS's super T², fitted and of a new row, count only the components with spread (#1026).
+
+    Two blocks of rows on a plane: a third super score has a variance near 1e-31. It added
+    noise over noise to every fitted row's T², and about 3e28 to a new row's off the plane.
+    Each T² is now ``sum_a t_a^2 / var_a`` over the first two components, by hand.
+    """
+    flat, new = _rows_on_a_plane()
+    blocks = {"A": flat[["a", "b"]], "B": flat[["c", "d"]]}
+    model = estimator(n_components=3)
+    if estimator is MBPLS:
+        with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+            model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"]}))
+    else:
+        model.fit(blocks)
+    variance = model.explained_variance_
+    assert variance[2] < 1e-24
+    fitted = model.super_scores_.to_numpy()
+    by_hand = np.cumsum(np.column_stack([fitted[:, :2] ** 2 / variance[:2], np.zeros(30)]), axis=1)
+    np.testing.assert_allclose(model.super_hotellings_t2_.to_numpy(), by_hand, rtol=1e-10)
+
+    result = model.diagnose({"A": new[["a", "b"]], "B": new[["c", "d"]]})
+    scores = result.super_scores.to_numpy()
+    assert scores[0, 2] ** 2 / variance[2] > 1e20  # the new row is well off the plane
+    np.testing.assert_allclose(result.hotellings_t2, [np.sum(scores[0, :2] ** 2 / variance[:2])], rtol=1e-10)
+
+
 def test_pca_detect_outliers() -> None:
     """Test detect_outliers method with a synthetic dataset containing known outliers."""
     rng = np.random.default_rng(123)

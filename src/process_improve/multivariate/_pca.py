@@ -38,6 +38,7 @@ from ._common import (
     epsqrt,
     resolve_loop_settings,
 )
+from ._diagnostics import _t2_score_sd
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
@@ -944,7 +945,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return np.asarray([f"PC{a}" for a in self._component_names])
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915, C901
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915
         """Fit a principal component analysis (PCA) model to the data.
 
         Parameters
@@ -1095,19 +1096,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # score standard deviation is ~0 (a rank-deficient fit, e.g. asking
         # for min(N, K) components from mean-centred data, whose rank is at
         # most min(N-1, K)) carries no T² information: its standardized score
-        # is 0/0. Skip such components rather than dividing by ~zero, which
-        # previously poisoned T² (and everything downstream of it) with
-        # inf/NaN for every observation.
+        # is 0/0. _t2_score_sd leaves it out, here and in diagnose and project,
+        # rather than dividing by ~zero, which poisoned T² with inf/NaN.
         self.hotellings_t2_ = pd.DataFrame(
-            np.zeros((N, A)),
+            np.cumsum((self._scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2, axis=1),
             columns=component_names,
             index=self._sample_index,
         )
-        scaling_factors = self.scaling_factor_for_scores_.to_numpy()
-        t2_tol = epsqrt * max(1.0, float(np.max(scaling_factors, initial=0.0)))
-        for a in range(A):
-            contribution = (self._scores[:, a] / scaling_factors[a]) ** 2 if scaling_factors[a] > t2_tol else 0.0
-            self.hotellings_t2_.iloc[:, a] = self.hotellings_t2_.iloc[:, max(0, a - 1)] + contribution
 
         # Clean up temporary numpy staging names (the kept ndarrays above alias
         # the same arrays, so they survive these del statements).
@@ -1455,13 +1450,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         X = pd.DataFrame(np.asarray(X, dtype=float), index=sample_index, columns=feature_columns)
         X = _align_to_fit_features(X, self._feature_names)
 
-        # Hotelling's T² (cumulative)
-        component_names = self._component_names
-        t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components_)), columns=component_names, index=X.index)
-        for a in range(self.n_components_):
-            t2.iloc[:, a] = (
-                t2.iloc[:, max(0, a - 1)] + (scores.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
-            )
+        # Hotelling's T² (cumulative), leaving out a component fit leaves out
+        score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
+        t2 = pd.DataFrame(
+            np.cumsum((scores.to_numpy() / score_sd) ** 2, axis=1), columns=self._component_names, index=X.index
+        )
 
         # SPE: residual after reconstruction
         X_hat = scores.values @ self._loadings.T
@@ -1540,7 +1533,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             x_residuals=getattr(self, "_x_residuals", None),
         )
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
+        # A component fit leaves out of T² is left out here too (#1026).
+        s = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
         t2 = pd.Series(np.sum((raw.scores / s) ** 2, axis=1), index=sample_index, name="Hotelling's T2")
         return Bunch(
             scores=scores,
