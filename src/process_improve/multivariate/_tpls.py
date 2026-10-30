@@ -1049,7 +1049,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             The block to learn from.
         label : str
             Where this block sits, e.g. ``'Z["Conditions"]'``, used only in the
-            zero-variance warning.
+            warnings for excluded columns.
 
         Returns
         -------
@@ -1067,19 +1067,29 @@ class TPLS(RegressorMixin, BaseEstimator):
             the fit. That is the right thing to do with a constant column, but it used to
             happen without a word (#513): the only sign was a message-less
             ``AssertionError`` further down, or, under ``python -O``, nothing at all.
+            A column with no observed value is excluded the same way and gets the same
+            warning, worded for its own cause (#982).
         """
         centering = y.mean(axis="index")
         scaling = y.std(ddof=1, axis="index") if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
-        degenerate = scaling < _ZERO_VARIANCE_FLOOR
-        if degenerate.any():
-            named = ", ".join(repr(col) for col in y.columns[degenerate])
-            warnings.warn(
-                f"Block {label or '?'} has columns with no variance, which carry no information and are "
-                f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
-                UserWarning,
-                stacklevel=3,
-            )
-        scaling[degenerate] = float("nan")  # columns with little/no variance: set as nan
+        # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
+        # it is named separately because "no variance" would send the caller to the wrong cause.
+        unobserved = y.isna().all(axis="index")
+        # Negated so that a NaN standard deviation (a single observed value) counts as no variance.
+        degenerate = ~(scaling >= _ZERO_VARIANCE_FLOOR) & ~unobserved
+        for excluded, reason, advice in (
+            (unobserved, "no observed values", "check the data for a sensor that was never logged"),
+            (degenerate, "no variance", "check the data for a stuck sensor"),
+        ):
+            if excluded.any():
+                named = ", ".join(repr(col) for col in y.columns[excluded])
+                warnings.warn(
+                    f"Block {label or '?'} has columns with {reason}, which carry no information and are "
+                    f"excluded from the model: {named}. Drop them, or {advice}.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+        scaling[degenerate | unobserved] = float("nan")  # columns with no information: set as nan
         return centering, scaling
 
     def _validate_df(self, df: pd.DataFrame) -> pd.DataFrame:
