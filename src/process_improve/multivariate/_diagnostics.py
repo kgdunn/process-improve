@@ -17,7 +17,6 @@ from collections.abc import Callable, Sequence
 import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import leaves_list, linkage, optimal_leaf_ordering
-from scipy.spatial.distance import squareform
 from scipy.stats import f as f_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
@@ -130,18 +129,15 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
     w: np.ndarray = weights.values  # (n_features, total_components)
 
     total_components = w.shape[1]
-    if n_components is None:
-        n_components = total_components
-    elif not (1 <= n_components <= total_components):
+    if n_components is not None and not (1 <= n_components <= total_components):
         msg = f"n_components must be between 1 and {total_components}, got {n_components}."
         raise ValueError(msg)
 
-    w = w[:, :n_components]
+    w = w[:, :n_components]  # a slice up to None keeps every component
     r2 = r2[:n_components]
 
     n_features = w.shape[0]
-    r2_row = r2.reshape(1, -1)  # (1, n_components)
-    vip_values = np.sqrt(n_features * np.sum(r2_row * w**2, axis=1) / np.sum(r2))
+    vip_values = np.sqrt(n_features * np.sum(r2 * w**2, axis=1) / np.sum(r2))
 
     return pd.Series(vip_values, index=weights.index, name="VIP")
 
@@ -188,7 +184,7 @@ def _target_projection_arrays(
     # it does not repair the per-column unit mismatch. Use the scaled-space
     # regression vector (direct_weights_ @ y_loadings_.T) instead, and map X
     # into the same internal space via the model's own scaler when present.
-    b_scaled = model.direct_weights_.to_numpy(dtype=float) @ model.y_loadings_.to_numpy(dtype=float).T
+    b_scaled = model.direct_weights_.to_numpy() @ model.y_loadings_.to_numpy().T
     b = b_scaled[:, list(beta.columns).index(label)]
     norm_b = float(np.sqrt(b @ b))
     if norm_b <= epsqrt:
@@ -298,11 +294,9 @@ def _selectivity_ratio_one(
     # F-based critical value (Rajalahti et al., 2009): SR_j above this is
     # "significant" at conf_level, with N-2 and N-3 degrees of freedom. The
     # sensory layer prefers a permutation test, so this is advisory metadata.
+    # With N <= 3 a degree of freedom is below 1, and scipy returns NaN.
     n_samples = X_values.shape[0]
-    if n_samples > 3:
-        series.attrs["f_critical"] = float(f_dist.ppf(conf_level, dfn=n_samples - 2, dfd=n_samples - 3))
-    else:
-        series.attrs["f_critical"] = float("nan")
+    series.attrs["f_critical"] = float(f_dist.ppf(conf_level, dfn=n_samples - 2, dfd=n_samples - 3))
     series.attrs["conf_level"] = float(conf_level)
     series.attrs["response"] = label
     return series
@@ -437,17 +431,15 @@ def squared_cosine(model: BaseEstimator, n_components: int | None = None) -> pd.
 
     scores = model.scores_
     total_components = scores.shape[1]
-    if n_components is None:
-        n_components = total_components
-    elif not (1 <= n_components <= total_components):
+    if n_components is not None and not (1 <= n_components <= total_components):
         msg = f"n_components must be between 1 and {total_components}, got {n_components}."
         raise ValueError(msg)
 
-    score_ss = scores.to_numpy(dtype=float) ** 2
-    residual_ss = model.spe_.to_numpy(dtype=float)[:, -1] ** 2
+    score_ss = scores.to_numpy() ** 2
+    residual_ss = model.spe_.to_numpy()[:, -1] ** 2
     total_ss = score_ss.sum(axis=1) + residual_ss
 
-    with np.errstate(invalid="ignore", divide="ignore"):
+    with np.errstate(invalid="ignore"):  # 0 / 0 for a row at the origin; total_ss >= score_ss, so never x / 0
         cos2 = score_ss[:, :n_components] / total_ss[:, None]
     cos2[~np.isfinite(cos2)] = 0.0
 
@@ -518,16 +510,14 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
 
     scores = model.scores_
     total_components = scores.shape[1]
-    if n_components is None:
-        n_components = total_components
-    elif not (1 <= n_components <= total_components):
+    if n_components is not None and not (1 <= n_components <= total_components):
         msg = f"n_components must be between 1 and {total_components}, got {n_components}."
         raise ValueError(msg)
 
-    score_ss = scores.to_numpy(dtype=float) ** 2
+    score_ss = scores.to_numpy() ** 2
     column_ss = score_ss.sum(axis=0)
 
-    with np.errstate(invalid="ignore", divide="ignore"):
+    with np.errstate(invalid="ignore"):  # 0 / 0 for a score with no spread; column_ss >= score_ss, so never x / 0
         contributions = score_ss[:, :n_components] / column_ss[:n_components]
     contributions[~np.isfinite(contributions)] = 0.0
 
@@ -549,8 +539,8 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     is_pls = hasattr(model, "direct_weights_")
     reconstruction = model.x_loadings_ if is_pls else model.loadings_
     directions = model.direct_weights_ if is_pls else model.loadings_
-    P = np.asarray(reconstruction, dtype=float)
-    R = np.asarray(directions, dtype=float)
+    P = np.asarray(reconstruction)
+    R = np.asarray(directions)
 
     if not isinstance(X, pd.DataFrame):
         X = pd.DataFrame(X)
@@ -566,11 +556,10 @@ def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarra
     their own makes them match, bit for bit, what the same rows give when ``X`` has no
     missing cells, so a complete row's contributions do not depend on the other rows.
     """
-    complete = ~np.isnan(X_values).any(axis=1)
+    incomplete = np.isnan(X_values).any(axis=1)
     out = np.empty(X_values.shape)
-    out[complete] = rows_product(complete)
-    if not complete.all():
-        out[~complete] = rows_product(~complete)
+    for rows in (~incomplete, incomplete):
+        out[rows] = rows_product(rows)
     return out
 
 
@@ -594,9 +583,9 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
         return X_values @ R, None
     scores = np.full((X_values.shape[0], R.shape[1]), np.nan)
     scores[complete] = X_values[complete] @ R  # the complete rows keep the exact complete-data path
-    variances = np.asarray(model.explained_variance_, dtype=float)
+    variances = np.asarray(model.explained_variance_)
     # SCP projects onto the weights, as NIPALS does; for PCA they are the loadings (the operator's default).
-    weights = np.asarray(model.x_weights_, dtype=float) if hasattr(model, "direct_weights_") else None
+    weights = np.asarray(model.x_weights_) if hasattr(model, "direct_weights_") else None
     guides = np.broadcast_to(R, (X_values.shape[0], *R.shape)).copy()
     patterns: dict[bytes, list[int]] = {}
     for i in np.flatnonzero(~complete):
@@ -619,7 +608,9 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
         guide = np.zeros_like(R)
         guide[mask, :] = operator.matrix.T
         guides[rows] = guide
-        scores[rows] = np.where(observed[rows], X_values[rows], 0.0) @ guide
+        # A missing cell meets a row of zeros in the guide, so the value it is filled with does not matter.
+        filled = np.where(observed[rows], X_values[rows], 0.0)  # pragma: no mutate - any fill: see above
+        scores[rows] = filled @ guide
     return scores, guides
 
 
@@ -628,7 +619,7 @@ def t2_contributions(
     X: DataMatrix,
     components: list[int] | None = None,
     *,
-    method: str = "scp",
+    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
     ridge: float = 0.0,
 ) -> pd.DataFrame:
     r"""Per-variable contributions to Hotelling's :math:`T^2`.
@@ -648,7 +639,9 @@ def t2_contributions(
     :math:`\sum_a t_{ia}^2 / s_a^2`, i.e. the observation's :math:`T^2`. The
     values are signed; a large magnitude flags a variable that drives the
     observation away from the model centre. This is the standard MSPC
-    diagnostic (Westerhuis, Gurden and Smilde, 2000).
+    diagnostic (Westerhuis, Gurden and Smilde, 2000). A component whose score
+    standard deviation is ~0 contributes nothing, as it adds nothing to the
+    stored ``hotellings_t2_``.
 
     A row with missing cells (NaN) gets its scores from its observed cells
     alone, with the estimator named by ``method``, the missing-data operators
@@ -709,23 +702,33 @@ def t2_contributions(
             msg = f"components must be 1-based indices within 1..{A}, got {components}."
             raise ValueError(msg)
 
-    s = np.asarray(model.scaling_factor_for_scores_, dtype=float)[idx]
-    # ``s_a == 0`` for a degenerate component would give inf/NaN; clamp the
-    # divisor so such a component contributes nothing rather than poisoning the
-    # result (mirrors ``score_contributions(weighted=True)``).
-    s2 = np.where(s**2 > epsqrt, s**2, 1.0)
+    s = np.asarray(model.scaling_factor_for_scores_)
+    # A component whose score sd is ~0 carries no T2: fit() leaves it out of
+    # hotellings_t2_ by this same rule. A divisor of inf makes it contribute 0
+    # here too, whatever X scores on it, rather than inf or NaN.
+    s2 = np.where(s > epsqrt * max(1.0, float(s.max())), s**2, np.inf)[idx]
 
     scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     weights = scores[:, idx] / s2  # (n, len(idx))
     factors = _complete_rows_apart(X_values, lambda rows: weights[rows] @ R[:, idx].T)
     if guides is not None:
         rows = np.flatnonzero(np.isnan(X_values).any(axis=1))
-        factors[rows] = np.einsum("ia,ika->ik", weights[rows], guides[rows][:, :, idx])
+        factors[rows] = np.einsum(
+            "ia,ika->ik",  # pragma: no mutate - einsum reads upper-case subscripts as lower-case ones
+            weights[rows],
+            guides[rows][:, :, idx],
+        )
     contributions = X_values * factors
     return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
 
 
-def spe_contributions(model: BaseEstimator, X: DataMatrix, *, method: str = "scp", ridge: float = 0.0) -> pd.DataFrame:
+def spe_contributions(
+    model: BaseEstimator,
+    X: DataMatrix,
+    *,
+    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
+    ridge: float = 0.0,
+) -> pd.DataFrame:
     r"""Per-variable squared-prediction-error (SPE / DModX) contributions.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. Returns the signed
@@ -841,7 +844,7 @@ def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cel
     component: int = 1,
     scaling: str = "none",
     *,
-    method: str = "scp",
+    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
     ridge: float = 0.0,
     **deprecated: object,
 ) -> pd.DataFrame:
@@ -951,11 +954,12 @@ def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cel
     _scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     contributions = X_values * (r_a if guides is None else guides[:, :, int(component) - 1])
 
+    # A missing cell's contribution is NaN, so both scalings skip NaN (as the row sums do).
     if scaling == "maximum":
-        largest = float(np.abs(contributions).max())
+        largest = float(np.nanmax(np.abs(contributions)))
         contributions = contributions / (largest if largest > epsqrt else 1.0)
     elif scaling == "within":
-        row_total = np.abs(contributions).sum(axis=1, keepdims=True)
+        row_total = np.nansum(np.abs(contributions), axis=1, keepdims=True)
         contributions = contributions / np.where(row_total > epsqrt, row_total, 1.0)
     elif scaling != "none":
         msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
@@ -1056,8 +1060,7 @@ def group_contributions(  # noqa: PLR0913 - group/reference are sugar for weight
         if group is None:
             msg = "Pass group (optionally with reference), or weights."
             raise ValueError(msg)
-        w = np.zeros(len(X_df), dtype=float)
-        w += _mean_weights(X_df, group, "group")
+        w = _mean_weights(X_df, group, "group")
         if reference is not None:
             w -= _mean_weights(X_df, reference, "reference")
 
@@ -1071,7 +1074,7 @@ def _mean_weights(X_df: pd.DataFrame, selector: Sequence, name: str) -> np.ndarr
     if len(selected) == 0:
         msg = f"{name} selected no observations from X."
         raise ValueError(msg)
-    w = np.zeros(len(X_df), dtype=float)
+    w = np.zeros(len(X_df))
     w[X_df.index.get_indexer_for(selected.index)] = 1.0 / len(selected)
     return w
 
@@ -1090,7 +1093,7 @@ def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFr
         if len(values) != len(X_df):
             msg = f"{name} is a boolean mask of length {len(values)}, but X has {len(X_df)} rows."
             raise ValueError(msg)
-        return X_df.loc[np.asarray(values, dtype=bool)]
+        return X_df.loc[np.asarray(values)]
     missing = [v for v in values if v not in X_df.index]
     if missing:
         msg = (
@@ -1115,7 +1118,14 @@ def _complete_through_model(
     x = X_df.to_numpy(dtype=float)
     missing = np.isnan(x)
     if missing.any():
-        scores, _ = _scores_and_guides(model, x, R, P, method="scp", ridge=0.0)
+        scores, _ = _scores_and_guides(
+            model,
+            x,
+            R,
+            P,
+            method="scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same
+            ridge=0.0,  # pragma: no mutate - SCP does not use the ridge, so 1.0 is the same
+        )
         x = np.where(missing, scores @ P.T, x)
     return X_df, x, R, P
 
@@ -1123,7 +1133,8 @@ def _complete_through_model(
 def _meda_index(cross: np.ndarray, modelled: np.ndarray, scale: np.ndarray, *, signed: bool) -> np.ndarray:
     """Return ``(2 cross - modelled) * modelled / scale``, with ``|modelled|`` when signed, and 0 where scale is 0."""
     weight = np.abs(modelled) if signed else modelled
-    return np.divide((2.0 * cross - modelled) * weight, scale, out=np.zeros_like(cross), where=scale > 0)
+    # A variable with no sum of squares makes scale 0; a divisor of inf gives its entries 0, without a warning.
+    return (2.0 * cross - modelled) * weight / np.where(scale > 0, scale, np.inf)
 
 
 def _seriation_order(matrix: np.ndarray) -> np.ndarray:
@@ -1134,13 +1145,12 @@ def _seriation_order(matrix: np.ndarray) -> np.ndarray:
     Gifford and Jaakkola, 2001), so each block of related variables is contiguous.
     Two variables have only one order, up to reversal.
     """
-    n = matrix.shape[0]
+    n = len(matrix)
     if n < 3:
         return np.arange(n)
     similarity = np.abs((matrix + matrix.T) / 2.0)
     distance = np.clip(1.0 - similarity, 0.0, None)
-    np.fill_diagonal(distance, 0.0)
-    condensed = squareform(distance, checks=False)
+    condensed = distance[np.triu_indices(n, 1)]  # scipy's condensed form: the upper triangle, row by row
     return leaves_list(optimal_leaf_ordering(linkage(condensed, method="average"), condensed))
 
 
@@ -1239,11 +1249,18 @@ def _omeda_dummy(
         if dummy.ndim != 1 or dummy.size != len(X_df):
             msg = f"weights must have one entry per row of X ({len(X_df)}), got shape {dummy.shape}."
             raise ValueError(msg)
+        # Each side is scaled so its largest weight is 1 in size (Camacho, 2011), as
+        # the +1 / -1 dummy of group and reference below already is.
+        positive, negative = dummy > 0, dummy < 0
+        if positive.any():
+            dummy[positive] /= dummy[positive].max()
+        if negative.any():
+            dummy[negative] /= -dummy[negative].min()
     else:
         if group is None:
             msg = "Pass group (optionally with reference), or weights."
             raise ValueError(msg)
-        dummy = np.zeros(len(X_df), dtype=float)
+        dummy = np.zeros(len(X_df))
         in_group = X_df.index.get_indexer_for(_select_rows(X_df, group, "group").index)
         dummy[in_group] = 1.0
         if reference is not None:
@@ -1255,12 +1272,6 @@ def _omeda_dummy(
     if not np.any(dummy):
         msg = "The comparison selects no observations: every weight is zero."
         raise ValueError(msg)
-    # Each side is scaled so its largest weight is 1 in size (Camacho, 2011).
-    positive, negative = dummy > 0, dummy < 0
-    if positive.any():
-        dummy[positive] /= dummy[positive].max()
-    if negative.any():
-        dummy[negative] /= -dummy[negative].min()
     return dummy
 
 
@@ -1386,9 +1397,9 @@ def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:
 
     summary = pd.DataFrame(
         {
-            "eigenvalue": np.asarray(model.explained_variance_, dtype=float),
-            "percent_variance": model.r2_per_component_.to_numpy(dtype=float) * 100.0,
-            "cumulative_percent": model.r2_cumulative_.to_numpy(dtype=float) * 100.0,
+            "eigenvalue": model.explained_variance_,
+            "percent_variance": model.r2_per_component_.to_numpy() * 100.0,
+            "cumulative_percent": model.r2_cumulative_.to_numpy() * 100.0,
         },
         index=model.r2_per_component_.index,
     )
@@ -1449,9 +1460,9 @@ def project_variables(model: BaseEstimator, supplementary_data: DataMatrix) -> p
         raise ValueError(msg)
 
     xs = supplementary_data.to_numpy(dtype=float)
-    t = scores.to_numpy(dtype=float)
-    xs_centered = xs - xs.mean(axis=0, keepdims=True)
-    t_centered = t - t.mean(axis=0, keepdims=True)
+    t = scores.to_numpy()
+    xs_centered = xs - xs.mean(axis=0)
+    t_centered = t - t.mean(axis=0)
     xs_norm = np.sqrt((xs_centered**2).sum(axis=0))
     t_norm = np.sqrt((t_centered**2).sum(axis=0))
 
@@ -1464,16 +1475,16 @@ def project_variables(model: BaseEstimator, supplementary_data: DataMatrix) -> p
 
 def _column_centred_array(data: DataMatrix, name: str) -> np.ndarray:
     """Coerce *data* to a 2-D float array with every column mean-centred."""
-    arr = data.to_numpy(dtype=float) if isinstance(data, pd.DataFrame) else np.asarray(data, dtype=float)
+    arr = np.asarray(data, dtype=float)
     if arr.ndim == 1:
-        arr = arr.reshape(-1, 1)
+        arr = arr[:, np.newaxis]
     if arr.ndim != 2:
         msg = f"{name} must be 1- or 2-dimensional, got {arr.ndim} dimensions."
         raise ValueError(msg)
-    return np.asarray(center(arr), dtype=float)
+    return np.asarray(center(arr))
 
 
-def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool) -> float:
+def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool = False) -> float:
     """Shared core of the RV and modified-RV (RV2) coefficients."""
     x_centred = _column_centred_array(X, "X")
     y_centred = _column_centred_array(Y, "Y")
@@ -1489,7 +1500,7 @@ def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool) -> floa
 
     denominator = np.sqrt(np.sum(s_x * s_x) * np.sum(s_y * s_y))
     if denominator == 0.0:
-        return float("nan")
+        return np.nan
     return float(np.sum(s_x * s_y) / denominator)
 
 
@@ -1544,7 +1555,7 @@ def rv_coefficient(X: DataMatrix, Y: DataMatrix) -> float:
     >>> rv_coefficient(X, Y)
     >>> rv_coefficient(X, X)  # 1.0: a block is perfectly correlated with itself
     """
-    return _matrix_correlation(X, Y, modified=False)
+    return _matrix_correlation(X, Y)
 
 
 def rv2_coefficient(X: DataMatrix, Y: DataMatrix) -> float:

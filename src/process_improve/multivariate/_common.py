@@ -611,12 +611,14 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
     """
     if scaling == "none":
         return blocks
+    # A missing cell's contribution is NaN, so both scalings skip NaN, as the single-block
+    # score_contributions does: NaN in the max or a row's sum left the bars unscaled.
     if scaling == "maximum":
-        largest = max((float(np.abs(v).max()) for v in blocks.values() if v.size), default=0.0)
+        largest = max((float(np.nanmax(np.abs(v))) for v in blocks.values() if np.isfinite(v).any()), default=0.0)
         scalar = largest if largest > epsqrt else 1.0
         return {name: values / scalar for name, values in blocks.items()}
     if scaling == "within":
-        totals = sum(np.abs(values).sum(axis=1) for values in blocks.values())
+        totals = sum(np.nansum(np.abs(values), axis=1) for values in blocks.values())
         per_row = np.where(totals > epsqrt, totals, 1.0).reshape(-1, 1)
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."

@@ -1982,3 +1982,41 @@ class TestMultiblockSignConvention:
         assert weights[np.argmax(np.abs(weights))] < 0  # the case the old convention flipped
         np.testing.assert_allclose(model.transform(x_blocks).values, model.super_scores_.values, atol=1e-10)
         np.testing.assert_allclose(model.diagnose(x_blocks).predictions.values, model.predictions_.values, atol=1e-10)
+
+
+@pytest.mark.parametrize("estimator", ["MBPCA", "MBPLS"])
+def test_block_contribution_scalings_skip_the_missing_cells(estimator: str) -> None:
+    """A missing cell's NaN neither stops ``"maximum"`` from scaling nor leaves its row out of ``"within"``.
+
+    Miller, Swanson and Heckler (1994): divide by the largest absolute contribution, or by the
+    row's total absolute contribution, both taken jointly over the blocks and over the observed
+    cells, as the single-block ``score_contributions`` does.
+    """
+    from process_improve.multivariate import methods
+
+    rng = np.random.default_rng(7)
+    latent = rng.standard_normal((30, 2))
+    x_blocks = {
+        "A": pd.DataFrame(latent @ rng.standard_normal((2, 4)) + 0.1 * rng.standard_normal((30, 4))),
+        "B": pd.DataFrame(latent @ rng.standard_normal((2, 3)) + 0.1 * rng.standard_normal((30, 3))),
+    }
+    model = getattr(methods, estimator)(n_components=2)
+    if estimator == "MBPLS":
+        model.fit(x_blocks, pd.DataFrame(latent @ rng.standard_normal((2, 1))))
+    else:
+        model.fit(x_blocks)
+    with_gap = {name: block.copy() for name, block in x_blocks.items()}
+    with_gap["A"].iloc[3, 1] = np.nan
+
+    raw = model.score_contributions(with_gap, component=1)
+    stacked = np.hstack([raw[name].to_numpy() for name in model.block_names_])
+    assert np.isnan(stacked).sum() == 1
+
+    largest = model.score_contributions(with_gap, component=1, scaling="maximum")
+    for name in model.block_names_:
+        np.testing.assert_allclose(largest[name], raw[name].to_numpy() / np.nanmax(np.abs(stacked)), rtol=1e-14)
+
+    within = model.score_contributions(with_gap, component=1, scaling="within")
+    row_total = np.nansum(np.abs(stacked), axis=1, keepdims=True)
+    for name in model.block_names_:
+        np.testing.assert_allclose(within[name], raw[name].to_numpy() / row_total, rtol=1e-14)
