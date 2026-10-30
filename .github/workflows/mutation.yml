@@ -67,6 +67,8 @@ jobs:
               process_improve.multivariate._pls.xǁPLSǁ_fit_imputed*
               process_improve.multivariate._pls.xǁPLSǁcompare_cv_criteria*
               process_improve.multivariate._pls.xǁPLSǁscore*
+          - name: mbpca
+            patterns: process_improve.multivariate._mbpca.*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
