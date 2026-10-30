@@ -5394,8 +5394,10 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # from sklearn.model_selection import cross_val_score
 
     # scores = cross_val_score(tpls_test, transformed_data, None, cv=5)
-    # Ensure model is fitted appropriately, with the expected number of iterations
-    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 27]
+    # Ensure model is fitted appropriately, with the expected number of iterations. These were
+    # [11, 9, 27] when the iteration started from the first Quality column; it now starts from the
+    # column with the largest sum of squares (#954), which reaches the same model in fewer.
+    assert tpls_test.fitting_statistics["iterations"] == [8, 9, 25]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
     # Model parameters tested. ``hotellings_t2`` is now the cumulative per-component form
@@ -5421,9 +5423,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert np.square(tpls_test.spe["Y"]["Quality"].iloc[0:4].values) == pytest.approx(
         [5.60356584, 2.82414766, 1.69358176, 3.4829089], rel=1e-8
     )
-    # Test the last 4 observations
+    # Test the last 4 observations. This pin and the D["Group 3"] one below were re-taken when the
+    # iteration started from the largest Quality column (#954): the model is the same within the
+    # convergence tolerance, and these two moved by 1e-8 and 1e-7 relative, just past their rel.
     assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
-        [2.79253124, 2.00872637, 10.80292179, 3.26432946], rel=1e-8
+        [2.79253125, 2.00872639, 10.80292176, 3.26432949], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
         [167.49971736, 132.25813164, 201.56460235, 198.02742727], rel=1e-8
@@ -5441,7 +5445,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
         [30.77363754, 31.61877076, 30.53696788, 97.88805239], rel=1e-8
     )
     assert np.square(tpls_test.spe["D"]["Group 3"].iloc[0:4].values) == pytest.approx(
-        [0.015504765277819974, 0.002021083231104291, 0.04795499280275304, 0.0024131901105140696], rel=1e-7
+        [0.015504767382306245, 0.0020210834557258493, 0.0479549926196664, 0.002413190023210532], rel=1e-7
     )
     # Is this is all zero because there are only 3 columns of data, and we fit 3 components?
     assert np.square(tpls_test.spe["D"]["Group 5"].iloc[0:4].values) == pytest.approx([0, 0, 0, 0], rel=1e-8)
