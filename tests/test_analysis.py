@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ast
 import itertools
+import json
 import re
 import warnings
+from importlib import resources
 
 import numpy as np
 import pandas as pd
@@ -1465,6 +1467,52 @@ class TestBlocks:
         df["y"] = 10 * df.x1 + 12 * df.x2 + 8 * df.x3 + np.arange(12) * 0.01
         with pytest.warns(UserWarning, match="blocks are not added"):
             analyze_experiment(df, response_column="y", model="scheffe_linear")
+
+    @pytest.mark.parametrize("block", ["Block", "C(Block)", "C(Block, Sum)", "C(Block, Treatment(1))"])
+    def test_pure_error_is_within_blocks_however_the_formula_writes_the_block(self, block: str) -> None:
+        """Box and Draper (2007), exercise 7.12: a central composite design in two blocks (#968).
+
+        The centre runs 80, 81, 79 and 71, 69, 70 give 2 + 2 = 4 on 4 df within blocks; pooled
+        across blocks they gave 154 on 5 df, more than the residual, and a negative lack of fit.
+        """
+        r2 = np.sqrt(2)
+        runs = pd.DataFrame(
+            {
+                "Block": [1] * 7 + [2] * 7,
+                "x1": [-1, 1, -1, 1, 0, 0, 0, -r2, r2, 0, 0, 0, 0, 0],
+                "x2": [-1, -1, 1, 1, 0, 0, 0, 0, 0, -r2, r2, 0, 0, 0],
+                "y": [73, 85, 83, 79, 80, 81, 79, 67, 73, 69, 71, 71, 69, 70],
+            }
+        )
+        model = f"y ~ {block} + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(4.0), 4)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(0.201, abs=5e-4), 3)
+
+    @pytest.mark.dataset
+    def test_pure_error_within_blocks_with_a_treatment_coded_block(self) -> None:
+        """Box and Draper (2007), exercise 11.20 (answer p. 703): pure error 227 on 5 df, lack of fit 2,198 on 6."""
+        catalogue = resources.files("process_improve.datasets.experiments") / "reference_catalogue"
+        entry = next(
+            e
+            for e in json.loads((catalogue / "box-draper-2007.json").read_text(encoding="utf-8"))["experiments"]
+            if e["name"] == "box-draper-11-ex-11-20-rubber-tensile-strength"
+        )
+        runs = pd.DataFrame(entry["runs"]["rows"], columns=entry["runs"]["columns"]).drop(columns="Run")
+        runs["Block"] = runs["Block"].astype(int)
+        squares = " + ".join(f"I(x{i} ** 2)" for i in range(1, 6))
+        model = f"y ~ C(Block, Treatment(1)) + (x1 + x2 + x3 + x4 + x5) ** 2 + {squares}"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(227.33, abs=0.01), 5)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(2198.5, abs=0.1), 6)
+
+    def test_pure_error_above_the_residual_is_an_error_not_a_negative_lack_of_fit(self) -> None:
+        """Replicates grouped across blocks that the model fits: the lack of fit would be below zero (#968)."""
+        df = pd.DataFrame({"Block": [1, 1, 1, 2, 2, 2], "A": [-1, 0, 0, 1, 0, 0], "y": [5, 6, 7, 15, 16, 17]})
+        fit = smf.ols("y ~ C(Block) + A", data=df).fit()
+        lof = _run_lack_of_fit(fit, df, "y", factor_cols=["A"])["lack_of_fit"]
+        assert set(lof) == {"error"}
+        assert "pure-error sum of squares" in lof["error"]
 
 
 class TestTransformedResponse:

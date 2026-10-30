@@ -76,6 +76,18 @@ def _run_lack_of_fit(
     ss_lof = ss_residual - ss_pure_error
     df_lof = df_residual - df_pure_error
 
+    # Pure error can exceed the residual only when the runs grouped as replicates differ in a
+    # column the model fits (#968); a lack of fit below zero would then be reported as a result.
+    if ss_lof < -1e-9 * max(ss_residual, 1.0):
+        return {
+            "lack_of_fit": {
+                "error": f"The pure-error sum of squares ({ss_pure_error:.6g}) exceeds the residual sum of squares "
+                f"({ss_residual:.6g}): the runs grouped as replicates on {factor_cols} differ in another column "
+                "the model uses, so lack of fit cannot be tested."
+            }
+        }
+    ss_lof = max(ss_lof, 0.0)  # rounding when the model fits the replicate means exactly
+
     if df_lof <= 0 or ss_pure_error <= 0:
         return {"lack_of_fit": {"error": "Insufficient degrees of freedom for lack-of-fit test."}}
 
