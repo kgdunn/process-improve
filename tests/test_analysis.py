@@ -1952,6 +1952,24 @@ class TestTestsAtTheCentre:
         expected = sm.stats.anova_lm(smf.ols("y ~ T + T:P", data=data).fit(), typ=2)["PR(>F)"].dropna()
         assert self._anova(data, "y ~ T + T:P") == pytest.approx(expected.to_dict())
 
+    @pytest.mark.parametrize("model", ["z1 + I(z2 - 0.2 * z1) - 1", "z1 - 1"])
+    def test_an_i_term_that_mixes_factors_is_tested_as_given(self, model: str) -> None:
+        """Box and Draper (2007) Table 3.6: z1 and z2 - 0.2 z1 are orthogonal, so SS(z1) = 12 in either model.
+
+        Coding z2 to -1/+1 makes I(z2 - 0.2 * z1) a column no longer orthogonal to z1, with the
+        same fitted values, and SS(z1) was 14.97 (#963).
+        """
+        data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
+        result = analyze_experiment(
+            data, response_column="y", model=model, analysis_type=["anova", "coefficients"], coding="actual"
+        )
+        table = {row["source"]: row["sum_sq"] for row in result["anova_table"]}
+        assert table["z1"] == pytest.approx(12.0)
+        if "I(" in model:
+            assert table["I(z2 - 0.2 * z1)"] == pytest.approx(4.5)
+            assert table["Residual"] == pytest.approx(1.5)
+            assert _terms(result) == pytest.approx({"z1": 2.0, "I(z2 - 0.2 * z1)": 2.5})
+
     def test_units_too_unequal_for_floating_point_are_tested_coded(self) -> None:
         """A tiny span far from zero loses the fit's rank; the coded fit, which keeps it, is tested."""
         coded = self._anova(self._ccd(self.CCD[:, 0]), "quadratic")
@@ -2204,6 +2222,41 @@ class TestDefaultCoding:
         actual = execute_tool_call("analyze_experiment", {**request, "coding": "actual"})
         assert actual["coding"] == "actual"
         assert "coefficients_actual" not in actual
+
+
+class TestNoCodedScale:
+    """An ``I()`` term such as ``I(xi ** 0.5)`` has no value where the coded factor is negative (#963)."""
+
+    #: Box and Draper (2007) Table 8.4, the polymer catalyst data fitted as Y = b0 + b1 xi^(1/2) in Eq. (8.5.26).
+    DATA = pd.DataFrame({"xi": [0.5, 1.5, 2.5, 3.5, 4.5], "Y": [28.45, 47.78, 64.35, 74.67, 83.65]})
+
+    @pytest.mark.parametrize(
+        ("model", "column"),
+        [("I(xi ** 0.5)", np.sqrt), ("I(1 / xi)", np.reciprocal), ("I(xi ** -1)", np.reciprocal)],
+    )
+    @pytest.mark.parametrize("coding", ["actual", "auto"])
+    def test_it_fits_as_given(self, model: str, column, coding: str) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model=model, analysis_type=["anova", "coefficients"], coding=coding
+        )
+        expected = sm.OLS(self.DATA["Y"], sm.add_constant(column(self.DATA["xi"]))).fit()
+        assert result["coding"] == "actual"
+        assert [row["coefficient"] for row in result["coefficients"]] == pytest.approx(list(expected.params))
+        assert result["anova_table"][0]["sum_sq"] == pytest.approx(expected.ess)
+        assert result["model_summary"]["model_rank"] == 2
+
+    @pytest.mark.parametrize("coding", ["coded", {"xi": {"low": 0.5, "high": 4.5}}])
+    def test_a_coded_scale_is_refused(self, coding) -> None:
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(
+                self.DATA, response_column="Y", model="I(xi ** 0.5)", analysis_type="coefficients", coding=coding
+            )
+
+    def test_a_square_keeps_the_coded_scale(self) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="coefficients"
+        )
+        assert result["coding"] == "coded"
 
 
 class TestStandardisedCoefficients:
