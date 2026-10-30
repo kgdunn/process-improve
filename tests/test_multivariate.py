@@ -297,6 +297,7 @@ def test_pca_foods() -> None:
             )
     except (urllib.error.URLError, TimeoutError):
         pytest.skip("Cannot reach openmv.net - skipping network-dependent test")
+        return  # pytest.skip raises; CodeQL cannot tell, and reads ``foods`` as possibly unset below
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
@@ -2519,12 +2520,14 @@ def test_pls_invalid_calls() -> None:
     with pytest.raises(ValueError, match=r"Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, tol=0)
 
-    # The `method` input parameter does not exist anymore
+    # The `method` and `md_method` input parameters do not exist anymore
+    retired: dict[str, object] = {"method": "SVDS"}
     with pytest.raises(ValueError, match=r"Method 'SVDS' is not known."):
-        _ = PLS(n_components=A, method="SVDS")
+        _ = PLS(n_components=A, **retired)
 
+    retired = {"md_method": "SCP"}
     with pytest.raises(ValueError, match=r"Missing data method 'SCP' is not known."):
-        _ = PLS(n_components=A, md_method="SCP")
+        _ = PLS(n_components=A, **retired)
 
     model = PLS(n_components=A)
     with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
