@@ -11457,3 +11457,29 @@ def test_pls_imputed_fit_reads_boolean_columns_as_numbers() -> None:
     given = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X, Y)
     exact = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X.astype(float), Y)
     _assert_near(given.beta_coefficients_.to_numpy(), exact.beta_coefficients_.to_numpy(), rtol=1e-10)
+
+
+def test_pls_component_along_x_takes_x_leading_direction_not_what_y_still_reaches() -> None:
+    """Once Y is exhausted (#913) the next weight is X's leading direction left, not the direction of X'r.
+
+    A 2x2x2 design with columns scaled 1, 3 and 2, the third nudged by 1e-9 times the
+    x1 x2 interaction, and ``y = x1 + x1 x2 / 2``. After one component the residual r is
+    the interaction, which X reaches only through the nudge: ``||X'r||`` is about 1.2e-8,
+    far above rounding but below epsqrt times y's reach at the start, so the second
+    component is along X. Its weight is the leading right singular vector of the deflated
+    X, along x2; X'r points along x3, so iterating on what is left of y would end there.
+    """
+    levels = np.array(list(itertools.product([-1.0, 1.0], repeat=3)))
+    X = levels * [1.0, 3.0, 2.0]
+    X[:, 2] += 1e-9 * levels[:, 0] * levels[:, 1]
+    y = levels[:, 0] + 0.5 * levels[:, 0] * levels[:, 1]
+    with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+        pls = PLS(n_components=2, scale=False).fit(pd.DataFrame(X), pd.DataFrame({"y": y}))
+    t1 = X @ pls.x_weights_.to_numpy()[:, 0]
+    deflated = X - np.outer(t1, X.T @ t1 / (t1 @ t1))
+    residual = y - t1 * (y @ t1 / (t1 @ t1))
+    reach = deflated.T @ residual
+    assert 1e-9 < np.linalg.norm(reach) < epsqrt * np.linalg.norm(X.T @ y)
+    leading = np.linalg.svd(deflated)[2][0]
+    assert abs(leading @ reach) / np.linalg.norm(reach) < 1e-6  # X'r is orthogonal to the leading direction
+    np.testing.assert_allclose(np.abs(pls.x_weights_.to_numpy()[:, 1]), np.abs(leading), atol=1e-9)
