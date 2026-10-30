@@ -271,6 +271,59 @@ class TestSemifold:
         assert "A" in result["explanation"]
 
 
+class TestFoldSigns:
+    """The defining words reported after a fold keep their signs (issue #966)."""
+
+    @staticmethod
+    def _assert_words_hold(result: dict) -> None:
+        """Each reported word, sign included, equals the product of its columns in every run."""
+        runs = pd.DataFrame(result["augmented_design"])
+        for word in result["defining_relation"]:
+            letters = word.removeprefix("I=")
+            sign = -1 if letters.startswith("-") else 1
+            product = np.prod([runs[f].to_numpy(float) for f in letters.lstrip("-")], axis=0)
+            np.testing.assert_array_equal(product, sign, err_msg=word)
+
+    @pytest.mark.parametrize(
+        ("generators", "expected"),
+        [
+            # Box, Hunter and Hunter (2005) D2: I = -124 = -135 = 236 = -1237.
+            (
+                ["D=-AB", "E=-AC", "F=BC", "G=-ABC"],
+                ["I=-ABCG", "I=-ABEF", "I=-ACDF", "I=-ADEG", "I=BCDE", "I=BDFG", "I=CEFG"],
+            ),
+            # Exercise 5.27: I = -126 = 135 = -237 = -1234.
+            (
+                ["D=-ABC", "E=AC", "F=-AB", "G=-BC"],
+                ["I=-ABCD", "I=-ABEG", "I=ACFG", "I=ADEF", "I=-BCEF", "I=-BDFG", "I=CDEG"],
+            ),
+        ],
+    )
+    def test_foldover_keeps_word_signs(self, generators: list[str], expected: list[str]) -> None:
+        """A word of even length keeps its sign through the fold-over."""
+        design = _fractional_factorial_df(generators, names="ABCDEFG")
+        result = augment_design(design, "foldover", generators=generators)
+        assert sorted(result["defining_relation"]) == sorted(expected)
+        self._assert_words_hold(result)
+
+    def test_foldover_of_positive_generators_is_unchanged(self) -> None:
+        """With only positive generators every surviving word stays positive."""
+        generators = ["D=AB", "E=AC", "F=BC", "G=ABC"]
+        result = augment_design(
+            _fractional_factorial_df(generators, names="ABCDEFG"), "foldover", generators=generators
+        )
+        assert result["defining_relation"] == ["I=ABCG", "I=ABEF", "I=ACDF", "I=ADEG", "I=BCDE", "I=BDFG", "I=CEFG"]
+        self._assert_words_hold(result)
+
+    def test_semifold_keeps_word_signs(self) -> None:
+        """A word without the fold factor holds with its sign in the added runs too."""
+        generators = ["D=-AB", "E=-AC", "F=BC", "G=-ABC"]
+        design = _fractional_factorial_df(generators, names="ABCDEFG")
+        result = augment_design(design, "semifold", generators=generators, fold_on="G")
+        assert result["defining_relation"] == ["I=-ABD", "I=-ACE", "I=BCF", "I=DEF", "I=-ABEF", "I=-ACDF", "I=BCDE"]
+        self._assert_words_hold(result)
+
+
 @pytest.mark.parametrize("augmentation_type", ["add_runs_optimal", "add_center_points", "replicate", "add_blocks"])
 @pytest.mark.parametrize("n_additional_runs", [0, -2, 1.5])
 def test_non_positive_run_count_is_refused(augmentation_type: str, n_additional_runs: float) -> None:
