@@ -11297,6 +11297,14 @@ def test_pls_select_n_components_has_no_r2_where_the_held_out_rows_do_not_vary()
     assert result.r2x_validated["flat"].isna().all()
     assert result.r2x_validated[["a", "b", "c", "total"]].notna().all(axis=None)
     assert result.q2_se.isna().all()
+    # Over two such folds the PRESS has a spread, and still no response spread to scale it by.
+    Y = pd.DataFrame({"y": [5.0, 5.0, 5.0, 5.0, 3.0, 7.0, 4.0, 6.0, 2.0, 8.0]})
+    X = pd.DataFrame(rng.standard_normal((10, 3)), columns=["a", "b", "c"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = PLS.select_n_components(X, Y, cv=PredefinedSplit([0, 0, 1, 1] + [-1] * 6), max_components=2)
+    assert np.isfinite(result.se_rmsecv.to_numpy()).all()
+    assert result.q2_se.isna().all()
 
 
 def test_pls_select_n_components_says_in_full_when_no_count_can_be_judged() -> None:
@@ -11388,3 +11396,14 @@ def test_pls_direct_weights_name_a_singular_p_w() -> None:
     np.testing.assert_allclose(_direct_weights(W, P), W @ np.linalg.inv(P.T @ W), rtol=1e-12)
     with pytest.raises(np.linalg.LinAlgError, match=r"^\(x_loadings' @ x_weights\) is singular or ill-conditioned"):
         _direct_weights(W, np.ones((3, 2)))
+
+
+def test_pls_imputed_fit_reads_boolean_columns_as_numbers() -> None:
+    """Indicator columns of booleans, as ``pd.get_dummies`` gives, are imputed with the responses as 0 and 1."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((15, 4)) > 0, columns=list("abcd"))
+    Y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 2.0, 3.0, 4.0] + rng.standard_normal(15)})
+    Y.iloc[2, 0] = np.nan
+    given = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X, Y)
+    exact = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X.astype(float), Y)
+    _assert_near(given.beta_coefficients_.to_numpy(), exact.beta_coefficients_.to_numpy(), rtol=1e-10)

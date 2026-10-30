@@ -8,6 +8,7 @@ plotting bound as convenience methods after ``fit()``.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import time
 import typing
@@ -617,7 +618,6 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         exhausted = False  # pragma: no mutate - None reads as False in the or below
         for a in range(A):
             start_time = time.time()
-            itern = 0
 
             if ssq(Xd) < epsqrt:
                 emsg = (
@@ -642,20 +642,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # non-degenerate seed, but the highest-variance column needs fewer
             # iterations and is more robust. The deterministic sign convention
             # applied below makes the fitted sign independent of this seed.
-            # (Replace NaN with 0 for the missing-data path.)
-            start_col = int(np.argmax(ssq(target, axis=0)))
-            u_a_guess = target[:, [start_col]].copy()
-            u_a_guess[np.isnan(u_a_guess)] = 0
-            u_a = u_a_guess + 1.0
+            # A missing cell of the seed starts at 0.
+            u_a = np.nan_to_num(target[:, [int(np.argmax(ssq(target, axis=0)))]]) + 1.0
 
-            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
-            # offset that primes the loop can be negligible relative to a
-            # large-magnitude seed column (e.g. entries ~1e154), and the relative
-            # criterion (#504) would then report convergence before ``t_a`` /
-            # ``w_a`` / ``c_a`` were ever assigned, raising UnboundLocalError
-            # below instead of fitting.
-            while itern == 0 or not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
-                u_a_guess = u_a.copy()
+            # The first pass always runs: the ``+ 1.0`` offset that primes the loop
+            # can be negligible relative to a large-magnitude seed column (e.g.
+            # entries ~1e154), and the relative criterion (#504) would then report
+            # convergence before ``t_a`` / ``w_a`` / ``c_a`` were ever assigned.
+            # terminate_check ends the loop by md_max_iter at the latest.
+            for itern in itertools.count(1):
+                u_a_guess = u_a
 
                 # 1: w_a = X'u_a / (u_a'u_a)
                 w_a = quick_regress(Xd, u_a, per="column")
@@ -674,7 +670,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 # 5: u_a = Y c_a / (c_a'c_a)
                 u_a = quick_regress(target, c_a, per="row")
 
-                itern += 1
+                if terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
+                    break
 
             if exhausted:  # the Y side of a component along X: a Y-loading of about zero, and no Y-score
                 c_a = quick_regress(Yd, t_a, per="column")
@@ -948,7 +945,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # order the scaler sums them in, so the fit would differ in its last digits from one
         # scaled outside the model.
         if not (Y.dtypes == np.float64).all():
-            Y = Y.astype(float)
+            Y = Y.astype(float)  # pragma: no mutate - pandas reads astype(None) as float64 too
 
         self.n_samples_: int = X.shape[0]
         Ny: int = Y.shape[0]
