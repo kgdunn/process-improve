@@ -89,6 +89,10 @@ logger = logging.getLogger(__name__)
 #: Model names :func:`build_formula` expands; anything else is a formula or a raw RHS.
 _NAMED_MODELS = ("main_effects", "interactions", "quadratic", *SCHEFFE_MODELS)
 
+#: How far from 1 a run's proportions may sum and still be read as a blend: proportions printed
+#: to three decimals (1/3 as 0.333) sum to 0.999 or 1.001.
+_BLEND_SUM_TOLERANCE = 1e-2
+
 
 def build_formula(
     response: str,
@@ -134,8 +138,8 @@ def build_formula(
         squared = " + ".join(f"I({f} ** 2)" for f in factors if f not in categorical)
         rhs = f"({joined}) ** 2 + {squared}" if squared else f"({joined}) ** 2"
     elif model in SCHEFFE_MODELS:
-        # Mixture components sum to 1, so the intercept is dropped; statsmodels detects
-        # the implicit constant, which keeps R-squared and the model df centred.
+        # Mixture components sum to 1, so the intercept is dropped; the fit holds the implicit
+        # constant (see _as_mixture), which keeps R-squared and the model df centred.
         rhs = scheffe_formula_rhs(factors, model)
     else:
         # Treat as raw RHS
@@ -226,7 +230,7 @@ def _is_numeric(column: pd.Series) -> bool:
 
 
 def _looks_like_mixture(df: pd.DataFrame, factor_cols: list[str]) -> bool:
-    """Whether every run's factor settings are proportions that sum to 1, as in a mixture design."""
+    """Whether every run's factor settings are proportions that sum to 1, to within ``_BLEND_SUM_TOLERANCE``."""
     if len(factor_cols) < 2 or not all(_is_numeric(df[c]) for c in factor_cols):
         return False
     values = df[factor_cols].to_numpy(dtype=float)
@@ -234,7 +238,7 @@ def _looks_like_mixture(df: pd.DataFrame, factor_cols: list[str]) -> bool:
     if finite.size == 0:
         return False
     in_unit_interval = bool(np.all((finite >= -1e-9) & (finite <= 1 + 1e-9)))
-    return in_unit_interval and bool(np.allclose(finite.sum(axis=1), 1.0, atol=1e-6))
+    return in_unit_interval and bool(np.allclose(finite.sum(axis=1), 1.0, rtol=0.0, atol=_BLEND_SUM_TOLERANCE))
 
 
 def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
@@ -259,7 +263,48 @@ def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
     settings = finite[:, [numeric.index(c) for c in shares]]
     if np.isin(settings, (0.0, 1.0)).all():
         return []
-    return shares if np.allclose(settings.sum(axis=1), 1.0, atol=1e-6) else []
+    return shares if np.allclose(settings.sum(axis=1), 1.0, rtol=0.0, atol=_BLEND_SUM_TOLERANCE) else []
+
+
+def _as_mixture(
+    ols_result: RegressionResultsWrapper, df: pd.DataFrame, factor_cols: list[str], model: str
+) -> tuple[RegressionResultsWrapper, bool]:
+    """Return the fit, holding a constant when it is a mixture model, and whether to analyse it as one.
+
+    A mixture model has no intercept: the components sum to 1, so their terms make up the
+    constant, and R², the model df and the overall F are taken about the mean. statsmodels finds
+    that constant by an exact rank test, which blends printed to three decimals (sums of 0.999 or
+    1.001) fail. So it is decided here: a fit with no intercept, on blends that sum to 1 to within
+    ``_BLEND_SUM_TOLERANCE``, holds the constant when its terms span the constant as closely. The fit
+    is analysed as a mixture model (its linear blending tested as one block) for a Scheffe model,
+    and for a formula that holds the constant over components alone.
+    """
+    pure = _looks_like_mixture(df, factor_cols)
+    components = factor_cols if pure else _mixture_components(df, factor_cols)
+    holds = False
+    if components and "Intercept" not in ols_result.model.exog_names:
+        exog = np.asarray(ols_result.model.exog, dtype=float)
+        ones = np.ones(len(exog))
+        gap = ones - exog @ np.linalg.lstsq(exog, ones, rcond=None)[0]
+        holds = float(np.abs(gap).max()) <= _BLEND_SUM_TOLERANCE
+    if holds and not ols_result.k_constant:
+        sums = df[components].to_numpy(dtype=float).sum(axis=1)
+        warnings.warn(
+            f"The blends sum to between {sums.min():.6g} and {sums.max():.6g}, not to 1 exactly, as proportions "
+            "rounded for printing do. The fit is taken to hold a constant, as a mixture model does: r_squared, "
+            "df_model and the overall F are about the mean, and df_model is one less than the number of terms.",
+            category=UserWarning,
+            stacklevel=3,
+        )
+        ols_result = smf.ols(ols_result.model.formula, data=df, hasconst=True).fit()
+    elif model in SCHEFFE_MODELS and not ols_result.k_constant:
+        warnings.warn(
+            f"The components do not sum to 1 to within {_BLEND_SUM_TOLERANCE:g} in every run, so the Scheffe model "
+            "holds no constant: r_squared, df_model and the overall F are about zero, not about the mean.",
+            category=UserWarning,
+            stacklevel=3,
+        )
+    return ols_result, model in SCHEFFE_MODELS or (model not in _NAMED_MODELS and pure and holds)
 
 
 def _coded_formula(formula: str, df: pd.DataFrame, factor_cols: list[str]) -> str:
@@ -711,6 +756,9 @@ class _Fit:
     #: The error standard deviation known before the runs, which the standard errors use instead of the
     #: residual's (#789 B6); None for the residual's.
     sigma: float | None = None
+    #: Whether the fit is analysed as a mixture model: a Scheffe model, or a formula that holds the constant
+    #: over mixture components alone (see :func:`_as_mixture`).
+    mixture: bool = False
 
     @property
     def group_cols(self) -> list[str]:
@@ -960,7 +1008,7 @@ def _handlers(
             "glm": run_glm(fit.df, fit.ols.model.formula, GlmSpec(**fit.glm), alpha=fit.alpha, new_points=points)
         },
     }
-    if fit.model in SCHEFFE_MODELS:
+    if fit.mixture:
         # The usual ANOVA, significance and effects test each blending coefficient
         # against zero, which means nothing for a mixture.
         handlers.update(_mixture_handlers(fit))
@@ -1033,6 +1081,9 @@ def analyze_experiment(  # noqa: PLR0913
         components sum to 1), an explicit formula whose left-hand side is the
         response, or *None*: ``"scheffe_quadratic"`` when every run's factor
         settings are proportions summing to 1, and ``"interactions"`` otherwise.
+        Blends that sum to 1 only to within 0.01, as proportions printed to three
+        decimals do, are blends too, with a warning. A formula with no intercept, over
+        blends alone, whose terms make up the constant is analysed as a Scheffé model.
         That default becomes ``"main_effects"``, with a warning and
         ``model_summary["model_note"]``, when the design cannot estimate the
         interactions and does not alias them in whole chains (a Plackett-Burman or
@@ -1381,7 +1432,9 @@ def analyze_experiment(  # noqa: PLR0913
         exog=lambda: np.asarray(dmatrix(_coded_formula(rhs, df, factor_cols), df), dtype=float),
     )
     df[response_col] = transformed
-    ols_result = smf.ols(_coded_formula(formula, df, factor_cols), data=df).fit()
+    ols_result, mixture = _as_mixture(
+        smf.ols(_coded_formula(formula, df, factor_cols), data=df).fit(), df, factor_cols, model
+    )
     logger.debug("analyze_experiment: fitted %r on %d observations; analyses=%s", formula, len(df), types)
 
     results: dict[str, Any] = {
@@ -1412,6 +1465,7 @@ def analyze_experiment(  # noqa: PLR0913
         searched_model=searched_model,
         response_name=reported_response,
         sigma=sigma,
+        mixture=mixture,
     )
     handlers = _handlers(fit, new_points, observed_at_new)
     for t in types:
