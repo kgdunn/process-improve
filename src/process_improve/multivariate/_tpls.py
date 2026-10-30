@@ -9,6 +9,7 @@ or "Three-way PLS".)
 
 from __future__ import annotations
 
+import itertools
 import logging
 import time
 import typing
@@ -1684,16 +1685,15 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Follow the steps in the paper on page 54
         for pc_a in range(self.n_components_):
-            n_iter = 0
             milliseconds_start = time.time()
 
             # Step 1: Select any column in Y as initial guess (they have all be scaled anyway, so it doesn't matter)
             u_super_i = next(iter(self.y_mats.values()))[:, [0]]
-            u_prior = u_super_i + 1
 
-            while not self._has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
-                n_iter += 1
-                u_prior = u_super_i.copy()
+            # The first pass always runs. A test before it, against a previous u primed as u + 1, ended the
+            # loop before it began once tol was above about 0.7, and the fit failed for want of a score.
+            for n_iter in itertools.count(1):
+                u_prior = u_super_i  # rebound below, never changed in place
                 # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
                 h_i = {
                     key: regress_a_space_on_b_row(df_f.T, u_super_i.T, pmap_f.T)
@@ -1768,6 +1768,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                 q_super_i = inner_pls["q_i"]
                 w_super_i = inner_pls["w_i"]
                 self._refuse_scores_that_are_not_finite(pc_a + 1, t_super_i)
+                if self._has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
+                    break
 
             logger.debug("TPLS: super-component %d converged in %d iterations", pc_a + 1, n_iter)
 

@@ -7826,6 +7826,22 @@ class TestTplsToleranceParameter:
         assert sum(loose.fitting_statistics["iterations"]) < sum(default.fitting_statistics["iterations"])
         assert sum(default.fitting_statistics["iterations"]) < sum(tight.fitting_statistics["iterations"])
 
+    def test_a_loose_tolerance_stops_after_the_first_pass(self, fixture_tpls_example: dict) -> None:
+        """The first pass always runs, however loose the tolerance (#1028).
+
+        The loop tested its tolerance before its first pass, against a previous u primed as
+        u + 1, whose relative change is about 0.7 for a centred and scaled Y column. With a
+        tol above that the loop never began, and the fit raised UnboundLocalError for want of
+        a score. A tol of 10 now stops after one pass, which is what max_iter=1 fits.
+        """
+        loose = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], tol=10.0)
+        one_pass = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], max_iter=1)
+        blocks = {key: value for key, value in fixture_tpls_example.items() if key != "D"}
+        loose.fit(DataFrameDict(copy.deepcopy(blocks)))
+        one_pass.fit(DataFrameDict(blocks))
+        assert loose.fitting_statistics["iterations"] == one_pass.fitting_statistics["iterations"] == [1]
+        pd.testing.assert_frame_equal(loose.t_scores_super, one_pass.t_scores_super)
+
     @pytest.mark.parametrize("bad", [0.0, -1e-3])
     def test_a_non_positive_tolerance_is_refused(self, fixture_tpls_example: dict, bad: float) -> None:
         """A tolerance of zero or less can never be met, so the loop would always run to the cap."""
