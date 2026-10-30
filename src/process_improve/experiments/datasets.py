@@ -255,10 +255,47 @@ def corrosion() -> pd.DataFrame:
     return pd.read_csv(_DATASETS_DIR / "corrosion.csv")
 
 
+def biscuit() -> pd.DataFrame:
+    """
+    Return the NIR spectra of 72 biscuit doughs whose four main ingredients were varied.
+
+    Description
+    -----------
+    A standard short-dough biscuit recipe was varied to give a broad range of each of
+    four ingredients: fat, sucrose, dry flour and water. The near-infrared reflectance
+    spectrum of each unbaked dough was then recorded from 1100 to 2498 nm. Each run's
+    response is therefore a curve of 700 points, not one number.
+
+    The four percentages add to 98.08 in every dough (the remaining ingredients are held
+    fixed), so they are mixture components: only three of them vary independently, and a
+    model of the spectrum on the composition is a mixture model. The first 40 doughs are
+    the calibration set and the other 32 the validation set. Sample 23 (calibration) and
+    sample 61 (the 21st of the validation set) are known outliers.
+
+    Dimensions
+    ----------
+    A data frame of 72 rows and 706 columns: ``sample`` (1 to 72), ``set``
+    (``"calibration"`` or ``"validation"``), the four ingredient percentages ``fat``,
+    ``sucrose``, ``dry_flour`` and ``water``, then the reflectance at each wavelength in
+    the 700 columns ``"1100"``, ``"1102"``, ..., ``"2498"`` (nm).
+
+    Source
+    ------
+    Osborne, B. G., Fearn, T., Miller, A. R. and Douglas, S., Application of near infrared
+    reflectance spectroscopy to the compositional analysis of biscuits and biscuit doughs,
+    Journal of the Science of Food and Agriculture, 35, 99-105, 1984; as ``cookie`` in the
+    ppls R package. The file is distributed under the GPL (version 2 or later) of that
+    package, not under the MIT licence of this one: see the ``NOTICE`` beside it.
+
+    """
+    return pd.read_csv(_DATASETS_DIR / "biscuit" / "biscuit.csv")
+
+
 #: Every dataset loader in this module, keyed by the name used in the R
 #: package's ``data(<name>)`` call. ``oildoe`` is also reachable under the
 #: aliases the R package documents for it.
 _LOADERS: dict[str, Callable[[], pd.DataFrame]] = {
+    "biscuit": biscuit,
     "boilingpot": boilingpot,
     "corrosion": corrosion,
     "distillateflow": distillateflow,
@@ -282,7 +319,7 @@ def data(dataset: str) -> pd.DataFrame:
     Parameters
     ----------
     dataset : str
-        Name of the dataset. One of ``"boilingpot"``, ``"corrosion"``, ``"distillateflow"``,
+        Name of the dataset. One of ``"biscuit"``, ``"boilingpot"``, ``"corrosion"``, ``"distillateflow"``,
         ``"golf"``, ``"oildoe"``, ``"pollutant"``, ``"solar"``. The aliases
         ``"oil.doe"`` and ``"oilDOE"`` also resolve to :func:`oildoe`.
 
@@ -309,6 +346,8 @@ def data(dataset: str) -> pd.DataFrame:
     try:
         loader = _LOADERS[dataset]
     except KeyError:
-        known = ", ".join(sorted({"boilingpot", "corrosion", "distillateflow", "golf", "oildoe", "pollutant", "solar"}))
+        known = ", ".join(
+            sorted({"biscuit", "boilingpot", "corrosion", "distillateflow", "golf", "oildoe", "pollutant", "solar"})
+        )
         raise ValueError(f"Unknown dataset {dataset!r}. Available datasets are: {known}.") from None
     return loader()

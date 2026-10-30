@@ -113,7 +113,20 @@ def test_corrosion_loads() -> None:
     assert df.loc[df["Resistance"].idxmax(), ["Heat", "Coating"]].tolist() == [3, "C4"]
 
 
-@pytest.mark.parametrize("name", ["boilingpot", "corrosion", "golf", "pollutant", "solar"])
+def test_biscuit_loads_a_spectrum_per_dough_over_a_mixture_of_four_ingredients() -> None:
+    """``biscuit()`` is 72 doughs, each a 700-point spectrum, with ingredients that add to a constant."""
+    df = datasets.biscuit()
+    assert df.shape == (72, 706)
+    assert list(df.columns[:6]) == ["sample", "set", "fat", "sucrose", "dry_flour", "water"]
+    assert [int(c) for c in df.columns[6:]] == list(range(1100, 2500, 2))
+    assert df["set"].value_counts().to_dict() == {"calibration": 40, "validation": 32}
+    # The four ingredients are mixture components: 98.08% of every dough, to the printed rounding.
+    assert df[["fat", "sucrose", "dry_flour", "water"]].sum(axis=1).sub(98.08).abs().max() <= 0.02
+    assert df.iloc[0, 2:6].tolist() == [21.08, 13.32, 50.09, 13.58]
+    assert not df.isna().any().any()
+
+
+@pytest.mark.parametrize("name", ["biscuit", "boilingpot", "corrosion", "golf", "pollutant", "solar"])
 def test_data_dispatch_matches_direct_loader(name: str) -> None:
     """``data(name)`` returns exactly what the named loader returns."""
     pd.testing.assert_frame_equal(datasets.data(name), getattr(datasets, name)())

@@ -1,0 +1,33 @@
+Biscuit-dough NIR spectra
+=========================
+
+Source
+------
+The ``cookie`` data set of the R package ppls 2.0.0 (CRAN), file data/cookie.rda.
+The R packages groc 1.0.10 and seedCCA 3.1 (CRAN) carry the same values.
+
+References
+----------
+Osborne, B. G., Fearn, T., Miller, A. R. and Douglas, S. *Application of near infrared
+reflectance spectroscopy to the compositional analysis of biscuits and biscuit doughs.*
+Journal of the Science of Food and Agriculture, 35(1), 99-105 (1984).
+https://doi.org/10.1002/jsfa.2740350116
+
+Brown, P. J., Fearn, T. and Vannucci, M. *Bayesian wavelet regression on curves with
+application to a spectroscopic calibration problem.* Journal of the American Statistical
+Association, 96(454), 398-408 (2001). https://doi.org/10.1198/016214501753168118
+
+Contents
+--------
+biscuit.csv: 72 unbaked biscuit doughs, one row each. ``sample`` numbers them 1 to 72 in
+the upstream order; ``set`` is ``calibration`` for the first 40 and ``validation`` for the
+other 32; ``fat``, ``sucrose``, ``dry_flour`` and ``water`` are the percentages of each
+ingredient; the 700 columns ``1100`` to ``2498`` are the NIR reflectance spectrum, one
+column per wavelength in nm, at 2 nm intervals. The values are the upstream values,
+unchanged; only the column names of the spectrum are the wavelengths instead of 1 to 700.
+
+License (upstream)
+------------------
+ppls, groc and seedCCA are distributed under the GNU General Public License, version 2 or
+later. This file is redistributed under those terms. The MIT licence of process-improve
+covers its code, not this file.
