@@ -75,6 +75,10 @@ jobs:
             patterns: process_improve.multivariate._tpls.*
           - name: cv criteria
             patterns: process_improve.multivariate._cv_criteria.*
+          - name: plsda and asca
+            patterns: >-
+              process_improve.multivariate._plsda.*
+              process_improve.multivariate._asca.*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
