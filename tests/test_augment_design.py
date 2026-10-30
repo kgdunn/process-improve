@@ -287,12 +287,12 @@ class TestFoldSigns:
     @pytest.mark.parametrize(
         ("generators", "expected"),
         [
-            # Box, Hunter and Hunter (2005) D2: I = -124 = -135 = 236 = -1237.
+            # Box and Draper (2007), sections 5.4 and 5.5, D2: I = -124 = -135 = 236 = -1237.
             (
                 ["D=-AB", "E=-AC", "F=BC", "G=-ABC"],
                 ["I=-ABCG", "I=-ABEF", "I=-ACDF", "I=-ADEG", "I=BCDE", "I=BDFG", "I=CEFG"],
             ),
-            # Exercise 5.27: I = -126 = 135 = -237 = -1234.
+            # Box and Draper (2007), exercise 5.27: I = -126 = 135 = -237 = -1234.
             (
                 ["D=-ABC", "E=AC", "F=-AB", "G=-BC"],
                 ["I=-ABCD", "I=-ABEG", "I=ACFG", "I=ADEF", "I=-BCEF", "I=-BDFG", "I=CDEG"],
