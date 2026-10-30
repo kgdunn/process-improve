@@ -387,3 +387,27 @@ def test_a_fitted_model_works_from_its_fitted_components_whatever_n_components_s
     assert model.hotellings_t2_limit(0.99) == limit
     for coordinates, expected in zip(model.ellipse_coordinates(1, 2), ellipse, strict=True):
         np.testing.assert_array_equal(coordinates, expected)
+
+
+def test_a_fitted_model_keeps_the_settings_it_was_fitted_with() -> None:
+    """``set_params`` without a refit changes neither the summary nor diagnose (#1028).
+
+    display_results read the constructor's ``max_iter`` after fit, both to flag a component
+    that ran out of iterations and to print the setting, and diagnose and the summary read
+    ``skip_f_matrix_preprocessing``: a model fitted with ``max_iter=1`` lost its flags once
+    ``max_iter`` was raised, and diagnose stopped scaling F once the skip was switched on.
+    """
+    d_matrix, blocks = _synthetic()
+    data = DataFrameDict(blocks)
+    capped = TPLS(n_components=2, d_matrix=d_matrix, max_iter=1).fit(data)
+    summary = capped.display_results()
+    assert summary.count("** (max iter reached)") == 2
+    assert "\nmax_iter: 1\nskip_f_matrix_preprocessing: False\n" in summary
+    result = capped.diagnose(data)
+
+    capped.set_params(max_iter=500, skip_f_matrix_preprocessing=True)
+    assert capped.display_results() == summary
+    again = capped.diagnose(data)
+    pd.testing.assert_frame_equal(again.t_scores_super, result.t_scores_super)
+    pd.testing.assert_frame_equal(again.hat["Y1"], result.hat["Y1"])
+    pd.testing.assert_frame_equal(again.spe["F"]["G"], result.spe["F"]["G"])

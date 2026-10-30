@@ -265,6 +265,10 @@ class TPLS(RegressorMixin, BaseEstimator):
     n_components_ : int
         The number of components fitted. Everything after ``fit`` reads it, not the
         ``n_components`` parameter, so ``set_params`` without a refit changes nothing.
+    max_iter_ : int
+        The ``max_iter`` the model was fitted with, which :meth:`display_results` reports.
+    skip_f_matrix_preprocessing_ : bool
+        Whether the fit used the F block as given; :meth:`diagnose` treats new F blocks the same way.
     n_samples : int
         Number of samples (rows) in the training data.
     n_substances : int
@@ -486,6 +490,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
         self._input_data_checks(X)
         group_keys = list(self.d_matrix)
+        # What the fit used, which everything after it reads, so that set_params without a refit changes nothing.
+        self.max_iter_ = self.max_iter
+        self.skip_f_matrix_preprocessing_ = self.skip_f_matrix_preprocessing
 
         # Storage for pre-processing and the raw matrices
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
@@ -701,7 +708,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].astype(float) for key in X["Z"]}
 
         for key, df_f in x_f.items():
-            if not self.skip_f_matrix_preprocessing:
+            if not self.skip_f_matrix_preprocessing_:
                 x_f[key] = (df_f - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key]["scale"]
 
         for key, df_z in x_z.items():
@@ -882,7 +889,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             line = (
                 f"LV {a:<2}  {r2_d_a * 100:>10.1f} {r2_z_a} {r2_f_a * 100:>10.1f} {r2_y_a * 100:>10.1f}|{time_iter:>13}"
             )
-            if self.fitting_statistics["iterations"][a - 1] >= self.max_iter:
+            if self.fitting_statistics["iterations"][a - 1] >= self.max_iter_:
                 line += "** (max iter reached)"
             output += line + "\n"
 
@@ -895,8 +902,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
         output += "Settings\n---------\n"
         output += f"n_components: {self.n_components_}\n"
-        output += f"max_iter: {self.max_iter}\n"
-        output += f"skip_f_matrix_preprocessing: {self.skip_f_matrix_preprocessing}\n"
+        output += f"max_iter: {self.max_iter_}\n"
+        output += f"skip_f_matrix_preprocessing: {self.skip_f_matrix_preprocessing_}\n"
 
         return output
 
@@ -1127,7 +1134,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             / _nz(float(np.linalg.norm(starting_vector, ord=None)))
         )
         converged = delta_gap < self.tol
-        max_iter = iterations >= self.max_iter
+        max_iter = iterations >= self.max_iter_
         return bool(np.any([max_iter, converged]))
 
     def _refuse_scores_that_are_not_finite(self, component: int, t_super_i: np.ndarray) -> None:
@@ -1576,7 +1583,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         """Pre-process the training data."""
 
         for key in self.f_mats:
-            if not self.skip_f_matrix_preprocessing:
+            if not self.skip_f_matrix_preprocessing_:
                 self.f_mats[key] = (
                     self.f_mats[key] - self.preproc_["F"][key]["center"].to_numpy()[None, :]
                 ) / self.preproc_["F"][key]["scale"].to_numpy()[None, :]
@@ -1612,7 +1619,7 @@ class TPLS(RegressorMixin, BaseEstimator):
                 self._check_preprocessed(np.nanstd(self.z_mats[key], axis=0, ddof=1), 1.0, "Z", key, "scale")
 
             for key in self.f_mats:
-                if not self.skip_f_matrix_preprocessing:
+                if not self.skip_f_matrix_preprocessing_:
                     self._check_preprocessed(np.nanmean(self.f_mats[key], axis=0), 0.0, "F", key, "centre")
                     self._check_preprocessed(np.nanstd(self.f_mats[key], axis=0, ddof=1), 1.0, "F", key, "scale")
 
