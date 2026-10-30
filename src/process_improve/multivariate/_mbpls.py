@@ -9,6 +9,7 @@ of each fitted component.
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import logging
 import time
 import typing
@@ -32,14 +33,13 @@ from ._common import (
     _nz,
     _scale_block_contributions,
     _select_n_components,
-    cumulative_block_t2,
     epsqrt,
     informative_widths,
     resolve_loop_settings,
     y_is_exhausted,
     y_reach,
 )
-from ._diagnostics import _select_rows, _t2_score_sd
+from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
@@ -275,7 +275,7 @@ def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
     Y's regression on its super score, about zero, and it has no Y-score.
     """
     target = np.column_stack([x_def[name] / context.sqrt_kb[name] for name in context.block_names])
-    component = _fit_one_component(x_def, target, target.shape[1], context)
+    component = _fit_one_component(x_def, target, context)
     t_super = component.super_score
     if context.algo == "nipals":
         c_a = quick_regress(y_def, t_super.reshape(-1, 1), per="column").flatten()
@@ -284,11 +284,12 @@ def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
     return component._replace(super_y_loading=c_a, super_y_score=np.zeros_like(t_super))
 
 
-def _fit_one_component(
-    x_def: dict[str, np.ndarray], y_def: np.ndarray, n_targets: int, context: _MBPLSLoopContext
-) -> _MBPLSComponent:
-    """Iterate one hierarchical NIPALS component to convergence on the deflated blocks."""
-    n_samples = y_def.shape[0]
+def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context: _MBPLSLoopContext) -> _MBPLSComponent:
+    """Iterate one hierarchical NIPALS component to convergence on the deflated blocks.
+
+    The first pass always runs. A centred seed changes by about its own size in that pass,
+    so a tolerance above 1 used to end the loop before it began and leave no weights.
+    """
     # Deterministic start (#503): seed ``u`` from the column of the (deflated) Y block with the
     # largest sum of squares, exactly as single-block PLS does (#195). No RNG is involved, so the
     # fit is reproducible without a random_state parameter, and the highest-variance Y column is
@@ -296,18 +297,7 @@ def _fit_one_component(
     # fitted signs independent of this seed. (NaN is replaced by 0 for the missing-data path.)
     start_col = int(np.argmax(np.nansum(y_def**2, axis=0)))
     u_a = np.nan_to_num(y_def[:, start_col].astype(float).copy())
-    prev = u_a + 1.0
-    local_w: dict[str, np.ndarray] = {}
-    local_t: dict[str, np.ndarray] = {}
-    t_super = np.zeros(n_samples)
-    w_s = np.zeros(len(context.block_names))
-    c_a = np.zeros(n_targets)
-    itern = 0
-    # Relative convergence criterion (#504): the change between two successive ``u`` iterations is
-    # judged against the size of the current ``u`` vector, so the decision is invariant to a global
-    # rescaling of the data. The denominator is floored via ``_nz`` so an all-zero ``u`` vector
-    # cannot divide by zero.
-    while np.linalg.norm(prev - u_a) / _nz(float(np.linalg.norm(u_a))) > context.tol and itern < context.max_iter:
+    for itern in itertools.count(1):
         prev = u_a
         local_w, local_t, t_b_summary = _block_projections(x_def, u_a, context)
 
@@ -337,7 +327,12 @@ def _fit_one_component(
         else:
             c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
             u_a = y_def @ c_a / _nz(float(c_a @ c_a))
-        itern += 1
+        # Relative convergence criterion (#504): the change between two successive ``u`` iterations is
+        # judged against the size of the current ``u`` vector, so the decision is invariant to a global
+        # rescaling of the data. The denominator is floored via ``_nz`` so an all-zero ``u`` vector
+        # cannot divide by zero.
+        if np.linalg.norm(prev - u_a) / _nz(float(np.linalg.norm(u_a))) <= context.tol or itern >= context.max_iter:
+            break
 
     component = _MBPLSComponent(
         block_weights=local_w,
@@ -725,7 +720,6 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             tol=self.tol,
             max_iter=self.max_iter,
             missing_data_settings=self.missing_data_settings,
-            validate=algo == "nipals",
             estimator_name="MBPLS",
         )
         if algo == "nipals":
@@ -758,7 +752,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             if exhausted:
                 component = _component_along_x(x_def, y_def, context)
             else:
-                component = _fit_one_component(x_def, y_def, self.n_targets_, context)
+                component = _fit_one_component(x_def, y_def, context)
             x_def, y_def, loadings = _deflate(x_def, y_def, component, context)
             work.record_component(a, component, loadings, context)
             work.record_explained_variation(a, x_def, y_def, initial, context)
@@ -863,7 +857,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """Record how each component's iteration went, and warn about any that ran out of steps."""
         converged = work.iterations < self.max_iter
         self.fitting_info_ = {"timing": work.timing, "iterations": work.iterations, "converged": converged}
-        logger.debug("MBPLS (%s): iterations per component = %s", self.algorithm_, list(work.iterations))
+        logger.debug("MBPLS (%s): iterations per component = %s", self.algorithm_, work.iterations.tolist())
         if not np.all(converged):
             failed = [int(i + 1) for i, ok in enumerate(converged) if not ok]
             warnings.warn(
@@ -1232,7 +1226,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             cells.append(f"{r2y_src.iloc[a]:>9.4f}")
             rows.append(" | ".join(cells))
         rows.append("")
-        rows.append(f"  Iterations per PC: {list(self.fitting_info_['iterations'])}")
+        rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")
         return "\n".join(rows)
 
