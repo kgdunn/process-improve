@@ -470,6 +470,7 @@ only_mutate = [
     "src/process_improve/multivariate/_null.py",
     "src/process_improve/multivariate/_procrustes.py",
     "src/process_improve/multivariate/_prm.py",
+    "src/process_improve/multivariate/_opls.py",
 ]
 # The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
 pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
@@ -498,4 +499,5 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_resampler.py",
     "tests/test_multivariate_null.py",
     "tests/test_multivariate_gpa.py",
+    "tests/test_multivariate_opls.py",
 ]
