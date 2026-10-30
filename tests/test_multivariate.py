@@ -9268,6 +9268,38 @@ def test_detect_outliers_ignores_a_limit_that_carries_no_information(monkeypatch
 # ---- PLS worked by hand: the estimator's API, its fit, its diagnostics and its cross-validation (#1027) ----
 
 
+def _scale_of(expected: object) -> float:
+    """Return the largest size among ``expected``'s finite values, 0 when it has none."""
+    values = np.abs(np.asarray(expected, dtype=float))
+    return float(np.nanmax(values)) if np.isfinite(values).any() else 0.0
+
+
+def _assert_near(actual: object, expected: object, rtol: float = 1e-7, atol: float | None = None) -> None:
+    """Assert agreement to ``rtol`` of each value, or of the largest one for a value near 0.
+
+    Two iterative fits, ours and sklearn's or two routes to ours, agree to their convergence
+    tolerances, about 1e-8 of the values they reach; a prediction near 0 then misses a purely
+    relative tolerance on some platforms' BLAS. The absolute floor is that tolerance scaled
+    to the largest value compared, so it stays far below any setting or model that is wrong.
+    """
+    floor = rtol * _scale_of(expected)
+    np.testing.assert_allclose(actual, expected, rtol=rtol, atol=floor if atol is None else max(atol, floor))
+
+
+def _assert_frame_near(left: pd.DataFrame, right: pd.DataFrame, rtol: float = 1e-5, **kwargs: object) -> None:
+    """``pd.testing.assert_frame_equal`` with the absolute floor of ``_assert_near``."""
+    floor = rtol * _scale_of(right.select_dtypes("number"))
+    atol = max(float(kwargs.pop("atol", 1e-8)), floor)
+    pd.testing.assert_frame_equal(left, right, rtol=rtol, atol=atol, **kwargs)
+
+
+def _assert_series_near(left: pd.Series, right: pd.Series, rtol: float = 1e-5, **kwargs: object) -> None:
+    """``pd.testing.assert_series_equal`` with the absolute floor of ``_assert_near``."""
+    floor = rtol * _scale_of(right) if pd.api.types.is_numeric_dtype(right) else 0.0
+    atol = max(float(kwargs.pop("atol", 1e-8)), floor)
+    pd.testing.assert_series_equal(left, right, rtol=rtol, atol=atol, **kwargs)
+
+
 def _pls_by_hand(X: np.ndarray, Y: np.ndarray, A: int) -> dict[str, np.ndarray]:
     """Return NIPALS PLS written out (Geladi and Kowalski, 1986), each component's largest loading positive.
 
@@ -9781,7 +9813,7 @@ def test_pls_imputed_fit_by_hand(method: str) -> None:
     predictions = reference["T"] @ reference["C"].T * completed[:, 4:].std(axis=0, ddof=1) + completed[:, 4:].mean(
         axis=0
     )
-    np.testing.assert_allclose(pls.predictions_.to_numpy(), predictions, rtol=1e-6)
+    _assert_near(pls.predictions_.to_numpy(), predictions, rtol=1e-6)
     # The diagnostics count the observed cells only: row 1 has its third X cell missing.
     z = (X.to_numpy() - completed[:, :4].mean(axis=0)) / completed[:, :4].std(axis=0, ddof=1)
     residual = z - reference["T"] @ reference["P"].T
@@ -10104,8 +10136,8 @@ def test_pls_nested_cv_by_hand(monkeypatch: pytest.MonkeyPatch) -> None:
     for i, ((train, test), count) in enumerate(zip(splits, [1, 2, 1], strict=True)):
         cls, x, y, kwargs = calls[i]
         assert cls is PLS
-        pd.testing.assert_frame_equal(x, X.iloc[train])
-        pd.testing.assert_frame_equal(y, Y.iloc[train])
+        _assert_frame_near(x, X.iloc[train])
+        _assert_frame_near(y, Y.iloc[train])
         assert kwargs == {
             "max_components": None,
             "cv": 5,
@@ -10118,13 +10150,13 @@ def test_pls_nested_cv_by_hand(monkeypatch: pytest.MonkeyPatch) -> None:
             "random_state": 4 + i,
         }
         oof[test] = _sklearn_pls(count).fit(X.iloc[train], Y.iloc[train]).predict(X.iloc[test])
-    pd.testing.assert_frame_equal(result.cv_predictions, pd.DataFrame(oof, index=Y.index, columns=Y.columns))
+    _assert_frame_near(result.cv_predictions, pd.DataFrame(oof, index=Y.index, columns=Y.columns))
     rmsep, q2 = _nested_scores_by_hand(Y.to_numpy(), oof)
-    pd.testing.assert_series_equal(result.rmsep, pd.Series(rmsep, index=["y0", "y1", "total"], name="RMSEP"))
-    pd.testing.assert_series_equal(result.q2y, pd.Series(q2, index=["y0", "y1", "total"], name="Q2Y"))
+    _assert_series_near(result.rmsep, pd.Series(rmsep, index=["y0", "y1", "total"], name="RMSEP"))
+    _assert_series_near(result.q2y, pd.Series(q2, index=["y0", "y1", "total"], name="Q2Y"))
     assert result.selected_components_per_fold == [1, 2, 1]
     expected = pd.Series([2 / 3, 1 / 3], index=pd.Index([1, 2], name="n_components"), name="vote_share")
-    pd.testing.assert_series_equal(result.selected_components_distribution, expected)
+    _assert_series_near(result.selected_components_distribution, expected)
 
 
 def test_pls_nested_cv_passes_its_settings_on_and_predicts_as_the_fold_models_do(
@@ -10177,7 +10209,7 @@ def test_pls_nested_cv_passes_its_settings_on_and_predicts_as_the_fold_models_do
         rows = X.index.get_indexer(x_train.index)
         held = np.setdiff1d(np.arange(12), rows)
         oof[held] = _sklearn_pls(count).fit(X.iloc[rows], Y.iloc[rows]).predict(X.iloc[held])
-    np.testing.assert_allclose(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
+    _assert_near(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
 
 
 class _RecordingSplitter(BaseCrossValidator):
@@ -10243,10 +10275,10 @@ def test_pls_nested_cv_scores_only_the_observed_cells_of_the_rows_it_predicts(
         result = PLS.nested_cv(X, Y, outer_cv=one_fold)
     oof = np.full((12, 2), np.nan)
     oof[:3] = _sklearn_pls(1).fit(X.iloc[3:], Y.iloc[3:]).predict(X.iloc[:3])
-    np.testing.assert_allclose(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
+    _assert_near(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
     rmsep, q2 = _nested_scores_by_hand(Y.to_numpy(), oof)
-    np.testing.assert_allclose(result.rmsep.to_numpy(), rmsep, rtol=1e-6)
-    np.testing.assert_allclose(result.q2y.to_numpy(), q2, rtol=1e-6)
+    _assert_near(result.rmsep.to_numpy(), rmsep, rtol=1e-6)
+    _assert_near(result.q2y.to_numpy(), q2, rtol=1e-6)
     assert np.isnan(rmsep).sum() == missed
     assert np.nansum((Y.to_numpy()[:3] - np.nanmean(Y.to_numpy(), axis=0)) ** 2) < 1
 
@@ -10260,7 +10292,7 @@ def test_pls_nested_cv_scales_inside_folds_for_a_model_that_does_not_scale(monke
     oof = np.full((12, 2), np.nan)
     for train, test in KFold(n_splits=2, shuffle=True, random_state=5).split(X):
         oof[test] = _sklearn_pls(2).fit(X.iloc[train], Y.iloc[train]).predict(X.iloc[test])
-    np.testing.assert_allclose(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
+    _assert_near(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
 
 
 def test_pls_nested_cv_projects_a_held_out_row_with_a_gap(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -10274,7 +10306,7 @@ def test_pls_nested_cv_projects_a_held_out_row_with_a_gap(monkeypatch: pytest.Mo
         trained = np.setdiff1d(np.arange(12), held)
         model = PLS(n_components=2).fit(X.iloc[trained], Y.iloc[trained])
         expected = model.project(X.iloc[held]).y_hat.to_numpy()
-        np.testing.assert_allclose(result.cv_predictions.iloc[held].to_numpy(), expected, rtol=1e-6)
+        _assert_near(result.cv_predictions.iloc[held].to_numpy(), expected, rtol=1e-6)
 
 
 def _cross_validated_by_hand(
@@ -10314,27 +10346,23 @@ def test_pls_cross_validate_by_hand(cv: str | int, weighted: bool, capsys: pytes
         resamples = list(KFold(n_splits=4, shuffle=True, random_state=2).split(X))
     betas, predictions = _cross_validated_by_hand(X, Y, resamples, weights)
     G = len(resamples)
-    np.testing.assert_allclose(result.beta_samples, betas, rtol=1e-6)
+    _assert_near(result.beta_samples, betas, rtol=1e-6)
     mean = betas.mean(axis=0)
     se = np.sqrt((G - 1) / G * np.sum((betas - mean) ** 2, axis=0))
     lower, upper = mean - t_dist.ppf(0.95, G - 1) * se, mean + t_dist.ppf(0.95, G - 1) * se
     for name, expected in (("beta_mean", mean), ("beta_std", se), ("beta_ci_lower", lower), ("beta_ci_upper", upper)):
-        pd.testing.assert_frame_equal(
-            result[name], pd.DataFrame(expected, index=X.columns, columns=Y.columns), rtol=1e-5
-        )
-    pd.testing.assert_frame_equal(
-        result.significant, pd.DataFrame((lower > 0) | (upper < 0), index=X.columns, columns=Y.columns)
-    )
+        _assert_frame_near(result[name], pd.DataFrame(expected, index=X.columns, columns=Y.columns), rtol=1e-5)
+    _assert_frame_near(result.significant, pd.DataFrame((lower > 0) | (upper < 0), index=X.columns, columns=Y.columns))
     assert (lower[4] == 0).all()
     assert (upper[4] == 0).all()
     assert not result.significant.loc["flat"].any()
-    pd.testing.assert_frame_equal(result.y_hat_cv, pd.DataFrame(predictions, index=rows, columns=targets), rtol=1e-6)
+    _assert_frame_near(result.y_hat_cv, pd.DataFrame(predictions, index=rows, columns=targets), rtol=1e-6)
     residual = Y.to_numpy() - predictions
     assert result.press == pytest.approx(np.sum(residual**2), rel=1e-6)
     rmse = np.sqrt(np.mean(residual**2, axis=0))
-    pd.testing.assert_series_equal(result.rmse_cv, pd.Series(rmse, index=targets, name="RMSE_CV"), rtol=1e-6)
+    _assert_series_near(result.rmse_cv, pd.Series(rmse, index=targets, name="RMSE_CV"), rtol=1e-6)
     q2 = 1 - np.sum(residual**2, axis=0) / np.sum((Y.to_numpy() - Y.to_numpy().mean(axis=0)) ** 2, axis=0)
-    pd.testing.assert_series_equal(result.q_squared, pd.Series(q2, index=targets, name="Q_squared"), rtol=1e-6)
+    _assert_series_near(result.q_squared, pd.Series(q2, index=targets, name="Q_squared"), rtol=1e-6)
     assert result.n_resamples == G
     assert result.method == {"loo": "jackknife", 4: "kfold"}[cv]
     assert result.conf_level == 0.9
@@ -10355,7 +10383,7 @@ def test_pls_cross_validate_bootstrap_by_hand(capsys: pytest.CaptureFixture) -> 
     rng = np.random.default_rng(3)
     draws = [(rng.choice(10, size=10, replace=True), None) for _ in range(5)]
     betas, _ = _cross_validated_by_hand(X, Y, draws)
-    np.testing.assert_allclose(result.beta_samples, betas, rtol=1e-6)
+    _assert_near(result.beta_samples, betas, rtol=1e-6)
     lower, upper = np.percentile(betas, 10, axis=0), np.percentile(betas, 90, axis=0)
     for name, expected in (
         ("beta_mean", betas.mean(axis=0)),
@@ -10363,12 +10391,8 @@ def test_pls_cross_validate_bootstrap_by_hand(capsys: pytest.CaptureFixture) -> 
         ("beta_ci_lower", lower),
         ("beta_ci_upper", upper),
     ):
-        pd.testing.assert_frame_equal(
-            result[name], pd.DataFrame(expected, index=X.columns, columns=Y.columns), rtol=1e-5
-        )
-    pd.testing.assert_frame_equal(
-        result.significant, pd.DataFrame((lower > 0) | (upper < 0), index=X.columns, columns=Y.columns)
-    )
+        _assert_frame_near(result[name], pd.DataFrame(expected, index=X.columns, columns=Y.columns), rtol=1e-5)
+    _assert_frame_near(result.significant, pd.DataFrame((lower > 0) | (upper < 0), index=X.columns, columns=Y.columns))
     assert (result.y_hat_cv, result.press, result.rmse_cv, result.q_squared) == (None, None, None, None)
     assert (result.n_resamples, result.method, result.conf_level) == (5, "bootstrap", 0.8)
     with warnings.catch_warnings():
@@ -10497,53 +10521,41 @@ def test_pls_fit_by_hand(scale: bool) -> None:
         "y_weights_": (ref["C"], Y.columns),
     }
     for name, (values, index) in frames.items():
-        pd.testing.assert_frame_equal(
-            getattr(pls, name), pd.DataFrame(values, index=index, columns=components), rtol=1e-6
-        )
+        _assert_frame_near(getattr(pls, name), pd.DataFrame(values, index=index, columns=components), rtol=1e-6)
     R = ref["W"] @ np.linalg.inv(ref["P"].T @ ref["W"])
-    pd.testing.assert_frame_equal(pls.direct_weights_, pd.DataFrame(R, index=X.columns, columns=components), rtol=1e-6)
+    _assert_frame_near(pls.direct_weights_, pd.DataFrame(R, index=X.columns, columns=components), rtol=1e-6)
     beta = R @ ref["C"].T * y_sd / x_sd[:, None]
-    pd.testing.assert_frame_equal(
-        pls.beta_coefficients_, pd.DataFrame(beta, index=X.columns, columns=Y.columns), rtol=1e-6
-    )
+    _assert_frame_near(pls.beta_coefficients_, pd.DataFrame(beta, index=X.columns, columns=Y.columns), rtol=1e-6)
     if scale:
         sklearn = _sklearn_pls(3).fit(X.drop(columns="flat"), Y.drop(columns="none"))
-        np.testing.assert_allclose(
-            pls.beta_coefficients_.drop(index="flat", columns="none").to_numpy(), sklearn.coef_.T, rtol=1e-6
-        )
+        _assert_near(pls.beta_coefficients_.drop(index="flat", columns="none").to_numpy(), sklearn.coef_.T, rtol=1e-6)
     predictions = ref["T"] @ ref["C"].T * y_sd + y_mean
-    pd.testing.assert_frame_equal(
-        pls.predictions_, pd.DataFrame(predictions, index=Y.index, columns=Y.columns), rtol=1e-6
-    )
+    _assert_frame_near(pls.predictions_, pd.DataFrame(predictions, index=Y.index, columns=Y.columns), rtol=1e-6)
     variance = np.sum(ref["T"] ** 2, axis=0) / 14
-    np.testing.assert_allclose(pls.explained_variance_, variance, rtol=1e-6)
-    pd.testing.assert_series_equal(
+    _assert_near(pls.explained_variance_, variance, rtol=1e-6)
+    _assert_series_near(
         pls.scaling_factor_for_scores_,
         pd.Series(np.sqrt(variance), index=components, name="Standard deviation per score"),
         rtol=1e-6,
     )
     t2 = np.cumsum(ref["T"] ** 2 / variance, axis=1)
-    pd.testing.assert_frame_equal(pls.hotellings_t2_, pd.DataFrame(t2, index=X.index, columns=components), rtol=1e-6)
-    np.testing.assert_allclose(pls._x_residuals, Z - ref["T"] @ ref["P"].T, rtol=1e-6, atol=1e-8)
+    _assert_frame_near(pls.hotellings_t2_, pd.DataFrame(t2, index=X.index, columns=components), rtol=1e-6)
+    _assert_near(pls._x_residuals, Z - ref["T"] @ ref["P"].T, rtol=1e-6, atol=1e-8)
     hand = _by_hand_diagnostics(Z, Zy, ref, y_sd)
-    pd.testing.assert_frame_equal(pls.spe_, pd.DataFrame(hand["spe"], index=X.index, columns=components), rtol=1e-6)
-    pd.testing.assert_frame_equal(
-        pls.r2_per_variable_, pd.DataFrame(hand["r2x"], index=X.columns, columns=components), rtol=1e-6
-    )
+    _assert_frame_near(pls.spe_, pd.DataFrame(hand["spe"], index=X.index, columns=components), rtol=1e-6)
+    _assert_frame_near(pls.r2_per_variable_, pd.DataFrame(hand["r2x"], index=X.columns, columns=components), rtol=1e-6)
     assert pls.r2_per_variable_.loc["flat"].isna().all()
     assert pls.r2y_per_variable_.loc["none"].isna().all()
-    pd.testing.assert_frame_equal(
-        pls.r2y_per_variable_, pd.DataFrame(hand["r2y"], index=Y.columns, columns=components), rtol=1e-6
-    )
-    pd.testing.assert_series_equal(
+    _assert_frame_near(pls.r2y_per_variable_, pd.DataFrame(hand["r2y"], index=Y.columns, columns=components), rtol=1e-6)
+    _assert_series_near(
         pls.r2_cumulative_, pd.Series(hand["r2"], index=components, name="Output cumulative R²"), rtol=1e-6
     )
-    pd.testing.assert_series_equal(
+    _assert_series_near(
         pls.r2_per_component_,
         pd.Series(np.diff(hand["r2"], prepend=0.0), index=components, name="Output R² per component"),
         rtol=1e-6,
     )
-    pd.testing.assert_frame_equal(pls.rmse_, pd.DataFrame(hand["rmse"], index=Y.columns, columns=components), rtol=1e-6)
+    _assert_frame_near(pls.rmse_, pd.DataFrame(hand["rmse"], index=Y.columns, columns=components), rtol=1e-6)
     np.testing.assert_array_equal(pls.fitting_info_["iterations"], ref["iterations"])
     assert pls.fitting_info_["timing"].shape == (3,)
     assert (pls.fitting_info_["timing"] >= 0).all()
@@ -10563,16 +10575,16 @@ def test_pls_fit_with_missing_cells_by_hand() -> None:
     pls = PLS(n_components=2, scale=False).fit(X, Y)
     ref = _pls_nipals_as_fitted(X.to_numpy(), Y.to_numpy(), 2)
     for name, attribute in (("T", "scores_"), ("W", "x_weights_"), ("P", "x_loadings_"), ("C", "y_loadings_")):
-        np.testing.assert_allclose(np.asarray(getattr(pls, attribute)), ref[name], rtol=1e-6, atol=1e-9)
+        _assert_near(np.asarray(getattr(pls, attribute)), ref[name], rtol=1e-6, atol=1e-9)
     np.testing.assert_array_equal(pls.fitting_info_["iterations"], ref["iterations"])
     hand = _by_hand_diagnostics(X.to_numpy(), Y.to_numpy(), ref, np.ones(2))
-    np.testing.assert_allclose(pls.spe_.to_numpy(), hand["spe"], rtol=1e-6)
-    np.testing.assert_allclose(pls.r2y_per_variable_.to_numpy(), hand["r2y"], rtol=1e-6)
-    np.testing.assert_allclose(pls.r2_cumulative_.to_numpy(), hand["r2"], rtol=1e-6)
-    np.testing.assert_allclose(pls.rmse_.to_numpy(), hand["rmse"], rtol=1e-6)
+    _assert_near(pls.spe_.to_numpy(), hand["spe"], rtol=1e-6)
+    _assert_near(pls.r2y_per_variable_.to_numpy(), hand["r2y"], rtol=1e-6)
+    _assert_near(pls.r2_cumulative_.to_numpy(), hand["r2"], rtol=1e-6)
+    _assert_near(pls.rmse_.to_numpy(), hand["rmse"], rtol=1e-6)
     assert np.isfinite(pls.rmse_.to_numpy()).all()
     assert pls.has_missing_data_ is True
-    np.testing.assert_allclose(pls._x_residuals, np.nan_to_num(X.to_numpy() - ref["T"] @ ref["P"].T), atol=1e-9)
+    _assert_near(pls._x_residuals, np.nan_to_num(X.to_numpy() - ref["T"] @ ref["P"].T), atol=1e-9)
     for gapped in ((X, Y.fillna(0.0)), (X.fillna(0.0), Y)):
         assert PLS(n_components=1, scale=False).fit(*gapped).has_missing_data_ is True
 
@@ -10714,13 +10726,13 @@ def test_pls_weighted_fit_by_hand() -> None:
     root = np.sqrt(weights)[:, None]
     ref = _pls_nipals_as_fitted(root * Z, root * Zy, 2)
     for name, attribute in (("W", "x_weights_"), ("P", "x_loadings_"), ("C", "y_loadings_")):
-        np.testing.assert_allclose(np.asarray(getattr(pls, attribute)), ref[name], rtol=1e-6, atol=1e-9)
+        _assert_near(np.asarray(getattr(pls, attribute)), ref[name], rtol=1e-6, atol=1e-9)
     np.testing.assert_array_equal(pls.fitting_info_["iterations"], ref["iterations"])
     T = Z @ ref["W"] @ np.linalg.inv(ref["P"].T @ ref["W"])
-    np.testing.assert_allclose(pls.scores_.to_numpy(), T, rtol=1e-6, atol=1e-9)
+    _assert_near(pls.scores_.to_numpy(), T, rtol=1e-6, atol=1e-9)
     C = ref["C"]
     U = np.column_stack([(Zy - T[:, :a] @ C[:, :a].T) @ C[:, a] / (C[:, a] @ C[:, a]) for a in range(2)])
-    np.testing.assert_allclose(pls.y_scores_.to_numpy(), U, rtol=1e-6, atol=1e-9)
+    _assert_near(pls.y_scores_.to_numpy(), U, rtol=1e-6, atol=1e-9)
     assert T[0] @ T[0] > 0.01  # the row of weight 0 has a score of its own
 
 
@@ -10902,34 +10914,30 @@ def test_pls_select_n_components_by_hand_with_repeated_folds() -> None:
     splits = list(RepeatedKFold(n_splits=3, n_repeats=2, random_state=1).split(X))
     hand = _select_by_hand(X, Y, splits, 3, 3)
     index = pd.Index([1, 2, 3], name="n_components")
-    pd.testing.assert_frame_equal(
+    _assert_frame_near(
         result.rmsecv, pd.DataFrame(hand["rmsecv"], index=index, columns=["y0", "y1", "total"]), rtol=1e-6
     )
     folds = [f"fold_{i}" for i in range(1, 7)]
-    pd.testing.assert_frame_equal(
-        result.per_fold_rmsecv, pd.DataFrame(hand["fold_rmse"], index=index, columns=folds), rtol=1e-6
-    )
-    pd.testing.assert_series_equal(result.se_rmsecv, pd.Series(hand["se"], index=index, name="SE(RMSECV)"), rtol=1e-6)
-    pd.testing.assert_series_equal(result.q2_se, pd.Series(hand["q2_se"], index=index, name="SE(Q2)"), rtol=1e-6)
-    pd.testing.assert_frame_equal(
+    _assert_frame_near(result.per_fold_rmsecv, pd.DataFrame(hand["fold_rmse"], index=index, columns=folds), rtol=1e-6)
+    _assert_series_near(result.se_rmsecv, pd.Series(hand["se"], index=index, name="SE(RMSECV)"), rtol=1e-6)
+    _assert_series_near(result.q2_se, pd.Series(hand["q2_se"], index=index, name="SE(Q2)"), rtol=1e-6)
+    _assert_frame_near(
         result.r2y_validated,
         pd.DataFrame(hand["r2y"], index=index, columns=["y0", "y1", "total", "scaled_total"]),
         rtol=1e-6,
     )
-    pd.testing.assert_frame_equal(
+    _assert_frame_near(
         result.r2x_validated, pd.DataFrame(hand["r2x"], index=index, columns=[*X.columns, "total"]), rtol=1e-6
     )
-    pd.testing.assert_series_equal(
-        result.press, pd.Series(hand["press_y"].sum(axis=1), index=index, name="PRESS"), rtol=1e-6
-    )
+    _assert_series_near(result.press, pd.Series(hand["press_y"].sum(axis=1), index=index, name="PRESS"), rtol=1e-6)
     best = int(np.argmin(hand["rmsecv"][:, -1])) + 1
     assert result.n_components == best
-    pd.testing.assert_frame_equal(
+    _assert_frame_near(
         result.cv_predictions, pd.DataFrame(hand["oof"][best - 1], index=Y.index, columns=Y.columns), rtol=1e-6
     )
     votes = [int(np.argmin(hand["fold_rmse"][:, 3 * r : 3 * r + 3].mean(axis=1))) + 1 for r in range(2)]
     shares = pd.Series([votes.count(a) / 2 for a in (1, 2, 3)], index=index, name="vote_share")
-    pd.testing.assert_series_equal(result.selection_distribution, shares)
+    _assert_series_near(result.selection_distribution, shares)
     assert result.selection_mode == int(np.argmax(shares.to_numpy())) + 1
     assert result.selection_is_stable is bool(shares.max() >= 0.75)
     assert result.selection_rule == "min"
@@ -10961,24 +10969,22 @@ def test_pls_select_n_components_hands_its_curves_to_the_rule(monkeypatch: pytes
     (rule, pooled), *per_repeat = calls
     assert rule == "1se"
     assert set(pooled) == {"mean_error", "se_error", "q2_cumulative", "min_q2_increase"}
-    np.testing.assert_allclose(pooled["mean_error"], hand["rmsecv"][:, -1], rtol=1e-6)
-    np.testing.assert_allclose(pooled["se_error"], hand["se"], rtol=1e-6)
-    np.testing.assert_allclose(pooled["q2_cumulative"], hand["r2y"][:, 2], rtol=1e-6)
+    _assert_near(pooled["mean_error"], hand["rmsecv"][:, -1], rtol=1e-6)
+    _assert_near(pooled["se_error"], hand["se"], rtol=1e-6)
+    _assert_near(pooled["q2_cumulative"], hand["r2y"][:, 2], rtol=1e-6)
     assert pooled["min_q2_increase"] == 0.01
-    np.testing.assert_allclose(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
+    _assert_near(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
     assert len(per_repeat) == 10
     for r, (name, kwargs) in enumerate(per_repeat):
         folds = hand["fold_rmse"][:, 5 * r : 5 * r + 5]
         assert name == "1se"
         assert set(kwargs) == {"mean_error", "se_error"}
-        np.testing.assert_allclose(kwargs["mean_error"], folds.mean(axis=1), rtol=1e-6)
-        np.testing.assert_allclose(kwargs["se_error"], folds.std(axis=1, ddof=1) / np.sqrt(5), rtol=1e-6)
+        _assert_near(kwargs["mean_error"], folds.mean(axis=1), rtol=1e-6)
+        _assert_near(kwargs["se_error"], folds.std(axis=1, ddof=1) / np.sqrt(5), rtol=1e-6)
     assert result.n_components == 2
-    pd.testing.assert_frame_equal(
-        result.cv_predictions, pd.DataFrame(hand["oof"][1], index=Y.index, columns=Y.columns), rtol=1e-6
-    )
+    _assert_frame_near(result.cv_predictions, pd.DataFrame(hand["oof"][1], index=Y.index, columns=Y.columns), rtol=1e-6)
     shares = pd.Series([0.5, 0.0, 0.5], index=pd.Index([1, 2, 3], name="n_components"), name="vote_share")
-    pd.testing.assert_series_equal(result.selection_distribution, shares)
+    _assert_series_near(result.selection_distribution, shares)
     assert result.selection_mode == 1
     assert result.selection_is_stable is True
 
@@ -11016,11 +11022,11 @@ def test_pls_select_n_components_hands_the_scored_counts_to_van_der_voet(monkeyp
     )
     hand = _select_by_hand(X, Y, list(KFold(n_splits=4, shuffle=True, random_state=3).split(X)), 2, 4)
     ((sse, kwargs),) = calls
-    np.testing.assert_allclose(sse, np.sum((Y.to_numpy() - hand["oof"]) ** 2, axis=2), rtol=1e-6)
-    np.testing.assert_allclose(kwargs.pop("total_rmsecv"), hand["rmsecv"][:, -1], rtol=1e-6)
+    _assert_near(sse, np.sum((Y.to_numpy() - hand["oof"]) ** 2, axis=2), rtol=1e-6)
+    _assert_near(kwargs.pop("total_rmsecv"), hand["rmsecv"][:, -1], rtol=1e-6)
     assert kwargs == settings
     assert result.n_components == 2
-    pd.testing.assert_series_equal(
+    _assert_series_near(
         result.randomization_pvalues,
         pd.Series([0.004, 0.3], index=pd.Index([1, 2], name="n_components"), name="p-value (Van der Voet)"),
     )
@@ -11090,12 +11096,12 @@ def test_pls_select_n_components_with_a_splitter_by_hand(scale_inside_folds: boo
     warned = [str(w.message) for w in record if w.category is SpecificationWarning]
     assert warned == ([] if scale_inside_folds else [message])
     hand = _select_by_hand(X, Y, list(splitter.split(X)), 3, 3, centred=scale_inside_folds or scale)
-    np.testing.assert_allclose(result.rmsecv.to_numpy(), hand["rmsecv"], rtol=1e-6)
-    np.testing.assert_allclose(result.r2y_validated.to_numpy(), hand["r2y"], rtol=1e-6)
-    np.testing.assert_allclose(result.r2x_validated.to_numpy(), hand["r2x"], rtol=1e-6)
-    np.testing.assert_allclose(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
+    _assert_near(result.rmsecv.to_numpy(), hand["rmsecv"], rtol=1e-6)
+    _assert_near(result.r2y_validated.to_numpy(), hand["r2y"], rtol=1e-6)
+    _assert_near(result.r2x_validated.to_numpy(), hand["r2x"], rtol=1e-6)
+    _assert_near(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
     assert list(result.per_fold_rmsecv.columns) == ["fold_1", "fold_2", "fold_3"]
-    np.testing.assert_allclose(result.cv_predictions.to_numpy(), hand["oof"][result.n_components - 1], rtol=1e-6)
+    _assert_near(result.cv_predictions.to_numpy(), hand["oof"][result.n_components - 1], rtol=1e-6)
     assert result.selection_distribution is None
 
 
@@ -11172,7 +11178,7 @@ def test_pls_select_n_components_scores_rows_as_a_fold_model_that_recentres_pred
             expected = sy.inverse_transform(fold.predict(sx.transform(X.iloc[test]))).to_numpy()
         else:
             expected = PRM(n_components=1).fit(X.iloc[train], Y.iloc[train]).predict(X.iloc[test]).to_numpy()
-        np.testing.assert_allclose(result.cv_predictions.iloc[test].to_numpy(), expected, rtol=1e-10)
+        _assert_near(result.cv_predictions.iloc[test].to_numpy(), expected, rtol=1e-10)
 
 
 def test_pls_nipals_iterates_at_least_once_on_a_huge_response() -> None:
@@ -11184,8 +11190,8 @@ def test_pls_nipals_iterates_at_least_once_on_a_huge_response() -> None:
     X, Y = X - X.mean(), Y - Y.mean()
     huge = PLS(n_components=2, scale=False).fit(X, Y * 1e20)
     plain = PLS(n_components=2, scale=False).fit(X, Y)
-    np.testing.assert_allclose(huge.x_weights_.to_numpy(), plain.x_weights_.to_numpy(), rtol=1e-6)
-    np.testing.assert_allclose(huge.y_loadings_.to_numpy(), 1e20 * plain.y_loadings_.to_numpy(), rtol=1e-6)
+    _assert_near(huge.x_weights_.to_numpy(), plain.x_weights_.to_numpy(), rtol=1e-6)
+    _assert_near(huge.y_loadings_.to_numpy(), 1e20 * plain.y_loadings_.to_numpy(), rtol=1e-6)
 
 
 def test_pls_unscaled_fit_reads_a_pandas_missing_value_as_nan() -> None:
@@ -11253,7 +11259,7 @@ def test_pls_select_n_components_projects_a_held_out_row_with_a_gap() -> None:
     result = PLS.select_n_components(X, Y, cv=cv, max_components=1)
     for train, test in cv.split(X):
         expected = PLS(n_components=1).fit(X.iloc[train], Y.iloc[train]).project(X.iloc[test]).y_hat.to_numpy()
-        np.testing.assert_allclose(result.cv_predictions.iloc[test].to_numpy(), expected, rtol=1e-6)
+        _assert_near(result.cv_predictions.iloc[test].to_numpy(), expected, rtol=1e-6)
 
 
 def test_pls_select_n_components_leave_one_out_with_one_response_by_hand() -> None:
@@ -11261,8 +11267,8 @@ def test_pls_select_n_components_leave_one_out_with_one_response_by_hand() -> No
     X, Y = _pls_block(n=8)
     result = PLS.select_n_components(X, Y[["y0"]], cv=LeaveOneOut(), max_components=2, selection_rule="min")
     hand = _select_by_hand(X, Y[["y0"]], list(LeaveOneOut().split(X)), 2, 8)
-    np.testing.assert_allclose(result.per_fold_rmsecv.to_numpy(), hand["fold_rmse"], rtol=1e-6)
-    np.testing.assert_allclose(result.rmsecv.to_numpy(), hand["rmsecv"], rtol=1e-6)
+    _assert_near(result.per_fold_rmsecv.to_numpy(), hand["fold_rmse"], rtol=1e-6)
+    _assert_near(result.rmsecv.to_numpy(), hand["rmsecv"], rtol=1e-6)
 
 
 def test_pls_select_n_components_in_small_units_by_hand() -> None:
@@ -11273,9 +11279,9 @@ def test_pls_select_n_components_in_small_units_by_hand() -> None:
     result = PLS.select_n_components(X, Y, cv=cv, max_components=2, selection_rule="min")
     hand = _select_by_hand(X, Y, list(cv.split(X)), 2, 3)
     assert (Y.to_numpy() ** 2).sum() < 1
-    np.testing.assert_allclose(result.r2y_validated.to_numpy(), hand["r2y"], rtol=1e-6)
-    np.testing.assert_allclose(result.r2x_validated.to_numpy(), hand["r2x"], rtol=1e-6)
-    np.testing.assert_allclose(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
+    _assert_near(result.r2y_validated.to_numpy(), hand["r2y"], rtol=1e-6)
+    _assert_near(result.r2x_validated.to_numpy(), hand["r2x"], rtol=1e-6)
+    _assert_near(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
 
 
 def test_pls_select_n_components_has_no_r2_where_the_held_out_rows_do_not_vary() -> None:

@@ -585,9 +585,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         K = self.n_features_in_
         M = self.n_targets_
 
-        # The blocks as given, copied. Y is floats already; an integer X, unscaled when
-        # scale=False, gives the products floats would, and the first deflation makes it floats.
-        X_given, Y_given = np.array(X), np.array(Y)
+        # The blocks as given, copied in C order whatever the layout pandas kept them in, so
+        # that every route to the same numbers sums them in the same order. Y is floats
+        # already; an integer X, unscaled when scale=False, gives the products floats would.
+        X_given, Y_given = np.asarray(X).copy(), np.asarray(Y).copy()
         Xd, Yd = X_given, Y_given
 
         # Weighted fit (#394): sqrt(w)-rescale X and Y up front. The NIPALS
@@ -942,8 +943,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if not isinstance(Y, pd.DataFrame):
             Y = pd.DataFrame(Y, index=sample_index)
         # The responses as floats, a pandas missing value (pd.NA) as NaN, as validate_data reads X:
-        # without scaling nothing else converts them, and pd.NA raised TypeError (#1027).
-        Y = Y.astype(float)
+        # without scaling nothing else converts them, and pd.NA raised TypeError (#1027). Columns
+        # of floats are left as they are: a copy can change the memory layout, and with it the
+        # order the scaler sums them in, so the fit would differ in its last digits from one
+        # scaled outside the model.
+        if not (Y.dtypes == np.float64).all():
+            Y = Y.astype(float)
 
         self.n_samples_: int = X.shape[0]
         Ny: int = Y.shape[0]
