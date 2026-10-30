@@ -370,8 +370,9 @@ def _report(loaded: _Loaded, model: Model, fit: Fit, cv: CrossValidation | None,
         report["r2y_cumulative"] = fit.model.r2_cumulative_
     if cv is not None:
         report["cross_validation"] = {
-            "q2_cumulative": cv.q2,
-            "q2_standard_error": cv.q2_se,
+            # Lists, as r2x_per_component is: ``clean`` leaves a pandas Series as it is, which is not JSON.
+            "q2_cumulative": cv.q2.tolist(),
+            "q2_standard_error": cv.q2_se.tolist(),
             "recommended_n_components": cv.n_components,
             "rule": cv.rule,
             "held_out": cv.held_out,
