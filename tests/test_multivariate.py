@@ -5396,8 +5396,9 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # scores = cross_val_score(tpls_test, transformed_data, None, cv=5)
     # Ensure model is fitted appropriately, with the expected number of iterations. These were
     # [11, 9, 27] when the iteration started from the first Quality column; it now starts from the
-    # column with the largest sum of squares (#954), which reaches the same model in fewer.
-    assert tpls_test.fitting_statistics["iterations"] == [8, 9, 25]
+    # column with the largest sum of squares (#954). The autoscaled Quality columns tie for the
+    # first component, so that one still starts from the first column; the third gets there in fewer.
+    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 25]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
     # Model parameters tested. ``hotellings_t2`` is now the cumulative per-component form

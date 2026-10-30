@@ -643,7 +643,11 @@ def largest_ssq_column(values: np.ndarray) -> np.ndarray:
     np.ndarray
         The chosen column, ``(N, 1)``, float, NaN replaced by 0.
     """
-    start_col = int(np.argmax(np.nansum(values**2, axis=0)))
+    ssq = np.nansum(values**2, axis=0)
+    # Autoscaled columns all have the same sum of squares up to round-off, so a plain argmax picks
+    # whichever is one ulp larger on this platform. Take the first column within round-off of the
+    # largest instead: the start, and so the iteration count, is then the same everywhere.
+    start_col = int(np.flatnonzero(ssq >= ssq.max() * (1 - 1e-9))[0])
     return np.nan_to_num(values[:, [start_col]].astype(float))
 
 
