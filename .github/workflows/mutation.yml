@@ -73,6 +73,8 @@ jobs:
             patterns: process_improve.multivariate._mbpls.*
           - name: tpls
             patterns: process_improve.multivariate._tpls.*
+          - name: cv criteria
+            patterns: process_improve.multivariate._cv_criteria.*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
