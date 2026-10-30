@@ -51,6 +51,22 @@ jobs:
               process_improve.multivariate._opls.*
           - name: pca
             patterns: process_improve.multivariate._pca.*
+          # PLS is split in two of about equal test time: its cross-validation and NIPALS,
+          # then the rest (a method's mutants are named `_pls.xǁPLSǁ<method>__mutmut_<n>`).
+          - name: pls cross-validation and nipals
+            patterns: >-
+              process_improve.multivariate._pls.xǁPLSǁselect_n_components*
+              process_improve.multivariate._pls.xǁPLSǁnested_cv*
+              process_improve.multivariate._pls.xǁPLSǁcross_validate*
+              process_improve.multivariate._pls.xǁPLSǁ_fit_nipals*
+          - name: pls
+            patterns: >-
+              process_improve.multivariate._pls.x_*
+              process_improve.multivariate._pls.xǁPLSǁ[!_cns]*
+              process_improve.multivariate._pls.xǁPLSǁ_[!f]*
+              process_improve.multivariate._pls.xǁPLSǁ_fit_imputed*
+              process_improve.multivariate._pls.xǁPLSǁcompare_cv_criteria*
+              process_improve.multivariate._pls.xǁPLSǁscore*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
