@@ -20,6 +20,7 @@ ordinary weighted fit: PRM is exactly PLS on ``sqrt(w)``-rescaled rows, which
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -39,17 +40,13 @@ _SMALLEST_WEIGHT = 1e-6
 
 
 def _as_frame(data: DataMatrix) -> pd.DataFrame:
-    """Coerce to a DataFrame, keeping a Series' name as its column label.
+    """Coerce to a DataFrame of floats, keeping a Series' name as its column label.
 
     PRM does its own numpy work on the blocks before handing them to ``PLS.fit``,
     so it needs the frame form up front rather than relying on the base class to
-    build one.
+    build one. None, in a block held as objects, reads as missing.
     """
-    if isinstance(data, pd.DataFrame):
-        return data
-    if isinstance(data, pd.Series):
-        return data.to_frame()
-    return pd.DataFrame(np.asarray(data, dtype=float))
+    return pd.DataFrame(data, dtype=float)
 
 
 def _checked_prior(sample_weight: np.ndarray | None, n_samples: int) -> np.ndarray:
@@ -74,24 +71,31 @@ def _checked_prior(sample_weight: np.ndarray | None, n_samples: int) -> np.ndarr
     return prior
 
 
-def _robust_scaler(block: pd.DataFrame, active: np.ndarray, *, scale: bool, l1: bool) -> MCUVScaler:
+def _column_medians(rows: np.ndarray) -> np.ndarray:
+    """Return the median of each column: the centre of Y."""
+    return np.median(rows, axis=0)
+
+
+def _robust_scaler(
+    block: pd.DataFrame, active: np.ndarray, *, scale: bool, centre: Callable[[np.ndarray], np.ndarray]
+) -> MCUVScaler:
     """Return a scaler centred robustly, once, on the rows the prior keeps.
 
-    The centre is the L1 median of the rows (``l1``, for X) or the median of each
-    column (for Y). With ``scale``, each column is also divided by 1.4826 times its
-    median absolute deviation, or by 1 where that is 0, and the L1 median is taken
-    in those units, the space the leverage distances are then measured in.
+    The centre is the L1 median of the rows (``centre=l1_median``, for X) or the
+    median of each column (``centre=_column_medians``, for Y). With ``scale``, each
+    column is also divided by 1.4826 times its median absolute deviation, or by 1
+    where that is 0, and the centre is taken in those units, the space the leverage
+    distances are then measured in.
     """
-    rows = block.to_numpy(dtype=float)[active]
+    rows = block.to_numpy()[active]
     spread = np.ones(rows.shape[1])
     if scale:
         mad = np.median(np.abs(rows - np.median(rows, axis=0)), axis=0) * _MAD_TO_SIGMA
         spread = np.where(mad > epsqrt, mad, 1.0)
-    centre = (l1_median(rows / spread) if l1 else np.median(rows / spread, axis=0)) * spread
     # Fitted for the sklearn metadata of the block (feature names, counts); centre and spread replaced.
     scaler = MCUVScaler().fit(block)
-    scaler.center_ = pd.Series(centre, index=scaler.center_.index)
-    scaler.scale_ = pd.Series(spread, index=scaler.scale_.index)
+    scaler.center_[:] = centre(rows / spread) * spread
+    scaler.scale_[:] = spread
     return scaler
 
 
@@ -257,7 +261,7 @@ class PRM(PLS):
                 "et al. (2005) do, when the norm of its regression on the unit-length scores changes by less "
                 "than coefficient_tol.",
                 DeprecationWarning,
-                stacklevel=3,
+                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
             )
 
     def _centres_and_scales(self) -> bool:
@@ -279,7 +283,7 @@ class PRM(PLS):
 
     def _reweighted(self, Y: pd.DataFrame, fit_weights: np.ndarray, active: np.ndarray) -> tuple[np.ndarray, float]:
         """Return the weights the current fit gives each row, and the norm of its regression on unit-length scores."""
-        residuals = Y.to_numpy(dtype=float) - self.predictions_.to_numpy(dtype=float)
+        residuals = Y.to_numpy() - self.predictions_.to_numpy()
         residual = _residual_weights(residuals, active, self.cutoff)
         # Each component scaled to unit length in the weighted fit, as SIMPLS's scores
         # are; NIPALS's first components are much the longest, and would decide alone.
@@ -288,7 +292,7 @@ class PRM(PLS):
         weights = residual * leverage
         weights[weights == 0] = _SMALLEST_WEIGHT
         # The regression of y on the unit-length scores is each y-loading times its score's length.
-        return weights, float(np.linalg.norm(np.asarray(self.y_loadings_, dtype=float) * lengths))
+        return weights, float(np.linalg.norm(np.asarray(self.y_loadings_) * lengths))
 
     def fit(self, X: DataMatrix, Y: DataMatrix, sample_weight: np.ndarray | None = None) -> PRM:
         """Fit by alternating between a weighted PLS fit and a reweighting step.
@@ -329,7 +333,7 @@ class PRM(PLS):
         """
         self._check_settings()
         X_df, Y_df = _as_frame(X), _as_frame(Y)
-        if np.any(np.isnan(X_df.to_numpy(dtype=float))) or np.any(np.isnan(Y_df.to_numpy(dtype=float))):
+        if np.any(np.isnan(X_df.to_numpy())) or np.any(np.isnan(Y_df.to_numpy())):
             raise ValueError(
                 "PRM does not support missing data: a row with missing cells has residual and leverage "
                 "distances that are not comparable with a complete row's, so it would be downweighted for "
@@ -340,11 +344,11 @@ class PRM(PLS):
         prior = _checked_prior(sample_weight, X_df.shape[0])
         active = prior > 0
         self._robust_scalers = (
-            _robust_scaler(X_df, active, scale=self.scale, l1=True),
-            _robust_scaler(Y_df, active, scale=self.scale, l1=False),
+            _robust_scaler(X_df, active, scale=self.scale, centre=l1_median),
+            _robust_scaler(Y_df, active, scale=self.scale, centre=_column_medians),
         )
-        x_centred = self._robust_scalers[0].transform(X_df).to_numpy(dtype=float)
-        y_centred = self._robust_scalers[1].transform(Y_df).to_numpy(dtype=float)
+        x_centred = self._robust_scalers[0].transform(X_df).to_numpy()
+        y_centred = self._robust_scalers[1].transform(Y_df).to_numpy()
         weights = _leverage_weights(x_centred, active, self.cutoff) * _residual_weights(y_centred, active, self.cutoff)
 
         self.weights_converged_ = False
@@ -357,7 +361,8 @@ class PRM(PLS):
             self.weight_shift_ = float(np.max(np.abs(updated - weights)))
             change = abs(norm - regression_norm)  # infinite on the first iteration
             weights, regression_norm = updated, norm
-            if change <= self.coefficient_tol * max(norm, epsqrt):
+            threshold = self.coefficient_tol * max(norm, epsqrt)
+            if change <= threshold:  # pragma: no mutate - < differs only at a change of exactly the threshold
                 self.weights_converged_ = True
                 break
 
@@ -366,7 +371,7 @@ class PRM(PLS):
         self.robust_weights_ = weights
         # The paper's intercept is the median residual of y - Xb, not the centre the
         # weighted fit ran about (the median of y): move the centre by the difference.
-        shift = np.median(Y_df.to_numpy(dtype=float)[active] - self.predictions_.to_numpy(dtype=float)[active], axis=0)
+        shift = np.median(Y_df.to_numpy()[active] - self.predictions_.to_numpy()[active], axis=0)
         y_scaler = self._robust_scalers[1]  # the scaler PLS.fit set as self._y_scaler
         y_scaler.center_ = y_scaler.center_ + shift
         self.predictions_ = self.predictions_ + shift

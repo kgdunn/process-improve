@@ -8,6 +8,8 @@ pass just as well against plain PLS, so each case here contrasts the two.
 
 from __future__ import annotations
 
+import pathlib
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,6 +18,8 @@ from sklearn.base import clone, is_regressor
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
+from process_improve.multivariate._common import epsqrt
+from process_improve.multivariate._prm import _column_medians, _residual_weights, _robust_scaler
 from process_improve.multivariate._robust import fair_weights, l1_median
 from process_improve.multivariate.methods import PLS, PRM, MCUVScaler
 
@@ -500,3 +504,204 @@ class TestPRMRejectsWhatItCannotHandle:
     def test_outlier_summary_before_fit(self) -> None:
         with pytest.raises(AttributeError, match="not fitted yet"):
             PRM(n_components=2).outlier_summary()
+
+
+class TestRobustScalingByHand:
+    """The centre and spread PRM fixes once, worked by hand."""
+
+    # Column a: 1, 2, 4, 7, 11 has median 4 and absolute deviations 3, 2, 0, 3, 7, whose median is 3.
+    # Column b: four zeros and a 5 has median 0 and a median absolute deviation of 0.
+    BLOCK = pd.DataFrame({"a": [1.0, 2.0, 4.0, 7.0, 11.0], "b": [0.0, 0.0, 0.0, 0.0, 5.0]})
+
+    def test_column_medians_and_spreads(self) -> None:
+        scaler = _robust_scaler(self.BLOCK, np.ones(5, dtype=bool), scale=True, centre=_column_medians)
+        np.testing.assert_allclose(scaler.center_, [4.0, 0.0], rtol=1e-15)
+        np.testing.assert_allclose(scaler.scale_, [3 * 1.4826, 1.0], rtol=1e-15)
+        assert list(scaler.center_.index) == list(scaler.scale_.index) == ["a", "b"]
+
+    def test_without_scaling_the_spread_is_one(self) -> None:
+        scaler = _robust_scaler(self.BLOCK, np.ones(5, dtype=bool), scale=False, centre=_column_medians)
+        np.testing.assert_allclose(scaler.center_, [4.0, 0.0], rtol=1e-15)
+        np.testing.assert_array_equal(scaler.scale_, [1.0, 1.0])
+
+    def test_only_the_active_rows_count(self) -> None:
+        """Without the last row, column a is 1, 2, 4, 7: median 3, deviations 2, 1, 1, 4, their median 1.5."""
+        active = np.array([True, True, True, True, False])
+        scaler = _robust_scaler(self.BLOCK, active, scale=True, centre=_column_medians)
+        np.testing.assert_allclose(scaler.center_, [3.0, 0.0], rtol=1e-15)
+        np.testing.assert_allclose(scaler.scale_, [1.5 * 1.4826, 1.0], rtol=1e-15)
+
+    def test_a_spread_of_exactly_epsqrt_counts_as_none(self) -> None:
+        """Deviations of v = epsqrt / 1.4826 scale to exactly epsqrt, which is not above it, so the spread is 1."""
+        v = epsqrt / 1.4826
+        assert v * 1.4826 == epsqrt
+        block = pd.DataFrame({"tiny": [-v, -v, 0.0, v, v]})
+        scaler = _robust_scaler(block, np.ones(5, dtype=bool), scale=True, centre=_column_medians)
+        np.testing.assert_array_equal(scaler.scale_, [1.0])
+
+    def test_x_is_centred_at_the_l1_median_in_scaled_units(self) -> None:
+        rng = np.random.default_rng(3)
+        block = pd.DataFrame(rng.normal(size=(15, 2)) * [1.0, 40.0])
+        scaler = _robust_scaler(block, np.ones(15, dtype=bool), scale=True, centre=l1_median)
+        scaled = block.to_numpy() / scaler.scale_.to_numpy()
+        best = minimize(
+            _cost, np.median(scaled, axis=0), args=(scaled,), method="Nelder-Mead", options={"xatol": 1e-10}
+        )
+        np.testing.assert_allclose(scaler.center_.to_numpy() / scaler.scale_.to_numpy(), best.x, atol=1e-6)
+
+
+class TestRobustWeightsByHand:
+    def test_each_target_is_standardised_alone(self) -> None:
+        """Two targets: 0, 1, 2, 3, 10 (median 2, median absolute deviation 1) and 5, 6, 8, 10, 0 (6 and 2).
+
+        The standardised residuals are (-2, -1, 0, 1, 8) and (-0.5, 0, 1, 2, -3); a row's distance is
+        their norm, and its weight the Fair function's 1 / (1 + d / 4)^2.
+        """
+        residuals = np.array([[0.0, 5.0], [1.0, 6.0], [2.0, 8.0], [3.0, 10.0], [10.0, 0.0]])
+        distances = np.hypot([-2.0, -1.0, 0.0, 1.0, 8.0], [-0.5, 0.0, 1.0, 2.0, -3.0])
+        weights = _residual_weights(residuals, np.ones(5, dtype=bool), 4.0)
+        np.testing.assert_allclose(weights, 1.0 / (1.0 + distances / 4.0) ** 2, rtol=1e-14)
+
+
+class TestPRMScaling:
+    def test_scale_true_is_scale_false_on_blocks_divided_by_their_robust_spreads(self) -> None:
+        """Each column of X and of Y over 1.4826 times its median absolute deviation (1 where that is 0).
+
+        Two targets of different spreads, and an X column whose median absolute deviation is 0. One
+        reweighting each, so the comparison is of one weighted fit, not of where two loops stop.
+        """
+        X, y = _dataset(seed=4)
+        X["steps"] = np.r_[np.zeros(N_SAMPLES - 5), np.arange(1.0, 6.0)]
+        Y = pd.DataFrame({"a": y["y"], "b": 30.0 * y["y"] + np.random.default_rng(4).normal(size=N_SAMPLES)})
+
+        def spreads(block: pd.DataFrame) -> np.ndarray:
+            values = block.to_numpy()
+            mad = 1.4826 * np.median(np.abs(values - np.median(values, axis=0)), axis=0)
+            return np.where(mad > 0, mad, 1.0)
+
+        sx, sy = spreads(X), spreads(Y)
+        assert sx[-1] == 1.0
+        scaled = PRM(n_components=2, max_weight_iter=1).fit(X, Y)
+        by_hand = PRM(n_components=2, max_weight_iter=1, scale=False).fit(X / sx, Y / sy)
+        np.testing.assert_allclose(scaled.scores_, by_hand.scores_, atol=1e-9)
+        np.testing.assert_allclose(scaled.predict(X), by_hand.predict(X / sx) * sy, rtol=1e-9)
+
+    def test_the_intercept_of_each_target_is_its_median_residual(self) -> None:
+        X, y = _dataset(seed=0, n_bad=N_BAD)
+        Y = pd.DataFrame({"a": y["y"], "b": -2.0 * y["y"] + 7.0})
+        model = PRM(n_components=2).fit(X, Y)
+        residuals = Y.to_numpy() - model.predict(X).to_numpy()
+        np.testing.assert_allclose(np.median(residuals, axis=0), [0.0, 0.0], atol=1e-10)
+        np.testing.assert_allclose(model.predictions_, model.predict(X), rtol=1e-12)
+
+
+class TestPRMSettingsInFull:
+    def test_the_defaults_and_settings_reach_pls(self) -> None:
+        assert PRM(n_components=2).get_params() == {
+            "n_components": 2,
+            "cutoff": 4.0,
+            "max_weight_iter": 100,
+            "coefficient_tol": 0.01,
+            "weight_tol": None,
+            "scale": True,
+            "max_iter": 1000,
+            "tol": epsqrt,
+            "copy": True,
+            "missing_data_settings": None,
+            "warn_on_uncentred": True,
+        }
+        settings = {"max_iter": 7, "tol": 1e-3, "copy": False, "missing_data_settings": {"md_tol": 1e-3}}
+        model = PRM(n_components=2, warn_on_uncentred=False, **settings)
+        assert {name: model.get_params()[name] for name in settings} == settings
+        assert model.get_params()["warn_on_uncentred"] is False
+
+    @pytest.mark.parametrize("cutoff", [0.0, -1.0, np.inf])
+    def test_the_settings_are_checked_before_the_data(self, cutoff: float) -> None:
+        X, y = _dataset(seed=0)
+        X.iloc[0, 0] = np.nan
+        with pytest.raises(ValueError, match=rf"^cutoff must be a positive finite number; got {cutoff!r}\.$"):
+            PRM(n_components=2, cutoff=cutoff).fit(X, y)
+
+    def test_a_cutoff_of_one_is_allowed(self) -> None:
+        assert np.isfinite(PRM(n_components=2, cutoff=1.0).fit(*_dataset(seed=0)).robust_weights_).all()
+
+    def test_a_zero_coefficient_tol_is_refused(self) -> None:
+        with pytest.raises(ValueError, match=r"^coefficient_tol must be a positive finite number; got 0\.0\.$"):
+            PRM(n_components=2, coefficient_tol=0.0).fit(*_dataset(seed=0))
+
+    def test_the_messages_in_full(self) -> None:
+        X, y = _dataset(seed=0)
+        with pytest.raises(ValueError, match=r"^sample_weight has 5 entries; expected 60 to match X / Y\.$"):
+            PRM(n_components=2).fit(X, y, sample_weight=np.ones(5))
+        with pytest.raises(ValueError, match=r"^sample_weight must leave at least one row with a positive weight\.$"):
+            PRM(n_components=2).fit(X, y, sample_weight=np.zeros(N_SAMPLES))
+        with pytest.raises(AttributeError, match=r"^This PRM instance is not fitted yet; call 'fit' first\.$"):
+            PRM(n_components=2).outlier_summary()
+        y.iloc[3, 0] = np.nan
+        with pytest.raises(
+            ValueError,
+            match=r"^PRM does not support missing data: a row with missing cells has residual and leverage "
+            r"distances that are not comparable with a complete row's, so it would be downweighted for being "
+            r"incomplete rather than for being an outlier\. Use PLS, which threads missing data through NIPALS, "
+            r"or impute first\.$",
+        ):
+            PRM(n_components=2).fit(X, y)
+
+    def test_none_in_a_block_held_as_objects_is_missing(self) -> None:
+        X, y = _dataset(seed=0)
+        X = X.astype(object)
+        X.iloc[0, 0] = None
+        with pytest.raises(ValueError, match=r"^PRM does not support missing data"):
+            PRM(n_components=2).fit(X, y)
+
+    def test_weights_held_as_objects_are_read_as_numbers(self) -> None:
+        X, y = _dataset(seed=0)
+        as_objects = PRM(n_components=2).fit(X, y, sample_weight=np.ones(N_SAMPLES, dtype=object))
+        np.testing.assert_array_equal(as_objects.robust_weights_, PRM(n_components=2).fit(X, y).robust_weights_)
+
+    def test_the_deprecation_in_full_and_from_the_caller(self) -> None:
+        with pytest.warns(DeprecationWarning, match="^process_improve") as record:
+            PRM(n_components=2, weight_tol=1e-4).fit(*_dataset(seed=0))
+        assert str(record[0].message) == (
+            "process_improve.multivariate.methods.PRM.weight_tol is deprecated since 2.2.0 and will be removed in "
+            "3.0; use coefficient_tol instead. weight_tol has no effect: PRM stops, as Serneels et al. (2005) do, "
+            "when the norm of its regression on the unit-length scores changes by less than coefficient_tol."
+        )
+        assert pathlib.Path(record[0].filename).name != "_prm.py"
+
+
+class TestPRMLoopInFull:
+    def test_the_first_iteration_never_stops_the_loop(self) -> None:
+        """The first change is from an infinite norm, so even a huge tolerance stops at the second iteration."""
+        model = PRM(n_components=2, coefficient_tol=1e9).fit(*_dataset(seed=0))
+        assert model.n_weight_iter_ == 2
+        assert model.weights_converged_ is True
+
+    def test_a_budget_of_one_reports_no_convergence(self) -> None:
+        model = PRM(n_components=2, max_weight_iter=1).fit(*_dataset(seed=0, n_bad=N_BAD))
+        assert model.weights_converged_ is False
+
+    def test_a_weight_that_underflows_to_zero_is_floored(self) -> None:
+        """A row 1e100 out in X and in y: two Fair weights near (4 / 1e100)^2 multiply to 0, which becomes 1e-6."""
+        X, y = _dataset(seed=0)
+        X.iloc[5] = 1e100 * np.sign(X.iloc[0].to_numpy())
+        y.iloc[5, 0] = -1e100
+        weights = PRM(n_components=2, max_weight_iter=1).fit(X, y).robust_weights_
+        assert weights[5] == 1e-6
+        assert (weights[np.arange(N_SAMPLES) != 5] > 0.01).all()
+
+
+class TestOutlierSummaryInFull:
+    def test_labelled_as_the_training_rows_with_a_threshold_of_one_tenth(self) -> None:
+        X, y = _dataset(seed=0, n_bad=N_BAD, kind="vertical")
+        labels = [f"run{i}" for i in range(N_SAMPLES)]
+        X.index = y.index = labels
+        model = PRM(n_components=2).fit(X, y)
+        flagged = model.outlier_summary()
+        pd.testing.assert_frame_equal(flagged, model.outlier_summary(threshold=0.1))
+        assert set(flagged.index) == set(labels[:N_BAD])
+
+    def test_a_weight_equal_to_the_threshold_is_not_below_it(self) -> None:
+        model = PRM(n_components=2).fit(*_dataset(seed=0, n_bad=N_BAD))
+        weakest = float(model.robust_weights_.min())
+        assert model.outlier_summary(threshold=weakest).empty

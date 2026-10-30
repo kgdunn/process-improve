@@ -98,10 +98,8 @@ class Resampler:
         self.fraction_excluded = float(fraction_excluded)
         if self.use_jackknife and self.bootstrap_rounds > 0 and self.fraction_excluded > 0.0:
             raise ValueError(
-                (
-                    "`use_jackknife`, `bootstrap_rounds`, and `fraction_excluded` are mutually exclusive. ",
-                    "Set only one of them.",
-                )
+                "`use_jackknife`, `bootstrap_rounds`, and `fraction_excluded` are mutually exclusive. "
+                "Set only one of them."
             )
 
         # Resolve random_state up front so the same instance can be
@@ -146,9 +144,7 @@ class Resampler:
         # Generate bootstrap samples, resample with replacement, in a loop of self.bootstrap_rounds iterations.
         # The shared ``self._rng`` is seeded via the constructor's ``random_state`` (ENG-08).
         for _ in tqdm(range(self.bootstrap_rounds), desc="Bootstrap Resampling", disable=not show_progress):
-            # Resample indices with replacement
-
-            indices = self._rng.choice(len(self.x), size=len(self.x), replace=True)
+            indices = self._rng.choice(len(self.x), size=len(self.x))  # with replacement, choice's default
             x_train = self.x[indices]
             parameter = self.accessor(clone(self.estimator).fit(x_train))
             self.parameters.append(parameter)
@@ -197,22 +193,24 @@ class Resampler:
         """
         Plot the results of the resampling.
 
-        A vertical line can be added at the specified cutoff value. If `cutoff` is None, no vertical line is added.
+        One density per parameter, ordered by median, largest first, each estimated on one grid
+        from the smallest to the largest resampled value. A vertical line can be added at the
+        specified cutoff value. If `cutoff` is None, no vertical line is added.
         """
         parameters = pd.DataFrame(self.parameters)
-        size_per_sample = len(self.parameters[0])
 
         # Resort the columns of the parameters DataFrame by the .median() value of each column
         parameters = parameters.reindex(parameters.median().sort_values(ascending=False).index, axis=1)
+        values = parameters.to_numpy()
 
         fig = ridgeplot.ridgeplot(
-            samples=parameters.to_numpy().T.reshape((size_per_sample, 1, self.n_resamples)),
-            # bandwidth=4,
-            kde_points=np.linspace(0, 2, 500),
-            colorscale="viridis",
+            samples=values.T,  # one row of samples per parameter
+            kde_points=np.linspace(values.min(), values.max(), 500),
+            colorscale="viridis",  # pragma: no mutate - colour scale names are read in any case
             colormode="row-index",
             opacity=0.6,
-            labels=parameters.columns.tolist(),
+            # An array-valued accessor gives integer column labels, which ridgeplot cannot join.
+            labels=[str(label) for label in parameters.columns],
             spacing=0.1,
             norm="probability",
         )
@@ -220,20 +218,12 @@ class Resampler:
             fig.add_vline(
                 x=cutoff, line_color="red", line_dash="dash", annotation_text="Cutoff", annotation_position="top left"
             )
+        # ridgeplot already shows the grid, hides the zero line and shows the tick labels on both axes.
         fig.update_layout(
             font_size=16,
             plot_bgcolor="white",
-            xaxis=dict(
-                title="Parameter Value",
-                showgrid=True,
-                zeroline=False,
-            ),
-            yaxis=dict(
-                title="Parameter Index",
-                showgrid=True,
-                zeroline=False,
-                showticklabels=True,
-            ),
+            xaxis=dict(title="Parameter Value"),
+            yaxis=dict(title="Parameter Index"),
             title="Resampling Results",
         )
         return fig
