@@ -1318,6 +1318,19 @@ def test_robust_regression_bootstrap_without_intercept_leaves_its_interval_undef
     assert out["conf_intervals"][0][0] < 2.0 < out["conf_intervals"][0][1]
 
 
+def test_robust_regression_bootstrap_without_a_resampled_slope_gives_nan_intervals() -> None:
+    """Three points on two x values: a lone resample can draw one x only, and then no interval exists."""
+    x, y = np.array([1.0, 1.0, 2.0]), np.array([1.0, 2.0, 4.0])
+    # Seed 4's one resample draws the third point three times.
+    assert np.random.default_rng(4).integers(0, 3, size=(1, 3)).tolist() == [[2, 2, 2]]
+
+    out = robust_regression(x, y, n_boot=1, random_state=4)
+    assert np.isnan(out["conf_intervals"]).all()
+    assert np.isnan(out["conf_interval_intercept"]).all()
+    assert np.isnan(out["pi_range"][:, 1:]).all()
+    assert out["coefficients"][0] == pytest.approx(2.5)
+
+
 @pytest.mark.slow
 def test_robust_regression_bootstrap_interval_covers_the_slope_with_outliers() -> None:
     """With 20% of the points moved far off the line, the bootstrap interval still covers the true slope.
