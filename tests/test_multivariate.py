@@ -298,6 +298,7 @@ def test_pca_foods() -> None:
             )
     except (urllib.error.URLError, TimeoutError):
         pytest.skip("Cannot reach openmv.net - skipping network-dependent test")
+        return  # pytest.skip raises; CodeQL cannot tell, and reads ``foods`` as possibly unset below
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
@@ -2569,12 +2570,14 @@ def test_pls_invalid_calls() -> None:
     with pytest.raises(ValueError, match=r"Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, tol=0)
 
-    # The `method` input parameter does not exist anymore
+    # The `method` and `md_method` input parameters do not exist anymore
+    retired: dict[str, object] = {"method": "SVDS"}
     with pytest.raises(ValueError, match=r"Method 'SVDS' is not known."):
-        _ = PLS(n_components=A, method="SVDS")
+        _ = PLS(n_components=A, **retired)
 
+    retired = {"md_method": "SCP"}
     with pytest.raises(ValueError, match=r"Missing data method 'SCP' is not known."):
-        _ = PLS(n_components=A, md_method="SCP")
+        _ = PLS(n_components=A, **retired)
 
     model = PLS(n_components=A)
     with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
@@ -11091,6 +11094,8 @@ def test_pls_select_n_components_leaves_out_a_count_that_cannot_score_a_held_out
     """A held-out row observed in one X column has no score from two components: that count gets no PRESS (#676).
 
     Its curves are NaN, Van der Voet is handed the first count alone, and its p-value is NaN.
+    The folds are fixed, with that row in the first of four: a count stays unscored once any
+    fold cannot score it, though the later folds score every row.
     """
     calls: list[tuple] = []
 
@@ -11101,7 +11106,7 @@ def test_pls_select_n_components_leaves_out_a_count_that_cannot_score_a_held_out
     monkeypatch.setattr("process_improve.multivariate._pls._vandervoet_randomization", test)
     X, Y = _pls_block(n=12)
     X.iloc[0, 1:] = np.nan
-    result = PLS.select_n_components(X, Y, cv=4, n_repeats=1, max_components=2, selection_rule="randomization")
+    result = PLS.select_n_components(X, Y, cv=KFold(4), max_components=2, selection_rule="randomization")
     ((sse, kwargs),) = calls
     assert sse.shape == (1, 12)
     np.testing.assert_allclose(kwargs["total_rmsecv"], result.rmsecv["total"].to_numpy()[:1])
