@@ -453,11 +453,17 @@ def test_data_that_cannot_be_cross_validated_is_refused(rows_x: int, rows_y: int
 
 
 def _robust_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Two latent variables, with a few rows that pull the means away from PRM's robust centre."""
+    """Two latent variables, with a few rows that pull the means away from PRM's robust centre.
+
+    PRM's reweighting on these rows is sensitive: inputs that differ in their last digits
+    can take 44 passes rather than 39 and land 0.26 apart. The blocks are returned as the
+    module reads them, as float copies, so that a fold PRM fitted here and the module's own
+    start from the same numbers, summed in the same order, on every numpy and pandas.
+    """
     X, Y = _two_component_data(n=40, k=6)
     X.iloc[:5] += 4.0
     Y.iloc[:3] += 3.0
-    return X, Y
+    return X.astype(float), Y.astype(float)
 
 
 def test_prm_held_out_rows_are_predicted_as_each_fold_model_predicts_them() -> None:
