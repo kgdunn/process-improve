@@ -67,6 +67,46 @@ def _drop_non_finite_pairs(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np
     return x[finite], y[finite]
 
 
+def _repeated_median(x: np.ndarray, y: np.ndarray) -> float:
+    """
+    Siegel's repeated-median slope of finite, equal-length 1-D arrays, without input checks.
+
+    Row ``i`` of an N x N matrix holds the slopes ``(y[j] - y[i]) / (x[j] - x[i])``, with
+    NaN on the diagonal and wherever ``x[j] == x[i]``. Sorting each row puts its NaN last,
+    so the row's median sits at fixed positions among its defined slopes. A row with no
+    defined slope has no median and is left out of the outer one; with none at all the
+    slope is NaN. At the SEC-19 cap of 5,000 points the matrix and the x differences it is
+    divided by take 400 MB together.
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Finite 1-D arrays of the same length.
+
+    Returns
+    -------
+    float
+        The median over the rows of each row's median slope.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    dx = x[None, :] - x[:, None]
+    slopes = y[None, :] - y[:, None]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        np.divide(slopes, dx, out=slopes)
+    slopes[dx == 0] = np.nan
+    del dx
+    slopes.sort(axis=1)
+    n_defined = np.count_nonzero(~np.isnan(slopes), axis=1)
+    rows = np.flatnonzero(n_defined)
+    if rows.size == 0:
+        return float("nan")
+    count = n_defined[rows]
+    # (a + b) / 2 is how np.median averages the middle pair, and gives a when a == b.
+    row_medians = (slopes[rows, (count - 1) // 2] + slopes[rows, count // 2]) / 2
+    return float(np.median(row_medians))
+
+
 def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) -> float:
     """
     Robust slope calculation via Siegel's repeated-median estimator.
@@ -110,13 +150,12 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
     formed, and the estimate is computed from the remainder. The dropping is pairwise and
     silent, so check the inputs first if the count of usable observations matters to you.
 
-
-    INVESTIGATE: algorithm speed-ups via these articles:
-    https://link.springer.com/article/10.1007/PL00009190
-    http://www.sciencedirect.com/science/article/pii/S0020019003003508
+    Cost: the pairwise slopes are formed at once as an N x N matrix, so time and memory grow
+    as N squared. At the SEC-19 cap of 5,000 points the call needs about 425 MB of memory;
+    at 1,000 points, 17 MB. Faster algorithms exist (Matousek, Mount,
+    Netanyahu, 1998, https://link.springer.com/article/10.1007/PL00009190), but they are not
+    used here.
     """
-    # Slope
-    medians = []
     x = x.copy().ravel() if isinstance(x, np.ndarray) else pd.Series(x).values.ravel()
     y = y.copy().ravel() if isinstance(y, np.ndarray) else pd.Series(y).values.ravel()
 
@@ -139,26 +178,7 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
             )
 
     x, y = _drop_non_finite_pairs(x, y)
-
-    for i in np.arange(len(x)):
-        inner_medians = []
-        for j in np.arange(len(y)):
-            den = x[j] - x[i]
-            if j != i and den != 0:
-                inner_medians.append((y[j] - y[i]) / den)
-
-        # An empty list means every other point shares this x value, so no slope
-        # through point i is defined. Record that directly instead of calling a
-        # median on an empty slice, which warns.
-        medians.append(np.median(inner_medians) if inner_medians else np.nan)
-
-    if np.all(np.isnan(medians)):
-        # Documented degenerate case: no slope is defined anywhere (e.g. every x
-        # value is equal). Return NaN without routing an all-NaN list through
-        # np.nanmedian, which would warn.
-        return float("nan")
-
-    return float(np.nanmedian(medians))
+    return _repeated_median(x, y)
 
 
 def robust_regression(  # noqa: PLR0913, PLR0915
